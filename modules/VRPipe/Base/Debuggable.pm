@@ -40,7 +40,7 @@ role VRPipe::Base::Debuggable {
                           isa => 'Bool' );
     has 'log_file'   => ( is => 'rw',
                           isa => 'Str',
-                          default => File::Spec->catfile($ENV{HOME}, '.vertres.log') );
+                          default => File::Spec->catfile($ENV{HOME}, '.VRPipe.log') );
     
 =head2 verbose
 
@@ -137,8 +137,6 @@ role VRPipe::Base::Debuggable {
 
 =cut
     method throw (Str $message = '[no message]') {
-        $self->log($message, 2);
-        
         my $cwd = getcwd();
         my $first_line = "FATAL ERROR on $time{'yyyy/mm/dd hh:mm:ss'} in $cwd";
         
@@ -152,6 +150,14 @@ role VRPipe::Base::Debuggable {
         foreach my $read ($capture->read) {
             foreach my $line (split(/\n/, $read)) {
                 $line =~ s/\t/    /g;
+                
+                if ($line =~ /^    \S+Debuggable::throw.+ called at (.+)/) {
+                    $line = "Thrown from $1";
+                }
+                elsif ($line =~ /^ at \S+Debuggable.pm line \d+$/) {
+                    next;
+                }
+                
                 if (length($line) > $line_length) {
                     $line_length = length($line);
                 }
@@ -161,11 +167,20 @@ role VRPipe::Base::Debuggable {
         
         my $line = '-' x ($line_length + 4);
         my $throw_message = "\n$line\n";
-        foreach my $line ($first_line, $message, @confess) {
+        
+        my @message;
+        foreach my $message_line (split(/\n/, $message)) {
+            $message_line =~ s/\s+$//;
+            push(@message, $message_line);
+        }
+        
+        foreach my $line ($first_line, '', @message, '', @confess) {
             my $this_length = length($line);
             $throw_message .= "| $line".(' 'x($line_length - $this_length))." |\n";
         }
         $throw_message .= $line."\n\n";
+        
+        $self->log($throw_message, 2);
         
         die $throw_message;
     }

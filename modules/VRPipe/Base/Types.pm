@@ -31,25 +31,52 @@ use strict;
 use warnings;
 
 # predeclare our own types
-use MooseX::Types -declare => [qw(PositiveInt VerbosityValue)];
+use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
+                                  ArrayRefOfStrings FileNameOrHandle)];
 
-# import builtin types to subtype from
-use MooseX::Types::Moose qw(Num Int);
+# import built-in types to subtype from
+use MooseX::Types::Moose qw(Num Int Defined Str FileHandle ArrayRef);
 
 # custom type definitions
 subtype PositiveInt, 
     as Int, 
     where { $_ > 0 },
     message { "Int is not larger than 0" };
+coerce PositiveInt,
+    from Int,
+    via { 1 };
 
 subtype VerbosityValue,
     as Num,
     where { $_ == -1 || $_ == 0 || $_ == 0.5 || $_ == 1 || $_ == 2 },
     message { "Verbosity is not amongst valid values -1|0|0.5|1|2" };
 
-# type coercion
-coerce PositiveInt,
+#subtype File,
+#    as Object,
+#    where { $_->does('VRPipe::Base::ReadWritable') };
+#coerce File,
+#    from FileHandle,
+#    via { VRPipe::Base::FHWrapper->new(handle => $_) };
+
+subtype FileNameOrHandle,
+    as Defined,
+    where { Str->check($_) || FileHandle->check($_) },
+    message { "Neither a file name nor handle" };
+
+
+# allow users to supply either a single X, or an array ref of them, eg:
+# has 'my_attribute' => ( is => 'rw', isa => 'ArrayRefOfInts', coerce => 1 );
+# $obj->new(my_attribute => 42); $obj->new(my_attribute => [42, 31]);
+subtype ArrayRefOfInts,
+    as ArrayRef[Int];
+coerce ArrayRefOfInts,
     from Int,
-    via { 1 };
+    via { [ $_ ] };
+
+subtype ArrayRefOfStrings,
+    as ArrayRef[Str];
+coerce ArrayRefOfStrings,
+    from Str,
+    via { [ $_ ] };
 
 1;

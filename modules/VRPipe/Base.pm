@@ -1,12 +1,12 @@
 =head1 NAME
 
-VRPipe::Base - base module that VRPipe modules inherit from
+VRPipe::Base - a convenience role for all VRPipe modules
 
 =head1 SYNOPSIS
 
 use MooseX::Declare;
 
-class VRPipe::MyClass extends VRPipe::Base {
+class VRPipe::MyClass with VRPipe::Base {
     #...
     
     method my_method (Str $input) {
@@ -51,7 +51,7 @@ class VRPipe::MyClass extends VRPipe::Base {
 =head1 DESCRIPTION
 
 Provides common needs for many VRPipe modules: ties together debug-related
-message handling, temp file cleanup and file-path-related methods.
+message handling, temp file cleanup and commonly needed CPAN methods.
 
 =head1 AUTHOR
 
@@ -61,7 +61,7 @@ Sendu Bala: sb10 at sanger ac uk
 
 use MooseX::Declare;
 
-class VRPipe::Base with (VRPipe::Base::Debuggable, VRPipe::Base::Cleanable, VRPipe::Base::Exports) {
+class VRPipe::Base with (VRPipe::Base::Debuggable, VRPipe::Base::Cleanable, VRPipe::Base::FileMethods) {
     use MooseX::StrictConstructor;
 }
 
