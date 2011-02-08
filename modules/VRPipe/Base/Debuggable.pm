@@ -28,16 +28,17 @@ role VRPipe::Base::Debuggable {
     use File::Spec;
     use IO::Capture::Stderr;
     
+    # MooseX::ClassAttribute is incompatible with something here
     our $GLOBAL_VERBOSITY;
     our $GLOBAL_WRITE_LOGS;
     our $GLOBAL_LOG_FILE;
     
-    has 'verbosity'  => ( is => 'rw',
+    has 'verbose'    => ( is => 'rw',
                           isa => VerbosityValue,
-                          default => 0,
-                          init_arg => 'verbose' );
+                          default => 0 );
     has 'write_logs' => ( is => 'rw',
-                          isa => 'Bool' );
+                          isa => 'Bool',
+                          default => 0 );
     has 'log_file'   => ( is => 'rw',
                           isa => 'Str',
                           default => File::Spec->catfile($ENV{HOME}, '.VRPipe.log') );
@@ -45,34 +46,48 @@ role VRPipe::Base::Debuggable {
 =head2 verbose
 
  Title   : verbose
- Usage   : $self->verbose(1); # per-object
-           VertRes::Base::verbose(1); # global
+ Usage   : $self->verbose(1); # per-instance
+           $self->verbose(0.5, global => 1); # global override - make all
+                                             # instances behave like they have
+                                             # the given verbosity
+           $self->verbose(2, disable_global => 1); # disables global override
+                                                   # and sets for this instance
  Function: Sets verbose level for how ->warn() and ->debug() behave
            -1 = no warning, no debug messages
             0 = standard small warning, no debug messages
             0.5 = tiny warning with no line numbers
             1 = warning with stack trace
             2 = warning becomes throw
- Returns : The current verbosity setting (number between -1 to 2)
- Args    : -1,0,1 or 2
+ Returns : The current verbosity setting (number between -1 and 2)
+ Args    : none to get, a verbosity value to set: -1,0,0.5,1 or 2
+           optionally, a hash with key global or disable_global and value
+           boolean
 
 =cut
-    method verbose (VerbosityValue $value?) {
+    around verbose (VerbosityValue $value?, Bool :$global?, Bool :$disable_global?) {
+        # can't default global or disable_globabl in the signature, or they
+        # will get treated as the $value if it isn't supplied
+        $global ||= 0;
+        $disable_global ||= 0;
+        $self->throw("It makes no sense to specify both global and disable_global") if $global && $disable_global;
+        
         if (defined $value) {
-            if (ref $self) {
-                $self->verbosity($value);
-            }
-            else {
-                # set globally if not an instantiation
+            if ($global) {
                 $GLOBAL_VERBOSITY = $value;
             }
+            else {
+                $self->$orig($value);
+            }
+        }
+        if ($disable_global) {
+            undef $GLOBAL_VERBOSITY;
         }
         
         if (defined $GLOBAL_VERBOSITY) {
             return $GLOBAL_VERBOSITY;
         }
         
-        return $self->verbosity;
+        return $self->$orig;
     }
     
 =head2 warn
@@ -183,6 +198,42 @@ role VRPipe::Base::Debuggable {
         $self->log($throw_message, 2);
         
         die $throw_message;
+    }
+    
+=head2 write_logs
+
+ Title   : write_logs
+ Usage   : $obj->write_logs(1);
+ Function: Turn the writing of log messages on or off. Changing this acts
+           globally across all VRPipe instances of any class.
+ Returns : boolean
+ Args    : none to get, boolean to set
+
+=cut
+    around write_logs (Bool $set) {
+        if (defined $set) {
+            $GLOBAL_WRITE_LOGS = $set;
+        }
+        return $GLOBAL_WRITE_LOGS;
+    }
+    
+=head2 log_file
+
+ Title   : log_file
+ Usage   : $obj->log_file("/path/to/logfile");
+ Function: Get or set the path to the log file. Changing this acts globally
+           across all VRPipe instances of any class.
+ Returns : string
+ Args    : none to get, string to set
+
+=cut
+    around log_file (Bool $set) {
+        if (defined $set) {
+            open(my $fh, ">>", $set) || $self->throw("Could not append to log file '$set'");
+            close($fh);
+            $GLOBAL_LOG_FILE = $set;
+        }
+        return $GLOBAL_LOG_FILE;
     }
     
 =head2 log
