@@ -743,7 +743,7 @@
 
 =head1 VRPipe::PipelineManager*
 
- A "pipeline" is a series of "actions" (specified in a VRPipe::Pipelines::*
+ A "pipeline" is a series of "steps" (specified in a VRPipe::Pipelines::*
  module) that are run on some part of a dataset, and PipelineManager* modules
  exist to make it easy to supply the correct data to the pipeline, run multiple
  instances of the pipeline at once on every part of the whole dataset at once
@@ -771,7 +771,7 @@
  pipelines together, where the second pipeline utilises a datasource that is the
  output of the first. The information stored in an instance of the DataSource
  would be the Setup of the first pipeline, and an element might be one of the
- files that the last action of the first pipeline provides.
+ files that the last step of the first pipeline provides.
 
  # create; there are 3 required args 'type', 'source', and 'method', and an
  # optional 'options' hash that can be set:
@@ -789,7 +789,7 @@
                 # source for type => 'Chain' can also be a PersistentArray
                 # instance that lists multiple Setup (see later) instances, to
                 # make one Setup dependent upon multiple other Setups.
-                method => 'last_action')
+                method => 'last_step')
  # These create, respectively, a VRPipe::PipelineManager::DataSources::VRTrack
  # object, a VRPipe::PipelineManager::DataSources::Fofn object and a
  # VRPipe::PipelineManager::DataSources::Chain object.
@@ -922,7 +922,7 @@
 
  VRPipe::Pipeline is the base class of the modules (VRPipe::Pipelines::*) that
  actually define the work to be done to go from raw input to final output, as
- a series of 'actions'. These modules do not directly store any persistent data.
+ a series of 'steps'. These modules do not directly store any persistent data.
  The base class provides the following implemented methods:
 
  # find out what VRPipe::PipelineManager::DataSource types and methods are
@@ -936,53 +936,53 @@
  # configurable_settings is some hash with required and optional keys and then
  # some data structure to describe what is valid
 
- # get a reverse ordered list of action names:
- my @actions = $obj->actions;
+ # get a reverse ordered list of step names:
+ my @steps = $obj->steps;
 
- # deal with an action:
- foreach my $action_name (@actions) {
-    my @required_files = $obj->required_files($action_name);
-    my @provided_files = $obj->provided_files($action_name);
+ # deal with a step:
+ foreach my $step_name (@steps) {
+    my @required_files = $obj->required_files($step_name);
+    my @provided_files = $obj->provided_files($step_name);
     
-    # if you want to run the action, you'll check your own records to see what
-    # the state of this action is for this particular pipeline setup and
+    # if you want to run the step, you'll check your own records to see what
+    # the state of this step is for this particular pipeline setup and
     # datasource element. You won't check if the required files exist, since you
-    # want to be able to skip past this action if it has completed but you since
+    # want to be able to skip past this step if it has completed but you since
     # deleted its required (or provided) files because they were only temporary
-    # to make a later action work. If your records say we haven't started
-    # running this action, we do:
-    $obj->run_action($action_name);
+    # to make a later step work. If your records say we haven't started
+    # running this step, we do:
+    $obj->run_step($step_name);
     
-    # prior to derefrencing and running the action subroutine, run_action does:
-    my @missing = $obj->missing_required_files($action_name);
-    # if any files are missing, then run_action returns false and does nothing.
+    # prior to derefrencing and running the step subroutine, run_step does:
+    my @missing = $obj->missing_required_files($step_name);
+    # if any files are missing, then run_step returns false and does nothing.
     # Otherwise it runs the desired subroutine. If the subroutine returns true,
-    # that means the action completed and we can move on to the finish_action
+    # that means the step completed and we can move on to the finish_step
     # step. If it returned false, it probably used dispatch() (see below) so we
     # see what it dispatched:
-    my @dispatches = $obj->dispatched($action_name);
+    my @dispatches = $obj->dispatched($step_name);
     # this returns a list of [$cmd_line_string, $requirements_object] refs that
     # you could use to create VRPipe::JobManager::Submission objects and
     # eventually actually get the cmd_line to run. You'll keep records on how
     # those Submissions do, and when they're all successfull you'll do:
-    $obj->finish_action($action_name);
-    # this runs a post-processing method for the action (that is not allowed
+    $obj->finish_step($step_name);
+    # this runs a post-processing method for the step (that is not allowed
     # to do any more dispatching) and returns true if the post-process was fine.
-    # finish_action appends its own auto-check that all the provided files
-    # exist. So if finish_action returns true you record in your system that
-    # this action (on this pipeline setup and datasource element) finished, so
+    # finish_step appends its own auto-check that all the provided files
+    # exist. So if finish_step returns true you record in your system that
+    # this step (on this pipeline setup and datasource element) finished, so
     # the next time you come to this loop you'll skip and try the following
-    # action. (VRPipe::PipelineManager::Manager does all this sort of stuff for
+    # step. (VRPipe::PipelineManager::Manager does all this sort of stuff for
     # you.)
     
-    # (since @actions are in reverse order, we don't waste time checking all
-    #  the actions if the last action completed - we'll only check the last
-    #  action and do nothing else)
+    # (since @steps are in reverse order, we don't waste time checking all
+    #  the steps if the last step completed - we'll only check the last
+    #  step and do nothing else)
  }
 
- # child classes don't override actions(), required_files() etc., they just
- # define a class array ref called $actions which contains hash refs which
- # contain name, action, requires and provides keys, with the last 3 having
+ # child classes don't override steps(), required_files() etc., they just
+ # define a class array ref called $steps which contains hash refs which
+ # contain name, step, requires and provides keys, with the last 3 having
  # values of subroutine refs. 'finish' is another optional key, which also has a
  # subroutine ref as a value. valid_datasources() gets its info from a different
  # class array ref called $valid_datasources. valid_settings() gets its info
@@ -995,10 +995,10 @@
                     setup => $hashref_from_pipelinemanager_pipeline_setup);
  # given this information the subclass should then be able to work out what its
  # required files are, where it will write its provided files, and be able to
- # proceed with doing work when run_action($name) is called.
+ # proceed with doing work when run_step($name) is called.
 
 
- # The action, requires, provides and finish subroutines of a subclass (which
+ # The step, requires, provides and finish subroutines of a subclass (which
  # receive no arguments directly) are implemented with the help of some
  # VRPipe::Pipeline methods:
 
@@ -1014,7 +1014,7 @@
  # working_dir(). Whenever dealing with files generally you'll use
  # VRPipe::File.
 
- # inside an action subroutine, when you want to do something that takes more
+ # inside a step subroutine, when you want to do something that takes more
  # than a few seconds, you make a VRPipe::JobManager::Requirements object
  # that describes the needs of what you want to do, and come up with a command
  # line that would actually do what you want to do. These get passed to:
@@ -1023,11 +1023,11 @@
  # subsequently get all the dispatched things using ->dispatched and do
  # something with the cmd and requirements.
  # if you dispatched things you return false, otherwise if you successfully
- # completed everything your action needed to do, you return true.
+ # completed everything your step needed to do, you return true.
 
- # if an action needs to carry out some post-processing after the things it
+ # if a step needs to carry out some post-processing after the things it
  # dispached have actually been run, it can setup another subroutine and include
- # a ref to it under the 'finish' key of the $actions class ref.
+ # a ref to it under the 'finish' key of the $steps class ref.
 
  # you could make use of VRPipe::ResultStore to store (small) final output
  # instead of writing to disc.
@@ -1035,7 +1035,7 @@
 
  # NB: compared to the original VRPipe::Pipeline* system, this is deliberatly
  # very lightweight: no checking of file existance is done here to determine
- # if an action is complete, there is no accessing of LSF, there is no locking
+ # if a step is complete, there is no accessing of LSF, there is no locking
  # on-disc, and there is no actual running of shell commands. Higher-level
  # VRPipe::PipelineManager* stuff is supposed to handle all that. These modules
  # just define what should be done and try and do as little work themselves as
@@ -1048,15 +1048,15 @@
  # module => 'VRPipe::Pipelines::Recalibration' and it's data_source would be
  # of type 'chain' with a source of the first Setup. 
 
-=head1 VRPipe::PipelineManager::Action
+=head1 VRPipe::PipelineManager::Step
 
  This class provides state tracking for running a particular
- VRPipe::Pipelines::* module action with a certain pipeline setup against a
+ VRPipe::Pipelines::* module step with a certain pipeline setup against a
  specific VRPipe::PipelineManager::DataSource->data_elements element. State is
  stored persistently thanks to implementing with VRPipe::Persistent.
 
  # create; there are 4 required key-forming options:
- my $act = VRPipe::PipelineManager::Action->new(action => 'name_of_action',
+ my $act = VRPipe::PipelineManager::Step->new(step => 'name_of_step',
                 module => 'VRPipe::Pipelines::Mapping',
                 dataelement_key => $dataelement_key,
                 setup => $VRPipe_pipelinemanager_setup_obj);
@@ -1064,37 +1064,37 @@
  # the hash refs returned by the data_elements() method on an instance of a
  # VRPipe::PipelineManager::DataSource object)
  # or by id:
- $act = VRPipe::PipelineManager::Action->new(id => $a_valid_action_id);
+ $act = VRPipe::PipelineManager::Step->new(id => $a_valid_step_id);
 
- # get a reference to the action entry in the db:
+ # get a reference to the step entry in the db:
  my $act_id = $act->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
- # same id is always returned for every Action object created with the
- # same action, module, dataelement_key and setup.
+ # same id is always returned for every Step object created with the
+ # same step, module, dataelement_key and setup.
 
- # get the core info on this Action (these are get-only):
+ # get the core info on this Step (these are get-only):
  my $module = $act->module;
- my $action = $act->action; # a string name of an action in $module
+ my $step = $act->step; # a string name of a step in $module
  my $dataelement_key = $act->dataelement_key;
  my $setup = $act->setup; # a VRPipe::PipelineManager::Setup instance
 
- # do stuff depending on the overall state of the Action:
+ # do stuff depending on the overall state of the Step:
  if ($act->complete) {
-    # at some point we decided that this action completed fully successfully.
+    # at some point we decided that this step completed fully successfully.
     # maybe we changed our minds and want to force it to restart?
     $act->reset;
     # this attempts reset() on every associated Submission (killing etc. first
     # if necessary), and then sets the complete boolean back to false. This
     # reset() can actually be called at any point, letting us force-stop an
-    # action that we realised was doing something wrong, for example.
+    # step that we realised was doing something wrong, for example.
  }
  else {
-    # get the Submission objects for this Action:
+    # get the Submission objects for this Step:
     my @submissions = $act->submissions;
     if (@submissions) {
         if ($act->all_ok) {
             # all_ok returns true when every Submission object says that it
-            # completed ok. Now you can do whatever post-processing the action
+            # completed ok. Now you can do whatever post-processing the step
             # might need, and finally:
             $act->complete(1);
         }
@@ -1106,7 +1106,7 @@
         }
     }
     else {
-        # you didn't yet run your action, get the ->dispatched things, turn them
+        # you didn't yet run your step, get the ->dispatched things, turn them
         # into VRPipe::JobManager::Submission objects and associate them with
         # $act yet. Do that now:
         # ...
@@ -1161,17 +1161,17 @@
         # Next, it uses $set->data_source (having checked it is one of the
         # $set->module's valid ones) to loop through each data input. For each
         # data_source element it creates an instance of the $set->module. It
-        # uses the ->actions method on that to set up
-        # VRPipe::PipelineManager::Action objects and uses those to track state
-        # as it does ->run_action($name) etc. Note that this process is only
-        # creating Action and Submission objects; we are not calling ->submit
+        # uses the ->steps method on that to set up
+        # VRPipe::PipelineManager::Step objects and uses those to track state
+        # as it does ->run_step($name) etc. Note that this process is only
+        # creating Step and Submission objects; we are not calling ->submit
         # on the Submissions, so run() doesn't itself directly cause anything
         # to be executed on the farm.
         #
         # As it loops through everything it keeps track of various things like
-        # number of data_source elements, actions completed and still to go per
+        # number of data_source elements, steps completed and still to go per
         # element and overall, and number of jobs
-        # completed/running/to-be-run/failed per action, per element and
+        # completed/running/to-be-run/failed per step, per element and
         # overall. It returns the total number of jobs still to go (those
         # currently running, or scheduled to run later), so if this is 0 then
         # this pipeline is finished for now at least.
@@ -1183,59 +1183,59 @@
         
         # calling run() should be very cheap, since for the most part it will
         # just be doing lookups into the Persistent db where our state is
-        # stored. However, if an action method has to actually run, then it may
+        # stored. However, if a step method has to actually run, then it may
         # not be fast enough for constructing a live-updated status webpage. For
         # that purpose, ->status($set) can be called without calling ->run($set)
         # first, in which case it will get all the stats it can by going through
-        # the same loops as run(), except that it won't call ->run_action (so
-        # will be able to say that an action has not yet started, but not how
-        # many jobs there are to go for that action). ->status($set,
+        # the same loops as run(), except that it won't call ->run_step (so
+        # will be able to say that a step has not yet started, but not how
+        # many jobs there are to go for that step). ->status($set,
         # overall_jobs_only => 1) takes a shortcut and just directly grabs the
         # Submission objects from $set->children and generates a simple set of
         # completed/running/to-be-run/failed overall stats. NB: we never know
-        # about actions that we haven't gotten to, so the total number of jobs
-        # is never accurate until the last action has been run on all data
+        # about steps that we haven't gotten to, so the total number of jobs
+        # is never accurate until the last step has been run on all data
         # elements.
         
         # a simple hash from status isn't powerful/easy enough to allow things
         # like showing failed jobs and error messages in a web-frontend. For
         # that purpose, we have a set of methods that would let a user drill
         # down and discover what's going wrong with their pipeline:
-        my @failed_actions = $man->failed_actions($set);
-        # a 'failed' action is one that has submissions that have finished but
+        my @failed_steps = $man->failed_steps($set);
+        # a 'failed' step is one that has submissions that have finished but
         # not ok.
-        foreach my $action (@failed_actions) {
+        foreach my $step (@failed_steps) {
             # meta-information (like the dataelement_key) can be extracted in
-            # the normal way from an Action for display
+            # the normal way from a step for display
             
-            my %outputs = $man->failed_outputs($action);
+            my %outputs = $man->failed_outputs($step);
             # this gets the last STDOUT and STDERR from every failed Submission
-            # associated with $action and returns a hash with Submission->id
+            # associated with $step and returns a hash with Submission->id
             # keys and {stdout => 'string', stderr => 'string'} values.
             
             # you could imagine that a web-frontend would have a button that
             # called:
-            $action->reset;
+            $step->reset;
             # that the user might use if they looked at the outputs and fixed
             # the problem.
         }
         
         # perhaps the user fixed a problem and now wants to reset all the
-        # actions that failed in one go:
-        $man->reset(@failed_actions);
+        # steps that failed in one go:
+        $man->reset(@failed_steps);
         
         # perhaps something really stupid and wrong happened with a pipeline and
         # you just want to start everything over completely from scratch:
         $man->reset($set);
-        # this grabs all the Action objects from $set->children and does ->reset
+        # this grabs all the Step objects from $set->children and does ->reset
         # on them.
         
-        # run-time/memory-usage summary stats can be found on a per-action
-        # basis, averaged over every pipeline that ran that action, and also
+        # run-time/memory-usage summary stats can be found on a per-step
+        # basis, averaged over every pipeline that ran that step, and also
         # per pipeline:
-        my %stats = $man->action_stats(); # averaged over all pipelines
-        %stats = $man->action_stats($set); # for just this pipeline config
-        # %stats == (action_name => { walltime => $seconds, memory => $mb });
+        my %stats = $man->step_stats(); # averaged over all pipelines
+        %stats = $man->step_stats($set); # for just this pipeline config
+        # %stats == (step_name => { walltime => $seconds, memory => $mb });
     }
     elsif (time() - $set->last_updated > 7776000) {
         # it's been inactive for ~3months; perhaps we want to trash old stuff?
@@ -1258,7 +1258,7 @@
  # subsequent methods, answer cached once per instance of Manager):
  my @incomplete_submissions = $man->submissions();
  # again, this is all incomplete Submission objects, regardless of what pipeline
- # or action or process spawned them. submissions() will block if the running()
+ # or step or process spawned them. submissions() will block if the running()
  # boolean is true, to give a run() time to finish, so we'll see all of its
  # Submission objects. After a reasonable amount of time it will stop blocking
  # though, incase a run() went bad and failed to turn off running().
@@ -1293,7 +1293,7 @@
 
 =cut
 
-=head1 VRPipe::Pipeline::Actions*
+=head1 VRPipe::Pipeline::Steps*
 
 
 
@@ -1377,17 +1377,25 @@ A monitoring system that restarts the main system if it crashes
 
 Distinction between failure of the executable, and failure of the output file check, which would be built into wrappers
 
-Can build a pipeline by choosing to enter command lines directly (with placeholder system) instead of picking an existing action; the result is ultimately the same: a recording of a command line to run
+Can build a pipeline by choosing to enter command lines directly (with placeholder system) instead of picking an existing step; the result is ultimately the same: a recording of a command line to run
 
 Generic system to interface with and update an external db like VRTrack to retreive new input data
 
-An action can have a dependency of another action which it will force to be called prior to itself even if that action was not part of the pipeline. Eg. indexing a bam
+a step can have a dependency of another step which it will force to be called prior to itself even if that step was not part of the pipeline. Eg. indexing a bam
 
-Automatic resolving of file type conversion: if a pipeline has an action or input data that produces/is bam files, followed by an action that requires fastq input, an action that takes bam input and outputs fastq will be inserted inbetween
+Automatic resolving of file type conversion: if a pipeline has a step or input data that produces/is bam files, followed by a step that requires fastq input, a step that takes bam input and outputs fastq will be inserted inbetween
 
 Safe handling of multiple jobs (from different pipelines even) needing the same prerequisite file created (eg. reference index): they shouldn't all try and create it at the same time!
-Should be able to apply this safety to prerequisites specified as actions by looking at the paths of files the action will create. Also needs protection from a job that started working
+Should be able to apply this safety to prerequisites specified as steps by looking at the paths of files the step will create. Also needs protection from a job that started working
 on the prereq being killed: don't want all the dependent jobs waiting for infinity; one of the others should try it again.
+
+When defining a custom step (or hardcoding a new step class) you include differently named file placeholders in your cmd line. Then you define what each one should be:
+input-data-source|file-or-pipe-from-previous-step(excluding forced pre-requisite steps)|static-file-from-config-parameter. You also have the option of modifying the
+name: no-change|basename|regex-substitution|basename+regex-substitution. Other placeholders include the working dir for that element and config-paramters. For more complex
+situations of working on multiple files from a previous step you can use a special list placeholder to have them all put in the same command line with a custom join, or
+an element placeholder which will result in it creating a command line for each element of the list. If even more complex and the output of previous step is different
+types of file, the previous step will have typed its output, and the placeholder system will let you say which type you want to work with. Or you can define a subroutine
+that determines how the placeholder gets filled (which is run at run-time under LSF).
 
 =cut
 
