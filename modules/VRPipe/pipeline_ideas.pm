@@ -1304,6 +1304,7 @@
  Fey::ORM is supposed to work with Moose [unknown]
  Rose::DB::Object? http://search.cpan.org/dist/Rose-DB-Object/lib/Rose/DB/Object/Tutorial.pod [maybe]
  
+ 
  # SQL abstraction
  DBIx::Abstract
  SQL::Abstract (via DBIx::SQL::Abstract?)
@@ -1312,6 +1313,7 @@
  # RDBMS-OO Mappers
  http://search.cpan.org/~drolsky/Alzabo-0.92/lib/Alzabo.pm [good?]
  Class::DBI [no]
+ DBIx::Class ? Use DBIx::Connect with something else?
  
  # OO Persistence Tools
  http://spops.sourceforge.net/ [no]
@@ -1320,7 +1322,8 @@
   the advantage of no up-front schema and working with in-memory db and more
   dbs, but has none of the nice pointer, lazy-load, 1-copy-in-memory stuff that
   Tangram has.
- 
+
+http://search.cpan.org/~crenz/Module-Find-0.10/Find.pm for finding and loading modules in a certain namespace
 
 $self->wait_for { $code->that_may_throw_a_temporary_failure };
 
