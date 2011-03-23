@@ -1317,7 +1317,7 @@
  
  # OO Persistence Tools
  http://spops.sourceforge.net/ [no]
- http://search.cpan.org/dist/Tangram/lib/Tangram.pod [good?] http://search.cpan.org/dist/Tangram/lib/Tangram/Tour.pod
+ http://search.cpan.org/dist/Tangram/lib/Tangram.pod [good?] http://search.cpan.org/dist/Tangram/lib/Tangram/Tour.pod [can't get it to actually work, though it installs fine]
  http://search.cpan.org/~dwinters/Persistent-Base-0.52/lib/Persistent.pod has
   the advantage of no up-front schema and working with in-memory db and more
   dbs, but has none of the nice pointer, lazy-load, 1-copy-in-memory stuff that
@@ -1334,6 +1334,8 @@ really running the pipeline, you can choose to only list the "real" ones. Real j
 placeholder system allows command lines to be output with the placeholder symbols. Handles placeholders for loop counts as well.
 
 http://www.oodesign.com/null-object-pattern.html for optional logging etc?
+
+http://search.cpan.org/~dsbike/MooseX-Documenter-0.01/lib/MooseX/Documenter.pm to help auto-document moose classes
 
 http://search.cpan.org/dist/MooseX-AbstractFactory/lib/MooseX/AbstractFactory.pm for Factories
 
@@ -1363,14 +1365,13 @@ http://search.cpan.org/~franckc/MooseX-Privacy-0.05/lib/MooseX/Privacy.pm privat
 http://search.cpan.org/~flora/MooseX-MethodAttributes-0.24/lib/MooseX/MethodAttributes.pm introspect method attributes
 
 http://search.cpan.org/~bobtfish/MooseX-MetaDescription-0.04/lib/MooseX/MetaDescription.pm possible way of storing descriptions of the args configurable in pipelines
+http://search.cpan.org/~kentnl/MooseX-AttributeIndexes-1.0.0/lib/MooseX/AttributeIndexes.pm might be useful since it lets you define and introspect which attributes should be indexed by db
 
 http://search.cpan.org/~jgoulah/MooseX-LogDispatch-1.2002/lib/MooseX/LogDispatch.pm possibly nice way of doing logging
 
 http://search.cpan.org/~jrockway/MooseX-FileAttribute-0.02/lib/MooseX/FileAttribute.pm looks great for specifying file/dir attributes (if can override must_exist method)
 
 http://search.cpan.org/~csjewell/MooseX-Error-Exception-Class-0.099/lib/MooseX/Error/Exception/Class.pm turn Moose exceptions into Exception::Class objects
-
-http://search.cpan.org/~kentnl/MooseX-AttributeIndexes-1.0.0/lib/MooseX/AttributeIndexes.pm might be useful since it lets you define and introspect which attributes should be indexed by db
 
 http://search.cpan.org/~jjnapiork/MooseX-Attribute-ENV-0.01/lib/MooseX/Attribute/ENV.pm set attributes from env vars
 
