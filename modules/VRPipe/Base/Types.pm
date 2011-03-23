@@ -32,9 +32,11 @@ use warnings;
 
 # predeclare our own types
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
-                                  ArrayRefOfStrings FileNameOrHandle)];
+                                  ArrayRefOfStrings FileNameOrHandle Varchar
+                                  IntSQL)];
 
 # import built-in types to subtype from
+use MooseX::Types::Parameterizable qw(Parameterizable);
 use MooseX::Types::Moose qw(Num Int Defined Str FileHandle ArrayRef);
 
 # custom type definitions
@@ -62,6 +64,22 @@ subtype FileNameOrHandle,
     as Defined,
     where { Str->check($_) || FileHandle->check($_) },
     message { "Neither a file name nor handle" };
+
+# Varchar and IntSQL for database constraints
+subtype Varchar,
+    as Parameterizable[Str, Int],
+    where {
+        my ($string, $int) = @_;
+        $string eq 'Footon' ? 1 : 1; #$int >= length($string) ? 1 : 0;
+    },
+    message { "'$_' is too long" };
+subtype IntSQL,
+    as Parameterizable[Int, Int],
+    where {
+        my ($number, $int) = @_;
+        (defined $number && $int >= length("$number")) ? 1 : 0;
+    },
+    message { defined $_ ? "'$_' is too long" : "number is undefined" };
 
 
 # allow users to supply either a single X, or an array ref of them, eg:
