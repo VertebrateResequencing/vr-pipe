@@ -15,35 +15,27 @@ class VRPipe::CD extends VRPipe::Persistent {
     
     has 'cdid' => (is => 'rw',
                    isa => IntSQL[16],
-                   lazy_build => 1,
-                   metaclass => 'MooseX::MetaDescription::Meta::Attribute',
-                   description => {
-                       is_auto_increment => 1,
-                       is_primary_key => 1
-                   });
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   is_auto_increment => 1,
+                   is_primary_key => 1);
     
     has 'artist' => (is => 'rw',
-                     lazy_build => 1,
-                     isa => IntSQL[16]);
+                     isa => IntSQL[16],
+                     traits => ['VRPipe::Persistent::Attributes']);
     
     has 'title' => (is => 'rw',
-                    lazy_build => 1,
-                    isa => Varchar[256]);
+                    isa => Varchar[256],
+                    traits => ['VRPipe::Persistent::Attributes']);
     
     has 'rank' => (is => 'rw',
-                   lazy_build => 1,
-                   isa => IntSQL[16]);
+                   isa => IntSQL[16],
+                   traits => ['VRPipe::Persistent::Attributes']);
     
     has 'non_column_data' => (is => 'rw',
-                              isa => 'Str',
-                              metaclass => 'MooseX::MetaDescription::Meta::Attribute',
-                              description => {
-                                  is_transient => 1
-                              });
+                              isa => 'Str');
     
-    __PACKAGE__->make_persistent;
-    __PACKAGE__->belongs_to('artist' => 'VRPipe::Artist');
-    __PACKAGE__->has_many('tracks' => 'VRPipe::Track');
+    __PACKAGE__->make_persistent(belongs_to => {artist => 'VRPipe::Artist'},
+                                 has_many => {tracks => 'VRPipe::Track'});
 }
 
 1;
