@@ -29,7 +29,8 @@ class VRPipe::CD extends VRPipe::Persistent {
     
     has 'rank' => (is => 'rw',
                    isa => IntSQL[16],
-                   traits => ['VRPipe::Persistent::Attributes']);
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   is_nullable => 1);
     
     has 'non_column_data' => (is => 'rw',
                               isa => 'Str');
