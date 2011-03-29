@@ -92,7 +92,7 @@ class VRPipe::Persistent extends DBIx::Class::Core {
             # add back the Moose accessors with their constraints etc.
             #$attr->install_accessors;
             
-            # make the accesser get and set for DBIx::Class as well
+            # make the accessor get and set for DBIx::Class as well
             $meta->add_around_method_modifier($name => sub {
                 my $orig = shift;
                 my $self = shift;
@@ -103,10 +103,24 @@ class VRPipe::Persistent extends DBIx::Class::Core {
                 
                 my $value = shift;
                 #$self->set_column($name, $value) unless $current_value eq $value;
-                $self->$dbic_name($value) unless $current_value eq $value;
-                # ($self->update still needs to be called to set in db)
+                unless ($current_value eq $value) {
+                    # first try setting in our Moose accessor, so we can see if
+                    # it passes the constraint
+                    my $return = $self->$orig($value);
+                    
+                    # now set it in the DBIC accessor
+                    $self->$dbic_name($value);
+                    
+                    # we deliberatly do not update in the db so that if the user
+                    # is setting multiple accessors, another thread getting this
+                    # object won't see a partially updated state. Users must
+                    # call ->update manually (or destroy their object)
+                    #$self->update;
+                    
+                    return $return;
+                }
                 
-                return $self->$orig($value);
+                return $value;
             });
         }
         
@@ -120,6 +134,10 @@ class VRPipe::Persistent extends DBIx::Class::Core {
         if ($has_many) {
             $class->has_many(%{$has_many});
         }
+    }
+    
+    method DEMOLISH {
+        $self->update;
     }
 }
 

@@ -1,18 +1,21 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use TryCatch;
+
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 18;
     
     use_ok('VRPipe::Persistent::Schema');
     use_ok('VRPipe::Persistent');
     use_ok('File::Spec');
     
-    #my @db_settings = ("DBI:mysql:host=$ENV{VRTRACK_HOST};port=$ENV{VRTRACK_PORT};database=vertres_dbixclass;", $ENV{VRTRACK_RW_USER}, $ENV{VRTRACK_PASSWORD});
     use Test::DBIx::Class {
         schema_class => 'VRPipe::Persistent::Schema',
-        connect_info => ['dbi:SQLite:dbname=:memory:','','']
+        force_drop_table => 1,
+        keep_db => 1,
+        connect_info => ["dbi:mysql:host=$ENV{VRTRACK_HOST};port=$ENV{VRTRACK_PORT};database=vertres_dbixclass;", $ENV{VRTRACK_RW_USER}, $ENV{VRTRACK_PASSWORD}] #['dbi:SQLite:dbname=:memory:','','']
     }; #, 'VRPipe::Artist' => {-as => 'Artist'}, 'VRPipe::CD' => {-as => 'CD'}, 'VRPipe::Track' => {-as => 'Track'}
 }
 
@@ -27,30 +30,30 @@ ok my $footon = $resultset->search({'name' => 'Footon'})->first, 'Searched for F
 is_fields [qw/artistid name/], $footon, [2, 'Footon'], 'Footon has the expected fields';
 
 
-# was playing with some contraint checking
-my $constraint_checks = 0;
-if ($constraint_checks) {
-    print "calling name('Barton')\n";
-    use TryCatch;
-    try {
-        $artist->name('Barton');
-    }
-    catch (MooseX::Error::Exception::Class $error) {
-        warn "got error $error\n";
-    }
-    catch {
-        die "unhandled error\n";
-    }
-    
-    my @cols = $artist->get_dirty_columns;
-    print "dirty cols: (@cols)\n";
-    $artist->update;
-    @cols = $artist->get_dirty_columns;
-    print "dirty cols: (@cols)\n";
-    print "calling name()\n";
-    print $artist->name, "\n";
-    my @ids = $artist->id;
-    print "ids: (@ids)\n";
+# update behaviour
+$artist->name('Gerton');
+is $artist->name, 'Gerton', 'able to change name to Gerton';
+is_deeply [$artist->get_dirty_columns], [name => 'Gerton'], 'name column marked as dirty after change, prior to update';
+$artist->update;
+is_deeply [$artist->get_dirty_columns], [], 'no more dirty columns after an update';
+undef $artist;
+ok $artist = $resultset->search({'name' => 'Gerton'})->first, 'Got Gerton back';
+is $artist->name, 'Gerton', 'the name is Gerton';
+is_deeply [$artist->id], [2], 'Gerton has the correct id';
+is $artist->name('Larton'), 'Larton', 'able to change name again to Larton';
+undef $artist;
+ok $artist = $resultset->search({'artistid' => 2})->first, 'Got artist 2 back after undef';
+is $artist->name, 'Larton', 'the name is Larton even after object destruction with no explicit update';
+
+# constraint checking
+try {
+    $artist->name('12345678901234567890123456789012345678901234567890123456789012345');
+}
+catch (MooseX::Error::Exception::Class $error) {
+    warn "got error $error\n";
+}
+catch {
+    die "unhandled error\n";
 }
 
 
