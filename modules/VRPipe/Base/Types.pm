@@ -70,7 +70,7 @@ subtype Varchar,
     as Parameterizable[Str, Int],
     where {
         my ($string, $int) = @_;
-        $string eq 'Footon' ? 1 : 1; #$int >= length($string) ? 1 : 0;
+        $int >= length($string) ? 1 : 0;
     },
     message { "'$_' is too long" };
 subtype IntSQL,
