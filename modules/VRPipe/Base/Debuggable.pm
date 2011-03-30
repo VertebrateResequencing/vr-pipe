@@ -18,40 +18,43 @@ Sendu Bala: sb10 at sanger ac uk
 
 =cut
 
-use MooseX::Declare;
+use VRPipe::Base;
 
 role VRPipe::Base::Debuggable {
-    use VRPipe::Base::Types qw(VerbosityValue);
     use Carp qw(carp cluck confess);
     use Time::Format;
     use Cwd qw(getcwd);
     use File::Spec;
     use IO::Capture::Stderr;
     
-    # MooseX::ClassAttribute is incompatible with something here
+    #*** just for testing; to be removed:
+    after BUILDALL {
+        warn "In BUILDALL: Made a new " . ( ref $self ) . " object\n";
+    }
+    
+    # MooseX::ClassAttribute won't let us set things globally across all classes
+    # that compose this role, and class_has attributes don't get picked up by
+    # MooseX::StrictConstructor, so we don't use it.
     our $GLOBAL_VERBOSITY;
-    our $GLOBAL_WRITE_LOGS;
-    our $GLOBAL_LOG_FILE;
+    our $GLOBAL_WRITE_LOGS = 0;
+    our $GLOBAL_LOG_FILE = File::Spec->catfile($ENV{HOME}, '.VRPipe.log');
     
     has 'verbose'    => ( is => 'rw',
                           isa => VerbosityValue,
                           default => 0 );
     has 'write_logs' => ( is => 'rw',
-                          isa => 'Bool',
-                          default => 0 );
+                          isa => 'Bool' );
     has 'log_file'   => ( is => 'rw',
-                          isa => 'Str',
-                          default => File::Spec->catfile($ENV{HOME}, '.VRPipe.log') );
+                          isa => 'Str' );
     
 =head2 verbose
 
  Title   : verbose
- Usage   : $self->verbose(1); # per-instance
-           $self->verbose(0.5, global => 1); # global override - make all
-                                             # instances behave like they have
-                                             # the given verbosity
-           $self->verbose(2, disable_global => 1); # disables global override
-                                                   # and sets for this instance
+ Usage   : $obj->verbose(1); # per-instance
+           VRPipe::Any::Class->verbose(2); # global override - make all
+                                           # instances of all classes behave
+                                           # like they have the given verbosity
+           VRPipe::Any::Class->clear_verbose; # disables global override
  Function: Sets verbose level for how ->warn() and ->debug() behave
            -1 = no warning, no debug messages
             0 = standard small warning, no debug messages
@@ -60,34 +63,26 @@ role VRPipe::Base::Debuggable {
             2 = warning becomes throw
  Returns : The current verbosity setting (number between -1 and 2)
  Args    : none to get, a verbosity value to set: -1,0,0.5,1 or 2
-           optionally, a hash with key global or disable_global and value
-           boolean
 
 =cut
-    around verbose (VerbosityValue $value?, Bool :$global?, Bool :$disable_global?) {
-        # can't default global or disable_globabl in the signature, or they
-        # will get treated as the $value if it isn't supplied
-        $global ||= 0;
-        $disable_global ||= 0;
-        $self->throw("It makes no sense to specify both global and disable_global") if $global && $disable_global;
-        
+    around verbose (ClassName|Object $self: VerbosityValue $value?) {
         if (defined $value) {
-            if ($global) {
+            unless (ref($self)) {
                 $GLOBAL_VERBOSITY = $value;
             }
             else {
                 $self->$orig($value);
             }
         }
-        if ($disable_global) {
-            undef $GLOBAL_VERBOSITY;
-        }
         
-        if (defined $GLOBAL_VERBOSITY) {
+        if (defined $GLOBAL_VERBOSITY || ! ref($self)) {
             return $GLOBAL_VERBOSITY;
         }
         
         return $self->$orig;
+    }
+    method clear_verbose (ClassName $class:) {
+        undef $GLOBAL_VERBOSITY;
     }
     
 =head2 warn
@@ -210,7 +205,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, boolean to set
 
 =cut
-    around write_logs (Bool $set) {
+    around write_logs (Bool $set?) {
         if (defined $set) {
             $GLOBAL_WRITE_LOGS = $set;
         }
@@ -227,7 +222,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, string to set
 
 =cut
-    around log_file (Bool $set) {
+    around log_file (Str $set?) {
         if (defined $set) {
             open(my $fh, ">>", $set) || $self->throw("Could not append to log file '$set'");
             close($fh);
