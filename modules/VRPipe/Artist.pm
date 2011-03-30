@@ -8,11 +8,9 @@ Sendu Bala: sb10 at sanger ac uk
 
 =cut
 
-use MooseX::Declare;
+use VRPipe::Base;
 
 class VRPipe::Artist extends VRPipe::Persistent {
-    use VRPipe::Base::Types qw(Varchar IntSQL);
-    
     has 'artistid' => (is => 'rw',
                        isa => IntSQL[16],
                        traits => ['VRPipe::Persistent::Attributes'],
