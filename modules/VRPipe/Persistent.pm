@@ -13,7 +13,7 @@ Sendu Bala: sb10 at sanger ac uk
 
 use VRPipe::Base;
 
-class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) with (VRPipe::Base::Debuggable) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose and Debuggable
+class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose to get Debuggable
     use MooseX::NonMoose;
     
     has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
