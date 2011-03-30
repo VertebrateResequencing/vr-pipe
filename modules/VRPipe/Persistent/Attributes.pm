@@ -4,7 +4,7 @@ http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.p
 
 =cut
 
-use MooseX::Declare;
+use VRPipe::Base;
 
 role VRPipe::Persistent::Attributes {
     has is_auto_increment => (
