@@ -11,11 +11,12 @@ Sendu Bala: sb10 at sanger ac uk
 
 =cut
 
-use MooseX::Declare;
+use VRPipe::Base;
 
-class VRPipe::Persistent extends DBIx::Class::Core {
+class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) with (VRPipe::Base::Debuggable) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose and Debuggable
     use MooseX::NonMoose;
-    use VRPipe::Base::Types qw(Varchar IntSQL);
+    
+    has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
     
     method make_persistent ($class: HashRef :$has_many?, HashRef :$belongs_to?) {
         # decide on the name of the table and initialise

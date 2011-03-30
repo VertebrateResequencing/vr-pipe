@@ -11,6 +11,8 @@ BEGIN {
     use_ok('VRPipe::Persistent');
     use_ok('File::Spec');
     
+    use_ok('VRPipe::Test');
+    
     use Test::DBIx::Class {
         schema_class => 'VRPipe::Persistent::Schema',
         force_drop_table => 1,
@@ -19,11 +21,25 @@ BEGIN {
     }; #, 'VRPipe::Artist' => {-as => 'Artist'}, 'VRPipe::CD' => {-as => 'CD'}, 'VRPipe::Track' => {-as => 'Track'}
 }
 
+my $test = VRPipe::Test->new;
+$test->first_name('foo');
+is $test->first_name, 'foo', 'Made a VRPipe::Test and it worked';
+is $test->foo, 'food', 'base foo method worked';
+is $test->verbose, 0, 'verbose defaults to 0';
+$test->warn("debuggable warning");
+$test->verbose(1);
+$test->warn("debuggable warning at verbose 1");
+
 # some quick basic tests
 ok my $resultset = ResultSet('Artist'), "Yeah, some Artists in the database";
 
 ok my $artist = $resultset->create({name => 'Barton'}), 'Created Barton';
 ok $artist = $resultset->create({name => 'Footon'}), 'Created Footon';
+
+$artist->warn("debuggable warning");
+$artist->verbose(1);
+$artist->warn("debuggable warning at verbose 1");
+is $artist->foo, 'food', 'base foo method worked on an artist';
 
 ok my $footon = $resultset->search({'name' => 'Footon'})->first, 'Searched for Footon';
 
@@ -52,8 +68,8 @@ try {
 catch (MooseX::Error::Exception::Class $error) {
     warn "got error $error\n";
 }
-catch {
-    die "unhandled error\n";
+catch ($error) {
+    die "unhandled error $error\n";
 }
 
 
