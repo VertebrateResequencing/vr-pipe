@@ -19,10 +19,10 @@
 
 use strict;
 use warnings;
-use Module::Build;
-use File::Spec;
+use lib 'build_lib';
+use VRPipeBuild;
 
-my $build = Module::Build->new(
+my $build = VRPipeBuild->new(
     module_name          => 'VRPipe',
     dist_version         => 0.01,
     dist_author          => 'Vertebrate Resequencing group at the Sanger Institute',
@@ -33,39 +33,39 @@ my $build = Module::Build->new(
     script_files         => 'scripts'
 );
 
+$build->create_site_config;
+exit;
 $build->create_build_script;
 
 exit;
 
 sub get_pm_files {
-    my %pm_files;
-    foreach my $module (check_dir('modules')) {
-        my $in_lib = $module;
-        $in_lib =~ s/^modules/lib/;
-        $pm_files{$module} = $in_lib;
-    }
-    return \%pm_files;
+	my %pm_files;
+	foreach my $module (check_dir('modules')) {
+		my $in_lib = $module;
+		$in_lib =~ s/^modules/lib/;
+		$pm_files{$module} = $in_lib;
+	}
+	return \%pm_files;
 }
 
 sub check_dir {
-    my $dir = shift;
-    opendir(my $dir_handle, $dir);
-    
-    my @pm_files;
-    foreach my $thing (readdir($dir_handle)) {
-        if ($thing =~ /^\.+$/) { next; }
-        $thing = File::Spec->catfile($dir, $thing);
-        
-        if (-d $thing) {
-            push(@pm_files, check_dir($thing));
-            next;
-        }
-        
-        if ($thing =~ /\.pm$/) {
-            push(@pm_files, $thing);
-        }
-    }
-    return @pm_files;
-}
+        my $dir = shift;
+        opendir(my $dir_handle, $dir);
+	
+	my @pm_files;
+        foreach my $thing (readdir($dir_handle)) {
+                if ($thing =~ /^\.+$/) { next; }
+                $thing = $dir."/".$thing;
 
-exit;
+                if (-d $thing) {
+                        push(@pm_files, check_dir($thing));
+                        next;
+                }
+		
+		if ($thing =~ /\.pm$/) {
+			push(@pm_files, $thing);
+		}
+        }
+	return @pm_files;
+}
