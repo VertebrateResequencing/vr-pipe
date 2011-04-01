@@ -23,8 +23,9 @@ class t::VRPipe::CD extends VRPipe::Persistent {
     has 'non_column_data' => (is => 'rw',
                               isa => 'Str');
     
-    __PACKAGE__->make_persistent(belongs_to => {artist => 't::VRPipe::Artist'},
-                                 has_many => {tracks => 't::VRPipe::Track'});
+    __PACKAGE__->make_persistent(belongs_to => [artist => 't::VRPipe::Artist'],
+                                 has_many => [tracks => 't::VRPipe::Track'],
+                                 table_name => 'compact_discs');
 }
 
 1;

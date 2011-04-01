@@ -15,7 +15,7 @@ class t::VRPipe::Track extends VRPipe::Persistent {
                     isa => Varchar[64],
                     traits => ['VRPipe::Persistent::Attributes']);
     
-    __PACKAGE__->make_persistent(belongs_to => {cd => 't::VRPipe::CD'});
+    __PACKAGE__->make_persistent(belongs_to => [cd => 't::VRPipe::CD']);
 }
 
 1;

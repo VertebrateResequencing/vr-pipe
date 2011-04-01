@@ -11,7 +11,12 @@ class t::VRPipe::Artist extends VRPipe::Persistent {
                    isa => Varchar[64],
                    traits => ['VRPipe::Persistent::Attributes']);
     
-    __PACKAGE__->make_persistent(has_many => {cds => 't::VRPipe::CD'});
+    has 'age' => (is => 'rw',
+                   isa => IntSQL[3],
+                   default => 99,
+                   traits => ['VRPipe::Persistent::Attributes']);
+    
+    __PACKAGE__->make_persistent(has_many => [cds => 't::VRPipe::CD']);
 }
 
 1;

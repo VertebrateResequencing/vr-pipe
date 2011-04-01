@@ -2,9 +2,8 @@
 use strict;
 use warnings;
 
-package main;
 BEGIN {
-    use Test::Most tests => 25;
+    use Test::Most tests => 30;
     
     use_ok('VRPipe::Persistent');
     use_ok('t::VRPipe::Persistent::Schema');
@@ -25,7 +24,7 @@ ok $artist = $resultset->create({name => 'Footon'}), 'Created Footon';
 
 ok my $footon = $resultset->search({'name' => 'Footon'})->first, 'Searched for Footon';
 
-is_fields [qw/artistid name/], $footon, [2, 'Footon'], 'Footon has the expected fields';
+is_fields [qw/artistid name age/], $footon, [2, 'Footon', 99], 'Footon has the expected fields';
 
 
 # update behaviour
@@ -47,6 +46,18 @@ is $artist->name, 'Larton', 'the name is Larton even after object destruction wi
 # constraint checking
 throws_ok { $artist->name('12345678901234567890123456789012345678901234567890123456789012345') } qr/too long/, 'giving a name that is too long causes a throw';
 is $artist->name, 'Larton', 'and the name is unchanged';
+
+
+# throw behaviour
+throws_ok { $resultset->search({'named' => 'Footon'})->first, 'Searched for Footon'; } 'DBIx::Class::Exception', 'throws given invalid column name to search on';
+
+
+# try out our special get method
+ok my $bob = t::VRPipe::Artist->get(schema => Schema, name => 'Bob'), 'created Bob using get()';
+is_fields [qw/artistid name age/], $bob, [3, 'Bob', 99], 'Bob has the expected fields';
+undef $bob;
+ok $bob = t::VRPipe::Artist->get(schema => Schema, name => 'Bob'), 'got Bob using get()';
+is_fields [qw/artistid name age/], $bob, [3, 'Bob', 99], 'Bob still has the expected fields';
 
 
 # relationship testing from dbic example code
@@ -100,6 +111,9 @@ reset_schema; # this counts as a test
         [qw/cd title/],
         @tracks,
     ]);
+    
+    # did we create the correct tables in the db?
+    #... difficult to test given configurable dbm
     
     # run tests
     is_deeply [get_tracks_by_cd('Bad')], ['Leave Me Alone', 'Smooth Criminal', 'Dirty Diana'], 'could get tracks by cd';
