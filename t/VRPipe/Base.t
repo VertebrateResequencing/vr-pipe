@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 41;
+    use Test::Most tests => 49;
     
     use_ok('VRPipe::Base');
     use_ok('File::Spec');
@@ -15,6 +15,18 @@ class VRPipe::Test {
     has 'foo' => (
         is  => 'rw',
         isa => 'Str',
+    );
+    
+    has 'file' => (
+        is  => 'rw',
+        isa => File,
+        coerce => 1
+    );
+    
+    has 'optional_file' => (
+        is  => 'rw',
+        isa => MaybeFile,
+        coerce => 1
     );
 }
 1;
@@ -65,6 +77,22 @@ throws_ok { $base->throw('thrown msg') } qr/thrown msg/, 'throw works';
 warning_like { $base->debug('debug msg') } qr/debug msg/, 'debug message when verbose > 0';
 $base->verbose(0);
 warning_is { $base->debug('debug msg') } '', 'no debug message when verbose <= 0';
+
+# type constraints
+my $fname = 'sdf';
+is $base->file($fname), $fname, "'$fname' passed the file constraint";
+$fname = '|!"£$%^&*()_+{}~@:<>?';
+throws_ok { $base->file($fname) } qr/does not seem like a file/, "'$fname' fails the file constraint";
+$fname = 'foo/bar/baz.txt';
+my $fobj = $base->file($fname)->as_foreign('Win32');
+is "$fobj", 'foo\bar\baz.txt', "'$fname' passed the file constraint (converting to $fobj for Win32)";
+is $fobj->basename, 'baz.txt', 'file() returned an object we could get the correct basename from';
+$fname = [qw(foo bar baz.txt)];
+$fobj = $base->file($fname);
+like "$fobj", qr/^foo.bar.baz\.txt$/, "[@{$fname}] as array ref passed the file constraint (converting to $fobj for this platform)";
+is $fobj->basename, 'baz.txt', 'basename also works given array ref input';
+throws_ok { $base->file(undef) } qr/no file specified/, "undef fails the file constraint";
+is $base->optional_file(undef), undef, 'undef passes the MaybeFile constraint';
 
 # register_for_cleanup difficult to test for properly...
 can_ok $base, qw(register_for_cleanup);

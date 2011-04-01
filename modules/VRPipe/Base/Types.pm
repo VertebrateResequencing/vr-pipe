@@ -32,12 +32,13 @@ use warnings;
 
 # predeclare our own types
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
-                                  ArrayRefOfStrings FileNameOrHandle Varchar
-                                  IntSQL)];
+                                  ArrayRefOfStrings FileOrHandle Varchar
+                                  IntSQL File Dir MaybeFile MaybeDir)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
-use MooseX::Types::Moose qw(Num Int Defined Str FileHandle ArrayRef);
+use MooseX::Types::Moose qw(Num Int Defined Str FileHandle ArrayRef HashRef Maybe);
+use Path::Class;
 
 # custom type definitions
 subtype PositiveInt, 
@@ -53,16 +54,30 @@ subtype VerbosityValue,
     where { $_ == -1 || $_ == 0 || $_ == 0.5 || $_ == 1 || $_ == 2 },
     message { "Verbosity is not amongst valid values -1|0|0.5|1|2" };
 
-#subtype File,
-#    as Object,
-#    where { $_->does('VRPipe::Base::ReadWritable') };
-#coerce File,
-#    from FileHandle,
-#    via { VRPipe::Base::FHWrapper->new(handle => $_) };
+# file-related (mostly stolen from MooseX::Types::Path::Class)
+class_type('Path::Class::Dir');
+class_type('Path::Class::File');
 
-subtype FileNameOrHandle,
+subtype Dir, as 'Path::Class::Dir', where { "$_" =~ /^[-\w.#\/\\]+$/ }, message { defined $_ ? "'$_' does not seem like a directory" : "no directory specified" };
+subtype File, as 'Path::Class::File', where { "$_" =~ /^[-\w.#\/\\]+$/ }, message { defined $_ ? "'$_' does not seem like a file" : "no file specified" };
+subtype MaybeFile, as Maybe[File];
+subtype MaybeDir, as Maybe[Dir];
+    
+for my $type ('Path::Class::Dir', Dir, MaybeDir) {
+    coerce $type,
+        from Str,      via { Path::Class::Dir->new($_) },
+        from ArrayRef, via { Path::Class::Dir->new(@{$_}) };
+}
+
+for my $type ('Path::Class::File', File, MaybeFile) {
+    coerce $type,
+        from Str,      via { Path::Class::File->new($_) },
+        from ArrayRef, via { Path::Class::File->new(@{$_}) };
+}
+
+subtype FileOrHandle,
     as Defined,
-    where { Str->check($_) || FileHandle->check($_) },
+    where { File->check($_) || FileHandle->check($_) },
     message { "Neither a file name nor handle" };
 
 # Varchar and IntSQL for database constraints
@@ -73,6 +88,7 @@ subtype Varchar,
         $int >= length($string) ? 1 : 0;
     },
     message { "'$_' is too long" };
+
 subtype IntSQL,
     as Parameterizable[Int, Int],
     where {
