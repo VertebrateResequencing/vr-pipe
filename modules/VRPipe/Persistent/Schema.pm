@@ -1,6 +1,31 @@
+=head1 NAME
+
+VRPipe::Persistent::Schema - the frontend for connecting to and getting at
+                             persistently stored objects
+
+=head1 SYNOPSIS
+
+use VRPipe::Persistent::Schema;
+
+my $schema = VRPipe::Persistent::Schema ->connect($dsn, $user, $password,
+                                                  { AutoCommit => 1 });
+
+my $resultset = $schema->resultset('Job');
+
+# $resultset isa DBIx::Class::ResultSet; do stuff with it
+# http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSet.pm
+# eg:
+
+while (my $job = $resultset->next) {
+    print $job->id;
+}
+
+$finished_jobs_resultset = $schema->resultset('Job')->search({ finished => 1 });
+
 =head1 DESCRIPTION
 
-Schema for DBIx::Class
+This is a subclass of DBIx::Class::Schema that loads VRPipe Persistent classes
+and lets you search for/create particular instances.
 
 =head1 AUTHOR
 
