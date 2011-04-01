@@ -1,9 +1,70 @@
+=head1 NAME
+
+VRPipe::Persistent - base class for objects that want to be persistent in the db
+
+=head1 SYNOPSIS
+
+use VRPipe::Base;
+
+class VRPipe::Artist extends VRPipe::Persistent {
+    has 'artistid' => (is => 'rw',
+                       isa => IntSQL[16],
+                       traits => ['VRPipe::Persistent::Attributes'],
+                       is_auto_increment => 1,
+                       is_primary_key => 1);
+
+    has 'name' => (is => 'rw',
+                   isa => Varchar[64],
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   is_primary_key => 1);
+
+    has 'age' => (is => 'rw',
+                  isa => IntSQL[3],
+                  traits => ['VRPipe::Persistent::Attributes'],
+                  default => 0);
+
+    has 'transient_value' => (is => 'rw', isa => 'Str');
+    
+    __PACKAGE__->make_persistent(has_many => [cds => 'VRPipe::CD']);
+}
+
+package main;
+
+use VRPipe::Artist;
+
+# get or create a new artist in the db by supplying at least all primary keys
+# (except auto_increment keys):
+my $bob = VRPipe::Artist->get(schema => $vrpipe_persistent_schema,
+                              name => 'Bob');
+
 =head1 DESCRIPTION
 
-Moose interface to DBIx::Class
+Moose interface to DBIx::Class.
 
 DBIx::Class::MooseColumns is OK, but I prefer my own interface here.
 
+Use VRPipe::Base as normal to setup your class with normal 'has' sugar. For
+attributes that you want stored in the database, simply specify
+VRPipe::Persistent::Attributes as one of its traits. That trait will allow you
+to specificy most DBIx::Class::ResultSource::add_columns args
+(http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns)
+as properties of your attribute. data_type is not accepted; instead your normal
+'isa' determines the data_type. Your isa must be one of IntSQL|Varchar.
+default_value will also be set from your attribute's default if it is present
+and a simple scalar value. is_nullable defaults to false.
+
+End your class definition with a call to __PACKAGE__->make_persistent, where you
+can supply the various relationship types as a hash (key as one of the
+relationship methods
+(http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/Relationship.pm),
+value as an array ref of the args you would send to that relationship method),
+and also table_name => $string if you don't want the table_name in your database
+to be the same as your class basename.
+
+For end users, get() is a convience method that will call find_or_create on a
+ResultSource for your class, if supplied values for at least all key columns
+(except auto_increment columns) and an instance of VRPipe::Persistent::Schema to
+the schema key.
 
 =head1 AUTHOR
 
@@ -18,25 +79,24 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
     
-    method make_persistent ($class: HashRef :$has_many?, HashRef :$belongs_to?) {
+    method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$has_one?, ArrayRef :$belongs_to?, ArrayRef :$might_have?, ArrayRef :$many_to_many?) {
         # decide on the name of the table and initialise
-        my $table_name = $class;
-        $table_name =~ s/.*:://;
-        $table_name = lc($table_name);
+        unless (defined $table_name) {
+            $table_name = $class;
+            $table_name =~ s/.*:://;
+            $table_name = lc($table_name);
+        }
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
         my @keys;
+        my @non_auto_keys;
         my $meta = $class->meta;
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
             
             my $column_info = {};
             if ($attr->does('VRPipe::Persistent::Attributes')) {
-                if ($attr->is_primary_key) {
-                    push(@keys, $name);
-                }
-                
                 my $vpa_meta = VRPipe::Persistent::Attributes->meta;
                 foreach my $vpa_attr ($vpa_meta->get_attribute_list) {
                     next if $vpa_attr eq 'is_primary_key';
@@ -44,9 +104,19 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     next unless $attr->$predicate();
                     $column_info->{$vpa_attr} = $attr->$vpa_attr;
                 }
+                
+                if ($attr->is_primary_key) {
+                    push(@keys, $name);
+                    push(@non_auto_keys, $name) unless (exists $column_info->{is_auto_increment} && $column_info->{is_auto_increment});
+                }
             }
             else {
                 next;
+            }
+            
+            # add default from our attribute if not already provided
+            if (! exists $column_info->{default_value} && defined $attr->default) {
+                $column_info->{default_value} = $attr->default;
             }
             
             # determine the type constraint that the database should use
@@ -100,7 +170,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 
                 #my $current_value = $self->get_column($name);
                 my $current_value = $self->$dbic_name();
-                return $self->$orig($current_value) unless @_;
+                unless (@_) {
+                    return defined $current_value ? $self->$orig($current_value) : $self->$orig();
+                }
                 
                 my $value = shift;
                 #$self->set_column($name, $value) unless $current_value eq $value;
@@ -130,11 +202,35 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         
         # set relationships
         if ($belongs_to) {
-            $class->belongs_to(%{$belongs_to});
+            $class->belongs_to(@{$belongs_to});
         }
         if ($has_many) {
-            $class->has_many(%{$has_many});
+            $class->has_many(@{$has_many});
         }
+        if ($has_one) {
+            $class->has_one(@{$has_one});
+        }
+        if ($might_have) {
+            $class->might_have(@{$might_have});
+        }
+        if ($many_to_many) {
+            $class->many_to_many(@{$many_to_many});
+        }
+        
+        # create a get method that expects all the primary keys and will get or
+        # create the corresponding row in the db
+        $meta->add_method('get' => sub {
+            my ($self, %args) = @_;
+            my $schema = delete $args{schema} || $self->throw("schema is a required argument to get()");
+            foreach my $key (@non_auto_keys) {
+                unless (defined $args{$key}) {
+                    $self->throw("get() must be supplied all non-auto-increment keys (@non_auto_keys); missing $key");
+                }
+            }
+            
+            my $rs = $schema->resultset("$class");
+            return $rs->find_or_create(%args);
+        });
     }
     
     method DEMOLISH {
