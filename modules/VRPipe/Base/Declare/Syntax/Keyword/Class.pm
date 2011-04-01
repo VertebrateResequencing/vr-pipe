@@ -13,7 +13,7 @@ class VRPipe::Base::Declare::Syntax::Keyword::Class extends MooseX::Declare::Syn
     
     after add_namespace_customizations (Object $ctx, Str $package) {
         $ctx->add_preamble_code_parts(
-            'use MooseX::StrictConstructor; use VRPipe::Base::Types ":all";'
+            'use MooseX::StrictConstructor; use VRPipe::Base::Types ":all"; use TryCatch; use Path::Class;'
         );
     }
 }
