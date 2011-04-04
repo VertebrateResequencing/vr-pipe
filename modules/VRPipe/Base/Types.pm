@@ -33,11 +33,11 @@ use warnings;
 # predeclare our own types
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
-                                  IntSQL File Dir MaybeFile MaybeDir)];
+                                  IntSQL File Dir MaybeFile MaybeDir StrOrEnv)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
-use MooseX::Types::Moose qw(Num Int Defined Str FileHandle ArrayRef HashRef Maybe);
+use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef Maybe);
 use Path::Class;
 
 # custom type definitions
@@ -53,6 +53,12 @@ subtype VerbosityValue,
     as Num,
     where { $_ == -1 || $_ == 0 || $_ == 0.5 || $_ == 1 || $_ == 2 },
     message { "Verbosity is not amongst valid values -1|0|0.5|1|2" };
+
+class_type('VRPipe::Base::Configuration::Env');
+subtype StrOrEnv,
+    as 'Str | VRPipe::Base::Configuration::Env',
+    #where { Str->check($_) || 'VRPipe::Base::Configuration::Env'->check($_) },
+    message { "$_ is neither a String nor a VRPipe::Base::Configuration::Env" };
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');

@@ -2,6 +2,7 @@ use VRPipe::Base;
 
 role VRPipe::Base::Configuration::Trait::Object {
     use Data::Dumper;
+    use VRPipe::Base::Configuration::Env;
     
     has config_module => (
         is      => 'ro',
@@ -63,9 +64,26 @@ role VRPipe::Base::Configuration::Trait::Object {
         return $config_module->get_config() || {};
     }
     
-    method _from_config (Str $name) {
+    method _from_config_or_env (Str $name, Str $env_key) {
         my $hash = $self->_raw_config();
-        return $hash->{$name};
+        my $value = $hash->{$name};
+        return $value if (defined $value && ($value ne '' || ref($value)));
+        
+        my $env;
+        if (defined $ENV{lc $env_key}) {
+            $env = lc $env_key;
+        }
+        elsif (defined $ENV{uc $env_key}) {
+            $env = uc $env_key;
+        }
+        if ($env) {
+            # return an env object that stringifies to $ENV{$env}, but lets us
+            # store the fact that we're dealing with an environment variable
+            # in the config file
+            return VRPipe::Base::Configuration::Env->new(variable => $env_key);
+        }
+        
+        return;
     }
     
     method write_config_module {
@@ -77,7 +95,7 @@ role VRPipe::Base::Configuration::Trait::Object {
             my $key = $option->{key};
             my $value = $self->$key();
             if ($value eq 'undef') {
-                $value = '';
+                next;
             }
             $values->{$key} = $value;
         }
