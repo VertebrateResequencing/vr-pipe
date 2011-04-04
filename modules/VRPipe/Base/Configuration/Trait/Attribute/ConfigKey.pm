@@ -1,6 +1,24 @@
 use VRPipe::Base;
 
 role VRPipe::Base::Configuration::Trait::Attribute::ConfigKey {
+    has question => (
+        is        => 'ro',
+        isa       => 'Str',
+        predicate => 'has_question'
+    );
+    
+    has question_number => (
+        is        => 'ro',
+        isa       => 'Str',
+        required  => 1
+    );
+    
+    has valid => (
+        is        => 'ro',
+        isa       => ArrayRefOfStrings,
+        predicate => 'has_valid'
+    );
+    
     around _process_options (ClassName|Object $class: Str $name, HashRef $options) {
         $class->$orig($name, $options);
         $class->_process_default_or_builder_option($name, $options);

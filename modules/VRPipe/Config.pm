@@ -10,18 +10,56 @@ use VRPipe::Base;
 class VRPipe::Config {
     use VRPipe::Base::Configuration;
     
-    has database_mysql_dbname => (
-        is      => 'ro',
+    my $question_number = 0;
+    
+    has production_dbtype => (
+        is      => 'rw',
         isa     => 'Str',
-        default => 'db_name_default_from_Config',
-        documentation => 'The name of the database.'
+        default => 'mysql',
+        question => 'What DRM should be used for production?',
+        valid => [qw(mysql postgres)],
+        question_number => ++$question_number
     );
     
-    has database_mysql_username => (
-        is      => 'ro',
+    has production_dbname => (
+        is      => 'rw',
+        isa     => 'Str',
+        default => 'db_name_default_from_Config',
+        question => 'What is the name of your production database?',
+        question_number => ++$question_number
+    );
+    
+    has production_username => (
+        is      => 'rw',
         isa     => 'Str',
         default => 'db_user_default_from_Config',
-        documentation => 'The username to use when connecting to the database.'
+        documentation => 'What username is used to connect to your production database?',
+        question_number => ++$question_number
+    );
+    
+    has testing_dbtype => (
+        is      => 'rw',
+        isa     => 'Str',
+        default => 'sqlite',
+        question => 'What DRM should be used for testing?',
+        valid => [qw(sqlite mysql postgres)],
+        question_number => ++$question_number
+    );
+    
+    has testing_dbname => (
+        is      => 'rw',
+        isa     => 'Str',
+        default => ':memory:',
+        question => 'What is the name of your testing database?',
+        question_number => ++$question_number
+    );
+    
+    has testing_username => (
+        is      => 'rw',
+        isa     => 'Str',
+        default => '',
+        documentation => 'What username is used to connect to your testing database?',
+        question_number => ++$question_number
     );
 }
 

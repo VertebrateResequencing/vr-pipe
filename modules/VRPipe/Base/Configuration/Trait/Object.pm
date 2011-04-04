@@ -68,8 +68,19 @@ role VRPipe::Base::Configuration::Trait::Object {
         return $hash->{$name};
     }
     
-    method write_config_module (HashRef :$values) {
+    method write_config_module {
         my $config_module = $self->config_module_path();
+        
+        my $values = {};
+        my @options = $self->get_options;
+        foreach my $option (@options) {
+            my $key = $option->{key};
+            my $value = $self->$key();
+            if ($value eq 'undef') {
+                $value = '';
+            }
+            $values->{$key} = $value;
+        }
         
         my $dd = Data::Dumper->new( [ $values ], [ 'site_config' ] );
         open( my $fh, '>', $config_module ) or $self->throw("Cannot write to '$config_module': $!");
@@ -92,12 +103,16 @@ END_HERE
     
     method get_options ($class:) {
         my $meta = $class->meta;
-        my @names;
-        foreach my $attr ($meta->get_all_attributes) {
-            my $name = $attr->name;
-            push(@names, $name);
+        my @options;
+        
+        my @ck_attrs = sort { $a->question_number <=> $b->question_number } grep { $_->does('VRPipe::Base::Configuration::Trait::Attribute::ConfigKey') } $meta->get_all_attributes;
+        foreach my $attr (@ck_attrs) {
+            my $key = $attr->name;
+            push(@options, { key => $key,
+                             question => $attr->has_question ? $attr->question : "$key?",
+                             $attr->has_valid ? (valid => $attr->valid) : () });
         }
-        return @names;
+        return @options;
     }
 }
 
