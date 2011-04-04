@@ -2,14 +2,20 @@ use VRPipe::Base;
 
 role VRPipe::Base::Configuration::Trait::Object {
     use Data::Dumper;
-    use Module::Find;
     
     has config_module => (
+        is      => 'ro',
+        isa     => 'Str',
+        lazy    => 1,
+        builder => '_build_config_module'
+    );
+    
+    has config_module_path => (
         is      => 'ro',
         isa     => File,
         coerce  => 1,
         lazy    => 1,
-        builder => '_build_config_module'
+        builder => '_build_config_path'
     );
     
     has _raw_config => (
@@ -20,38 +26,41 @@ role VRPipe::Base::Configuration::Trait::Object {
     );
     
     method _build_config_module {
-        return file(qw(modules VRPipe SiteConfig.pm));
+        return 'VRPipe::SiteConfig';
+    }
+    
+    method _build_config_path {
+        my $module = $self->config_module;
+        
+        my $path = file(split('::', $module));
+        $path .= '.pm';
+        
+        eval "require $module";
+        if (exists $INC{$path}) {
+            $path = $INC{$path};
+        }
+        else {
+            # stick it in the first writable path in INC
+            my $writable_inc;
+            foreach my $inc (@INC) {
+                if (-w $inc) { # only a permission test; doesn't really guarantee we can really write there
+                    $writable_inc = $inc;
+                    last;
+                }
+            }
+            $writable_inc || $self->throw("There don't seem to be any writable paths in your INC");
+            
+            $path = file($writable_inc, $path);
+        }
+        
+        return $path;
     }
     
     method _build_raw_config {
-        # given the path to the config module, load the corresponding module,
-        # which we require to be in the VRPipe namespace
         my $config_module = $self->config_module;
-        my @dirs = $config_module->dir->dir_list;
-        my @parents;
-        my $saw_vrpipe = 0;
-        my @module_name;
-        foreach my $dir (@dirs) {
-            if ($dir eq 'VRPipe') {
-                $saw_vrpipe = 1;
-            }
-            
-            if ($saw_vrpipe) {
-                push(@module_name, $dir);
-            }
-            else {
-                push(@parents, $dir);
-            }
-        }
-        $self->throw("'$config_module' did not correspond to a VRPipe module") unless $saw_vrpipe;
-        
-        my $module_basename = $config_module->basename;
-        $module_basename =~ s/\.pm$//; 
-        my $module_name = join('::', @module_name, $module_basename);
-        
-        try { local @INC = (dir(@parents)->stringify); eval "require $module_name"; die $@ if $@; } # require $module_name; with no eval does not work
+        try { eval "require $config_module"; die $@ if $@; } # require $config_module; with no eval does not work
         catch { return {} }
-        return $module_name->get_config() || {};
+        return $config_module->get_config() || {};
     }
     
     method _from_config (Str $name) {
@@ -60,9 +69,7 @@ role VRPipe::Base::Configuration::Trait::Object {
     }
     
     method write_config_module (HashRef :$values) {
-        my $config_module = $self->config_module();
-        
-        $self->throw('Cannot write a configuration module without config_module set') unless defined $config_module;
+        my $config_module = $self->config_module_path();
         
         my $dd = Data::Dumper->new( [ $values ], [ 'site_config' ] );
         open( my $fh, '>', $config_module ) or $self->throw("Cannot write to '$config_module': $!");
