@@ -33,7 +33,8 @@ use warnings;
 # predeclare our own types
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
-                                  IntSQL File Dir MaybeFile MaybeDir StrOrEnv)];
+                                  IntSQL File Dir MaybeFile MaybeDir StrOrEnv
+                                  MaybeStrOrEnv)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -59,6 +60,8 @@ subtype StrOrEnv,
     as 'Str | VRPipe::Base::Configuration::Env',
     #where { Str->check($_) || 'VRPipe::Base::Configuration::Env'->check($_) },
     message { "$_ is neither a String nor a VRPipe::Base::Configuration::Env" };
+subtype MaybeStrOrEnv,
+    as Maybe[StrOrEnv];
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');

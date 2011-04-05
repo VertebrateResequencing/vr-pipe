@@ -26,9 +26,9 @@ role VRPipe::Base::Configuration::Trait::Attribute::ConfigKey {
     );
     
     around _process_options (ClassName|Object $class: Str $name, HashRef $options) {
-        $options->{isa} = StrOrEnv;
-        $options->{lazy} = 1;
+        $options->{isa} = MaybeStrOrEnv;
         $class->$orig($name, $options);
+        $options->{lazy} = 1;
         $class->_process_default_or_builder_option($name, $options);
     }
     
