@@ -30,7 +30,7 @@ class VRPipe::Config {
     has production_username => (
         is      => 'rw',
         default => 'db_user_default_from_Config',
-        documentation => 'What username is used to connect to your production database?',
+        question => 'What username is used to connect to your production database?',
         env     => 'VRTRACK_RW_USER',
         question_number => ++$question_number
     );
@@ -53,7 +53,7 @@ class VRPipe::Config {
     has testing_username => (
         is      => 'rw',
         default => '',
-        documentation => 'What username is used to connect to your testing database?',
+        question => 'What username is used to connect to your testing database?',
         question_number => ++$question_number
     );
 }
