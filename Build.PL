@@ -34,7 +34,6 @@ my $build = VRPipeBuild->new(
 );
 
 $build->create_site_config;
-exit;
 $build->create_build_script;
 
 exit;
