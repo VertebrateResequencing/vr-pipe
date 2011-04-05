@@ -67,7 +67,7 @@ role VRPipe::Base::Configuration::Trait::Object {
     method _from_config_or_env (Str $name, Str $env_key) {
         my $hash = $self->_raw_config();
         my $value = $hash->{$name};
-        return $value if (defined $value && ($value ne '' || ref($value)));
+        return $value if (defined $value && (ref($value) || $value ne '')); # $value may be an Env object which stringifies to '', which is allowed
         
         my $env;
         if (defined $ENV{lc $env_key}) {
@@ -87,23 +87,21 @@ role VRPipe::Base::Configuration::Trait::Object {
     }
     
     method write_config_module {
-        my $config_module = $self->config_module_path();
+        my $config_module_path = $self->config_module_path();
         
         my $values = {};
         my @options = $self->get_options;
         foreach my $option (@options) {
             my $key = $option->{key};
             my $value = $self->$key();
-            if ($value eq 'undef') {
-                next;
-            }
+            next unless defined $value;
             $values->{$key} = $value;
         }
         
         my $dd = Data::Dumper->new( [ $values ], [ 'site_config' ] );
-        open( my $fh, '>', $config_module ) or $self->throw("Cannot write to '$config_module': $!");
-        printf $fh <<'END_HERE', $dd->Dump();
-package VRPipe::SiteConfig;
+        open( my $fh, '>', $config_module_path ) or $self->throw("Cannot write to '$config_module_path': $!");
+        printf $fh <<'END_HERE', $self->config_module, $dd->Dump();
+package %s;
 use strict;
 use warnings;
 
@@ -128,6 +126,7 @@ END_HERE
             my $key = $attr->name;
             push(@options, { key => $key,
                              question => $attr->has_question ? $attr->question : "$key?",
+                             question_number => $attr->question_number,
                              $attr->has_valid ? (valid => $attr->valid) : () });
         }
         return @options;
