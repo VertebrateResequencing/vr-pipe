@@ -51,7 +51,12 @@ To specify the answer should come from an environment variable, type 'ENV{variab
                 $answer = VRPipe::Base::Configuration::Env->new(variable => $1);
             }
             
-            $vrp_config->$key($answer);
+            if ($answer eq 'undef') {
+                $vrp_config->$key(undef);
+            }
+            else {
+                $vrp_config->$key($answer);
+            }
         }
         
         $vrp_config->write_config_module();
