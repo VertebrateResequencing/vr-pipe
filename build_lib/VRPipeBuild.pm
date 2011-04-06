@@ -27,7 +27,7 @@ To specify the answer should come from an environment variable, type 'ENV{variab
             my $valid_ref = $option->valid;
             my $valid;
             if ($valid_ref) {
-                $valid = '['.join('|', @{$valid_ref}).']';
+                $valid = '<'.join('|', @{$valid_ref}).'>';
             }
             
             my $default = $option->value;
