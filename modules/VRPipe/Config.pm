@@ -37,6 +37,7 @@ class VRPipe::Config {
         is      => 'rw',
         question => 'What DRM should be used for production?',
         default => 'mysql',
+        env => 'DBI_DRIVER',
         valid => [qw(mysql postgres)],
         question_number => ++$question_number
     );
@@ -117,6 +118,7 @@ class VRPipe::Config {
         question => 'What username is used to connect to your testing database?',
         skip => '_skip_based_on_test_db',
         default => '',
+        env => 'DBI_USER',
         question_number => ++$question_number
     );
     
@@ -125,6 +127,7 @@ class VRPipe::Config {
         question => 'What password is used to connect to your testing database?',
         skip => '_skip_based_on_test_db',
         default => '',
+        env => 'DBI_PASS',
         question_number => ++$question_number
     );
     
