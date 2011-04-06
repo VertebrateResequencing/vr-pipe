@@ -8,12 +8,7 @@ BEGIN {
     use_ok('VRPipe::Persistent');
     use_ok('t::VRPipe::Persistent::Schema');
     
-    use Test::DBIx::Class {
-        schema_class => 't::VRPipe::Persistent::Schema',
-        force_drop_table => 1,
-        keep_db => 1,
-        connect_info => ["dbi:mysql:host=$ENV{VRTRACK_HOST};port=$ENV{VRTRACK_PORT};database=vertres_dbixclass;", $ENV{VRTRACK_RW_USER}, $ENV{VRTRACK_PASSWORD}] #['dbi:SQLite:dbname=:memory:','','']
-    }; #, 't::VRPipe::Artist' => {-as => 'Artist'}, 't::VRPipe::CD' => {-as => 'CD'}, 't::VRPipe::Track' => {-as => 'Track'}
+    use TestPersistent;
 }
 
 # some quick basic tests
@@ -52,7 +47,9 @@ is $artist->name, 'Larton', 'and the name is unchanged';
 throws_ok { $resultset->search({'named' => 'Footon'})->first, 'Searched for Footon'; } 'DBIx::Class::Exception', 'throws given invalid column name to search on';
 
 
-# try out our special get method
+# try out our special get method (schema is normally optional and defaults to
+# the main VRPipe::Persistent::Schema schema, but that's difficult to test at
+# least for now...)
 ok my $bob = t::VRPipe::Artist->get(schema => Schema, name => 'Bob'), 'created Bob using get()';
 is_fields [qw/artistid name age/], $bob, [3, 'Bob', 99], 'Bob has the expected fields';
 undef $bob;
@@ -116,11 +113,11 @@ reset_schema; # this counts as a test
     #... difficult to test given configurable dbm
     
     # run tests
-    is_deeply [get_tracks_by_cd('Bad')], ['Leave Me Alone', 'Smooth Criminal', 'Dirty Diana'], 'could get tracks by cd';
-    is_deeply [get_tracks_by_artist('Michael Jackson')], ['Billie Jean', 'Beat It', 'Leave Me Alone', 'Smooth Criminal', 'Dirty Diana'], 'could get tracks by artist';
+    is_deeply [get_tracks_by_cd('Bad')], ['Dirty Diana', 'Leave Me Alone', 'Smooth Criminal'], 'could get tracks by cd';
+    is_deeply [get_tracks_by_artist('Michael Jackson')], ['Beat It', 'Billie Jean', 'Dirty Diana', 'Leave Me Alone', 'Smooth Criminal'], 'could get tracks by artist';
     
     is get_cd_by_track('Stan'), 'The Marshall Mathers LP', 'could get cd by track';
-    is_deeply [get_cds_by_artist('Michael Jackson')], ['Thriller', 'Bad'], 'could get cds by artist';
+    is_deeply [get_cds_by_artist('Michael Jackson')], ['Bad', 'Thriller'], 'could get cds by artist';
     
     is get_artist_by_track('Dirty Diana'), 'Michael Jackson', 'could get artist by track';
     is get_artist_by_cd('The Marshall Mathers LP'), 'Eminem', 'could get artist by cd';
@@ -139,7 +136,7 @@ reset_schema; # this counts as a test
         while (my $track = $rs->next) {
             push(@titles, $track->title);
         }
-        return @titles;
+        return sort @titles;
     }
     
     sub get_tracks_by_artist {
@@ -158,7 +155,7 @@ reset_schema; # this counts as a test
         while (my $track = $rs->next) {
             push(@titles, $track->title);
         }
-        return @titles;
+        return sort @titles;
     }
     
     sub get_cd_by_track {
@@ -189,7 +186,7 @@ reset_schema; # this counts as a test
         while (my $cd = $rs->next) {
             push(@titles, $cd->title);
         }
-        return @titles;
+        return sort @titles;
     }
     
     sub get_artist_by_track {

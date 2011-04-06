@@ -34,8 +34,7 @@ use VRPipe::Artist;
 
 # get or create a new artist in the db by supplying at least all primary keys
 # (except auto_increment keys):
-my $bob = VRPipe::Artist->get(schema => $vrpipe_persistent_schema,
-                              name => 'Bob');
+my $bob = VRPipe::Artist->get(name => 'Bob');
 
 =head1 DESCRIPTION
 
@@ -76,6 +75,7 @@ use VRPipe::Base;
 
 class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose to get Debuggable
     use MooseX::NonMoose;
+    use VRPipe::Persistent::Schema;
     
     has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
     
@@ -221,7 +221,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # create the corresponding row in the db
         $meta->add_method('get' => sub {
             my ($self, %args) = @_;
-            my $schema = delete $args{schema} || $self->throw("schema is a required argument to get()");
+            my $schema = delete $args{schema} || VRPipe::Persistent::Schema->connect;
             foreach my $key (@non_auto_keys) {
                 unless (defined $args{$key}) {
                     $self->throw("get() must be supplied all non-auto-increment keys (@non_auto_keys); missing $key");

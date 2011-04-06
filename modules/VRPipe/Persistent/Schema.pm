@@ -7,8 +7,7 @@ VRPipe::Persistent::Schema - the frontend for connecting to and getting at
 
 use VRPipe::Persistent::Schema;
 
-my $schema = VRPipe::Persistent::Schema ->connect($dsn, $user, $password,
-                                                  { AutoCommit => 1 });
+my $schema = VRPipe::Persistent::Schema->connect();
 
 my $resultset = $schema->resultset('Job');
 
@@ -25,7 +24,9 @@ $finished_jobs_resultset = $schema->resultset('Job')->search({ finished => 1 });
 =head1 DESCRIPTION
 
 This is a subclass of DBIx::Class::Schema that loads VRPipe Persistent classes
-and lets you search for/create particular instances.
+and lets you search for/create particular instances. The details of which
+database to connect to are automatically determined from the site-wide
+configuration.
 
 =head1 AUTHOR
 
@@ -35,13 +36,10 @@ Sendu Bala: sb10 at sanger ac uk
 
 use VRPipe::Base;
 
-class VRPipe::Persistent::Schema extends DBIx::Class::Schema {
+class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     #__PACKAGE__->load_namespaces();
     #__PACKAGE__->load_namespaces(result_namespace => ['+VRPipe::DirA', '+VRPipe::DirB']);
     #__PACKAGE__->load_classes({VRPipe => [qw/Artist CD Track/]});
-    
-    # __PACKAGE__->exception_action(sub { My::ExceptionClass->throw(@_) });
-    __PACKAGE__->stacktrace(1);
 }
 
 1;
