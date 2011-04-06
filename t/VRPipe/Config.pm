@@ -21,7 +21,6 @@ class t::VRPipe::Config {
     
     has third_key => (
         is      => 'rw',
-        question => 'Third question?',
         env     => 'TVRPIPE_THIRDKEY',
         question_number => ++$question_number
     );

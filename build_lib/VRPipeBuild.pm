@@ -21,41 +21,36 @@ sub create_site_config {
 To say that you don't want the default or any other value, type the word 'undef' without quotes.
 To specify the answer should come from an environment variable, type 'ENV{variable_name}' without the quotes, replacing 'variable_name' as desired\n\n";
         
-        my @options = $vrp_config->get_options;
-        
-        foreach my $option (@options) {
+        while (my $option = $vrp_config->next_option) {
             my $key = $option->{key};
             
-            my $valid = '';
-            if (defined $option->{valid}) {
-                $valid = '['.join('|', @{$option->{valid}}).']';
+            my $valid_ref = $option->valid;
+            my $valid;
+            if ($valid_ref) {
+                $valid = '['.join('|', @{$valid_ref}).']';
             }
             
-            my $default = $vrp_config->$key();
+            my $default = $option->value;
             if (ref $default) {
                 my $env_value = $default->value ? "'$default'" : 'undefined';
                 $default = 'ENV{'.$default->variable.'} (currently '.$env_value.')';
             }
             
-            my $answer = $self->prompt($option->{question}.' '.$valid, $default);
+            my $answer = $self->prompt($option->question.' '.$valid, $default);
             
-            if (defined $option->{valid}) {
-                my %allowed = map { $_ => 1 } @{$option->{valid}};
+            if ($valid_ref) {
+                my %allowed = map { $_ => 1 } @{$valid_ref};
                 while (! exists $allowed{$answer}) {
                     warn "'$answer' was not a valid answer for that question; try again:\n";
-                    $answer = $self->prompt($option->{question}.' '.$valid, $default);
+                    $answer = $self->prompt($option->question.' '.$valid, $default);
                 }
             }
             
             if ($answer =~ /^ENV\{(.+)}/) {
-                $answer = VRPipe::Base::Configuration::Env->new(variable => $1);
-            }
-            
-            if ($answer eq 'undef') {
-                $vrp_config->$key(undef);
+                $option->env($1);
             }
             else {
-                $vrp_config->$key($answer);
+                $option->value($answer);
             }
         }
         

@@ -3,6 +3,7 @@ use VRPipe::Base;
 role VRPipe::Base::Configuration::Trait::Object {
     use Data::Dumper;
     use VRPipe::Base::Configuration::Env;
+    use VRPipe::Base::Configuration::Option;
     
     has config_module => (
         is      => 'ro',
@@ -24,6 +25,18 @@ role VRPipe::Base::Configuration::Trait::Object {
         isa     => 'HashRef',
         lazy    => 1,
         builder => '_build_raw_config'
+    );
+    
+    has _options_list => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        builder => '_build_options_list'
+    );
+    
+    has _next_option_index => (
+        is      => 'rw',
+        isa     => 'Int',
+        default => 0
     );
     
     method _build_config_module {
@@ -115,6 +128,56 @@ sub get_config {
 1;
 END_HERE
         close($fh);
+    }
+    
+    method _build_options_list ($class:) {
+        my $meta = $class->meta;
+        my @ck_attrs = sort { $a->question_number <=> $b->question_number } grep { $_->does('VRPipe::Base::Configuration::Trait::Attribute::ConfigKey') } $meta->get_all_attributes;
+        return \@ck_attrs;
+    }
+    
+    method next_option {
+        my $next_option_index = $self->_next_option_index;
+        my $attrs = $self->_options_list;
+        my $max = $#$attrs;
+        if ($next_option_index > $max) {
+            return;
+        }
+        
+        $self->_next_option_index($next_option_index + 1);
+        return $self->_new_option($attrs->[$next_option_index]);
+    }
+    
+    method option (Int :$number?, Str :$key?) {
+        my $attrs = $self->_options_list;
+        
+        my $attr;
+        if ($number) {
+            foreach my $this_attr (@$attrs) {
+                if ($this_attr->question_number == $number) {
+                    $attr = $this_attr;
+                    last;
+                }
+            }
+        }
+        elsif ($key) {
+            foreach my $this_attr (@$attrs) {
+                if ($this_attr->name eq $key) {
+                    $attr = $this_attr;
+                    last;
+                }
+            }
+        }
+        
+        unless (defined $attr) {
+            $self->throw("You requested an option that doesn't exist");
+        }
+        
+        return $self->_new_option($attr);
+    }
+    
+    method _new_option ($attr) {
+        return VRPipe::Base::Configuration::Option->new(_attr => $attr, _obj => $self);
     }
     
     method get_options ($class:) {
