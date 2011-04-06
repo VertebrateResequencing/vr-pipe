@@ -111,6 +111,9 @@ EOF
         }
         
         my $default = $self->value;
+        unless (defined $default) {
+            $default = '';
+        }
         if (ref $default) {
             my $env_value = $default->value ? "'$default'" : 'undefined';
             $default = 'ENV{'.$default->variable.'} (currently '.$env_value.')';
