@@ -130,7 +130,8 @@ EOF
         }
         
         if ($answer =~ /^ENV\{(.+)}/) {
-            $self->env($1);
+            my $var = $1;
+            $self->env($var);
         }
         else {
             $self->value($answer);
