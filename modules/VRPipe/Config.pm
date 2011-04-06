@@ -90,6 +90,13 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has testing_dbname => (
+        is      => 'rw',
+        question => 'What is the name of your testing database?',
+        builder => '_build_test_dbname',
+        question_number => ++$question_number
+    );
+    
     has testing_dbhost => (
         is      => 'rw',
         question => 'What host is your testing database on?',
@@ -103,13 +110,6 @@ class VRPipe::Config {
         question => 'What port is your testing database accessed with?',
         skip => '_skip_based_on_test_db',
         builder => '_build_test_dbport',
-        question_number => ++$question_number
-    );
-    
-    has testing_dbname => (
-        is      => 'rw',
-        question => 'What is the name of your testing database?',
-        builder => '_build_test_dbname',
         question_number => ++$question_number
     );
     
