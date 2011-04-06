@@ -36,5 +36,11 @@ sub ACTION_realclean {
     $self->SUPER::ACTION_realclean( @_ );
 }
 
+# this method, called by create_build_script(), is just annoying and we don't
+# need what it does, at least for now
+sub create_mymeta {
+    return 1;
+}
+
 1;
 
