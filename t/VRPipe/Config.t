@@ -7,7 +7,7 @@ use File::Path qw/make_path/;
 use Class::Unload;
 
 BEGIN {
-    use Test::Most tests => 38;
+    use Test::Most tests => 42;
     
     use_ok('VRPipe::Config');
     use_ok('t::VRPipe::Config');
@@ -31,7 +31,7 @@ is $option->value, $vrp_config->first_key, '$option->key is the same as $config-
 is $option->value, 'foo', 'value defaults to its specified default';
 is $option->value('bar'), 'bar', 'value could be set to bar';
 is $option->value('undef'), undef, 'value can be set to string undef to return actual undef';
-is_deeply $option->valid, [qw(foo bar)], 'valid contains allowed values';
+is_deeply $option->valid, [qw(foo bar make_second_skip)], 'valid contains allowed values';
 throws_ok { $option->value('baz') } qr/not a valid value/, 'value throws if supplied an invalid value';
 
 ok $option = $vrp_config->next_option, 'got an option from next_option';
@@ -78,6 +78,8 @@ is $option->value, undef, 'value defaults to undef';
     $vrp_config = reload();
     $return_val = $vrp_config->third_key;
     is_deeply [$return_val->variable, "$return_val"], ['vrpipe_test_var2', ''], 'when the env var is undefined, we still return the Env object, but the value is empty string';
+    $vrp_config->third_key(undef);
+    $vrp_config->write_config_module;
 }
 
 $vrp_config = reload();
@@ -86,6 +88,17 @@ while ($vrp_config->next_option) {
     $options++;
 }
 is $options, 3, 'got correct number of options';
+
+
+# skipping questions and changing defaults based on past answers
+$vrp_config = reload();
+$option = $vrp_config->next_option;
+is $option->key, 'first_key', 'after a reload we start with the first option again...';
+$option->value('make_second_skip');
+$option = $vrp_config->next_option;
+is $option->key, 'third_key', '... but the second option gets skipped based on value of first option';
+is $option->value, 'based on skipped second key', 'the third option got a special default based on second option being skipped';
+is $vrp_config->next_option, undef, 'and there are no more options';
 
 exit;
 

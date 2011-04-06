@@ -103,26 +103,27 @@ role VRPipe::Base::Configuration::Trait::Object {
         my $config_module_path = $self->config_module_path();
         
         my $values = {};
-        my @options = $self->get_options;
-        foreach my $option (@options) {
-            my $key = $option->{key};
-            my $value = $self->$key();
+        my $next_option_index = $self->_next_option_index;
+        $self->_next_option_index(0);
+        while (my $option = $self->next_option) {
+            my $value = $option->value();
             next unless defined $value;
-            $values->{$key} = $value;
+            $values->{$option->key} = $value;
         }
+        $self->_next_option_index($next_option_index);
         
-        my $dd = Data::Dumper->new( [ $values ], [ 'site_config' ] );
-        open( my $fh, '>', $config_module_path ) or $self->throw("Cannot write to '$config_module_path': $!");
+        my $dd = Data::Dumper->new([$values], ['config']);
+        open(my $fh, '>', $config_module_path) or $self->throw("Cannot write to '$config_module_path': $!");
         printf $fh <<'END_HERE', $self->config_module, $dd->Dump();
 package %s;
 use strict;
 use warnings;
 
-my $site_config;
+my $config;
 %s;
 
 sub get_config {
-    return $site_config;
+    return $config;
 }
 
 1;
@@ -144,8 +145,23 @@ END_HERE
             return;
         }
         
-        $self->_next_option_index($next_option_index + 1);
-        return $self->_new_option($attrs->[$next_option_index]);
+        my $attr;
+        while (! defined $attr) {
+            $attr = $attrs->[$next_option_index++];
+            if ($attr->has_skip) {
+                my $skip_method = $attr->skip;
+                if ($self->$skip_method) {
+                    undef $attr;
+                }
+            }
+            last if $next_option_index > $max;
+        }
+        
+        $self->_next_option_index($next_option_index);
+        unless ($attr) {
+            return;
+        }
+        return $self->_new_option($attr);
     }
     
     method option (Int :$number?, Str :$key?) {
@@ -178,21 +194,6 @@ END_HERE
     
     method _new_option ($attr) {
         return VRPipe::Base::Configuration::Option->new(_attr => $attr, _obj => $self);
-    }
-    
-    method get_options ($class:) {
-        my $meta = $class->meta;
-        my @options;
-        
-        my @ck_attrs = sort { $a->question_number <=> $b->question_number } grep { $_->does('VRPipe::Base::Configuration::Trait::Attribute::ConfigKey') } $meta->get_all_attributes;
-        foreach my $attr (@ck_attrs) {
-            my $key = $attr->name;
-            push(@options, { key => $key,
-                             question => $attr->has_question ? $attr->question : "$key?",
-                             question_number => $attr->question_number,
-                             $attr->has_valid ? (valid => $attr->valid) : () });
-        }
-        return @options;
     }
 }
 

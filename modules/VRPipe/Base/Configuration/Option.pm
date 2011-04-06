@@ -67,6 +67,72 @@ class VRPipe::Base::Configuration::Option {
         return $attr->valid if $attr->has_valid;
         return;
     }
+    
+    # prompt-related methods stolen from Module::Build
+    method _is_interactive {
+        return -t STDIN && (-t STDOUT || !(-f STDOUT || -c STDOUT));
+    }
+    method _is_unattended {
+        return $ENV{PERL_MM_USE_DEFAULT} || (!$self->_is_interactive && eof STDIN);
+    }
+    method _readline {
+        return undef if $self->_is_unattended;
+        my $answer = <STDIN>;
+        chomp $answer if defined $answer;
+        return $answer;
+    }
+    method _prompt (Str $valid, Str $default) {
+        if ($valid) {
+            $valid .= ' ';
+        }
+        
+        local $|=1;
+        print $self->question, ' ', $valid, '[', $default, ']', ' ';
+        
+        if ($self->_is_unattended && !$default) {
+            die <<EOF;
+ERROR: This build seems to be unattended, but there is no default value
+for this question. Aborting.
+EOF
+        }
+        
+        my $ans = $self->_readline();
+        if (!defined($ans)      # Ctrl-D or unattended
+            or !length($ans)) { # User hit return
+            $ans = $default;
+        }
+        return $ans;
+    }
+    method prompt {
+        my $valid_ref = $self->valid;
+        my $valid = '';
+        if ($valid_ref) {
+            $valid = '<'.join('|', @{$valid_ref}).'>';
+        }
+        
+        my $default = $self->value;
+        if (ref $default) {
+            my $env_value = $default->value ? "'$default'" : 'undefined';
+            $default = 'ENV{'.$default->variable.'} (currently '.$env_value.')';
+        }
+        
+        my $answer = $self->_prompt($valid, $default);
+        
+        if ($valid_ref) {
+            my %allowed = map { $_ => 1 } @{$valid_ref};
+            while (! exists $allowed{$answer}) {
+                warn "'$answer' was not a valid answer for that question; try again:\n";
+                $answer = $self->_prompt($valid, $default);
+            }
+        }
+        
+        if ($answer =~ /^ENV\{(.+)}/) {
+            $self->env($1);
+        }
+        else {
+            $self->value($answer);
+        }
+    }
 }
 
 1;
