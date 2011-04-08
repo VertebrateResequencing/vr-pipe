@@ -44,34 +44,6 @@ role VRPipe::Base::FileMethods with (VRPipe::Base::Debuggable) {
     use File::Path qw(make_path remove_tree);
     use File::Copy;
     
-=head2 catfile
-
- Title   : catfile
- Usage   : my $path = $obj->catfile('dir', 'subdir', 'filename'); 
- Function: Constructs a full pathname in a cross-platform safe way. Just an
-           alias to File::Spec->catfile.
- Returns : string
- Args    : as per File::Spec->catfile
-
-=cut
-    method catfile (@parts) {
-        return File::Spec->catfile(@parts);
-    }
-    
-=head2 catdir
-
- Title   : catdir
- Usage   : my $path = $obj->catdir('dir', 'subdir', 'filename'); 
- Function: Constructs a full pathname in a cross-platform safe way. Just an
-           alias to File::Spec->catdir.
- Returns : string
- Args    : as per File::Spec->catdir
-
-=cut
-    method catdir (@parts) {
-        return File::Spec->catdir(@parts);
-    }
-    
 =head2 cwd
 
  Title   : cwd
@@ -83,62 +55,6 @@ role VRPipe::Base::FileMethods with (VRPipe::Base::Debuggable) {
 =cut
     method cwd () {
         return Cwd::cwd;
-    }
-    
-=head2 abs_path
-
- Title   : abs_path
- Usage   : my $path = $obj->abs_path("relative/path"); 
- Function: Convert a relative path to an absolute path. Just an alias to
-           Cwd::abs_path.
- Returns : string
- Args    : as per Cwd::abs_path
-
-=cut
-    method abs_path (Str $path) {
-        return Cwd::abs_path($path);
-    }
-    
-=head2 basename
-
- Title   : basename
- Usage   : my $basename = $obj->basename("/path/to/myfile.txt"); 
- Function: Get the basename of a file path. Just an alias to
-           File::Basename::basename.
- Returns : string
- Args    : as per File::Basename::basename
-
-=cut
-    method basename (Str $path) {
-        return File::Basename::basename($path);
-    }
-    
-=head2 dirname
-
- Title   : dirname
- Usage   : my $basename = $obj->dirname("/path/to/myfile.txt"); 
- Function: Get the directory of a file path. Just an alias to
-           File::Basename::dirname.
- Returns : string
- Args    : as per File::Basename::dirname
-
-=cut
-    method dirname (Str $path) {
-        return File::Basename::dirname($path);
-    }
-    
-=head2 fileparse
-
- Title   : fileparse
- Usage   : my ($filename, $directories, $suffix) = $obj->fileparse($path);
- Function: Get the filename, directory and suffix of a file path. Just an alias to
-           File::Basename::dirname.
- Returns : (string, string, string)
- Args    : as per File::Basename::fileparse
-
-=cut
-    method fileparse (Str $path, @suffixes) {
-        return File::Basename::fileparse($path, @suffixes);
     }
     
 =head2 make_path
@@ -241,7 +157,7 @@ role VRPipe::Base::FileMethods with (VRPipe::Base::Debuggable) {
  Args    : as per File::Copy::copy
 
 =cut
-    method copy (FileNameOrHandle $source, FileNameOrHandle $dest) {
+    method copy (FileOrHandle $source, FileOrHandle $dest) {
         my $success = File::Copy::copy($source, $dest);
         unless ($success) {
             $self->throw("copy of $source => $dest failed: $!");
@@ -260,7 +176,7 @@ role VRPipe::Base::FileMethods with (VRPipe::Base::Debuggable) {
  Args    : as per File::Copy::move
 
 =cut
-    method move (FileNameOrHandle $source, FileNameOrHandle $dest) {
+    method move (FileOrHandle $source, FileOrHandle $dest) {
         my $success = File::Copy::move($source, $dest);
         unless ($success) {
             $self->throw("move of $source => $dest failed: $!");
