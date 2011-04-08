@@ -40,6 +40,7 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
 use MooseX::Types::Parameterizable qw(Parameterizable);
 use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef Maybe);
 use Path::Class;
+use File::HomeDir;
 
 # custom type definitions
 subtype PositiveInt, 
@@ -67,21 +68,21 @@ subtype MaybeStrOrEnv,
 class_type('Path::Class::Dir');
 class_type('Path::Class::File');
 
-subtype Dir, as 'Path::Class::Dir', where { "$_" =~ /^[-\w.#\/\\]+$/ }, message { defined $_ ? "'$_' does not seem like a directory" : "no directory specified" };
-subtype File, as 'Path::Class::File', where { "$_" =~ /^[-\w.#\/\\]+$/ }, message { defined $_ ? "'$_' does not seem like a file" : "no file specified" };
+subtype Dir, as 'Path::Class::Dir', where { "$_" =~ /^[-\w.#\/\\~]+$/ }, message { defined $_ ? "'$_' does not seem like a directory" : "no directory specified" };
+subtype File, as 'Path::Class::File', where { "$_" =~ /^[-\w.#\/\\~]+$/ }, message { defined $_ ? "'$_' does not seem like a file" : "no file specified" };
 subtype MaybeFile, as Maybe[File];
 subtype MaybeDir, as Maybe[Dir];
     
 for my $type ('Path::Class::Dir', Dir, MaybeDir) {
     coerce $type,
-        from Str,      via { Path::Class::Dir->new($_) },
-        from ArrayRef, via { Path::Class::Dir->new(@{$_}) };
+        from Str,      via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::Dir->new($_) },
+        from ArrayRef, via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::Dir->new(@{$_}) };
 }
 
 for my $type ('Path::Class::File', File, MaybeFile) {
     coerce $type,
-        from Str,      via { Path::Class::File->new($_) },
-        from ArrayRef, via { Path::Class::File->new(@{$_}) };
+        from Str,      via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) },
+        from ArrayRef, via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new(@{$_}) };
 }
 
 subtype FileOrHandle,
