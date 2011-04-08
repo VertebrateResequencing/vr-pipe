@@ -31,6 +31,12 @@ role VRPipe::Base::Configuration::Trait::Attribute::ConfigKey {
         predicate => 'has_skip'
     );
     
+    has secure => (
+        is        => 'ro',
+        isa       => 'Bool',
+        predicate => 'has_secure'
+    );
+    
     around _process_options (ClassName|Object $class: Str $name, HashRef $options) {
         $options->{isa} = MaybeStrOrEnv;
         $class->$orig($name, $options);

@@ -23,18 +23,21 @@ class VRPipe::Base::Configuration::Option {
     method value (StrOrEnv $set?) {
         my $method_name = $self->key;
         
-        if ($set) {
-            if ($set eq 'undef') {
-                return $self->_obj->$method_name(undef);
-            }
-            
-            my $valid = $self->valid;
-            if ($valid) {
-                my %allowed = map { $_ => 1 } @{$valid};
-                if (! exists $allowed{$set}) {
-                    $self->throw("'$set' was not a valid value for option '$method_name'");
+        if (defined $set) {
+            unless (ref $set) {
+                if ($set eq 'undef') {
+                    return $self->_obj->$method_name(undef);
+                }
+                
+                my $valid = $self->valid;
+                if ($valid) {
+                    my %allowed = map { $_ => 1 } @{$valid};
+                    if (! exists $allowed{$set}) {
+                        $self->throw("'$set' was not a valid value for option '$method_name'");
+                    }
                 }
             }
+            
             return $self->_obj->$method_name($set);
         }
         
@@ -68,6 +71,12 @@ class VRPipe::Base::Configuration::Option {
         return;
     }
     
+    method secure {
+        my $attr = $self->_attr;
+        return $attr->secure if $attr->has_secure;
+        return;
+    }
+    
     # prompt-related methods stolen from Module::Build
     method _is_interactive {
         return -t STDIN && (-t STDOUT || !(-f STDOUT || -c STDOUT));
@@ -77,6 +86,11 @@ class VRPipe::Base::Configuration::Option {
     }
     method _readline {
         return undef if $self->_is_unattended;
+        
+        # *** could use http://search.cpan.org/~phoenix/Term-ReadPassword/ReadPassword.pm
+        # for secure options so that what the user types is replaced on the
+        # terminal with *s. Probably not worth it though...
+        
         my $answer = <STDIN>;
         chomp $answer if defined $answer;
         return $answer;

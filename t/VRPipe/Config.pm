@@ -27,6 +27,12 @@ class t::VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has secret_key => (
+        is      => 'rw',
+        secure => 1,
+        question_number => ++$question_number
+    );
+    
     method _skip_second_key {
         my $first_key = $self->first_key;
         if ($first_key && $first_key eq 'make_second_skip') {

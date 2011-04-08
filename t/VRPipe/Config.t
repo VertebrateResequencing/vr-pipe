@@ -7,7 +7,8 @@ use File::Path qw/make_path/;
 use Class::Unload;
 
 BEGIN {
-    use Test::Most tests => 42;
+    #use Test::Expect;
+    use Test::Most tests => 53;
     
     use_ok('VRPipe::Config');
     use_ok('t::VRPipe::Config');
@@ -82,14 +83,6 @@ is $option->value, undef, 'value defaults to undef';
     $vrp_config->write_config_module;
 }
 
-$vrp_config = reload();
-my $options = 0;
-while ($vrp_config->next_option) {
-    $options++;
-}
-is $options, 3, 'got correct number of options';
-
-
 # skipping questions and changing defaults based on past answers
 $vrp_config = reload();
 $option = $vrp_config->next_option;
@@ -98,11 +91,59 @@ $option->value('make_second_skip');
 $option = $vrp_config->next_option;
 is $option->key, 'third_key', '... but the second option gets skipped based on value of first option';
 is $option->value, 'based on skipped second key', 'the third option got a special default based on second option being skipped';
-is $vrp_config->next_option, undef, 'and there are no more options';
+
+# prompts
+# *** tried using Test::Expect to test prompt(), but couldn't get it to work
+#     beyond the first test.
+#expect_run(
+#    command => "perl t/VRPipe/Config.pl",
+#    prompt  => 'First question? <foo|bar|make_second_skip> [foo] ',
+#    quit    => 'quit',
+#);
+#expect 'ping', "'ping' was not a valid answer for that question; try again:", 'prompt supplied invalid answer prompts again';
+#expect 'foo', 'Second question? [] ', 'second question gets asked after first question answered correctly';
+#expect 'bar', 'third_key? [] ', 'third question gets asked after second answer';
+#expect_send 'baz', 'exits after third answer';
+
+# security
+$vrp_config = reload(1);
+my $injected_first_option = $vrp_config->next_option;
+is $injected_first_option->question_number, 0, 'when we have secure options, a 0th option is injected';
+is $injected_first_option->key, 'encryption_key_file', 'the 0th option has the correct key';
+is $injected_first_option->question, 'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)', 'the 0th option asks about the key file';
+is $injected_first_option->value, undef, 'key file has no default';
+my $secret_option = $vrp_config->option(key => 'secret_key');
+ok $secret_option->secure, 'got the secret_key option which advertises itself as secure';
+is $secret_option->value('foo'), 'foo', 'a secret option can be set without a key file...';
+throws_ok { $vrp_config->write_config_module() } qr/Secure config options cannot be set without the encryption_key_file option being set/, "... but you can't write a secure value when the key file has not been defined";
+my $keyfile = File::Spec->catfile($tmp_dir, 'keyfile');
+is $injected_first_option->value($keyfile), $keyfile, 'the key file location could be set';
+ok $vrp_config->write_config_module, 'once the key file has been defined, we can write a secure value';
+$vrp_config = reload();
+eval "require VRPipe::TestConfig;";
+my $raw_config_hash = VRPipe::TestConfig->get_config;
+like $raw_config_hash->{secret_key}, qr/^Salted__/, 'the secure value is stored encrypted';
+$secret_option = $vrp_config->option(key => 'secret_key');
+is $secret_option->value, 'foo', 'yet the secure value can still be retrieved unencrypted after a reload';
+$secret_option->env('vrpipe_securetest_env');
+$vrp_config->write_config_module;
+$vrp_config = reload();
+my $securetest_env = $vrp_config->secret_key;
+isa_ok $securetest_env, 'VRPipe::Base::Configuration::Env', 'an env assigned to a secure value comes back an env, not an encrypted mess;';
+
+# just check that looping with next_option works correctly
+$vrp_config = reload(1);
+my $options = 0;
+while (my $test_option = $vrp_config->next_option) {
+    $options++;
+}
+is $options, 5, 'got correct number of options';
 
 exit;
 
 sub reload {
     Class::Unload->unload('VRPipe::TestConfig');
-    return t::VRPipe::Config->new(config_module => 'VRPipe::TestConfig');
+    my $c = t::VRPipe::Config->new(config_module => 'VRPipe::TestConfig');
+    $c->next_option unless shift;
+    return $c;
 }

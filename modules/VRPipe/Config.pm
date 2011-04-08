@@ -79,6 +79,7 @@ class VRPipe::Config {
         question => 'What password is used to connect to your production database?',
         default => '',
         env     => 'VRTRACK_PASSWORD',
+        secure => 1,
         question_number => ++$question_number
     );
     
@@ -128,6 +129,7 @@ class VRPipe::Config {
         skip => '_skip_based_on_test_db',
         default => '',
         env => 'DBI_PASS',
+        secure => 1,
         question_number => ++$question_number
     );
     

@@ -4,6 +4,8 @@ role VRPipe::Base::Configuration::Trait::Object {
     use Data::Dumper;
     use VRPipe::Base::Configuration::Env;
     use VRPipe::Base::Configuration::Option;
+    use Crypt::CBC;
+    use Digest::MD5 qw(md5_hex);
     
     has config_module => (
         is      => 'ro',
@@ -18,6 +20,14 @@ role VRPipe::Base::Configuration::Trait::Object {
         coerce  => 1,
         lazy    => 1,
         builder => '_build_config_path'
+    );
+    
+    has _key_file => (
+        is      => 'rw',
+        isa     => MaybeFile,
+        coerce  => 1,
+        lazy    => 1,
+        builder => '_build_key_file'
     );
     
     has _raw_config => (
@@ -70,11 +80,45 @@ role VRPipe::Base::Configuration::Trait::Object {
         return $path;
     }
     
+    method _build_key_file {
+        if ($self->can('encryption_key_file')) {
+            return $self->encryption_key_file;
+        }
+        return;
+    }
+    
     method _build_raw_config {
         my $config_module = $self->config_module;
         try { eval "require $config_module"; die $@ if $@; } # require $config_module; with no eval does not work
         catch { return {} }
-        return $config_module->get_config() || {};
+        my $config = $config_module->get_config() || {};
+        
+        # decrypt any encrypted values
+        my $key_file;
+        if (exists $config->{encryption_key_file}) {
+            $key_file = $self->_key_file($config->{encryption_key_file});
+        }
+        while (my ($key, $value) = each %{$config}) {
+            if ($value =~ /^Salted__/) { #*** How stable is this 'Salted__' string? Should probably check to see if the corresponding attribute is secure instead
+                if ($key_file && -s $key_file) {
+                    my $fh = $key_file->openr();
+                    my $decryption_key = <$fh>;
+                    $fh->close;
+                    chomp($decryption_key);
+                    
+                    my $cipher = Crypt::CBC->new(-key    => $decryption_key,
+                                                 -cipher => 'Blowfish',
+                                                 -header => 'salt');
+                    
+                    $config->{$key} = $cipher->decrypt($value);
+                }
+                else {
+                    $self->throw("Cannot read an encrypted config option ($key) when the encryption_key_file option is not set to a non-empty file");
+                }
+            }
+        }
+        
+        return $config;
     }
     
     method _from_config_or_env (Str $name, Str $env_key) {
@@ -108,6 +152,38 @@ role VRPipe::Base::Configuration::Trait::Object {
         while (my $option = $self->next_option) {
             my $value = $option->value();
             next unless defined $value;
+            
+            if ($option->secure && ! ref($value)) {
+                my $key_file = $self->_key_file;
+                unless ($key_file) {
+                    $self->throw("Secure config options cannot be set without the encryption_key_file option being set");
+                }
+                
+                my $key;
+                if (-s $key_file) {
+                    my $fh = $key_file->openr();
+                    $key = <$fh>;
+                    $fh->close;
+                    chomp($key);
+                }
+                else {
+                    $key = md5_hex(rand);
+                    my $perms = sprintf "%o", "600";
+                    my $fh = $key_file->open('w', $perms);
+                    unless ($fh) {
+                        $self->throw("Could not open '$key_file': $!; $@");
+                    }
+                    print $fh $key, "\n";
+                    $fh->close;
+                }
+                
+                my $cipher = Crypt::CBC->new(-key    => $key,
+                                             -cipher => 'Blowfish',
+                                             -header => 'salt');
+                
+                $value = $cipher->encrypt($value);
+            }
+            
             $values->{$option->key} = $value;
         }
         $self->_next_option_index($next_option_index);
@@ -120,7 +196,7 @@ use strict;
 use warnings;
 
 my $config;
-%s;
+%s
 
 sub get_config {
     return $config;
@@ -134,6 +210,32 @@ END_HERE
     method _build_options_list ($class:) {
         my $meta = $class->meta;
         my @ck_attrs = sort { $a->question_number <=> $b->question_number } grep { $_->does('VRPipe::Base::Configuration::Trait::Attribute::ConfigKey') } $meta->get_all_attributes;
+        
+        my $do_add = 0;
+        foreach my $attr (@ck_attrs) {
+            my $name = $attr->name;
+            if ($name eq 'encryption_key_file') {
+                $do_add = 0;
+                last;
+            }
+            if ($attr->has_secure) {
+                $do_add = 1;
+            }
+        }
+        
+        if ($do_add) {
+            # add a question about where the encryption key should be stored
+            $meta->make_mutable;
+            my $new_attr = $meta->add_attribute('encryption_key_file',
+                                                accessor => 'encryption_key_file',
+                                                is => 'rw',
+                                                trigger => sub { shift->_key_file(shift); },
+                                                question => 'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)',
+                                                question_number => 0);
+            $meta->make_immutable;
+            unshift(@ck_attrs, $new_attr);
+        }
+        
         return \@ck_attrs;
     }
     
