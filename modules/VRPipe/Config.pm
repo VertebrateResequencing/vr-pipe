@@ -175,7 +175,7 @@ class VRPipe::Config {
         return $self->_default_based_on_db('testing', $field);
     }
     method _default_based_on_production_db (Str $field) {
-        return $self->_skip_based_on_db('production', $field);
+        return $self->_default_based_on_db('production', $field);
     }
     method _build_test_dbname {
         return $self->_default_based_on_test_db('dbname');
