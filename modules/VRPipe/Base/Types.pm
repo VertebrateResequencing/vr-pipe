@@ -34,11 +34,11 @@ use warnings;
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
-                                  MaybeStrOrEnv)];
+                                  MaybeStrOrEnv ArrayRefOfMWJobs)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
-use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef Maybe);
+use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef Maybe Object);
 use Path::Class;
 use File::HomeDir;
 
@@ -64,6 +64,13 @@ subtype StrOrEnv,
 subtype MaybeStrOrEnv,
     as Maybe[StrOrEnv];
 
+class_type('MooseX::Workers::Job');
+subtype ArrayRefOfMWJobs,
+    as ArrayRef['MooseX::Workers::Job'];
+coerce ArrayRefOfMWJobs,
+    from 'MooseX::Workers::Job',
+    via { [ $_ ] };
+
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
 class_type('Path::Class::File');
@@ -85,10 +92,14 @@ for my $type ('Path::Class::File', File, MaybeFile) {
         from ArrayRef, via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new(@{$_}) };
 }
 
+class_type('IO::File');
 subtype FileOrHandle,
     as Defined,
-    where { File->check($_) || FileHandle->check($_) },
+    where { File->check($_) || FileHandle->check($_) || (Object->check($_) && $_->isa('IO::File')) },
     message { "Neither a file name nor handle" };
+coerce FileOrHandle,
+    from Str,
+    via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) };
 
 # Varchar and IntSQL for database constraints
 subtype Varchar,
