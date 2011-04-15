@@ -2,7 +2,6 @@ use VRPipe::Base;
 
 class t::VRPipe::SimpleSpawner with VRPipe::Base::SpawnProcesses {
     use MooseX::Workers::Job;
-    use POE qw(Filter::Reference);
     
     has output => (
         traits  => ['Array'],
@@ -20,20 +19,13 @@ class t::VRPipe::SimpleSpawner with VRPipe::Base::SpawnProcesses {
     
     method _build_processes {
         return MooseX::Workers::Job->new(name => 'simple',
-                                         command => sub { print POE::Filter::Reference->new->put([ {msg => "simple"} ]);
-                                                          print "foo\n"; });
+                                         command => sub { print "simple\n"; });
     }
     
-    method stdout_filter { new POE::Filter::Reference }
-    #
-    #method worker_stdout (HashRef $output) {
-    #    warn "calling add_output($output)\n";
-    #    $self->add_output($output->{msg});
-    #    warn "output is now ", join(",", @{$self->output}), "\n";
-    #}
-    
     method worker_stdout (Str $output, MooseX::Workers::Job $job) {
-        print $job->name, "(", $job->ID, ",", $job->PID, ") said ", $output, "\n";
+        print $job->name, " said ", $output, "\n";
+        chomp($output);
+        $self->add_output($output);
     }
 }
 

@@ -112,15 +112,11 @@ class VRPipe::Cmd with VRPipe::Base::LivingProcesses {
     }
     
     method _build_heartbeat_sub {
-        return MooseX::Workers::Job->new(
-            name    => 'heartbeat',
-            command => sub { while (1) { sleep 2; print "heartbeat\n"; } }
-        );
+        return sub { print "heartbeat\n"; }
     }
     
     method worker_stdout (Str $output, MooseX::Workers::Job $job) {
         my $fh = $self->_stdout_fh;
-        #print $fh $job->name, "(", $job->ID, ",", $job->PID, ") said ", $output, "\n";
         chomp($output);
         print $fh $output, "\n";
     }
@@ -132,12 +128,10 @@ class VRPipe::Cmd with VRPipe::Base::LivingProcesses {
     
     method worker_manager_stop {
         if ($self->_stdofh) {
-            warn "will close stdofh\n";
             $self->_stdofh->close;
             $self->_stdofh(undef);
         }
         if ($self->_stdefh) {
-            warn "will close stdefh\n";
             $self->_stdefh->close;
             $self->_stdefh(undef);
         }

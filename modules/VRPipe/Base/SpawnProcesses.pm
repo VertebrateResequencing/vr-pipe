@@ -38,6 +38,12 @@ Sendu Bala: sb10 at sanger ac uk
 use VRPipe::Base;
 
 role VRPipe::Base::SpawnProcesses with MooseX::Workers {
+    use Sys::CPU;
+    my $cpu_count = Sys::CPU::cpu_count();
+    if ($cpu_count < 2) {
+        $cpu_count = 2;
+    }
+    
     requires '_build_processes';
     
     has processes => (
@@ -48,22 +54,33 @@ role VRPipe::Base::SpawnProcesses with MooseX::Workers {
         coerce => 1
     );
     
+    has max_processes => (
+        is      => 'rw',
+        isa     => 'Int',
+        default => $cpu_count,
+    );
+    
     method run {
+        $self->max_workers($self->max_processes);
         foreach my $process (@{$self->processes}) {
-            $self->run_command($process);
+            $self->enqueue($process);
         }
         POE::Kernel->run();
     }
     
-    method worker_manager_start { warn 'started worker manager' }
-    method worker_manager_stop  { warn 'stopped worker manager'; }
-    method max_workers_reached { warn 'maximum worker count reached' }
-    method worker_error { warn "worker error: ", join ' ', @_;  }
-    method worker_done (MooseX::Workers::Job $job) { printf ("%s(%s,%s) finished\n", $job->name, $job->ID, $job->PID); }
-    method worker_started (MooseX::Workers::Job $job) { printf ("%s(%s,%s) started\n", $job->name, $job->ID, $job->PID); }
-    
-    method sig_TERM { warn 'Handled TERM' }
-    method sig_child { warn "sig child: ", join ' ', @_; }
+    # so that we can use method modifiers in "inheriting" roles and classes
+    method worker_manager_start {  }
+    method worker_manager_stop  {  }
+    method max_workers_reached {  }
+    method worker_error {  }
+    method worker_started (MooseX::Workers::Job $job) {
+        #warn sprintf("%s(%s,%s) started\n", $job->name, $job->ID, $job->PID);
+    }
+    method worker_done (MooseX::Workers::Job $job) {
+        #warn sprintf("%s(%s,%s) finished\n", $job->name, $job->ID, $job->PID);
+    }
+    method sig_TERM {  }
+    method sig_child {  }
 }
 
 1;

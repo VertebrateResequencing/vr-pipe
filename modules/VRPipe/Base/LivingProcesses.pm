@@ -15,10 +15,7 @@ class VRPipe::NeedsToSpawnAProcess with VRPipe::Base::LivingProcesses {
     }
     
     method _build_heartbeat_sub {
-        return MooseX::Workers::Job->new(
-            name    => 'heartbeat',
-            command => sub { while (1) { sleep 2; print "heartbeat\n"; } }
-        );
+        return sub { print "heartbeat\n"; }
     }
 }
 
@@ -32,7 +29,7 @@ $spawner->run;
 =head1 DESCRIPTION
 
 This role sets up an initial heart-beat process that will run prior to the
-normal processes and gets terminated when all others are done.
+normal processes and that gets terminated when all others are done.
 
 =head1 AUTHOR
 
@@ -44,10 +41,9 @@ use VRPipe::Base;
 
 role VRPipe::Base::LivingProcesses with VRPipe::Base::SpawnProcesses {
     requires '_build_heartbeat_sub';
-    
     has heartbeat => (
         is      => 'ro',
-        isa     => 'MooseX::Workers::Job',
+        isa     => 'CodeRef',
         builder => '_build_heartbeat_sub',
         lazy    => 1,
         required => 1
@@ -59,15 +55,36 @@ role VRPipe::Base::LivingProcesses with VRPipe::Base::SpawnProcesses {
         default => 60
     );
     
+    has _heartbeat_mwj => (
+        is      => 'ro',
+        isa     => 'MooseX::Workers::Job',
+        builder => '_build_heartbeat_mwj',
+        lazy    => 1
+    );
+    
+    method _build_heartbeat_mwj {
+        my $heartbeat_sub = $self->heartbeat;
+        my $interval = $self->heartbeat_interval;
+        return MooseX::Workers::Job->new(
+            name    => 'heartbeat',
+            command => sub { while (1) { sleep $interval; &$heartbeat_sub; } }
+        );
+    }
+    
     before run {
-        $self->run_command($self->heartbeat);
+        if ($self->max_processes < 2) {
+            $self->max_processes(2);
+            $self->max_workers(2);
+        }
+        $self->enqueue($self->_heartbeat_mwj);
     }
     
     after sig_child {
         # kill the heartbeat
         if ($self->num_workers == 1) {
-            #$self->kill_worker(??); no idea what the args to kill_worker are supposed to be!
-            $self->Engine->get_worker(1)->kill();
+            my $engine = $self->Engine;
+            my @ids = sort { $a <=> $b } $engine->get_worker_ids;
+            $engine->get_worker($ids[0])->kill();
         }
     }
 }
