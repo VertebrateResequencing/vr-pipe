@@ -9,40 +9,67 @@ use VRPipe::Base;
 class VRPipe::Config {
     use VRPipe::Base::Configuration;
     
-    has database_name => (
-        is      => 'ro',
-        isa     => 'Str',
-        default => 'MyApp',
-        section => 'database',
-        key     => 'name',
-        documentation =>
-            'The name of the database.',
+    my $question_number = 0;
+    
+    has dbtype => (
+        is      => 'rw',
+        question => 'What DRM should be used?',
+        default => 'mysql',
+        env => 'DBI_DRIVER',
+        valid => [qw(mysql postgres)],
+        question_number => ++$question_number
     );
     
-    has database_username => (
-        is      => 'ro',
-        isa     => Str,
-        default => q{},
-        section => 'database',
-        key     => 'username',
-        documentation =>
-            'The username to use when connecting to the database. By default, this is empty.',
+    has dbname => (
+        is      => 'rw',
+        question => 'What is the name of your database?',
+        question_number => ++$question_number
+    );
+    
+    has db_username => (
+        is      => 'rw',
+        question => 'What username is used to connect to your database?',
+        default => '',
+        env     => 'DB_USER',
+        question_number => ++$question_number
+    );
+    
+    has db_password => (
+        is      => 'rw',
+        question => 'What password is used to connect to your database?',
+        default => '',
+        env     => 'DB_PASSWORD',
+        secure => 1, # password will be stored encrypted
+        question_number => ++$question_number
     );
 }
 
 package main;
 my $config = VRPipe::Config->new();
 
-#...
+my $dbtype= $config->dbtype;
+$config->dbname('foo');
 
-$config->write_config_module(values => %values);
+# loop through all the options (dbtype, dbname, db_username, db_password):
+while (my $option = $config->next_option) {
+    # $option isa VRPipe::Base::Configuration::Option
+    my $question = $option->question;
+    my $question_number = $option->question_number;
+    my $option_key = $option->key;
+    
+    # get/set an option
+    my $value = $option->value('new_value');
+    
+    # prompt user on the command line for the answer to the question
+    $option->prompt;
+}
+
+$config->write_config_module();
 
 =head1 DESCRIPTION
 
-Based on MooseX::Configuration
-http://search.cpan.org/~drolsky/MooseX-Configuration-0.02/lib/MooseX/Configuration.pm
-Modified to read from and write to a Perl module instead of an ini file. Other
-interface changes were made; see synopsis.
+Loosly based on MooseX::Configuration, here we read from and write to a Perl
+module instead of an ini file. Other interface changes were made; see synopsis.
 
 =head1 AUTHOR
 
