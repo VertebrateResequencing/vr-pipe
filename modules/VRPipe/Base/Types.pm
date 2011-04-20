@@ -34,13 +34,15 @@ use warnings;
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
-                                  MaybeStrOrEnv ArrayRefOfMWJobs)];
+                                  MaybeStrOrEnv ArrayRefOfMWJobs Datetime
+                                  Persistent PersistentObject)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
 use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef Maybe Object);
 use Path::Class;
 use File::HomeDir;
+use DateTime ();
 
 # custom type definitions
 subtype PositiveInt, 
@@ -101,7 +103,15 @@ coerce FileOrHandle,
     from Str,
     via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) };
 
-# Varchar and IntSQL for database constraints
+# datetime (stolen from MooseX::Types::DateTime)
+class_type 'DateTime';
+subtype Datetime, as 'DateTime';
+for my $type ( "DateTime", Datetime ) {
+    coerce $type => from Num, via { 'DateTime'->from_epoch( epoch => $_ ) },
+                    from HashRef, via { 'DateTime'->new( %$_ ) }
+};
+
+# database constraints
 subtype Varchar,
     as Parameterizable[Str, Int],
     where {
@@ -117,6 +127,19 @@ subtype IntSQL,
         (defined $number && $int >= length("$number")) ? 1 : 0;
     },
     message { defined $_ ? "'$_' is too long" : "number is undefined" };
+
+class_type('VRPipe::Persistent');
+subtype PersistentObject, as 'VRPipe::Persistent';
+#    as Object,
+#    where { $_->isa('VRPipe::Persistent') },
+#    message { "Not a Persistent object" };
+
+subtype Persistent,
+    as PositiveInt, # can't coerce IntSQL[16]
+    where { length(shift) <= 16 };
+coerce Persistent,
+    from PersistentObject,
+    via { $_->id };
 
 
 # allow users to supply either a single X, or an array ref of them, eg:
