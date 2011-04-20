@@ -133,6 +133,22 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has production_scheduler => (
+        is      => 'rw',
+        question => 'What job scheduler should be used for production?',
+        default => 'LSF',
+        valid => [qw(LSF local)],
+        question_number => ++$question_number
+    );
+    
+    has testing_scheduler => (
+        is      => 'rw',
+        question => 'What job scheduler should be used for testing?',
+        default => 'local',
+        valid => [qw(LSF local)],
+        question_number => ++$question_number
+    );
+    
     method _get_dbtype (Str $prefix) {
         my $method = $prefix.'_dbtype';
         return $self->$method();

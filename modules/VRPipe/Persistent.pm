@@ -16,7 +16,7 @@ class VRPipe::Artist extends VRPipe::Persistent {
     has 'name' => (is => 'rw',
                    isa => Varchar[64],
                    traits => ['VRPipe::Persistent::Attributes'],
-                   is_primary_key => 1);
+                   is_key => 1);
 
     has 'age' => (is => 'rw',
                   isa => IntSQL[3],
@@ -32,8 +32,7 @@ package main;
 
 use VRPipe::Artist;
 
-# get or create a new artist in the db by supplying at least all primary keys
-# (except auto_increment keys):
+# get or create a new artist in the db by supplying all is_keys:
 my $bob = VRPipe::Artist->get(name => 'Bob');
 
 =head1 DESCRIPTION
@@ -48,9 +47,17 @@ VRPipe::Persistent::Attributes as one of its traits. That trait will allow you
 to specificy most DBIx::Class::ResultSource::add_columns args
 (http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns)
 as properties of your attribute. data_type is not accepted; instead your normal
-'isa' determines the data_type. Your isa must be one of IntSQL|Varchar.
-default_value will also be set from your attribute's default if it is present
-and a simple scalar value. is_nullable defaults to false.
+'isa' determines the data_type. Your isa must be one of IntSQL|Varchar|Bool|
+Datetime|Persistent. default_value will also be set from your attribute's
+default if it is present and a simple scalar value. is_nullable defaults to
+false. A special 'is_key' boolean can be set which results in the column being
+indexed and used as part of a multi-column (with other is_key columns)
+uniqueness constraint when deciding weather to get or create a new row with
+get(). 'is_primary_key' is still used to define the real key, typically reserved
+for a single auto increment column in your table. 'allow_key_to_default' will
+allow a column to be left out of a call to get() when that column is_key and has
+a default or builder, in which case get() will behave as if you had supplied
+that column with the default value for that column.
 
 End your class definition with a call to __PACKAGE__->make_persistent, where you
 can supply the various relationship types as a hash (key as one of the
@@ -61,9 +68,10 @@ and also table_name => $string if you don't want the table_name in your database
 to be the same as your class basename.
 
 For end users, get() is a convience method that will call find_or_create on a
-ResultSource for your class, if supplied values for at least all key columns
-(except auto_increment columns) and an instance of VRPipe::Persistent::Schema to
-the schema key.
+ResultSource for your class, if supplied values for all is_key columns (with
+the optional exception of any allow_key_to_default columns) and an optional
+instance of VRPipe::Persistent::SchemaBase to the schema key (defaults to a
+production instance of VRPipe::Persistent::Schema).
 
 =head1 AUTHOR
 
@@ -75,7 +83,8 @@ use VRPipe::Base;
 
 class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose to get Debuggable
     use MooseX::NonMoose;
-    use VRPipe::Persistent::Schema;
+    
+    __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
     
     has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
     
@@ -90,7 +99,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         
         # determine what columns our table will need from the class attributes
         my @keys;
-        my @non_auto_keys;
+        my @psuedo_keys;
+        my %key_defaults;
         my $meta = $class->meta;
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
@@ -99,7 +109,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             if ($attr->does('VRPipe::Persistent::Attributes')) {
                 my $vpa_meta = VRPipe::Persistent::Attributes->meta;
                 foreach my $vpa_attr ($vpa_meta->get_attribute_list) {
-                    next if $vpa_attr eq 'is_primary_key';
+                    next if $vpa_attr =~ /_key/;
                     my $predicate = $vpa_attr.'_was_set';
                     next unless $attr->$predicate();
                     $column_info->{$vpa_attr} = $attr->$vpa_attr;
@@ -107,7 +117,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 
                 if ($attr->is_primary_key) {
                     push(@keys, $name);
-                    push(@non_auto_keys, $name) unless (exists $column_info->{is_auto_increment} && $column_info->{is_auto_increment});
+                }
+                elsif ($attr->is_key) {
+                    push(@psuedo_keys, $name);
+                    if ($attr->allow_key_to_default) {
+                        $key_defaults{$name} = $attr->_key_default_value;
+                    }
                 }
             }
             else {
@@ -116,7 +131,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             # add default from our attribute if not already provided
             if (! exists $column_info->{default_value} && defined $attr->default) {
-                $column_info->{default_value} = $attr->default;
+                my $default = $attr->default;
+                if (ref($default)) {
+                    #$default = &{$default}; #*** we assume it isn't safe to apply some dynamic value to the sql schema table definition default
+                    $column_info->{is_nullable} = 1;
+                }
+                else {
+                    $column_info->{default_value} = $default;
+                }
+                
             }
             
             # determine the type constraint that the database should use
@@ -137,6 +160,17 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 elsif ($cname =~ /Varchar\[(\d+)\]/) {
                     $cname = 'varchar';
                     $size = $1;
+                }
+                elsif ($cname eq 'Bool') {
+                    $cname = 'bool';
+                }
+                elsif ($cname =~ /Datetime/) {
+                    $cname = 'datetime';
+                }
+                elsif ($cname =~ /Persistent/) {
+                    $cname = 'int';
+                    $size = 16;
+                    $is_numeric = 1;
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
@@ -169,31 +203,43 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 my $self = shift;
                 
                 #my $current_value = $self->get_column($name);
-                my $current_value = $self->$dbic_name();
+                my $dbic_value = $self->$dbic_name();
+                my $moose_value;
                 unless (@_) {
-                    return defined $current_value ? $self->$orig($current_value) : $self->$orig();
+                    # make sure we're in sync with the dbic value
+                    if (defined $dbic_value) {
+                        $moose_value = $self->$orig($dbic_value);
+                    }
+                    else {
+                        $moose_value = $self->$orig();
+                    }
                 }
-                
-                my $value = shift;
-                #$self->set_column($name, $value) unless $current_value eq $value;
-                unless ($current_value eq $value) {
+                else {
+                    my $value = shift;
+                    
+                    #$self->set_column($name, $value) unless $current_value eq $value;
                     # first try setting in our Moose accessor, so we can see if
                     # it passes the constraint
-                    my $return = $self->$orig($value);
+                    $moose_value = $self->$orig($value);
                     
                     # now set it in the DBIC accessor
-                    $self->$dbic_name($value);
+                    $dbic_value = $self->$dbic_name($value);
                     
                     # we deliberatly do not update in the db so that if the user
                     # is setting multiple accessors, another thread getting this
                     # object won't see a partially updated state. Users must
                     # call ->update manually (or destroy their object)
                     #$self->update;
-                    
-                    return $return;
                 }
                 
-                return $value;
+                # if the dbic value is another Persistent object, return
+                # that, otherwise prefer the moose value
+                if (defined $dbic_value && ref($dbic_value)) {
+                    return $dbic_value;
+                }
+                else {
+                    return $moose_value;
+                }
             });
         }
         
@@ -217,19 +263,51 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $class->many_to_many(@{$many_to_many});
         }
         
-        # create a get method that expects all the primary keys and will get or
+        # create a get method that expects all the psuedo keys and will get or
         # create the corresponding row in the db
         $meta->add_method('get' => sub {
             my ($self, %args) = @_;
-            my $schema = delete $args{schema} || VRPipe::Persistent::Schema->connect;
-            foreach my $key (@non_auto_keys) {
-                unless (defined $args{$key}) {
-                    $self->throw("get() must be supplied all non-auto-increment keys (@non_auto_keys); missing $key");
+            my $schema = delete $args{schema};
+            unless ($schema) {
+                eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
+                $schema = VRPipe::Persistent::Schema->connect;
+            }
+            
+            my $id = delete $args{$keys[0]}; # *** we only support a single real key atm; may further restrict this to being an auto-set column with name 'id'
+            if ($id) {
+                %args = ($keys[0] => $id);
+            }
+            else {
+                foreach my $key (@psuedo_keys) {
+                    unless (defined $args{$key}) {
+                        if (defined $key_defaults{$key}) {
+                            $args{$key} = $key_defaults{$key};
+                        }
+                        else {
+                            $self->throw("get() must be supplied all non-auto-increment keys (@psuedo_keys); missing $key");
+                        }
+                    }
                 }
             }
             
             my $rs = $schema->resultset("$class");
-            return $rs->find_or_create(%args);
+            try {
+                $rs = $schema->txn_do(sub { $rs->find_or_create(%args) });
+            }
+            catch ($err) {
+                $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
+                $self->throw("Failed to find_or_create: $err");
+            }
+            
+            $rs->result_source->schema($schema); # for some reason the result_source of the generated resultset has no schema, so reattach it or inflation will break
+            
+            return $rs;
+        });
+        
+        # add indexes for the psuedo key columns
+        $meta->add_method('sqlt_deploy_hook' => sub {
+            my ($self, $sqlt_table) = @_;
+            $sqlt_table->add_index(name => 'psuedo_keys', fields => [@psuedo_keys]);
         });
     }
     

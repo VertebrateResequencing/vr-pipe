@@ -37,9 +37,9 @@ Sendu Bala: sb10 at sanger ac uk
 use VRPipe::Base;
 
 class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
-    #__PACKAGE__->load_namespaces();
     #__PACKAGE__->load_namespaces(result_namespace => ['+VRPipe::DirA', '+VRPipe::DirB']);
-    #__PACKAGE__->load_classes({VRPipe => [qw/Artist CD Track/]});
+    #__PACKAGE__->load_classes({'VRPipe' => [qw/PipelineSetup DataSource DataElement Pipeline Step StepMember StepState Submission Job Requirements Scheduler/]});
+    __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements DataSource DataElement Pipeline Step StepMember/]});
 }
 
 1;

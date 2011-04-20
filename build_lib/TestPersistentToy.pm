@@ -1,4 +1,4 @@
-package TestPersistent;
+package TestPersistentToy;
 use strict;
 use warnings;
 use base 'Test::DBIx::Class';

@@ -8,7 +8,7 @@ BEGIN {
     use_ok('VRPipe::Persistent');
     use_ok('t::VRPipe::Persistent::Schema');
     
-    use TestPersistent;
+    use TestPersistentToy;
 }
 
 # some quick basic tests

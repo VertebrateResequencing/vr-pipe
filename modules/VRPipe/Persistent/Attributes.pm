@@ -19,6 +19,23 @@ role VRPipe::Persistent::Attributes {
         default   => 0,
         predicate => 'is_primary_key_was_set'
     );
+    has is_key => (
+        is        => 'rw',
+        isa       => 'Bool',
+        default   => 0,
+        predicate => 'is_key_was_set'
+    );
+    has allow_key_to_default => (
+        is        => 'rw',
+        isa       => 'Bool',
+        default   => 0,
+        predicate => 'allow_key_to_default_was_set'
+    );
+    has _key_default_value => (
+        is        => 'rw',
+        isa       => 'Defined',
+        predicate => '_key_default_value_was_set'
+    );
     has is_nullable => (
         is        => 'rw',
         isa       => 'Bool',
@@ -35,6 +52,57 @@ role VRPipe::Persistent::Attributes {
         isa       => 'HashRef',
         predicate => 'extra_was_set'
     );
+    
+    around _process_options (ClassName|Object $class: Str $name, HashRef $options) {
+        $class->$orig($name, $options);
+        $class->_process_default_or_builder_option($name, $options);
+    }
+    
+    sub _process_default_or_builder_option {
+        my $class   = shift;
+        my $name    = shift;
+        my $options = shift;
+        
+        # before returning default value, set that value in dbic accessor by
+        # calling the method accessor which Persistent has a custom around
+        # modifier for
+        if (exists $options->{default} || exists $options->{builder}) {
+            $options->{lazy} = 0; # defaults must not be lazy, or their default values will not get set in the db
+            
+            if (exists $options->{default}) {
+                my $def = $options->{default};
+                
+                if (ref $options->{default}) {
+                    $options->{default} = sub {
+                        my $self = shift;
+                        my $return = $def->($self);
+                        if (ref($self)) {
+                            $self->$name($return);
+                        }
+                        return $return;
+                    };
+                }
+                # else, the database will have the correct default, so dbic will get
+                # the correct value from the db and we don't need to set it via our
+                # accessor
+            }
+            elsif (exists $options->{builder}) {
+                my $builder = delete $options->{builder};
+                $options->{default} = sub {
+                    my $self = shift;
+                    my $return = $_[0]->$builder();
+                    if (ref($self)) {
+                        $self->$name($return);
+                    }
+                    return $return;
+                };
+            }
+            
+            if ($options->{allow_key_to_default}) {
+                $options->{_key_default_value} = ref $options->{default} ? &{$options->{default}} : $options->{default};
+            }
+        }
+    }
 }
 
 1;
