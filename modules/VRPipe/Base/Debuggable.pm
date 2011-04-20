@@ -95,7 +95,7 @@ role VRPipe::Base::Debuggable {
  Args    : A string giving a warning message
 
 =cut
-    method warn (Str $message) {
+    method warn (ClassName|Object $self: Str $message) {
         my $verbose = $self->verbose();
         return if $verbose <= -1;
         
@@ -125,7 +125,7 @@ role VRPipe::Base::Debuggable {
  Args    : Message string to debug about
 
 =cut
-    method debug (Str $message) {
+    method debug (ClassName|Object $self: Str $message) {
         if ($self->verbose > 0) {
             $self->log($message);
             $message .= "\n" unless $message =~ /\n$/;
@@ -146,7 +146,7 @@ role VRPipe::Base::Debuggable {
  Args    : A string giving a descriptive error message
 
 =cut
-    method throw (Str $message = '[no message]') {
+    method throw (ClassName|Object $self: Str $message = '[no message]') {
         my $cwd = getcwd();
         my $first_line = "FATAL ERROR on $time{'yyyy/mm/dd hh:mm:ss'} in $cwd";
         
@@ -205,7 +205,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, boolean to set
 
 =cut
-    around write_logs (Bool $set?) {
+    around write_logs (ClassName|Object $self: Bool $set?) {
         if (defined $set) {
             $GLOBAL_WRITE_LOGS = $set;
         }
@@ -222,7 +222,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, string to set
 
 =cut
-    around log_file (Str $set?) {
+    around log_file (ClassName|Object $self: Str $set?) {
         if (defined $set) {
             open(my $fh, ">>", $set) || $self->throw("Could not append to log file '$set'");
             close($fh);
@@ -241,7 +241,7 @@ role VRPipe::Base::Debuggable {
            per verbose(), using current value of verbose() as default.
 
 =cut
-    method log (Str $message, VerbosityValue $verbose?) {
+    method log (ClassName|Object $self: Str $message, VerbosityValue $verbose?) {
         return unless $self->write_logs();
         $verbose ||= $self->verbose;
         return unless $verbose > -1;
