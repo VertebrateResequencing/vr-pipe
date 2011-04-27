@@ -38,8 +38,7 @@ use VRPipe::Base;
 
 class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     #__PACKAGE__->load_namespaces(result_namespace => ['+VRPipe::DirA', '+VRPipe::DirB']);
-    #__PACKAGE__->load_classes({'VRPipe' => [qw/PipelineSetup DataSource DataElement Pipeline Step StepMember StepState Submission Job Requirements Scheduler/]});
-    __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements DataSource DataElement Pipeline Step StepMember/]});
+    __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements DataSource DataElement Pipeline StepMember PipelineSetup StepState Submission/]});
 }
 
 1;
