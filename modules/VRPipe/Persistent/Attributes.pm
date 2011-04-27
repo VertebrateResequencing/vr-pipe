@@ -53,6 +53,9 @@ role VRPipe::Persistent::Attributes {
         predicate => 'extra_was_set'
     );
     
+    # relationships
+    has [qw(belongs_to has_one might_have)] => ( is => 'rw', isa => RelationshipArg );
+    
     around _process_options (ClassName|Object $class: Str $name, HashRef $options) {
         $class->$orig($name, $options);
         $class->_process_default_or_builder_option($name, $options);
@@ -90,7 +93,7 @@ role VRPipe::Persistent::Attributes {
                 my $builder = delete $options->{builder};
                 $options->{default} = sub {
                     my $self = shift;
-                    my $return = $_[0]->$builder();
+                    my $return = $self->$builder();
                     if (ref($self)) {
                         $self->$name($return);
                     }

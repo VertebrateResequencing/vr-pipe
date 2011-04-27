@@ -7,16 +7,22 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
 use VRPipe::Base;
 
 class VRPipe::Artist extends VRPipe::Persistent {
-    has 'artistid' => (is => 'rw',
-                       isa => IntSQL[16],
-                       traits => ['VRPipe::Persistent::Attributes'],
-                       is_auto_increment => 1,
-                       is_primary_key => 1);
+    has 'id' => (is => 'rw',
+                 isa => IntSQL[16],
+                 traits => ['VRPipe::Persistent::Attributes'],
+                 is_auto_increment => 1,
+                 is_primary_key => 1);
 
     has 'name' => (is => 'rw',
                    isa => Varchar[64],
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1);
+                   
+    has 'agent' => (is => 'rw',
+                    isa => Persistent,
+                    coerce => 1,
+                    traits => ['VRPipe::Persistent::Attributes'],
+                    belongs_to => 'VRPipe::Agent');
 
     has 'age' => (is => 'rw',
                   isa => IntSQL[3],
@@ -61,11 +67,15 @@ that column with the default value for that column.
 
 End your class definition with a call to __PACKAGE__->make_persistent, where you
 can supply the various relationship types as a hash (key as one of the
-relationship methods
+relationship methods has_many or many_to_many
 (http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/Relationship.pm),
-value as an array ref of the args you would send to that relationship method),
-and also table_name => $string if you don't want the table_name in your database
-to be the same as your class basename.
+value as an array ref of the args you would send to that relationship method, or
+an array ref of array refs if you want to specify multiple of the same
+relationship type). The other relationship types (belongs_to, has_one and
+might_have) can be supplied as properties of attributes, again with an array ref
+value, or just a class name string for the default configuration.
+You can also supply table_name => $string if you don't want the table_name in
+your database to be the same as your class basename.
 
 For end users, get() is a convience method that will call find_or_create on a
 ResultSource for your class, if supplied values for all is_key columns (with
@@ -88,7 +98,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
     
-    method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$has_one?, ArrayRef :$belongs_to?, ArrayRef :$might_have?, ArrayRef :$many_to_many?) {
+    method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$many_to_many?) {
         # decide on the name of the table and initialise
         unless (defined $table_name) {
             $table_name = $class;
@@ -101,6 +111,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my @keys;
         my @psuedo_keys;
         my %key_defaults;
+        my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my $meta = $class->meta;
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
@@ -110,6 +121,25 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 my $vpa_meta = VRPipe::Persistent::Attributes->meta;
                 foreach my $vpa_attr ($vpa_meta->get_attribute_list) {
                     next if $vpa_attr =~ /_key/;
+                    
+                    my $vpa_base = "$vpa_attr";
+                    $vpa_base =~ s/.*:://;
+                    $vpa_base = lc($vpa_base);
+                    if (exists $relationships{$vpa_base}) {
+                        my $thing = $attr->$vpa_attr;
+                        if ($thing) {
+                            my $arg;
+                            if (ref($thing)) {
+                                $arg = $thing;
+                            }
+                            else {
+                                $arg = [$name => $thing];
+                            }
+                            push(@{$relationships{$vpa_base}}, $arg);
+                        }
+                        next;
+                    }
+                    
                     my $predicate = $vpa_attr.'_was_set';
                     next unless $attr->$predicate();
                     $column_info->{$vpa_attr} = $attr->$vpa_attr;
@@ -186,25 +216,57 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             # add the column in DBIx::Class, altering the name of the
             # auto-generated accessor so that we will keep our moose generated
-            # accessors with their contraint checking
+            # accessors with their constraint checking
             my $dbic_name = '_'.$name;
             $column_info->{accessor} = $dbic_name;
             $class->add_column($name => $column_info);
+        }
+        
+        # set the primary key(s)
+        $class->set_primary_key(@keys);
+        
+        # set relationships
+        $relationships{has_many} = $has_many || [];
+        $relationships{many_to_many} = $many_to_many || [];
+        my %accessor_altered;
+        foreach my $relationship (qw(belongs_to has_one might_have has_many many_to_many)) { # the order is important
+            my $args = $relationships{$relationship};
+            unless (ref($args->[0])) {
+                $args = [$args];
+            }
             
-            # remove DBIx::Class auto-generated accessor method
-            #$meta->remove_method($name);
+            foreach my $arg (@$args) {
+                next unless @$arg;
+                $class->$relationship(@$arg);
+                $accessor_altered{$arg->[0]} = 1;
+            }
+        }
+        
+        # now that dbic has finished creating/altering accessor methods, delete
+        # them and replace with moose accessors, to give us moose type
+        # constraints
+        foreach my $attr ($meta->get_all_attributes) {
+            my $name = $attr->name;
+            next unless $attr->does('VRPipe::Persistent::Attributes');
+            my $dbic_name = '_'.$name;
             
-            # add back the Moose accessors with their constraints etc.
-            #$attr->install_accessors;
+            if ($accessor_altered{$name}) {
+                # remove DBIx::Class auto-generated accessor method
+                $meta->remove_method($name);
+                
+                # add back the Moose accessors with their constraints etc.
+                $attr->install_accessors;
+            }
             
             # make the accessor get and set for DBIx::Class as well
             $meta->add_around_method_modifier($name => sub {
                 my $orig = shift;
                 my $self = shift;
                 
-                #my $current_value = $self->get_column($name);
+                my $moose_value = $self->$orig();
+                $self->discard_changes; # always get fresh from the db, incase another instance of this row was altered and updated
+                #my $dbic_value = $self->get_column($name); # we lose Datetime handling if we do this
                 my $dbic_value = $self->$dbic_name();
-                my $moose_value;
                 unless (@_) {
                     # make sure we're in sync with the dbic value
                     if (defined $dbic_value) {
@@ -217,19 +279,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 else {
                     my $value = shift;
                     
-                    #$self->set_column($name, $value) unless $current_value eq $value;
                     # first try setting in our Moose accessor, so we can see if
                     # it passes the constraint
-                    $moose_value = $self->$orig($value);
+                    $self->$orig($value);
                     
                     # now set it in the DBIC accessor
-                    $dbic_value = $self->$dbic_name($value);
+                    #$dbic_value = $self->set_column($name, $value);
+                    $self->$dbic_name($value);
                     
                     # we deliberatly do not update in the db so that if the user
                     # is setting multiple accessors, another thread getting this
                     # object won't see a partially updated state. Users must
                     # call ->update manually (or destroy their object)
                     #$self->update;
+                    
+                    # we do not attempt to return the set value, since we only
+                    # ever return the database value, which hasn't been updated
+                    # yet without that call to ->update
                 }
                 
                 # if the dbic value is another Persistent object, return
@@ -241,26 +307,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     return $moose_value;
                 }
             });
-        }
-        
-        # set the primary key(s)
-        $class->set_primary_key(@keys);
-        
-        # set relationships
-        if ($belongs_to) {
-            $class->belongs_to(@{$belongs_to});
-        }
-        if ($has_many) {
-            $class->has_many(@{$has_many});
-        }
-        if ($has_one) {
-            $class->has_one(@{$has_one});
-        }
-        if ($might_have) {
-            $class->might_have(@{$might_have});
-        }
-        if ($many_to_many) {
-            $class->many_to_many(@{$many_to_many});
         }
         
         # create a get method that expects all the psuedo keys and will get or
@@ -291,17 +337,24 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             
             my $rs = $schema->resultset("$class");
+            my $row;
             try {
-                $rs = $schema->txn_do(sub { $rs->find_or_create(%args) });
+                $row = $schema->txn_do(sub {
+                    my $return = $rs->find_or_create(%args);
+                    
+                    # for some reason the result_source has no schema, so
+                    # reattach it or inflation will break
+                    $return->result_source->schema($schema); 
+                    
+                    return $return;
+                });
             }
             catch ($err) {
                 $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
                 $self->throw("Failed to find_or_create: $err");
             }
             
-            $rs->result_source->schema($schema); # for some reason the result_source of the generated resultset has no schema, so reattach it or inflation will break
-            
-            return $rs;
+            return $row;
         });
         
         # add indexes for the psuedo key columns
@@ -312,7 +365,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     }
     
     method DEMOLISH {
-        $self->update;
+        $self->update if $self->in_storage;
     }
 }
 

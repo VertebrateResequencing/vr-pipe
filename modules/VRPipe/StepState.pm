@@ -8,28 +8,32 @@ class VRPipe::StepState extends VRPipe::Persistent {
                  is_primary_key => 1);
     
     has 'stepmember' => (is => 'rw',
-                         isa => IntSQL[16],
+                         isa => Persistent,
+                         coerce => 1,
                          traits => ['VRPipe::Persistent::Attributes'],
-                         is_key => 1);
+                         is_key => 1,
+                         belongs_to => 'VRPipe::StepMember');
     
     has 'dataelement' => (is => 'rw',
-                          isa => IntSQL[16],
+                          isa => Persistent,
+                          coerce => 1,
                           traits => ['VRPipe::Persistent::Attributes'],
-                          is_key => 1);
+                          is_key => 1,
+                          belongs_to => 'VRPipe::DataElement');
     
     has 'pipelinesetup' => (is => 'rw',
-                            isa => IntSQL[16],
+                            isa => Persistent,
+                            coerce => 1,
                             traits => ['VRPipe::Persistent::Attributes'],
-                            is_key => 1);
+                            is_key => 1,
+                            belongs_to => 'VRPipe::PipelineSetup');
     
     has 'complete' => (is => 'rw',
                        isa => 'Bool',
-                       traits => ['VRPipe::Persistent::Attributes']);
+                       traits => ['VRPipe::Persistent::Attributes'],
+                       default => 0);
     
-    __PACKAGE__->make_persistent(belongs_to => [pipelinesetup => 'VRPipe::PipelineSetup'],
-                                 has_one => [dataelement => 'VRPipe::DataElement'],
-                                 has_one => [stepmember => 'VRPipe::StepMember'],
-                                 has_many => [submissions => 'VRPipe::Submission']);
+    __PACKAGE__->make_persistent(has_many => [submissions => 'VRPipe::Submission']);
 }
 
 1;

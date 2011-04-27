@@ -31,8 +31,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                          traits => ['VRPipe::Persistent::Attributes'],
                          is_nullable => 1);
     
-    __PACKAGE__->make_persistent(#has_many => [elements => 'VRPipe::DataElement']
-                                 );
+    __PACKAGE__->make_persistent(has_many => [elements => 'VRPipe::DataElement']);
 }
 
 1;

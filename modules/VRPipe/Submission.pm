@@ -14,25 +14,30 @@ class VRPipe::Submission extends VRPipe::Persistent {
                   isa => Persistent,
                   coerce => 1,
                   traits => ['VRPipe::Persistent::Attributes'],
-                  is_key => 1);
+                  is_key => 1,
+                  belongs_to => 'VRPipe::Job');
     
     has 'stepstate' => (is => 'rw',
-                        isa => IntSQL[16],
+                        isa => Persistent,
+                        coerce => 1,
                         traits => ['VRPipe::Persistent::Attributes'],
-                        is_key => 1);
+                        is_key => 1,
+                        belongs_to => 'VRPipe::StepState');
     
-    has 'requirments' => (is => 'rw',
-                          isa => Persistent,
-                          coerce => 1,
-                          required => 1,
-                          traits => ['VRPipe::Persistent::Attributes']);
+    has 'requirements' => (is => 'rw',
+                           isa => Persistent,
+                           coerce => 1,
+                           required => 1, # even though we're not a key
+                           traits => ['VRPipe::Persistent::Attributes'],
+                           belongs_to => 'VRPipe::Requirements');
     
     has 'scheduler' => (is => 'rw',
                         isa => Persistent,
                         coerce => 1,
                         required => 1,
                         builder => '_build_default_scheduler',
-                        traits => ['VRPipe::Persistent::Attributes']);
+                        traits => ['VRPipe::Persistent::Attributes'],
+                        belongs_to => 'VRPipe::Scheduler');
     
     has 'retries' => (is => 'rw',
                       isa => IntSQL[4],
@@ -66,10 +71,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return VRPipe::Scheduler->get(module => "VRPipe::Schedulers::$scheduler");
     }
     
-    __PACKAGE__->make_persistent(belongs_to => [stepstate => 'VRPipe::StepState'],
-                                 has_one => [job => 'VRPipe::Job'],
-                                 has_one => [requirements => 'VRPipe::Requirements'],
-                                 has_one => [scheduler => 'VRPipe::Scheduler']);
+    __PACKAGE__->make_persistent();
 }
 
 1;

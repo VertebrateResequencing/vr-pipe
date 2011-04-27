@@ -13,18 +13,24 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                    is_key => 1);
     
     has 'datasource' => (is => 'rw',
-                          isa => IntSQL[16],
-                          traits => ['VRPipe::Persistent::Attributes'],
-                          is_key => 1);
+                         isa => Persistent,
+                         coerce => 1,
+                         traits => ['VRPipe::Persistent::Attributes'],
+                         is_key => 1,
+                         belongs_to => 'VRPipe::DataSource');
     
     has 'pipeline' => (is => 'rw',
-                       isa => IntSQL[16],
+                       isa => Persistent,
+                       coerce => 1,
                        traits => ['VRPipe::Persistent::Attributes'],
-                       is_key => 1);
+                       is_key => 1,
+                       belongs_to => 'VRPipe::Pipeline');
     
     has 'options' => (is => 'rw',
                       isa => Varchar[64],
                       traits => ['VRPipe::Persistent::Attributes'],
+                      default => '',
+                      allow_key_to_default => 1,
                       is_key => 1);
     
     has 'description' => (is => 'rw',
@@ -32,9 +38,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                          traits => ['VRPipe::Persistent::Attributes'],
                          is_nullable => 1);
     
-    __PACKAGE__->make_persistent(has_one => [datasource => 'VRPipe::DataSource'],
-                                 has_one => [pipeline => 'VRPipe::Pipeline'],
-                                 has_many => [states => 'VRPipe::StepState']);
+    __PACKAGE__->make_persistent(has_many => [states => 'VRPipe::StepState']);
 }
 
 1;
