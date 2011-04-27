@@ -35,11 +35,11 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
                                   MaybeStrOrEnv ArrayRefOfMWJobs Datetime
-                                  Persistent PersistentObject)];
+                                  Persistent PersistentObject RelationshipArg)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
-use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef Maybe Object);
+use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef Maybe Object ClassName);
 use Path::Class;
 use File::HomeDir;
 use DateTime ();
@@ -61,7 +61,6 @@ subtype VerbosityValue,
 class_type('VRPipe::Base::Configuration::Env');
 subtype StrOrEnv,
     as 'Str | VRPipe::Base::Configuration::Env',
-    #where { Str->check($_) || 'VRPipe::Base::Configuration::Env'->check($_) },
     message { "$_ is neither a String nor a VRPipe::Base::Configuration::Env" };
 subtype MaybeStrOrEnv,
     as Maybe[StrOrEnv];
@@ -72,6 +71,11 @@ subtype ArrayRefOfMWJobs,
 coerce ArrayRefOfMWJobs,
     from 'MooseX::Workers::Job',
     via { [ $_ ] };
+
+subtype RelationshipArg,
+    as Defined,
+    where { ClassName->check($_) || ArrayRef->check($_) },
+    message { "$_ is neither a class name nor an array ref" };
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
