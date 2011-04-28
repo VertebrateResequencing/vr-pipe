@@ -4,15 +4,16 @@ VRPipe::Base::FileMethods - commonly used methods for dealing with files
 
 =head1 SYNOPSIS
 
-use MooseX::Declare;
+use VRPipe::Base;
+
 class VRPipe::MyClass with (VRPipe::Base::FileMethods) {
     #...
     
-    method my_method (Str $input, Str $source) {
-        my $path = $self->catfile($self->cwd, $input);
-        my $ofh = $self->open('>', $path);
-        my $ifh = $self->open('<', "/path/to/input.txt.gz");
+    method my_method (Str $input, Str $source, Str $dest) {
         $self->copy($source, $dest);
+        $self->move($dest, "$dest.moved");
+        my $tempdir = $self->tempdir();
+        ($handle, $tempfile) = $self->tempfile();
     }
 }
 
@@ -24,8 +25,7 @@ external::module; external::module->common_method }. Also adds some wrapping
 to make error handling consistent for all the methods.
 
 Allows for the possibilty to reimplement these methods here, to reduce the
-number of external dependencies. Though currently all methods come from CORE
-modules (in recent versions of Perl at least), so no need.
+number of external dependencies.
 
 =head1 AUTHOR
 
@@ -33,16 +33,24 @@ Sendu Bala: sb10 at sanger ac uk
 
 =cut
 
-use MooseX::Declare;
+use VRPipe::Base;
 
-role VRPipe::Base::FileMethods with (VRPipe::Base::Debuggable) {
+role VRPipe::Base::FileMethods {
     use MooseX::Aliases;
-    use VRPipe::Base::Types qw(FileNameOrHandle);
-    use File::Spec;
-    use Cwd qw(abs_path cwd);
-    use File::Basename;
+    use Cwd qw(cwd);
     use File::Path qw(make_path remove_tree);
     use File::Copy;
+    use File::Temp;
+    
+    has _file_temps => (
+        traits  => ['Array'],
+        is      => 'ro',
+        isa     => 'ArrayRef[Str]',
+        default => sub { [] },
+        handles => {
+            _remember_file_temp => 'push'
+        },
+    );
     
 =head2 cwd
 
@@ -183,6 +191,40 @@ role VRPipe::Base::FileMethods with (VRPipe::Base::Debuggable) {
         }
     }
     alias mv => 'move';
+
+=head2 tempfile
+
+ Title   : tempfile
+ Usage   : my ($handle, $tempfile) = $obj->tempfile(); 
+ Function: Get a temporary filename and a handle opened for writing and
+           and reading. Just an alias to File::Temp::tempfile.
+ Returns : a list consisting of temporary handle and temporary filename
+ Args    : as per File::Temp::tempfile
+
+=cut
+    method tempfile {
+        my $ft = File::Temp->new(@_);
+        $self->_remember_file_temp($ft);
+        return ($ft, $ft->filename);
+    }
+    alias tmpfile => 'tempfile';
+
+=head2 tempdir
+
+ Title   : tempdir
+ Usage   : my $tempdir = $obj->tempdir(); 
+ Function: Creates and returns the name of a new temporary directory. Just an
+           alias to File::Temp::newdir.
+ Returns : The name of a new temporary directory.
+ Args    : as per File::Temp::newdir
+
+=cut
+    method tempdir {
+        my $ft = File::Temp->newdir(@_);
+        $self->_remember_file_temp($ft);
+        return $ft->dirname;
+    }
+    alias tmpdir => 'tempdir';
 }
 
 1;
