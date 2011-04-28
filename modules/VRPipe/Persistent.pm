@@ -81,7 +81,14 @@ For end users, get() is a convience method that will call find_or_create on a
 ResultSource for your class, if supplied values for all is_key columns (with
 the optional exception of any allow_key_to_default columns) and an optional
 instance of VRPipe::Persistent::SchemaBase to the schema key (defaults to a
-production instance of VRPipe::Persistent::Schema).
+production instance of VRPipe::Persistent::Schema). You can also call
+get(id => $id) if you know the real auto-increment key id() for your desired
+row.
+
+clone() can be called on an instance of this class, supplying it 1 or more
+is_key columns. You'll get back a (potentially) new instance with all the same
+is_key column values as the instance you called clone() on, except for the
+different values you supplied to clone().
 
 =head1 AUTHOR
 
@@ -356,6 +363,20 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             
             return $row;
+        });
+        
+        $meta->add_method('clone' => sub {
+            my ($self, %args) = @_;
+            ref($self) || $self->throw("clone can only be called on an instance");
+            $self->throw("The real key cannot be supplied to clone") if $args{$keys[0]};
+            
+            foreach my $key (@psuedo_keys) {
+                unless (defined $args{$key}) {
+                    $args{$key} = $self->$key();
+                }
+            }
+            
+            return $self->get(%args);
         });
         
         # add indexes for the psuedo key columns
