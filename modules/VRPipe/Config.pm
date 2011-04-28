@@ -141,11 +141,24 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has production_scheduler_output_root => (
+        is      => 'rw',
+        question => 'What root directory should production scheduler output go to?',
+        question_number => ++$question_number
+    );
+    
     has testing_scheduler => (
         is      => 'rw',
         question => 'What job scheduler should be used for testing?',
         default => 'local',
         valid => [qw(LSF local)],
+        question_number => ++$question_number
+    );
+    
+    has testing_scheduler_output_root => (
+        is      => 'rw',
+        question => 'What root directory should production scheduler output go to?',
+        default => sub { File::Spec->tmpdir() },
         question_number => ++$question_number
     );
     
