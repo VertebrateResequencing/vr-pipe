@@ -9,13 +9,14 @@ class t::VRPipe::Track extends VRPipe::Persistent {
     
     has 'cd' => (is => 'rw',
                  isa => IntSQL[64],
-                 traits => ['VRPipe::Persistent::Attributes']);
+                 traits => ['VRPipe::Persistent::Attributes'],
+                 belongs_to => 't::VRPipe::CD');
     
     has 'title' => (is => 'rw',
                     isa => Varchar[64],
                     traits => ['VRPipe::Persistent::Attributes']);
     
-    __PACKAGE__->make_persistent(belongs_to => [cd => 't::VRPipe::CD']);
+    __PACKAGE__->make_persistent();
 }
 
 1;

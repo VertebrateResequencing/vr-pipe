@@ -24,7 +24,8 @@ is_fields [qw/artistid name age/], $footon, [2, 'Footon', 99], 'Footon has the e
 
 # update behaviour
 $artist->name('Gerton');
-is $artist->name, 'Gerton', 'able to change name to Gerton';
+is $artist->name, 'Footon', 'name reverts back to db value without an update';
+$artist->name('Gerton');
 is_deeply [$artist->get_dirty_columns], [name => 'Gerton'], 'name column marked as dirty after change, prior to update';
 $artist->update;
 is_deeply [$artist->get_dirty_columns], [], 'no more dirty columns after an update';
@@ -32,7 +33,9 @@ undef $artist;
 ok $artist = $resultset->search({'name' => 'Gerton'})->first, 'Got Gerton back';
 is $artist->name, 'Gerton', 'the name is Gerton';
 is_deeply [$artist->id], [2], 'Gerton has the correct id';
-is $artist->name('Larton'), 'Larton', 'able to change name again to Larton';
+$artist->name('Larton');
+$artist->update;
+is $artist->name, 'Larton', 'able to change name again to Larton';
 undef $artist;
 ok $artist = $resultset->search({'artistid' => 2})->first, 'Got artist 2 back after undef';
 is $artist->name, 'Larton', 'the name is Larton even after object destruction with no explicit update';

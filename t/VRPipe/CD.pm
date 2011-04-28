@@ -9,7 +9,8 @@ class t::VRPipe::CD extends VRPipe::Persistent {
     
     has 'artist' => (is => 'rw',
                      isa => IntSQL[16],
-                     traits => ['VRPipe::Persistent::Attributes']);
+                     traits => ['VRPipe::Persistent::Attributes'],
+                     belongs_to => 't::VRPipe::Artist');
     
     has 'title' => (is => 'rw',
                     isa => Varchar[256],
@@ -23,8 +24,7 @@ class t::VRPipe::CD extends VRPipe::Persistent {
     has 'non_column_data' => (is => 'rw',
                               isa => 'Str');
     
-    __PACKAGE__->make_persistent(belongs_to => [artist => 't::VRPipe::Artist'],
-                                 has_many => [tracks => 't::VRPipe::Track'],
+    __PACKAGE__->make_persistent(has_many => [tracks => 't::VRPipe::Track'],
                                  table_name => 'compact_discs');
 }
 
