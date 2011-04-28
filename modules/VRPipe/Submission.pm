@@ -1,9 +1,6 @@
 use VRPipe::Base;
 
 class VRPipe::Submission extends VRPipe::Persistent {
-    use VRPipe::Config;
-    my $vrp_config = VRPipe::Config->new();
-    
     has 'id' => (is => 'rw',
                  isa => IntSQL[16],
                  traits => ['VRPipe::Persistent::Attributes'],
@@ -66,9 +63,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
                      default => 0);
     
     method _build_default_scheduler {
-        my $method_name = $VRPipe::Persistent::SchemaBase::DATABASE_DEPLOYMENT.'_scheduler';
-        my $scheduler = $vrp_config->$method_name();
-        return VRPipe::Scheduler->get(module => "VRPipe::Schedulers::$scheduler");
+        return VRPipe::Scheduler->get();
     }
     
     __PACKAGE__->make_persistent();
