@@ -31,10 +31,10 @@ role VRPipe::Persistent::Attributes {
         default   => 0,
         predicate => 'allow_key_to_default_was_set'
     );
-    has _key_default_value => (
+    has _key_default => (
         is        => 'rw',
         isa       => 'Defined',
-        predicate => '_key_default_value_was_set'
+        predicate => '_key_default_was_set'
     );
     has is_nullable => (
         is        => 'rw',
@@ -85,9 +85,9 @@ role VRPipe::Persistent::Attributes {
                         return $return;
                     };
                 }
-                # else, the database will have the correct default, so dbic will get
-                # the correct value from the db and we don't need to set it via our
-                # accessor
+                # else, the database will have the correct default, so dbic will
+                # get the correct value from the db and we don't need to set it
+                # via our accessor
             }
             elsif (exists $options->{builder}) {
                 my $builder = delete $options->{builder};
@@ -102,7 +102,7 @@ role VRPipe::Persistent::Attributes {
             }
             
             if ($options->{allow_key_to_default}) {
-                $options->{_key_default_value} = ref $options->{default} ? &{$options->{default}} : $options->{default};
+                $options->{_key_default} = $options->{default};
             }
         }
     }

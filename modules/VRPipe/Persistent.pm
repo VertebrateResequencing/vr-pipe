@@ -151,7 +151,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 elsif ($attr->is_key) {
                     push(@psuedo_keys, $name);
                     if ($attr->allow_key_to_default) {
-                        $key_defaults{$name} = $attr->_key_default_value;
+                        my $default = $attr->_key_default;
+                        $key_defaults{$name} = ref $default ? &{$default}($class) : $default;
                     }
                 }
             }
