@@ -69,7 +69,16 @@ class VRPipe::Job extends VRPipe::Persistent {
                        traits => ['VRPipe::Persistent::Attributes'],
                        is_nullable => 1);
     
+    method ok {
+        if ($self->finished) {
+            # check it was successful...
+            return 1;
+        }
+        return 0;
+    }
+    
     __PACKAGE__->make_persistent();
+    
     
     around get (ClassName|Object $self: %args) {
         unless (exists $args{dir}) {
