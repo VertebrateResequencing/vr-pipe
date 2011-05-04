@@ -354,6 +354,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     }
                 }
             }
+            my $just_create = keys %find_args ? 0 : 1;
             
             my $rs = $schema->resultset("$class");
             my $row;
@@ -363,7 +364,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     # supplied, but if we supply something that isn't an is_key,
                     # we can generate a new row when we shouldn't do. So we
                     # split up the find and create calls:
-                    my $return = $rs->find(\%find_args);
+                    my $return = $rs->find(\%find_args) unless $just_create;
                     
                     if ($return) {
                         # update the row with any non-key args supplied

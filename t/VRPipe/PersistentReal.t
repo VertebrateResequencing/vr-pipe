@@ -4,7 +4,7 @@ use warnings;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 62;
+    use Test::Most tests => 64;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -155,7 +155,8 @@ is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members-
 undef $subs_array;
 ok $subs_array = VRPipe::PersistentArray->get(id => 1), 'got a PersistentArray using get(id => 1)';
 is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the created PArray has the correct contents';
-
+ok $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'created a PersistentArray using the same set of members)';
+is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [2, 1, 2], 'the created PArray has a new id, but the same contents otherwise';
 
 done_testing;
 exit;
