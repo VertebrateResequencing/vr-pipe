@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 class VRPipe::Submission extends VRPipe::Persistent {
+    use DateTime;
+    
     has 'id' => (is => 'rw',
                  isa => IntSQL[16],
                  traits => ['VRPipe::Persistent::Attributes'],
@@ -37,36 +39,130 @@ class VRPipe::Submission extends VRPipe::Persistent {
                         traits => ['VRPipe::Persistent::Attributes'],
                         belongs_to => 'VRPipe::Scheduler');
     
+    has '_sid' => (is => 'rw',
+                   isa => IntSQL[8],
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   is_nullable => 1);
+    
     has 'retries' => (is => 'rw',
                       isa => IntSQL[4],
                       traits => ['VRPipe::Persistent::Attributes'],
                       default => 0);
     
-    has 'scheduled' => (is => 'rw',
-                        isa => Datetime,
-                        coerce => 1,
-                        traits => ['VRPipe::Persistent::Attributes'],
-                        is_nullable => 1);
+    has '_scheduled' => (is => 'rw',
+                         isa => Datetime,
+                         coerce => 1,
+                         traits => ['VRPipe::Persistent::Attributes'],
+                         is_nullable => 1);
     
-    has 'claim' => (is => 'rw',
+    has '_claim' => (is => 'rw',
+                     isa => 'Bool',
+                     traits => ['VRPipe::Persistent::Attributes'],
+                     default => 0);
+    
+    has '_own_claim' => (is => 'rw',
+                         isa => 'Bool',
+                         default => 0);
+    
+    has '_done' => (is => 'rw',
                     isa => 'Bool',
                     traits => ['VRPipe::Persistent::Attributes'],
                     default => 0);
     
-    has 'done' => (is => 'rw',
-                   isa => 'Bool',
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   default => 0);
-    
-    has 'failed' => (is => 'rw',
-                     isa => 'Bool',
-                     traits => ['VRPipe::Persistent::Attributes'],
-                     default => 0);
+    has '_failed' => (is => 'rw',
+                      isa => 'Bool',
+                      traits => ['VRPipe::Persistent::Attributes'],
+                      default => 0);
     
     method _build_default_scheduler {
         return VRPipe::Scheduler->get();
     }
     
+    # public getters for our private attributes
+    method sid (PositiveInt $sid?) {
+        if ($sid) {
+            return unless $self->claim;
+            
+            $self->_sid($sid);
+            
+            $self->_scheduled(DateTime->now);
+            $self->release;
+            $self->update;
+            
+            return $sid;
+        }
+        else {
+            return $self->_sid;
+        }
+    }
+    
+    method scheduled {
+        return $self->_scheduled;
+    }
+    
+    method done {
+        return $self->_done;
+    }
+    
+    method failed {
+        return $self->_failed;
+    }
+    
+    method claim {
+        return 0 if $self->scheduled;
+        return 0 if $self->sid;
+        
+        if ($self->_claim) {
+            return $self->_own_claim ? 1 : 0;
+        }
+        else {
+            $self->_claim(1);
+            $self->update;
+            $self->_own_claim(1);
+            return 1;
+        }
+    }
+    
+    # scheduling-related behaviour
+    method release {
+        $self->_claim(0);
+        $self->_own_claim(0);
+        $self->update;
+    }
+    
+    method submit {
+        $self->scheduler->submit(submission => $self);
+    }
+    
+    around scheduler {
+        if ($self->scheduled) {
+            return $self->$orig;
+        }
+        else {
+            return $self->$orig(@_);
+        }
+    }
+    
+    method update_status {
+        $self->throw("Cannot call update_status when the job is not finished") unless $self->job->finished;
+        
+        if ($self->job->ok) {
+            $self->_done(1);
+            $self->_failed(0);
+        }
+        else {
+            $self->_done(0);
+            $self->_failed(1);
+        }
+        
+        #$self->sync_scheduler;
+        #$self->archive_output;
+        $self->_sid(undef);
+        
+        $self->update;
+    }
+    
+    # requirement passthroughs and extra_* methods
     method _add_extra (Str $type, Int $extra) {
         my $new_req = $self->requirements->clone($type => $self->$type() + $extra);
         $self->requirements($new_req);
@@ -110,6 +206,10 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method custom {
         return $self->requirements->custom;
+    }
+    
+    method DEMOLISH {
+        $self->release if $self->in_storage;
     }
     
     __PACKAGE__->make_persistent();
