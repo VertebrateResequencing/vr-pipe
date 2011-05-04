@@ -10,7 +10,8 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
     has 'members' => (is => 'rw',
                       isa => ArrayRefOfPersistent,
                       lazy => 1,
-                      builder => '_build_members');
+                      builder => '_build_members',
+                      predicate => '_members_populated');
     
     __PACKAGE__->make_persistent(has_many => [_members => 'VRPipe::PersistentArrayMember']);
     
@@ -27,8 +28,9 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
             # PersistentArrayMember rows for each supplied member
             my $array = $self->$orig();
             
+            my $index = 0;
             foreach my $member (@{$members}) {
-                VRPipe::PersistentArrayMember->get(persistentarray => $array, class => ref($member), class_id => $member->id);
+                VRPipe::PersistentArrayMember->get(persistentarray => $array, class => ref($member), class_id => $member->id, array_index => ++$index);
             }
             
             $array->members($members);
@@ -42,11 +44,33 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
         # corresponding Persistent objects
         my @members;
         foreach my $array_member ($self->_members) {
-            my $class = $array_member->class;
-            push(@members, $class->get(id => $array_member->class_id));
+            push(@members, $self->_array_member_to_member($array_member));
         }
         
         return \@members;
+    }
+    
+    method _array_member_to_member (VRPipe::PersistentArrayMember $array_member) {
+        my $class = $array_member->class;
+        return $class->get(id => $array_member->class_id);
+    }
+    
+    method member (PositiveInt $index) {
+        if ($index == 0) {
+            $self->throw("The array index supplied to member() is 1-based");
+        }
+        
+        if ($self->_members_populated) {
+            my $members = $self->members;
+            return $members->[$index - 1];
+        }
+        else {
+            foreach my $array_member ($self->_members) {
+                if ($array_member->array_index == $index) {
+                    return $self->_array_member_to_member($array_member);
+                }
+            }
+        }
     }
 }
 

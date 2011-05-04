@@ -24,6 +24,11 @@ class VRPipe::PersistentArrayMember extends VRPipe::Persistent {
                        traits => ['VRPipe::Persistent::Attributes'],
                        is_key => 1);
     
+    has 'array_index' => (is => 'rw',
+                          isa => IntSQL[8],
+                          traits => ['VRPipe::Persistent::Attributes'],
+                          is_key => 1);
+    
     __PACKAGE__->make_persistent();
 }
 

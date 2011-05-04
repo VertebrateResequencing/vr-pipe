@@ -4,7 +4,7 @@ use warnings;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 64;
+    use Test::Most tests => 66;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -154,9 +154,14 @@ ok my $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'created a 
 is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the created PArray has the correct contents';
 undef $subs_array;
 ok $subs_array = VRPipe::PersistentArray->get(id => 1), 'got a PersistentArray using get(id => 1)';
-is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the created PArray has the correct contents';
+is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the gotten PArray has the correct contents';
 ok $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'created a PersistentArray using the same set of members)';
 is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [2, 1, 2], 'the created PArray has a new id, but the same contents otherwise';
+is $subs_array->member(2)->id, 2, 'member() works given an index';
+undef $subs_array;
+$subs_array = VRPipe::PersistentArray->get(id => 1);
+is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
+
 
 done_testing;
 exit;
