@@ -101,6 +101,8 @@ use VRPipe::Base;
 class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose to get Debuggable
     use MooseX::NonMoose;
     
+    our $GLOBAL_CONNECTED_SCHEMA;
+    
     __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
     
     has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
@@ -121,50 +123,46 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my $meta = $class->meta;
         foreach my $attr ($meta->get_all_attributes) {
+            next unless $attr->does('VRPipe::Persistent::Attributes');
             my $name = $attr->name;
             
             my $column_info = {};
-            if ($attr->does('VRPipe::Persistent::Attributes')) {
-                my $vpa_meta = VRPipe::Persistent::Attributes->meta;
-                foreach my $vpa_attr ($vpa_meta->get_attribute_list) {
-                    next if $vpa_attr =~ /_key/;
-                    
-                    my $vpa_base = "$vpa_attr";
-                    $vpa_base =~ s/.*:://;
-                    $vpa_base = lc($vpa_base);
-                    if (exists $relationships{$vpa_base}) {
-                        my $thing = $attr->$vpa_attr;
-                        if ($thing) {
-                            my $arg;
-                            if (ref($thing)) {
-                                $arg = $thing;
-                            }
-                            else {
-                                $arg = [$name => $thing];
-                            }
-                            push(@{$relationships{$vpa_base}}, $arg);
+            my $vpa_meta = VRPipe::Persistent::Attributes->meta;
+            foreach my $vpa_attr ($vpa_meta->get_attribute_list) {
+                next if $vpa_attr =~ /_key/;
+                
+                my $vpa_base = "$vpa_attr";
+                $vpa_base =~ s/.*:://;
+                $vpa_base = lc($vpa_base);
+                if (exists $relationships{$vpa_base}) {
+                    my $thing = $attr->$vpa_attr;
+                    if ($thing) {
+                        my $arg;
+                        if (ref($thing)) {
+                            $arg = $thing;
                         }
-                        next;
+                        else {
+                            $arg = [$name => $thing];
+                        }
+                        push(@{$relationships{$vpa_base}}, $arg);
                     }
-                    
-                    my $predicate = $vpa_attr.'_was_set';
-                    next unless $attr->$predicate();
-                    $column_info->{$vpa_attr} = $attr->$vpa_attr;
+                    next;
                 }
                 
-                if ($attr->is_primary_key) {
-                    push(@keys, $name);
-                }
-                elsif ($attr->is_key) {
-                    push(@psuedo_keys, $name);
-                    if ($attr->allow_key_to_default) {
-                        my $default = $attr->_key_default;
-                        $key_defaults{$name} = ref $default ? &{$default}($class) : $default;
-                    }
-                }
+                my $predicate = $vpa_attr.'_was_set';
+                next unless $attr->$predicate();
+                $column_info->{$vpa_attr} = $attr->$vpa_attr;
             }
-            else {
-                next;
+            
+            if ($attr->is_primary_key) {
+                push(@keys, $name);
+            }
+            elsif ($attr->is_key) {
+                push(@psuedo_keys, $name);
+                if ($attr->allow_key_to_default) {
+                    my $default = $attr->_key_default;
+                    $key_defaults{$name} = ref $default ? &{$default}($class) : $default;
+                }
             }
             
             # add default from our attribute if not already provided
@@ -227,6 +225,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             # accessors with their constraint checking
             my $dbic_name = '_'.$name;
             $column_info->{accessor} = $dbic_name;
+            #$name =~ s/^_//; #*** no tests right now to really see if this would break things horribly; not worth risking it just to have nicer table column names
             $class->add_column($name => $column_info);
         }
         
@@ -254,8 +253,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # them and replace with moose accessors, to give us moose type
         # constraints
         foreach my $attr ($meta->get_all_attributes) {
-            my $name = $attr->name;
             next unless $attr->does('VRPipe::Persistent::Attributes');
+            my $name = $attr->name;
             my $dbic_name = '_'.$name;
             
             if ($accessor_altered{$name}) {
@@ -270,15 +269,19 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $meta->add_around_method_modifier($name => sub {
                 my $orig = shift;
                 my $self = shift;
-                
+                my $debug = 0;#$name eq 'datasource';
                 my $moose_value = $self->$orig();
-                $self->discard_changes; # always get fresh from the db, incase another instance of this row was altered and updated
-                #my $dbic_value = $self->get_column($name); # we lose Datetime handling if we do this
+                
+                # always get fresh from the db, incase another instance of this
+                # row was altered and updated
+                $self->reselect_values_from_db();
+                
                 my $dbic_value = $self->$dbic_name();
                 unless (@_) {
                     # make sure we're in sync with the dbic value
                     if (defined $dbic_value) {
                         $moose_value = $self->$orig($dbic_value);
+                        warn "since we had a dbic_value, moose value got set to $moose_value\n" if $debug;
                     }
                     else {
                         $moose_value = $self->$orig();
@@ -323,23 +326,31 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             my ($self, %args) = @_;
             my $schema = delete $args{schema};
             unless ($schema) {
-                eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
-                $schema = VRPipe::Persistent::Schema->connect;
+                unless ($GLOBAL_CONNECTED_SCHEMA) {
+                    eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
+                    $GLOBAL_CONNECTED_SCHEMA = VRPipe::Persistent::Schema->connect;
+                }
+                
+                $schema = $GLOBAL_CONNECTED_SCHEMA;
             }
             
+            my %find_args;
             my $id = delete $args{$keys[0]}; # *** we only support a single real key atm; may further restrict this to being an auto-set column with name 'id'
             if ($id) {
-                %args = ($keys[0] => $id);
+                %find_args = ($keys[0] => $id);
             }
             else {
                 foreach my $key (@psuedo_keys) {
                     unless (defined $args{$key}) {
                         if (defined $key_defaults{$key}) {
-                            $args{$key} = $key_defaults{$key};
+                            $find_args{$key} = $key_defaults{$key};
                         }
                         else {
                             $self->throw("get() must be supplied all non-auto-increment keys (@psuedo_keys); missing $key");
                         }
+                    }
+                    else {
+                        $find_args{$key} = delete $args{$key};
                     }
                 }
             }
@@ -348,7 +359,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             my $row;
             try {
                 $row = $schema->txn_do(sub {
-                    my $return = $rs->find_or_create(%args);
+                    # $rs->find_or_create(...) needs all required attributes
+                    # supplied, but if we supply something that isn't an is_key,
+                    # we can generate a new row when we shouldn't do. So we
+                    # split up the find and create calls:
+                    my $return = $rs->find(\%find_args);
+                    
+                    if ($return) {
+                        # update the row with any non-key args supplied
+                        while (my ($method, $value) = each %args) {
+                            $return->$method($value);
+                        }
+                        $return->update;
+                    }
+                    else {
+                        # create the row
+                        $return = $rs->create({%find_args, %args});
+                    }
                     
                     # for some reason the result_source has no schema, so
                     # reattach it or inflation will break
@@ -385,6 +412,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $sqlt_table->add_index(name => 'psuedo_keys', fields => [@psuedo_keys]);
         });
     }
+    
+    # like discard_changes, except we don't clumsily wipe out the whole $self
+    # hash
+    method reselect_values_from_db {
+        return unless $self->in_storage;
+        
+        if (my $current_storage = $self->get_from_storage({force_pool => 'master'})) {
+            $self->{_column_data} = $current_storage->{_column_data};
+            delete $self->{_inflated_column};
+            delete $self->{related_resultsets};
+            bless $current_storage, 'Do::Not::Exist'; # avoid deep recursion on destruction
+        }
+        else {
+            $self->in_storage(0);
+        }
+    }
+
     
     method DEMOLISH {
         $self->update if $self->in_storage;
