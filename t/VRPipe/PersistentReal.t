@@ -4,7 +4,7 @@ use warnings;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 54;
+    use Test::Most tests => 62;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -45,6 +45,7 @@ undef $jobs[0];
 $jobs[0] = VRPipe::Job->get(cmd => 'echo "job1";');
 cmp_ok $jobs[0]->creation_time->epoch, '>=', $epoch_time, 'creation time defaulted to just now';
 is $jobs[0]->start_time, undef, 'start_time defaults to undef';
+$jobs[1] = VRPipe::Job->get(cmd => 'echo "job2";');
 
 my @reqs;
 ok $reqs[0] = VRPipe::Requirements->get(memory => 2000, time => 6), 'created a Requirments using get() with only memory and time';
@@ -110,7 +111,7 @@ is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id,
 
 ok my $first_setup = VRPipe::PipelineSetup->get(id => 1), 'pipelinesetup1 could be gotten by id';
 is $first_setup->datasource->id, 1, 'it has the correct datasource';
-$first_setup->datasource($ds[1]);
+$first_setup->datasource($ds[1]); # *** though we shouldn't be able to change an is_key value
 $first_setup->update;
 is $first_setup->datasource->id, 2, 'datasource could be changed';
 is $setups[0]->datasource->id, 2, 'and since we did an update, other instances are affected as well';
@@ -122,6 +123,7 @@ ok $stepstates[0] = VRPipe::StepState->get(stepmember => $stepms[0], dataelement
 undef $stepstates[0];
 $stepstates[0] = VRPipe::StepState->get(id => 1);
 is_deeply [$stepstates[0]->id, $stepstates[0]->stepmember->id, $stepstates[0]->dataelement->id, $stepstates[0]->pipelinesetup->id, $stepstates[0]->complete], [1, 1, 1, 1, 0], 'stepstate1 has the expected fields';
+$stepstates[1] = VRPipe::StepState->get(stepmember => $stepms[0], dataelement => $de[1], pipelinesetup => $setups[0]);
 
 my @subs;
 throws_ok { VRPipe::Submission->get(job => $jobs[0], stepstate => $stepstates[0]) } qr/Attribute \(requirements\) is required/, 'requirements is required when created a Submission, even though it is not a key';
@@ -139,6 +141,20 @@ $subs[0]->update;
 is $subs[0]->id, 1, 'yet the submission id did not change';
 $subs[0]->extra_memory();
 is $subs[0]->memory, 3500, 'extra_memory defaults to adding 1000MB';
+$subs[1] = VRPipe::Submission->get(job => $jobs[0], stepstate => $stepstates[0], requirements => $reqs[1]);
+is $subs[1]->id, 1, 'a Submission created with only the reqs differing results in the same submission';
+undef $subs[1];
+$subs[1] = VRPipe::Submission->get(id => 1);
+is $subs[1]->requirements->id, 2, 'but getting it with a certain requirements changed the requirements for this submission in the db';
+$subs[1] = VRPipe::Submission->get(job => $jobs[0], stepstate => $stepstates[1], requirements => $reqs[1]);
+
+throws_ok { VRPipe::PersistentArray->get() } qr/needs id or members/, 'get() for PersistentArray fails with no args';
+throws_ok { VRPipe::PersistentArray->get(id => 1, members => \@subs) } qr/both id and members cannot be supplied/, 'get() for PersistentArray fails with both id and members supplied';
+ok my $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'created a PersistentArray using get(members => [...])';
+is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the created PArray has the correct contents';
+undef $subs_array;
+ok $subs_array = VRPipe::PersistentArray->get(id => 1), 'got a PersistentArray using get(id => 1)';
+is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the created PArray has the correct contents';
 
 
 done_testing;

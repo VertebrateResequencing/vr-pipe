@@ -35,7 +35,8 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
                                   MaybeStrOrEnv ArrayRefOfMWJobs Datetime
-                                  Persistent PersistentObject RelationshipArg)];
+                                  Persistent PersistentObject RelationshipArg
+                                  PersistentArray ArrayRefOfPersistent)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -76,6 +77,9 @@ subtype RelationshipArg,
     as Defined,
     where { ClassName->check($_) || ArrayRef->check($_) },
     message { "$_ is neither a class name nor an array ref" };
+
+class_type('VRPipe::Submission');
+class_type('VRPipe::Requirements');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
@@ -145,6 +149,14 @@ coerce Persistent,
     from PersistentObject,
     via { $_->id };
 
+subtype ArrayRefOfPersistent,
+    as ArrayRef[PersistentObject];
+class_type('VRPipe::Persistent');
+subtype PersistentArray, as 'VRPipe::PersistentArray';
+coerce PersistentArray,
+    from ArrayRefOfPersistent,
+    via { VRPipe::PersistentArray->get(members => $_) };
+    
 
 # allow users to supply either a single X, or an array ref of them, eg:
 # has 'my_attribute' => ( is => 'rw', isa => 'ArrayRefOfInts', coerce => 1 );
