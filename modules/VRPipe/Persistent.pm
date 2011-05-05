@@ -274,7 +274,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 
                 # always get fresh from the db, incase another instance of this
                 # row was altered and updated
-                $self->reselect_values_from_db();
+                $self->reselect_value_from_db($name);
                 
                 my $dbic_value = $self->$dbic_name();
                 unless (@_) {
@@ -290,19 +290,25 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 else {
                     my $value = shift;
                     
-                    # first try setting in our Moose accessor, so we can see if
-                    # it passes the constraint
-                    $self->$orig($value);
-                    
-                    # now set it in the DBIC accessor
-                    #$dbic_value = $self->set_column($name, $value);
-                    $self->$dbic_name($value);
+                    if (defined $value) {
+                        # first try setting in our Moose accessor, so we can see if
+                        # it passes the constraint
+                        $self->$orig($value);
+                        
+                        # now set it in the DBIC accessor
+                        #$dbic_value = $self->set_column($name, $value);
+                        $self->$dbic_name($value);
+                    }
+                    else {
+                        my $clear_method = "_clear_$name";
+                        $self->$clear_method();
+                        $self->$dbic_name(undef);
+                    }
                     
                     # we deliberatly do not update in the db so that if the user
                     # is setting multiple accessors, another thread getting this
                     # object won't see a partially updated state. Users must
                     # call ->update manually (or destroy their object)
-                    #$self->update;
                     
                     # we do not attempt to return the set value, since we only
                     # ever return the database value, which hasn't been updated
@@ -415,11 +421,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     # like discard_changes, except we don't clumsily wipe out the whole $self
     # hash
-    method reselect_values_from_db {
+    method reselect_value_from_db (Str $column) {
         return unless $self->in_storage;
         
         if (my $current_storage = $self->get_from_storage({force_pool => 'master'})) {
-            $self->{_column_data} = $current_storage->{_column_data};
+            $self->{_column_data}->{$column} = $current_storage->{_column_data}->{$column};
             delete $self->{_inflated_column};
             delete $self->{related_resultsets};
             bless $current_storage, 'Do::Not::Exist'; # avoid deep recursion on destruction
@@ -428,7 +434,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $self->in_storage(0);
         }
     }
-
     
     method DEMOLISH {
         $self->update if $self->in_storage;

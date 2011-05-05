@@ -4,7 +4,7 @@ use warnings;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 66;
+    use Test::Most tests => 68;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -46,6 +46,18 @@ $jobs[0] = VRPipe::Job->get(cmd => 'echo "job1";');
 cmp_ok $jobs[0]->creation_time->epoch, '>=', $epoch_time, 'creation time defaulted to just now';
 is $jobs[0]->start_time, undef, 'start_time defaults to undef';
 $jobs[1] = VRPipe::Job->get(cmd => 'echo "job2";');
+$jobs[1]->pid(33);
+$jobs[1]->user('foo');
+$jobs[1]->host('local');
+$jobs[1]->update;
+undef $jobs[1];
+$jobs[1] = VRPipe::Job->get(id => 2);
+is_fields [qw/id pid user host/], $jobs[1], [2, 33, 'foo', 'local'], 'you can set multiple fields followed by a single update';
+$jobs[1]->pid(undef);
+$jobs[1]->update;
+undef $jobs[1];
+$jobs[1] = VRPipe::Job->get(id => 2);
+is $jobs[1]->pid, undef, 'you can set a field to undef';
 
 my @reqs;
 ok $reqs[0] = VRPipe::Requirements->get(memory => 2000, time => 6), 'created a Requirments using get() with only memory and time';
@@ -162,6 +174,10 @@ undef $subs_array;
 $subs_array = VRPipe::PersistentArray->get(id => 1);
 is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
 
+
+#$jobs[2] = VRPipe::Job->get(cmd => qq[echo "job3"; sleep 10; perl -e 'die "foobar"']);
+#my $cmd = VRPipe::Cmd->new(job_id => 3, heartbeat_interval => 1, max_processes => 2);
+#$cmd->run;
 
 done_testing;
 exit;

@@ -57,6 +57,7 @@ role VRPipe::Persistent::Attributes {
     has [qw(belongs_to has_one might_have)] => ( is => 'rw', isa => RelationshipArg );
     
     around _process_options (ClassName|Object $class: Str $name, HashRef $options) {
+        $options->{clearer} = '_clear_'.$name;
         $class->$orig($name, $options);
         $class->_process_default_or_builder_option($name, $options);
     }
