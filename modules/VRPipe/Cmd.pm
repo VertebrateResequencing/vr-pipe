@@ -35,8 +35,15 @@ class VRPipe::Cmd with VRPipe::Base::LivingProcesses {
     
     has job_id => (
         is      => 'ro',
-        isa     => 'Int',
+        isa     => Persistent,
         required => 1
+    );
+    
+    has job => (
+        is      => 'ro',
+        isa     => 'VRPipe::Job',
+        lazy => 1,
+        builder => '_build_job'
     );
     
     has stdout => (
@@ -104,15 +111,21 @@ class VRPipe::Cmd with VRPipe::Base::LivingProcesses {
     }
     
     method _build_processes {
+        my $job = $self->job;
+        my $cmd_line = $job->cmd;
+        warn "setting main mwjob to a $job with cmd [$cmd_line]\n";
+        return MooseX::Workers::Job->new(name => $self->job_id,
+                                         command => sub { my $exit_code = system($cmd_line); exit($exit_code); });
+    }
+    
+    method _build_job {
         my $job_id = $self->job_id;
-        my $job; # ... from db based on job_id ...
-        my $cmd_line = 'echo wiggle'; # $job->cmd;
-        return MooseX::Workers::Job->new(name => $job_id,
-                                         command => sub { system("$cmd_line"); });
+        eval "require VRPipe::Job;";
+        return VRPipe::Job->get(id => $job_id);
     }
     
     method _build_heartbeat_sub {
-        return sub { print "heartbeat\n"; }
+        return sub { my $self = shift || return; my $job = $self->job; $job->heartbeat(DateTime->now()); $job->update; }
     }
     
     method worker_stdout (Str $output, MooseX::Workers::Job $job) {
@@ -126,6 +139,24 @@ class VRPipe::Cmd with VRPipe::Base::LivingProcesses {
         print $fh $output, "\n";
     }
     
+    method worker_started (MooseX::Workers::Job $mwjob) {
+        warn sprintf("%s(%s,%s) started\n", $mwjob->name, $mwjob->ID, $mwjob->PID);
+        return if $self->_is_heartbeat_worker($mwjob);
+        warn "this was the main worker\n";
+    }
+    
+    method worker_done (MooseX::Workers::Job $mwjob) {
+        warn sprintf("%s(%s,%s) finished\n", $mwjob->name, $mwjob->ID, $mwjob->PID);
+        return if $self->_is_heartbeat_worker($mwjob);
+        warn "this was the main worker\n";
+    }
+    
+    method worker_error (MooseX::Workers::Job $mwjob) {
+        warn sprintf("%s(%s,%s) had an error\n", $mwjob->name, $mwjob->ID, $mwjob->PID);
+        return if $self->_is_heartbeat_worker($mwjob);
+        warn "this was the main worker\n";
+    }
+    
     method worker_manager_stop {
         if ($self->_stdofh) {
             $self->_stdofh->close;
@@ -134,6 +165,32 @@ class VRPipe::Cmd with VRPipe::Base::LivingProcesses {
         if ($self->_stdefh) {
             $self->_stdefh->close;
             $self->_stdefh(undef);
+        }
+    }
+    
+    method sig_TERM {
+        warn "got sig_TERM(@_)\n";
+        if ($self->num_workers > 0) {
+            my $engine = $self->Engine;
+            my @ids = sort { $a <=> $b } $engine->get_worker_ids;
+            foreach my $id (@ids) {
+                my $worker = $engine->get_worker($id) || next;
+                warn "will try and kill worker $id\n";
+                $worker->kill();
+            }
+        }
+    }
+    
+    method DEMOLISH {
+        warn "Cmd being demolished\n";
+        if ($self->num_workers > 0) {
+            my $engine = $self->Engine;
+            my @ids = sort { $a <=> $b } $engine->get_worker_ids;
+            foreach my $id (@ids) {
+                my $worker = $engine->get_worker($id) || next;
+                warn "will try and kill worker $id\n";
+                $worker->kill();
+            }
         }
     }
 }

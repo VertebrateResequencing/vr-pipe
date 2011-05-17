@@ -60,7 +60,15 @@ role VRPipe::Base::SpawnProcesses with MooseX::Workers {
         default => $cpu_count,
     );
     
+    sub catch_run_interupts {
+        my $signame = shift;
+        die "Somebody sent me a SIG$signame";
+    }
+    
     method run {
+        local $SIG{INT} = \&catch_run_interupts;
+        local $SIG{TERM} = \&catch_run_interupts;
+        
         $self->max_workers($self->max_processes);
         foreach my $process (@{$self->processes}) {
             $self->enqueue($process);
