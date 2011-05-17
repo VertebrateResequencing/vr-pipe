@@ -53,7 +53,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         #my $scheduled_id = $sch->submit(submission => $VRPipe_jobmanager_submission);
         # this gets requirements from the Submission object. It also auto-sets
         # $submission->sid() to $scheduled_id (the return value, which is the value
-        # returned by the scheduler).
+        # returned by the scheduler). _hid gets set to submission id and _aid
+        # to 0.
         
         #$scheduled_id = $sch->submit(array => $VRPipe_persistentarray,
         #                      requirements => $VRPipe_jobmanager_requirements);
@@ -61,25 +62,26 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # and a Requirments object (ie. where you have arranged that all the Submission
         # objects in the array share this same Requirements). It gets each Submission
         # object from the PersistentArray and auto-sets $submission->sid() to the
-        # $scheduled_id with the PersistentArray id and index suffixed in a special
-        # format understood by other Scheduler methods.
+        # $scheduled_id with the PersistentArray id and index in _hid and _aid.
         # In both cases, it claims all Submission objects prior to interacting with
         # the scheduler, and if the scheduler has a problem and the submission fails,
         # we release all the Submission objects.
         
         my @submissions;
         my $for;
+        my $aid = -1;
         if ($submission) {
             push(@submissions, $submission);
             $requirements ||= $submission->requirements;
             $for = $submission;
         }
-        if ($array) {
+        elsif ($array) {
             if (ref($array) eq 'ARRAY') {
                 $array = VRPipe::PersistentArray->get(members => $array);
             }
             push(@submissions, @{$array->members});
             $for = $array;
+            $aid++;
         }
         $self->throw("at least one submission and requirements must be supplied") unless @submissions && $requirements;
         
@@ -90,11 +92,42 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # then attempt the submit and set their sid on success or release on
         # failure
         my $schema = $self->result_source->schema;
+        my $sid;
         try {
-            $schema->txn_do(sub {
-                my @claimed;
+            $sid = $schema->txn_do(sub {
+                my $all_claimed = 1;
                 foreach my $sub (@submissions) {
+                    my $claimed = $sub->claim;
+                    unless ($claimed) {
+                        $all_claimed = 0;
+                        last;
+                    }
+                    $sub->_hid($for->id);
+                    $sub->_aid(++$aid);
+                }
+                
+                if ($all_claimed) {
+                    foreach my $sub (@submissions) {
+                        $sub->update;
+                    }
                     
+                    my $got_sid = $self->get_sid($cmd_line);
+                    
+                    if ($got_sid) {
+                        foreach my $sub (@submissions) {
+                            $sub->sid($got_sid);
+                        }
+                        return $got_sid;
+                    }
+                    else {
+                        foreach my $sub (@submissions) {
+                            $sub->release;
+                        }
+                        die "failed to submit to scheduler";
+                    }
+                }
+                else {
+                    die "failed to claim all submissions";
                 }
             });
         }
@@ -102,6 +135,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
             $self->throw("Failed to claim & submit: $err");
         }
+        
+        return $sid;
         
         # When dealing with a PersistentArray, each Submission will get its own output
         # files in the output_dir() based on which index it was in the PersistentArray.
@@ -136,6 +171,20 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # and serially running the jobs one-at-a-time itself.
     }
     
+    method get_sid (Str $cmd) {
+        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
+        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
+        #    for now
+        my $output = `$cmd`;
+        my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
+        if ($sid) {
+            return $sid;
+        }
+        else {
+            $self->throw("Failed to submit to scheduler");
+        }
+    }
+    
     method build_command_line (VRPipe::Requirements :$requirements, PersistentObject :$for) {
         # figure out where STDOUT & STDERR of the scheduler should go
         my $output_dir = $self->output_dir($for);
@@ -145,12 +194,13 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $self_id = $self->id;
         my $node_run_args = $for->isa('VRPipe::PersistentArray') ? "index => shift, array => " : "submission => ";
         $node_run_args .= $for->id;
-        my $cmd = qq[perl -MVRPipe::Scheduler -e "VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
+        my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
+        my $cmd = qq[perl -MVRPipe::Persistent::SchemaBase -MVRPipe::Scheduler -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
         
-        return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements, output_dir => $output_dir, cmd => $cmd));
+        return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements, output_dir => $output_dir, cmd => $cmd, multiple => $for->isa('VRPipe::PersistentArray')));
     }
     
-    method output_dir (PersistentObject :$for) {
+    method output_dir (PersistentObject $for) {
         my $root_dir = $self->output_root;
         my $hashing_string = ref($for).'::'.$for->id;
         
@@ -178,18 +228,25 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         
         # access the requirments object and build up the string based on memory,
         # time, cpu etc.
-        
         my $queue = $self->determine_queue($requirements);
         # *** ...
-        
         my $requirments_string = "-q $queue";
         
+        # work out the scheduler output locations and how to pass on the
+        # scheduler array index to the perl cmd
         my $index_spec = '';
+        my $ofile = file($output_dir, 'stdout');
+        my $efile = file($output_dir, 'stderr');
+        my $output_string;
         if ($multiple) {
-            $index_spec = '';
+            $index_spec = ''; #*** something that gives the index to be shifted into perl -e
+            $output_string = "-o $ofile -e $efile"; #*** uniqify per index
+        }
+        else {
+            $output_string = "-o $ofile -e $efile";
         }
         
-        return qq[$requirments_string '$cmd$index_spec'];
+        return qq[$output_string $requirments_string '$cmd$index_spec'];
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
@@ -204,7 +261,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $input_args = '';
         if ($array) {
             $index = $self->get_1based_index($index);
-            $submission = VRPipe::PersistentArray->get(id => $array)->member($index);
+            $submission = VRPipe::PersistentArray->get(id => $array)->member($index); # *** or avoid possible mismatches by directly getting the Submission with the appropriate _hid and _aid?
             $input_args = "array => $array (index $index)";
         }
         else {

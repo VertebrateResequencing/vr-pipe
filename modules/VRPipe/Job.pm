@@ -59,7 +59,8 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     has 'heartbeat_interval' => (is => 'rw',
                                  isa => PositiveInt,
-                                 default => 60);
+                                 lazy => 1,
+                                 builder => '_build_default_heartbeat_interval');
     
     has 'creation_time' => (is => 'rw',
                             isa => Datetime,
@@ -81,10 +82,24 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
+    method _build_default_heartbeat_interval {
+        if (VRPipe::Persistent::SchemaBase->database_deployment eq 'testing') {
+            return 1;
+        }
+        else {
+            return 60;
+        }
+    }
     
     around get (ClassName|Object $self: %args) {
         unless (exists $args{dir}) {
             $args{dir} = cwd();
+        }
+        else {
+            my $dir = dir($args{dir});
+            unless (-d $dir) {
+                $dir->mkpath || $self->throw("job output directory '$dir' could not be created");
+            }
         }
         return $self->$orig(%args);
     }
@@ -213,11 +228,11 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     method stdout_file {
         my $pid = $self->pid || return;
-        return Path::Class::File->new($self->dir, ".pid_$pid.o");
+        return file($self->dir, ".pid_$pid.o");
     }
     method stderr_file {
         my $pid = $self->pid || return;
-        return Path::Class::File->new($self->dir, ".pid_$pid.e");
+        return file($self->dir, ".pid_$pid.e");
     }
     
     method _wait_for_child (Int $pid) {

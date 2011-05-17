@@ -2,9 +2,10 @@
 use strict;
 use warnings;
 use Cwd;
+use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 90;
+    use Test::Most tests => 93;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -227,7 +228,17 @@ is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar', 'stderr file had the correct
 throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pending state/, 'run() on a failed job results in a throw';
 
 # running jobs via the scheduler
-
+my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output');
+$jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
+my $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
+ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit to the scheduler worked';
+my $loops = 0;
+while (! $test_sub->done) {
+    last if ++$loops > 30;
+    sleep(1);
+}
+ok $test_sub->done, 'submission ran to completion';
+is $jobs[4]->stdout_file->slurp(chomp => 1), '12345', 'the submissions job did really run correctly';
 
 done_testing;
 exit;
