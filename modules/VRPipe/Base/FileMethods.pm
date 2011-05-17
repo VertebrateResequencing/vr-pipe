@@ -42,14 +42,18 @@ role VRPipe::Base::FileMethods {
     use File::Copy;
     use File::Temp;
     
+    # File::Temp will auto-delete temporary files and dirs when our instance is
+    # destroyed, but we need to keep a reference to them until then to stop
+    # them being deleted too early
     has _file_temps => (
         traits  => ['Array'],
         is      => 'ro',
-        isa     => 'ArrayRef[Str]',
+        isa     => 'ArrayRef[File::Temp::Dir|File::Temp::File]',
+        lazy    => 1,
         default => sub { [] },
         handles => {
             _remember_file_temp => 'push'
-        },
+        }
     );
     
 =head2 cwd
@@ -220,6 +224,7 @@ role VRPipe::Base::FileMethods {
 
 =cut
     method tempdir {
+        shift;
         my $ft = File::Temp->newdir(@_);
         $self->_remember_file_temp($ft);
         return $ft->dirname;

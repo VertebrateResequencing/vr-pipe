@@ -44,6 +44,16 @@ class VRPipe::Submission extends VRPipe::Persistent {
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_nullable => 1);
     
+    has '_hid' => (is => 'rw',
+                   isa => IntSQL[8],
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   is_nullable => 1);
+    
+    has '_aid' => (is => 'rw',
+                   isa => IntSQL[8],
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   is_nullable => 1);
+    
     has 'retries' => (is => 'rw',
                       isa => IntSQL[4],
                       traits => ['VRPipe::Persistent::Attributes'],
@@ -156,7 +166,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
         
         #$self->sync_scheduler;
-        #$self->archive_output;
+        #$self->archive_output; #*** cat the raw stdout and stderr files created by Job named after the pid in the Job working dir on to the end of files in hashed global output_dir directory
         $self->_sid(undef);
         
         $self->update;

@@ -4,7 +4,7 @@ use warnings;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 68;
+    use Test::Most tests => 90;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -174,10 +174,60 @@ undef $subs_array;
 $subs_array = VRPipe::PersistentArray->get(id => 1);
 is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
 
+# running jobs directly
+my $tempdir = $jobs[1]->tempdir();
+$jobs[2] = VRPipe::Job->get(cmd => qq[echo "job3"; sleep 3; perl -e 'print "foo\n"'], dir => $tempdir);
+is $jobs[2]->heartbeat_interval(1), 1, 'heartbeat_interval of a job can be set directly and transiently';
+$epoch_time = time();
+$jobs[2]->run;
+is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 1, 0], 'test job status got updated correctly for an ok job';
+ok $jobs[2]->pid, 'pid was set';
+ok $jobs[2]->host, 'host was set';
+ok $jobs[2]->user, 'user was set';
+my $start_time = $jobs[2]->start_time->epoch;
+my $end_time = $jobs[2]->end_time->epoch;
+my $heartbeat_time = $jobs[2]->heartbeat->epoch;
+my $ok = $start_time >= $epoch_time && $start_time <= $epoch_time + 1;
+ok $ok, 'start_time is correct';
+$ok = $end_time > $start_time && $end_time <= $start_time + 4;
+ok $ok, 'end_time is correct';
+$ok = $heartbeat_time > $start_time && $heartbeat_time <= $end_time;
+ok $ok, 'time of last heartbeat correct';
+ok my $stdout_file = $jobs[2]->stdout_file, 'got a stdout file';
+is $stdout_file->slurp(chomp => 1), 'job3foo', 'stdout file had correct contents';
+ok my $stderr_file = $jobs[2]->stderr_file, 'got a stderr file';
+is $stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
 
-#$jobs[2] = VRPipe::Job->get(cmd => qq[echo "job3"; sleep 10; perl -e 'die "foobar"']);
-#my $cmd = VRPipe::Cmd->new(job_id => 3, heartbeat_interval => 1, max_processes => 2);
-#$cmd->run;
+$jobs[2]->run;
+is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
+ok $jobs[2]->reset, 'could reset a job';
+is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time],
+          [0, 0, 0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
+my $child_pid = fork();
+if ($child_pid) {
+    sleep(1);
+    my $cmd_pid = $jobs[2]->pid;
+    kill(9, $cmd_pid);
+    waitpid($child_pid, 0);
+    is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 0, 9], 'test job status got updated correctly for a job that was killed externally';
+    is $jobs[2]->stdout_file->slurp(chomp => 1), 'job3', 'stdout file had correct contents';
+    is $jobs[2]->stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
+}
+else {
+    $jobs[2]->run;
+    exit(0);
+}
+
+$jobs[3] = VRPipe::Job->get(cmd => qq[echo "job4"; perl -e 'die "bar\n"'], dir => $tempdir);
+$jobs[3]->heartbeat_interval(1);
+$jobs[3]->run;
+is_deeply [$jobs[3]->finished, $jobs[3]->running, $jobs[3]->ok, $jobs[3]->exit_code, $jobs[3]->heartbeat], [1, 0, 0, 65280, undef], 'test job status got updated correctly for a job that dies internally';
+is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
+is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar', 'stderr file had the correct contents';
+throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pending state/, 'run() on a failed job results in a throw';
+
+# running jobs via the scheduler
+
 
 done_testing;
 exit;

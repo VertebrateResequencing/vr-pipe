@@ -44,6 +44,7 @@ use MooseX::Types::Moose qw(Any Num Int Defined Str FileHandle ArrayRef HashRef 
 use Path::Class;
 use File::HomeDir;
 use DateTime ();
+use File::Temp;
 
 # custom type definitions
 subtype PositiveInt, 
@@ -111,6 +112,9 @@ subtype FileOrHandle,
 coerce FileOrHandle,
     from Str,
     via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) };
+
+class_type('File::Temp::Dir');
+class_type('File::Temp::File');
 
 # datetime (stolen from MooseX::Types::DateTime)
 class_type 'DateTime';
