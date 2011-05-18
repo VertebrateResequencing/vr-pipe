@@ -12,12 +12,12 @@ class VRPipe::Job extends VRPipe::Persistent {
                  is_primary_key => 1);
     
     has 'cmd' => (is => 'rw',
-                  isa => Varchar[64],
+                  isa => Varchar[256],
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
     has 'dir' => (is => 'rw',
-                  isa => Varchar[64],
+                  isa => Varchar[256],
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
@@ -227,12 +227,17 @@ class VRPipe::Job extends VRPipe::Persistent {
     }
     
     method stdout_file {
-        my $pid = $self->pid || return;
-        return file($self->dir, ".pid_$pid.o");
+        my $file = $self->_std_file || return;
+        return file($self->dir, $file.'.o');
     }
     method stderr_file {
+        my $file = $self->_std_file || return;
+        return file($self->dir, $file.'.e');
+    }
+    method _std_file {
         my $pid = $self->pid || return;
-        return file($self->dir, ".pid_$pid.e");
+        my $host = $self->host;
+        return ".host_$host.pid_$pid";
     }
     
     method _wait_for_child (Int $pid) {

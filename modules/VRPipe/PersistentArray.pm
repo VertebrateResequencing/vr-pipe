@@ -72,6 +72,10 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
             }
         }
     }
+    
+    method size {
+        return scalar $self->_members;
+    }
 }
 
 1;

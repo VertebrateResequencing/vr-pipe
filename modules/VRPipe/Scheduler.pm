@@ -82,6 +82,16 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             push(@submissions, @{$array->members});
             $for = $array;
             $aid++;
+            
+            if (! $requirements) {
+                my %req_ids;
+                foreach my $sub (@submissions) {
+                    $req_ids{$sub->requirements->id} = 1;
+                }
+                if (keys %req_ids == 1) {
+                    $requirements = $submissions[0]->requirements;
+                }
+            }
         }
         $self->throw("at least one submission and requirements must be supplied") unless @submissions && $requirements;
         
@@ -197,7 +207,10 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
         my $cmd = qq[perl -MVRPipe::Persistent::SchemaBase -MVRPipe::Scheduler -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
         
-        return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements, output_dir => $output_dir, cmd => $cmd, multiple => $for->isa('VRPipe::PersistentArray')));
+        return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements,
+                                                                   output_dir => $output_dir,
+                                                                   cmd => $cmd,
+                                                                   $for->isa('VRPipe::PersistentArray') ? (array => $for) : ()));
     }
     
     method output_dir (PersistentObject $for) {
@@ -221,7 +234,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         return 'bsub';
     }
     
-    method submit_args (VRPipe::Requirements :$requirements, Dir :$output_dir, Str :$cmd, Bool :$multiple) {
+    method submit_args (VRPipe::Requirements :$requirements, Dir :$output_dir, Str :$cmd, VRPipe::PersistentArray :$array?) {
         #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
         #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
         #    for now
@@ -235,18 +248,22 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # work out the scheduler output locations and how to pass on the
         # scheduler array index to the perl cmd
         my $index_spec = '';
+        my $array_def = '';
         my $ofile = file($output_dir, 'stdout');
         my $efile = file($output_dir, 'stderr');
         my $output_string;
-        if ($multiple) {
-            $index_spec = ''; #*** something that gives the index to be shifted into perl -e
-            $output_string = "-o $ofile -e $efile"; #*** uniqify per index
+        if ($array) {
+            $index_spec = ''; #*** something that gives the index to be shifted into perl -e; for LSF we leave it empty and will pick up an env var elsewhere instead
+            $output_string = "-o $ofile.\%I -e $efile.\%I";
+            my $size = $array->size;
+            my $uniquer = $array->id;
+            $array_def = qq{-J "vrpipe$uniquer\[1-$size]" };
         }
         else {
             $output_string = "-o $ofile -e $efile";
         }
         
-        return qq[$output_string $requirments_string '$cmd$index_spec'];
+        return qq[$array_def$output_string $requirments_string '$cmd$index_spec'];
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
@@ -283,7 +300,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
         #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
         #    for now.
-        $index ? return $index : return $ENV{foo};
+        $index ? return $index : return $ENV{LSB_JOBINDEX};
     }
 
 =pod

@@ -5,7 +5,7 @@ use Cwd;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 93;
+    use Test::Most tests => 100;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -232,13 +232,44 @@ my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output');
 $jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
 my $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
 ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit to the scheduler worked';
-my $loops = 0;
-while (! $test_sub->done) {
-    last if ++$loops > 30;
-    sleep(1);
-}
+wait_until_done($test_sub);
 ok $test_sub->done, 'submission ran to completion';
-is $jobs[4]->stdout_file->slurp(chomp => 1), '12345', 'the submissions job did really run correctly';
+my $job4_stdout_file = $jobs[4]->stdout_file;
+is $job4_stdout_file->slurp(chomp => 1), '12345', 'the submissions job did really run correctly';
+$test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[1], requirements => $reqs[0]);
+$schedulers[2]->submit(submission => $test_sub);
+wait_until_done($test_sub);
+is $jobs[4]->stdout_file, $job4_stdout_file, 'running the same job in a different submission does not really rerun the job';
+
+# job arrays
+my @subs_array;
+my @test_jobs;
+for my $i (1..5) {
+    my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output', $i);
+    push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
+    push(@subs_array, VRPipe::Submission->get(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
+}
+ok my $scheduled_id = $schedulers[2]->submit(array => \@subs_array), 'submit to the scheduler worked with an array';
+wait_until_done(@subs_array);
+foreach my $job (@test_jobs) {
+    is $job->stdout_file->slurp(chomp => 1), '12345'.$job->pid, 'stdout file of an arrayed job had correct contents';
+}
 
 done_testing;
 exit;
+
+sub wait_until_done {
+    my $loops = 0;
+    while (1) {
+        my $all_done = 1;
+        foreach my $sub (@_) {
+            if (! $sub->done) {
+                $all_done = 0;
+                last;
+            }
+        }
+        last if $all_done;
+        last if ++$loops > 30;
+        sleep(1);
+    }
+}

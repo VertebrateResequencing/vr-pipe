@@ -82,6 +82,7 @@ subtype RelationshipArg,
 class_type('VRPipe::Submission');
 class_type('VRPipe::Requirements');
 class_type('VRPipe::PersistentArrayMember');
+class_type('VRPipe::PersistentArray');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
