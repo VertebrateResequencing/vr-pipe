@@ -65,6 +65,9 @@ allow a column to be left out of a call to get() when that column is_key and has
 a default or builder, in which case get() will behave as if you had supplied
 that column with the default value for that column.
 
+NB: for any non-persistent attributes with a default value, be sure to make them
+lazy or they might not get their default values when the instances are created.
+
 End your class definition with a call to __PACKAGE__->make_persistent, where you
 can supply the various relationship types as a hash (key as one of the
 relationship methods has_many or many_to_many
@@ -77,7 +80,7 @@ value, or just a class name string for the default configuration.
 You can also supply table_name => $string if you don't want the table_name in
 your database to be the same as your class basename.
 
-For end users, get() is a convience method that will call find_or_create on a
+For end users, get() is a convienience method that will call find_or_create on a
 ResultSource for your class, if supplied values for all is_key columns (with
 the optional exception of any allow_key_to_default columns) and an optional
 instance of VRPipe::Persistent::SchemaBase to the schema key (defaults to a
