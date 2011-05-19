@@ -5,7 +5,7 @@ use Cwd;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 100;
+    use Test::Most tests => 101;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -228,6 +228,7 @@ is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar', 'stderr file had the correct
 throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pending state/, 'run() on a failed job results in a throw';
 
 # running jobs via the scheduler
+my %heartbeats;
 my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output');
 $jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
 my $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
@@ -246,13 +247,68 @@ my @subs_array;
 my @test_jobs;
 for my $i (1..5) {
     my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output', $i);
-    push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
+    push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..9) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
     push(@subs_array, VRPipe::Submission->get(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
 }
-ok my $scheduled_id = $schedulers[2]->submit(array => \@subs_array), 'submit to the scheduler worked with an array';
+ok $scheduled_id = $schedulers[2]->submit(array => \@subs_array), 'submit to the scheduler worked with an array';
+throws_ok { $schedulers[2]->submit(array => \@subs_array); } qr/failed to claim all submissions/, 'trying to submit the same submissions again causes a throw';
+%heartbeats = ();
 wait_until_done(@subs_array);
+my $good_outputs = 0;
 foreach my $job (@test_jobs) {
-    is $job->stdout_file->slurp(chomp => 1), '12345'.$job->pid, 'stdout file of an arrayed job had correct contents';
+    $good_outputs++ if $job->stdout_file->slurp(chomp => 1) eq join('', 1..9).$job->pid;
+}
+is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
+my $good_beats = 0;
+while (my ($sub_id, $hhash) = each %heartbeats) {
+    my $beats = keys %{$hhash};
+    $good_beats++ if keys %{$hhash} == 3;
+}
+is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
+
+#warn "sleeping for 10\n";
+#sleep(10);
+#warn "disconnecting\n";
+#$jobs[4]->disconnect;
+#warn "sleeping for another 10\n";
+#sleep(10);
+#warn "trigger an auto-reconnect\n";
+#$jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
+#warn "sleepinf ro another 10\n";
+#sleep(10);
+#warn "done\n";
+
+# stress testing
+my ($t1, $l1);
+SKIP: {
+    skip "stress tests not enabled", 3 unless $ENV{VRPIPE_STRESSTESTS};
+    
+    my @subs_array;
+    my @test_jobs;
+    start_clock(__LINE__);
+    for my $i (1..1000) {
+        my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output', $i);
+        push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..300) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
+        push(@subs_array, VRPipe::Submission->get(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
+    }
+    lap(__LINE__); # 26
+    ok $scheduled_id = $schedulers[2]->submit(array => \@subs_array, heartbeat_interval => 30), 'submit to the scheduler worked with an array';
+    lap(__LINE__); # 41
+    %heartbeats = ();
+    wait_until_done(@subs_array);
+    lap(__LINE__); # 1046
+    my $good_outputs = 0;
+    foreach my $job (@test_jobs) {
+        $good_outputs++ if $job->stdout_file->slurp(chomp => 1) eq join('', 1..300).$job->pid;
+    }
+    lap(__LINE__); # 12
+    is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
+    my $good_beats = 0;
+    while (my ($sub_id, $hhash) = each %heartbeats) {
+        my $beats = keys %{$hhash};
+        $good_beats++ if keys %{$hhash} == 10;
+    }
+    is $good_beats, 1000, 'each arrayed job had the correct number of heartbeats';
 }
 
 done_testing;
@@ -265,11 +321,26 @@ sub wait_until_done {
         foreach my $sub (@_) {
             if (! $sub->done) {
                 $all_done = 0;
-                last;
+                #last;
+                my $heartbeat = $sub->job->heartbeat || next;
+                $heartbeats{$sub->id}->{$heartbeat->epoch}++;
             }
         }
         last if $all_done;
-        last if ++$loops > 30;
+        last if ++$loops > 1000;
         sleep(1);
     }
+}
+
+sub start_clock {
+    $l1 = shift;
+    $t1 = time();
+}
+
+sub lap {
+    my $l2 = shift;
+    my $t2 = time();
+    warn "Going from line $l1..$l2 took ", $t2 - $t1, " seconds\n";
+    $t1 = time();
+    $l1 = $l2 + 1;
 }

@@ -438,6 +438,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
     }
     
+    method disconnect {
+        return unless $GLOBAL_CONNECTED_SCHEMA;
+        $GLOBAL_CONNECTED_SCHEMA->storage->disconnect;
+    }
+    
     method DEMOLISH {
         $self->update if $self->in_storage;
     }

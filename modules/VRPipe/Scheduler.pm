@@ -48,8 +48,11 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
            array => VRPipe::PersistentArray | [VRPipe::Submission instances]
            requirements => VRPipe::Requirements instance
 
+           optionally:
+           heartbeat_interval => int (seconds between heartbeats)
+
 =cut
-    method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, PersistentArray|ArrayRefOfPersistent :$array?) {
+    method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, PersistentArray|ArrayRefOfPersistent :$array?, PositiveInt :$heartbeat_interval?) {
         #my $scheduled_id = $sch->submit(submission => $VRPipe_jobmanager_submission);
         # this gets requirements from the Submission object. It also auto-sets
         # $submission->sid() to $scheduled_id (the return value, which is the value
@@ -96,7 +99,9 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         $self->throw("at least one submission and requirements must be supplied") unless @submissions && $requirements;
         
         # generate a command line that will submit to the scheduler
-        my $cmd_line = $self->build_command_line(requirements => $requirements, for => $for);
+        my $cmd_line = $self->build_command_line(requirements => $requirements,
+                                                 for => $for,
+                                                 $heartbeat_interval ? (heartbeat_interval => $heartbeat_interval) : ());
         
         # claim all submission objects, associating them with the hashing id,
         # then attempt the submit and set their sid on success or release on
@@ -195,7 +200,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         }
     }
     
-    method build_command_line (VRPipe::Requirements :$requirements, PersistentObject :$for) {
+    method build_command_line (VRPipe::Requirements :$requirements, PersistentObject :$for, PositiveInt :$heartbeat_interval?) {
         # figure out where STDOUT & STDERR of the scheduler should go
         my $output_dir = $self->output_dir($for);
         
@@ -204,6 +209,9 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $self_id = $self->id;
         my $node_run_args = $for->isa('VRPipe::PersistentArray') ? "index => shift, array => " : "submission => ";
         $node_run_args .= $for->id;
+        if ($heartbeat_interval) {
+            $node_run_args .= ", heartbeat_interval => $heartbeat_interval";
+        }
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
         my $cmd = qq[perl -MVRPipe::Persistent::SchemaBase -MVRPipe::Scheduler -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
         
@@ -273,7 +281,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         return 'normal';
     }
     
-    method run_on_node (Persistent :$submission?, Persistent :$array?, Maybe[PositiveInt] :$index?) {
+    method run_on_node (Persistent :$submission?, Persistent :$array?, Maybe[PositiveInt] :$index?, PositiveInt :$heartbeat_interval?) {
         $self->throw("submission or array must be supplied") unless $submission || $array;
         my $input_args = '';
         if ($array) {
@@ -288,6 +296,9 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         $self->throw("Could not find a submission corresponding to $input_args") unless $submission;
         
         my $job = $submission->job;
+        if ($heartbeat_interval) {
+            $job->heartbeat_interval($heartbeat_interval);
+        }
         if ($job->pending) {
             $job->run;
         }

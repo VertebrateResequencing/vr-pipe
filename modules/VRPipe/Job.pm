@@ -84,7 +84,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     method _build_default_heartbeat_interval {
         if (VRPipe::Persistent::SchemaBase->database_deployment eq 'testing') {
-            return 1;
+            return 3;
         }
         else {
             return 60;
@@ -170,6 +170,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         $self->exit_code(undef);
         $self->update;
         
+        $self->disconnect;
         my $cmd_pid = fork();
         my $heartbeat_pid;
         if (! defined $cmd_pid) {
@@ -191,6 +192,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                     last unless $still_running;
                     $self->heartbeat(DateTime->now());
                     $self->update;
+                    $self->disconnect;
                     sleep $interval;
                 }
                 exit(0);
@@ -205,11 +207,17 @@ class VRPipe::Job extends VRPipe::Persistent {
             $self->start_time(DateTime->now());
             $self->update;
             
-            open STDOUT, '>', $self->stdout_file or $self->throw("Can't redirect STDOUT: $!");
-            open STDERR, '>', $self->stderr_file or $self->throw("Can't redirect STDERR: $!");
-            chdir($self->dir);
-            exec($self->cmd);
-            exit(0);
+            # get all info from db and disconnect before using the info below
+            my $dir = $self->dir;
+            my $cmd = $self->cmd;
+            my $stdout_file = $self->stdout_file;
+            my $stderr_file = $self->stderr_file;
+            $self->disconnect;
+            
+            open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT: $!");
+            open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR: $!");
+            chdir($dir);
+            exec($cmd);
         }
         
         # wait for the cmd to finish
