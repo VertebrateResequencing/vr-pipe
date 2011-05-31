@@ -1,6 +1,6 @@
 previously.txt
 MYMETA.yml
-modules/VRPipe/SiteConfig.pm
+modules/VRPipe/SiteConfig*.pm
 .*~
 *~
 .#*
