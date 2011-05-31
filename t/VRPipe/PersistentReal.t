@@ -5,7 +5,7 @@ use Cwd;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 101;
+    use Test::Most tests => 105;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -15,11 +15,16 @@ BEGIN {
 
 # some quick basic tests for all the core domain classes
 my @steps;
-ok $steps[0] = VRPipe::Step->get(code => 'step1code', description => 'the first step'), 'created a Step using get()';
-is_fields [qw/id code description/], $steps[0], [1, 'step1code', 'the first step'], 'step1 has the expected fields';
+ok $steps[0] = VRPipe::Step->get(name => 'step1',
+                                 inputs_sub => sub { return "step1inputs" },
+                                 body_sub => sub { return "step1body" },
+                                 post_process_sub => sub { return "step1post" },
+                                 outputs_sub => sub { return "step1outputs" },
+                                 description => 'the first step'), 'created a Step using get()';
+is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'step1body', 'the first step'], 'step1 has the expected fields';
 undef $steps[0];
-ok $steps[0] = VRPipe::Step->get(code => 'step1code', description => 'the first step'), 'got a Step using get()';
-is_fields [qw/id code description/], $steps[0], [1, 'step1code', 'the first step'], 'step1 still has the expected fields';
+ok $steps[0] = VRPipe::Step->get(name => 'step1'), 'got a Step using get(name => )';
+is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'step1body', 'the first step'], 'step1 still has the expected fields';
 
 ok my $first_step = VRPipe::Step->get(id => 1), 'step1 could be gotten by id';
 is $first_step->description, 'the first step', 'it has the correct description';
@@ -81,13 +86,13 @@ is_fields [qw/id module method source/], $ds[1], [2, 'VRPipe::DataSources::FOFN'
 my @de;
 foreach my $de_num (1..5) {
     # create
-    VRPipe::DataElement->get(datasource => $ds[1], result => "result_$de_num");
+    VRPipe::DataElement->get(datasource => $ds[0], result => "result_$de_num");
 }
 foreach my $de_num (1..5) {
     # get
-    push(@de, VRPipe::DataElement->get(datasource => $ds[1], result => "result_$de_num"));
+    push(@de, VRPipe::DataElement->get(datasource => $ds[0], result => "result_$de_num"));
 }
-is_deeply [$de[2]->id, $de[2]->datasource->id, $de[2]->result], [3, 2, 'result_3'], 'de3 has the expected fields';
+is_deeply [$de[2]->id, $de[2]->datasource->id, $de[2]->result], [3, 1, 'result_3'], 'de3 has the expected fields';
 
 my @pipelines;
 ok $pipelines[0] = VRPipe::Pipeline->get(name => 'p1', description => 'first test pipeline'), 'created a Pipeline using get()';
@@ -97,13 +102,17 @@ is_fields [qw/id name description/], $pipelines[0], [1, 'p1', 'first test pipeli
 
 foreach my $step_num (2..5) {
     # create
-    VRPipe::Step->get(code => "coderef_$step_num");
+    VRPipe::Step->get(name => "coderef_$step_num",
+                      inputs_sub => sub { return "inputs" },
+                      body_sub => sub { return "body" },
+                      post_process_sub => sub { return "post" },
+                      outputs_sub => sub { return "outputs" });
 }
 foreach my $step_num (2..5) {
     # get
     push(@steps, VRPipe::Step->get(id => $step_num));
 }
-is_fields [qw/id code/], $steps[2], [3, 'coderef_3'], 'step3 has the expected fields';
+is_deeply [$steps[2]->id, &{$steps[2]->body_sub}()], [3, 'body'], 'step3 has the expected fields';
 
 my @stepms;
 foreach my $step (@steps) {
@@ -117,7 +126,7 @@ for (1..5) {
 is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id], [3, 3, 1], 'stepmember3 has the expected fields';
 
 my @setups;
-ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], pipeline => $pipelines[0]), 'created a PipelineSetup using get()';
+ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => '/foo/bar', pipeline => $pipelines[0]), 'created a PipelineSetup using get()';
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(id => 1);
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options], [1, 1, 1, ''], 'pipelinesetup1 has the expected fields';
@@ -266,17 +275,16 @@ while (my ($sub_id, $hhash) = each %heartbeats) {
 }
 is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
 
-#warn "sleeping for 10\n";
-#sleep(10);
-#warn "disconnecting\n";
-#$jobs[4]->disconnect;
-#warn "sleeping for another 10\n";
-#sleep(10);
-#warn "trigger an auto-reconnect\n";
-#$jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
-#warn "sleepinf ro another 10\n";
-#sleep(10);
-#warn "done\n";
+# manager
+ok my $manager = VRPipe::Manager->get(), 'can get a manager with no args';
+is $manager->id, 1, 'manager always has an id of 1';
+$pipelines[1] = VRPipe::Pipeline->get(name => 'p2', description => 'second pipeline');
+$setups[1] = VRPipe::PipelineSetup->get(name => 'ps2', datasource => $ds[0], output_root => '/flar/blar', pipeline => $pipelines[1]);
+my @manager_setups = $manager->setups;
+is @manager_setups, 2, 'setups() returns the correct number of PipelineSetups';
+@manager_setups = $manager->setups(pipeline_name => 'p2');
+is @manager_setups, 1, 'setups() returns the correct number of PipelineSetups when pipeline_name supplied';
+$manager->trigger;
 
 # stress testing
 my ($t1, $l1);

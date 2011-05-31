@@ -271,6 +271,12 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $output_string = "-o $ofile -e $efile";
         }
         
+        #*** could solve issue of having to have _aid and _hid in Submission
+        #    purely to allow us to find where the lsf output went by having
+        #    output go to named pipe that stores directly in db against the
+        #    submission id. Same could be done for Job output. Would it work
+        #    across the farm?
+        
         return qq[$array_def$output_string $requirments_string '$cmd$index_spec'];
     }
     

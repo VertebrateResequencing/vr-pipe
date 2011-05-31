@@ -54,16 +54,17 @@ to specificy most DBIx::Class::ResultSource::add_columns args
 (http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns)
 as properties of your attribute. data_type is not accepted; instead your normal
 'isa' determines the data_type. Your isa must be one of IntSQL|Varchar|Bool|
-Datetime|Persistent. default_value will also be set from your attribute's
-default if it is present and a simple scalar value. is_nullable defaults to
-false. A special 'is_key' boolean can be set which results in the column being
-indexed and used as part of a multi-column (with other is_key columns)
-uniqueness constraint when deciding weather to get or create a new row with
-get(). 'is_primary_key' is still used to define the real key, typically reserved
-for a single auto increment column in your table. 'allow_key_to_default' will
-allow a column to be left out of a call to get() when that column is_key and has
-a default or builder, in which case get() will behave as if you had supplied
-that column with the default value for that column.
+Datetime|Persistent|CodeRef. default_value will also be set from your
+attribute's default if it is present and a simple scalar value. is_nullable
+defaults to false. A special 'is_key' boolean can be set which results in the
+column being indexed and used as part of a multi-column (with other is_key
+columns) uniqueness constraint when deciding weather to get or create a new row
+with get(). 'is_primary_key' is still used to define the real key, typically
+reserved for a single auto increment column in your table.
+'allow_key_to_default' will allow a column to be left out of a call to get()
+when that column is_key and has a default or builder, in which case get() will
+behave as if you had supplied that column with the default value for that
+column.
 
 NB: for any non-persistent attributes with a default value, be sure to make them
 lazy or they might not get their default values when the instances are created.
@@ -103,8 +104,10 @@ use VRPipe::Base;
 
 class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose to get Debuggable
     use MooseX::NonMoose;
+    use B::Deparse;
     
     our $GLOBAL_CONNECTED_SCHEMA;
+    our $deparse = B::Deparse->new("-d");
     
     __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
     
@@ -124,6 +127,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my @psuedo_keys;
         my %key_defaults;
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
+        my %flations;
         my $meta = $class->meta;
         foreach my $attr ($meta->get_all_attributes) {
             next unless $attr->does('VRPipe::Persistent::Attributes');
@@ -203,6 +207,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 elsif ($cname eq 'Bool') {
                     $cname = 'bool';
                 }
+                elsif ($cname eq 'CodeRef') {
+                    $cname = 'text';
+                    $flations{$name} = { inflate => sub { eval "sub $_[0]"; },
+                                         deflate => sub { $deparse->coderef2text(shift); } };
+                }
                 elsif ($cname =~ /Datetime/) {
                     $cname = 'datetime';
                 }
@@ -250,6 +259,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 $class->$relationship(@$arg);
                 $accessor_altered{$arg->[0]} = 1;
             }
+        }
+        
+        # setup inflations
+        while (my ($name, $ref) = each %flations) {
+            $class->inflate_column($name, $ref);
         }
         
         # now that dbic has finished creating/altering accessor methods, delete

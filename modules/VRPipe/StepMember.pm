@@ -22,6 +22,13 @@ class VRPipe::StepMember extends VRPipe::Persistent {
                        belongs_to => 'VRPipe::Pipeline');
     
     __PACKAGE__->make_persistent();
+    
+    around step (Defined :$input?, VRPipe::StepState :$step_state?) {
+        my $step = $self->$orig();
+        $step->step_state($step_state) if $step_state;
+        $step->input($input) if $input;
+        return $step;
+    }
 }
 
 1;
