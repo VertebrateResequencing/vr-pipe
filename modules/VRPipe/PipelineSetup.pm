@@ -26,6 +26,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                        is_key => 1,
                        belongs_to => 'VRPipe::Pipeline');
     
+    has 'output_root' => (is => 'rw',
+                          isa => Varchar[64],
+                          traits => ['VRPipe::Persistent::Attributes'],
+                          is_key => 1);
+    
     has 'options' => (is => 'rw',
                       isa => Varchar[64],
                       traits => ['VRPipe::Persistent::Attributes'],
@@ -37,6 +42,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                          isa => Varchar[64],
                          traits => ['VRPipe::Persistent::Attributes'],
                          is_nullable => 1);
+    
+    has 'active' => (is => 'rw',
+                     isa => 'Bool',
+                     traits => ['VRPipe::Persistent::Attributes'],
+                     default => 1);
     
     __PACKAGE__->make_persistent(has_many => [states => 'VRPipe::StepState']);
 }
