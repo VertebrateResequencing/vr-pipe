@@ -55,7 +55,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return @setups;
     }
     
-    method trigger (ArrayRef[VRPipe::PipelineSetup] :$setups?, Int :$max_processes?) {
+    method trigger (ArrayRef[VRPipe::PipelineSetup] :$setups?, PositiveInt :$max_processes?) {
         $setups ||= [$self->setups];
         $max_processes ||= $DEFAULT_MAX_PROCESSES;
         

@@ -53,8 +53,9 @@ VRPipe::Persistent::Attributes as one of its traits. That trait will allow you
 to specificy most DBIx::Class::ResultSource::add_columns args
 (http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns)
 as properties of your attribute. data_type is not accepted; instead your normal
-'isa' determines the data_type. Your isa must be one of IntSQL, Varchar, Bool,
-Datetime, Persistent, CodeRef, HashRef or ArrayRef.
+'isa' determines the data_type. Your isa must be one of IntSQL, Varchar, 'Bool',
+Datetime, Persistent, 'CodeRef', 'HashRef' or 'ArrayRef'. The last two only
+support simple refs with scalar values.
 default_value will also be set from your attribute's default if it is present
 and a simple scalar value. is_nullable defaults to false. A special 'is_key'
 boolean can be set which results in the column being indexed and used as part of
