@@ -2,6 +2,9 @@ use VRPipe::Base;
 
 class VRPipe::Manager extends VRPipe::Persistent {
     use Parallel::ForkManager;
+    use Sys::CPU;
+    
+    our $DEFAULT_MAX_PROCESSES = Sys::CPU::cpu_count();
     
     has 'id' => (is => 'rw',
                  isa => IntSQL[16],
@@ -52,8 +55,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return @setups;
     }
     
-    method trigger (ArrayRef[VRPipe::PipelineSetup] :$setups?, Int :$max_processes = 4) {
+    method trigger (ArrayRef[VRPipe::PipelineSetup] :$setups?, Int :$max_processes?) {
         $setups ||= [$self->setups];
+        $max_processes ||= $DEFAULT_MAX_PROCESSES;
         
         # spool through multiple setups at once
         my $fm = Parallel::ForkManager->new($max_processes);
