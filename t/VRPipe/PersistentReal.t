@@ -5,7 +5,7 @@ use Cwd;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 105;
+    use Test::Most tests => 106;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -15,16 +15,16 @@ BEGIN {
 
 # some quick basic tests for all the core domain classes
 my @steps;
-ok $steps[0] = VRPipe::Step->get(name => 'step1',
-                                 inputs_sub => sub { return "step1inputs" },
-                                 body_sub => sub { return "step1body" },
-                                 post_process_sub => sub { return "step1post" },
-                                 outputs_sub => sub { return "step1outputs" },
+ok $steps[0] = VRPipe::Step->get(name => 'coderef_1',
+                                 inputs_sub => sub { return "inputs1" },
+                                 body_sub => sub { return "body1" },
+                                 post_process_sub => sub { return "post1" },
+                                 outputs_sub => sub { return "outputs1" },
                                  description => 'the first step'), 'created a Step using get()';
-is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'step1body', 'the first step'], 'step1 has the expected fields';
+is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'body1', 'the first step'], 'step1 has the expected fields';
 undef $steps[0];
-ok $steps[0] = VRPipe::Step->get(name => 'step1'), 'got a Step using get(name => )';
-is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'step1body', 'the first step'], 'step1 still has the expected fields';
+ok $steps[0] = VRPipe::Step->get(name => 'coderef_1'), 'got a Step using get(name => )';
+is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'body1', 'the first step'], 'step1 still has the expected fields';
 
 ok my $first_step = VRPipe::Step->get(id => 1), 'step1 could be gotten by id';
 is $first_step->description, 'the first step', 'it has the correct description';
@@ -100,20 +100,34 @@ undef $pipelines[0];
 $pipelines[0] = VRPipe::Pipeline->get(name => 'p1', description => 'first test pipeline');
 is_fields [qw/id name description/], $pipelines[0], [1, 'p1', 'first test pipeline'], 'pipeline1 has the expected fields';
 
-foreach my $step_num (2..5) {
-    # create
-    VRPipe::Step->get(name => "coderef_$step_num",
-                      inputs_sub => sub { return "inputs" },
-                      body_sub => sub { return "body" },
-                      post_process_sub => sub { return "post" },
-                      outputs_sub => sub { return "outputs" });
-}
+# create some more steps we can chain together into a proper pipeline
+VRPipe::Step->get(name => "coderef_2",
+                  inputs_sub => sub { return "inputs2" },
+                  body_sub => sub { return "body2" },
+                  post_process_sub => sub { return "post2" },
+                  outputs_sub => sub { return "outputs2" });
+VRPipe::Step->get(name => "coderef_3",
+                  inputs_sub => sub { return "inputs3" },
+                  body_sub => sub { return "body3" },
+                  post_process_sub => sub { return "post3" },
+                  outputs_sub => sub { return "outputs3" });
+VRPipe::Step->get(name => "coderef_4",
+                  inputs_sub => sub { return "inputs4" },
+                  body_sub => sub { return "body4" },
+                  post_process_sub => sub { return "post4" },
+                  outputs_sub => sub { return "outputs4" });
+VRPipe::Step->get(name => "coderef_5",
+                  inputs_sub => sub { return "inputs5" },
+                  body_sub => sub { return "body5" },
+                  post_process_sub => sub { return "post5" },
+                  outputs_sub => sub { return "outputs5" });
 foreach my $step_num (2..5) {
     # get
     push(@steps, VRPipe::Step->get(id => $step_num));
 }
-is_deeply [$steps[2]->id, &{$steps[2]->body_sub}()], [3, 'body'], 'step3 has the expected fields';
+is_deeply [$steps[2]->id, &{$steps[2]->body_sub}()], [3, 'body3'], 'step3 has the expected fields';
 
+# create a 5 step pipeline by creating stepmembers
 my @stepms;
 foreach my $step (@steps) {
     # create
@@ -126,10 +140,14 @@ for (1..5) {
 is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id], [3, 3, 1], 'stepmember3 has the expected fields';
 
 my @setups;
-ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => '/foo/bar', pipeline => $pipelines[0]), 'created a PipelineSetup using get()';
+ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => '/foo/bar', pipeline => $pipelines[0], options => {foo => 'bar', baz => 'loman'}), 'created a PipelineSetup using get()';
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(id => 1);
-is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options], [1, 1, 1, ''], 'pipelinesetup1 has the expected fields';
+is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrievied with just id';
+undef $setups[0];
+$setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => '/foo/bar', pipeline => $pipelines[0], options => {foo => 'bar', baz => 'loman'});
+is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrieved with a full spec';
+
 
 ok my $first_setup = VRPipe::PipelineSetup->get(id => 1), 'pipelinesetup1 could be gotten by id';
 is $first_setup->datasource->id, 1, 'it has the correct datasource';

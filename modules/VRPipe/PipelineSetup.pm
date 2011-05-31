@@ -32,9 +32,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                           is_key => 1);
     
     has 'options' => (is => 'rw',
-                      isa => Varchar[64],
+                      isa => 'HashRef',
                       traits => ['VRPipe::Persistent::Attributes'],
-                      default => '',
+                      default => sub { {} },
                       allow_key_to_default => 1,
                       is_key => 1);
     

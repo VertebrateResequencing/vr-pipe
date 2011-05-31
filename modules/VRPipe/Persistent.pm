@@ -53,18 +53,18 @@ VRPipe::Persistent::Attributes as one of its traits. That trait will allow you
 to specificy most DBIx::Class::ResultSource::add_columns args
 (http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns)
 as properties of your attribute. data_type is not accepted; instead your normal
-'isa' determines the data_type. Your isa must be one of IntSQL|Varchar|Bool|
-Datetime|Persistent|CodeRef. default_value will also be set from your
-attribute's default if it is present and a simple scalar value. is_nullable
-defaults to false. A special 'is_key' boolean can be set which results in the
-column being indexed and used as part of a multi-column (with other is_key
-columns) uniqueness constraint when deciding weather to get or create a new row
-with get(). 'is_primary_key' is still used to define the real key, typically
-reserved for a single auto increment column in your table.
-'allow_key_to_default' will allow a column to be left out of a call to get()
-when that column is_key and has a default or builder, in which case get() will
-behave as if you had supplied that column with the default value for that
-column.
+'isa' determines the data_type. Your isa must be one of IntSQL, Varchar, Bool,
+Datetime, Persistent, CodeRef, HashRef or ArrayRef.
+default_value will also be set from your attribute's default if it is present
+and a simple scalar value. is_nullable defaults to false. A special 'is_key'
+boolean can be set which results in the column being indexed and used as part of
+a multi-column (with other is_key columns) uniqueness constraint when deciding
+weather to get or create a new row with get(). 'is_primary_key' is still used to
+define the real key, typically reserved for a single auto increment column in
+your table. 'allow_key_to_default' will allow a column to be left out of a call
+to get() when that column is_key and has a default or builder, in which case
+get() will behave as if you had supplied that column with the default value for
+that column.
 
 NB: for any non-persistent attributes with a default value, be sure to make them
 lazy or they might not get their default values when the instances are created.
@@ -105,6 +105,7 @@ use VRPipe::Base;
 class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose to get Debuggable
     use MooseX::NonMoose;
     use B::Deparse;
+    use Storable qw(nfreeze thaw);
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
@@ -125,6 +126,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # determine what columns our table will need from the class attributes
         my @keys;
         my @psuedo_keys;
+        my %for_indexing;
         my %key_defaults;
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my %flations;
@@ -166,6 +168,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             elsif ($attr->is_key) {
                 push(@psuedo_keys, $name);
+                $for_indexing{$name} = 1;
                 if ($attr->allow_key_to_default) {
                     my $default = $attr->_key_default;
                     $key_defaults{$name} = ref $default ? &{$default}($class) : $default;
@@ -209,8 +212,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
                 elsif ($cname eq 'CodeRef') {
                     $cname = 'text';
+                    delete $for_indexing{$name};
                     $flations{$name} = { inflate => sub { eval "sub $_[0]"; },
                                          deflate => sub { $deparse->coderef2text(shift); } };
+                }
+                elsif ($cname =~ /(?:Hash|Array)Ref/) {
+                    $cname = 'text';
+                    delete $for_indexing{$name};
+                    $flations{$name} = { inflate => sub { thaw(shift); },
+                                         deflate => sub { nfreeze(shift); } };
                 }
                 elsif ($cname =~ /Datetime/) {
                     $cname = 'datetime';
@@ -375,6 +385,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     else {
                         $find_args{$key} = delete $args{$key};
                     }
+                    
+                    # when dealing with hash|array refs, if we pass the ref
+                    # to find(), it will auto-flatten it and screw up the find
+                    # call; find based on the frozen string instead.
+                    my $val = $find_args{$key};
+                    if ($val && ref($val) && (ref($val) eq 'HASH' || ref($val) eq 'ARRAY')) {
+                        $find_args{$key} = nfreeze($val);
+                    }
                 }
             }
             
@@ -432,7 +450,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # add indexes for the psuedo key columns
         $meta->add_method('sqlt_deploy_hook' => sub {
             my ($self, $sqlt_table) = @_;
-            $sqlt_table->add_index(name => 'psuedo_keys', fields => [@psuedo_keys]);
+            $sqlt_table->add_index(name => 'psuedo_keys', fields => [keys %for_indexing]);
         });
     }
     
