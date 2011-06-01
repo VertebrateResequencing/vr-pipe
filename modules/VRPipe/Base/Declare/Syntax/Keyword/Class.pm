@@ -4,12 +4,12 @@ class VRPipe::Base::Declare::Syntax::Keyword::Class extends MooseX::Declare::Syn
     around import_symbols_from (Object $ctx) {
         'VRPipe::Base::UseMoose';
     }
-
-    before add_namespace_customizations (Object $ctx, Str $package) {
-        $ctx->add_preamble_code_parts(
-            'use metaclass (metaclass => "Moose::Meta::Class");' #, error_class => "MooseX::Error::Exception::Class"  ## MooseX::Error::Exception::Class does not actually compile
-        );
-    }
+    
+    #before add_namespace_customizations (Object $ctx, Str $package) {
+    #    $ctx->add_preamble_code_parts(
+    #        'use metaclass (metaclass => "Moose::Meta::Class");' #, error_class => "MooseX::Error::Exception::Class"  *** MooseX::Error::Exception::Class does not actually compile
+    #    );
+    #}
     
     after add_namespace_customizations (Object $ctx, Str $package) {
         $ctx->add_preamble_code_parts(
