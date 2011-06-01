@@ -36,7 +36,8 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
                                   MaybeStrOrEnv ArrayRefOfMWJobs Datetime
                                   Persistent PersistentObject RelationshipArg
-                                  PersistentArray ArrayRefOfPersistent)];
+                                  PersistentArray ArrayRefOfPersistent
+                                  PersistentHashRef FileType)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -118,6 +119,14 @@ coerce FileOrHandle,
 class_type('File::Temp::Dir');
 class_type('File::Temp::File');
 
+subtype FileType,
+    as Str,
+    where { my $type = $_; length($type) <= 3 || return 0; eval "require VRPipe::FileType::$type;"; if ($@) { return 0; } return 1; },
+    message { "Not a valid VRPipe::FileType type" };
+coerce FileType,
+    from Str,
+    via { lc($_) };
+
 # datetime (stolen from MooseX::Types::DateTime)
 class_type 'DateTime';
 subtype Datetime, as 'DateTime';
@@ -164,6 +173,8 @@ coerce PersistentArray,
     from ArrayRefOfPersistent,
     via { VRPipe::PersistentArray->get(members => $_) };
     
+subtype PersistentHashRef,
+    as HashRef[PersistentObject];
 
 # allow users to supply either a single X, or an array ref of them, eg:
 # has 'my_attribute' => ( is => 'rw', isa => 'ArrayRefOfInts', coerce => 1 );
