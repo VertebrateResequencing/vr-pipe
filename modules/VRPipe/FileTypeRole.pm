@@ -7,7 +7,7 @@ role VRPipe::FileTypeRole {
                    required => 1);
     
     has 'type' => (is => 'ro',
-                   isa => Varchar[3],
+                   isa => FileType,
                    lazy => 1,
                    builder => '_build_type');
     
