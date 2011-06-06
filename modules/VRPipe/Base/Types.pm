@@ -34,10 +34,11 @@ use warnings;
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
-                                  MaybeStrOrEnv ArrayRefOfMWJobs Datetime
+                                  MaybeStrOrEnv Datetime
                                   Persistent PersistentObject RelationshipArg
                                   PersistentArray ArrayRefOfPersistent
-                                  PersistentHashRef FileType)];
+                                  PersistentHashRef FileType AbsoluteFile
+                                  PersistentFileHashRef)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -68,13 +69,6 @@ subtype StrOrEnv,
 subtype MaybeStrOrEnv,
     as Maybe[StrOrEnv];
 
-class_type('MooseX::Workers::Job');
-subtype ArrayRefOfMWJobs,
-    as ArrayRef['MooseX::Workers::Job'];
-coerce ArrayRefOfMWJobs,
-    from 'MooseX::Workers::Job',
-    via { [ $_ ] };
-
 subtype RelationshipArg,
     as Defined,
     where { ClassName->check($_) || ArrayRef->check($_) },
@@ -94,14 +88,18 @@ subtype Dir, as 'Path::Class::Dir', where { "$_" =~ /^[-\w.#\/\\~]+$/ }, message
 subtype File, as 'Path::Class::File', where { "$_" =~ /^[-\w.#\/\\~]+$/ }, message { defined $_ ? "'$_' does not seem like a file" : "no file specified" };
 subtype MaybeFile, as Maybe[File];
 subtype MaybeDir, as Maybe[Dir];
-    
+subtype AbsoluteFile,
+    as File,
+    where { $_->is_absolute },
+    message { my $file = $_; if (ref($file) && $file->isa('Path::Class::File')) { return "path must be absolute"; } else { return "Not a Path::Class::File"; } };
+
 for my $type ('Path::Class::Dir', Dir, MaybeDir) {
     coerce $type,
         from Str,      via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::Dir->new($_) },
         from ArrayRef, via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::Dir->new(@{$_}) };
 }
 
-for my $type ('Path::Class::File', File, MaybeFile) {
+for my $type ('Path::Class::File', File, MaybeFile, AbsoluteFile) {
     coerce $type,
         from Str,      via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) },
         from ArrayRef, via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new(@{$_}) };
@@ -175,6 +173,10 @@ coerce PersistentArray,
     
 subtype PersistentHashRef,
     as HashRef[PersistentObject];
+
+class_type('VRPipe::File');
+subtype PersistentFileHashRef,
+    as HashRef['VRPipe::File'];
 
 # allow users to supply either a single X, or an array ref of them, eg:
 # has 'my_attribute' => ( is => 'rw', isa => 'ArrayRefOfInts', coerce => 1 );

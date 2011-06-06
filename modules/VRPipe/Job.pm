@@ -17,7 +17,8 @@ class VRPipe::Job extends VRPipe::Persistent {
                   is_key => 1);
     
     has 'dir' => (is => 'rw',
-                  isa => Varchar[256],
+                  isa => Dir,
+                  coerce => 1,
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     

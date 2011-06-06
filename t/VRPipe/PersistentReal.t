@@ -5,7 +5,7 @@ use Cwd;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 106;
+    use Test::Most tests => 114;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -14,17 +14,60 @@ BEGIN {
 }
 
 # some quick basic tests for all the core domain classes
+my @schedulers;
+ok $schedulers[0] = VRPipe::Scheduler->get(type => 'LSF', output_root => '/foo'), 'created a Scheduler using get()';
+is_deeply [$schedulers[0]->id, $schedulers[0]->type, $schedulers[0]->output_root], [1, 'LSF', '/foo'], 'scheduler1 has the expected fields';
+ok $schedulers[1] = VRPipe::Scheduler->get(type => 'local', output_root => '/bar'), 'created another Scheduler using get()';
+is_deeply [$schedulers[1]->id, $schedulers[1]->type, $schedulers[1]->output_root], [2, 'local', '/bar'], 'scheduler2 has the expected fields';
+ok my $default_type = VRPipe::Scheduler->default_type, 'could get a default type';
+ok my $default_output_root = VRPipe::Scheduler->default_output_root, 'could get a default output root';
+ok $schedulers[2] = VRPipe::Scheduler->get(), 'created another Scheduler using get() with no args';
+is_deeply [$schedulers[2]->id, $schedulers[2]->type, $schedulers[2]->output_root], [3, $default_type, $default_output_root], 'scheduler3 has default fields';
+
+my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output');
+my @files;
+my $input1_path = File::Spec->catfile($output_dir, 'input1.txt');
+open(my $fh, '>', $input1_path) or die "Could not write to $input1_path\n";
+print $fh "input1_line1\ninput2_line2\n";
+close($fh);
+ok $files[0] = VRPipe::File->get(path => $input1_path, type => 'txt'), 'created a File using get()';
+undef($files[0]);
+$files[0] = VRPipe::File->get(id => 1);
+is_deeply [$files[0]->path, $files[0]->e], [$input1_path, 1], 'file1 has the expected fields';
+cmp_ok $files[0]->s, '>=', 5, 'file1 has some size';
+my $output1_path = File::Spec->catfile($output_dir, 'output1.txt');
+unlink($output1_path);
+ok $files[1] = VRPipe::File->get(path => $output1_path, type => 'txt'), 'created another File using get()';
+undef($files[1]);
+$files[1] = VRPipe::File->get(id => 2);
+is_deeply [$files[1]->path, $files[1]->e, $files[1]->s], [$output1_path, 0, 0], 'file2 has the expected fields';
+throws_ok { VRPipe::File->get(path => 'output1.txt', type => 'txt') } qr/path must be absolute/, 'using get() with a relative path causes a throw';
+
+my @fds;
+ok $fds[0] = VRPipe::FileDefinition->get(name => 'step1_bam_input', type => 'bam'), 'created a FileDefinition using get()';
+
 my @steps;
-ok $steps[0] = VRPipe::Step->get(name => 'coderef_1',
-                                 inputs_sub => sub { return "inputs1" },
-                                 body_sub => sub { return "body1" },
-                                 post_process_sub => sub { return "post1" },
-                                 outputs_sub => sub { return "outputs1" },
+ok $steps[0] = VRPipe::Step->get(name => 'step_1',
+                                 inputs_definition => { static_input => $files[0],
+                                                        dynamic_input => $fds[0]
+                                                        },
+                                 body_sub => sub {
+                                                    my $ofile = shift->outputs->{step1_output};
+                                                    my $fh = $ofile->openw();
+                                                    print $fh "step1output\n";
+                                                    $ofile->close();
+                                                    return 1;
+                                                 },
+                                 post_process_sub => sub { return 1 },
+                                 outputs_definition => { step1_output => $files[1] },
                                  description => 'the first step'), 'created a Step using get()';
-is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'body1', 'the first step'], 'step1 has the expected fields';
+is_deeply [$steps[0]->id, $steps[0]->description], [1, 'the first step'], 'step1 has the expected fields';
 undef $steps[0];
-ok $steps[0] = VRPipe::Step->get(name => 'coderef_1'), 'got a Step using get(name => )';
-is_deeply [$steps[0]->id, &{$steps[0]->body_sub}(), $steps[0]->description], [1, 'body1', 'the first step'], 'step1 still has the expected fields';
+ok $steps[0] = VRPipe::Step->get(name => 'step_1'), 'got a Step using get(name => )';
+is_deeply [$steps[0]->id,
+           $steps[0]->description,
+           $steps[0]->inputs_definition->{static_input}->path,
+           $steps[0]->outputs_definition->{step1_output}->path], [1, 'the first step', $input1_path, $output1_path], 'step1 still has the expected fields';
 
 ok my $first_step = VRPipe::Step->get(id => 1), 'step1 could be gotten by id';
 is $first_step->description, 'the first step', 'it has the correct description';
@@ -33,20 +76,10 @@ is $steps[0]->description, 'the first step', 'indeed, other instances are not af
 $first_step->update;
 is $steps[0]->description, 'the 1st step', 'all instances are affected after an update';
 
-my @schedulers;
-ok $schedulers[0] = VRPipe::Scheduler->get(type => 'LSF', output_root => '/foo'), 'created a Scheduler using get()';
-is_fields [qw/id type output_root/], $schedulers[0], [1, 'LSF', '/foo'], 'scheduler1 has the expected fields';
-ok $schedulers[1] = VRPipe::Scheduler->get(type => 'local', output_root => '/bar'), 'created another Scheduler using get()';
-is_fields [qw/id type output_root/], $schedulers[1], [2, 'local', '/bar'], 'scheduler2 has the expected fields';
-ok my $default_type = VRPipe::Scheduler->default_type, 'could get a default type';
-ok my $default_output_root = VRPipe::Scheduler->default_output_root, 'could get a default output root';
-ok $schedulers[2] = VRPipe::Scheduler->get(), 'created another Scheduler using get() with no args';
-is_fields [qw/id type output_root/], $schedulers[2], [3, $default_type, $default_output_root], 'scheduler3 has default fields';
-
 my @jobs;
 my $epoch_time = time();
 ok $jobs[0] = VRPipe::Job->get(cmd => 'echo "job1";'), 'created a Job using get() with no dir';
-is_fields [qw/id cmd dir running/], $jobs[0], [1, 'echo "job1";', cwd(), 0], 'job1 has the expected fields';
+is_deeply [$jobs[0]->id, $jobs[0]->cmd, $jobs[0]->dir, $jobs[0]->running], [1, 'echo "job1";', cwd(), 0], 'job1 has the expected fields';
 undef $jobs[0];
 $jobs[0] = VRPipe::Job->get(cmd => 'echo "job1";');
 cmp_ok $jobs[0]->creation_time->epoch, '>=', $epoch_time, 'creation time defaulted to just now';
@@ -58,7 +91,7 @@ $jobs[1]->host('local');
 $jobs[1]->update;
 undef $jobs[1];
 $jobs[1] = VRPipe::Job->get(id => 2);
-is_fields [qw/id pid user host/], $jobs[1], [2, 33, 'foo', 'local'], 'you can set multiple fields followed by a single update';
+is_deeply [$jobs[1]->id, $jobs[1]->pid, $jobs[1]->user, $jobs[1]->host], [2, 33, 'foo', 'local'], 'you can set multiple fields followed by a single update';
 $jobs[1]->pid(undef);
 $jobs[1]->update;
 undef $jobs[1];
@@ -69,11 +102,11 @@ my @reqs;
 ok $reqs[0] = VRPipe::Requirements->get(memory => 2000, time => 6), 'created a Requirments using get() with only memory and time';
 undef $reqs[0];
 $reqs[0] = VRPipe::Requirements->get(memory => 2000, time => 6);
-is_fields [qw/id memory time cpus tmp_space local_space custom/], $reqs[0], [1, 2000, 6, 1, 0, 0, ''], 'reqs1 has the expected fields';
-ok $reqs[1] = VRPipe::Requirements->get(memory => 2000, time => 6, cpus => 2, tmp_space => 500, local_space => 0, custom => 'foo'), 'created a Requirments using fully specified get()';
+is_deeply [$reqs[0]->id, $reqs[0]->memory, $reqs[0]->time, $reqs[0]->cpus, $reqs[0]->tmp_space, $reqs[0]->local_space, $reqs[0]->custom], [1, 2000, 6, 1, 0, 0, {}], 'reqs1 has the expected fields';
+ok $reqs[1] = VRPipe::Requirements->get(memory => 2000, time => 6, cpus => 2, tmp_space => 500, local_space => 0, custom => {loo => 'car'}), 'created a Requirments using fully specified get()';
 undef $reqs[1];
-$reqs[1] = VRPipe::Requirements->get(memory => 2000, time => 6, cpus => 2, tmp_space => 500, local_space => 0, custom => 'foo');
-is_fields [qw/id memory time cpus tmp_space local_space custom/], $reqs[1], [2, 2000, 6, 2, 500, 0, 'foo'], 'reqs2 has the expected fields and is a seperate new entry in the db';
+$reqs[1] = VRPipe::Requirements->get(memory => 2000, time => 6, cpus => 2, tmp_space => 500, local_space => 0, custom => {loo => 'car'});
+is_deeply [$reqs[1]->id, $reqs[1]->memory, $reqs[1]->time, $reqs[1]->cpus, $reqs[1]->tmp_space, $reqs[1]->local_space, $reqs[1]->custom->{loo}], [2, 2000, 6, 2, 500, 0, 'car'], 'reqs2 has the expected fields and is a seperate new entry in the db';
 
 my @ds;
 ok $ds[0] = VRPipe::DataSource->get(module => 'VRPipe::DataSources::FOFN', method => 'all', source => 't/data/datasource.fofn'), 'created a DataSource using get()';
@@ -101,31 +134,56 @@ $pipelines[0] = VRPipe::Pipeline->get(name => 'p1', description => 'first test p
 is_fields [qw/id name description/], $pipelines[0], [1, 'p1', 'first test pipeline'], 'pipeline1 has the expected fields';
 
 # create some more steps we can chain together into a proper pipeline
-VRPipe::Step->get(name => "coderef_2",
-                  inputs_sub => sub { return "inputs2" },
-                  body_sub => sub { return "body2" },
-                  post_process_sub => sub { return "post2" },
-                  outputs_sub => sub { return "outputs2" });
-VRPipe::Step->get(name => "coderef_3",
-                  inputs_sub => sub { return "inputs3" },
-                  body_sub => sub { return "body3" },
-                  post_process_sub => sub { return "post3" },
-                  outputs_sub => sub { return "outputs3" });
-VRPipe::Step->get(name => "coderef_4",
-                  inputs_sub => sub { return "inputs4" },
-                  body_sub => sub { return "body4" },
-                  post_process_sub => sub { return "post4" },
-                  outputs_sub => sub { return "outputs4" });
-VRPipe::Step->get(name => "coderef_5",
-                  inputs_sub => sub { return "inputs5" },
-                  body_sub => sub { return "body5" },
-                  post_process_sub => sub { return "post5" },
-                  outputs_sub => sub { return "outputs5" });
+VRPipe::Step->get(name => "step_2",
+                  inputs_definition => { step1_output => VRPipe::FileDefinition->get(name => 'step2_input', type => 'txt') },
+                  body_sub => sub {
+                                    my $ofile = shift->outputs->{step2_output};
+                                    my $fh = $ofile->openw();
+                                    print $fh "step2output\n";
+                                    $ofile->close();
+                                    return 1;
+                                   },
+                  post_process_sub => sub { return 1 },
+                  outputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step2_output', type => 'bam') });
+VRPipe::Step->get(name => "step_3",
+                  inputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step3_input', type => 'bam') },
+                  body_sub => sub {
+                                    my $self = shift;
+                                    my $ofile = $self->outputs->{step3_output}->path;
+                                    $self->dispatch(["sleep 5; echo step3output > $ofile", $self->new_requirements(memory => 50, time => 1)]);
+                                    $self->dispatch(["sleep 4;", $self->new_requirements(memory => 50, time => 1)]);
+                                    $self->dispatch(["sleep 3;", $self->new_requirements(memory => 50, time => 1)]);
+                                    return 0;
+                                   },
+                  post_process_sub => sub { return 1 },
+                  outputs_definition => { step3_output => VRPipe::FileDefinition->get(name => 'step3_output', type => 'txt') });
+VRPipe::Step->get(name => "step_4",
+                  inputs_definition => { step3_output => VRPipe::FileDefinition->get(name => 'step4_input', type => 'txt') },
+                  body_sub => sub {
+                                    my $ofile = shift->outputs->{step4_output};
+                                    my $fh = $ofile->openw();
+                                    print $fh "step4output\n";
+                                    $ofile->close();
+                                    return 1;
+                                   },
+                  post_process_sub => sub { return 1 },
+                  outputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step4_output', type => 'bam') });
+VRPipe::Step->get(name => "step_5",
+                  inputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step5_input', type => 'bam') },
+                  body_sub => sub {
+                                    my $ofile = shift->outputs->{step5_output};
+                                    my $fh = $ofile->openw();
+                                    print $fh "step5output\n";
+                                    $ofile->close();
+                                    return 1;
+                                   },
+                  post_process_sub => sub { return 1 },
+                  outputs_definition => { step5_output => VRPipe::FileDefinition->get(name => 'step5_output', type => 'bam') });
 foreach my $step_num (2..5) {
     # get
     push(@steps, VRPipe::Step->get(id => $step_num));
 }
-is_deeply [$steps[2]->id, &{$steps[2]->body_sub}()], [3, 'body3'], 'step3 has the expected fields';
+is_deeply [$steps[2]->id, $steps[2]->inputs_definition->{step2_output}->name], [3, 'step3_input'], 'step3 has the expected fields';
 
 # create a 5 step pipeline by creating stepmembers
 my @stepms;
@@ -140,12 +198,15 @@ for (1..5) {
 is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id], [3, 3, 1], 'stepmember3 has the expected fields';
 
 my @setups;
-ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => '/foo/bar', pipeline => $pipelines[0], options => {foo => 'bar', baz => 'loman'}), 'created a PipelineSetup using get()';
+my $step1_bam_input = File::Spec->catfile($output_dir, 'input.bam');
+open(my $bfh, '>', $step1_bam_input) || die "Could not writ to $step1_bam_input\n";
+print $bfh "bam content\n";
+ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => {dynamic_input => $step1_bam_input, baz => 'loman'}), 'created a PipelineSetup using get()';
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(id => 1);
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrievied with just id';
 undef $setups[0];
-$setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => '/foo/bar', pipeline => $pipelines[0], options => {foo => 'bar', baz => 'loman'});
+$setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => {dynamic_input => $step1_bam_input, baz => 'loman'});
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrieved with a full spec';
 
 
@@ -256,7 +317,6 @@ throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pendin
 
 # running jobs via the scheduler
 my %heartbeats;
-my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output');
 $jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
 my $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
 ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit to the scheduler worked';
@@ -294,6 +354,15 @@ while (my ($sub_id, $hhash) = each %heartbeats) {
 is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
 
 # manager
+my $ofile = File::Spec->catfile($output_dir, 'output1.txt');
+my @output_files = ($ofile);
+unlink($ofile);
+foreach my $step_num (2..5) {
+    $ofile = File::Spec->catfile($output_dir, "step${step_num}_output_output.");
+    $ofile .= $step_num == 3 ? 'txt' : 'bam';
+    push(@output_files, $ofile);
+    unlink($ofile);
+}
 ok my $manager = VRPipe::Manager->get(), 'can get a manager with no args';
 is $manager->id, 1, 'manager always has an id of 1';
 $pipelines[1] = VRPipe::Pipeline->get(name => 'p2', description => 'second pipeline');
@@ -302,7 +371,26 @@ my @manager_setups = $manager->setups;
 is @manager_setups, 2, 'setups() returns the correct number of PipelineSetups';
 @manager_setups = $manager->setups(pipeline_name => 'p2');
 is @manager_setups, 1, 'setups() returns the correct number of PipelineSetups when pipeline_name supplied';
-$manager->trigger;
+$manager->trigger(setups => [$setups[0]]);
+my $give_up = 10;
+while (! $manager->handle_submissions) {
+    last if $give_up-- <= 0;
+    sleep(1);
+}
+$give_up = 20;
+while (! $manager->trigger(setups => [$setups[0]])) {
+    last if $give_up-- <= 0;
+    $manager->handle_submissions;
+    sleep(1);
+}
+my $all_created = 1;
+foreach my $ofile (@output_files) {
+    unless (-s $ofile) {
+        $all_created = 0;
+    }
+}
+is $all_created, 1, 'multi-step pipeline completed via Manager';
+
 
 # stress testing
 my ($t1, $l1);

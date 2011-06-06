@@ -79,7 +79,7 @@ role VRPipe::Base::Debuggable {
             return $GLOBAL_VERBOSITY;
         }
         
-        return $self->$orig;
+        return $self->$orig || 0;
     }
     method clear_verbose (ClassName $class:) {
         undef $GLOBAL_VERBOSITY;

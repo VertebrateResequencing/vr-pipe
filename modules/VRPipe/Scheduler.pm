@@ -19,7 +19,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                    allow_key_to_default => 1);
     
     has 'output_root' => (is => 'rw',
-                          isa => Varchar[64],
+                          isa => Dir,
+                          coerce => 1,
                           builder => 'default_output_root',
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_key => 1,

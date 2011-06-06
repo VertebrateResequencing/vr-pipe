@@ -27,7 +27,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                        belongs_to => 'VRPipe::Pipeline');
     
     has 'output_root' => (is => 'rw',
-                          isa => Varchar[64],
+                          isa => Dir,
+                          coerce => 1,
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_key => 1);
     

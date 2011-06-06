@@ -54,8 +54,8 @@ to specificy most DBIx::Class::ResultSource::add_columns args
 (http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns)
 as properties of your attribute. data_type is not accepted; instead your normal
 'isa' determines the data_type. Your isa must be one of IntSQL, Varchar, 'Bool',
-Datetime, Persistent, 'CodeRef', 'HashRef' or 'ArrayRef'. The last two only
-support simple refs with scalar values.
+Datetime, Persistent, File, Dir, FileType, AbsoluteFile, 'CodeRef', 'HashRef' or
+'ArrayRef'. The last two only support simple refs with scalar values.
 default_value will also be set from your attribute's default if it is present
 and a simple scalar value. is_nullable defaults to false. A special 'is_key'
 boolean can be set which results in the column being indexed and used as part of
@@ -193,6 +193,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             if ($attr->has_type_constraint) {
                 my $t_c = $attr->type_constraint;
                 my $cname = $t_c->name;
+                $cname =~ s/^VRPipe::.+:://;
                 
                 # $cname needs to be converted to something the database can
                 # use when creating the tables, so the following cannot remain
@@ -211,25 +212,41 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 elsif ($cname eq 'Bool') {
                     $cname = 'bool';
                 }
-                elsif ($cname eq 'CodeRef') {
+                elsif ($cname =~ /Ref/) {
+                    if ($cname eq 'CodeRef') {
+                        $flations{$name} = { inflate => sub { eval "sub $_[0]"; },
+                                             deflate => sub { $deparse->coderef2text(shift); } };
+                    }
+                    elsif ($cname eq 'HashRef[Str]|Str' || $cname eq 'ArrayRef[Str]|Str') {
+                        $flations{$name} = { inflate => sub { thaw(shift); },
+                                             deflate => sub { nfreeze(shift); } };
+                    }
+                    elsif ($cname eq 'PersistentHashRef') {
+                        $flations{$name} = { inflate => sub { my $hash = thaw(shift); while (my ($key, $serialized) = each %$hash) { my ($class, $id) = split('~', $serialized); $hash->{$key} = $class->get(id => $id); } return $hash; },
+                                             deflate => sub { my $hash = shift; while (my ($key, $instance) = each %$hash) { my $ref = ref($instance); my $id = $instance->id; $hash->{$key} = "$ref~$id"; } return nfreeze($hash); } };
+                    }
+                    else {
+                        die "unsupported constraint '$cname' for attribute $name in $class\n";
+                    }
+                    
                     $cname = 'text';
-                    delete $for_indexing{$name};
-                    $flations{$name} = { inflate => sub { eval "sub $_[0]"; },
-                                         deflate => sub { $deparse->coderef2text(shift); } };
+                    delete $for_indexing{$name}; # in mysql, when indexing text field we need a size, but I don't know how to specifiy the size during index creation...
                 }
-                elsif ($cname =~ /(?:Hash|Array)Ref/) {
-                    $cname = 'text';
-                    delete $for_indexing{$name};
-                    $flations{$name} = { inflate => sub { thaw(shift); },
-                                         deflate => sub { nfreeze(shift); } };
-                }
-                elsif ($cname =~ /Datetime/) {
+                elsif ($cname eq 'Datetime') {
                     $cname = 'datetime';
                 }
-                elsif ($cname =~ /Persistent/) {
+                elsif ($cname eq 'Persistent') {
                     $cname = 'int';
                     $size = 16;
                     $is_numeric = 1;
+                }
+                elsif ($cname eq 'File' || $cname eq 'AbsoluteFile' || $cname eq 'Dir') {
+                    $cname = 'varchar';
+                    $size = 1024; #*** dangerously small?
+                }
+                elsif ($cname eq 'FileType') {
+                    $cname = 'varchar';
+                    $size = 3;
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";

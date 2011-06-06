@@ -39,9 +39,9 @@ class VRPipe::Requirements extends VRPipe::Persistent {
                           allow_key_to_default => 1);
     
     has 'custom' => (is => 'rw',
-                     isa => Varchar[64],
+                     isa => 'HashRef',
                      traits => ['VRPipe::Persistent::Attributes'],
-                     default => '',
+                     default => sub { {} },
                      is_key => 1,
                      allow_key_to_default => 1);
     

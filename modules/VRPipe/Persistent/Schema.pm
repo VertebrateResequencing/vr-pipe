@@ -43,7 +43,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                                                StepMember PipelineSetup
                                                StepState Submission
                                                PersistentArray
-                                               PersistentArrayMember Manager/]});
+                                               PersistentArrayMember Manager
+                                               File FileDefinition/]});
 }
 
 1;
