@@ -80,6 +80,9 @@ class_type('VRPipe::PersistentArrayMember');
 class_type('VRPipe::PersistentArray');
 class_type('VRPipe::StepState');
 class_type('VRPipe::File');
+class_type('VRPipe::PipelineSetup');
+class_type('VRPipe::DataElement');
+class_type('VRPipe::Step');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
