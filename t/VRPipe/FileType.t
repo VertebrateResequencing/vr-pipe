@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 12;
     
     use_ok('VRPipe::FileType');
 }
@@ -18,5 +18,13 @@ ok $ft = VRPipe::FileType->create('bam', {file => '/foo/bar/baz.bam'}), 'could c
 is $ft->type, 'bam', 'type is correct';
 
 throws_ok {$ft = VRPipe::FileType->create('foo', {});} qr/Invalid implementation class/, 'throws when asked to create an invalid filetype';
+
+ok my $parser = $ft->parser, 'could make a parser object';
+ok $parser->does('VRPipe::ParserRole'), 'the parser is really a parser';
+
+is $ft->read_backwards, 0, 'default read backwards is off';
+$ft = VRPipe::FileType->create('lsf', {file => '/foo/bar/baz.lsf'});
+is $ft->read_backwards, 1, 'for lsf, read backwards is on';
+
 
 exit;

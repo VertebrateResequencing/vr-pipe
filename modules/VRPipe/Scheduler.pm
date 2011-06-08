@@ -258,8 +258,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # scheduler array index to the perl cmd
         my $index_spec = '';
         my $array_def = '';
-        my $ofile = file($output_dir, 'stdout');
-        my $efile = file($output_dir, 'stderr');
+        my $ofile = $self->scheduler_output_file($output_dir);
+        my $efile = $self->scheduler_error_file($output_dir);
         my $output_string;
         if ($array) {
             $index_spec = ''; #*** something that gives the index to be shifted into perl -e; for LSF we leave it empty and will pick up an env var elsewhere instead
@@ -279,6 +279,13 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         #    across the farm?
         
         return qq[$array_def$output_string $requirments_string '$cmd$index_spec'];
+    }
+    
+    method scheduler_output_file (Dir $output_dir) {
+        return file($output_dir, 'scheduler_stdout');
+    }
+    method scheduler_error_file (Dir $output_dir) {
+        return file($output_dir, 'scheduler_stderr');
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {

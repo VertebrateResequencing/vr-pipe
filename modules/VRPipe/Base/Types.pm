@@ -34,11 +34,11 @@ use warnings;
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   ArrayRefOfStrings FileOrHandle Varchar
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
-                                  MaybeStrOrEnv Datetime
+                                  MaybeStrOrEnv Datetime VRPFileOrHandle
                                   Persistent PersistentObject RelationshipArg
                                   PersistentArray ArrayRefOfPersistent
                                   PersistentHashRef FileType AbsoluteFile
-                                  PersistentFileHashRef)];
+                                  PersistentFileHashRef OpenMode)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -79,6 +79,7 @@ class_type('VRPipe::Requirements');
 class_type('VRPipe::PersistentArrayMember');
 class_type('VRPipe::PersistentArray');
 class_type('VRPipe::StepState');
+class_type('VRPipe::File');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
@@ -114,6 +115,14 @@ coerce FileOrHandle,
     from Str,
     via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) };
 
+subtype VRPFileOrHandle,
+    as Defined,
+    where { File->check($_) || FileHandle->check($_) || (Object->check($_) && ($_->isa('IO::File') || $_->isa('VRPipe::File'))) },
+    message { "Not a file name, handle or VRPipe::File" };
+coerce VRPFileOrHandle,
+    from Str,
+    via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) };
+
 class_type('File::Temp::Dir');
 class_type('File::Temp::File');
 
@@ -124,6 +133,11 @@ subtype FileType,
 coerce FileType,
     from Str,
     via { lc($_) };
+
+subtype OpenMode,
+    as Str,
+    where { /^(?:>>?|<)$/ },
+    message { "open modes are restricted to just >, >> and <" };
 
 # datetime (stolen from MooseX::Types::DateTime)
 class_type 'DateTime';
@@ -174,7 +188,6 @@ coerce PersistentArray,
 subtype PersistentHashRef,
     as HashRef[PersistentObject];
 
-class_type('VRPipe::File');
 subtype PersistentFileHashRef,
     as HashRef['VRPipe::File'];
 

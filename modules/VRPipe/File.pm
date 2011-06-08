@@ -2,6 +2,11 @@ use VRPipe::Base;
 
 class VRPipe::File extends VRPipe::Persistent {
     use MooseX::Aliases;
+    use File::ReadBackwards;
+    use IO::Uncompress::AnyUncompress;
+    use VRPipe::FileType;
+    
+    our @bgzip_magic = (37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0);
     
     has 'id' => (is => 'rw',
                  isa => IntSQL[16],
@@ -41,7 +46,7 @@ class VRPipe::File extends VRPipe::Persistent {
                                 default => 0);
     
     has _opened => (is => 'rw',
-                    isa => 'Maybe[IO::File]');
+                    isa => 'Maybe[IO::File|FileHandle]');
     
     method check_file_existence_on_disc {
         my $e = -e $self->path;
@@ -56,16 +61,69 @@ class VRPipe::File extends VRPipe::Persistent {
     __PACKAGE__->make_persistent();
     
     method openr {
-        return $self->open('r');
+        return $self->open('<');
     }
     method openw {
-        return $self->open('w');
+        return $self->open('>');
     }
-    method open (Str $mode, Str $permissions?) {
+    method open (OpenMode $mode, Str $permissions?) {
         my $path = $self->path;
-        my $io_file = $path->open($mode, $permissions);
-        if ($io_file) {
-            if ($mode eq 'w') {
+        
+        my $fh;
+        my $type = VRPipe::FileType->create($self->type, {file => $path});
+        
+        # set up the open command, handling compressed files automatically
+        my $open_cmd = $path;
+        my $magic = `file -bi $path`;
+        ($magic) = split(';', $magic);
+        if ($magic eq 'application/octet-stream' || $path =~ /\.gz$/) {
+            if ($mode eq '<') {
+                if ($type->read_backwards) {
+                    $self->throw("Unable to read '$path' backwards when it is compressed");
+                }
+                
+                # if it was made with Heng Li's bgzip it will be detected as a
+                # gzip file, but will fail to be decompressed properly with
+                # IO::Uncompress; manually detect the magic ourselves
+                $magic = `od -b $path | head -1`;
+                my (undef, @magic) = split(/\s/, $magic);
+                my $is_bgzip = 1;
+                foreach my $m (@bgzip_magic) {
+                    my $this_m = shift(@magic);
+                    if ($this_m != $m) {
+                        $is_bgzip = 0;
+                        last;
+                    }
+                }
+                
+                if ($is_bgzip) {
+                    $open_cmd = "gunzip -c $path |";
+                }
+                else {
+                    $fh = IO::Uncompress::AnyUncompress->new($path, AutoClose => 1);
+                }
+            }
+            else {
+                $open_cmd = "| gzip -c > $path";
+            }
+            
+            open($fh, $open_cmd) unless $fh;
+        }
+        else {
+            if ($mode eq '<' && $type->read_backwards) {
+                my $rs = $type->record_separator;
+                my @frb_args = ($path);
+                push(@frb_args, $rs) if $rs;
+                tie(*BW, 'File::ReadBackwards', @frb_args);
+                $fh = \*BW;
+            }
+            else {
+                $fh = $path->open($mode, $permissions);
+            }
+        }
+        
+        if ($fh) {
+            if (index($mode, '>') == 0) {
                 $self->e($self->check_file_existence_on_disc);
                 $self->update;
                 $self->_opened_for_writing(1);
@@ -74,13 +132,14 @@ class VRPipe::File extends VRPipe::Persistent {
         else {
             $self->throw("Failed to open '$path': $!");
         }
-        $self->_opened($io_file);
-        return $io_file;
+        
+        $self->_opened($fh);
+        return $fh;
     }
     
     method close {
-        my $io_file = $self->_opened || return;
-        $io_file->close;
+        my $fh = $self->_opened || return;
+        close($fh);
         $self->_opened(undef);
         if ($self->_opened_for_writing) {
             $self->s($self->check_file_size_on_disc);

@@ -223,6 +223,36 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     __PACKAGE__->make_persistent();
+    
+    # where have our scheduler and job stdout/err files gone?
+    method std_dir {
+        my ($for) = $self->_for;
+        $for || return;
+        return $self->scheduler->output_dir($for);
+    }
+    
+    method _for {
+        my $hid = $self->_hid || return;
+        my ($for, $index);
+        if ($hid == $self->id) {
+            $for = $self;
+        }
+        else {
+            $for = VRPipe::PersistentArray->get(id => $hid);
+            $index = $self->_aid;
+        }
+        return ($for, $index);
+    }
+    
+    method scheduler_stdout (Bool :$all = 0) {
+        my $std_dir = $self->std_dir || return;
+        my $std_o_file = $self->scheduler->scheduler_output_file($std_dir);
+        my (undef, $index) = $self->_for;
+        if ($index) {
+            $std_o_file .= '.'.$index;
+        }
+        
+    }
 }
 
 1;
