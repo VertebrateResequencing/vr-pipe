@@ -2,10 +2,11 @@
 use strict;
 use warnings;
 use Cwd;
-use File::Spec;
+use Path::Class qw(file dir);
+use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 114;
+    use Test::Most tests => 109;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -24,9 +25,11 @@ ok my $default_output_root = VRPipe::Scheduler->default_output_root, 'could get 
 ok $schedulers[2] = VRPipe::Scheduler->get(), 'created another Scheduler using get() with no args';
 is_deeply [$schedulers[2]->id, $schedulers[2]->type, $schedulers[2]->output_root], [3, $default_type, $default_output_root], 'scheduler3 has default fields';
 
-my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output');
+my $output_dir = dir($schedulers[2]->output_root, 'persistent_test_output');
+$schedulers[2]->remove_tree($output_dir);
+$schedulers[2]->make_path($output_dir);
 my @files;
-my $input1_path = File::Spec->catfile($output_dir, 'input1.txt');
+my $input1_path = file($output_dir, 'input1.txt');
 open(my $fh, '>', $input1_path) or die "Could not write to $input1_path\n";
 print $fh "input1_line1\ninput2_line2\n";
 close($fh);
@@ -35,8 +38,7 @@ undef($files[0]);
 $files[0] = VRPipe::File->get(id => 1);
 is_deeply [$files[0]->path, $files[0]->e], [$input1_path, 1], 'file1 has the expected fields';
 cmp_ok $files[0]->s, '>=', 5, 'file1 has some size';
-my $output1_path = File::Spec->catfile($output_dir, 'output1.txt');
-unlink($output1_path);
+my $output1_path = file($output_dir, 'output1.txt');
 ok $files[1] = VRPipe::File->get(path => $output1_path, type => 'txt'), 'created another File using get()';
 undef($files[1]);
 $files[1] = VRPipe::File->get(id => 2);
@@ -144,9 +146,9 @@ VRPipe::Step->get(name => "step_2",
                                     return 1;
                                    },
                   post_process_sub => sub { return 1 },
-                  outputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step2_output', type => 'bam') });
+                  outputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step2_output', type => 'txt') }); #*** would be good to have a test that shows if type => 'bam', the pipeline throws since a txt file was created
 VRPipe::Step->get(name => "step_3",
-                  inputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step3_input', type => 'bam') },
+                  inputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step3_input', type => 'txt') },
                   body_sub => sub {
                                     my $self = shift;
                                     my $ofile = $self->outputs->{step3_output}->path;
@@ -167,9 +169,9 @@ VRPipe::Step->get(name => "step_4",
                                     return 1;
                                    },
                   post_process_sub => sub { return 1 },
-                  outputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step4_output', type => 'bam') });
+                  outputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step4_output', output_sub => sub { 'step4_basename.o' }, type => 'txt') });
 VRPipe::Step->get(name => "step_5",
-                  inputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step5_input', type => 'bam') },
+                  inputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step5_input', type => 'txt') },
                   body_sub => sub {
                                     my $ofile = shift->outputs->{step5_output};
                                     my $fh = $ofile->openw();
@@ -178,7 +180,7 @@ VRPipe::Step->get(name => "step_5",
                                     return 1;
                                    },
                   post_process_sub => sub { return 1 },
-                  outputs_definition => { step5_output => VRPipe::FileDefinition->get(name => 'step5_output', type => 'bam') });
+                  outputs_definition => { step5_output => VRPipe::FileDefinition->get(name => 'step5_output', type => 'txt') });
 foreach my $step_num (2..5) {
     # get
     push(@steps, VRPipe::Step->get(id => $step_num));
@@ -198,15 +200,14 @@ for (1..5) {
 is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id], [3, 3, 1], 'stepmember3 has the expected fields';
 
 my @setups;
-my $step1_bam_input = File::Spec->catfile($output_dir, 'input.bam');
-open(my $bfh, '>', $step1_bam_input) || die "Could not writ to $step1_bam_input\n";
-print $bfh "bam content\n";
-ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => {dynamic_input => $step1_bam_input, baz => 'loman'}), 'created a PipelineSetup using get()';
+my $step1_bam_input = file($output_dir, 'input.bam');
+copy(file(qw(t data file.bam)), $step1_bam_input) || die "Could not copy to $step1_bam_input\n";
+ok $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => {dynamic_input => "$step1_bam_input", baz => 'loman'}), 'created a PipelineSetup using get()';
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(id => 1);
-is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrievied with just id';
+is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}, $setups[0]->options->{dynamic_input}], [1, 1, 1, 'loman', $step1_bam_input], 'pipelinesetup1 has the expected fields when retrievied with just id';
 undef $setups[0];
-$setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => {dynamic_input => $step1_bam_input, baz => 'loman'});
+$setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => {dynamic_input => "$step1_bam_input", baz => 'loman'});
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrieved with a full spec';
 
 
@@ -264,137 +265,100 @@ $subs_array = VRPipe::PersistentArray->get(id => 1);
 is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
 
 my %heartbeats;
-SKIP: {
-    skip "skipping basic job running tests", 30 if $ENV{VRPIPE_SKIPTOMANAGERTESTS};
-    
-    # running jobs directly
-    my $tempdir = $jobs[1]->tempdir();
-    $jobs[2] = VRPipe::Job->get(cmd => qq[echo "job3"; sleep 3; perl -e 'print "foo\n"'], dir => $tempdir);
-    is $jobs[2]->heartbeat_interval(1), 1, 'heartbeat_interval of a job can be set directly and transiently';
-    $epoch_time = time();
+# running jobs directly
+my $tempdir = $jobs[1]->tempdir();
+$jobs[2] = VRPipe::Job->get(cmd => qq[echo "job3"; sleep 3; perl -e 'print "foo\n"'], dir => $tempdir);
+is $jobs[2]->heartbeat_interval(1), 1, 'heartbeat_interval of a job can be set directly and transiently';
+$epoch_time = time();
+$jobs[2]->run;
+is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 1, 0], 'test job status got updated correctly for an ok job';
+ok $jobs[2]->pid, 'pid was set';
+ok $jobs[2]->host, 'host was set';
+ok $jobs[2]->user, 'user was set';
+my $start_time = $jobs[2]->start_time->epoch;
+my $end_time = $jobs[2]->end_time->epoch;
+my $heartbeat_time = $jobs[2]->heartbeat->epoch;
+my $ok = $start_time >= $epoch_time && $start_time <= $epoch_time + 1;
+ok $ok, 'start_time is correct';
+$ok = $end_time > $start_time && $end_time <= $start_time + 4;
+ok $ok, 'end_time is correct';
+$ok = $heartbeat_time > $start_time && $heartbeat_time <= $end_time;
+ok $ok, 'time of last heartbeat correct';
+ok my $stdout_file = $jobs[2]->stdout_file, 'got a stdout file';
+is $stdout_file->slurp(chomp => 1), 'job3foo', 'stdout file had correct contents';
+ok my $stderr_file = $jobs[2]->stderr_file, 'got a stderr file';
+is $stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
+
+$jobs[2]->run;
+is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
+ok $jobs[2]->reset, 'could reset a job';
+is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time],
+          [0, 0, 0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
+my $child_pid = fork();
+if ($child_pid) {
+    sleep(1);
+    my $cmd_pid = $jobs[2]->pid;
+    kill(9, $cmd_pid);
+    waitpid($child_pid, 0);
+    is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 0, 9], 'test job status got updated correctly for a job that was killed externally';
+    is $jobs[2]->stdout_file->slurp(chomp => 1), 'job3', 'stdout file had correct contents';
+    is $jobs[2]->stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
+}
+else {
     $jobs[2]->run;
-    is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 1, 0], 'test job status got updated correctly for an ok job';
-    ok $jobs[2]->pid, 'pid was set';
-    ok $jobs[2]->host, 'host was set';
-    ok $jobs[2]->user, 'user was set';
-    my $start_time = $jobs[2]->start_time->epoch;
-    my $end_time = $jobs[2]->end_time->epoch;
-    my $heartbeat_time = $jobs[2]->heartbeat->epoch;
-    my $ok = $start_time >= $epoch_time && $start_time <= $epoch_time + 1;
-    ok $ok, 'start_time is correct';
-    $ok = $end_time > $start_time && $end_time <= $start_time + 4;
-    ok $ok, 'end_time is correct';
-    $ok = $heartbeat_time > $start_time && $heartbeat_time <= $end_time;
-    ok $ok, 'time of last heartbeat correct';
-    ok my $stdout_file = $jobs[2]->stdout_file, 'got a stdout file';
-    is $stdout_file->slurp(chomp => 1), 'job3foo', 'stdout file had correct contents';
-    ok my $stderr_file = $jobs[2]->stderr_file, 'got a stderr file';
-    is $stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
-    
-    $jobs[2]->run;
-    is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
-    ok $jobs[2]->reset, 'could reset a job';
-    is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time],
-              [0, 0, 0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
-    my $child_pid = fork();
-    if ($child_pid) {
-        sleep(1);
-        my $cmd_pid = $jobs[2]->pid;
-        kill(9, $cmd_pid);
-        waitpid($child_pid, 0);
-        is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 0, 9], 'test job status got updated correctly for a job that was killed externally';
-        is $jobs[2]->stdout_file->slurp(chomp => 1), 'job3', 'stdout file had correct contents';
-        is $jobs[2]->stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
-    }
-    else {
-        $jobs[2]->run;
-        exit(0);
-    }
-    
-    $jobs[3] = VRPipe::Job->get(cmd => qq[echo "job4"; perl -e 'die "bar\n"'], dir => $tempdir);
-    $jobs[3]->heartbeat_interval(1);
-    $jobs[3]->run;
-    is_deeply [$jobs[3]->finished, $jobs[3]->running, $jobs[3]->ok, $jobs[3]->exit_code, $jobs[3]->heartbeat], [1, 0, 0, 65280, undef], 'test job status got updated correctly for a job that dies internally';
-    is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
-    is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar', 'stderr file had the correct contents';
-    throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pending state/, 'run() on a failed job results in a throw';
-    
-    # running jobs via the scheduler
-    $jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
-    my $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
-    ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit to the scheduler worked';
-    wait_until_done($test_sub);
-    ok $test_sub->done, 'submission ran to completion';
-    my $job4_stdout_file = $jobs[4]->stdout_file;
-    is $job4_stdout_file->slurp(chomp => 1), '12345', 'the submissions job did really run correctly';
-    $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[1], requirements => $reqs[0]);
-    $schedulers[2]->submit(submission => $test_sub);
-    wait_until_done($test_sub);
-    is $jobs[4]->stdout_file, $job4_stdout_file, 'running the same job in a different submission does not really rerun the job';
-    
-    # job arrays
-    my @subs_array;
-    my @test_jobs;
-    for my $i (1..5) {
-        my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output', $i);
-        push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..9) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
-        push(@subs_array, VRPipe::Submission->get(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
-    }
-    ok $scheduled_id = $schedulers[2]->submit(array => \@subs_array), 'submit to the scheduler worked with an array';
-    throws_ok { $schedulers[2]->submit(array => \@subs_array); } qr/failed to claim all submissions/, 'trying to submit the same submissions again causes a throw';
-    %heartbeats = ();
-    wait_until_done(@subs_array);
-    my $good_outputs = 0;
-    foreach my $job (@test_jobs) {
-        $good_outputs++ if $job->stdout_file->slurp(chomp => 1) eq join('', 1..9).$job->pid;
-    }
-    is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
-    my $good_beats = 0;
-    while (my ($sub_id, $hhash) = each %heartbeats) {
-        my $beats = keys %{$hhash};
-        $good_beats++ if keys %{$hhash} == 3;
-    }
-    is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
+    exit(0);
 }
 
-# manager
-my $ofile = File::Spec->catfile($output_dir, 'output1.txt');
-my @output_files = ($ofile);
-unlink($ofile);
-foreach my $step_num (2..5) {
-    $ofile = File::Spec->catfile($output_dir, "step${step_num}_output_output.");
-    $ofile .= $step_num == 3 ? 'txt' : 'bam';
-    push(@output_files, $ofile);
-    unlink($ofile);
-}
-ok my $manager = VRPipe::Manager->get(), 'can get a manager with no args';
-is $manager->id, 1, 'manager always has an id of 1';
-$pipelines[1] = VRPipe::Pipeline->get(name => 'p2', description => 'second pipeline');
-$setups[1] = VRPipe::PipelineSetup->get(name => 'ps2', datasource => $ds[0], output_root => '/flar/blar', pipeline => $pipelines[1]);
-my @manager_setups = $manager->setups;
-is @manager_setups, 2, 'setups() returns the correct number of PipelineSetups';
-@manager_setups = $manager->setups(pipeline_name => 'p2');
-is @manager_setups, 1, 'setups() returns the correct number of PipelineSetups when pipeline_name supplied';
-$manager->trigger(setups => [$setups[0]]);
-my $give_up = 10;
-while (! $manager->handle_submissions) {
-    last if $give_up-- <= 0;
-    sleep(1);
-}
-$give_up = 20;
-while (! $manager->trigger(setups => [$setups[0]])) {
-    last if $give_up-- <= 0;
-    $manager->handle_submissions;
-    sleep(1);
-}
-my $all_created = 1;
-foreach my $ofile (@output_files) {
-    unless (-s $ofile) {
-        $all_created = 0;
-    }
-}
-is $all_created, 1, 'multi-step pipeline completed via Manager';
+$jobs[3] = VRPipe::Job->get(cmd => qq[echo "job4"; perl -e 'die "bar\n"'], dir => $tempdir);
+$jobs[3]->heartbeat_interval(1);
+$jobs[3]->run;
+is_deeply [$jobs[3]->finished, $jobs[3]->running, $jobs[3]->ok, $jobs[3]->exit_code, $jobs[3]->heartbeat], [1, 0, 0, 65280, undef], 'test job status got updated correctly for a job that dies internally';
+is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
+is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar', 'stderr file had the correct contents';
+throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pending state/, 'run() on a failed job results in a throw';
 
+# running jobs via the scheduler
+$jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
+my $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
+ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit to the scheduler worked';
+wait_until_done($test_sub);
+ok $test_sub->done, 'submission ran to completion';
+my $job4_stdout_parser = $test_sub->job_stdout;
+$job4_stdout_parser->next_record;
+is_deeply $job4_stdout_parser->parsed_record, [qw(1 2 3 4 5)], 'the submissions job did really run correctly';
+$test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[1], requirements => $reqs[0]);
+$schedulers[2]->submit(submission => $test_sub);
+wait_until_done($test_sub);
+$job4_stdout_parser = $test_sub->job_stdout;
+$job4_stdout_parser->next_record;
+is_deeply $job4_stdout_parser->parsed_record, [], 'running the same job in a different submission does not really rerun the job';
+
+# job arrays
+my @subs_array;
+my @test_jobs;
+for my $i (1..5) {
+    my $output_dir = dir($schedulers[2]->output_root, 'test_output', $i);
+    push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..9) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
+    push(@subs_array, VRPipe::Submission->get(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
+}
+ok $scheduled_id = $schedulers[2]->submit(array => \@subs_array), 'submit to the scheduler worked with an array';
+throws_ok { $schedulers[2]->submit(array => \@subs_array); } qr/failed to claim all submissions/, 'trying to submit the same submissions again causes a throw';
+%heartbeats = ();
+wait_until_done(@subs_array);
+my $good_outputs = 0;
+foreach my $sub (@subs_array) {
+    my $cat_parser = $sub->job_stdout;
+    $cat_parser->next_record;
+    $good_outputs++ if join('', @{$cat_parser->parsed_record}) eq join('', 1..9).$sub->job->pid;
+}
+is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
+my $good_beats = 0;
+while (my ($sub_id, $hhash) = each %heartbeats) {
+    my $beats = keys %{$hhash};
+    my $num = keys %{$hhash};
+    $good_beats++ if ($num >= 3 && $num <= 4);
+}
+is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
 
 # stress testing
 my ($t1, $l1);
@@ -405,7 +369,7 @@ SKIP: {
     my @test_jobs;
     start_clock(__LINE__);
     for my $i (1..1000) {
-        my $output_dir = File::Spec->catdir($schedulers[2]->output_root, 'test_output', $i);
+        my $output_dir = dir($schedulers[2]->output_root, 'test_output', $i);
         push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..300) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
         push(@subs_array, VRPipe::Submission->get(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
     }
@@ -416,8 +380,10 @@ SKIP: {
     wait_until_done(@subs_array);
     lap(__LINE__); # 1046
     my $good_outputs = 0;
-    foreach my $job (@test_jobs) {
-        $good_outputs++ if $job->stdout_file->slurp(chomp => 1) eq join('', 1..300).$job->pid;
+    foreach my $sub (@subs_array) {
+        my $cat_parser = $sub->job_stdout;
+        $cat_parser->next_record;
+        $good_outputs++ if join('', @{$cat_parser->parsed_record}) eq join('', 1..300).$sub->job->pid;
     }
     lap(__LINE__); # 12
     is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
@@ -434,12 +400,12 @@ exit;
 
 sub wait_until_done {
     my $loops = 0;
+    my $all_done;
     while (1) {
-        my $all_done = 1;
+        $all_done = 1;
         foreach my $sub (@_) {
-            if (! $sub->done) {
+            if (! $sub->job->finished) {
                 $all_done = 0;
-                #last;
                 my $heartbeat = $sub->job->heartbeat || next;
                 $heartbeats{$sub->id}->{$heartbeat->epoch}++;
             }
@@ -447,6 +413,12 @@ sub wait_until_done {
         last if $all_done;
         last if ++$loops > 1000;
         sleep(1);
+    }
+    
+    if ($all_done) {
+        foreach my $sub (@_) {
+            $sub->update_status;
+        }
     }
 }
 

@@ -186,22 +186,29 @@ class VRPipe::Step extends VRPipe::Persistent {
         return \%return;
     }
     
-    method _missing (PersistentFileHashRef $hash) {
+    method _missing (PersistentFileHashRef $hash, Bool $check_type) {
         my @missing;
         while (my ($key, $val) = each %$hash) {
             if (! $val->s) {
                 push(@missing, $val->path);
+            }
+            elsif ($check_type) {
+                my $type = VRPipe::FileType->create($val->type, {file => $val->path});
+                unless ($type->check_type) {
+                    $self->warn($val->path." exists, but is the wrong type!");
+                    push(@missing, $val->path);
+                }
             }
         }
         return @missing;
     }
     
     method missing_input_files {
-        return $self->_missing($self->inputs);
+        return $self->_missing($self->inputs, 0);
     }
     
     method missing_output_files {
-        return $self->_missing($self->outputs);
+        return $self->_missing($self->outputs, 1);
     }
     
     method _run_coderef (Str $method_name) {
@@ -212,7 +219,6 @@ class VRPipe::Step extends VRPipe::Persistent {
     method parse {
         my @missing = $self->missing_input_files;
         $self->throw("Required input files are missing: (@missing)") if @missing;
-        
         
         my $finished = $self->_run_coderef('body_sub');
         if ($finished) {

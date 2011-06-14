@@ -18,9 +18,17 @@ role VRPipe::ParserRole {
                             default => sub { [] });
     
     has 'fh' => (is => 'ro',
-                 isa => 'FileHandle|IO::File',
+                 isa => AnyFileHandle,
                  lazy => 1,
                  builder => '_get_fh');
+    
+    has '_buffer_store' => (is => 'ro',
+                            traits => ['Array'],
+                            isa => 'ArrayRef[Str]',
+                            default => sub { [] },
+                            handles => { '_pushback' => 'push',
+                                         '_getback' => 'shift',
+                                         '_empty_buffer' => 'clear' });
     
     has '_vrpipe_file' => (is => 'ro',
                            isa => 'VRPipe::File',
@@ -56,6 +64,14 @@ role VRPipe::ParserRole {
     }
     
     requires 'next_record';
+    
+    method _readline (AnyFileHandle $fh) {
+        my $line = $self->_getback;
+        unless (defined $line) {
+            $line = <$fh>;
+        }
+        return $line;
+    }
     
 =head2 _save_position
 

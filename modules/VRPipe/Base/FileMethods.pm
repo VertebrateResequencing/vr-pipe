@@ -42,6 +42,8 @@ role VRPipe::Base::FileMethods {
     use File::Copy;
     use File::Temp;
     
+    our $cat_marker = "---------------------------------VRPipe--concat---------------------------------\n";
+    
     # File::Temp will auto-delete temporary files and dirs when our instance is
     # destroyed, but we need to keep a reference to them until then to stop
     # them being deleted too early
@@ -60,13 +62,13 @@ role VRPipe::Base::FileMethods {
 
  Title   : cwd
  Usage   : my $path = $obj->cwd(); 
- Function: Get the current working directory. Just an alias to Cwd::cwd.
+ Function: Get the current working directory.
  Returns : string
  Args    : n/a
 
 =cut
     method cwd () {
-        return Cwd::cwd;
+        return Dir(Cwd::cwd);
     }
     
 =head2 make_path
@@ -79,7 +81,7 @@ role VRPipe::Base::FileMethods {
  Args    : as per File::Path::make_path
 
 =cut
-    method make_path (Str $path, @args) {
+    method make_path (Dir $path, @args) {
         my $args;
         if (@args && ref($args[-1])) {
             $args = pop @args;
@@ -124,7 +126,7 @@ role VRPipe::Base::FileMethods {
  Args    : as per File::Path::make_path
 
 =cut
-    method remove_tree (Str $path, @args) {
+    method remove_tree (Dir $path, @args) {
         my $args;
         if (@args && ref($args[-1])) {
             $args = pop @args;
@@ -141,6 +143,9 @@ role VRPipe::Base::FileMethods {
         push(@args, $args);
         
         File::Path::remove_tree($path, @args);
+        
+        #*** we need to update_stats_from_disc for everything in the db under
+        #    this path
         
         if (@$err) {
             my $messages = '';
@@ -166,13 +171,18 @@ role VRPipe::Base::FileMethods {
            handling of errors. Does not return a boolean; throws on failure
            instead.
  Returns : n/a
- Args    : as per File::Copy::copy
+ Args    : VRPipe::File source file, VRPipe::File destination file
 
 =cut
-    method copy (FileOrHandle $source, FileOrHandle $dest) {
-        my $success = File::Copy::copy($source, $dest);
+    method copy (VRPipe::File $source, VRPipe::File $dest) {
+        my $sp = $source->path;
+        my $dp = $dest->path;
+        my $success = File::Copy::copy($sp, $dp);
         unless ($success) {
-            $self->throw("copy of $source => $dest failed: $!");
+            $self->throw("copy of $sp => $dp failed: $!");
+        }
+        else {
+            $dest->update_stats_from_disc;
         }
     }
     alias cp => 'copy';
@@ -185,14 +195,22 @@ role VRPipe::Base::FileMethods {
            handling of errors. Does not return a boolean; throws on failure
            instead.
  Returns : n/a
- Args    : as per File::Copy::move
+ Args    : VRPipe::File source file, VRPipe::File destination file
 
 =cut
-    method move (FileOrHandle $source, FileOrHandle $dest) {
-        my $success = File::Copy::move($source, $dest);
+    method move (VRPipe::File $source, VRPipe::File $dest) {
+        my $sp = $source->path;
+        my $dp = $dest->path;
+        my $success = File::Copy::move($sp, $dp);
         unless ($success) {
-            $self->throw("move of $source => $dest failed: $!");
+            $self->throw("move of $sp => $dp failed: $!");
         }
+        else {
+            $source->update_stats_from_disc;
+            $dest->update_stats_from_disc;
+        }
+        #*** track somewhere in db that file was moved, so that
+        #    we $source act as a psuedo db-based auto-symlink to $dest
     }
     alias mv => 'move';
 
@@ -209,7 +227,7 @@ role VRPipe::Base::FileMethods {
     method tempfile {
         my $ft = File::Temp->new(@_);
         $self->_remember_file_temp($ft);
-        return ($ft, $ft->filename);
+        return ($ft, Path::Clasee::File->new($ft->filename));
     }
     alias tmpfile => 'tempfile';
 
@@ -227,9 +245,99 @@ role VRPipe::Base::FileMethods {
         shift;
         my $ft = File::Temp->newdir(@_);
         $self->_remember_file_temp($ft);
-        return $ft->dirname;
+        return Path::Class::Dir->new($ft->dirname);
     }
     alias tmpdir => 'tempdir';
+    
+=head2 concatenate
+
+ Title   : concatenate
+ Usage   : $obj->concatenate($source, $destination,
+                             unlink_source => 1,
+                             add_marker => 1); 
+ Function: append the content of $source file to the end of $destination file
+           with a marker (as understood by the VRPipe::Parser::cat parser)
+           appended at the end. Optionally delete the source file afterwards.
+ Returns : n/a
+ Args    : VRPipe::File $source, VRPipe::File $destination, optionally
+           unlink_source => Bool (default false), add_marker => Bool (default
+           true) and max_lines => Int (no max by default; if set, upto half this
+           value lines will be copied over from the start of the source, and
+           upto half this value from the end of the source)
+
+=cut
+    method concatenate (VRPipe::File $source, VRPipe::File $destination, Bool :$unlink_source = 0, PositiveInt :$max_lines?, Bool :$add_marker = 1) {
+        my $copy_over = $source->s;
+        if ($destination->s) {
+            if ($add_marker) {
+                my $last_line = $destination->last_line;
+                unless ($last_line && $last_line eq $cat_marker) {
+                    $self->add_cat_marker($destination);
+                }
+            }
+        }
+        elsif ($unlink_source) {
+                $self->move($source, $destination) if $source->e;
+                $copy_over = 0;
+                $unlink_source = 0;
+        }
+        
+        if ($copy_over) {
+            my $ifh = $source->open('<', backwards => 0);
+            my $ofh = $destination->open('>>');
+            my $copied_lines = 0;
+            my $first_half_limit = int($max_lines / 2) if $max_lines;
+            my $second_half_limit = $max_lines - $first_half_limit if $max_lines;
+            
+            my @buffer;
+            while (<$ifh>) {
+                if ($first_half_limit && $copied_lines >= $first_half_limit) {
+                    push(@buffer, $_);
+                    if (@buffer > $second_half_limit) {
+                        shift(@buffer);
+                    }
+                }
+                else {
+                    print $ofh $_;
+                    $copied_lines++;
+                }
+            }
+            foreach my $line (@buffer) {
+                print $ofh $line;
+            }
+            
+            # *** could do with checks on expected line numbers...
+            
+            $source->close;
+            $destination->close;
+        }
+        
+        $self->add_cat_marker($destination) if $add_marker;
+        
+        if ($unlink_source) {
+            $source->remove;
+        }
+    }
+    
+    method add_cat_marker (VRPipe::File $file) {
+        my $fh = $file->open('>>');
+        print $fh $cat_marker;
+        $file->close;
+    }
+    
+    method check_magic (File $path, ArrayRef[Int] $correct_magic) {
+        my $magic = `od -b $path 2> /dev/null | head -1`; #*** hardly cross-platform?! ; some strange shell issue with broken pipe warnings, even though it runs fine
+        my (undef, @magic) = split(/\s/, $magic);
+        my $is_correct = 1;
+        foreach my $m (@$correct_magic) {
+            my $this_m = shift(@magic);
+            if ($this_m != $m) {
+                $is_correct = 0;
+                last;
+            }
+        }
+        return $is_correct;
+    }
 }
 
 1;

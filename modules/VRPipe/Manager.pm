@@ -148,6 +148,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         my $datasource = $setup->datasource;
         my $output_root = $setup->output_root;
+        $self->make_path($output_root);
         my $all_done = 1;
         foreach my $element ($datasource->elements) {
             my %previous_step_outputs;

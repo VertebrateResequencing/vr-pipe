@@ -36,11 +36,8 @@ class VRPipe::FileDefinition extends VRPipe::Persistent {
     method _default_match_sub {
         sub {
             my ($self, $file) = @_;
-            my ($type) = $file =~ /\.(\w{1,3})$/;
-            if ($type) {
-                return $type eq $self->type ? 1 : 0;
-            }
-            return 0;
+            my $type = VRPipe::FileType->create($self->type, {file => $file});
+            return $type->check_type;
         }
     }
     

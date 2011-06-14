@@ -29,6 +29,8 @@ class VRPipe::Parser::lsf with VRPipe::ParserRole {
            [4]  cpu_time
            [5]  idle_factor
            [6]  queue
+           [7]  sid
+           [8]  aid (only if the job was part of a job array)
  Args    : n/a
 
 =cut
@@ -54,7 +56,7 @@ class VRPipe::Parser::lsf with VRPipe::ParserRole {
         # only interested in the last result, so we're also actually reading the
         # file backwards
         my ($found_report_start, $found_report_end, $next_is_cmd);
-        my ($started, $finished, $cmd, $mem, $status,$queue);
+        my ($started, $finished, $cmd, $mem, $status, $queue, $sid, $aid);
         my $cpu = 0;
         while (<$fh>) {
             if (/^Sender: LSF System/) {
@@ -68,6 +70,7 @@ class VRPipe::Parser::lsf with VRPipe::ParserRole {
             
             if ($found_report_end) {
                 if (/^Started at \S+ (.+)$/) { $started = $1; }
+                elsif (/^Subject: Job (\d+)(?:\[(\d+)\])?/) { $sid = $1; $aid = $2 if $2; }
                 elsif (/^Job was executed.+in queue \<([^>]+)\>/) { $queue = $1; }
                 elsif (/^Results reported at \S+ (.+)$/) { $finished = $1; }
                 elsif (/^# LSBATCH: User input/) { $next_is_cmd = 0; }
@@ -120,6 +123,8 @@ class VRPipe::Parser::lsf with VRPipe::ParserRole {
         $pr->[4] = $cpu;
         $pr->[5] = $idle;
         $pr->[6] = $queue;
+        $pr->[7] = $sid;
+        $pr->[8] = $aid;
         
         return 1;
     }
@@ -138,9 +143,9 @@ class VRPipe::Parser::lsf with VRPipe::ParserRole {
         return $self->_get_result(1);
     }
     
-    method _get_result (Int $index where {$_ >= 0 && $_ <= 6}) {
+    method _get_result (Int $index where {$_ >= 0 && $_ <= 8}) {
         my $pr = $self->parsed_record;
-        unless (@$pr == 7) {
+        unless (@$pr == 9) {
             $self->next_record || return;
         }
         return $pr->[$index];
@@ -229,6 +234,34 @@ class VRPipe::Parser::lsf with VRPipe::ParserRole {
 =cut
     method queue {
         return $self->_get_result(6);
+    }
+    
+=head2 sid
+
+ Title   : sid
+ Usage   : my $sid = $obj->sid();
+ Function: Get the submission id of the current record, or the last record if
+           next_record() hasn't been called yet.
+ Returns : string
+ Args    : n/a
+
+=cut
+    method sid {
+        return $self->_get_result(7);
+    }
+    
+=head2 aid
+
+ Title   : aid
+ Usage   : my $aid = $obj->aid();
+ Function: Get the array index of the current record, or the last record if
+           next_record() hasn't been called yet.
+ Returns : string
+ Args    : n/a
+
+=cut
+    method aid {
+        return $self->_get_result(8);
     }
 }
 

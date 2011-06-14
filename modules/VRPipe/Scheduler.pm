@@ -316,9 +316,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         if ($job->pending) {
             $job->run;
         }
-        if ($job->finished) {
-            $submission->update_status();
-        }
     }
     
     method get_1based_index (Maybe[PositiveInt] $index?) {
@@ -326,6 +323,40 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
         #    for now.
         $index ? return $index : return $ENV{LSB_JOBINDEX};
+    }
+    
+    method wait_for_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {
+        my $t = time();
+        while (1) {
+            last if time() - $t > $secs;
+            
+            #*** fork for our call to sid_status and kill child if over time
+            #    limit?
+            my $status = $self->sid_status($sid, $aid);
+            
+            last if ($status eq 'UNKNOWN' || $status eq 'DONE' || $status eq 'EXIT');
+            sleep(1);
+        }
+        return 1;
+    }
+    
+    method sid_status (PositiveInt $sid, Int $aid) {
+        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
+        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
+        #    for now.
+        my $id = $aid ? "$sid\[$aid\]" : $sid; # when aid is 0, it was not a job array
+        open(my $bfh, "bjobs $id |") || $self->warn("Could not call bjobs $id");
+        my $status;
+        if ($bfh) {
+            while (<$bfh>) {
+                if (/^$sid\s+\S+\s+(\S+)/) {
+                    $status = $1;
+                }
+            }
+            close($bfh);
+        }
+        
+        return $status || 'UNKNOWN'; # *** needs to return a word in a defined vocabulary suitable for all schedulers
     }
 
 =pod

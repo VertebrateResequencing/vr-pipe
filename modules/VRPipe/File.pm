@@ -6,7 +6,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use IO::Uncompress::AnyUncompress;
     use VRPipe::FileType;
     
-    our @bgzip_magic = (37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0);
+    our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     
     has 'id' => (is => 'rw',
                  isa => IntSQL[16],
@@ -63,14 +63,27 @@ class VRPipe::File extends VRPipe::Persistent {
     method openr {
         return $self->open('<');
     }
+    method last_line {
+        my $fh = $self->open('<', backwards => 1);
+        my $line = <$fh>;
+        close($fh);
+        return $line;
+    }
     method openw {
         return $self->open('>');
     }
-    method open (OpenMode $mode, Str $permissions?) {
+    method open (OpenMode $mode, Str :$permissions?, Bool :$backwards?) {
         my $path = $self->path;
+        
+        if ($mode eq '<' && ! $self->e) {
+            $self->throw("File '$path' does not exist, so cannot be opened for reading");
+        }
         
         my $fh;
         my $type = VRPipe::FileType->create($self->type, {file => $path});
+        unless (defined $backwards) {
+            $backwards = $type->read_backwards;
+        }
         
         # set up the open command, handling compressed files automatically
         my $open_cmd = $path;
@@ -78,25 +91,14 @@ class VRPipe::File extends VRPipe::Persistent {
         ($magic) = split(';', $magic);
         if ($magic eq 'application/octet-stream' || $path =~ /\.gz$/) {
             if ($mode eq '<') {
-                if ($type->read_backwards) {
+                if ($backwards) {
                     $self->throw("Unable to read '$path' backwards when it is compressed");
                 }
                 
                 # if it was made with Heng Li's bgzip it will be detected as a
                 # gzip file, but will fail to be decompressed properly with
                 # IO::Uncompress; manually detect the magic ourselves
-                $magic = `od -b $path | head -1`;
-                my (undef, @magic) = split(/\s/, $magic);
-                my $is_bgzip = 1;
-                foreach my $m (@bgzip_magic) {
-                    my $this_m = shift(@magic);
-                    if ($this_m != $m) {
-                        $is_bgzip = 0;
-                        last;
-                    }
-                }
-                
-                if ($is_bgzip) {
+                if ($self->check_magic($self->path, $bgzip_magic)) {
                     $open_cmd = "gunzip -c $path |";
                 }
                 else {
@@ -110,7 +112,7 @@ class VRPipe::File extends VRPipe::Persistent {
             open($fh, $open_cmd) unless $fh;
         }
         else {
-            if ($mode eq '<' && $type->read_backwards) {
+            if ($mode eq '<' && $backwards) {
                 my $rs = $type->record_separator;
                 my @frb_args = ($path);
                 push(@frb_args, $rs) if $rs;
@@ -118,7 +120,9 @@ class VRPipe::File extends VRPipe::Persistent {
                 $fh = \*BW;
             }
             else {
-                $fh = $path->open($mode, $permissions);
+                my @args = ($mode);
+                push(@args, $permissions) if $permissions;
+                $fh = $path->open(@args);
             }
         }
         
@@ -142,8 +146,7 @@ class VRPipe::File extends VRPipe::Persistent {
         close($fh);
         $self->_opened(undef);
         if ($self->_opened_for_writing) {
-            $self->s($self->check_file_size_on_disc);
-            $self->update;
+            $self->update_stats_from_disc;
             $self->_opened_for_writing(0);
         }
         return 1;
@@ -152,15 +155,13 @@ class VRPipe::File extends VRPipe::Persistent {
     method touch {
         $self->path->touch;
         unless ($self->e) {
-            $self->e($self->check_file_existence_on_disc);
-            $self->update;
+            $self->update_stats_from_disc;
         }
     }
     
     method remove {
         $self->path->remove;
-        $self->e($self->check_file_existence_on_disc);
-        $self->update;
+        $self->update_stats_from_disc;
     }
     alias unlink => 'remove';
     alias rm => 'remove';

@@ -2,6 +2,7 @@ use VRPipe::Base;
 
 class VRPipe::Submission extends VRPipe::Persistent {
     use DateTime;
+    use VRPipe::Parser;
     
     has 'id' => (is => 'rw',
                  isa => IntSQL[16],
@@ -155,6 +156,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method update_status {
         $self->throw("Cannot call update_status when the job is not finished") unless $self->job->finished;
+        return if $self->done || $self->failed;
         
         if ($self->job->ok) {
             $self->_done(1);
@@ -165,11 +167,26 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $self->_failed(1);
         }
         
-        #$self->sync_scheduler;
-        #$self->archive_output; #*** cat the raw stdout and stderr files created by Job named after the pid in the Job working dir on to the end of files in hashed global output_dir directory
+        $self->sync_scheduler;
+        $self->archive_output;
         $self->_sid(undef);
         
         $self->update;
+    }
+    
+    method sync_scheduler {
+        my $sid = $self->sid;
+        unless ($sid) {
+            return;
+        }
+        $self->scheduler->wait_for_sid($sid, $self->_aid, 5);
+    }
+    
+    method archive_output {
+        $self->concatenate($self->job->stdout_file, $self->job_stdout_file, unlink_source => 1);
+        $self->concatenate($self->job->stderr_file, $self->job_stderr_file, unlink_source => 1);
+        
+        $self->add_cat_marker($self->scheduler_stderr_file);
     }
     
     # requirement passthroughs and extra_* methods
@@ -234,24 +251,70 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method _for {
         my $hid = $self->_hid || return;
         my ($for, $index);
-        if ($hid == $self->id) {
-            $for = $self;
-        }
-        else {
+        if ($self->_aid) {
             $for = VRPipe::PersistentArray->get(id => $hid);
             $index = $self->_aid;
+        }
+        else {
+            $for = $self;
         }
         return ($for, $index);
     }
     
-    method scheduler_stdout (Bool :$all = 0) {
+    method _scheduler_std_file (Str $method where {$_ eq 'scheduler_output_file' || $_ eq 'scheduler_error_file'}, Str $type where {$_ eq 'lsf' || $_ eq 'cat'}) {
         my $std_dir = $self->std_dir || return;
-        my $std_o_file = $self->scheduler->scheduler_output_file($std_dir);
+        my $std_io_file = $self->scheduler->$method($std_dir);
         my (undef, $index) = $self->_for;
         if ($index) {
-            $std_o_file .= '.'.$index;
+            $std_io_file .= '.'.$index;
         }
-        
+        return VRPipe::File->get(path => $std_io_file, type => $type);
+    }
+    method scheduler_stdout_file {
+        return $self->_scheduler_std_file('scheduler_output_file', 'lsf');
+    }
+    method scheduler_stderr_file {
+        return $self->_scheduler_std_file('scheduler_error_file', 'cat');
+    }
+    method scheduler_stdout {
+        my $file = $self->scheduler_stdout_file;
+        $file->s || return;
+        return VRPipe::Parser->create('lsf', {file => $file});
+    }
+    method scheduler_stderr {
+        my $file = $self->scheduler_stderr_file;
+        $file->s || return;
+        return VRPipe::Parser->create('cat', {file => $file});
+    }
+    
+    method _job_std_file (Str $kind where {$_ eq 'out' || $_ eq 'err'}) {
+        # this is where we want the job stdo/e to be archived to, not where the
+        # job initially spits it out to
+        my $std_dir = $self->std_dir || return;
+        my (undef, $index) = $self->_for;
+        if ($index) {
+            $index = '.'.$index;
+        }
+        else {
+            $index = '';
+        }
+        return VRPipe::File->get(path => file($std_dir, 'job_std'.$kind.$index), type => 'cat');
+    }
+    method job_stdout_file {
+        return $self->_job_std_file('out');
+    }
+    method job_stderr_file {
+        return $self->_job_std_file('err');
+    }
+    method job_stdout {
+        my $file = $self->job_stdout_file;
+        $file->s || return;
+        return VRPipe::Parser->create('cat', {file => $file});
+    }
+    method job_stderr {
+        my $file = $self->job_stderr_file;
+        $file->s || return;
+        return VRPipe::Parser->create('cat', {file => $file});
     }
 }
 

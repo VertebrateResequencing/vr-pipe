@@ -204,15 +204,15 @@ class VRPipe::Job extends VRPipe::Persistent {
             # and redirecting output to files
             $self->pid($$);
             $self->host(hostname());
-            $self->user(getlogin());
+            $self->user(getlogin || getpwuid($<));
             $self->start_time(DateTime->now());
             $self->update;
             
             # get all info from db and disconnect before using the info below
             my $dir = $self->dir;
             my $cmd = $self->cmd;
-            my $stdout_file = $self->stdout_file;
-            my $stderr_file = $self->stderr_file;
+            my $stdout_file = $self->stdout_file->path; #*** call here in child, then below in parent, creating 2 identical rows in db?... should not be possible!
+            my $stderr_file = $self->stderr_file->path; #*** but only 1 copy of the e?!
             $self->disconnect;
             
             open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT: $!");
@@ -225,6 +225,8 @@ class VRPipe::Job extends VRPipe::Persistent {
         my $exit_code = $self->_wait_for_child($cmd_pid);
         
         # update db details for the job
+        $self->stdout_file->update_stats_from_disc;
+        $self->stderr_file->update_stats_from_disc;
         $self->end_time(DateTime->now());
         $self->running(0);
         $self->finished(1);
@@ -236,12 +238,14 @@ class VRPipe::Job extends VRPipe::Persistent {
     }
     
     method stdout_file {
+        my $dir = $self->dir;
         my $file = $self->_std_file || return;
-        return file($self->dir, $file.'.o');
+        return VRPipe::File->get(path => file($dir, $file.'.o'), type => 'txt');
     }
     method stderr_file {
+        my $dir = $self->dir;
         my $file = $self->_std_file || return;
-        return file($self->dir, $file.'.e');
+        return VRPipe::File->get(path => file($dir, $file.'.e'), type => 'txt');
     }
     method _std_file {
         my $pid = $self->pid || return;

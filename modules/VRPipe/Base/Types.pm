@@ -38,7 +38,7 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   Persistent PersistentObject RelationshipArg
                                   PersistentArray ArrayRefOfPersistent
                                   PersistentHashRef FileType AbsoluteFile
-                                  PersistentFileHashRef OpenMode)];
+                                  PersistentFileHashRef OpenMode AnyFileHandle)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -125,6 +125,11 @@ subtype VRPFileOrHandle,
 coerce VRPFileOrHandle,
     from Str,
     via { if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; } Path::Class::File->new($_) };
+
+subtype AnyFileHandle,
+    as Defined,
+    where { FileHandle->check($_) || (Object->check($_) && $_->isa('IO::File')) },
+    message { "Doesn't look like a file handle" };
 
 class_type('File::Temp::Dir');
 class_type('File::Temp::File');
