@@ -217,7 +217,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         $flations{$name} = { inflate => sub { eval "sub $_[0]"; },
                                              deflate => sub { $deparse->coderef2text(shift); } };
                     }
-                    elsif ($cname eq 'HashRef[Str]|Str' || $cname eq 'ArrayRef[Str]|Str') {
+                    elsif ($cname eq 'HashRef[ArrayRef[Str]|HashRef[Str]|Str]|Str' || $cname eq 'ArrayRef[ArrayRef[Str]|HashRef[Str]|Str]|Str') {
                         $flations{$name} = { inflate => sub { thaw(shift); },
                                              deflate => sub { nfreeze(shift); } };
                     }

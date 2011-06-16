@@ -41,12 +41,7 @@ my $single_step = VRPipe::Step->get(name => 'element_outputter',
                                     outputs_definition => { the_only_output => $pipeline1_output_def },
                                     description => 'outputs the data element result to a file');
 
-my $five_element_datasource = VRPipe::DataSource->get(module => 'VRPipe::DataSources::FOFN', method => 'all', source => 't/data/datasource.fofn');
-#*** while datasource isn't properly implemented, we'll manually create 5
-#    data elements
-foreach my $element_num (1..5) {
-    VRPipe::DataElement->get(datasource => $five_element_datasource, result => "fed_result_$element_num");
-}
+my $five_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.fivelist');
 
 my $single_step_pipeline = VRPipe::Pipeline->get(name => 'single_step_pipeline', description => 'simple test pipeline with only a single step');
 VRPipe::StepMember->get(step => $single_step, pipeline => $single_step_pipeline); #*** is this the normal and only interface for adding pipeline steps?
@@ -70,8 +65,7 @@ my $input1_file = VRPipe::File->get(path => $input1_path, type => 'txt');
 my $output1_path = file($second_pipeline_output_dir, 'output1.txt');
 my $output1_file = VRPipe::File->get(path => $output1_path, type => 'txt');
 
-my $single_element_datasource = VRPipe::DataSource->get(module => 'VRPipe::DataSources::FOFN', method => 'all', source => 't/data/datasource2.fofn');
-VRPipe::DataElement->get(datasource => $single_element_datasource, result => "single_element");
+my $single_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.onelist');
 
 my @steps;
 $steps[0] = VRPipe::Step->get(name => 'step_1',

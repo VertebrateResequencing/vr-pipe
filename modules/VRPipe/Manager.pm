@@ -150,7 +150,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $output_root = $setup->output_root;
         $self->make_path($output_root);
         my $all_done = 1;
-        foreach my $element ($datasource->elements) {
+        while (my $element = $datasource->next_element) {
             my %previous_step_outputs;
             foreach my $member (@step_members) {
                 my $state = VRPipe::StepState->get(stepmember => $member,

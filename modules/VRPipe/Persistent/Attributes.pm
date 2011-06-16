@@ -60,7 +60,7 @@ role VRPipe::Persistent::Attributes {
         $options->{clearer} = '_clear_'.$name;
         my $isa = $options->{isa};
         if ($isa eq 'HashRef' || $isa eq 'ArrayRef') {
-            $options->{isa} = "$isa\[Str]|Str"; # persistent->get() will freeze the ref before passing to find(), so we must validate as Str as well
+            $options->{isa} = "$isa\[ArrayRef[Str]|HashRef[Str]|Str]|Str"; # persistent->get() will freeze the ref before passing to find(), so we must validate as Str as well
         }
         $class->$orig($name, $options);
         $class->_process_default_or_builder_option($name, $options);

@@ -111,23 +111,23 @@ $reqs[1] = VRPipe::Requirements->get(memory => 2000, time => 6, cpus => 2, tmp_s
 is_deeply [$reqs[1]->id, $reqs[1]->memory, $reqs[1]->time, $reqs[1]->cpus, $reqs[1]->tmp_space, $reqs[1]->local_space, $reqs[1]->custom->{loo}], [2, 2000, 6, 2, 500, 0, 'car'], 'reqs2 has the expected fields and is a seperate new entry in the db';
 
 my @ds;
-ok $ds[0] = VRPipe::DataSource->get(module => 'VRPipe::DataSources::FOFN', method => 'all', source => 't/data/datasource.fofn'), 'created a DataSource using get()';
+ok $ds[0] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.fivelist'), 'created a DataSource using get()';
 undef $ds[0];
-$ds[0] = VRPipe::DataSource->get(module => 'VRPipe::DataSources::FOFN', method => 'all', source => 't/data/datasource.fofn');
-is_fields [qw/id module method source/], $ds[0], [1, 'VRPipe::DataSources::FOFN', 'all', 't/data/datasource.fofn'], 'ds1 has the expected fields';
-$ds[1] = VRPipe::DataSource->get(module => 'VRPipe::DataSources::FOFN', method => 'all', source => 't/data/datasource2.fofn');
-is_fields [qw/id module method source/], $ds[1], [2, 'VRPipe::DataSources::FOFN', 'all', 't/data/datasource2.fofn'], 'ds2 has the expected fields';
+$ds[0] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.fivelist');
+is_fields [qw/id type method source/], $ds[0], [1, 'list', 'all', 't/data/datasource.fivelist'], 'ds1 has the expected fields';
+$ds[1] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.onelist');
+is_fields [qw/id type method source/], $ds[1], [2, 'list', 'all', 't/data/datasource.onelist'], 'ds2 has the expected fields';
 
 my @de;
 foreach my $de_num (1..5) {
     # create
-    VRPipe::DataElement->get(datasource => $ds[0], result => "result_$de_num");
+    $ds[0]->next_element;
 }
 foreach my $de_num (1..5) {
     # get
-    push(@de, VRPipe::DataElement->get(datasource => $ds[0], result => "result_$de_num"));
+    push(@de, VRPipe::DataElement->get(datasource => $ds[0], result => "fed_result_$de_num"));
 }
-is_deeply [$de[2]->id, $de[2]->datasource->id, $de[2]->result], [3, 1, 'result_3'], 'de3 has the expected fields';
+is_deeply [$de[2]->id, $de[2]->datasource->id, $de[2]->result], [3, 1, 'fed_result_3'], 'de3 has the expected fields';
 
 my @pipelines;
 ok $pipelines[0] = VRPipe::Pipeline->get(name => 'p1', description => 'first test pipeline'), 'created a Pipeline using get()';
