@@ -100,6 +100,7 @@ role VRPipe::StepRole {
                 # see if we have this $key in our previous_step_outputs or
                 # via the options or data_element
                 my $input_vrfile;
+                my @vrpfile_get_args = $val->type eq 'any' ? () : (type => $val->type); #*** need a proper way of not setting generic types if file already has a specific one
                 my $pso = $self->previous_step_outputs;
                 if ($pso) {
                     #*** StepAdaptor for connecting output keys of one step with
@@ -110,10 +111,13 @@ role VRPipe::StepRole {
                     }
                 }
                 if (! $input_vrfile) {
-                    my $de = $self->data_element;
+                    my $der = $self->data_element->result;
                     #*** StepAdaptor adapts data_elements as well?
                     #    Don't yet know how to actually get a file out of a DE,
                     #    if the DE even represents files...
+                    if ($der && $val->matches($der)) {
+                        $input_vrfile = VRPipe::File->get(path => file($der)->absolute, @vrpfile_get_args);
+                    }
                 }
                 if (! $input_vrfile) {
                     my $opts = $self->options;
@@ -123,7 +127,7 @@ role VRPipe::StepRole {
                         #    user could have provided values for them during
                         #    PipelineSetup
                         if (defined $opts->{$key} && $val->matches($opts->{$key})) {
-                            $input_vrfile = VRPipe::File->get(path => $opts->{$key}, type => $val->type);
+                            $input_vrfile = VRPipe::File->get(path => $opts->{$key}, @vrpfile_get_args);
                         }
                     }
                 }
@@ -153,7 +157,16 @@ role VRPipe::StepRole {
             }
             elsif ($val->isa('VRPipe::FileDefinition')) {
                 my $basename = $val->output_basename($self);
-                $return{$key} = VRPipe::File->get(path => file($output_root, $basename), type => $val->type);
+                if (ref($basename) eq 'ARRAY') {
+                    my @vrf_array;
+                    foreach my $bn (@$basename) {
+                        push(@vrf_array, VRPipe::File->get(path => file($output_root, $bn), $val->type eq 'any' ? () : (type => $val->type)));
+                    }
+                    $return{$key} = \@vrf_array;
+                }
+                else {
+                    $return{$key} = VRPipe::File->get(path => file($output_root, $basename), type => $val->type);
+                }
             }
             else {
                 $self->throw("invalid class ".ref($val)." supplied for output '$key' value definition");
@@ -166,14 +179,24 @@ role VRPipe::StepRole {
     method _missing (PersistentFileHashRef $hash, Bool $check_type) {
         my @missing;
         while (my ($key, $val) = each %$hash) {
-            if (! $val->s) {
-                push(@missing, $val->path);
+            my @files;
+            if (ref($val) eq 'ARRAY') {
+                @files = @$val;
             }
-            elsif ($check_type) {
-                my $type = VRPipe::FileType->create($val->type, {file => $val->path});
-                unless ($type->check_type) {
-                    $self->warn($val->path." exists, but is the wrong type!");
-                    push(@missing, $val->path);
+            else {
+                @files = ($val);
+            }
+            
+            foreach my $file (@files) {
+                if (! $file->s) {
+                    push(@missing, $file->path);
+                }
+                elsif ($check_type) {
+                    my $type = VRPipe::FileType->create($file->type, {file => $file->path});
+                    unless ($type->check_type) {
+                        $self->warn($file->path." exists, but is the wrong type!");
+                        push(@missing, $file->path);
+                    }
                 }
             }
         }
@@ -213,9 +236,19 @@ role VRPipe::StepRole {
         # all output files
         my $outputs = $self->outputs;
         if ($outputs) {
-            foreach my $file (values %$outputs) {
-                if (! $file->e || ! $file->s) {
-                    $file->update_stats_from_disc; #*** when can we force an md5 check? Not here since outside of bsub...
+            foreach my $val (values %$outputs) {
+                my @files;
+                if (ref($val) eq 'ARRAY') {
+                    @files = @$val;
+                }
+                else {
+                    @files = ($val);
+                }
+                
+                foreach my $file (@files) {
+                    if (! $file->e || ! $file->s) {
+                        $file->update_stats_from_disc; #*** when can we force an md5 check? Not here since outside of bsub...
+                    }
                 }
             }
         }
@@ -248,7 +281,7 @@ role VRPipe::StepRole {
     method _input_files_from_input_or_element (Str $input_key) {
         my $input = $self->inputs->{$input_key} || $self->data_element->result;
         my @inputs;
-        if (ref($input)) {
+        if (ref($input) eq 'ARRAY') {
             @inputs = @{$input};
         }
         else {

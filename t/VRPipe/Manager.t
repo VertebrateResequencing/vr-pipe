@@ -194,5 +194,8 @@ foreach my $ofile (@md5_output_files) {
 is $all_created, 1, 'all md5 files were created via Manager';
 is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec)], 'md5s were all set in db';
 
+# test that it also works with previous step outputs instead of data elements
+
+
 done_testing;
 exit;

@@ -325,6 +325,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 unless (@_) {
                     # make sure we're in sync with the dbic value
                     if (defined $dbic_value) {
+                        if ($dbic_value =~ qr{^/lustre/scratch105/vrpipe/manager_test_output/md5_pipeline/ARRAY}) {
+                            $self->throw("bad file value");
+                        }
                         $moose_value = $self->$orig($dbic_value);
                         warn "since we had a dbic_value, moose value got set to $moose_value\n" if $debug;
                     }
@@ -383,6 +386,35 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
                 
                 $schema = $GLOBAL_CONNECTED_SCHEMA;
+            }
+            
+            # first see if there is a corresponding $classs::$name class
+            if (defined $args{name} && keys %args == 1) {
+                try {
+                    eval "require ${class}s::$args{name};"; # eval within a try because can't get require to work with a variable name otherwise?!
+                    die "$@\n" if $@;
+                    my $factory_class = "${class}NonPersistentFactory";
+                    my $obj = $factory_class->create($args{name}, {});
+                    
+                    # now setup %args based on $obj; doing things this way means
+                    # we return a real Persistent object, but it is based on the
+                    # very latest non-persistent code
+                    my %these_args;
+                    foreach my $attr ($meta->get_all_attributes) {
+                        next unless $attr->does('VRPipe::Persistent::Attributes');
+                        my $method = $attr->name;
+                        next if $method eq 'id';
+                        $these_args{$method} = $obj->$method(); # incase $method() causes the try to bomb out, we don't directly alter %args until we've finished the loop
+                    }
+                    while (my ($key, $val) = each %these_args) {
+                        $args{$key} = $val;
+                    }
+                }
+                catch ($err) {
+                    unless ($err =~ /^Can't locate/) {
+                        $self->throw($err);
+                    }
+                }
             }
             
             my %find_args;

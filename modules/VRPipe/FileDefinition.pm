@@ -23,7 +23,7 @@ class VRPipe::FileDefinition extends VRPipe::Persistent {
                          builder => '_default_output_sub');
     
     has 'description' => (is => 'rw',
-                          isa => Varchar[64],
+                          isa => Varchar[256],
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_nullable => 1);
     
