@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 109;
+    use Test::Most tests => 110;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -263,6 +263,13 @@ is $subs_array->member(2)->id, 2, 'member() works given an index';
 undef $subs_array;
 $subs_array = VRPipe::PersistentArray->get(id => 1);
 is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
+
+# steps can be created by requesting a name corresponding to a pre-written
+# class in VRPipe::Steps::*; it returns a non-persistent object with the same
+# interface as persistent steps
+ok my $prewritten_step = VRPipe::Step->get(name => "md5_file_production"), 'able to get a pre-written step';
+#*** how to test that this is really the correct thing?
+
 
 my %heartbeats;
 # running jobs directly

@@ -24,7 +24,8 @@ class VRPipe::File extends VRPipe::Persistent {
     has 'type' => (is => 'rw',
                    isa => FileType,
                    coerce => 1,
-                   traits => ['VRPipe::Persistent::Attributes']);
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   builder => '_filetype_from_extension');
     
     has 'e' => (is => 'rw',
                 isa => 'Bool',
@@ -56,6 +57,12 @@ class VRPipe::File extends VRPipe::Persistent {
     method check_file_size_on_disc {
         my $s = -s $self->path;
         return $s || 0;
+    }
+    
+    method _filetype_from_extension {
+        my $path = $self->path;
+        my ($type) = $path =~ /\.(\w{2,3})$/;
+        return $type || 'any';
     }
     
     __PACKAGE__->make_persistent();

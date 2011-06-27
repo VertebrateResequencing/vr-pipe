@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 7;
+    use Test::Most tests => 9;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -27,8 +27,8 @@ $scheduler->make_path($output_root);
 # pipeline 1
 my $pipeline1_output_def = VRPipe::FileDefinition->get(name => 'element_output_file',
                                                        type => 'txt',
-                                                       output_sub => sub  { my ($self, undef, undef, $data_element) = @_;
-                                                                            return $data_element->result.'.o'; });
+                                                       output_sub => sub  { my ($self, $step) = @_;
+                                                                            return $step->data_element->result.'.o'; });
 
 my $single_step = VRPipe::Step->get(name => 'element_outputter',
                                     inputs_definition => { },
@@ -41,7 +41,7 @@ my $single_step = VRPipe::Step->get(name => 'element_outputter',
                                     outputs_definition => { the_only_output => $pipeline1_output_def },
                                     description => 'outputs the data element result to a file');
 
-my $five_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.fivelist');
+my $five_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist)));
 
 my $single_step_pipeline = VRPipe::Pipeline->get(name => 'single_step_pipeline', description => 'simple test pipeline with only a single step');
 VRPipe::StepMember->get(step => $single_step, pipeline => $single_step_pipeline); #*** is this the normal and only interface for adding pipeline steps?
@@ -65,7 +65,7 @@ my $input1_file = VRPipe::File->get(path => $input1_path, type => 'txt');
 my $output1_path = file($second_pipeline_output_dir, 'output1.txt');
 my $output1_file = VRPipe::File->get(path => $output1_path, type => 'txt');
 
-my $single_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.onelist');
+my $single_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
 
 my @steps;
 $steps[0] = VRPipe::Step->get(name => 'step_1',
@@ -157,6 +157,42 @@ foreach my $ofile (@first_output_files, @second_output_files) {
     }
 }
 is $all_created, 1, 'multi-step pipeline completed via Manager';
+
+# now lets create a pipeline using pre-written steps
+my $prewritten_step_pipeline = VRPipe::Pipeline->get(name => 'md5_pipeline', description => 'simple test pipeline with only a single step that creates md5 files');
+VRPipe::StepMember->get(step => VRPipe::Step->get(name => "md5_file_production"), pipeline => $prewritten_step_pipeline);
+
+#*** want a datasource that is the outputs of a step of a given pipelinesetup
+
+# first we'll test that it works with a datasource input
+my $fofn_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fofn)));
+
+my $prewritten_step_pipeline_output_dir = dir($output_root, 'md5_pipeline');
+my $md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps3', datasource => $fofn_datasource, output_root => $prewritten_step_pipeline_output_dir, pipeline => $prewritten_step_pipeline);
+
+my @md5_output_files = (file($prewritten_step_pipeline_output_dir, 'file.bam.md5'),
+                        file($prewritten_step_pipeline_output_dir, 'file.cat.md5'),
+                        file($prewritten_step_pipeline_output_dir, 'file.txt.md5'));
+
+$give_up = 200;
+while (! $manager->trigger) {
+    last if $give_up-- <= 0;
+    $manager->handle_submissions;
+    sleep(1);
+}
+$all_created = 1;
+my @md5s;
+foreach my $ofile (@md5_output_files) {
+    unless (-s $ofile) {
+        warn "$ofile is missing\n";
+        $all_created = 0;
+    }
+    else {
+        push(@md5s, VRPipe::File->get(path => $ofile)->md5);
+    }
+}
+is $all_created, 1, 'all md5 files were created via Manager';
+is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec)], 'md5s were all set in db';
 
 done_testing;
 exit;

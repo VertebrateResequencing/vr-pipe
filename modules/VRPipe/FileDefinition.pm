@@ -56,7 +56,7 @@ class VRPipe::FileDefinition extends VRPipe::Persistent {
         # convert input to a Path::Class::File
         if (ref($file)) {
             if ($file->isa('VRPipe::File')) {
-                return 0 unless $self->type eq $file->type;
+                # return 0 unless $self->type eq $file->type; *** this doesn't allow subtypes (eg. 'txt') to match supertypes (eg. 'any'); is there an alternative shortcut we can do?
                 $file = $file->path;
             }
         }
@@ -68,9 +68,9 @@ class VRPipe::FileDefinition extends VRPipe::Persistent {
         return &$sub($self, $file);
     }
     
-    method output_basename (PersistentFileHashRef :$inputs, HashRef :$options, VRPipe::DataElement :$data_element) {
+    method output_basename (VRPipe::Step $step) {
         my $sub = $self->output_sub();
-        return &$sub($self, $inputs, $options, $data_element);
+        return &$sub($self, $step);
     }
 }
 
