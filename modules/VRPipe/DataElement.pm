@@ -1,12 +1,6 @@
 use VRPipe::Base;
 
 class VRPipe::DataElement extends VRPipe::Persistent {
-    has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
-                 traits => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key => 1);
-    
     has 'datasource' => (is => 'rw',
                          isa => Persistent,
                          coerce => 1,

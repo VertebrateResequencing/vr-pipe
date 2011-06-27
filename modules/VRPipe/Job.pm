@@ -5,12 +5,6 @@ class VRPipe::Job extends VRPipe::Persistent {
     use Cwd;
     use Sys::Hostname;
     
-    has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
-                 traits => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key => 1);
-    
     has 'cmd' => (is => 'rw',
                   isa => Varchar[256],
                   traits => ['VRPipe::Persistent::Attributes'],

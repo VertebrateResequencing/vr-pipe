@@ -6,12 +6,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
     
     our $DEFAULT_MAX_PROCESSES = Sys::CPU::cpu_count();
     
-    has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
-                 traits => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key => 1);
-    
     has '_running' => (is => 'rw',
                        isa => 'Bool',
                        traits => ['VRPipe::Persistent::Attributes'],

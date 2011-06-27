@@ -7,17 +7,11 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
 use VRPipe::Base;
 
 class VRPipe::Artist extends VRPipe::Persistent {
-    has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
-                 traits => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key => 1);
-
     has 'name' => (is => 'rw',
                    isa => Varchar[64],
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1);
-                   
+
     has 'agent' => (is => 'rw',
                     isa => Persistent,
                     coerce => 1,
@@ -61,11 +55,11 @@ and a simple scalar value. is_nullable defaults to false. A special 'is_key'
 boolean can be set which results in the column being indexed and used as part of
 a multi-column (with other is_key columns) uniqueness constraint when deciding
 weather to get or create a new row with get(). 'is_primary_key' is still used to
-define the real key, typically reserved for a single auto increment column in
-your table. 'allow_key_to_default' will allow a column to be left out of a call
-to get() when that column is_key and has a default or builder, in which case
-get() will behave as if you had supplied that column with the default value for
-that column.
+define the real key, but this is forced to be an auto-increment called "id".
+'allow_key_to_default' will allow a column to be left out of a call to get()
+when that column is_key and has a default or builder, in which case get() will
+behave as if you had supplied that column with the default value for that
+column.
 
 NB: for any non-persistent attributes with a default value, be sure to make them
 lazy or they might not get their default values when the instances are created.
@@ -113,7 +107,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
     
-    has '-result_source' => (is => 'rw', isa => 'DBIx::Class::ResultSource::Table');
+    has 'id' => (is => 'rw',
+                 isa => IntSQL[16],
+                 traits => ['VRPipe::Persistent::Attributes'],
+                 is_auto_increment => 1,
+                 is_primary_key => 1);
+    
+    has '-result_source' => (is => 'rw',
+                             isa => 'DBIx::Class::ResultSource::Table');
     
     method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$many_to_many?) {
         # decide on the name of the table and initialise
@@ -125,7 +126,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my @keys;
         my @psuedo_keys;
         my %for_indexing;
         my %key_defaults;
@@ -165,7 +165,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             
             if ($attr->is_primary_key) {
-                push(@keys, $name);
+                $class->throw("Only id may be the primary key") unless $name eq 'id';
             }
             elsif ($attr->is_key) {
                 push(@psuedo_keys, $name);
@@ -270,7 +270,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
         
         # set the primary key(s)
-        $class->set_primary_key(@keys);
+        $class->set_primary_key('id');
         
         # set relationships
         $relationships{has_many} = $has_many || [];
@@ -386,9 +386,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             
             my %find_args;
-            my $id = delete $args{$keys[0]}; # *** we only support a single real key atm; may further restrict this to being an auto-set column with name 'id'
+            my $id = delete $args{id};
             if ($id) {
-                %find_args = ($keys[0] => $id);
+                %find_args = (id => $id);
             }
             else {
                 foreach my $key (@psuedo_keys) {
@@ -454,7 +454,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->add_method('clone' => sub {
             my ($self, %args) = @_;
             ref($self) || $self->throw("clone can only be called on an instance");
-            $self->throw("The real key cannot be supplied to clone") if $args{$keys[0]};
+            $self->throw("id be supplied to clone") if $args{id};
             
             foreach my $key (@psuedo_keys) {
                 unless (defined $args{$key}) {

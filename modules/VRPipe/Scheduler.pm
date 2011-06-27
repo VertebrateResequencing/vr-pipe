@@ -5,12 +5,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
     
-    has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
-                 traits => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key => 1);
-    
     has 'type' => (is => 'rw',
                    isa => Varchar[64],
                    builder => 'default_type',

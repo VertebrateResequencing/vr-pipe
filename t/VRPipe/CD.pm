@@ -1,14 +1,8 @@
 use VRPipe::Base;
 
 class t::VRPipe::CD extends VRPipe::Persistent {
-    has 'cdid' => (is => 'rw',
-                   isa => IntSQL[16],
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   is_auto_increment => 1,
-                   is_primary_key => 1);
-    
     has 'artist' => (is => 'rw',
-                     isa => IntSQL[16],
+                     isa => Persistent,
                      traits => ['VRPipe::Persistent::Attributes'],
                      belongs_to => 't::VRPipe::Artist');
     

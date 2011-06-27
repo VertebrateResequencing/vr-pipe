@@ -19,7 +19,7 @@ ok $artist = $resultset->create({name => 'Footon'}), 'Created Footon';
 
 ok my $footon = $resultset->search({'name' => 'Footon'})->first, 'Searched for Footon';
 
-is_fields [qw/artistid name age/], $footon, [2, 'Footon', 99], 'Footon has the expected fields';
+is_fields [qw/id name age/], $footon, [2, 'Footon', 99], 'Footon has the expected fields';
 
 
 # update behaviour
@@ -37,7 +37,7 @@ $artist->name('Larton');
 $artist->update;
 is $artist->name, 'Larton', 'able to change name again to Larton';
 undef $artist;
-ok $artist = $resultset->search({'artistid' => 2})->first, 'Got artist 2 back after undef';
+ok $artist = $resultset->search({'id' => 2})->first, 'Got artist 2 back after undef';
 is $artist->name, 'Larton', 'the name is Larton even after object destruction with no explicit update';
 
 
@@ -54,10 +54,10 @@ throws_ok { $resultset->search({'named' => 'Footon'})->first, 'Searched for Foot
 # the main VRPipe::Persistent::Schema schema, but that's difficult to test at
 # least for now...)
 ok my $bob = t::VRPipe::Artist->get(schema => Schema, name => 'Bob'), 'created Bob using get()';
-is_fields [qw/artistid name age/], $bob, [3, 'Bob', 99], 'Bob has the expected fields';
+is_fields [qw/id name age/], $bob, [3, 'Bob', 99], 'Bob has the expected fields';
 undef $bob;
 ok $bob = t::VRPipe::Artist->get(schema => Schema, name => 'Bob'), 'got Bob using get()';
-is_fields [qw/artistid name age/], $bob, [3, 'Bob', 99], 'Bob still has the expected fields';
+is_fields [qw/id name age/], $bob, [3, 'Bob', 99], 'Bob still has the expected fields';
 
 
 # relationship testing from dbic example code

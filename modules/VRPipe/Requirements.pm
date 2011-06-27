@@ -1,12 +1,6 @@
 use VRPipe::Base;
 
 class VRPipe::Requirements extends VRPipe::Persistent {
-    has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
-                 traits => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key => 1);
-    
     has 'memory' => (is => 'rw',
                      isa => IntSQL[5],
                      traits => ['VRPipe::Persistent::Attributes'],

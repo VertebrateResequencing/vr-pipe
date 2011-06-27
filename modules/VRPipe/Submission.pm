@@ -4,12 +4,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
     use DateTime;
     use VRPipe::Parser;
     
-    has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
-                 traits => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key => 1);
-    
     has 'job' => (is => 'rw',
                   isa => Persistent,
                   coerce => 1,
