@@ -17,11 +17,14 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
     }
     method post_process_sub {
         return sub { my $self = shift;
-                     my $md5_files = $self->outputs->{md5_files};
-                     foreach my $vrfile (@$md5_files) {
-                        my $content = $vrfile->slurp;
+                     my $md5_files = $self->_input_files_from_input_or_element('md5_file_input');
+                     my $output_root = $self->output_root;
+                     foreach my $file (@$md5_files) {
+                        my $ofile = Path::Class::File->new($output_root, $file->basename.'.md5');
+                        my $content = $ofile->slurp;
                         $content || return 0;
                         my ($md5) = split(" ", $content);
+                        my $vrfile = VRPipe::File->get(path => $file);
                         $vrfile->md5($md5);
                         $vrfile->update;
                      }

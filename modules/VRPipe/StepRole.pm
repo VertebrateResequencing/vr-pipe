@@ -90,6 +90,8 @@ role VRPipe::StepRole {
     
     method resolve_inputs {
         my $hash = $self->inputs_definition;
+        my $num_inputs = keys %$hash;
+        my $step_num = $self->step_state->stepmember->step_number;
         
         my %return;
         while (my ($key, $val) = each %$hash) {
@@ -106,17 +108,42 @@ role VRPipe::StepRole {
                     #*** StepAdaptor for connecting output keys of one step with
                     #    input keys of another step, without having to alter the
                     #    io definitions of either step...
-                    if (defined $pso->{$key} && $val->matches($pso->{$key})) {
-                        $input_vrfile = $pso->{$key};
+                    
+                    # failing a StepAdaptor, see if any of the output keys
+                    # directly match this input key
+                    unless ($input_vrfile) {
+                        if (defined $pso->{$key} && $val->matches($pso->{$key})) {
+                            $input_vrfile = $pso->{$key};
+                        }
+                    }
+                    
+                    # failing that, if we're not the first step of a pipeline
+                    # and are the only kind of input, make our input to be all
+                    # the previous outputs
+                    if (! $input_vrfile && $step_num > 1 && $num_inputs == 1) {
+                        $input_vrfile = [];
+                        while (my ($okey, $oval) = each %$pso) {
+                            if (ref($oval) eq 'ARRAY') {
+                                push(@$input_vrfile, @$oval);
+                            }
+                            else {
+                                push(@$input_vrfile, $oval);
+                            }
+                        }
                     }
                 }
                 if (! $input_vrfile) {
-                    my $der = $self->data_element->result;
-                    #*** StepAdaptor adapts data_elements as well?
-                    #    Don't yet know how to actually get a file out of a DE,
-                    #    if the DE even represents files...
-                    if ($der && $val->matches($der)) {
-                        $input_vrfile = VRPipe::File->get(path => file($der)->absolute, @vrpfile_get_args);
+                    #*** check special StepAdaptor for connecting dataelement
+                    #    to this input key
+                    
+                    # in the absence of a special kind of StepAdaptor, if we're
+                    # the first step of a pipeline and the only kind of input,
+                    # accept the dataelement as the input
+                    if ($step_num == 1 && $num_inputs == 1) {
+                        my $der = $self->data_element->result;
+                        if ($der && $val->matches($der)) {
+                            $input_vrfile = VRPipe::File->get(path => file($der)->absolute, @vrpfile_get_args);
+                        }
                     }
                 }
                 if (! $input_vrfile) {

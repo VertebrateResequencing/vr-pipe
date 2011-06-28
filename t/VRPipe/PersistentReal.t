@@ -189,15 +189,16 @@ is_deeply [$steps[2]->id, $steps[2]->inputs_definition->{step2_output}->name], [
 
 # create a 5 step pipeline by creating stepmembers
 my @stepms;
+my $step_num = 0;
 foreach my $step (@steps) {
     # create
-    VRPipe::StepMember->get(step => $step, pipeline => $pipelines[0]);
+    VRPipe::StepMember->get(step => $step, pipeline => $pipelines[0], step_number => ++$step_num);
 }
 for (1..5) {
     # get
     push(@stepms, VRPipe::StepMember->get(id => $_));
 }
-is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id], [3, 3, 1], 'stepmember3 has the expected fields';
+is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id, $stepms[2]->step_number], [3, 3, 1, 3], 'stepmember3 has the expected fields';
 
 my @setups;
 my $step1_bam_input = file($output_dir, 'input.bam');

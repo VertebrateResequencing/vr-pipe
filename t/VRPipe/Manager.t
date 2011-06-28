@@ -44,7 +44,7 @@ my $single_step = VRPipe::Step->get(name => 'element_outputter',
 my $five_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist)));
 
 my $single_step_pipeline = VRPipe::Pipeline->get(name => 'single_step_pipeline', description => 'simple test pipeline with only a single step');
-VRPipe::StepMember->get(step => $single_step, pipeline => $single_step_pipeline); #*** is this the normal and only interface for adding pipeline steps?
+$single_step_pipeline->add_step($single_step);
 
 my $first_pipeline_output_dir = dir($output_root, 'single_step_pipeline');
 my $first_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $five_element_datasource, output_root => $first_pipeline_output_dir, pipeline => $single_step_pipeline);
@@ -118,7 +118,7 @@ $steps[4] = VRPipe::Step->get(name => "step_5",
 
 my $multi_step_pipeline = VRPipe::Pipeline->get(name => 'multi_step_pipeline', description => 'simple test pipeline with five steps');
 foreach my $step (@steps) {
-    VRPipe::StepMember->get(step => $step, pipeline => $multi_step_pipeline);
+    $multi_step_pipeline->add_step($step);
 }
 my $second_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps2', datasource => $single_element_datasource, output_root => $second_pipeline_output_dir, pipeline => $multi_step_pipeline);
 
@@ -158,21 +158,22 @@ foreach my $ofile (@first_output_files, @second_output_files) {
 }
 is $all_created, 1, 'multi-step pipeline completed via Manager';
 
-# now lets create a pipeline using pre-written steps
-my $prewritten_step_pipeline = VRPipe::Pipeline->get(name => 'md5_pipeline', description => 'simple test pipeline with only a single step that creates md5 files');
-VRPipe::StepMember->get(step => VRPipe::Step->get(name => "md5_file_production"), pipeline => $prewritten_step_pipeline);
+# now lets create a pipeline using a pre-written step, where we'll test that a
+# step can work with both a datasource input and the outputs of a previous step
+my $prewritten_step_pipeline = VRPipe::Pipeline->get(name => 'md5_pipeline', description => 'simple test pipeline with two steps that create md5 files');
+$prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
+$prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
 
-#*** want a datasource that is the outputs of a step of a given pipelinesetup
-
-# first we'll test that it works with a datasource input
 my $fofn_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fofn)));
-
 my $prewritten_step_pipeline_output_dir = dir($output_root, 'md5_pipeline');
 my $md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps3', datasource => $fofn_datasource, output_root => $prewritten_step_pipeline_output_dir, pipeline => $prewritten_step_pipeline);
 
 my @md5_output_files = (file($prewritten_step_pipeline_output_dir, 'file.bam.md5'),
                         file($prewritten_step_pipeline_output_dir, 'file.cat.md5'),
-                        file($prewritten_step_pipeline_output_dir, 'file.txt.md5'));
+                        file($prewritten_step_pipeline_output_dir, 'file.txt.md5'),
+                        file($prewritten_step_pipeline_output_dir, 'file.bam.md5.md5'),
+                        file($prewritten_step_pipeline_output_dir, 'file.cat.md5.md5'),
+                        file($prewritten_step_pipeline_output_dir, 'file.txt.md5.md5'));
 
 $give_up = 200;
 while (! $manager->trigger) {
@@ -181,21 +182,26 @@ while (! $manager->trigger) {
     sleep(1);
 }
 $all_created = 1;
-my @md5s;
 foreach my $ofile (@md5_output_files) {
     unless (-s $ofile) {
         warn "$ofile is missing\n";
         $all_created = 0;
     }
-    else {
-        push(@md5s, VRPipe::File->get(path => $ofile)->md5);
-    }
 }
 is $all_created, 1, 'all md5 files were created via Manager';
-is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec)], 'md5s were all set in db';
 
-# test that it also works with previous step outputs instead of data elements
+my @md5s;
+foreach my $file (file(qw(t data file.bam))->absolute,
+                  file(qw(t data file.cat))->absolute,
+                  file(qw(t data file.txt))->absolute,
+                  file($prewritten_step_pipeline_output_dir, 'file.bam.md5'),
+                  file($prewritten_step_pipeline_output_dir, 'file.cat.md5'),
+                  file($prewritten_step_pipeline_output_dir, 'file.txt.md5')) {
+    push(@md5s, VRPipe::File->get(path => $file)->md5);
+}
+is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec bc5e5541094af2ddf06d8d6a3ef6e101 3f07e8796553d8dbebdc55d59febeab6 cb683a2796e39c24338cfc23ded5a299)], 'md5s were all set in db';
 
+#*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
 
 done_testing;
 exit;

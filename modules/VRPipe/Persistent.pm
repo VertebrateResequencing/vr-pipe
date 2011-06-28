@@ -314,7 +314,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $meta->add_around_method_modifier($name => sub {
                 my $orig = shift;
                 my $self = shift;
-                my $debug = 0;#$name eq 'datasource';
                 my $moose_value = $self->$orig();
                 
                 # always get fresh from the db, incase another instance of this
@@ -325,11 +324,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 unless (@_) {
                     # make sure we're in sync with the dbic value
                     if (defined $dbic_value) {
-                        if ($dbic_value =~ qr{^/lustre/scratch105/vrpipe/manager_test_output/md5_pipeline/ARRAY}) {
-                            $self->throw("bad file value");
-                        }
                         $moose_value = $self->$orig($dbic_value);
-                        warn "since we had a dbic_value, moose value got set to $moose_value\n" if $debug;
                     }
                     else {
                         $moose_value = $self->$orig();
