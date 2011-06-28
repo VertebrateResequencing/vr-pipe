@@ -121,6 +121,7 @@ role VRPipe::StepRole {
                     # and are the only kind of input, make our input to be all
                     # the previous outputs
                     if (! $input_vrfile && $step_num > 1 && $num_inputs == 1) {
+                        my $foo = 1; #*** magically stops bizare destruction warnings from random 3rd party modules
                         $input_vrfile = [];
                         while (my ($okey, $oval) = each %$pso) {
                             if (ref($oval) eq 'ARRAY') {
