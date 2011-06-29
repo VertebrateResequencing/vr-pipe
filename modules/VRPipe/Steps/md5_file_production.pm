@@ -45,23 +45,3 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
 }
 
 1;
-
-=pod
-
-my $pipeline1_output_def = VRPipe::FileDefinition->get(name => 'element_output_file',
-                                                       type => 'txt',
-                                                       output_sub => sub  { my ($self, undef, undef, $data_element) = @_;
-                                                                            return $data_element->result.'.o'; });
-
-my $single_step = VRPipe::Step->get(name => 'element_outputter',
-                                    inputs_definition => { },
-                                    body_sub => sub { my $self = shift;
-                                                      my $element_name = $self->data_element->result;
-                                                      my $ofile = $self->outputs->{the_only_output}->path;
-                                                      $self->dispatch([qq{sleep 5; echo "output for $element_name" > $ofile}, $self->new_requirements(memory => 60, time => 1)]);
-                                                      return 0; },
-                                    post_process_sub => sub { return 1 },
-                                    outputs_definition => { the_only_output => $pipeline1_output_def },
-                                    description => 'outputs the data element result to a file');
-                                    
-=cut
