@@ -51,7 +51,8 @@ role VRPipe::StepRole {
                          isa     => 'ArrayRef', #*** ArrayRef[ArrayRef[Str,VRPipe::Requirements]] doesn't work, don't know why...
                          lazy    => 1,
                          default => sub { [] },
-                         handles => { dispatch => 'push' });
+                         handles => { dispatch => 'push',
+                                      num_dispatched  => 'count' });
     
     ## prior to derefrencing and running the step subroutine, run_step does:
     #my @missing = $obj->missing_required_files($step_name);
@@ -90,81 +91,59 @@ role VRPipe::StepRole {
     
     method resolve_inputs {
         my $hash = $self->inputs_definition;
-        my $num_inputs = keys %$hash;
         my $step_num = $self->step_state->stepmember->step_number;
+        my $step_adaptor = VRPipe::StepAdaptor->get(pipeline => $self->step_state->stepmember->pipeline, before_step_number => $step_num);
         
         my %return;
         while (my ($key, $val) = each %$hash) {
             if ($val->isa('VRPipe::File')) {
-                $return{$key} = $val;
+                $return{$key} = [$val];
             }
             elsif ($val->isa('VRPipe::FileDefinition')) {
                 # see if we have this $key in our previous_step_outputs or
                 # via the options or data_element
-                my $input_vrfile;
-                my @vrpfile_get_args = $val->type eq 'any' ? () : (type => $val->type); #*** need a proper way of not setting generic types if file already has a specific one
+                my $results;
+                
                 my $pso = $self->previous_step_outputs;
                 if ($pso) {
-                    #*** StepAdaptor for connecting output keys of one step with
-                    #    input keys of another step, without having to alter the
-                    #    io definitions of either step...
-                    
-                    # failing a StepAdaptor, see if any of the output keys
-                    # directly match this input key
-                    unless ($input_vrfile) {
-                        if (defined $pso->{$key} && $val->matches($pso->{$key})) {
-                            $input_vrfile = $pso->{$key};
-                        }
-                    }
-                    
-                    # failing that, if we're not the first step of a pipeline
-                    # and are the only kind of input, make our input to be all
-                    # the previous outputs
-                    if (! $input_vrfile && $step_num > 1 && $num_inputs == 1) {
-                        my $foo = 1; #*** magically stops bizare destruction warnings from random 3rd party modules
-                        $input_vrfile = [];
-                        while (my ($okey, $oval) = each %$pso) {
-                            if (ref($oval) eq 'ARRAY') {
-                                push(@$input_vrfile, @$oval);
-                            }
-                            else {
-                                push(@$input_vrfile, $oval);
-                            }
-                        }
-                    }
+                    # can our StepAdaptor adapt previous step output to this
+                    # input key?
+                    $results = $step_adaptor->adapt(input_key => $key, pso => $pso);
                 }
-                if (! $input_vrfile) {
-                    #*** check special StepAdaptor for connecting dataelement
-                    #    to this input key
-                    
-                    # in the absence of a special kind of StepAdaptor, if we're
-                    # the first step of a pipeline and the only kind of input,
-                    # accept the dataelement as the input
-                    if ($step_num == 1 && $num_inputs == 1) {
-                        my $der = $self->data_element->result;
-                        if ($der && $val->matches($der)) {
-                            $input_vrfile = VRPipe::File->get(path => file($der)->absolute, @vrpfile_get_args);
-                        }
-                    }
+                if (! $results) {
+                    # can our StepAdaptor translate our dataelement into a file
+                    # for this key?
+                    $results = $step_adaptor->adapt(input_key => $key, data_element => $self->data_element);
                 }
-                if (! $input_vrfile) {
+                if (! $results) {
                     my $opts = $self->options;
-                    if ($opts) {
+                    if ($opts && defined $opts->{$key}) {
                         #*** the step should have had some way of advertising
                         #    what its inputs_definition keys were, so that the
                         #    user could have provided values for them during
                         #    PipelineSetup
-                        if (defined $opts->{$key} && $val->matches($opts->{$key})) {
-                            $input_vrfile = VRPipe::File->get(path => $opts->{$key}, @vrpfile_get_args);
-                        }
+                        $results = [VRPipe::File->get(path => $opts->{$key})];
                     }
                 }
                 
-                if (! $input_vrfile) {
+                if (! $results) {
                     $self->throw("the input file for '$key' of stepstate ".$self->step_state->id." could not be resolved");
                 }
                 
-                $return{$key} = $input_vrfile;
+                my @vrfiles;
+                foreach my $result (@$results) {
+                    unless (ref($result) && ref($result) eq 'VRPipe::File') {
+                        $result = VRPipe::File->get(path => file($result)->absolute);
+                    }
+                    
+                    unless ($result && $val->matches($result)) {
+                        $self->throw("file ".$result->path." did not match the file definition");
+                    }
+                    
+                    push(@vrfiles, $result);
+                }
+                
+                $return{$key} = \@vrfiles;
             }
             else {
                 $self->throw("invalid class ".ref($val)." supplied for input '$key' value definition");
@@ -181,19 +160,19 @@ role VRPipe::StepRole {
         my %return;
         while (my ($key, $val) = each %$hash) {
             if ($val->isa('VRPipe::File')) {
-                $return{$key} = $val;
+                $return{$key} = [$val];
             }
             elsif ($val->isa('VRPipe::FileDefinition')) {
                 my $basename = $val->output_basename($self);
                 if (ref($basename) eq 'ARRAY') {
                     my @vrf_array;
                     foreach my $bn (@$basename) {
-                        push(@vrf_array, VRPipe::File->get(path => file($output_root, $bn), $val->type eq 'any' ? () : (type => $val->type)));
+                        push(@vrf_array, VRPipe::File->get(path => file($output_root, $bn)));
                     }
                     $return{$key} = \@vrf_array;
                 }
                 else {
-                    $return{$key} = VRPipe::File->get(path => file($output_root, $basename), type => $val->type);
+                    $return{$key} = [VRPipe::File->get(path => file($output_root, $basename))];
                 }
             }
             else {
@@ -207,15 +186,7 @@ role VRPipe::StepRole {
     method _missing (PersistentFileHashRef $hash, Bool $check_type) {
         my @missing;
         while (my ($key, $val) = each %$hash) {
-            my @files;
-            if (ref($val) eq 'ARRAY') {
-                @files = @$val;
-            }
-            else {
-                @files = ($val);
-            }
-            
-            foreach my $file (@files) {
+            foreach my $file (@$val) {
                 if (! $file->s) {
                     push(@missing, $file->path);
                 }
@@ -248,14 +219,15 @@ role VRPipe::StepRole {
         my @missing = $self->missing_input_files;
         $self->throw("Required input files are missing: (@missing)") if @missing;
         
-        my $finished = $self->_run_coderef('body_sub');
-        if ($finished) {
+        $self->_run_coderef('body_sub');
+        
+        my $dispatched = $self->num_dispatched;
+        if ($dispatched) {
+            return 0;
+        }
+        else {
             return $self->post_process;
         }
-        
-        # presumably body_sub called dispatch(), so we'll leave it up to our
-        # caller to do stuff with dispatched()
-        return 0;
     }
     
     method post_process {
@@ -265,17 +237,9 @@ role VRPipe::StepRole {
         my $outputs = $self->outputs;
         if ($outputs) {
             foreach my $val (values %$outputs) {
-                my @files;
-                if (ref($val) eq 'ARRAY') {
-                    @files = @$val;
-                }
-                else {
-                    @files = ($val);
-                }
-                
-                foreach my $file (@files) {
+                foreach my $file (@$val) {
                     if (! $file->e || ! $file->s) {
-                        $file->update_stats_from_disc; #*** when can we force an md5 check? Not here since outside of bsub...
+                        $file->update_stats_from_disc;
                     }
                 }
             }
@@ -289,6 +253,9 @@ role VRPipe::StepRole {
                 $self->throw("Some output files are missing (@missing) for $debug_desc");
             }
             else {
+                #*** concept of output paths marked as temporary; delete them
+                #    now
+                
                 return 1;
             }
         }
@@ -304,27 +271,6 @@ role VRPipe::StepRole {
                                          $tmp_space ? (tmp_space => $tmp_space) : (),
                                          $local_space ? (local_space => $local_space) : (),
                                          $custom ? (custom => $custom) : ());
-    }
-    
-    method _input_files_from_input_or_element (Str $input_key) {
-        my $input = $self->inputs->{$input_key} || $self->data_element->result;
-        my @inputs;
-        if (ref($input) eq 'ARRAY') {
-            @inputs = @{$input};
-        }
-        else {
-            @inputs = ($input);
-        }
-        my @files;
-        foreach my $input (@inputs) {
-            if (ref($input) && $input->isa('VRPipe::File')) {
-                push(@files, $input->path);
-            }
-            else {
-                push(@files, file($input));
-            }
-        }
-        return [@files];
     }
 }
 

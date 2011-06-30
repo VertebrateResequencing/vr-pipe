@@ -34,9 +34,8 @@ my $single_step = VRPipe::Step->get(name => 'element_outputter',
                                     inputs_definition => { },
                                     body_sub => sub { my $self = shift;
                                                       my $element_name = $self->data_element->result;
-                                                      my $ofile = $self->outputs->{the_only_output}->path;
-                                                      $self->dispatch([qq{sleep 5; echo "output for $element_name" > $ofile}, $self->new_requirements(memory => 60, time => 1)]);
-                                                      return 0; },
+                                                      my $ofile = $self->outputs->{the_only_output}->[0]->path;
+                                                      $self->dispatch([qq{sleep 5; echo "output for $element_name" > $ofile}, $self->new_requirements(memory => 60, time => 1)]); },
                                     post_process_sub => sub { return 1 },
                                     outputs_definition => { the_only_output => $pipeline1_output_def },
                                     description => 'outputs the data element result to a file');
@@ -66,57 +65,56 @@ my $output1_path = file($second_pipeline_output_dir, 'output1.txt');
 my $output1_file = VRPipe::File->get(path => $output1_path, type => 'txt');
 
 my $single_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
+my $multi_step_pipeline = VRPipe::Pipeline->get(name => 'multi_step_pipeline', description => 'simple test pipeline with five steps');
 
 my @steps;
 $steps[0] = VRPipe::Step->get(name => 'step_1',
                               inputs_definition => { static_input => $input1_file },
-                              body_sub => sub { my $ofile = shift->outputs->{step1_output};
+                              body_sub => sub { my $ofile = shift->outputs->{step1_output}->[0];
                                                 my $fh = $ofile->openw();
                                                 print $fh "step1output\n";
-                                                $ofile->close();
-                                                return 1; },
+                                                $ofile->close(); },
                               post_process_sub => sub { return 1 },
                               outputs_definition => { step1_output => $output1_file },
                               description => 'the first step');
+VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, before_step_number => 2, adaptor_hash => { step2_input => 'step1_output' });
 $steps[1] = VRPipe::Step->get(name => "step_2",
-                              inputs_definition => { step1_output => VRPipe::FileDefinition->get(name => 'step2_input', type => 'txt') },
-                              body_sub => sub { my $ofile = shift->outputs->{step2_output};
+                              inputs_definition => { step2_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
+                              body_sub => sub { my $ofile = shift->outputs->{step2_output}->[0];
                                                 my $fh = $ofile->openw();
                                                 print $fh "step2output\n";
-                                                $ofile->close();
-                                                return 1; },
+                                                $ofile->close(); },
                               post_process_sub => sub { return 1 },
                               outputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step2_output', type => 'txt') }); #*** would be good to have a test that shows if type => 'bam', the pipeline throws since a txt file was created
+VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, before_step_number => 3, adaptor_hash => { step3_input => 'step2_output' });
 $steps[2] = VRPipe::Step->get(name => "step_3",
-                              inputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'step3_input', type => 'txt') },
+                              inputs_definition => { step3_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
                               body_sub => sub { my $self = shift;
-                                                my $ofile = $self->outputs->{step3_output}->path;
+                                                my $ofile = $self->outputs->{step3_output}->[0]->path;
                                                 $self->dispatch(["sleep 5; echo step3output > $ofile", $self->new_requirements(memory => 50, time => 1)]);
                                                 $self->dispatch(["sleep 4;", $self->new_requirements(memory => 50, time => 1)]);
-                                                $self->dispatch(["sleep 3;", $self->new_requirements(memory => 50, time => 1)]);
-                                                return 0; },
+                                                $self->dispatch(["sleep 3;", $self->new_requirements(memory => 50, time => 1)]); },
                               post_process_sub => sub { return 1 },
                               outputs_definition => { step3_output => VRPipe::FileDefinition->get(name => 'step3_output', type => 'txt') });
+VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, before_step_number => 4, adaptor_hash => { step4_input => 'step3_output' });
 $steps[3] = VRPipe::Step->get(name => "step_4",
-                              inputs_definition => { step3_output => VRPipe::FileDefinition->get(name => 'step4_input', type => 'txt') },
-                              body_sub => sub { my $ofile = shift->outputs->{step4_output};
+                              inputs_definition => { step4_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
+                              body_sub => sub { my $ofile = shift->outputs->{step4_output}->[0];
                                                 my $fh = $ofile->openw();
                                                 print $fh "step4output\n";
-                                                $ofile->close();
-                                                return 1; },
+                                                $ofile->close(); },
                               post_process_sub => sub { return 1 },
-                              outputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step4_output', output_sub => sub { 'step4_basename.o' }, type => 'txt') });
+                              outputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step4_o_file', output_sub => sub { 'step4_basename.o' }, type => 'txt') });
+VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, before_step_number => 5, adaptor_hash => { step5_input => 'step4_output' });
 $steps[4] = VRPipe::Step->get(name => "step_5",
-                              inputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'step5_input', type => 'txt') },
-                              body_sub => sub { my $ofile = shift->outputs->{step5_output};
+                              inputs_definition => { step5_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
+                              body_sub => sub { my $ofile = shift->outputs->{step5_output}->[0];
                                                 my $fh = $ofile->openw();
                                                 print $fh "step5output\n";
-                                                $ofile->close();
-                                                return 1; },
+                                                $ofile->close(); },
                               post_process_sub => sub { return 1 },
                               outputs_definition => { step5_output => VRPipe::FileDefinition->get(name => 'step5_output', type => 'txt') });
 
-my $multi_step_pipeline = VRPipe::Pipeline->get(name => 'multi_step_pipeline', description => 'simple test pipeline with five steps');
 foreach my $step (@steps) {
     $multi_step_pipeline->add_step($step);
 }
@@ -161,7 +159,9 @@ is $all_created, 1, 'multi-step pipeline completed via Manager';
 # now lets create a pipeline using a pre-written step, where we'll test that a
 # step can work with both a datasource input and the outputs of a previous step
 my $prewritten_step_pipeline = VRPipe::Pipeline->get(name => 'md5_pipeline', description => 'simple test pipeline with two steps that create md5 files');
+VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, before_step_number => 1, adaptor_hash => { md5_file_input => 'data_element' });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
+VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, before_step_number => 2, adaptor_hash => { md5_file_input => 'md5_files' });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
 
 my $fofn_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fofn)));
@@ -202,6 +202,15 @@ foreach my $file (file(qw(t data file.bam))->absolute,
 is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec bc5e5541094af2ddf06d8d6a3ef6e101 3f07e8796553d8dbebdc55d59febeab6 cb683a2796e39c24338cfc23ded5a299)], 'md5s were all set in db';
 
 #*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
+
+# try out the pre-written mapping pipeline
+my $read1_fq = file(qw(t data 2822_6_1_1000.fastq));
+my $read2_fq = file(qw(t data 2822_6_2_1000.fastq));
+my $ref_fa = file(qw(t data S_suis_P17.fa));
+my $mapping_output_dir = dir($output_root, 'mapping_pipeline');
+$scheduler->make_path($mapping_output_dir);
+#my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4', datasource => , output_root => $mapping_output_dir, pipeline => VRPipe::Pipeline->get(name => 'mapping'));
+
 
 done_testing;
 exit;

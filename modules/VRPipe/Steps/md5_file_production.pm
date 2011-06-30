@@ -6,25 +6,25 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
     }
     method body_sub {
         return sub { my $self = shift;
-                     my $input_files = $self->_input_files_from_input_or_element('md5_file_input');
+                     my $input_files = $self->inputs->{md5_file_input};
                      @$input_files || return 1;
                      my $output_root = $self->output_root;
-                     foreach my $ifile (@$input_files) {
+                     foreach my $vrfile (@$input_files) {
+                        my $ifile = $vrfile->path;
                         my $ofile = Path::Class::File->new($output_root, $ifile->basename.'.md5');
+                        VRPipe::File->get(path => $ofile, type => "txt"); # just to set the filetype in the db
                         $self->dispatch([qq{md5sum $ifile > $ofile}, $self->new_requirements(memory => 50, time => 1)]);
-                     }
-                     return 0; };
+                     } };
     }
     method post_process_sub {
         return sub { my $self = shift;
-                     my $md5_files = $self->_input_files_from_input_or_element('md5_file_input');
+                     my $input_files = $self->inputs->{md5_file_input};
                      my $output_root = $self->output_root;
-                     foreach my $file (@$md5_files) {
-                        my $ofile = Path::Class::File->new($output_root, $file->basename.'.md5');
+                     foreach my $vrfile (@$input_files) {
+                        my $ofile = Path::Class::File->new($output_root, $vrfile->path->basename.'.md5');
                         my $content = $ofile->slurp;
                         $content || return 0;
                         my ($md5) = split(" ", $content);
-                        my $vrfile = VRPipe::File->get(path => $file);
                         $vrfile->md5($md5);
                         $vrfile->update;
                      }
@@ -32,10 +32,10 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
     }
     method outputs_definition {
         return { md5_files => VRPipe::FileDefinition->get(name => 'md5_files', type => 'txt', output_sub => sub { my ($self, $step) = @_;
-                                                                                                                  my $input_files = $step->_input_files_from_input_or_element('md5_file_input');
+                                                                                                                  my $input_files = $step->inputs->{md5_file_input};
                                                                                                                   my @md5_files;
-                                                                                                                  foreach my $file (@$input_files) {
-                                                                                                                      push(@md5_files, $file->basename.'.md5');
+                                                                                                                  foreach my $vrfile (@$input_files) {
+                                                                                                                      push(@md5_files, $vrfile->path->basename.'.md5');
                                                                                                                   }
                                                                                                                   return [@md5_files]; }) };
     }

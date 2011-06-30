@@ -56,7 +56,10 @@ class VRPipe::File extends VRPipe::Persistent {
     method _filetype_from_extension {
         my $path = $self->path;
         my ($type) = $path =~ /\.(\w{2,3})$/;
-        return $type || 'any';
+        $type ||= 'any';
+        $type = lc($type);
+        eval "require VRPipe::FileType::$type;";
+        return $@ ? 'any' : $type;
     }
     
     __PACKAGE__->make_persistent();

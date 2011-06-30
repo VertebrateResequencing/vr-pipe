@@ -197,7 +197,7 @@ subtype PersistentHashRef,
     as HashRef[PersistentObject];
 
 subtype PersistentFileHashRef,
-    as HashRef['VRPipe::File'|ArrayRef['VRPipe::File']];
+    as HashRef[ArrayRef['VRPipe::File']];
 
 # allow users to supply either a single X, or an array ref of them, eg:
 # has 'my_attribute' => ( is => 'rw', isa => 'ArrayRefOfInts', coerce => 1 );
