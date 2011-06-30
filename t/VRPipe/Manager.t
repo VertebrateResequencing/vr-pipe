@@ -28,12 +28,12 @@ $scheduler->make_path($output_root);
 my $pipeline1_output_def = VRPipe::FileDefinition->get(name => 'element_output_file',
                                                        type => 'txt',
                                                        output_sub => sub  { my ($self, $step) = @_;
-                                                                            return $step->data_element->result.'.o'; });
+                                                                            return $step->data_element->result->{line}.'.o'; });
 
 my $single_step = VRPipe::Step->get(name => 'element_outputter',
                                     inputs_definition => { },
                                     body_sub => sub { my $self = shift;
-                                                      my $element_name = $self->data_element->result;
+                                                      my $element_name = $self->data_element->result->{line};
                                                       my $ofile = $self->outputs->{the_only_output}->[0]->path;
                                                       $self->dispatch([qq{sleep 5; echo "output for $element_name" > $ofile}, $self->new_requirements(memory => 60, time => 1)]); },
                                     post_process_sub => sub { return 1 },
@@ -164,7 +164,7 @@ $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_producti
 VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, before_step_number => 2, adaptor_hash => { md5_file_input => 'md5_files' });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
 
-my $fofn_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fofn)));
+my $fofn_datasource = VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn)));
 my $prewritten_step_pipeline_output_dir = dir($output_root, 'md5_pipeline');
 my $md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps3', datasource => $fofn_datasource, output_root => $prewritten_step_pipeline_output_dir, pipeline => $prewritten_step_pipeline);
 
@@ -209,7 +209,15 @@ my $read2_fq = file(qw(t data 2822_6_2_1000.fastq));
 my $ref_fa = file(qw(t data S_suis_P17.fa));
 my $mapping_output_dir = dir($output_root, 'mapping_pipeline');
 $scheduler->make_path($mapping_output_dir);
-#my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4', datasource => , output_root => $mapping_output_dir, pipeline => VRPipe::Pipeline->get(name => 'mapping'));
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4',
+                                                       datasource => VRPipe::DataSource->get(type => 'delimited',
+                                                                                             method => 'single_column',
+                                                                                             source => file(qw(t data datasource.fastqs)),
+                                                                                             options => {delimiter => "\t",
+                                                                                                         group_by => 1,
+                                                                                                         column => 2}),
+                                                       output_root => $mapping_output_dir,
+                                                       pipeline => VRPipe::Pipeline->get(name => 'mapping'));
 
 
 done_testing;

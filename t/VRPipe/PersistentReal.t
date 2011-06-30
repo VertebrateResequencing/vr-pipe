@@ -43,7 +43,7 @@ ok $files[1] = VRPipe::File->get(path => $output1_path, type => 'txt'), 'created
 undef($files[1]);
 $files[1] = VRPipe::File->get(id => 2);
 is_deeply [$files[1]->path, $files[1]->e, $files[1]->s], [$output1_path, 0, 0], 'file2 has the expected fields';
-throws_ok { VRPipe::File->get(path => 'output1.txt', type => 'txt') } qr/path must be absolute/, 'using get() with a relative path causes a throw';
+throws_ok { VRPipe::File->get(path => 'output1.txt', type => 'txt') } qr/must be absolute/, 'using get() with a relative path causes a throw';
 
 my @fds;
 ok $fds[0] = VRPipe::FileDefinition->get(name => 'step1_bam_input', type => 'bam'), 'created a FileDefinition using get()';
@@ -124,9 +124,9 @@ foreach my $de_num (1..5) {
 }
 foreach my $de_num (1..5) {
     # get
-    push(@de, VRPipe::DataElement->get(datasource => $ds[0], result => "fed_result_$de_num"));
+    push(@de, VRPipe::DataElement->get(id => $de_num));
 }
-is_deeply [$de[2]->id, $de[2]->datasource->id, $de[2]->result], [3, 1, 'fed_result_3'], 'de3 has the expected fields';
+is_deeply [$de[2]->id, $de[2]->datasource->id, $de[2]->result->{line}], [3, 1, 'fed_result_3'], 'de3 has the expected fields';
 
 my @pipelines;
 ok $pipelines[0] = VRPipe::Pipeline->get(name => 'p1', description => 'first test pipeline'), 'created a Pipeline using get()';

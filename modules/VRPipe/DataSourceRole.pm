@@ -3,7 +3,7 @@ use VRPipe::Base;
 role VRPipe::DataSourceRole {
     has 'method' => (is => 'ro',
                      isa => 'Str',
-                     required => 1);
+                     required => 1); #*** each method needs a way to self-document itself so front-ends know what it does...
     
     has 'source' => (is => 'ro',
                      isa => 'Defined',

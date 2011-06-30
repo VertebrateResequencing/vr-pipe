@@ -9,7 +9,7 @@ class VRPipe::DataElement extends VRPipe::Persistent {
                          belongs_to => 'VRPipe::DataSource');
     
     has 'result' => (is => 'rw',
-                     isa => Varchar[256],
+                     isa => 'HashRef',
                      traits => ['VRPipe::Persistent::Attributes'],
                      is_key => 1);
     

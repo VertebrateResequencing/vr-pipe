@@ -105,7 +105,10 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             $result = $self->_hu_shift;
         }
         
-        return $result;
+        $result || return;
+        
+        my %result = (lane => $result);
+        return \%result;
     }
 }
 

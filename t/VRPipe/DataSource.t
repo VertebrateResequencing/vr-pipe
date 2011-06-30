@@ -5,7 +5,7 @@ use Path::Class qw(file);
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 10;
     
     use_ok('VRPipe::DataSourceFactory');
     
@@ -20,7 +20,7 @@ my @results;
 while (my $result = $ds->next_result) {
     push(@results, $result);
 }
-is_deeply \@results, [qw(foo bar henry)], 'got all results correctly';
+is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => 'henry'}], 'got all results correctly';
 
 $ds = VRPipe::DataSourceFactory->create('list', {method => 'all',
                                                  source => file(qw(t data datasource.list)),
@@ -30,7 +30,7 @@ $ds = VRPipe::DataSourceFactory->create('list', {method => 'all',
 while (my $result = $ds->next_result) {
     push(@results, $result);
 }
-is_deeply \@results, ['foo', 'bar', '# comment', 'henry'], 'got even more results with extra options';
+is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => '# comment'}, {line => 'henry'}], 'got even more results with extra options';
 
 ok $ds = VRPipe::DataSourceFactory->create('fofn', {method => 'all',
                                                     source => file(qw(t data datasource.fofn)),
@@ -41,7 +41,21 @@ while (my $result = $ds->next_result) {
     push(@results, $result);
 }
 my $cwd = cwd();
-is_deeply \@results, [file($cwd, 't', 'data', 'file.bam'), file($cwd, 't', 'data', 'file.cat'), file($cwd, 't', 'data', 'file.txt')], 'got correct results for fofn all';
+is_deeply \@results, [{paths => [file($cwd, 't', 'data', 'file.bam')]}, {paths => [file($cwd, 't', 'data', 'file.cat')]}, {paths => [file($cwd, 't', 'data', 'file.txt')]}], 'got correct results for fofn all';
+
+ok $ds = VRPipe::DataSourceFactory->create('delimited', {method => 'grouped_single_column',
+                                                         source => file(qw(t data datasource.fastqs)),
+                                                         options => {delimiter => "\t",
+                                                                     group_by => 1,
+                                                                     column => 2}}), 'could create a delimited datasource';
+
+@results = ();
+while (my $result = $ds->next_result) {
+    push(@results, $result);
+}
+is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1_1000.fastq'), file($cwd, 't/data/2822_6_2_1000.fastq')], group => '2822'}], 'got correct results for delimited grouped_single_column';
+
+
 
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VertRes:: and VRTrack::

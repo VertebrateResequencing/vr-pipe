@@ -14,9 +14,8 @@ class VRPipe::DataSource::list with VRPipe::DataSourceRole {
         return $file->openr;
     }
     
-    method all (Defined :$handle, Bool :$skip_comments = 1) {
+    method all (Defined :$handle, Bool :$skip_comments = 1, Bool :$line_is_path = 0) {
         my $result;
-        
         while (<$handle>) {
             if (/^\s*$/) {
                 next;
@@ -28,8 +27,12 @@ class VRPipe::DataSource::list with VRPipe::DataSourceRole {
             $result = $_;
             last;
         }
+        $result || return;
         
-        return $result;
+        my $key_name = $line_is_path ? 'paths' : 'line';
+        $result = $line_is_path ? [file($result)->absolute->stringify] : $result;
+        my %result = ($key_name => $result);
+        return \%result;
     }
 }
 

@@ -95,7 +95,7 @@ subtype MaybeDir, as Maybe[Dir];
 subtype AbsoluteFile,
     as File,
     where { $_->is_absolute },
-    message { my $file = $_; if (ref($file) && $file->isa('Path::Class::File')) { return "path must be absolute"; } else { return "Not a Path::Class::File"; } };
+    message { my $file = $_; if (ref($file) && $file->isa('Path::Class::File')) { return "path '$_' must be absolute"; } else { return "Not a Path::Class::File"; } };
 
 for my $type ('Path::Class::Dir', Dir, MaybeDir) {
     coerce $type,
