@@ -133,28 +133,8 @@ my @manager_setups = $manager->setups;
 is @manager_setups, 2, 'setups() returns the correct number of PipelineSetups';
 @manager_setups = $manager->setups(pipeline_name => 'multi_step_pipeline');
 is @manager_setups, 1, 'setups() returns the correct number of PipelineSetups when pipeline_name supplied';
-$manager->trigger;
-my $give_up = 100;
-while (! $manager->handle_submissions) {
-    last if $give_up-- <= 0;
-    sleep(1);
-}
-$give_up = 200;
-while (! $manager->trigger) {
-    last if $give_up-- <= 0;
-    $manager->handle_submissions;
-    sleep(1);
-}
 
-# check output files for both pipelines
-my $all_created = 1;
-foreach my $ofile (@first_output_files, @second_output_files) {
-    unless (-s $ofile) {
-        warn "$ofile is missing\n";
-        $all_created = 0;
-    }
-}
-is $all_created, 1, 'multi-step pipeline completed via Manager';
+is handle_pipeline(@first_output_files, @second_output_files), 1, 'multi-step pipeline completed via Manager';
 
 # now lets create a pipeline using a pre-written step, where we'll test that a
 # step can work with both a datasource input and the outputs of a previous step
@@ -175,20 +155,7 @@ my @md5_output_files = (file($prewritten_step_pipeline_output_dir, 'file.bam.md5
                         file($prewritten_step_pipeline_output_dir, 'file.cat.md5.md5'),
                         file($prewritten_step_pipeline_output_dir, 'file.txt.md5.md5'));
 
-$give_up = 200;
-while (! $manager->trigger) {
-    last if $give_up-- <= 0;
-    $manager->handle_submissions;
-    sleep(1);
-}
-$all_created = 1;
-foreach my $ofile (@md5_output_files) {
-    unless (-s $ofile) {
-        warn "$ofile is missing\n";
-        $all_created = 0;
-    }
-}
-is $all_created, 1, 'all md5 files were created via Manager';
+is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manager';
 
 my @md5s;
 foreach my $file (file(qw(t data file.bam))->absolute,
@@ -204,8 +171,6 @@ is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90de
 #*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
 
 # try out the pre-written mapping pipeline
-my $read1_fq = file(qw(t data 2822_6_1_1000.fastq));
-my $read2_fq = file(qw(t data 2822_6_2_1000.fastq));
 my $ref_fa = file(qw(t data S_suis_P17.fa));
 my $mapping_output_dir = dir($output_root, 'mapping_pipeline');
 $scheduler->make_path($mapping_output_dir);
@@ -219,6 +184,26 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4',
                                                        output_root => $mapping_output_dir,
                                                        pipeline => VRPipe::Pipeline->get(name => 'mapping'));
 
+my @mapping_output_files;
+
+#is handle_pipeline(@mapping_output_files), 1, 'all mapping files were created via Manager';
 
 done_testing;
 exit;
+
+sub handle_pipeline {
+    my $give_up = 200;
+    while (! $manager->trigger) {
+        last if $give_up-- <= 0;
+        $manager->handle_submissions;
+        sleep(1);
+    }
+    my $all_created = 1;
+    foreach my $ofile (@_) {
+        unless (-s $ofile) {
+            warn "$ofile is missing\n";
+            $all_created = 0;
+        }
+    }
+    return $all_created;
+}
