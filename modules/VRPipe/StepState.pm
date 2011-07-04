@@ -22,6 +22,11 @@ class VRPipe::StepState extends VRPipe::Persistent {
                             is_key => 1,
                             belongs_to => 'VRPipe::PipelineSetup');
     
+    has 'output_files' => (is => 'rw',
+                           isa => PersistentFileHashRef,
+                           traits => ['VRPipe::Persistent::Attributes'],
+                           default => sub { {} });
+    
     has 'complete' => (is => 'rw',
                        isa => 'Bool',
                        traits => ['VRPipe::Persistent::Attributes'],

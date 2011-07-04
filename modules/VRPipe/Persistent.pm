@@ -225,6 +225,29 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         $flations{$name} = { inflate => sub { my $hash = thaw(shift); while (my ($key, $serialized) = each %$hash) { my ($class, $id) = split('~', $serialized); $hash->{$key} = $class->get(id => $id); } return $hash; },
                                              deflate => sub { my $hash = shift; while (my ($key, $instance) = each %$hash) { my $ref = ref($instance); my $id = $instance->id; $hash->{$key} = "$ref~$id"; } return nfreeze($hash); } };
                     }
+                    elsif ($cname eq 'PersistentFileHashRef') {
+                        $flations{$name} = { inflate => sub { my $hash = thaw(shift);
+                                                              while (my ($key, $array_ref) = each %$hash) {
+                                                                  my @array;
+                                                                  foreach my $serialized (@$array_ref) {
+                                                                      my ($class, $id) = split('~', $serialized);
+                                                                      push(@array, $class->get(id => $id));
+                                                                  }
+                                                                  $hash->{$key} = \@array;
+                                                              }
+                                                              return $hash; },
+                                             deflate => sub { my $hash = shift;
+                                                              while (my ($key, $array_ref) = each %$hash) {
+                                                                  my @array;
+                                                                  foreach my $instance (@$array_ref) {
+                                                                      my $ref = ref($instance);
+                                                                      my $id = $instance->id;
+                                                                      push(@array, "$ref~$id");
+                                                                  }
+                                                                  $hash->{$key} = \@array;
+                                                              }
+                                                              return nfreeze($hash); } };
+                    }
                     else {
                         die "unsupported constraint '$cname' for attribute $name in $class\n";
                     }

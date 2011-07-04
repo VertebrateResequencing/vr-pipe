@@ -39,7 +39,7 @@ role VRPipe::StepRole {
     
     has 'outputs' => (is => 'ro',
                       isa => PersistentFileHashRef,
-                      builder => 'resolve_outputs',
+                      builder => '_build_outputs',
                       lazy => 1);
     
     has 'previous_step_outputs' => (is => 'rw',
@@ -54,27 +54,13 @@ role VRPipe::StepRole {
                          handles => { dispatch => 'push',
                                       num_dispatched  => 'count' });
     
-    ## prior to derefrencing and running the step subroutine, run_step does:
-    #my @missing = $obj->missing_required_files($step_name);
-    ## if any files are missing, then run_step returns false and does nothing.
-    ## Otherwise it runs the desired subroutine. If the subroutine returns true,
-    ## that means the step completed and we can move on to the finish_step
-    ## step. If it returned false, it probably used dispatch() (see below) so we
-    ## see what it dispatched:
-    #my @dispatches = $obj->dispatched($step_name);
-    ## this returns a list of [$cmd_line_string, $requirements_object] refs that
-    ## you could use to create VRPipe::JobManager::Submission objects and
-    ## eventually actually get the cmd_line to run. You'll keep records on how
-    ## those Submissions do, and when they're all successfull you'll do:
-    #$obj->finish_step($step_name);
-    ## this runs a post-processing method for the step (that is not allowed
-    ## to do any more dispatching) and returns true if the post-process was fine.
-    ## finish_step appends its own auto-check that all the provided files
-    ## exist. So if finish_step returns true you record in your system that
-    ## this step (on this pipeline setup and datasource element) finished, so
-    ## the next time you come to this loop you'll skip and try the following
-    ## step. (VRPipe::PipelineManager::Manager does all this sort of stuff for
-    ## you.)
+    # and we'll also store all the output files the body_sub makes
+    has '_output_files' => (is => 'ro',
+                            traits  => ['Hash'],
+                            isa     => 'HashRef',
+                            lazy    => 1,
+                            default => sub { {} },
+                            handles => { _remember_output_files => 'set' });
     
     method _build_data_element {
         my $step_state = $self->step_state || $self->throw("Cannot get data element without step state");
@@ -86,7 +72,11 @@ role VRPipe::StepRole {
     }
     method _build_options {
         my $step_state = $self->step_state || $self->throw("Cannot get options without step state");
-        return $step_state->pipelinesetup->options; #*** supposed to be a hash ref, currently a str...
+        return $step_state->pipelinesetup->options;
+    }
+    method _build_outputs {
+        my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
+        return $step_state->output_files;
     }
     
     method resolve_inputs {
@@ -99,7 +89,7 @@ role VRPipe::StepRole {
             if ($val->isa('VRPipe::File')) {
                 $return{$key} = [$val];
             }
-            elsif ($val->isa('VRPipe::FileDefinition')) {
+            elsif ($val->isa('VRPipe::StepIODefinition')) {
                 # see if we have this $key in our previous_step_outputs or
                 # via the options or data_element
                 my $results;
@@ -127,7 +117,20 @@ role VRPipe::StepRole {
                 }
                 
                 if (! $results) {
-                    $self->throw("the input file for '$key' of stepstate ".$self->step_state->id." could not be resolved");
+                    $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");
+                }
+                
+                my $num_results = @$results;
+                my $max_allowed = $val->max_files;
+                my $min_allowed = $val->min_files;
+                if ($max_allowed == -1) {
+                    $max_allowed = $num_results;
+                }
+                if ($min_allowed == -1) {
+                    $min_allowed = $num_results;
+                }
+                unless ($num_results >= $min_allowed && $num_results <= $max_allowed) {
+                    $self->throw("there were $num_results input file(s) for '$key' of stepstate ".$self->step_state->id.", which does not fit the allowed range $min_allowed..$max_allowed");
                 }
                 
                 my @vrfiles;
@@ -136,8 +139,9 @@ role VRPipe::StepRole {
                         $result = VRPipe::File->get(path => file($result)->absolute);
                     }
                     
-                    unless ($result && $val->matches($result)) {
-                        $self->throw("file ".$result->path." did not match the file definition");
+                    my $type = VRPipe::FileType->create($val->type, {file => $result->path});
+                    unless ($type->check_type) {
+                        $self->throw("file ".$result->path." was not the correct type");
                     }
                     
                     push(@vrfiles, $result);
@@ -153,47 +157,40 @@ role VRPipe::StepRole {
         return \%return;
     }
     
-    method resolve_outputs {
-        my $hash = $self->outputs_definition;
-        my $output_root = $self->output_root;
-        
-        my %return;
-        while (my ($key, $val) = each %$hash) {
-            if ($val->isa('VRPipe::File')) {
-                $return{$key} = [$val];
-            }
-            elsif ($val->isa('VRPipe::FileDefinition')) {
-                my $basename = $val->output_basename($self);
-                if (ref($basename) eq 'ARRAY') {
-                    my @vrf_array;
-                    foreach my $bn (@$basename) {
-                        push(@vrf_array, VRPipe::File->get(path => file($output_root, $bn)));
-                    }
-                    $return{$key} = \@vrf_array;
-                }
-                else {
-                    $return{$key} = [VRPipe::File->get(path => file($output_root, $basename))];
-                }
-            }
-            else {
-                $self->throw("invalid class ".ref($val)." supplied for output '$key' value definition");
-            }
-        }
-        
-        return \%return;
-    }
-    
-    method _missing (PersistentFileHashRef $hash, Bool $check_type) {
+    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {
         my @missing;
         while (my ($key, $val) = each %$hash) {
             foreach my $file (@$val) {
                 if (! $file->s) {
                     push(@missing, $file->path);
                 }
-                elsif ($check_type) {
+                else {
+                    my $bad = 0;
+                    
+                    # check the filetype is correct
                     my $type = VRPipe::FileType->create($file->type, {file => $file->path});
                     unless ($type->check_type) {
                         $self->warn($file->path." exists, but is the wrong type!");
+                        $bad = 1;
+                    }
+                    
+                    # check the expected metadata keys exist
+                    my $def = $defs->{$key};
+                    if ($def->isa('VRPipe::StepIODefinition')) {
+                        my $def_meta = $def->metadata;
+                        my @needed = keys %$def_meta;
+                        if (@needed) {
+                            my $meta = $file->metadata;
+                            foreach my $key (@needed) {
+                                unless (exists $meta->{$key}) {
+                                    $self->warn($file->path." exists, but lacks metadata key $key!");
+                                    $bad = 1;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if ($bad) {
                         push(@missing, $file->path);
                     }
                 }
@@ -203,16 +200,30 @@ role VRPipe::StepRole {
     }
     
     method missing_input_files {
-        return $self->_missing($self->inputs, 0);
+        return $self->_missing($self->inputs, $self->inputs_definition);
     }
     
     method missing_output_files {
-        return $self->_missing($self->outputs, 1);
+        return $self->_missing($self->outputs, $self->outputs_definition);
     }
     
     method _run_coderef (Str $method_name) {
         my $ref = $self->$method_name();
         return &$ref($self);
+    }
+    
+    method output_file (Str :$output_key, File|Str :$basename, FileType :$type, Dir|Str :$output_dir?, HashRef :$metadata?) {
+        $output_dir ||= $self->output_root;
+        
+        my $vrfile = VRPipe::File->get(path => file($output_dir, $basename), type => $type);
+        $vrfile->add_metadata($metadata) if $metadata;
+        
+        my $hash = $self->_output_files;
+        my $files = $hash->{$output_key} || [];
+        push(@$files, $vrfile);
+        $self->_remember_output_files($output_key => $files);
+        
+        return $vrfile;
     }
     
     method parse {
@@ -221,6 +232,15 @@ role VRPipe::StepRole {
         
         $self->_run_coderef('body_sub');
         
+        # store output files on the StepState
+        my $output_files = $self->_output_files;
+        if (keys %$output_files) {
+            my $step_state = $self->step_state;
+            $step_state->output_files($output_files);
+            $step_state->update;
+        }
+        
+        # return true if we've finished the step
         my $dispatched = $self->num_dispatched;
         if ($dispatched) {
             return 0;

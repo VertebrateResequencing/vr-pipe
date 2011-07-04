@@ -2,42 +2,34 @@ use VRPipe::Base;
 
 class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
     method inputs_definition {
-        return { md5_file_input => VRPipe::FileDefinition->get(name => 'file_input', type => 'any') };
+        return { md5_file_input => VRPipe::StepIODefinition->get(type => 'any', max_files => -1, description => 'one or more files you want to calculate the md5 checksum of') };
     }
     method body_sub {
         return sub { my $self = shift;
                      my $input_files = $self->inputs->{md5_file_input};
                      @$input_files || return 1;
-                     my $output_root = $self->output_root;
                      foreach my $vrfile (@$input_files) {
                         my $ifile = $vrfile->path;
-                        my $ofile = Path::Class::File->new($output_root, $ifile->basename.'.md5');
-                        VRPipe::File->get(path => $ofile, type => "txt"); # just to set the filetype in the db
+                        my $ofile = $self->output_file(output_key => 'md5_files', basename => $ifile->basename.'.md5', type => 'txt', metadata => {md5_checksum_of => $ifile->stringify})->path;
                         $self->dispatch([qq{md5sum $ifile > $ofile}, $self->new_requirements(memory => 50, time => 1)]);
                      } };
     }
+    method outputs_definition {
+        return { md5_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => '.md5 files for each input file containing its md5 checksum',
+                                                            metadata => {md5_checksum_of => 'absoulte path of the file this .md5 file was generated for'}) };
+    }
     method post_process_sub {
         return sub { my $self = shift;
-                     my $input_files = $self->inputs->{md5_file_input};
-                     my $output_root = $self->output_root;
-                     foreach my $vrfile (@$input_files) {
-                        my $ofile = Path::Class::File->new($output_root, $vrfile->path->basename.'.md5');
+                     my $output_files = $self->outputs->{md5_files};
+                     foreach my $ofile (@$output_files) {
                         my $content = $ofile->slurp;
                         $content || return 0;
                         my ($md5) = split(" ", $content);
-                        $vrfile->md5($md5);
-                        $vrfile->update;
+                        my $ifile = VRPipe::File->get(path => $ofile->metadata->{md5_checksum_of});
+                        $ifile->md5($md5);
+                        $ifile->update;
                      }
                      return 1; };
-    }
-    method outputs_definition {
-        return { md5_files => VRPipe::FileDefinition->get(name => 'md5_files', type => 'txt', output_sub => sub { my ($self, $step) = @_;
-                                                                                                                  my $input_files = $step->inputs->{md5_file_input};
-                                                                                                                  my @md5_files;
-                                                                                                                  foreach my $vrfile (@$input_files) {
-                                                                                                                      push(@md5_files, $vrfile->path->basename.'.md5');
-                                                                                                                  }
-                                                                                                                  return [@md5_files]; }) };
     }
     method description {
         return "Takes a file, calculates its md5 checksum, produces a file called <input filename>.md5, and updates the persistent database with the md5 of the file";

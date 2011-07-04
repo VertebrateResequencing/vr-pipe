@@ -36,6 +36,11 @@ class VRPipe::File extends VRPipe::Persistent {
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_nullable => 1);
     
+    has 'metadata' => (is => 'rw',
+                       isa => 'HashRef',
+                       traits => ['VRPipe::Persistent::Attributes'],
+                       default => sub { {} });
+    
     has _opened_for_writing => (is => 'rw',
                                 isa => 'Bool',
                                 default => 0);
@@ -63,6 +68,18 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     __PACKAGE__->make_persistent();
+    
+    method add_metadata (HashRef $meta) {
+        my $existing_meta = $self->metadata;
+        
+        while (my ($key, $val) = each %$meta) {
+            #*** should we care about overwriting existing keys?
+            $existing_meta->{$key} = $val;
+        }
+        
+        $self->metadata($existing_meta);
+        $self->update;
+    }
     
     method openr {
         return $self->open('<');

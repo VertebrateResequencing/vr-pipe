@@ -33,10 +33,11 @@ my $input1_path = file($output_dir, 'input1.txt');
 open(my $fh, '>', $input1_path) or die "Could not write to $input1_path\n";
 print $fh "input1_line1\ninput2_line2\n";
 close($fh);
-ok $files[0] = VRPipe::File->get(path => $input1_path, type => 'txt'), 'created a File using get()';
+ok $files[0] = VRPipe::File->get(path => $input1_path, type => 'txt', metadata => {foo => 'bar'}), 'created a File using get()';
 undef($files[0]);
 $files[0] = VRPipe::File->get(id => 1);
-is_deeply [$files[0]->path, $files[0]->e], [$input1_path, 1], 'file1 has the expected fields';
+$files[0]->add_metadata({baz => 'loman'});
+is_deeply [$files[0]->path, $files[0]->e, $files[0]->metadata], [$input1_path, 1, {foo => 'bar', baz => 'loman'}], 'file1 has the expected fields';
 cmp_ok $files[0]->s, '>=', 5, 'file1 has some size';
 my $output1_path = file($output_dir, 'output1.txt');
 ok $files[1] = VRPipe::File->get(path => $output1_path, type => 'txt'), 'created another File using get()';
@@ -45,30 +46,29 @@ $files[1] = VRPipe::File->get(id => 2);
 is_deeply [$files[1]->path, $files[1]->e, $files[1]->s], [$output1_path, 0, 0], 'file2 has the expected fields';
 throws_ok { VRPipe::File->get(path => 'output1.txt', type => 'txt') } qr/must be absolute/, 'using get() with a relative path causes a throw';
 
-my @fds;
-ok $fds[0] = VRPipe::FileDefinition->get(name => 'step1_bam_input', type => 'bam'), 'created a FileDefinition using get()';
+my @ids;
+ok $ids[0] = VRPipe::StepIODefinition->get(type => 'bam', description => 'step_1 bam input'), 'created a InputDefinition using get()';
 
 my @steps;
 ok $steps[0] = VRPipe::Step->get(name => 'step_1',
                                  inputs_definition => { static_input => $files[0],
-                                                        dynamic_input => $fds[0]
-                                                        },
+                                                        dynamic_input => $ids[0] },
                                  body_sub => sub {
-                                                    my $ofile = shift->outputs->{step1_output};
+                                                    my $self = shift;
+                                                    my $ofile = $self->output_file(output_key => 'step1_output', basename => 'output1.txt', type => 'txt');
                                                     my $fh = $ofile->openw();
                                                     print $fh "step1output\n";
                                                     $ofile->close();
                                                  },
+                                 outputs_definition => { step1_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step1_output file') },
                                  post_process_sub => sub { return 1 },
-                                 outputs_definition => { step1_output => $files[1] },
                                  description => 'the first step'), 'created a Step using get()';
 is_deeply [$steps[0]->id, $steps[0]->description], [1, 'the first step'], 'step1 has the expected fields';
 undef $steps[0];
 ok $steps[0] = VRPipe::Step->get(name => 'step_1'), 'got a Step using get(name => )';
 is_deeply [$steps[0]->id,
            $steps[0]->description,
-           $steps[0]->inputs_definition->{static_input}->path,
-           $steps[0]->outputs_definition->{step1_output}->path], [1, 'the first step', $input1_path, $output1_path], 'step1 still has the expected fields';
+           $steps[0]->inputs_definition->{static_input}->path], [1, 'the first step', $input1_path], 'step1 still has the expected fields';
 
 ok my $first_step = VRPipe::Step->get(id => 1), 'step1 could be gotten by id';
 is $first_step->description, 'the first step', 'it has the correct description';
@@ -136,51 +136,51 @@ is_fields [qw/id name description/], $pipelines[0], [1, 'p1', 'first test pipeli
 
 # create some more steps we can chain together into a proper pipeline
 VRPipe::Step->get(name => "step_2",
-                  inputs_definition => { step2_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
+                  inputs_definition => { step2_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_2 input') },
                   body_sub => sub {
-                                    my $ofile = shift->outputs->{step2_output};
+                                    my $ofile = shift->output_file(output_key => 'step2_output', basename => 'step2_output.txt', type => 'txt');
                                     my $fh = $ofile->openw();
                                     print $fh "step2output\n";
                                     $ofile->close();
                                    },
-                  post_process_sub => sub { return 1 },
-                  outputs_definition => { step2_output => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') });
+                  outputs_definition => { step2_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step2_output file') },
+                  post_process_sub => sub { return 1 });
 VRPipe::Step->get(name => "step_3",
-                  inputs_definition => { step3_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
+                  inputs_definition => { step3_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_3 input') },
                   body_sub => sub { 
                                     my $self = shift;
-                                    my $ofile = $self->outputs->{step3_output}->path;
+                                    my $ofile = $self->output_file(output_key => 'step3_output', basename => 'step3_output.txt', type => 'txt')->path;
                                     $self->dispatch(["sleep 5; echo step3output > $ofile", $self->new_requirements(memory => 50, time => 1)]);
                                     $self->dispatch(["sleep 4;", $self->new_requirements(memory => 50, time => 1)]);
                                     $self->dispatch(["sleep 3;", $self->new_requirements(memory => 50, time => 1)]);
                                    },
-                  post_process_sub => sub { return 1 },
-                  outputs_definition => { step3_output => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') });
+                  outputs_definition => { step3_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step3_output file') },
+                  post_process_sub => sub { return 1 });
 VRPipe::Step->get(name => "step_4",
-                  inputs_definition => { step4_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
+                  inputs_definition => { step4_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_4 input') },
                   body_sub => sub {
-                                    my $ofile = shift->outputs->{step4_output};
+                                    my $ofile = shift->output_file(output_key => 'step4_output', basename => 'step4_basename.txt', type => 'txt');
                                     my $fh = $ofile->openw();
                                     print $fh "step4output\n";
                                     $ofile->close();
                                    },
-                  post_process_sub => sub { return 1 },
-                  outputs_definition => { step4_output => VRPipe::FileDefinition->get(name => 'txt_file', output_sub => sub { 'step4_basename.o' }, type => 'txt') });
+                  outputs_definition => { step4_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step4_output file') },
+                  post_process_sub => sub { return 1 });
 VRPipe::Step->get(name => "step_5",
-                  inputs_definition => { step5_input => VRPipe::FileDefinition->get(name => 'txt_file', type => 'txt') },
+                  inputs_definition => { step5_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_5 input') },
                   body_sub => sub {
-                                    my $ofile = shift->outputs->{step5_output};
+                                    my $ofile = shift->output_file(output_key => 'step5_output', basename => 'step5_output.txt', type => 'txt');
                                     my $fh = $ofile->openw();
                                     print $fh "step5output\n";
                                     $ofile->close();
                                    },
-                  post_process_sub => sub { return 1 },
-                  outputs_definition => { step5_output => VRPipe::FileDefinition->get(name => 'step5_output', type => 'txt') });
+                  outputs_definition => { step5_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step5_output file') },
+                  post_process_sub => sub { return 1 });
 foreach my $step_num (2..5) {
     # get
     push(@steps, VRPipe::Step->get(id => $step_num));
 }
-is_deeply [$steps[2]->id, $steps[2]->inputs_definition->{step3_input}->name], [3, 'txt_file'], 'step3 has the expected fields';
+is_deeply [$steps[2]->id, $steps[2]->inputs_definition->{step3_input}->type, $steps[2]->outputs_definition->{step3_output}->description], [3, 'txt', 'step3_output file'], 'step3 has the expected fields';
 
 # create a 5 step pipeline by creating stepmembers
 my @stepms;
