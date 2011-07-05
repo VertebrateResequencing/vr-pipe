@@ -1,2 +1,8 @@
-2822	t/data/2822_6_1_1000.fastq
-2822	t/data/2822_6_2_1000.fastq
+2822_6	t/data/2822_6_1.fastq
+2822_6	t/data/2822_6_2.fastq
+2822_7	t/data/2822_7_1.fastq
+2822_7	t/data/2822_7_2.fastq
+2823_4	t/data/2823_4_1.fastq
+2823_4	t/data/2823_4_2.fastq
+8324_8	t/data/8324_8_1.fastq
+8324_8	t/data/8324_8_2.fastq

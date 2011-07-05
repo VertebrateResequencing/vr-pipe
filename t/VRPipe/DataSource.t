@@ -12,6 +12,7 @@ BEGIN {
     use TestPersistentReal;
 }
 
+# list
 ok my $ds = VRPipe::DataSourceFactory->create('list', {method => 'all',
                                                        source => file(qw(t data datasource.list)),
                                                        options => {}}), 'could create a list datasource';
@@ -32,6 +33,7 @@ while (my $result = $ds->next_result) {
 }
 is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => '# comment'}, {line => 'henry'}], 'got even more results with extra options';
 
+# fofn
 ok $ds = VRPipe::DataSourceFactory->create('fofn', {method => 'all',
                                                     source => file(qw(t data datasource.fofn)),
                                                     options => {}}), 'could create a fofn datasource';
@@ -43,6 +45,7 @@ while (my $result = $ds->next_result) {
 my $cwd = cwd();
 is_deeply \@results, [{paths => [file($cwd, 't', 'data', 'file.bam')]}, {paths => [file($cwd, 't', 'data', 'file.cat')]}, {paths => [file($cwd, 't', 'data', 'file.txt')]}], 'got correct results for fofn all';
 
+# delimited
 ok $ds = VRPipe::DataSourceFactory->create('delimited', {method => 'grouped_single_column',
                                                          source => file(qw(t data datasource.fastqs)),
                                                          options => {delimiter => "\t",
@@ -53,8 +56,22 @@ ok $ds = VRPipe::DataSourceFactory->create('delimited', {method => 'grouped_sing
 while (my $result = $ds->next_result) {
     push(@results, $result);
 }
-is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1_1000.fastq'), file($cwd, 't/data/2822_6_2_1000.fastq')], group => '2822'}], 'got correct results for delimited grouped_single_column';
+is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], group => '2822_6'},
+                      {paths => [file($cwd, 't/data/2822_7_1.fastq'), file($cwd, 't/data/2822_7_2.fastq')], group => '2822_7'},
+                      {paths => [file($cwd, 't/data/2823_4_1.fastq'), file($cwd, 't/data/2823_4_2.fastq')], group => '2823_4'},
+                      {paths => [file($cwd, 't/data/8324_8_1.fastq'), file($cwd, 't/data/8324_8_2.fastq')], group => '8324_8'}], 'got correct results for delimited grouped_single_column';
 
+# sequence_index
+=pod
+ok $ds = VRPipe::DataSourceFactory->create('sequence_index', {method => 'lane_fastqs',
+                                                              source => file(qw(t data datasource.sequence_index))}), 'could create a sequence_index datasource';
+
+@results = ();
+while (my $result = $ds->next_result) {
+    push(@results, $result);
+}
+is_deeply \@results, [{}], 'got correct results for sequence_index lane_fastqs';
+=cut
 
 
 # test a special vrtrack test database; these tests are meant for the author
