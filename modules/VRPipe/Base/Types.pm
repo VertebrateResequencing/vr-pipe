@@ -38,7 +38,8 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   Persistent PersistentObject RelationshipArg
                                   PersistentArray ArrayRefOfPersistent
                                   PersistentHashRef FileType AbsoluteFile
-                                  PersistentFileHashRef OpenMode AnyFileHandle)];
+                                  PersistentFileHashRef OpenMode AnyFileHandle
+                                  ParserType)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -139,6 +140,14 @@ subtype FileType,
     where { my $type = $_; length($type) <= 3 || return 0; eval "require VRPipe::FileType::$type;"; if ($@) { return 0; } return 1; },
     message { "Not a valid VRPipe::FileType type" };
 coerce FileType,
+    from Str,
+    via { lc($_) };
+
+subtype ParserType,
+    as Str,
+    where { my $type = $_; eval "require VRPipe::Parser::$type;"; if ($@) { return 0; } return 1; },
+    message { "Not a valid VRPipe::Parser type" };
+coerce ParserType,
     from Str,
     via { lc($_) };
 

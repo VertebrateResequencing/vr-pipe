@@ -7,7 +7,7 @@ role VRPipe::ParserRole {
                    required => 1);
     
     has 'type' => (is => 'ro',
-                   isa => FileType,
+                   isa => ParserType,
                    lazy => 1,
                    builder => '_build_type');
     
@@ -43,6 +43,10 @@ role VRPipe::ParserRole {
                              writer => '_set_header_parsed',
                              predicate => '_got_header');
     
+    method BUILD {
+        $self->_get_header;
+    }
+    
     method _build_type {
         my $class = ref($self);
         my ($type) = $class =~ /.+::(.+)/;
@@ -53,7 +57,7 @@ role VRPipe::ParserRole {
         my $file = $self->file;
         if (ref($file) && (File->check($file) || $file->isa('VRPipe::File'))) {
             eval "require VRPipe::File;";
-            my $vrpf = $file->isa('VRPipe::File') ? $file : VRPipe::File->get(path => $file->absolute, type => $self->type);
+            my $vrpf = $file->isa('VRPipe::File') ? $file : VRPipe::File->get(path => $file->absolute, FileType->check($self->type) ? (type => $self->type) : ());
             $self->_set_vrpipe_file($vrpf); # because on destruction, $vrpf will close the opened filehandle
             return $vrpf->openr();
         }
