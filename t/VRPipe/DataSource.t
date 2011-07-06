@@ -5,7 +5,7 @@ use Path::Class qw(file);
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 10;
+    use Test::Most tests => 13;
     
     use_ok('VRPipe::DataSourceFactory');
     
@@ -62,17 +62,37 @@ is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd,
                       {paths => [file($cwd, 't/data/8324_8_1.fastq'), file($cwd, 't/data/8324_8_2.fastq')], group => '8324_8'}], 'got correct results for delimited grouped_single_column';
 
 # sequence_index
-=pod
 ok $ds = VRPipe::DataSourceFactory->create('sequence_index', {method => 'lane_fastqs',
-                                                              source => file(qw(t data datasource.sequence_index))}), 'could create a sequence_index datasource';
+                                                              source => file(qw(t data datasource.sequence_index)),
+                                                              options => {}}), 'could create a sequence_index datasource';
 
 @results = ();
 while (my $result = $ds->next_result) {
     push(@results, $result);
 }
-is_deeply \@results, [{}], 'got correct results for sequence_index lane_fastqs';
-=cut
-
+is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6.fastq'), file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], lane => '2822_6'},
+                      {paths => [file($cwd, 't/data/2822_7_1.fastq'), file($cwd, 't/data/2822_7_2.fastq')], lane => '2822_7'},
+                      {paths => [file($cwd, 't/data/2823_4_1.fastq'), file($cwd, 't/data/2823_4_2.fastq')], lane => '2823_4'},
+                      {paths => [file($cwd, 't/data/8324_8_1.fastq'), file($cwd, 't/data/8324_8_2.fastq')], lane => '8324_8'}], 'got correct results for sequence_index lane_fastqs';
+my $vrfile = VRPipe::File->get(path => file($cwd, 't/data/2822_6_1.fastq'));
+my $meta = $vrfile->metadata;
+is_deeply $meta, { expected_md5 => 'f1826489facca0d0bdf02d9586b493f6',
+                   lane => '2822_6',
+                   study => 'STUDY01',
+                   study_name => 'my study name',
+                   center_name => 'SC',
+                   sample_id => 'SAMPLEID01',
+                   sample => 'SAMPLE01',
+                   population => 'POP',
+                   platform => 'ILLUMINA',
+                   library => 'LIB01',
+                   insert_size => 200,
+                   withdrawn => 0,
+                   reads => 200,
+                   bases => 12200,
+                   analysis_group => 'low coverage',
+                   paired => 1,
+                   mate => file($cwd, 't/data/2822_6_2.fastq')->stringify }, 'a VRPipe::File created by source has the correct metadata';
 
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VertRes:: and VRTrack::
