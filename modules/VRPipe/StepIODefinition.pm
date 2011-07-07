@@ -34,6 +34,19 @@ class VRPipe::StepIODefinition extends VRPipe::Persistent {
                           is_key => 1);
     
     __PACKAGE__->make_persistent();
+    
+    method required_metadata_keys {
+        my $metadata = $self->metadata;
+        my %optional = map { $_ => 1 } @{delete $metadata->{optional} || []};
+        
+        my @required;
+        foreach my $key (sort keys %$metadata) {
+            next if exists $optional{$key};
+            push(@required, $key);
+        }
+        
+        return @required;
+    }
 }
 
 1;

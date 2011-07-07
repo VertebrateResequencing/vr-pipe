@@ -14,7 +14,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
             foreach my $fq_file (@{$self->inputs->{fastq_files}}) {
                 # our output file is our input file
                 my $ifile = $fq_file->path;
-                $self->output_file(output_key => 'fastq_files', output_dir => $ifile->dir, basename => $ifile->basename);
+                $self->output_file(output_key => 'fastq_files_with_metadata', output_dir => $ifile->dir, basename => $ifile->basename);
                 
                 # we expect the datasource to fill in most if not all metadata,
                 # but some things may need calculating
@@ -55,7 +55,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
             my $self = shift;
             
             my $all_ok = 1;
-            foreach my $ofile (@{$self->outputs->{fastq_files}}) {
+            foreach my $ofile (@{$self->outputs->{fastq_files_with_metadata}}) {
                 my $meta = $ofile->metadata;
                 unless ($meta->{bases} && $meta->{reads}) {
                     # body_sub should have created a .fastqcheck file

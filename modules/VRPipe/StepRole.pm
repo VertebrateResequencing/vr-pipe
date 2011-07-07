@@ -211,7 +211,15 @@ role VRPipe::StepRole {
     }
     
     method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {
+        # check that we don't have any outputs defined in the definition that
+        # no files were made for
+        while (my ($key, $val) = each %$defs) {
+            next if exists $hash->{$key};
+            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
+        }
+        
         my @missing;
+        # check the files we actually output are as expected
         while (my ($key, $val) = each %$hash) {
             foreach my $file (@$val) {
                 if (! $file->s) {
@@ -230,8 +238,7 @@ role VRPipe::StepRole {
                     # check the expected metadata keys exist
                     my $def = $defs->{$key};
                     if ($def && $def->isa('VRPipe::StepIODefinition')) {
-                        my $def_meta = $def->metadata;
-                        my @needed = keys %$def_meta;
+                        my @needed = $def->required_metadata_keys;
                         if (@needed) {
                             my $meta = $file->metadata;
                             foreach my $key (@needed) {
@@ -249,6 +256,7 @@ role VRPipe::StepRole {
                 }
             }
         }
+        
         return @missing;
     }
     
