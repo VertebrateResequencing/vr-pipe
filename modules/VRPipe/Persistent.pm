@@ -248,6 +248,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                                                               }
                                                               return nfreeze($hash); } };
                     }
+                    elsif ($cname eq 'ArrayRefOfPersistent') {
+                        $flations{$name} = { inflate => sub { my $array = thaw(shift); my @inflated; foreach my $serialized (@$array) { my ($class, $id) = split('~', $serialized); push(@inflated, $class->get(id => $id)); } return \@inflated; },
+                                             deflate => sub { my $array = shift; my @deflate; foreach my $instance (@$array) { my $ref = ref($instance); my $id = $instance->id; push(@deflate, "$ref~$id"); } return nfreeze(\@deflate); } };
+                    }
                     else {
                         die "unsupported constraint '$cname' for attribute $name in $class\n";
                     }

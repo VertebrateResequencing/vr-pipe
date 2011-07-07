@@ -208,7 +208,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $node_run_args .= ", heartbeat_interval => $heartbeat_interval";
         }
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
-        my $cmd = qq[perl -MVRPipe::Persistent::SchemaBase -MVRPipe::Scheduler -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
+        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
         
         return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements,
                                                                    output_dir => $output_dir,
@@ -308,7 +308,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $job->heartbeat_interval($heartbeat_interval);
         }
         if ($job->pending) {
-            $job->run;
+            $job->run(stepstate => $submission->stepstate);
         }
     }
     

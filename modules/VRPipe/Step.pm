@@ -8,6 +8,11 @@ class VRPipe::Step extends VRPipe::Persistent with VRPipe::StepRole {
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1);
     
+    has 'options_definition' => (is => 'rw',
+                                 isa => PersistentHashRef,
+                                 traits => ['VRPipe::Persistent::Attributes'],
+                                 default => sub { {} });
+    
     has 'inputs_definition' => (is => 'rw',
                                 isa => PersistentHashRef,
                                 traits => ['VRPipe::Persistent::Attributes']);

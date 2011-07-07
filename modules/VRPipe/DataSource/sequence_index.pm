@@ -54,7 +54,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
                 }
                 
                 my $vrfile = VRPipe::File->get(path => $fastq, type => 'fq');
-                $vrfile->add_metadata({ expected_md5 => $pr->[1],
+                $vrfile->add_metadata({ $pr->[1] ? (expected_md5 => $pr->[1]) : (),
                                         lane => $pr->[2],
                                         study => $pr->[3],
                                         study_name => $pr->[4],

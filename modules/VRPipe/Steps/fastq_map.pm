@@ -1,14 +1,17 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::fastq_map with VRPipe::StepRole {
+    method options_definition {
+        return { };
+    }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => 2, description => '1-2 fastq files') };
+        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => 3, description => '1-3 fastq files') };
     }
     method body_sub {
-        return sub { my $self = shift; };
+        return sub { my $self = shift; }; #*** wrappers return command lanes that you then dispatch as normal
     }
     method outputs_definition {
-        return { bam_file => VRPipe::StepIODefinition->get(type => 'fq', max_files => 1, description => 'mapped bam file') };
+        return { mapped_bam_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => 2, description => 'mapped bam file(s)') };
     }
     method post_process_sub {
         return sub { return 1; };

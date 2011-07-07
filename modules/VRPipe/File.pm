@@ -72,12 +72,18 @@ class VRPipe::File extends VRPipe::Persistent {
     method add_metadata (HashRef $meta) {
         my $existing_meta = $self->metadata;
         
-        while (my ($key, $val) = each %$meta) {
-            #*** should we care about overwriting existing keys?
-            $existing_meta->{$key} = $val;
+        # incase the input $meta was the same hashref as existing_meta, we need
+        # a new ref or update will do nothing
+        my $new_meta = {};
+        while (my ($key, $val) = each %$existing_meta) {
+            $new_meta->{$key} = $val;
         }
         
-        $self->metadata($existing_meta);
+        while (my ($key, $val) = each %$meta) {
+            $new_meta->{$key} = $val;
+        }
+        
+        $self->metadata($new_meta);
         $self->update;
     }
     
@@ -181,6 +187,7 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     method remove {
+        my $path = $self->path;
         $self->path->remove;
         $self->update_stats_from_disc;
     }
@@ -188,9 +195,21 @@ class VRPipe::File extends VRPipe::Persistent {
     alias rm => 'remove';
     alias delete => 'remove';
     
-    method update_stats_from_disc {
-        $self->e($self->check_file_existence_on_disc);
-        $self->s($self->check_file_size_on_disc);
+    method update_stats_from_disc (PositiveInt :$retries = 1) {
+        my $current_s = $self->s;
+        
+        my ($new_e, $new_s);
+        my $trys = 0;
+        while (1) {
+            $new_e = $self->check_file_existence_on_disc;
+            $new_s = $self->check_file_size_on_disc;
+            last if $new_s != $current_s;
+            last if ++$trys == $retries;
+            sleep 1;
+        }
+        
+        $self->e($new_e);
+        $self->s($new_s);
         $self->update;
     }
     

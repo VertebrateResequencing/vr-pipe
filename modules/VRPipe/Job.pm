@@ -6,7 +6,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     use Sys::Hostname;
     
     has 'cmd' => (is => 'rw',
-                  isa => Varchar[256],
+                  isa => Varchar[1024],
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
@@ -110,7 +110,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         return ! ($self->running || $self->finished);
     }
     
-    method run (Bool $block_and_skip_if_ok?) {
+    method run (Bool :$block_and_skip_if_ok?, VRPipe::StepState :$stepstate?) {
         # This sets the running state in db, then chdir to ->dir, then forks to run
         # run the ->cmd (updating ->pid, ->host, ->user and ->start_time), then when
         # finished updates ->running, ->finished and success/error-related methods as
@@ -219,9 +219,12 @@ class VRPipe::Job extends VRPipe::Persistent {
         my $exit_code = $self->_wait_for_child($cmd_pid);
         
         # update db details for the job
-        $self->stdout_file->update_stats_from_disc;
-        $self->stderr_file->update_stats_from_disc;
         $self->end_time(DateTime->now());
+        $self->stdout_file->update_stats_from_disc(retries => 3);
+        $self->stderr_file->update_stats_from_disc(retries => 3);
+        if ($stepstate) {
+            $stepstate->update_output_file_stats;
+        }
         $self->running(0);
         $self->finished(1);
         $self->exit_code($exit_code);

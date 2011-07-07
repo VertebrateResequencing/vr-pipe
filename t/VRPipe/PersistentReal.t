@@ -267,10 +267,10 @@ ok my $prewritten_step = VRPipe::Step->get(name => "md5_file_production"), 'able
 # likewise, we can get pre-written pipelines as well
 ok my $prewritten_pipeline = VRPipe::Pipeline->get(name => 'mapping'), 'able to get a pre-written pipeline';
 my @sms = $prewritten_pipeline->steps;
-is_deeply [$sms[0]->step->name, $sms[1]->step->name, $sms[2]->step->name, $sms[3]->step->name, scalar(@sms)], [qw(fastq_split fastq_map bam_merge bam_stats), 4], 'the pipeline has the correct steps';
+is_deeply [$sms[0]->step->name, $sms[1]->step->name, $sms[2]->step->name, $sms[3]->step->name, $sms[4]->step->name, scalar(@sms)], [qw(fastq_metadata fastq_split fastq_map bam_merge bam_stats), 5], 'the pipeline has the correct steps';
 $prewritten_pipeline = VRPipe::Pipeline->get(name => 'mapping');
 @sms = $prewritten_pipeline->steps;
-is_deeply [$sms[0]->step->name, $sms[1]->step->name, $sms[2]->step->name, $sms[3]->step->name, scalar(@sms)], [qw(fastq_split fastq_map bam_merge bam_stats), 4], 'the pipeline has the correct steps after a second retrieval';
+is_deeply [$sms[0]->step->name, $sms[1]->step->name, $sms[2]->step->name, $sms[3]->step->name, $sms[4]->step->name, scalar(@sms)], [qw(fastq_metadata fastq_split fastq_map bam_merge bam_stats), 5], 'the pipeline has the correct steps after a second retrieval';
 
 my %heartbeats;
 # running jobs directly
