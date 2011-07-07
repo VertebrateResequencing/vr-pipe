@@ -63,11 +63,12 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
                     if ($fqc_file->s) {
                         # parse the file
                         my $parser = VRPipe::Parser->create('fqc', {file => $fqc_file});
-                        $meta->{bases} = $parser->total_length;
-                        $meta->{reads} = $parser->num_sequences;
+                        my $new_meta;
+                        $new_meta->{bases} = $parser->total_length;
+                        $new_meta->{reads} = $parser->num_sequences;
                         #*** etc.
                         
-                        $ofile->add_metadata($meta);
+                        $ofile->add_metadata($new_meta);
                     }
                     else {
                        $self->warn("some metadata was missing from the dataelement of ".$ofile->path.", and so is the .fastqcheck that could have resolved that");

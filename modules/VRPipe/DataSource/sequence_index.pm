@@ -67,10 +67,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
                                         insert_size => $pr->[17],
                                         withdrawn => $pr->[20],
                                         reads => $pr->[23],
-                                        bases => $pr->[24],
+                                        $pr->[24] ? (bases => $pr->[24]) : (),
                                         analysis_group => $pr->[25],
                                         paired => $paired,
-                                        $mate ? (mate => $mate) : () });
+                                        $mate ? (mate => $mate) : () },
+                                      replace_data => 0);
                 
                 unless ($vrfile->s) {
                     $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;

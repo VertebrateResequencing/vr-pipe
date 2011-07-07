@@ -6,9 +6,8 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 10;
+    use Test::Most tests => 8;
     
-    use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
     
     use TestPersistentReal;
@@ -176,61 +175,6 @@ foreach my $file (file(qw(t data file.bam))->absolute,
 is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec bc5e5541094af2ddf06d8d6a3ef6e101 3f07e8796553d8dbebdc55d59febeab6 cb683a2796e39c24338cfc23ded5a299)], 'md5s were all set in db';
 
 #*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
-
-# try out the pre-written mapping pipeline
-my $ref_fa = file(qw(t data S_suis_P17.fa));
-my $mapping_output_dir = dir($output_root, 'mapping_pipeline');
-$scheduler->make_path($mapping_output_dir);
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4',
-                                                       datasource => VRPipe::DataSource->get(type => 'sequence_index',
-                                                                                             method => 'lane_fastqs',
-                                                                                             source => file(qw(t data datasource.sequence_index))),
-                                                       output_root => $mapping_output_dir,
-                                                       pipeline => VRPipe::Pipeline->get(name => 'mapping'));
-
-my @mapping_output_files;
-
-handle_pipeline(@mapping_output_files);
-
-is_deeply [VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)->md5,
-           VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)->metadata,
-           VRPipe::File->get(path => file(qw(t data 8324_8_2.fastq))->absolute)->metadata],
-          ['b90eb321fb12b47800132b237a6a3722',
-           { lane => '8324_8',
-             study => 'STUDY01',
-             study_name => 'my study name',
-             center_name => 'SC',
-             sample_id => 'SAMPLEID02',
-             sample => 'SAMPLE02',
-             population => 'POP',
-             platform => 'ILLUMINA',
-             library => 'LIB03',
-             insert_size => 200,
-             withdrawn => 0,
-             reads => 250,
-             bases => 15250,
-             analysis_group => 'low coverage',
-             paired => 1,
-             mate => file(qw(t data 8324_8_2.fastq))->absolute->stringify },
-           { expected_md5 => 'c8ecf1168b710adde2a3b45f98849780',
-             lane => '8324_8',
-             study => 'STUDY01',
-             study_name => 'my study name',
-             center_name => 'SC',
-             sample_id => 'SAMPLEID02',
-             sample => 'SAMPLE02',
-             population => 'POP',
-             platform => 'ILLUMINA',
-             library => 'LIB03',
-             insert_size => 200,
-             withdrawn => 0,
-             reads => 250,
-             bases => 13500,
-             analysis_group => 'low coverage',
-             paired => 2,
-             mate => file(qw(t data 8324_8_1.fastq))->absolute->stringify }], 'fastqs that went through the first step of the mapping pipeline have the correct metadata';
-
-#is handle_pipeline(@mapping_output_files), 1, 'all mapping files were created via Manager';
 
 done_testing;
 exit;

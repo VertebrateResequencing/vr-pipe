@@ -69,7 +69,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method add_metadata (HashRef $meta) {
+    method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
         my $existing_meta = $self->metadata;
         
         # incase the input $meta was the same hashref as existing_meta, we need
@@ -80,6 +80,14 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         
         while (my ($key, $val) = each %$meta) {
+            # we don't always overwrite existing values
+            if ($replace_data) {
+                next unless (defined $val && "$val" ne "");
+            }
+            else {
+                next if exists $new_meta->{$key};
+            }
+            
             $new_meta->{$key} = $val;
         }
         

@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 113;
+    use Test::Most tests => 110;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -263,14 +263,6 @@ is $subs_array->member(2)->id, 2, 'member() works given an index when members() 
 # steps can be created by requesting a name corresponding to a pre-written
 # class in VRPipe::Steps::*
 ok my $prewritten_step = VRPipe::Step->get(name => "md5_file_production"), 'able to get a pre-written step';
-
-# likewise, we can get pre-written pipelines as well
-ok my $prewritten_pipeline = VRPipe::Pipeline->get(name => 'mapping'), 'able to get a pre-written pipeline';
-my @sms = $prewritten_pipeline->steps;
-is_deeply [$sms[0]->step->name, $sms[1]->step->name, $sms[2]->step->name, $sms[3]->step->name, $sms[4]->step->name, scalar(@sms)], [qw(fastq_metadata fastq_split fastq_map bam_merge bam_stats), 5], 'the pipeline has the correct steps';
-$prewritten_pipeline = VRPipe::Pipeline->get(name => 'mapping');
-@sms = $prewritten_pipeline->steps;
-is_deeply [$sms[0]->step->name, $sms[1]->step->name, $sms[2]->step->name, $sms[3]->step->name, $sms[4]->step->name, scalar(@sms)], [qw(fastq_metadata fastq_split fastq_map bam_merge bam_stats), 5], 'the pipeline has the correct steps after a second retrieval';
 
 my %heartbeats;
 # running jobs directly
