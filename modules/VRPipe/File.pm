@@ -107,7 +107,7 @@ class VRPipe::File extends VRPipe::Persistent {
     method openw {
         return $self->open('>');
     }
-    method open (OpenMode $mode, Str :$permissions?, Bool :$backwards?) {
+    method open (OpenMode $mode, Str :$permissions?, Bool :$backwards?, Bool :$is_retry = 0) {
         my $path = $self->path;
         
         if ($mode eq '<' && ! $self->e) {
@@ -169,7 +169,18 @@ class VRPipe::File extends VRPipe::Persistent {
             }
         }
         else {
-            $self->throw("Failed to open '$path': $!");
+            if ($is_retry && $mode eq '<') {
+                $self->throw("Failed to open '$path': $!");
+            }
+            else {
+                # we think the file exists, so sleep a second and try again
+                $self->warn("Failed to open '$path' ($!), will retry...");
+                sleep(1);
+                return $self->open($mode,
+                                   defined $permissions ? (permissions => $permissions) : (),
+                                   defined $backwards ? (backwards => $backwards) : (),
+                                   is_retry => 1);
+            }
         }
         
         $self->_opened($fh);
