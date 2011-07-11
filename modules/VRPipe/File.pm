@@ -13,7 +13,7 @@ class VRPipe::File extends VRPipe::Persistent {
                    coerce => 1,
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1,
-                   handles => [qw(slurp stat lstat)]);
+                   handles => [qw(slurp stat lstat basename)]);
     
     has 'type' => (is => 'rw',
                    isa => FileType,
@@ -107,7 +107,7 @@ class VRPipe::File extends VRPipe::Persistent {
     method openw {
         return $self->open('>');
     }
-    method open (OpenMode $mode, Str :$permissions?, Bool :$backwards?, Bool :$is_retry = 0) {
+    method open (OpenMode $mode, Str :$permissions?, Bool :$backwards?, Int :$retry = 0) {
         my $path = $self->path;
         
         if ($mode eq '<' && ! $self->e) {
@@ -137,7 +137,7 @@ class VRPipe::File extends VRPipe::Persistent {
                     $open_cmd = "gunzip -c $path |";
                 }
                 else {
-                    $fh = IO::Uncompress::AnyUncompress->new($path, AutoClose => 1);
+                    $fh = IO::Uncompress::AnyUncompress->new($path->stringify, AutoClose => 1);
                 }
             }
             else {
@@ -169,17 +169,19 @@ class VRPipe::File extends VRPipe::Persistent {
             }
         }
         else {
-            if ($is_retry && $mode eq '<') {
-                $self->throw("Failed to open '$path': $!");
+            if ($retry > 9 && $mode eq '<') {
+                $self->throw("Failed to open '$path' after multiple retries: $!");
             }
             else {
                 # we think the file exists, so sleep a second and try again
                 $self->warn("Failed to open '$path' ($!), will retry...");
+                my $ls = `ls -alth /nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe/t/data/8324_8_2.fastq`;
+                warn $ls;
                 sleep(1);
                 return $self->open($mode,
                                    defined $permissions ? (permissions => $permissions) : (),
                                    defined $backwards ? (backwards => $backwards) : (),
-                                   is_retry => 1);
+                                   retry => ++$retry);
             }
         }
         
@@ -230,6 +232,24 @@ class VRPipe::File extends VRPipe::Persistent {
         $self->e($new_e);
         $self->s($new_s);
         $self->update;
+    }
+    
+    method raw_lines {
+        $self->update_stats_from_disc;
+        my $s = $self->s;
+        my $metadata = $self->metadata;
+        if (exists $metadata->{"raw_lines_$s"}) {
+            return $metadata->{"raw_lines_$s"};
+        }
+        else {
+            my $path = $self->path;
+            open(my $wc, "wc -l $path |") || $self->throw("wc -l did not work");
+            my ($raw_lines) = split(" ", <$wc>);
+            close($wc);
+            $metadata->{"raw_lines_$s"} = $raw_lines;
+            $self->add_metadata($metadata);
+            return $raw_lines;
+        }
     }
     
     method DEMOLISH {

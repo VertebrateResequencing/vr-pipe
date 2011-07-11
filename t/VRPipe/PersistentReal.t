@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 110;
+    use Test::Most tests => 106;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
@@ -28,23 +28,15 @@ is_deeply [$schedulers[2]->id, $schedulers[2]->type, $schedulers[2]->output_root
 my $output_dir = dir($schedulers[2]->output_root, 'persistent_test_output');
 $schedulers[2]->remove_tree($output_dir);
 $schedulers[2]->make_path($output_dir);
+
 my @files;
 my $input1_path = file($output_dir, 'input1.txt');
 open(my $fh, '>', $input1_path) or die "Could not write to $input1_path\n";
 print $fh "input1_line1\ninput2_line2\n";
 close($fh);
 ok $files[0] = VRPipe::File->get(path => $input1_path, type => 'txt', metadata => {foo => 'bar'}), 'created a File using get()';
-undef($files[0]);
-$files[0] = VRPipe::File->get(id => 1);
-$files[0]->add_metadata({baz => 'loman'});
-is_deeply [$files[0]->path, $files[0]->e, $files[0]->metadata], [$input1_path, 1, {foo => 'bar', baz => 'loman'}], 'file1 has the expected fields';
-cmp_ok $files[0]->s, '>=', 5, 'file1 has some size';
 my $output1_path = file($output_dir, 'output1.txt');
 ok $files[1] = VRPipe::File->get(path => $output1_path, type => 'txt'), 'created another File using get()';
-undef($files[1]);
-$files[1] = VRPipe::File->get(id => 2);
-is_deeply [$files[1]->path, $files[1]->e, $files[1]->s], [$output1_path, 0, 0], 'file2 has the expected fields';
-throws_ok { VRPipe::File->get(path => 'output1.txt', type => 'txt') } qr/must be absolute/, 'using get() with a relative path causes a throw';
 
 my @ids;
 ok $ids[0] = VRPipe::StepIODefinition->get(type => 'bam', description => 'step_1 bam input'), 'created a InputDefinition using get()';
