@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 16;
+    use Test::Most tests => 17;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -46,16 +46,18 @@ is $line, "foo\n", 'the read and write was successfull';
 $output_path = file($tmp_dir, 'output.txt.gz');
 ok $vrofile = VRPipe::File->get(path => $output_path, type => 'txt'), 'created another File using get()';
 ok $ofh = $vrofile->openw, 'was able to open a file for writing compressed';
-print $ofh "bar\n";
+print $ofh "foo\nbar\nbaz\n";
 $vrofile->close;
 open(my $gunzip, "gunzip -c $output_path |");
-$line = <$gunzip>;
+my @lines = <$gunzip>;
 close($gunzip);
-is $line, "bar\n", "we really did write a compressed file";
+is_deeply \@lines, ["foo\n", "bar\n", "baz\n"], "we really did write a compressed file";
 ok $ifh = $vrofile->openr, 'was able to open a compressed file for reading';
-$line = <$ifh>;
+@lines = ();
+@lines = <$ifh>;
 $vrofile->close;
-is $line, "bar\n", 'the compressed file could be read with openr';
+is_deeply \@lines, ["foo\n", "bar\n", "baz\n"], 'the compressed file could be read with openr';
+is $vrofile->raw_lines, 3, 'raw_lines works correctly on a compressed file';
 
 done_testing;
 exit;

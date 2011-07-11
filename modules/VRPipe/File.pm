@@ -241,7 +241,8 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         else {
             my $path = $self->path;
-            open(my $wc, "wc -l $path |") || $self->throw("wc -l did not work");
+            my $cat = $path =~ /\.gz$/ ? 'zcat' : 'cat';
+            open(my $wc, "$cat $path | wc -l |") || $self->throw("$cat $path | wc -l did not work");
             my ($raw_lines) = split(" ", <$wc>);
             close($wc);
             $metadata->{"raw_lines_$s"} = $raw_lines;
