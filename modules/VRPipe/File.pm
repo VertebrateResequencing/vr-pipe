@@ -169,14 +169,12 @@ class VRPipe::File extends VRPipe::Persistent {
             }
         }
         else {
-            if ($retry > 9 && $mode eq '<') {
+            if ($retry > 59 && $mode eq '<') {
                 $self->throw("Failed to open '$path' after multiple retries: $!");
             }
             else {
                 # we think the file exists, so sleep a second and try again
                 $self->warn("Failed to open '$path' ($!), will retry...");
-                my $ls = `ls -alth /nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe/t/data/8324_8_2.fastq`;
-                warn $ls;
                 sleep(1);
                 return $self->open($mode,
                                    defined $permissions ? (permissions => $permissions) : (),
