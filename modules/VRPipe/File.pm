@@ -74,25 +74,17 @@ class VRPipe::File extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method add_metadata (HashRef $meta, Bool :$debug = 0, Bool :$replace_data = 1) {
+    method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
         my $existing_meta = $self->metadata;
-        
-        unless ($debug) {
-            $debug = $self->path eq '/nfs/vertres03/user/sb10/vrpipe/pipelines_test_output/mapping/2822_6/fastq_split_se_1000/2822_6.4.fastq.gz';
-            warn "in add_metadata, manually set debug to true\n" if $debug;
-        }
-        warn "in add_metadata for ", $self->path, "\n" if $debug;
         
         # incase the input $meta was the same hashref as existing_meta, we need
         # a new ref or update will do nothing
         my $new_meta = {};
         while (my ($key, $val) = each %$existing_meta) {
             $new_meta->{$key} = $val;
-            warn "  existing $key => $val\n" if $debug;
         }
         
         while (my ($key, $val) = each %$meta) {
-            warn "  new $key => $val\n" if $debug;
             # we don't always overwrite existing values
             if ($replace_data) {
                 next unless (defined $val && "$val" ne "");
@@ -101,20 +93,11 @@ class VRPipe::File extends VRPipe::Persistent {
                 next if exists $new_meta->{$key};
             }
             
-            warn "    set\n" if $debug;
             $new_meta->{$key} = $val;
         }
         
         $self->metadata($new_meta);
         $self->update;
-        
-        if ($debug) {
-            warn "after update, metadata is:\n";
-            my $meta = $self->metadata;
-            while (my ($key, $val) = each %$meta) {
-                warn "  $key => $val\n";
-            }
-        }
     }
     
     method openr {
