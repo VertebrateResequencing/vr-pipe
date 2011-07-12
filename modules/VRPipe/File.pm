@@ -36,6 +36,11 @@ class VRPipe::File extends VRPipe::Persistent {
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_nullable => 1);
     
+    has '_lines' => (is => 'rw',
+                    isa => IntSQL[64],
+                    traits => ['VRPipe::Persistent::Attributes'],
+                    is_nullable => 1);
+    
     has 'metadata' => (is => 'rw',
                        isa => 'HashRef',
                        traits => ['VRPipe::Persistent::Attributes'],
@@ -55,7 +60,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method check_file_size_on_disc {
         my $s = -s $self->path;
-        return $s || 0;
+        return $s ? $s : 0;
     }
     
     method _filetype_from_extension {
@@ -69,17 +74,25 @@ class VRPipe::File extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
+    method add_metadata (HashRef $meta, Bool :$debug = 0, Bool :$replace_data = 1) {
         my $existing_meta = $self->metadata;
+        
+        unless ($debug) {
+            $debug = $self->path eq '/nfs/vertres03/user/sb10/vrpipe/pipelines_test_output/mapping/2822_6/fastq_split_se_1000/2822_6.4.fastq.gz';
+            warn "in add_metadata, manually set debug to true\n" if $debug;
+        }
+        warn "in add_metadata for ", $self->path, "\n" if $debug;
         
         # incase the input $meta was the same hashref as existing_meta, we need
         # a new ref or update will do nothing
         my $new_meta = {};
         while (my ($key, $val) = each %$existing_meta) {
             $new_meta->{$key} = $val;
+            warn "  existing $key => $val\n" if $debug;
         }
         
         while (my ($key, $val) = each %$meta) {
+            warn "  new $key => $val\n" if $debug;
             # we don't always overwrite existing values
             if ($replace_data) {
                 next unless (defined $val && "$val" ne "");
@@ -88,11 +101,20 @@ class VRPipe::File extends VRPipe::Persistent {
                 next if exists $new_meta->{$key};
             }
             
+            warn "    set\n" if $debug;
             $new_meta->{$key} = $val;
         }
         
         $self->metadata($new_meta);
         $self->update;
+        
+        if ($debug) {
+            warn "after update, metadata is:\n";
+            my $meta = $self->metadata;
+            while (my ($key, $val) = each %$meta) {
+                warn "  $key => $val\n";
+            }
+        }
     }
     
     method openr {
@@ -109,6 +131,8 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     method open (OpenMode $mode, Str :$permissions?, Bool :$backwards?, Int :$retry = 0) {
         my $path = $self->path;
+        
+        $self->throw("Only modes <, > and >> are supported") unless $mode =~ /^(?:<|>)+$/;
         
         if ($mode eq '<' && ! $self->e) {
             $self->throw("File '$path' does not exist, so cannot be opened for reading");
@@ -141,7 +165,7 @@ class VRPipe::File extends VRPipe::Persistent {
                 }
             }
             else {
-                $open_cmd = "| gzip -c > $path";
+                $open_cmd = "| gzip -c $mode $path";
             }
             
             open($fh, $open_cmd) unless $fh;
@@ -174,7 +198,6 @@ class VRPipe::File extends VRPipe::Persistent {
             }
             else {
                 # we think the file exists, so sleep a second and try again
-                $self->warn("Failed to open '$path' ($!), will retry...");
                 sleep(1);
                 return $self->open($mode,
                                    defined $permissions ? (permissions => $permissions) : (),
@@ -227,28 +250,30 @@ class VRPipe::File extends VRPipe::Persistent {
             sleep 1;
         }
         
+        if (! $new_s || $current_s != $new_s) {
+            $self->_lines(undef);
+        }
+        
         $self->e($new_e);
         $self->s($new_s);
         $self->update;
     }
     
-    method raw_lines {
-        $self->update_stats_from_disc;
-        my $s = $self->s;
-        my $metadata = $self->metadata;
-        if (exists $metadata->{"raw_lines_$s"}) {
-            return $metadata->{"raw_lines_$s"};
-        }
-        else {
+    method lines {
+        my $s = $self->s || return 0;
+        
+        my $lines = $self->_lines;
+        unless ($lines) {
             my $path = $self->path;
             my $cat = $path =~ /\.gz$/ ? 'zcat' : 'cat';
             open(my $wc, "$cat $path | wc -l |") || $self->throw("$cat $path | wc -l did not work");
-            my ($raw_lines) = split(" ", <$wc>);
+            ($lines) = split(" ", <$wc>);
             close($wc);
-            $metadata->{"raw_lines_$s"} = $raw_lines;
-            $self->add_metadata($metadata);
-            return $raw_lines;
+            $self->_lines($lines);
         }
+        
+        $lines || $self->throw("Failed to find any lines in ".$self->path.", even though it has size!");
+        return $lines;
     }
     
     method DEMOLISH {
