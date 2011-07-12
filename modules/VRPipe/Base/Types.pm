@@ -39,7 +39,7 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   PersistentArray ArrayRefOfPersistent
                                   PersistentHashRef FileType AbsoluteFile
                                   PersistentFileHashRef OpenMode AnyFileHandle
-                                  ParserType)];
+                                  ParserType MapperType)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -148,6 +148,14 @@ subtype ParserType,
     where { my $type = $_; eval "require VRPipe::Parser::$type;"; if ($@) { return 0; } return 1; },
     message { "Not a valid VRPipe::Parser type" };
 coerce ParserType,
+    from Str,
+    via { lc($_) };
+
+subtype MapperType,
+    as Str,
+    where { my $type = $_; eval "require VRPipe::Wrapper::Mapper::$type;"; if ($@) { return 0; } return 1; },
+    message { "Not a valid VRPipe::Wrapper::Mapper type" };
+coerce MapperType,
     from Str,
     via { lc($_) };
 

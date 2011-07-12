@@ -19,7 +19,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
                 # we expect the datasource to fill in most if not all metadata,
                 # but some things may need calculating
                 my $meta = $fq_file->metadata;
-                unless ($meta->{bases} && $meta->{reads}) {
+                unless ($meta->{bases} && $meta->{reads} && $meta->{avg_read_length}) {
                     # run fastqcheck to generate stats
                     # record the fact that we (probably) made the fastqcheck
                     # file, even though it isn't in our outputs_definition *** or should we be able to have optional outputs?
@@ -45,8 +45,10 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
         return { fastq_files_with_metadata => VRPipe::StepIODefinition->get(type => 'fq',
                                                                             description => 'a fastq file with associated metadata',
                                                                             max_files => -1,
-                                                                            metadata => {bases => 'total number of base pairs',
+                                                                            metadata => {lane => 'lane name (a unique identifer for this sequencing run)',
+                                                                                         bases => 'total number of base pairs',
                                                                                          reads => 'total number of reads (sequences)',
+                                                                                         avg_read_length => 'the average length of reads',
                                                                                          #*** etc.
                                                                                          }) };
     }
@@ -57,7 +59,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
             my $all_ok = 1;
             foreach my $ofile (@{$self->outputs->{fastq_files_with_metadata}}) {
                 my $meta = $ofile->metadata;
-                unless ($meta->{bases} && $meta->{reads}) {
+                unless ($meta->{bases} && $meta->{reads} && $meta->{avg_read_length}) {
                     # body_sub should have created a .fastqcheck file
                     my $fqc_file = VRPipe::File->get(path => $ofile->path.'.fastqcheck');
                     if ($fqc_file->s) {
@@ -66,6 +68,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
                         my $new_meta;
                         $new_meta->{bases} = $parser->total_length;
                         $new_meta->{reads} = $parser->num_sequences;
+                        $new_meta->{avg_read_length} = $parser->avg_length;
                         #*** etc.
                         
                         $ofile->add_metadata($new_meta);

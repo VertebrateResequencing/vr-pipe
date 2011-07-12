@@ -8,7 +8,10 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to calculate stats for') };
     }
     method body_sub {
-        return sub { my $self = shift; };
+        return sub {
+            my $self = shift;
+            $self->throw("foo");
+        };
     }
     method outputs_definition {
         return { bas_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => 'a .bas file for each input bam file') };

@@ -13,7 +13,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
         return VRPipe::Parser->create('sequence_index', {file => $file});
     }
     
-    method lane_fastqs (Defined :$handle, Bool :$ignore_withdrawn = 1, Str|Dir :$fastq_root_dir?, Bool :$require_fastqs = 1) {
+    method lane_fastqs (Defined :$handle, Bool :$ignore_withdrawn = 1, Str|Dir :$fastq_root_dir?, Bool :$require_fastqs = 1, Str :$platform?) {
         my $lanes_hash = $self->_lanes_hash;
         
         unless ($lanes_hash) {
@@ -25,6 +25,10 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
             while ($handle->next_record) {
                 next if $ignore_withdrawn && $pr->[20];
                 $pr->[2] || $self->throw("lane is required in column 3");
+                
+                if ($platform) {
+                    next unless $pr->[12] eq $platform;
+                }
                 
                 my $fastq = $pr->[0] || $self->throw("fastq is required in first column");
                 if ($fastq_root_dir) {
@@ -67,7 +71,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
                                         insert_size => $pr->[17],
                                         withdrawn => $pr->[20],
                                         reads => $pr->[23],
-                                        $pr->[24] ? (bases => $pr->[24]) : (),
+                                        bases => $pr->[24],
                                         analysis_group => $pr->[25],
                                         paired => $paired,
                                         $mate ? (mate => $mate) : () },
