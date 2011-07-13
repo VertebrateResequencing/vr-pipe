@@ -30,10 +30,6 @@ class VRPipe::MyClass {
 
         # print a debugging message for those who want to read it
         $self->debug("This is a debugging message");
-
-        # if you do something that will require special consideration when
-        # destroying ourselves, write a method to handle that and register it
-        $self->register_for_cleanup('my_cleanup_method');
     }
 }
 
