@@ -53,7 +53,7 @@ role VRPipe::StepRole {
     # when parse is called, we'll store our dispatched refs here
     has 'dispatched' => (is => 'ro',
                          traits  => ['Array'],
-                         isa     => 'ArrayRef', #*** ArrayRef[ArrayRef[Str,VRPipe::Requirements]] doesn't work, don't know why...
+                         isa     => 'ArrayRef',
                          lazy    => 1,
                          default => sub { [] },
                          handles => { dispatch => 'push',

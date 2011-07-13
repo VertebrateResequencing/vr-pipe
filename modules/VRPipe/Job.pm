@@ -16,6 +16,11 @@ class VRPipe::Job extends VRPipe::Persistent {
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
+    has 'block_and_skip_if_ok' => (is => 'rw',
+                                   isa => 'Bool',
+                                   traits => ['VRPipe::Persistent::Attributes'],
+                                   default => 0);
+    
     has 'running' => (is => 'rw',
                       isa => 'Bool',
                       traits => ['VRPipe::Persistent::Attributes'],
@@ -110,7 +115,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         return ! ($self->running || $self->finished);
     }
     
-    method run (Bool :$block_and_skip_if_ok?, VRPipe::StepState :$stepstate?) {
+    method run (VRPipe::StepState :$stepstate?) {
         # This sets the running state in db, then chdir to ->dir, then forks to run
         # run the ->cmd (updating ->pid, ->host, ->user and ->start_time), then when
         # finished updates ->running, ->finished and success/error-related methods as
@@ -123,7 +128,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         # start a bunch of tasks that all need to first index a reference file before
         # doing something on their own input files: the reference index job would be
         # run with block_and_skip_if_ok.
-        # While running we update heartbeat() in the db every 30mins so that other
+        # While running we update heartbeat() in the db every min so that other
         # processes can query and see if we're still alive.
         
         #my $cmd = VRPipe::Cmd->new(job_id => 2445);
@@ -131,7 +136,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         
         # check we're allowed to run
         unless ($self->pending) {
-            if ($block_and_skip_if_ok) {
+            if ($self->block_and_skip_if_ok) {
                 # wait until the job has finished running, run it again if it
                 # failed, otherwise do nothing so that $job->ok will be true
                 while (1) {
@@ -142,6 +147,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                         }
                         else {
                             # *** do some kind of reset on failure?
+                            $self->throw("blocking and skipping if ok, but finished and failed... don't know what to do!");
                         }
                         last;
                     }
