@@ -1,6 +1,7 @@
 use VRPipe::Base;
 
 class VRPipe::Submission extends VRPipe::Persistent {
+    use Devel::GlobalDestruction;
     use DateTime;
     use VRPipe::Parser;
     
@@ -229,7 +230,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->requirements->custom;
     }
     
-    method DEMOLISH {
+    sub DEMOLISH {
+        return if in_global_destruction;
+        my $self = shift;
         $self->release if $self->in_storage;
     }
     

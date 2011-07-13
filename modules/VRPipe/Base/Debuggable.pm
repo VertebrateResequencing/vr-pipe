@@ -42,8 +42,6 @@ role VRPipe::Base::Debuggable {
     has 'verbose'    => ( is => 'rw',
                           isa => VerbosityValue,
                           default => 0 );
-    has 'write_logs' => ( is => 'rw',
-                          isa => 'Bool' );
     has 'log_file'   => ( is => 'rw',
                           isa => 'Str' );
     
@@ -205,7 +203,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, boolean to set
 
 =cut
-    around write_logs (ClassName|Object $self: Bool $set?) {
+    method write_logs (ClassName|Object $self: Bool $set?) {
         if (defined $set) {
             $GLOBAL_WRITE_LOGS = $set;
         }

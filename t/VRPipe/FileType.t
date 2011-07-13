@@ -6,6 +6,8 @@ BEGIN {
     use Test::Most tests => 13;
     
     use_ok('VRPipe::FileType');
+    
+    use TestPersistentReal;
 }
 
 ok my $ft = VRPipe::FileType->create('txt', {file => 't/data/file.txt'}), 'could create a txt filetype';

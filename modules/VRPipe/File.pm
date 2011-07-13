@@ -1,6 +1,7 @@
 use VRPipe::Base;
 
 class VRPipe::File extends VRPipe::Persistent {
+    use Devel::GlobalDestruction;
     use MooseX::Aliases;
     use File::ReadBackwards;
     use IO::Uncompress::AnyUncompress;
@@ -195,7 +196,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method close {
         my $fh = $self->_opened || return;
-        close($fh);
+        eval {CORE::close($fh);}; #*** without the eval we get [(in cleanup) Can't use an undefined value as a symbol reference at .../File/ReadBackwards.pm line 221.] ... need to fix without eval...
         $self->_opened(undef);
         if ($self->_opened_for_writing) {
             $self->update_stats_from_disc;
@@ -251,7 +252,7 @@ class VRPipe::File extends VRPipe::Persistent {
             my $cat = $path =~ /\.gz$/ ? 'zcat' : 'cat';
             open(my $wc, "$cat $path | wc -l |") || $self->throw("$cat $path | wc -l did not work");
             ($lines) = split(" ", <$wc>);
-            close($wc);
+            CORE::close($wc);
             $self->_lines($lines);
         }
         
@@ -259,8 +260,9 @@ class VRPipe::File extends VRPipe::Persistent {
         return $lines;
     }
     
-    method DEMOLISH {
-        $self->close;
+    sub DEMOLISH {
+        return if in_global_destruction;
+        shift->close;
     }
 }
 
