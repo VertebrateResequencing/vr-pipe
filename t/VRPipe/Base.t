@@ -1,12 +1,12 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 49;
+    use Test::Most tests => 40;
     
     use_ok('VRPipe::Base');
-    use_ok('File::Spec');
 }
 
 package VRPipe::Test;
@@ -61,13 +61,13 @@ $base->verbose(1);
 my $base2 = VRPipe::Test->new(foo => 'bar', verbose => 2);
 is $base2->verbose, 2, 'verbose can be set via new';
 is $base->verbose, 1, 'verbose on an instance is not set for the whole class';
-my $v = VRPipe::Test->verbose(-1);
+my $v = VRPipe::Test->set_verbose_global(-1);
 is $v, -1, 'verbose could be set on the class';
 is $base->verbose, -1, 'the class set affects instances';
 my $other = VRPipe::Test2->new(foogu => 'bazgu');
 is $other->verbose, -1, 'the class set affects instances of other classes';
 is $base->verbose(2), -1, 'instance set does not override global';
-VRPipe::Test2->clear_verbose();
+VRPipe::Test2->clear_verbose_global();
 ok 1, 'global verbose can be unset';
 is $other->verbose(1), 1, 'instance set works again after unsetting global';
 is $base->verbose(), 2, 'instance sets whilst global override in place were not forgotten';
@@ -94,26 +94,8 @@ is $fobj->basename, 'baz.txt', 'basename also works given array ref input';
 throws_ok { $base->file(undef) } qr/no file specified/, "undef fails the file constraint";
 is $base->optional_file(undef), undef, 'undef passes the MaybeFile constraint';
 
-# register_for_cleanup difficult to test for properly...
-can_ok $base, qw(register_for_cleanup);
-$base->register_for_cleanup('foo');
-$base->register_for_cleanup('verbose');
-$base->register_for_cleanup('not_correct');
-is_deeply {$base->cleanup_methods}, {foo => 1, verbose => 1}, 'existing methods can be registered for cleanup';
-$base->unregister_for_cleanup('verbose');
-is_deeply {$base->cleanup_methods}, {foo => 1}, 'method can be unregistered for cleanup';
-
-# unlinking can be tested, alongside logging
-my $tfile1 = File::Spec->catfile('t', 'data', 'VRPipe_base_unlink_test_1');
-my $tfile2 = File::Spec->catfile('t', 'data', 'VRPipe_base_unlink_test_2');
-system("touch $tfile1; touch $tfile2");
-$base->register_for_unlinking($tfile1, $tfile2);
-is_deeply {$base->files_to_unlink}, {$tfile1 => 1, $tfile2 => 1}, 'files can be registered for unlinking';
-$base->unregister_for_unlinking($tfile2);
-is_deeply {$base->files_to_unlink}, {$tfile1 => 1}, 'files can be unregistered for unlinking';
-$base->register_for_unlinking($tfile2);
-ok -e $tfile1, 'file1 exists prior to unlink attept';
-ok -e $tfile2, 'file2 exists prior to unlink attept';
+# logging
+my $tfile1 = file('t', 'data', 'VRPipe_base_unlink_test_1');
 my $default_log_file = $base->log_file();
 like $default_log_file, qr/VRPipe.log$/, 'default log file has correct name';
 is $base->log_file($tfile1), $tfile1, 'log file location could be changed';
@@ -127,8 +109,10 @@ cmp_ok $log_size, '>', 0, 'logging while logging is on does something';
 $base->log('message2');
 my $log_size2 = -s $tfile1;
 cmp_ok $log_size2, '>', $log_size, 'adding a log message appends';
-undef $base;
-ok ! -e $tfile1, 'file1 unlinked after object destruction';
-ok ! -e $tfile2, 'file1 unlinked after object destruction';
+$tfile1->remove;
+my $tfile2 = file('t', 'data', 'VRPipe_base_unlink_test_2');
+$base = VRPipe::Test->new(log_file => $tfile2);
+is $base->log_file, $tfile2, 'log_file could be set during new()';
+$tfile2->remove;
 
 exit;

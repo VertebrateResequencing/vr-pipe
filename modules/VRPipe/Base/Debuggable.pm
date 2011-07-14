@@ -27,11 +27,6 @@ role VRPipe::Base::Debuggable {
     use File::Spec;
     use IO::Capture::Stderr;
     
-    #*** just for testing; to be removed:
-    after BUILDALL {
-        warn "In BUILDALL: Made a new " . ( ref $self ) . " object\n";
-    }
-    
     # MooseX::ClassAttribute won't let us set things globally across all classes
     # that compose this role, and class_has attributes don't get picked up by
     # MooseX::StrictConstructor, so we don't use it.
@@ -39,20 +34,26 @@ role VRPipe::Base::Debuggable {
     our $GLOBAL_WRITE_LOGS = 0;
     our $GLOBAL_LOG_FILE = File::Spec->catfile($ENV{HOME}, '.VRPipe.log');
     
-    has 'verbose'    => ( is => 'rw',
-                          isa => VerbosityValue,
-                          default => 0 );
-    has 'log_file'   => ( is => 'rw',
-                          isa => 'Str' );
+    # these are just to allow verbose and log_file to be set during new()
+    has '_verbose'    => (is => 'ro',
+                         isa => VerbosityValue,
+                         default => 0,
+                         init_arg => 'verbose',
+                         trigger => \&verbose);
+    has '_log_file'   => (is => 'ro',
+                          isa => 'Str|Path::Class::File',
+                          init_arg => 'log_file',
+                          trigger => \&log_file);
     
 =head2 verbose
 
  Title   : verbose
  Usage   : $obj->verbose(1); # per-instance
-           VRPipe::Any::Class->verbose(2); # global override - make all
-                                           # instances of all classes behave
-                                           # like they have the given verbosity
-           VRPipe::Any::Class->clear_verbose; # disables global override
+           VRPipe::Any::Class->set_verbose_global(2); # global override -
+                                           # make all instances of all classes
+                                           # behave like they have the given
+                                           # verbosity
+           VRPipe::Any::Class->clear_verbose_global; # disables global override
  Function: Sets verbose level for how ->warn() and ->debug() behave
            -1 = no warning, no debug messages
             0 = standard small warning, no debug messages
@@ -63,23 +64,22 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, a verbosity value to set: -1,0,0.5,1 or 2
 
 =cut
-    around verbose (ClassName|Object $self: VerbosityValue $value?) {
+    method verbose (ClassName|Object $self: VerbosityValue $value?, VerbosityValue $old_val?) {
         if (defined $value) {
-            unless (ref($self)) {
-                $GLOBAL_VERBOSITY = $value;
-            }
-            else {
-                $self->$orig($value);
-            }
+            $self->{verbose} = ($value);
         }
         
-        if (defined $GLOBAL_VERBOSITY || ! ref($self)) {
+        if (defined $GLOBAL_VERBOSITY) {
             return $GLOBAL_VERBOSITY;
         }
         
-        return $self->$orig || 0;
+        return $self->{verbose} || 0;
     }
-    method clear_verbose (ClassName $class:) {
+    
+    method set_verbose_global (ClassName|Object $self: VerbosityValue $value) {
+        $GLOBAL_VERBOSITY = $value;
+    }
+    method clear_verbose_global (ClassName $class:) {
         undef $GLOBAL_VERBOSITY;
     }
     
@@ -220,7 +220,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, string to set
 
 =cut
-    around log_file (ClassName|Object $self: Str $set?) {
+    method log_file (ClassName|Object $self: Str|Path::Class::File $set?, Str|File $old_val?) {
         if (defined $set) {
             open(my $fh, ">>", $set) || $self->throw("Could not append to log file '$set'");
             close($fh);
