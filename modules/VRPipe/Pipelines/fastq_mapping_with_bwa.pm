@@ -17,7 +17,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
     method _step_list {
         return ([ VRPipe::Step->get(name => 'fastq_metadata'),
                   VRPipe::Step->get(name => 'fastq_split'),
-                 #VRPipe::Step->get(name => 'bwa_index'),
+                  VRPipe::Step->get(name => 'bwa_index'),
                  #VRPipe::Step->get(name => 'bwa_aln_fastq'),
                  #VRPipe::Step->get(name => 'bwa_sam'),
                  #VRPipe::Step->get(name => 'sam_to_fixed_bam'),

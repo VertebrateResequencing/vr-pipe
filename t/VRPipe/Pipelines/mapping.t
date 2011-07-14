@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 5;
+    use Test::Most tests => 6;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -37,14 +37,20 @@ ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'
 #    is_deeply \@s_names, [qw(fastq_metadata fastq_split bwa_index bwa_aln bwa_sam sam_to_fixed_bam bam_merge_lane_splits bam_stats)], 'the pipeline has the correct steps after a second retrieval';
 #}
 
-my $ref_fa = file(qw(t data S_suis_P17.fa));
+my $ref_fa_source = file(qw(t data S_suis_P17.fa));
+my $ref_dir = dir($mapping_output_dir, 'ref');
+$scheduler->make_path($ref_dir);
+my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
+copy($ref_fa_source, $ref_fa);
 my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                        datasource => VRPipe::DataSource->get(type => 'sequence_index',
                                                                                              method => 'lane_fastqs',
                                                                                              source => file(qw(t data datasource.sequence_index))),
                                                        output_root => $mapping_output_dir,
                                                        pipeline => $mapping_pipeline,
-                                                       options => {fastq_chunk_size => 1000});
+                                                       options => {fastq_chunk_size => 1000,
+                                                                   reference_fasta => $ref_fa,
+                                                                   bwa_index_cmd => 'bwa index -a is'});
 
 my @mapping_output_files;
 
@@ -214,6 +220,22 @@ foreach my $element_id (1..4) {
 }
 
 is_deeply [$existing_outputs, $recorded_outputs], [246, 246], 'all the split files that should have been created by the fastq_split step exist and were recorded as step outputs';
+
+$existing_outputs = 0;
+foreach my $suffix (qw(amb ann bwt pac rbwt rpac rsa sa)) {
+    $existing_outputs += -s file($ref_dir, 'S_suis_P17.fa.'.$suffix) ? 1 : 0;
+}
+my %recorded_outputs;
+foreach my $element_id (1..4) {
+    foreach my $out_key (qw(bwa_index_binary_files bwa_index_text_files)) {
+        my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => $element_id)->output_files->{$out_key};
+        foreach my $out (@$outs) {
+            $recorded_outputs{$out->path->stringify} = 1;
+        }
+    }
+}
+$recorded_outputs = keys %recorded_outputs;
+is_deeply [$existing_outputs, $recorded_outputs], [8, 8], 'all the ref index files that should have been created by the bwa_index step exist and were recorded as step outputs';
 
 #is handle_pipeline(@mapping_output_files), 1, 'all mapping files were created via Manager';
 

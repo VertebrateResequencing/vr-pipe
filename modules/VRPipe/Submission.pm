@@ -162,6 +162,13 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $self->_failed(1);
         }
         
+        unless ($self->_hid) {
+            # we're a submission for a job that completed in a different
+            # submission, so we didn't actually run and have no output
+            $self->update;
+            return;
+        }
+        
         $self->sync_scheduler;
         $self->archive_output;
         $self->_sid(undef);
