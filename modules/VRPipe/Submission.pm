@@ -169,6 +169,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
             return;
         }
         
+        #*** these 2 calls are probably the cause of massive delays when going
+        #    from jobs being finished to submissions being done... can we
+        #    optimise?
         $self->sync_scheduler;
         $self->archive_output;
         $self->_sid(undef);

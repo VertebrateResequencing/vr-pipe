@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 7;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -193,21 +193,31 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              source_fastq => file(qw(t data 2823_4_2.fastq))->absolute->stringify }], 'split files that came out of the fastq_split step have the correct metadata';
 
 my $existing_outputs = 0;
+my $existing_sai_outs = 0;
 foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
     if ($lane eq '2822_6') {
         for my $i (1..4) {
-            $existing_outputs += -s file($mapping_output_dir, $lane, 'fastq_split_se_1000', "${lane}.$i.fastq.gz") ? 1 : 0;
+            my $fq = file($mapping_output_dir, $lane, 'fastq_split_se_1000', "${lane}.$i.fastq.gz");
+            my $sai = $fq.'.sai';
+            $existing_outputs += -s $fq ? 1 : 0;
+            $existing_sai_outs += -s $sai ? 1 : 0;
         }
         for my $i (1..25) {
             for my $j (1..2) {
-                $existing_outputs += -s file($mapping_output_dir, $lane, 'fastq_split_pe_1000', "${lane}_$j.$i.fastq.gz") ? 1 : 0;
+                my $fq = file($mapping_output_dir, $lane, 'fastq_split_pe_1000', "${lane}_$j.$i.fastq.gz");
+                my $sai = $fq.'.sai';
+                $existing_outputs += -s $fq ? 1 : 0;
+                $existing_sai_outs += -s $sai ? 1 : 0;
             }
         }
     }
     else {
         for my $i (1..32) {
             for my $j (1..2) {
-                $existing_outputs += -s file($mapping_output_dir, $lane, 'fastq_split_pe_1000', "${lane}_$j.$i.fastq.gz") ? 1 : 0;
+                my $fq = file($mapping_output_dir, $lane, 'fastq_split_pe_1000', "${lane}_$j.$i.fastq.gz");
+                my $sai = $fq.'.sai';
+                $existing_outputs += -s $fq ? 1 : 0;
+                $existing_sai_outs += -s $sai ? 1 : 0;
             }
         }
     }
@@ -237,7 +247,13 @@ foreach my $element_id (1..4) {
 $recorded_outputs = keys %recorded_outputs;
 is_deeply [$existing_outputs, $recorded_outputs], [8, 8], 'all the ref index files that should have been created by the bwa_index step exist and were recorded as step outputs';
 
-#is handle_pipeline(@mapping_output_files), 1, 'all mapping files were created via Manager';
+$recorded_outputs = 0;
+foreach my $element_id (1..4) {
+    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => $element_id)->output_files->{bwa_sai_files};
+    $recorded_outputs += @$outs;
+}
+is_deeply [$existing_sai_outs, $recorded_outputs], [246, 246], 'all the sai files that should have been created by the bwa_aln_fastq step exist and were recorded as step outputs';
+
 
 done_testing;
 exit;

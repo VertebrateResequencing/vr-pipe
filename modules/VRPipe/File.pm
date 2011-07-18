@@ -14,7 +14,7 @@ class VRPipe::File extends VRPipe::Persistent {
                    coerce => 1,
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1,
-                   handles => [qw(slurp stat lstat basename)]);
+                   handles => [qw(slurp stat lstat basename dir)]);
     
     has 'type' => (is => 'rw',
                    isa => FileType,
@@ -54,13 +54,15 @@ class VRPipe::File extends VRPipe::Persistent {
     has _opened => (is => 'rw',
                     isa => 'Maybe[IO::File|FileHandle]');
     
-    method check_file_existence_on_disc {
-        my $e = -e $self->path;
+    method check_file_existence_on_disc (File $path?) {
+        $path ||= $self->path; # optional so that we can call this without a db connection by supplying the path
+        my $e = -e $path;
         return $e || 0;
     }
     
-    method check_file_size_on_disc {
-        my $s = -s $self->path;
+    method check_file_size_on_disc (File $path?) {
+        $path ||= $self->path;
+        my $s = -s $path;
         return $s ? $s : 0;
     }
     
@@ -223,12 +225,14 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method update_stats_from_disc (PositiveInt :$retries = 1) {
         my $current_s = $self->s;
+        my $path = $self->path;
+        $self->disconnect;
         
         my ($new_e, $new_s);
         my $trys = 0;
         while (1) {
-            $new_e = $self->check_file_existence_on_disc;
-            $new_s = $self->check_file_size_on_disc;
+            $new_e = $self->check_file_existence_on_disc($path);
+            $new_s = $self->check_file_size_on_disc($path);
             last if $new_s != $current_s;
             last if ++$trys == $retries;
             sleep 1;
@@ -236,11 +240,10 @@ class VRPipe::File extends VRPipe::Persistent {
         
         if (! $new_s || $current_s != $new_s) {
             $self->_lines(undef);
+            $self->e($new_e);
+            $self->s($new_s);
+            $self->update;
         }
-        
-        $self->e($new_e);
-        $self->s($new_s);
-        $self->update;
     }
     
     method lines {

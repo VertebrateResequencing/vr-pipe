@@ -345,6 +345,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 
                 # always get fresh from the db, incase another instance of this
                 # row was altered and updated
+                $self->reconnect;
                 $self->reselect_value_from_db($name);
                 
                 my $dbic_value = $self->$dbic_name();
@@ -468,6 +469,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             }
             
+            $self->reconnect;
+            
             my $rs = $schema->resultset("$class");
             my $row;
             try {
@@ -542,9 +545,36 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
     }
     
-    method disconnect {
+    sub disconnect {
         return unless $GLOBAL_CONNECTED_SCHEMA;
         $GLOBAL_CONNECTED_SCHEMA->storage->disconnect;
+    }
+    
+    sub reconnect {
+        my $self = shift;
+        return unless $GLOBAL_CONNECTED_SCHEMA;
+        
+        # try 10 times to connect
+        my $tries = 0;
+        my $connected = 0;
+        my $last_error;
+        do {
+            $tries++;
+            eval { $GLOBAL_CONNECTED_SCHEMA->storage->ensure_connected; };
+            if ($@) {
+                $last_error = $@;
+                warn "connection failed, $tries tries so far...\n";
+                sleep(1);
+            }
+            else {
+                $connected = 1;
+            }
+        } while ($tries < 10 && ! $connected);
+        
+        unless ($connected) {
+            $self->throw("$last_error");
+        }
+        return 1;
     }
 }
 

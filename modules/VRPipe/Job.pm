@@ -140,6 +140,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                 # wait until the job has finished running, run it again if it
                 # failed, otherwise do nothing so that $job->ok will be true
                 while (1) {
+                    $self->disconnect;
                     sleep(60);
                     if ($self->finished) {
                         if ($self->ok) {
@@ -149,7 +150,6 @@ class VRPipe::Job extends VRPipe::Persistent {
                             # *** do some kind of reset on failure?
                             $self->throw("blocking and skipping if ok, but finished and failed... don't know what to do!");
                         }
-                        last;
                     }
                 }
             }

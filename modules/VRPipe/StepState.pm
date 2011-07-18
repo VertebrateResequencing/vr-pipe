@@ -39,7 +39,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent(has_many => [submissions => 'VRPipe::Submission']);
     
-    method update_output_file_stats {
+    method update_output_file_stats { #*** this is called at the end of a Job run, but the output_files may contain the output files of many Jobs, and so this can be very slow and wasteful...
         my $outputs = $self->output_files;
         if ($outputs) {
             foreach my $val (values %$outputs) {

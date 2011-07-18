@@ -313,6 +313,7 @@ throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pendin
 $jobs[4] = VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
 my $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
 ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit to the scheduler worked';
+my $tlimit = time() + 1800;
 wait_until_done($test_sub);
 ok $test_sub->done, 'submission ran to completion';
 my $job4_stdout_parser = $test_sub->job_stdout;
@@ -354,6 +355,7 @@ is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
 
 # stress testing
 my ($t1, $l1);
+$tlimit = time() + 1800;
 SKIP: {
     skip "stress tests not enabled", 3 unless $ENV{VRPIPE_STRESSTESTS};
     
@@ -365,24 +367,25 @@ SKIP: {
         push(@test_jobs, VRPipe::Job->get(cmd => qq[perl -e 'foreach (1..300) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
         push(@subs_array, VRPipe::Submission->get(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
     }
-    lap(__LINE__); # 26
+    #                lustre nfs lustre
+    lap(__LINE__); # 26 58 34
     ok my $scheduled_id = $schedulers[2]->submit(array => \@subs_array, heartbeat_interval => 30), 'submit to the scheduler worked with an array';
-    lap(__LINE__); # 41
+    lap(__LINE__); # 41 48 49
     %heartbeats = ();
     wait_until_done(@subs_array);
-    lap(__LINE__); # 1046
+    lap(__LINE__); # 1046 2613 1818
     my $good_outputs = 0;
     foreach my $sub (@subs_array) {
         my $cat_parser = $sub->job_stdout;
         $cat_parser->next_record;
         $good_outputs++ if join('', @{$cat_parser->parsed_record}) eq join('', 1..300).$sub->job->pid;
     }
-    lap(__LINE__); # 12
+    lap(__LINE__); # 12 192 171
     is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
     my $good_beats = 0;
     while (my ($sub_id, $hhash) = each %heartbeats) {
         my $beats = keys %{$hhash};
-        $good_beats++ if keys %{$hhash} == 10;
+        $good_beats++ if ($beats >= 7 && $beats <= 10);
     }
     is $good_beats, 1000, 'each arrayed job had the correct number of heartbeats';
 }
@@ -404,6 +407,7 @@ sub wait_until_done {
         }
         last if $all_done;
         last if ++$loops > 1000;
+        last if time() > $tlimit;
         sleep(1);
     }
     
