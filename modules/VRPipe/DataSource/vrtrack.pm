@@ -112,4 +112,52 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
 }
 
+=pod
+    =head2 next_lane_path
+    
+      Arg [1]    : hash of hierarchy level name keys, with regex values. Special
+                   key of 'processed' with hashref value as per
+                   processed_lane_hnames.
+      Example    : all lanes:
+                   while (my $hname = $track->next_lane_path()) { ... }
+                   mapped, not yet improved lanes for sample NA01:
+                   while (my $hname = $track->next_lane_hname(sample => 'NA01',
+                       processed => { mapped => 1, improved => 0 })) { ... }
+      Description: retrieves a (optionally filtered) list of all lane hierarchy
+                   paths, ordered by project, sample, library names.
+      Returntype : arrayref
+    
+    =cut
+    
+    sub next_lane_path {
+        my ($self, %args) = @_;
+        my $processed = delete $args{processed};
+        my $store_name;
+        foreach my $key (sort keys %args) {
+            $store_name .= $key.'->'.$args{$key};
+        }
+        if ($processed) {
+            foreach my $key (sort keys %{$processed}) {
+                $store_name .= $key.'->'.$processed->{$key};
+            }
+        }
+        
+        unless (exists $self->{$store_name}) {
+            
+        }
+        
+        if (exists $self->{$store_name}) {
+            my $sth = $self->{$store_name};
+            my $row_data = $sth->fetchrow_arrayref;
+            if ($row_data) {
+                
+            }
+            else {
+                delete $self->{$store_name};
+                return;
+            }
+        }
+    }
+=cut
+
 1;
