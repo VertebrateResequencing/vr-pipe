@@ -80,6 +80,11 @@ class VRPipe::Job extends VRPipe::Persistent {
                        traits => ['VRPipe::Persistent::Attributes'],
                        is_nullable => 1);
     
+    has 'output_files' => (is => 'rw',
+                           isa => ArrayRefOfPersistent,
+                           traits => ['VRPipe::Persistent::Attributes'],
+                           default => sub { [] });
+    
     __PACKAGE__->make_persistent();
     
     method _build_default_heartbeat_interval {
@@ -228,7 +233,13 @@ class VRPipe::Job extends VRPipe::Persistent {
         $self->end_time(DateTime->now());
         $self->stdout_file->update_stats_from_disc(retries => 3);
         $self->stderr_file->update_stats_from_disc(retries => 3);
-        if ($stepstate) {
+        my $o_files = $self->output_files;
+        if (@$o_files) {
+            foreach my $o_file (@$o_files) {
+                $o_file->update_stats_from_disc(retries => 3);
+            }
+        }
+        elsif ($stepstate) {
             $stepstate->update_output_file_stats;
         }
         $self->running(0);

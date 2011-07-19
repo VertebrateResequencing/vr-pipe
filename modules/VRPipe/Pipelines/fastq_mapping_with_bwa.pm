@@ -19,7 +19,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
                   VRPipe::Step->get(name => 'fastq_split'),
                   VRPipe::Step->get(name => 'bwa_index'),
                   VRPipe::Step->get(name => 'bwa_aln_fastq'),
-                 #VRPipe::Step->get(name => 'bwa_sam'),
+                  VRPipe::Step->get(name => 'bwa_sam'),
                  #VRPipe::Step->get(name => 'sam_to_fixed_bam'),
                  #VRPipe::Step->get(name => 'bam_merge_lane_splits'),
                  #VRPipe::Step->get(name => 'bam_stats')

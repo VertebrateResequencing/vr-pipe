@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 7;
+    use Test::Most tests => 8;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -15,8 +15,8 @@ BEGIN {
 
 my $scheduler = VRPipe::Scheduler->get();
 my $mapping_output_dir = dir($scheduler->output_root, 'pipelines_test_output', 'mapping');
-$scheduler->remove_tree($mapping_output_dir);
-$scheduler->make_path($mapping_output_dir);
+#$scheduler->remove_tree($mapping_output_dir);
+#$scheduler->make_path($mapping_output_dir);
 my $manager = VRPipe::Manager->get();
 
 
@@ -48,7 +48,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                                                              source => file(qw(t data datasource.sequence_index))),
                                                        output_root => $mapping_output_dir,
                                                        pipeline => $mapping_pipeline,
-                                                       options => {fastq_chunk_size => 1000,
+                                                       options => {fastq_chunk_size => 8000,
                                                                    reference_fasta => $ref_fa,
                                                                    bwa_index_cmd => 'bwa index -a is'});
 
@@ -96,14 +96,14 @@ is_deeply [VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)-
              paired => 2,
              mate => file(qw(t data 8324_8_1.fastq))->absolute->stringify }], 'fastqs that went through the first step of the mapping pipeline have the correct metadata';
 
-my @split_fqs = (VRPipe::File->get(path => file($mapping_output_dir, '2822_6', 'fastq_split_se_1000', '2822_6.1.fastq.gz')),
-                 VRPipe::File->get(path => file($mapping_output_dir, '2822_6', 'fastq_split_se_1000', '2822_6.4.fastq.gz')),
-                 VRPipe::File->get(path => file($mapping_output_dir, '2822_6', 'fastq_split_pe_1000', '2822_6_1.1.fastq.gz')),
-                 VRPipe::File->get(path => file($mapping_output_dir, '2822_6', 'fastq_split_pe_1000', '2822_6_2.25.fastq.gz')),
-                 VRPipe::File->get(path => file($mapping_output_dir, '2823_4', 'fastq_split_pe_1000', '2823_4_2.32.fastq.gz')));
+my @split_fqs = (VRPipe::File->get(path => file($mapping_output_dir, '2822_6', 'fastq_split_se_8000', '2822_6.1.fastq')),
+                 VRPipe::File->get(path => file($mapping_output_dir, '2822_6', 'fastq_split_pe_8000', '2822_6_1.1.fastq.gz')),
+                 VRPipe::File->get(path => file($mapping_output_dir, '2822_6', 'fastq_split_pe_8000', '2822_6_2.3.fastq.gz')),
+                 VRPipe::File->get(path => file($mapping_output_dir, '2823_4', 'fastq_split_pe_8000', '2823_4_2.4.fastq.gz')));
 
-is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->metadata, $split_fqs[3]->metadata, $split_fqs[4]->metadata],
+is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->metadata, $split_fqs[3]->metadata],
           [{ lane => '2822_6',
+             chunk => 0,
              study => 'STUDY01',
              study_name => 'my study name',
              center_name => 'SC',
@@ -114,30 +114,14 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              library => 'LIB01',
              insert_size => 200,
              withdrawn => 0,
-             reads => 16,
-             bases => 976,
-             avg_read_length => '61.00',
-             analysis_group => 'low coverage',
-             paired => 0,
-             source_fastq => file(qw(t data 2822_6.fastq))->absolute->stringify },
-           { lane => '2822_6', 
-             study => 'STUDY01',
-             study_name => 'my study name',
-             center_name => 'SC',
-             sample_id => 'SAMPLEID01',
-             sample => 'SAMPLE01',
-             population => 'POP',
-             platform => 'ILLUMINA',
-             library => 'LIB01',
-             insert_size => 200,
-             withdrawn => 0,
-             reads => 2,
-             bases => 122,
+             reads => 50,
+             bases => 3050,
              avg_read_length => '61.00',
              analysis_group => 'low coverage',
              paired => 0,
              source_fastq => file(qw(t data 2822_6.fastq))->absolute->stringify },
            { lane => '2822_6',
+             chunk => 1,
              study => 'STUDY01',
              study_name => 'my study name',
              center_name => 'SC',
@@ -148,14 +132,15 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              library => 'LIB01',
              insert_size => 200,
              withdrawn => 0,
-             reads => 8,
-             bases => 488,
+             reads => 69,
+             bases => 4209,
              avg_read_length => '61.00',
              analysis_group => 'low coverage',
              paired => 1,
-             mate => file($mapping_output_dir, '2822_6', 'fastq_split_pe_1000', '2822_6_2.1.fastq.gz')->stringify,
+             mate => file($mapping_output_dir, '2822_6', 'fastq_split_pe_8000', '2822_6_2.1.fastq.gz')->stringify,
              source_fastq => file(qw(t data 2822_6_1.fastq))->absolute->stringify },
            { lane => '2822_6',
+             chunk => 3,
              study => 'STUDY01',
              study_name => 'my study name',
              center_name => 'SC',
@@ -166,14 +151,15 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              library => 'LIB01',
              insert_size => 200,
              withdrawn => 0,
-             reads => 8,
-             bases => 432,
+             reads => 62,
+             bases => 3348,
              avg_read_length => '54.00',
              analysis_group => 'low coverage',
              paired => 2,
-             mate => file($mapping_output_dir, '2822_6', 'fastq_split_pe_1000', '2822_6_1.25.fastq.gz')->stringify,
+             mate => file($mapping_output_dir, '2822_6', 'fastq_split_pe_8000', '2822_6_1.3.fastq.gz')->stringify,
              source_fastq => file(qw(t data 2822_6_2.fastq))->absolute->stringify },
            { lane => '2823_4',
+             chunk => 4,
              study => 'STUDY01',
              study_name => 'my study name',
              center_name => 'SC',
@@ -184,41 +170,48 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              library => 'LIB02',
              insert_size => 200,
              withdrawn => 0,
-             reads => 2,
-             bases => 108,
+             reads => 43,
+             bases => 2322,
              avg_read_length => '54.00',
              analysis_group => 'low coverage',
              paired => 2,
-             mate => file($mapping_output_dir, '2823_4', 'fastq_split_pe_1000', '2823_4_1.32.fastq.gz')->stringify,
+             mate => file($mapping_output_dir, '2823_4', 'fastq_split_pe_8000', '2823_4_1.4.fastq.gz')->stringify,
              source_fastq => file(qw(t data 2823_4_2.fastq))->absolute->stringify }], 'split files that came out of the fastq_split step have the correct metadata';
 
 my $existing_outputs = 0;
 my $existing_sai_outs = 0;
+my $existing_sam_outs = 0;
 foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
     if ($lane eq '2822_6') {
-        for my $i (1..4) {
-            my $fq = file($mapping_output_dir, $lane, 'fastq_split_se_1000', "${lane}.$i.fastq.gz");
+        for my $i (1..1) {
+            my $fq = file($mapping_output_dir, $lane, 'fastq_split_se_8000', "${lane}.$i.fastq");
             my $sai = $fq.'.sai';
             $existing_outputs += -s $fq ? 1 : 0;
             $existing_sai_outs += -s $sai ? 1 : 0;
+            my $sam = file($mapping_output_dir, $lane, 'fastq_split_se_8000', "$lane.sam");
+            $existing_sam_outs += -s $sam ? 1 : 0;
         }
-        for my $i (1..25) {
+        for my $i (1..3) {
             for my $j (1..2) {
-                my $fq = file($mapping_output_dir, $lane, 'fastq_split_pe_1000', "${lane}_$j.$i.fastq.gz");
+                my $fq = file($mapping_output_dir, $lane, 'fastq_split_pe_8000', "${lane}_$j.$i.fastq.gz");
                 my $sai = $fq.'.sai';
                 $existing_outputs += -s $fq ? 1 : 0;
                 $existing_sai_outs += -s $sai ? 1 : 0;
             }
+            my $sam = file($mapping_output_dir, $lane, 'fastq_split_pe_8000', "$lane.$i.sam");
+            $existing_sam_outs += -s $sam ? 1 : 0;
         }
     }
     else {
-        for my $i (1..32) {
+        for my $i (1..4) {
             for my $j (1..2) {
-                my $fq = file($mapping_output_dir, $lane, 'fastq_split_pe_1000', "${lane}_$j.$i.fastq.gz");
+                my $fq = file($mapping_output_dir, $lane, 'fastq_split_pe_8000', "${lane}_$j.$i.fastq.gz");
                 my $sai = $fq.'.sai';
                 $existing_outputs += -s $fq ? 1 : 0;
                 $existing_sai_outs += -s $sai ? 1 : 0;
             }
+            my $sam = file($mapping_output_dir, $lane, 'fastq_split_pe_8000', "$lane.$i.sam");
+            $existing_sam_outs += -s $sam ? 1 : 0;
         }
     }
 }
@@ -229,7 +222,7 @@ foreach my $element_id (1..4) {
     $recorded_outputs += @$fastq_split_outs;
 }
 
-is_deeply [$existing_outputs, $recorded_outputs], [246, 246], 'all the split files that should have been created by the fastq_split step exist and were recorded as step outputs';
+is_deeply [$existing_outputs, $recorded_outputs], [31, 31], 'all the split files that should have been created by the fastq_split step exist and were recorded as step outputs';
 
 $existing_outputs = 0;
 foreach my $suffix (qw(amb ann bwt pac rbwt rpac rsa sa)) {
@@ -252,8 +245,14 @@ foreach my $element_id (1..4) {
     my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => $element_id)->output_files->{bwa_sai_files};
     $recorded_outputs += @$outs;
 }
-is_deeply [$existing_sai_outs, $recorded_outputs], [246, 246], 'all the sai files that should have been created by the bwa_aln_fastq step exist and were recorded as step outputs';
+is_deeply [$existing_sai_outs, $recorded_outputs], [31, 31], 'all the sai files that should have been created by the bwa_aln_fastq step exist and were recorded as step outputs';
 
+$recorded_outputs = 0;
+foreach my $element_id (1..4) {
+    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => $element_id)->output_files->{bwa_sam_files};
+    $recorded_outputs += @$outs;
+}
+is_deeply [$existing_sam_outs, $recorded_outputs], [16, 16], 'all the sam files that should have been created by the bwa_sam step exist and were recorded as step outputs';
 
 done_testing;
 exit;

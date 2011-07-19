@@ -41,7 +41,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
                                                   metadata => {source_fastq => $fastq->path->stringify,
                                                                reference_fasta => $ref->stringify});
                 my $this_cmd = $cmd.' -f '.$sai_file->path.' '.$ref.' '.$fastq->path;
-                $self->dispatch([$this_cmd, $req]);
+                $self->dispatch([$this_cmd, $req, {output_files => [$sai_file]}]); # specifying output_files here passes it to the Job, so it doesn't have to check all Step output files, just the one in this loop
             }
         };
     }
@@ -53,7 +53,23 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
                                                                              reference_fasta => 'the reference fasta that reads were aligned to'}) };
     }
     method post_process_sub {
-        return sub { return 1; };
+        return sub {
+            return 1;
+            
+            #*** somewhere we want to check the stderr or each Job associated
+            #    the our StepState, and confirm the number of sequences
+            #    processed during sai file production matches seqs in the fastq
+            #    file
+            #my $max_processed = 0;
+            #while (<$efh>) {
+            #    if (/^\[bwa_aln_core\] (\d+) sequences have been processed/) {
+            #        my $processed = $1;
+            #        if ($processed > $max_processed) {
+            #            $max_processed = $processed;
+            #        }
+            #    }
+            #}
+        };
     }
     method description {
         return "Aligns the input fastq(s) with bwa to the reference";
