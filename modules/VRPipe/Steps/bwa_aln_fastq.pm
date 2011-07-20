@@ -55,9 +55,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
                                                                              reads => 'the number of reads in the source_fastq'}) };
     }
     method post_process_sub {
-        return sub {
-            return 1;
-        };
+        return sub { return 1; };
     }
     method description {
         return "Aligns the input fastq(s) with bwa to the reference";

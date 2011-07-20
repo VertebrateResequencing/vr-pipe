@@ -45,7 +45,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "";
+        return "Indexes a reference genome fasta file, making it suitable for use in subsequent bwa mapping";
     }
 }
 

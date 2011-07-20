@@ -177,10 +177,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                                                                              optional => ['chunk', 'library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method post_process_sub {
-        return sub {
-            
-            return 1;
-        };
+        return sub { return 1; };
     }
     method description {
         return "Produces sam files with bwa samse/sampe for each single or pair of input fastqs&sais";
