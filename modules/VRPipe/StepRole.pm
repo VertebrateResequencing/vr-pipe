@@ -350,10 +350,10 @@ role VRPipe::StepRole {
                                          $custom ? (custom => $custom) : ());
     }
     
-    method dispatch_vrpipecode (Str $code, VRPipe::Requirements $req) {
+    method dispatch_vrpipecode (Str $code, VRPipe::Requirements $req, HashRef $extra_args?) {
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
         my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); $code"];
-        $self->dispatch([$cmd, $req]);
+        $self->dispatch([$cmd, $req, $extra_args]);
     }
     
     method dispatch_md5sum (VRPipe::File $vrfile, Maybe[Str] $expected_md5) {
@@ -368,6 +368,19 @@ role VRPipe::StepRole {
             return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); VRPipe::File->get(path => q[$path], md5 => Digest::MD5->new->addfile(*FILE)->hexdigest);],
                                               $req);
         }
+    }
+    
+    # using this lets you run a bunch of perl code wrapping a command line exe,
+    # yet still keep the command line visible so you know the most important
+    # bit of what was run
+    method dispatch_wrapped_cmd (ClassName $class, Str $method, ArrayRef $dispatch_args) {
+        my ($cmd, $req, $extra_args) = @$dispatch_args;
+        
+        $class->can($method) || $self->throw("$method is not a valid method of $class");
+        my $code = $class->isa('VRPipe::Persistent') ? '' : "use $class; ";
+        $code .= "$class->$method(q[$cmd]);";
+        
+        return $self->dispatch_vrpipecode($code, $req, $extra_args);
     }
 }
 

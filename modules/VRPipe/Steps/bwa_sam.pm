@@ -153,7 +153,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                                                           metadata => $sam_meta);
                         
                         $this_cmd .= " -r '$rg_line' -f ".$sam_file->path." $ref @sais @fqs";
-                        $self->dispatch([$this_cmd, $req, {output_files => [$sam_file]}]);
+                        $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_sam', 'sam_and_check', [$this_cmd, $req, {output_files => [$sam_file]}]);
                     }
                 }
             }
@@ -184,6 +184,28 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
     }
     method description {
         return "Produces sam files with bwa samse/sampe for each single or pair of input fastqs&sais";
+    }
+    
+    method sam_and_check (ClassName|Object $self: $cmd_line) {
+        my ($sam_path) = $cmd_line =~ /-f (\S+)/;
+        $sam_path || $self->throw("cmd_line [$cmd_line] had no -f output specified");
+        
+        my $sam_file = VRPipe::File->get(path => $sam_path);
+        
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]"); #*** want to exit with the exit code of bwa failing...
+        
+        my $expected_reads = $sam_file->metadata->{reads};
+        $sam_file->update_stats_from_disc(retries => 3);
+        my $lines = $sam_file->lines;
+        warn "expected $expected_reads vs sam lines $lines\n";
+        
+        if ($lines > $expected_reads) {
+            return 1;
+        }
+        else {
+            unlink($sam_path);
+            $self->throw("cmd [$cmd_line] failed because $lines lines were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
+        }
     }
 }
 

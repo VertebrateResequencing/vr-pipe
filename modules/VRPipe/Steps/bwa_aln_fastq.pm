@@ -39,9 +39,10 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
                                                   basename => $fastq->basename.'.sai',
                                                   type => 'bin',
                                                   metadata => {source_fastq => $fastq->path->stringify,
-                                                               reference_fasta => $ref->stringify});
+                                                               reference_fasta => $ref->stringify,
+                                                               reads => $fastq->metadata->{reads}});
                 my $this_cmd = $cmd.' -f '.$sai_file->path.' '.$ref.' '.$fastq->path;
-                $self->dispatch([$this_cmd, $req, {output_files => [$sai_file]}]); # specifying output_files here passes it to the Job, so it doesn't have to check all Step output files, just the one in this loop
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_aln_fastq', 'aln_and_check', [$this_cmd, $req, {output_files => [$sai_file]}]); # specifying output_files here passes it to the Job, so it doesn't have to check all Step output files, just the one in this loop
             }
         };
     }
@@ -50,29 +51,45 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
                                                                 max_files => -1,
                                                                 description => 'output files of independent bwa aln calls on each input fastq',
                                                                 metadata => {source_fastq => 'the fastq file that was input to bwa aln to generate this sai file',
-                                                                             reference_fasta => 'the reference fasta that reads were aligned to'}) };
+                                                                             reference_fasta => 'the reference fasta that reads were aligned to',
+                                                                             reads => 'the number of reads in the source_fastq'}) };
     }
     method post_process_sub {
         return sub {
             return 1;
-            
-            #*** somewhere we want to check the stderr or each Job associated
-            #    the our StepState, and confirm the number of sequences
-            #    processed during sai file production matches seqs in the fastq
-            #    file
-            #my $max_processed = 0;
-            #while (<$efh>) {
-            #    if (/^\[bwa_aln_core\] (\d+) sequences have been processed/) {
-            #        my $processed = $1;
-            #        if ($processed > $max_processed) {
-            #            $max_processed = $processed;
-            #        }
-            #    }
-            #}
         };
     }
     method description {
         return "Aligns the input fastq(s) with bwa to the reference";
+    }
+    
+    method aln_and_check (ClassName|Object $self: $cmd_line) {
+        my ($sai_path) = $cmd_line =~ /-f (\S+)/;
+        $sai_path || $self->throw("cmd_line [$cmd_line] had no -f output specified");
+        
+        my $expected_reads = VRPipe::File->get(path => $sai_path)->metadata->{reads};
+        
+        open(my $efh, "$cmd_line 2>&1 |") || $self->throw("failed to run [$cmd_line]");
+        
+        my $max_processed = 0;
+        while (<$efh>) {
+            warn $_;
+            if (/^\[bwa_aln_core\] (\d+) sequences have been processed/) {
+                my $processed = $1;
+                if ($processed > $max_processed) {
+                    $max_processed = $processed;
+                }
+            }
+        }
+        close($efh);
+        
+        if ($max_processed == $expected_reads) {
+            return 1;
+        }
+        else {
+            unlink($sai_path);
+            $self->throw("cmd [$cmd_line] failed because $max_processed reads were processed, yet there were $expected_reads reads in the fastq file");
+        }
     }
 }
 
