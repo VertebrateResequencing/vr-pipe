@@ -61,7 +61,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
         return "Aligns the input fastq(s) with bwa to the reference";
     }
     
-    method aln_and_check (ClassName|Object $self: $cmd_line) {
+    method aln_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($sai_path) = $cmd_line =~ /-f (\S+)/;
         $sai_path || $self->throw("cmd_line [$cmd_line] had no -f output specified");
         

@@ -183,7 +183,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
         return "Produces sam files with bwa samse/sampe for each single or pair of input fastqs&sais";
     }
     
-    method sam_and_check (ClassName|Object $self: $cmd_line) {
+    method sam_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($sam_path) = $cmd_line =~ /-f (\S+)/;
         $sam_path || $self->throw("cmd_line [$cmd_line] had no -f output specified");
         

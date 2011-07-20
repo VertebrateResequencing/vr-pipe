@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 10;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -50,6 +50,9 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                        pipeline => $mapping_pipeline,
                                                        options => {fastq_chunk_size => 8000,
                                                                    reference_fasta => $ref_fa,
+                                                                   reference_assembly_name => 'SSuis1',
+                                                                   reference_public_url => 'ftp://s.suis.com/ref.fa',
+                                                                   reference_species => 'S.Suis',
                                                                    bwa_index_cmd => 'bwa index -a is'});
 
 my @mapping_output_files;
@@ -221,17 +224,31 @@ foreach my $element_id (1..4) {
     my $fastq_split_outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => $element_id)->output_files->{split_fastq_files};
     $recorded_outputs += @$fastq_split_outs;
 }
-
 is_deeply [$existing_outputs, $recorded_outputs], [31, 31], 'all the split files that should have been created by the fastq_split step exist and were recorded as step outputs';
+
+my $dict_file = VRPipe::File->get(path => file($ref_dir, 'S_suis_P17.fa.dict'));
+$existing_outputs = -s $dict_file->path ? 1 : 0;
+my %recorded_outputs;
+foreach my $element_id (1..4) {
+    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => $element_id)->output_files->{reference_dict};
+    foreach my $out (@$outs) {
+        $recorded_outputs{$out->path->stringify}++;
+    }
+}
+$recorded_outputs = keys %recorded_outputs;
+is_deeply [$existing_outputs, $recorded_outputs, $recorded_outputs{$dict_file->path}], [1, 1, 4], 'the .dict file from sequence_dictionary step was made and recorded as the step output';
+is $dict_file->slurp, "\@HD\tVN:1.0\tSO:unsorted
+\@SQ\tSN:fake_chr1\tLN:290640\tM5:55f9584cf1f4194f13bbdc0167e0a05f\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis
+\@SQ\tSN:fake_chr2\tLN:1716851\tM5:6dd2836053e5c4bd14ad49b5b2f2eb88\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis\n", '.dict file content is correct';
 
 $existing_outputs = 0;
 foreach my $suffix (qw(amb ann bwt pac rbwt rpac rsa sa)) {
     $existing_outputs += -s file($ref_dir, 'S_suis_P17.fa.'.$suffix) ? 1 : 0;
 }
-my %recorded_outputs;
+%recorded_outputs = ();
 foreach my $element_id (1..4) {
     foreach my $out_key (qw(bwa_index_binary_files bwa_index_text_files)) {
-        my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => $element_id)->output_files->{$out_key};
+        my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => $element_id)->output_files->{$out_key};
         foreach my $out (@$outs) {
             $recorded_outputs{$out->path->stringify} = 1;
         }
@@ -242,14 +259,14 @@ is_deeply [$existing_outputs, $recorded_outputs], [8, 8], 'all the ref index fil
 
 $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => $element_id)->output_files->{bwa_sai_files};
+    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => $element_id)->output_files->{bwa_sai_files};
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_sai_outs, $recorded_outputs], [31, 31], 'all the sai files that should have been created by the bwa_aln_fastq step exist and were recorded as step outputs';
 
 $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => $element_id)->output_files->{bwa_sam_files};
+    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => $element_id)->output_files->{bwa_sam_files};
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_sam_outs, $recorded_outputs], [16, 16], 'all the sam files that should have been created by the bwa_sam step exist and were recorded as step outputs';
