@@ -4,13 +4,14 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 39;
+    use Test::Most tests => 40;
     
     use_ok('VRPipe::Parser');
     
     use TestPersistentReal;
 }
 
+# lsf
 ok my $p = VRPipe::Parser->create('lsf', {file => file(qw(t data lsf.stdout))}), 'could create an lsf parser';
 $p->fh;
 is_deeply [$p->file, $p->_vrpipe_file->path], [file(qw(t data lsf.stdout)), file(qw(t data lsf.stdout))->absolute], 'file details are correct';
@@ -43,6 +44,7 @@ is $p->parsed_record->[4], 4.75, 'next_record and parsed_record work on the firs
 
 throws_ok {$p = VRPipe::Parser->create('cat', {file => 't/data/not.extant'}); $p->next_record; } qr/does not exist, so cannot be opened for reading/, 'throws when asked to parse a non-existant file';
 
+# cat
 undef $p;
 $p = VRPipe::Parser->create('cat', {file => file(qw(t data file.cat))});
 my @records;
@@ -54,6 +56,7 @@ is_deeply [@records], ["first line of 4th record\nsecond line of 4th record",
                        "first line of 2nd record\nsecond line of 2nd record",
                        "first line of 1st record\nsecond line of 1st record"], 'cat file was parsed correctly';
 
+# fqc
 $p = VRPipe::Parser->create('fqc', {file => file(qw(t data parser.fastqcheck ))});
 is_deeply [$p->num_sequences, $p->total_length, $p->avg_length, $p->max_length, $p->standard_deviations], [7156780, 364995780, '51.00', 51, ['0.00', 0.02]], 'header of fastqcheck file was parsed correctly';
 $p->next_record;
@@ -76,6 +79,15 @@ is_deeply [$num_records, $first_record, $quals, $p->avg_qual],
                                              24.2096774193548 25.0443101711984 24.1553985872856 23.6963562753036 23.314459049545 21.7979797979798 22.3222222222222 19.2127016129032
                                              20.8827098078868 20.7700101317123 19.837044534413 18.9494438827098 18.0485829959514 17.7537993920973 16.8546922300706 17.1151515151515 17.3699596774194)],
                                          27.8919469928644], 'body of fastqcheck file was parsed correctly';
+
+# fasta
+$p = VRPipe::Parser->create('fasta', {file => file(qw(t data S_suis_P17.fa))});
+@records = ();
+my $pr = $p->parsed_record;
+while ($p->next_record) {
+    push(@records, $pr->[0].'+'.length($pr->[1]));
+}
+is_deeply [@records], ["fake_chr1+290640", "fake_chr2+1716851"], 'fasta file was parsed correctly';
 
 # sequence.index
 {
