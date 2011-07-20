@@ -197,13 +197,12 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
         my $expected_reads = $sam_file->metadata->{reads};
         $sam_file->update_stats_from_disc(retries => 3);
         my $lines = $sam_file->lines;
-        warn "expected $expected_reads vs sam lines $lines\n";
         
         if ($lines > $expected_reads) {
             return 1;
         }
         else {
-            unlink($sam_path);
+            $sam_path->unlink;
             $self->throw("cmd [$cmd_line] failed because $lines lines were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
         }
     }

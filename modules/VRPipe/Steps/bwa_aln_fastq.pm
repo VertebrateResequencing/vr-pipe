@@ -67,7 +67,8 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
         my ($sai_path) = $cmd_line =~ /-f (\S+)/;
         $sai_path || $self->throw("cmd_line [$cmd_line] had no -f output specified");
         
-        my $expected_reads = VRPipe::File->get(path => $sai_path)->metadata->{reads};
+        my $sai_file = VRPipe::File->get(path => $sai_path);
+        my $expected_reads = $sai_file->metadata->{reads};
         
         open(my $efh, "$cmd_line 2>&1 |") || $self->throw("failed to run [$cmd_line]");
         
@@ -87,7 +88,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
             return 1;
         }
         else {
-            unlink($sai_path);
+            $sai_path->unlink;
             $self->throw("cmd [$cmd_line] failed because $max_processed reads were processed, yet there were $expected_reads reads in the fastq file");
         }
     }
