@@ -257,6 +257,7 @@ class VRPipe::File extends VRPipe::Persistent {
             ($lines) = split(" ", <$wc>);
             CORE::close($wc);
             $self->_lines($lines);
+            $self->update;
         }
         
         $lines || $self->throw("Failed to find any lines in ".$self->path.", even though it has size!");
