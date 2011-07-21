@@ -163,7 +163,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                 }
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => $exe, version => VRPipe::StepCmdSummary->determine_version($exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => Path::Class::File->new($exe)->basename, version => VRPipe::StepCmdSummary->determine_version($exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'));
         };
     }
     method outputs_definition {

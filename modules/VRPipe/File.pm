@@ -251,11 +251,8 @@ class VRPipe::File extends VRPipe::Persistent {
         
         my $lines = $self->_lines;
         unless ($lines) {
-            my $path = $self->path;
-            my $cat = $path =~ /\.gz$/ ? 'zcat' : 'cat';
-            open(my $wc, "$cat $path | wc -l |") || $self->throw("$cat $path | wc -l did not work");
-            ($lines) = split(" ", <$wc>);
-            CORE::close($wc);
+            my $ft = VRPipe::FileType->create($self->type, {file => $self->path});
+            $lines = $ft->num_lines;
             $self->_lines($lines);
             $self->update;
         }

@@ -53,6 +53,22 @@ role VRPipe::FileTypeRole {
         }
         return 0;
     }
+    
+    method num_lines {
+        return $self->num_header_lines + $self->num_records;
+    }
+    
+    method num_header_lines {
+        return 0;
+    }
+    method num_records {
+        my $path = $self->file;
+        my $cat = $path =~ /\.gz$/ ? 'zcat' : 'cat';
+        open(my $wc, "$cat $path | wc -l |") || $self->throw("$cat $path | wc -l did not work");
+        my ($lines) = split(" ", <$wc>);
+        CORE::close($wc);
+        return $lines;
+    }
 }
 
 1;

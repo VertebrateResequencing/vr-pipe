@@ -1,24 +1,28 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 13;
+    use Test::Most tests => 15;
     
     use_ok('VRPipe::FileType');
     
     use TestPersistentReal;
 }
 
-ok my $ft = VRPipe::FileType->create('txt', {file => 't/data/file.txt'}), 'could create a txt filetype';
+ok my $ft = VRPipe::FileType->create('txt', {file => file(qw(t data file.txt))}), 'could create a txt filetype';
 is $ft->type, 'txt', 'type is correct';
 is $ft->check_type(), 1, 'a txt file passes the check';
-$ft->file('t/data/file.bam');
+is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [2, 0, 2], 'num_lines, num_header_lines and num_records work for a txt file';
+
+$ft->file(file(qw(t data file.bam)));
 is $ft->check_type(), 0, 'a bam file fails the check';
 
-ok $ft = VRPipe::FileType->create('bam', {file => 't/data/file.bam'}), 'could create a bam filetype';
+ok $ft = VRPipe::FileType->create('bam', {file => file(qw(t data file.bam))}), 'could create a bam filetype';
 is $ft->type, 'bam', 'type is correct';
 is $ft->check_type(), 1, 'a bam file passes the check';
+is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [92, 89, 3], 'num_lines, num_header_lines and num_records work for a ba, file';
 
 throws_ok {$ft = VRPipe::FileType->create('foo', {});} qr/Invalid implementation class/, 'throws when asked to create an invalid filetype';
 

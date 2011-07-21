@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 11;
+    use Test::Most tests => 12;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -184,6 +184,7 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
 my $existing_outputs = 0;
 my $existing_sai_outs = 0;
 my $existing_sam_outs = 0;
+my $existing_split_bam_outs = 0;
 foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
     if ($lane eq '2822_6') {
         for my $i (1..1) {
@@ -193,6 +194,9 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
             $existing_sai_outs += -s $sai ? 1 : 0;
             my $sam = file($mapping_output_dir, $lane, 'fastq_split_se_8000', "$lane.sam");
             $existing_sam_outs += -s $sam ? 1 : 0;
+            my $bam = $sam;
+            $bam =~ s/\.sam$/.bam/;
+            $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
         for my $i (1..3) {
             for my $j (1..2) {
@@ -203,6 +207,9 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
             }
             my $sam = file($mapping_output_dir, $lane, 'fastq_split_pe_8000', "$lane.$i.sam");
             $existing_sam_outs += -s $sam ? 1 : 0;
+            my $bam = $sam;
+            $bam =~ s/\.sam$/.bam/;
+            $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
     }
     else {
@@ -215,6 +222,9 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
             }
             my $sam = file($mapping_output_dir, $lane, 'fastq_split_pe_8000', "$lane.$i.sam");
             $existing_sam_outs += -s $sam ? 1 : 0;
+            my $bam = $sam;
+            $bam =~ s/\.sam$/.bam/;
+            $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
     }
 }
@@ -271,12 +281,22 @@ foreach my $element_id (1..4) {
 }
 is_deeply [$existing_sam_outs, $recorded_outputs], [16, 16], 'all the sam files that should have been created by the bwa_sam step exist and were recorded as step outputs';
 
+$recorded_outputs = 0;
+foreach my $element_id (1..4) {
+    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => $element_id)->output_files->{fixed_bam_files};
+    $recorded_outputs += @$outs;
+}
+is_deeply [$existing_split_bam_outs, $recorded_outputs], [16, 16], 'all the bam files that should have been created by the sam_to_fixed_bam step exist and were recorded as step outputs';
+
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary],
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary],
           ['bwa index -a is $reference_fasta',
            'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file',
-           'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'], 'cmd summaries for the major steps were as expected';
+           'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)',
+           'samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file'],
+          'cmd summaries for the major steps were as expected';
 
 done_testing;
 exit;

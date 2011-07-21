@@ -25,7 +25,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
             if ($cmd =~ /$ref/) {
                 $self->throw("bwa_index_cmd should not include the reference");
             }
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => $c[0], version => VRPipe::StepCmdSummary->determine_version($c[0], '^Version: (.+)$'), summary => $cmd.' $reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => Path::Class::File->new($c[0])->basename, version => VRPipe::StepCmdSummary->determine_version($c[0], '^Version: (.+)$'), summary => $cmd.' $reference_fasta'));
             $cmd .= ' '.$ref;
             
             foreach my $suffix (qw(bwt pac rbwt rpac rsa sa)) {
