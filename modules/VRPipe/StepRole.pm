@@ -291,6 +291,12 @@ role VRPipe::StepRole {
         return $vrfile;
     }
     
+    method set_cmd_summary (VRPipe::StepCmdSummary $cmd_summary) {
+        my $step_state = $self->step_state;
+        $step_state->cmd_summary($cmd_summary);
+        $step_state->update;
+    }
+    
     method parse {
         my @missing = $self->missing_input_files;
         $self->throw("Required input files are missing: (@missing)") if @missing;

@@ -38,6 +38,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my %cmds;
+            my $exe;
             foreach my $ended ('se', 'pe') {
                 my $cmd = $self->options->{"bwa_sam${ended}_cmd"} || 'bwa sampe';
                 my @c = split(" ", $cmd);
@@ -49,6 +50,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                     $self->throw("bwa_sam${ended}_cmd should not include the ref or -r or -f option");
                 }
                 
+                $exe = $c[0];
                 $cmds{$ended} = $cmd;
             }
             
@@ -79,6 +81,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                 push(@{$fqs_by_lane{$ref->[0]}->{$ref->[1]}->{$ref->[2]}}, $path);
             }
             
+            my $summary_cmd;
             while (my ($lane, $chunks) = each %fqs_by_lane) {
                 while (my ($chunk, $ends) = each %$chunks) {
                     while (my ($paired, $paths) = each %$ends) {
@@ -92,6 +95,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                         my $this_cmd;
                         if ($paired == 0) {
                             $this_cmd = $cmds{se};
+                            $summary_cmd ||= $this_cmd;
                         }
                         else {
                             $this_cmd = $cmds{pe};
@@ -104,6 +108,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                                 my $max = $insert_size * 3;
                                 $this_cmd .= " -a $max";
                             }
+                            $summary_cmd = $this_cmd;
                             
                             $reads += $fqs_by_path{$fqs[1]}->[3]->{reads};
                         }
@@ -157,13 +162,15 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                     }
                 }
             }
+            
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => $exe, version => VRPipe::StepCmdSummary->determine_version($exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'));
         };
     }
     method outputs_definition {
         return { bwa_sam_files => VRPipe::StepIODefinition->get(type => 'txt',
                                                                 max_files => -1,
                                                                 description => 'mapped sam file(s)',
-                                                                metadata => {lane => 'lane name (a unique identifer for this sequencing run)',
+                                                                metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
                                                                              library => 'library name',
                                                                              sample => 'sample name',
                                                                              center_name => 'center name',
@@ -173,7 +180,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                                                                              reads => 'total number of reads (sequences)',
                                                                              paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                              mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
-                                                                             chunk => 'if this was mapped with fastqs that were chunks of an original chunk, this tells you which chunk',
+                                                                             chunk => 'if this was mapped with fastqs that were chunks of an original fastq, this tells you which chunk',
                                                                              optional => ['chunk', 'library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method post_process_sub {

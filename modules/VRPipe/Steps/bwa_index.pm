@@ -5,7 +5,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
                  bwa_index_cmd => VRPipe::StepOption->get(description => 'the near-complete bwa index command line, including desired options, but excluding the reference fasta file',
                                                           optional => 1,
-                                                          default_value => 'bwa index -a bwtsw')};
+                                                          default_value => 'bwa index -a bwtsw') };
     }
     method inputs_definition {
         return { };
@@ -25,6 +25,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
             if ($cmd =~ /$ref/) {
                 $self->throw("bwa_index_cmd should not include the reference");
             }
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => $c[0], version => VRPipe::StepCmdSummary->determine_version($c[0], '^Version: (.+)$'), summary => $cmd.' $reference_fasta'));
             $cmd .= ' '.$ref;
             
             foreach my $suffix (qw(bwt pac rbwt rpac rsa sa)) {
@@ -39,7 +40,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
     }
     method outputs_definition {
         return { bwa_index_binary_files => VRPipe::StepIODefinition->get(type => 'bin', description => 'the files produced by bwa index', min_files => 6, max_files => 6),
-                 bwa_index_text_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'the files produced by bwa index', min_files => 2, max_files => 2)};
+                 bwa_index_text_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'the files produced by bwa index', min_files => 2, max_files => 2) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -48,42 +49,5 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
         return "Indexes a reference genome fasta file, making it suitable for use in subsequent bwa mapping";
     }
 }
-
-=pod
-Usage:   bwa index [-a bwtsw|div|is] [-c] <in.fasta>
-
-Options: -a STR    BWT construction algorithm: bwtsw or is [is]
-         -p STR    prefix of the index [same as fasta name]
-         -c        build color-space index
-
-Warning: `-a bwtsw' does not work for short genomes, while `-a is' and
-         `-a div' do not work not for long genomes. Please choose `-a'
-         according to the length of the genome.
-
-sub setup_reference {
-    my ($self, $ref) = @_;
-    
-    my @suffixes = qw(amb ann bwt pac rbwt rpac rsa sa);
-    my $indexed = 0;
-    foreach my $suffix (@suffixes) {
-        if (-s "$ref.$suffix") {
-            $indexed++;
-        }
-    }
-    
-    unless ($indexed == @suffixes) {
-        $self->simple_run("index -a bwtsw $ref");
-        
-        $indexed = 0;
-        foreach my $suffix (@suffixes) {
-            if (-s "$ref.$suffix") {
-                $indexed++;
-            }
-        }
-    }
-    
-    return $indexed == @suffixes ? 1 : 0;
-}
-=cut
 
 1;

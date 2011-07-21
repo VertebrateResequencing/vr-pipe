@@ -22,6 +22,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
                   VRPipe::Step->get(name => 'bwa_aln_fastq'),
                   VRPipe::Step->get(name => 'bwa_sam'),
                  #VRPipe::Step->get(name => 'sam_to_fixed_bam'),
+                 #VRPipe::Step->get(name => 'lane_bam_reheader'),
                  #VRPipe::Step->get(name => 'bam_merge_lane_splits'),
                  #VRPipe::Step->get(name => 'bam_stats')
                  ],
@@ -30,8 +31,9 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
                    {before_step_number => 5, adaptor_hash => { fastq_files => 'split_fastq_files' }},
                    {before_step_number => 6, adaptor_hash => { fastq_files => 'split_fastq_files', sai_files => 'bwa_sai_files' }},
                    {before_step_number => 7, adaptor_hash => { sam_files => 'bwa_sam_files' }},
-                   {before_step_number => 8, adaptor_hash => { bam_files => 'fixed_bam_files' }},
-                   {before_step_number => 9, adaptor_hash => { bam_files => 'merged_lane_bams' }}]);
+                   {before_step_number => 8, adaptor_hash => { bam_files => 'fixed_bam_files', dict_file => 'reference_dict' }},
+                   {before_step_number => 9, adaptor_hash => { bam_files => 'reheaded_bam_files' }},
+                   {before_step_number => 10, adaptor_hash => { bam_files => 'merged_lane_bams' }}]);
     }
 }
 

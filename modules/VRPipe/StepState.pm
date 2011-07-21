@@ -32,6 +32,13 @@ class VRPipe::StepState extends VRPipe::Persistent {
                          traits => ['VRPipe::Persistent::Attributes'],
                          default => sub { [] });
     
+    has 'cmd_summary' => (is => 'rw',
+                          isa => Persistent,
+                          coerce => 1,
+                          traits => ['VRPipe::Persistent::Attributes'],
+                          is_nullable => 1,
+                          belongs_to => 'VRPipe::StepCmdSummary');
+    
     has 'complete' => (is => 'rw',
                        isa => 'Bool',
                        traits => ['VRPipe::Persistent::Attributes'],
@@ -39,7 +46,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent(has_many => [submissions => 'VRPipe::Submission']);
     
-    method update_output_file_stats { #*** this is called at the end of a Job run, but the output_files may contain the output files of many Jobs, and so this can be very slow and wasteful...
+    method update_output_file_stats {
         my $outputs = $self->output_files;
         if ($outputs) {
             foreach my $val (values %$outputs) {

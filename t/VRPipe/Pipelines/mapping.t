@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 10;
+    use Test::Most tests => 11;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -270,6 +270,13 @@ foreach my $element_id (1..4) {
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_sam_outs, $recorded_outputs], [16, 16], 'all the sam files that should have been created by the bwa_sam step exist and were recorded as step outputs';
+
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary],
+          ['bwa index -a is $reference_fasta',
+           'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file',
+           'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'], 'cmd summaries for the major steps were as expected';
 
 done_testing;
 exit;

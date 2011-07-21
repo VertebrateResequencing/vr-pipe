@@ -84,6 +84,7 @@ class_type('VRPipe::File');
 class_type('VRPipe::PipelineSetup');
 class_type('VRPipe::DataElement');
 class_type('VRPipe::Step');
+class_type('VRPipe::StepCmdSummary');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');

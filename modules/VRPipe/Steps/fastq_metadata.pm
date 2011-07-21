@@ -45,7 +45,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
         return { fastq_files_with_metadata => VRPipe::StepIODefinition->get(type => 'fq',
                                                                             description => 'a fastq file with associated metadata',
                                                                             max_files => -1,
-                                                                            metadata => {lane => 'lane name (a unique identifer for this sequencing run)',
+                                                                            metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
                                                                                          bases => 'total number of base pairs',
                                                                                          reads => 'total number of reads (sequences)',
                                                                                          avg_read_length => 'the average length of reads',
