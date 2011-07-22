@@ -20,6 +20,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                                                                            platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                            study => 'name of the study, put in the DS field of the RG header line',
                                                                            insert_size => 'expected (mean) insert size if paired',
+                                                                           bases => 'total number of base pairs',
                                                                            reads => 'total number of reads (sequences)',
                                                                            paired => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
                                                                            mate => 'if paired, the path to the fastq that is our mate',
@@ -91,6 +92,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                         my @sais = ($paths->[1]);
                         my $fq_meta = $fqs_by_path{$fqs[0]}->[3];
                         my $reads = $fq_meta->{reads};
+                        my $bases = $fq_meta->{bases};
                         
                         my $this_cmd;
                         if ($paired == 0) {
@@ -111,11 +113,13 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                             $summary_cmd = $this_cmd;
                             
                             $reads += $fqs_by_path{$fqs[1]}->[3]->{reads};
+                            $bases += $fqs_by_path{$fqs[1]}->[3]->{bases};
                         }
                         
                         # add metadata and construct RG line
                         my $rg_line = '@RG\tID:'.$lane;
                         my $sam_meta = {lane => $lane,
+                                        bases => $bases,
                                         reads => $reads,
                                         paired => $paired,
                                         mapped_fastqs => join(',', @fqs),
@@ -177,6 +181,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                                                                              platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                              study => 'name of the study, put in the DS field of the RG header line',
                                                                              insert_size => 'expected (mean) insert size if paired',
+                                                                             bases => 'total number of base pairs',
                                                                              reads => 'total number of reads (sequences)',
                                                                              paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                              mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
@@ -196,6 +201,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
         
         my $sam_file = VRPipe::File->get(path => $sam_path);
         
+        $sam_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]"); #*** want to exit with the exit code of bwa failing...
         
         my $expected_reads = $sam_file->metadata->{reads};

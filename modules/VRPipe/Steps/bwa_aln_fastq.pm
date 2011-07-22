@@ -70,6 +70,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
         my $sai_file = VRPipe::File->get(path => $sai_path);
         my $expected_reads = $sai_file->metadata->{reads};
         
+        $sai_file->disconnect;
         open(my $efh, "$cmd_line 2>&1 |") || $self->throw("failed to run [$cmd_line]");
         
         my $max_processed = 0;

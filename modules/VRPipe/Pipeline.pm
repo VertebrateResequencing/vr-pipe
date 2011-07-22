@@ -12,7 +12,7 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
                          default => 0);
     
     has 'description' => (is => 'rw',
-                          isa => Varchar[256],
+                          isa => Varchar[1024],
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_nullable => 1);
     

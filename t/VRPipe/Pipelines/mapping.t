@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 12;
+    use Test::Most tests => 14;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -106,7 +106,7 @@ my @split_fqs = (VRPipe::File->get(path => file($mapping_output_dir, '2822_6', '
 
 is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->metadata, $split_fqs[3]->metadata],
           [{ lane => '2822_6',
-             chunk => 0,
+             chunk => 1,
              study => 'STUDY01',
              study_name => 'my study name',
              center_name => 'SC',
@@ -185,6 +185,8 @@ my $existing_outputs = 0;
 my $existing_sai_outs = 0;
 my $existing_sam_outs = 0;
 my $existing_split_bam_outs = 0;
+my $existing_final_bam_outs = 0;
+my @final_bams;
 foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
     if ($lane eq '2822_6') {
         for my $i (1..1) {
@@ -192,7 +194,7 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
             my $sai = $fq.'.sai';
             $existing_outputs += -s $fq ? 1 : 0;
             $existing_sai_outs += -s $sai ? 1 : 0;
-            my $sam = file($mapping_output_dir, $lane, 'fastq_split_se_8000', "$lane.sam");
+            my $sam = file($mapping_output_dir, $lane, 'fastq_split_se_8000', "$lane.1.sam");
             $existing_sam_outs += -s $sam ? 1 : 0;
             my $bam = $sam;
             $bam =~ s/\.sam$/.bam/;
@@ -211,6 +213,12 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
             $bam =~ s/\.sam$/.bam/;
             $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
+        
+        foreach my $ended ('se', 'pe') {
+            my $bam = file($mapping_output_dir, $lane, "$lane.$ended.bam");
+            $existing_final_bam_outs += -s $bam ? 1 : 0;
+            push(@final_bams, VRPipe::File->get(path => $bam));
+        }
     }
     else {
         for my $i (1..4) {
@@ -226,6 +234,10 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
             $bam =~ s/\.sam$/.bam/;
             $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
+        
+        my $bam = file($mapping_output_dir, $lane, "$lane.pe.bam");
+        $existing_final_bam_outs += -s $bam ? 1 : 0;
+        push(@final_bams, VRPipe::File->get(path => $bam));
     }
 }
 
@@ -287,6 +299,71 @@ foreach my $element_id (1..4) {
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_split_bam_outs, $recorded_outputs], [16, 16], 'all the bam files that should have been created by the sam_to_fixed_bam step exist and were recorded as step outputs';
+
+$recorded_outputs = 0;
+foreach my $element_id (1..4) {
+    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => $element_id)->output_files->{merged_lane_bams};
+    $recorded_outputs += @$outs;
+}
+is_deeply [$existing_final_bam_outs, $recorded_outputs], [5, 5], 'all the bam files that should have been created by the bam_merge_lane_splits step exist and were recorded as step outputs';
+
+my @final_bam_metas = map { $_->metadata } sort { $a->path cmp $b->path } @final_bams;
+is_deeply [@final_bam_metas],
+          [{ lane => '2822_6',
+             study => 'STUDY01',
+             center_name => 'SC',
+             sample => 'SAMPLE01',
+             platform => 'ILLUMINA',
+             library => 'LIB01',
+             insert_size => 200,
+             reads => 400,
+             bases => 23000,
+             paired => 1,
+             mapped_fastqs => join(',', file(qw(t data 2822_6_1.fastq))->absolute->stringify, file(qw(t data 2822_6_2.fastq))->absolute->stringify) },
+           { lane => '2822_6',
+             study => 'STUDY01',
+             center_name => 'SC',
+             sample => 'SAMPLE01',
+             platform => 'ILLUMINA',
+             library => 'LIB01',
+             insert_size => 200,
+             reads => 50,
+             bases => 3050,
+             paired => 0,
+             mapped_fastqs => file(qw(t data 2822_6.fastq))->absolute->stringify },
+           { lane => '2822_7',
+             study => 'STUDY01',
+             center_name => 'SC',
+             sample => 'SAMPLE01',
+             platform => 'ILLUMINA',
+             library => 'LIB01',
+             insert_size => 200,
+             reads => 500,
+             bases => 28750,
+             paired => 1,
+             mapped_fastqs => join(',', file(qw(t data 2822_7_1.fastq))->absolute->stringify, file(qw(t data 2822_7_2.fastq))->absolute->stringify) },
+           { lane => '2823_4',
+             study => 'STUDY01',
+             center_name => 'SC',
+             sample => 'SAMPLE01',
+             platform => 'ILLUMINA',
+             library => 'LIB02',
+             insert_size => 200,
+             reads => 500,
+             bases => 28750,
+             paired => 1,
+             mapped_fastqs => join(',', file(qw(t data 2823_4_1.fastq))->absolute->stringify, file(qw(t data 2823_4_2.fastq))->absolute->stringify) },
+           { lane => '8324_8',
+             study => 'STUDY01',
+             center_name => 'SC',
+             sample => 'SAMPLE02',
+             platform => 'ILLUMINA',
+             library => 'LIB03',
+             insert_size => 200,
+             reads => 500,
+             bases => 28750,
+             paired => 1,
+             mapped_fastqs => join(',', file(qw(t data 8324_8_1.fastq))->absolute->stringify, file(qw(t data 8324_8_2.fastq))->absolute->stringify) }], 'final bam files have the correct metadata';
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary,

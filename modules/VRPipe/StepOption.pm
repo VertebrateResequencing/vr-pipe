@@ -2,7 +2,7 @@ use VRPipe::Base;
 
 class VRPipe::StepOption extends VRPipe::Persistent {
     has 'description' => (is => 'rw',
-                          isa => Varchar[256],
+                          isa => Varchar[1024],
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_key => 1);
     

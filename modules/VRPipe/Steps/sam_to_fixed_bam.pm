@@ -34,7 +34,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                 
                 my $sam_meta = $sam->metadata;
                 my $bam_meta = {};
-                foreach my $key (qw(lane library sample center_name platform study insert_size reads paired mapped_fastqs chunk)) {
+                foreach my $key (qw(lane library sample center_name platform study insert_size bases reads paired mapped_fastqs chunk)) {
                     if (defined $sam_meta->{$key}) {
                         $bam_meta->{$key} = $sam_meta->{$key};
                     }
@@ -78,6 +78,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
         my $sam_file = VRPipe::File->get(path => $sam_path);
         my $bam_file = VRPipe::File->get(path => $bam_path);
         
+        $bam_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $expected_lines = $sam_file->lines;

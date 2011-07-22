@@ -142,7 +142,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                 
                 my $meta = $fq_file->metadata;
                 delete $meta->{expected_md5};
-                $meta->{chunk} = 0;
+                $meta->{chunk} = 1;
                 $split_file->add_metadata($meta);
             }
             return 1;

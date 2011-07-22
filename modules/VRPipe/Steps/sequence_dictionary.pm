@@ -50,6 +50,7 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
         
         my $dict_file = VRPipe::File->get(path => $dict);
         my $ofh = $dict_file->openw;
+        $dict_file->disconnect;
         
         print $ofh "\@HD\tVN:1.0\tSO:unsorted\n";
         
