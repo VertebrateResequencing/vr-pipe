@@ -62,7 +62,13 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method check_file_size_on_disc (File $path?) {
         $path ||= $self->path;
+        
+        # we want the size of the real file, not of a symlink
+        while (-l $path) {
+            $path = readlink($path);
+        }
         my $s = -s $path;
+        
         return $s ? $s : 0;
     }
     
