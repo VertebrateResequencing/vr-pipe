@@ -1,24 +1,18 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-use Cwd;
 use File::Copy;
-use Path::Class qw(file dir);
+use Path::Class;
 
 BEGIN {
     use Test::Most tests => 14;
     
     use_ok('VRPipe::Persistent::Schema');
     
-    use TestPersistentReal;
+    use TestPipelines;
 }
 
-my $scheduler = VRPipe::Scheduler->get();
-my $mapping_output_dir = dir($scheduler->output_root, 'pipelines_test_output', 'mapping');
-#$scheduler->remove_tree($mapping_output_dir);
-#$scheduler->make_path($mapping_output_dir);
-my $manager = VRPipe::Manager->get();
-
+my $output_dir = get_output_dir('mapping');
 
 ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get a pre-written pipeline';
 #TODO: {
@@ -377,20 +371,3 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataeleme
 
 done_testing;
 exit;
-
-sub handle_pipeline {
-    my $give_up = 200;
-    while (! $manager->trigger) {
-        last if $give_up-- <= 0;
-        $manager->handle_submissions;
-        sleep(1);
-    }
-    my $all_created = 1;
-    foreach my $ofile (@_) {
-        unless (-s $ofile) {
-            warn "$ofile is missing\n";
-            $all_created = 0;
-        }
-    }
-    return $all_created;
-}

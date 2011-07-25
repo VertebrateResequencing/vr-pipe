@@ -21,7 +21,7 @@ role VRPipe::PipelineRole {
         return $sm;
     }
     
-    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[HashRef] $adaptor_args) {
+    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[HashRef] $adaptor_args, ArrayRef[HashRef] $behaviour_args) {
         # first check the pipeline hasn't already been constructed correctly
         my $all_ok = 1;
         my $schema =  $self->result_source->schema;
@@ -67,6 +67,11 @@ role VRPipe::PipelineRole {
         # create adaptors
         foreach my $arg_ref (@{$adaptor_args}) {
             VRPipe::StepAdaptor->get(pipeline => $self, %$arg_ref);
+        }
+        
+        # create behaviours
+        foreach my $arg_ref (@{$behaviour_args}) {
+            VRPipe::StepBehaviour->get(pipeline => $self, %$arg_ref);
         }
         
         return @sms;
