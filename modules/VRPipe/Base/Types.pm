@@ -39,7 +39,7 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   PersistentArray ArrayRefOfPersistent
                                   PersistentHashRef FileType AbsoluteFile
                                   PersistentFileHashRef OpenMode AnyFileHandle
-                                  ParserType MapperType)];
+                                  ParserType MapperType PreviousStepOutput)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -85,6 +85,7 @@ class_type('VRPipe::PipelineSetup');
 class_type('VRPipe::DataElement');
 class_type('VRPipe::Step');
 class_type('VRPipe::StepCmdSummary');
+class_type('VRPipe::StepAdaptorDefiner');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
@@ -222,6 +223,9 @@ subtype PersistentHashRef,
 
 subtype PersistentFileHashRef,
     as HashRef[ArrayRef['VRPipe::File']];
+
+subtype PreviousStepOutput,
+    as HashRef[HashRef[ArrayRef['VRPipe::File']]];
 
 # allow users to supply either a single X, or an array ref of them, eg:
 # has 'my_attribute' => ( is => 'rw', isa => 'ArrayRefOfInts', coerce => 1 );

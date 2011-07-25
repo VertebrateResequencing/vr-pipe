@@ -12,7 +12,7 @@ BEGIN {
     use TestPipelines;
 }
 
-my $output_dir = get_output_dir('mapping');
+my $mapping_output_dir = get_output_dir('mapping');
 
 ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get a pre-written pipeline';
 #TODO: {
@@ -33,7 +33,7 @@ ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'
 
 my $ref_fa_source = file(qw(t data S_suis_P17.fa));
 my $ref_dir = dir($mapping_output_dir, 'ref');
-$scheduler->make_path($ref_dir);
+$mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',

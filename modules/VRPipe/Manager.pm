@@ -147,13 +147,14 @@ class VRPipe::Manager extends VRPipe::Persistent {
         while (my $element = $datasource->next_element) {
             my %previous_step_outputs;
             foreach my $member (@step_members) {
+                my $step_number = $member->step_number;
                 my $state = VRPipe::StepState->get(stepmember => $member,
                                                    dataelement => $element,
                                                    pipelinesetup => $setup);
                 
                 my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                 if ($state->complete) {
-                    $self->_complete_state($step, $state, \%previous_step_outputs);
+                    $self->_complete_state($step, $state, $step_number, \%previous_step_outputs);
                     next;
                 }
                 
@@ -165,7 +166,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     unless ($unfinished) {
                         my $ok = $step->post_process();
                         if ($ok) {
-                            $self->_complete_state($step, $state, \%previous_step_outputs);
+                            $self->_complete_state($step, $state, $step_number, \%previous_step_outputs);
                             next;
                         }
                         else {
@@ -180,7 +181,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     if ($completed) {
                         # on instant complete, parse calls post_process itself
                         # and only returns true if that was successfull
-                        $self->_complete_state($step, $state, \%previous_step_outputs);
+                        $self->_complete_state($step, $state, $step_number, \%previous_step_outputs);
                         next;
                     }
                     else {
@@ -207,9 +208,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $all_done;
     }
     
-    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, HashRef $previous_step_outputs) {
+    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, PreviousStepOutput $previous_step_outputs) {
         while (my ($key, $val) = each %{$step->outputs()}) {
-            $previous_step_outputs->{$key} = $val;
+            $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
             $state->complete(1);

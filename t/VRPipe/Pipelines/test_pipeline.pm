@@ -18,12 +18,11 @@ class VRPipe::Pipelines::test_pipeline with VRPipe::PipelineRole {
         return ([ VRPipe::Step->get(name => 'test_step_one'),
                   VRPipe::Step->get(name => 'test_step_two'),
                   VRPipe::Step->get(name => 'test_step_three'),
-                  VRPipe::Step->get(name => 'test_step_four'),
-                 ],
-                 [ {before_step_number => 1, adaptor_hash => { one_input => 'data_element' }},
-                   {before_step_number => 2, adaptor_hash => { two_input => 'one_output' }},
-                   {before_step_number => 3, adaptor_hash => { three_input => 'two_output' }},
-                   {before_step_number => 4, adaptor_hash => { four_input => 'three_output' }} ],
+                  VRPipe::Step->get(name => 'test_step_four') ],
+                 [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'one_input'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'one_output', to_key => 'two_input'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'two_output', to_key => 'three_input'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'three_output', to_key => 'four_input') ],
                  [ ]);
     }
 }

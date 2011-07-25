@@ -25,13 +25,16 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
                   VRPipe::Step->get(name => 'bam_merge_lane_splits'),
                  #VRPipe::Step->get(name => 'bam_stats')
                  ],
-                 [ {before_step_number => 1, adaptor_hash => { fastq_files => 'data_element' }},
-                   {before_step_number => 2, adaptor_hash => { fastq_files => 'fastq_files_with_metadata' }},
-                   {before_step_number => 5, adaptor_hash => { fastq_files => 'split_fastq_files' }},
-                   {before_step_number => 6, adaptor_hash => { fastq_files => 'split_fastq_files', sai_files => 'bwa_sai_files' }},
-                   {before_step_number => 7, adaptor_hash => { sam_files => 'bwa_sam_files' }},
-                   {before_step_number => 8, adaptor_hash => { bam_files => 'fixed_bam_files', dict_file => 'reference_dict' }},
-                   {before_step_number => 9, adaptor_hash => { bam_files => 'merged_lane_bams' }} ],
+                 [
+                   VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'fastq_files'), 
+                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'fastq_files_with_metadata', to_key => 'fastq_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 5, from_key => 'split_fastq_files', to_key => 'fastq_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 6, from_key => 'split_fastq_files', to_key => 'fastq_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 5, to_step => 6, from_key => 'bwa_sai_files', to_key => 'sai_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 6, to_step => 7, from_key => 'bwa_sam_files', to_key => 'sam_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 7, to_step => 8, from_key => 'fixed_bam_files', to_key => 'bam_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 8, from_key => 'reference_dict', to_key => 'dict_file'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 8, to_step => 9, from_key => 'merged_lane_bams', to_key => 'bam_files') ],
                  [ ]);
     }
 }

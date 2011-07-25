@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 role VRPipe::PipelineRole {
+    use VRPipe::StepAdaptorDefiner;
+    
     requires 'name';
     requires '_num_steps';
     requires 'description';
@@ -21,7 +23,7 @@ role VRPipe::PipelineRole {
         return $sm;
     }
     
-    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[HashRef] $adaptor_args, ArrayRef[HashRef] $behaviour_args) {
+    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[VRPipe::StepAdaptorDefiner] $adaptor_defs, ArrayRef[HashRef] $behaviour_args) {
         # first check the pipeline hasn't already been constructed correctly
         my $all_ok = 1;
         my $schema =  $self->result_source->schema;
@@ -65,8 +67,8 @@ role VRPipe::PipelineRole {
         }
         
         # create adaptors
-        foreach my $arg_ref (@{$adaptor_args}) {
-            VRPipe::StepAdaptor->get(pipeline => $self, %$arg_ref);
+        foreach my $definer (@{$adaptor_defs}) {
+            $definer->define($self->id);
         }
         
         # create behaviours

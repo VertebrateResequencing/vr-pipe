@@ -48,7 +48,7 @@ role VRPipe::StepRole {
                     lazy => 1);
     
     has 'previous_step_outputs' => (is => 'rw',
-                                    isa => PersistentFileHashRef);
+                                    isa => PreviousStepOutput);
     
     # when parse is called, we'll store our dispatched refs here
     has 'dispatched' => (is => 'ro',
@@ -135,7 +135,7 @@ role VRPipe::StepRole {
     method _resolve_inputs {
         my $hash = $self->inputs_definition;
         my $step_num = $self->step_state->stepmember->step_number;
-        my $step_adaptor = VRPipe::StepAdaptor->get(pipeline => $self->step_state->stepmember->pipeline, before_step_number => $step_num);
+        my $step_adaptor = VRPipe::StepAdaptor->get(pipeline => $self->step_state->stepmember->pipeline, to_step => $step_num);
         
         my %return;
         while (my ($key, $val) = each %$hash) {
@@ -161,10 +161,6 @@ role VRPipe::StepRole {
                 if (! $results) {
                     my $opts = $self->options;
                     if ($opts && defined $opts->{$key}) {
-                        #*** the step should have had some way of advertising
-                        #    what its inputs_definition keys were, so that the
-                        #    user could have provided values for them during
-                        #    PipelineSetup
                         $results = [VRPipe::File->get(path => $opts->{$key})];
                     }
                 }
