@@ -358,7 +358,22 @@ role VRPipe::StepRole {
     
     method dispatch_vrpipecode (Str $code, VRPipe::Requirements $req, HashRef $extra_args?) {
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
-        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); $code"];
+        
+        # use lib for anything that has been added to INC
+        my $use_lib = '';
+        use lib;
+        my %orig_inc = map { $_ => 1 } @lib::ORIG_INC;
+        my @new_lib;
+        foreach my $inc (@INC) {
+            unless (exists $orig_inc{$inc}) {
+                push(@new_lib, file($inc)->absolute);
+            }
+        }
+        if (@new_lib) {
+            $use_lib = "use lib(qw(@new_lib)); ";
+        }
+        
+        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "${use_lib}VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); $code"];
         $self->dispatch([$cmd, $req, $extra_args]);
     }
     
@@ -386,7 +401,10 @@ role VRPipe::StepRole {
         my $code = $class->isa('VRPipe::Persistent') ? '' : "use $class; ";
         $code .= "$class->$method(q[$cmd]);";
         
-        return $self->dispatch_vrpipecode($code, $req, $extra_args);
+        my @args = ($code, $req);
+        push(@args, $extra_args) if $extra_args;
+        
+        return $self->dispatch_vrpipecode(@args);
     }
 }
 
