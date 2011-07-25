@@ -62,40 +62,6 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
         my $args = shift || { AutoCommit => 1, RaiseError => 1, PrintError => 0 };
         
         $class->SUPER::connect($dsn, $user, $pass, $args);
-        
-        #*** to be removed, used for debugging connection issues
-        #, {on_connect_do => sub { VRPipe::Persistent::SchemaBase->_clucker("connected to"); },
-                                                           #on_disconnect_do => sub { VRPipe::Persistent::SchemaBase->_clucker("disconnected from"); }}
-    }
-    
-    #*** to be removed, used for debugging connection issues
-    sub _clucker {
-        my (undef, $type) = @_;
-        use Carp qw(cluck);
-        use IO::Capture::Stderr;
-        
-        my $capture = IO::Capture::Stderr->new();
-        $capture->start();
-        cluck();
-        $capture->stop();
-        
-        my ($called_from, $called_line);
-        READ: foreach my $read ($capture->read) {
-            foreach my $line (split(/\n/, $read)) {
-                if ($line =~ /^\s+(\S+?)\(.+ called at (\S+ line \d+)$/) {
-                    $called_from = $1;
-                    $called_line = $2;
-                    if ($called_line =~ /VRPipe\/Job.pm/) {
-                        last READ;
-                    }
-                }
-            }
-        }
-        
-        $called_line =~ s/\/software\/vertres\/lib\/all\///;
-        $called_line =~ s/\/nfs\/users\/nfs_s\/sb10\/src\/git\/VertebrateResequencing\/vr-pipe\/blib\/lib\///;
-        
-        warn "$type db at ", time(), " from $called_from line $called_line\n";
     }
     
     method database_deployment (ClassName $class: Str $set?) {
