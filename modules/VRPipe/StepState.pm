@@ -46,14 +46,26 @@ class VRPipe::StepState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent(has_many => [submissions => 'VRPipe::Submission']);
     
-    method update_output_file_stats {
+    method output_files_list {
         my $outputs = $self->output_files;
+        my @files;
         if ($outputs) {
             foreach my $val (values %$outputs) {
-                foreach my $file (@$val) {
-                    $file->update_stats_from_disc(retries => 3);
-                }
+                push(@files, @$val);
             }
+        }
+        return @files;
+    }
+    
+    method update_output_file_stats {
+        foreach my $file ($self->output_files_list) {
+            $file->update_stats_from_disc(retries => 3);
+        }
+    }
+    
+    method unlink_output_files {
+        foreach my $file ($self->output_files_list) {
+            $file->unlink;
         }
     }
     

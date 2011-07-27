@@ -2,6 +2,7 @@ use VRPipe::Base;
 
 role VRPipe::PipelineRole {
     use VRPipe::StepAdaptorDefiner;
+    use VRPipe::StepBehaviourDefiner;
     
     requires 'name';
     requires '_num_steps';
@@ -23,7 +24,7 @@ role VRPipe::PipelineRole {
         return $sm;
     }
     
-    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[VRPipe::StepAdaptorDefiner] $adaptor_defs, ArrayRef[HashRef] $behaviour_args) {
+    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[VRPipe::StepAdaptorDefiner] $adaptor_defs, ArrayRef[VRPipe::StepBehaviourDefiner] $behaviour_defs) {
         # first check the pipeline hasn't already been constructed correctly
         my $all_ok = 1;
         my $schema =  $self->result_source->schema;
@@ -66,14 +67,16 @@ role VRPipe::PipelineRole {
             }
         }
         
+        #*** how do we delete adaptors and behaviour we no longer want?
+        
         # create adaptors
         foreach my $definer (@{$adaptor_defs}) {
-            $definer->define($self->id);
+            $definer->define($self);
         }
         
         # create behaviours
-        foreach my $arg_ref (@{$behaviour_args}) {
-            VRPipe::StepBehaviour->get(pipeline => $self, %$arg_ref);
+        foreach my $definer (@{$behaviour_defs}) {
+            $definer->define($self);
         }
         
         return @sms;

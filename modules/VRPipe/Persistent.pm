@@ -473,36 +473,62 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             my $rs = $schema->resultset("$class");
             my $row;
-            try {
-                $row = $schema->txn_do(sub {
-                    # $rs->find_or_create(...) needs all required attributes
-                    # supplied, but if we supply something that isn't an is_key,
-                    # we can generate a new row when we shouldn't do. So we
-                    # split up the find and create calls:
-                    my $return = $rs->find(\%find_args) if keys %find_args;
+            
+            my $transaction = sub {
+                # $rs->find_or_create(...) needs all required attributes
+                # supplied, but if we supply something that isn't an is_key,
+                # we can generate a new row when we shouldn't do. So we
+                # split up the find and create calls:
+                my $return = $rs->find(\%find_args, { for => 'update' }) if keys %find_args;
+                
+                if ($return) {
+                    # update the row with any non-key args supplied
+                    while (my ($method, $value) = each %args) {
+                        $return->$method($value);
+                    }
+                    $return->update;
+                }
+                else {
+                    # create the row
+                    $return = $rs->create({%find_args, %args});
+                }
+                
+                # for some reason the result_source has no schema, so
+                # reattach it or inflation will break
+                $return->result_source->schema($schema); 
+                
+                return $return;
+            };
+            
+            my $retries = 0;
+            my $max_retries = 10;
+            while ($retries <= $max_retries) {
+                try {
+                    $row = $schema->txn_do($transaction);
+                }
+                catch ($err) {
+                    $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
                     
-                    if ($return) {
-                        # update the row with any non-key args supplied
-                        while (my ($method, $value) = each %args) {
-                            $return->$method($value);
-                        }
-                        $return->update;
+                    # we should attempt retries when we fail due to a create()
+                    # attempt when some other process got the update lock on
+                    # the find() first; we don't look at the $err message
+                    # because that may be driver-specific, and because we may
+                    # be nested and so $err could be unrelated
+                    if ($retries < $max_retries) {
+                        $retries++;
+                        sleep(1);
+                        next;
                     }
                     else {
-                        # create the row
-                        $return = $rs->create({%find_args, %args});
+                        my @fa;
+                        while (my ($key, $val) = each %find_args) {
+                            push(@fa, "$key => $val");
+                        }
+                        my $find_args = join(', ', @fa);
+                        $self->throw("Failed to $class\->get($find_args): $err");
                     }
-                    
-                    # for some reason the result_source has no schema, so
-                    # reattach it or inflation will break
-                    $return->result_source->schema($schema); 
-                    
-                    return $return;
-                });
-            }
-            catch ($err) {
-                $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-                $self->throw("Failed to find_or_create: $err");
+                }
+                last;
             }
             
             return $row;

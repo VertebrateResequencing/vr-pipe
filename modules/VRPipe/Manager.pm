@@ -154,7 +154,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 
                 my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                 if ($state->complete) {
-                    $self->_complete_state($step, $state, $step_number, \%previous_step_outputs);
+                    $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
                     next;
                 }
                 
@@ -166,7 +166,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     unless ($unfinished) {
                         my $ok = $step->post_process();
                         if ($ok) {
-                            $self->_complete_state($step, $state, $step_number, \%previous_step_outputs);
+                            $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
                             next;
                         }
                         else {
@@ -181,7 +181,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     if ($completed) {
                         # on instant complete, parse calls post_process itself
                         # and only returns true if that was successfull
-                        $self->_complete_state($step, $state, $step_number, \%previous_step_outputs);
+                        $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
                         next;
                     }
                     else {
@@ -208,7 +208,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $all_done;
     }
     
-    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, PreviousStepOutput $previous_step_outputs) {
+    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, PreviousStepOutput $previous_step_outputs) {
         while (my ($key, $val) = each %{$step->outputs()}) {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
@@ -216,6 +216,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $state->complete(1);
             $state->update;
         }
+        
+        # is there a behaviour to trigger?
+        my $behaviour = VRPipe::StepBehaviour->get(pipeline => $pipeline, after_step => $step_number);
+        $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
     }
     
     method unfinished_submissions (ArrayRef[VRPipe::Submission] :$submissions?) {

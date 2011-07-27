@@ -25,12 +25,13 @@ class VRPipe::StepAdaptorDefiner {
         }
     }
     
-    method define (Persistent $pipeline) {
+    method define (Persistent|VRPipe::Pipeline $pipeline) {
         my $sa = VRPipe::StepAdaptor->get(pipeline => $pipeline, to_step => $self->to_step);
         my $adaptor_hash = $sa->adaptor_hash;
         $adaptor_hash->{$self->to_key}->{$self->from_key} = $self->from_step;
         $sa->adaptor_hash($adaptor_hash);
         $sa->update;
+        return $sa;
     }
 }
 

@@ -47,7 +47,26 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                                    reference_assembly_name => 'SSuis1',
                                                                    reference_public_url => 'ftp://s.suis.com/ref.fa',
                                                                    reference_species => 'S.Suis',
-                                                                   bwa_index_cmd => 'bwa index -a is'});
+                                                                   bwa_index_cmd => 'bwa index -a is',
+                                                                   cleanup => 0});
+
+
+# make a second setup in a different dir; whilst we don't have any tests
+# specific to this setup, creating it is sufficient to reveal problems with
+# forking in Manager->trigger
+my $mapping_output_dir2 = get_output_dir('mapping_cleanup');
+VRPipe::PipelineSetup->get(name => 's_suis mapping',
+                           datasource => VRPipe::DataSource->get(type => 'sequence_index',
+                                                                 method => 'lane_fastqs',
+                                                                 source => file(qw(t data datasource.sequence_index))),
+                           output_root => $mapping_output_dir2,
+                           pipeline => $mapping_pipeline,
+                           options => {fastq_chunk_size => 8000,
+                                       reference_fasta => $ref_fa,
+                                       reference_assembly_name => 'SSuis1',
+                                       reference_public_url => 'ftp://s.suis.com/ref.fa',
+                                       reference_species => 'S.Suis',
+                                       bwa_index_cmd => 'bwa index -a is'});
 
 my @mapping_output_files;
 

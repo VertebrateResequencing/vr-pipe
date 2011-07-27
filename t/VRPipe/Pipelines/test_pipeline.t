@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 8;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -12,6 +12,7 @@ BEGIN {
 }
 
 my $output_dir = get_output_dir('test_pipeline');
+my $output_dir_clean = get_output_dir('test_pipeline_cleanup');
 
 ok my $pipeline = VRPipe::Pipeline->get(name => 'test_pipeline'), 'able to get the test_pipeline pipeline';
 my @s_names;
@@ -35,20 +36,48 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my test pipeline se
                                                     pipeline => $pipeline,
                                                     options => {all_option => 'foo',
                                                                 one_option => 50,
-                                                                four_option => 'bar'});
+                                                                four_option => 'bar',
+                                                                cleanup => 0});
 
-my @output_files;
+# also test with cleanup defaulting to true
+my $test_pipelinesetup_clean = VRPipe::PipelineSetup->get(name => 'my test pipeline setup',
+                                                          datasource => VRPipe::DataSource->get(type => 'fofn',
+                                                                                                method => 'all',
+                                                                                                source => file(qw(t data datasource.fofn2))),
+                                                          output_root => $output_dir_clean,
+                                                          pipeline => $pipeline,
+                                                          options => {all_option => 'foo',
+                                                                      one_option => 50,
+                                                                      four_option => 'bar'});
+
+my (@output_files, @final_files, @deleted_files);
 foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
     foreach my $suffix ('step_one', 'step_one.step_two', 'step_one.step_two.step_three', 'step_one.step_two.step_three.step_four') {
         push(@output_files, file($output_dir, "$in.$suffix"));
+        
+        if ($suffix eq 'step_one.step_two.step_three.step_four') {
+            push(@final_files, file($output_dir_clean, "$in.$suffix"));
+        }
+        else {
+            push(@deleted_files, file($output_dir_clean, "$in.$suffix"));
+        }
     }
 }
-ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
+ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
 
 my $ofile = VRPipe::File->get(path => file($output_dir, 'file3.txt.step_one.step_two.step_three.step_four'));
 my $ometa = $ofile->metadata;
 my $o2meta = VRPipe::File->get(path => file($output_dir, 'file2.txt.step_one.step_two.step_three.step_four'))->metadata;
 is_deeply [$ometa->{one_meta}, $ometa->{two_meta}, $ometa->{three_meta}, $o2meta->{three_meta}, $ometa->{four_meta}], [50, 'body_decided_two_option', 'no_three_meta', 'StepOption_default_decided_three_option', 'bar'], 'metadata of one of the final output files was as expected';
+
+my $existing_files = 0;
+foreach my $file (@deleted_files) {
+    $existing_files += -e $file ? 1 : 0;
+}
+is $existing_files, 0, 'all but the final files were deleted from the run with cleanup enabled';
+
+my $expected_output = "3: a text file\n3: with two lines\n";
+is_deeply [scalar($ofile->slurp), scalar(VRPipe::File->get(path => file($output_dir_clean, 'file3.txt.step_one.step_two.step_three.step_four'))->slurp)], [$expected_output, $expected_output], 'both runs of the pipeline gave good output files';
 
 done_testing;
 exit;

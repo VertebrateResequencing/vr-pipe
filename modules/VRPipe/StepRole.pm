@@ -271,6 +271,7 @@ role VRPipe::StepRole {
     
     method output_file (Str :$output_key, File|Str :$basename, FileType :$type, Dir|Str :$output_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
         $output_dir ||= $self->output_root;
+        $self->throw("output_dir must be absolute ($output_dir)") unless dir($output_dir)->is_absolute;
         
         my $vrfile = VRPipe::File->get(path => file($output_dir, $basename), type => $type);
         $vrfile->add_metadata($metadata) if $metadata;
@@ -281,6 +282,8 @@ role VRPipe::StepRole {
         $self->_remember_output_files($output_key => $files);
         
         if ($temporary) {
+            my $root = $self->output_root;
+            $self->throw("temporary files must be placed within the output_root") unless $output_dir =~ /^$root/;
             $self->_remember_temp_file($vrfile);
         }
         
