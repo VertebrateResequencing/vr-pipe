@@ -411,7 +411,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 $schema = $GLOBAL_CONNECTED_SCHEMA;
             }
             
-            # first see if there is a corresponding $classs::$name class
+            # first see if there is a corresponding $class::$name class
             if (defined $args{name} && keys %args == 1) {
                 try {
                     eval "require ${class}s::$args{name};"; # eval within a try because can't get require to work with a variable name otherwise?!

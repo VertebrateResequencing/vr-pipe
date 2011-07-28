@@ -56,7 +56,7 @@ role VRPipe::StepRole {
                          isa     => 'ArrayRef',
                          lazy    => 1,
                          default => sub { [] },
-                         handles => { dispatch => 'push',
+                         handles => { _dispatch => 'push',
                                       num_dispatched  => 'count' });
     
     # and we'll also store all the output files the body_sub makes
@@ -72,6 +72,11 @@ role VRPipe::StepRole {
                           lazy    => 1,
                           default => sub { [] },
                           handles => { _remember_temp_file => 'push' });
+    has '_last_output_dir' => (is => 'rw',
+                               isa => Dir,
+                               lazy => 1,
+                               coerce => 1,
+                               builder => '_build_last_output_dir');
     
     method _build_data_element {
         my $step_state = $self->step_state || $self->throw("Cannot get data element without step state");
@@ -79,7 +84,11 @@ role VRPipe::StepRole {
     }
     method _build_output_root {
         my $step_state = $self->step_state || $self->throw("Cannot get output root without step state");
-        return $step_state->pipelinesetup->output_root;
+        my $pipeline_root = $step_state->pipelinesetup->output_root;
+        return dir($pipeline_root, $step_state->dataelement->id, $self->name);
+    }
+    method _build_last_output_dir {
+        return $self->output_root;
     }
     method _build_outputs {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
@@ -269,9 +278,18 @@ role VRPipe::StepRole {
         return &$ref($self);
     }
     
-    method output_file (Str :$output_key, File|Str :$basename, FileType :$type, Dir|Str :$output_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
+    method output_file (Str :$output_key, File|Str :$basename, FileType :$type, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
+        #*** for some bizarre reason, type can be left out and the checking doesn't complain!
+        $self->throw("type must be supplied") unless $type;
+        
         $output_dir ||= $self->output_root;
-        $self->throw("output_dir must be absolute ($output_dir)") unless dir($output_dir)->is_absolute;
+        $output_dir = dir($output_dir);
+        if ($sub_dir) {
+            $output_dir = dir($output_dir, $sub_dir);
+        }
+        $self->throw("output_dir must be absolute ($output_dir)") unless $output_dir->is_absolute;
+        $self->make_path($output_dir); #*** repeated, potentially unecessary filesystem access...
+        $self->_last_output_dir($output_dir);
         
         my $vrfile = VRPipe::File->get(path => file($output_dir, $basename), type => $type);
         $vrfile->add_metadata($metadata) if $metadata;
@@ -353,6 +371,13 @@ role VRPipe::StepRole {
                                          $tmp_space ? (tmp_space => $tmp_space) : (),
                                          $local_space ? (local_space => $local_space) : (),
                                          $custom ? (custom => $custom) : ());
+    }
+    
+    method dispatch (ArrayRef $aref) {
+        my $extra_args = $aref->[2] || {};
+        $extra_args->{dir} ||= $self->_last_output_dir;
+        $aref->[2] = $extra_args;
+        $self->_dispatch($aref);
     }
     
     method dispatch_vrpipecode (Str $code, VRPipe::Requirements $req, HashRef $extra_args?) {

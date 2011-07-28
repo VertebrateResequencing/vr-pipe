@@ -189,7 +189,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         if (@$dispatched) {
                             foreach my $arrayref (@$dispatched) {
                                 my ($cmd, $reqs, $job_args) = @$arrayref;
-                                my $sub = VRPipe::Submission->get(job => VRPipe::Job->get($job_args ? (%{$job_args}) : (), cmd => $cmd, dir => $output_root), stepstate => $state, requirements => $reqs);
+                                my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
                             }
                         }
                         else {

@@ -155,9 +155,9 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                             $rg_line .= '\tDS:'.$ds;
                         }
                         
+                        my $ended = $paired ? 'pe' : 'se';
                         my $sam_file = $self->output_file(output_key => 'bwa_sam_files',
-                                                          output_dir => Path::Class::File->new($fqs[0])->dir,
-                                                          basename => $chunk ? "$lane.$chunk.sam" : "$lane.sam",
+                                                          basename => $chunk ? "$lane.$ended.$chunk.sam" : "$lane.$ended.sam",
                                                           type => 'txt',
                                                           metadata => $sam_meta);
                         

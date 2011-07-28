@@ -22,10 +22,9 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
         return sub {
             my $self = shift;
             
-            my ($lane, $se, @pe, %ended);
+            my ($se, @pe, %ended);
             foreach my $fastq (@{$self->inputs->{fastq_files}}) {
                 my $metadata = $fastq->metadata;
-                $lane ||= $metadata->{lane};
                 my $paired = $metadata->{paired};
                 if ($paired == 0) {
                     $se = $fastq->path;
@@ -39,19 +38,19 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             }
             $ended{pe} = @pe == 2 ? \@pe : undef;
             $ended{se} = $se ? [$se] : undef;
-            my $out_root = Path::Class::Dir->new($self->output_root, $lane);
+            my $out_root = $self->output_root;
             my $req = $self->new_requirements(memory => 50, time => 1);
             
             my $chunk_size = $self->options->{fastq_chunk_size};
             
             while (my ($ended, $fqs) = each %ended) {
                 next unless $fqs;
-                my $split_dir = Path::Class::Dir->new($out_root, 'fastq_split_'.$ended.'_'.$chunk_size);
-                $self->make_path($split_dir);
+                my $split_subdir = $ended.'_'.$chunk_size;
+                my $split_dir = Path::Class::Dir->new($out_root, $split_subdir);
                 
                 my @outs = VRPipe::Steps::fastq_split->fastq_split_outs(split_dir => $split_dir, fastqs => $fqs, chunk_size => $chunk_size);
                 foreach my $out (@outs) {
-                    $self->output_file(output_key => 'split_fastq_files', output_dir => $split_dir, basename => $out->basename, type => 'fq');
+                    $self->output_file(output_key => 'split_fastq_files', sub_dir => $split_subdir, basename => $out->basename, type => 'fq');
                 }
                 
                 $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_split; VRPipe::Steps::fastq_split->fastq_split(split_dir => q[$split_dir], fastqs => [qw(@$fqs)], chunk_size => $chunk_size);],

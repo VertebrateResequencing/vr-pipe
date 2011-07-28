@@ -85,7 +85,6 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 }
             }
             
-            my $output_dir = Path::Class::Dir->new($self->output_root, $lane);
             my $req = $self->new_requirements(memory => 500, time => 1);
             my $step_state = $self->step_state->id;
             while (my ($paired, $in_bams) = each %bams) {
@@ -95,14 +94,12 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 }
                 $basename .= '.bam';
                 my $merge_file = $self->output_file(output_key => 'merged_lane_bams',
-                                                    output_dir => $output_dir,
                                                     basename => $basename,
                                                     type => 'bam',
                                                     metadata => $metas{$paired});
                 my $merge_path = $merge_file->path;
                 
                 $self->output_file(output_key => 'temp_header_file',
-                                   output_dir => $output_dir,
                                    basename => $basename.'.header',
                                    type => 'txt',
                                    temporary => 1);
@@ -111,7 +108,6 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     my $sam_file = $basename;
                     $sam_file =~ s/\.bam$/.sam/;
                     $self->output_file(output_key => 'temp_sam_file',
-                                       output_dir => $output_dir,
                                        basename => $sam_file,
                                        type => 'txt',
                                        temporary => 1);
