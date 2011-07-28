@@ -573,6 +573,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             #    indexing a text column in mysql.
             #    SQL::Translator::Schema::Index is no help, and using type =>
             #    'full_text' doesn't work.
+            
+            #*** one crazy solution might be to auto-convert and store the
+            #    column as both a _raw text version of itself, with its md5
+            #    checksum in a column we index...
+            
             #if (keys %for_text_indexing) {
             #    $sqlt_table->add_index(name => 'text_keys', fields => [keys %for_text_indexing]);
             #}
