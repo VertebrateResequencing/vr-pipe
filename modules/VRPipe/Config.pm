@@ -33,6 +33,13 @@ class VRPipe::Config {
     
     my $question_number = 0;
     
+    has schema_directory => (
+        is      => 'rw',
+        question => 'Where should schema files be stored to enable schema upgrades?',
+        env => 'VRPIPE_SCHEMADIR',
+        question_number => ++$question_number
+    );
+    
     has production_dbtype => (
         is      => 'rw',
         question => 'What DRM should be used for production?',

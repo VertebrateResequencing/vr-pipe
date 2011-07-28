@@ -93,6 +93,24 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
         }
     }
     
+    method get_dbtype (ClassName $class:) {
+        my $method_name = $DATABASE_DEPLOYMENT.'_dbtype';
+        my $dbtype = $vrp_config->$method_name();
+        $dbtype = "$dbtype";
+        
+        # correct capitlisation for the benefit of DBIx::Class::DeploymentHandler
+        if ($dbtype =~ /mysql/i) {
+            $dbtype = 'MySQL';
+        }
+        
+        return $dbtype;
+    }
+    
+    method get_schema_dir (ClassName $class:) {
+        my $dir = $vrp_config->schema_directory();
+        return "$dir";
+    }
+    
     method get_user (ClassName $class:) {
         my $method_name = $DATABASE_DEPLOYMENT.'_username';
         my $user = $vrp_config->$method_name();

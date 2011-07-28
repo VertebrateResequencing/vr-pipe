@@ -1,0 +1,32 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use Getopt::Long;
+use aliased 'VRPipe::Persistent::Schema' => 'PS';
+use aliased 'DBIx::Class::DeploymentHandler' => 'DH';
+
+my $from = 1; # change this default every time we do a new stable release
+my $to = PS->VERSION;
+my $help = 0;
+GetOptions("from=i" => \$from,
+           "to=i" => \$to,
+           "help" => \$help);
+
+if ($help) {
+    print "Upgrade VRPipe schema for your production database:\nvrpipe-db_upgrade --from $from --to $to\n";
+    exit;
+}
+
+my $s = PS->connect;
+
+my $dh = DH->new({ schema => $s,
+                   databases => PS->get_dbtype,
+                   sql_translator_args => { add_drop_table => 0 },
+                   script_directory => PS->get_schema_dir });
+
+$dh->prepare_deploy;
+$dh->prepare_upgrade({ from_version => $from, to_version => $to});
+$dh->upgrade;
+
+exit;

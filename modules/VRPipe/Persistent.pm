@@ -126,9 +126,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my @psuedo_keys;
-        my %for_indexing;
-        my %key_defaults;
+        my (@psuedo_keys, %for_indexing, %for_text_indexing, %key_defaults);
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my %flations;
         my $meta = $class->meta;
@@ -257,7 +255,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     }
                     
                     $cname = 'text';
-                    delete $for_indexing{$name}; # in mysql, when indexing text field we need a size, but I don't know how to specifiy the size during index creation...
                 }
                 elsif ($cname eq 'Datetime') {
                     $cname = 'datetime';
@@ -268,8 +265,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     $is_numeric = 1;
                 }
                 elsif ($cname eq 'File' || $cname eq 'AbsoluteFile' || $cname eq 'Dir') {
-                    $cname = 'varchar';
-                    $size = 1024; #*** dangerously small?
+                    $cname = 'text';
                 }
                 elsif ($cname eq 'FileType') {
                     $cname = 'varchar';
@@ -277,6 +273,26 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
+                }
+                
+                # mysql has a supposed limit on varchars of 255, and an index
+                # size limit of 996, with some tools autoconverting large
+                # varchars to text...
+                if ($size && $size > 255) {
+                    $cname = 'text';
+                    $size = undef;
+                    $is_numeric = 0;
+                }
+                
+                # in mysql, when indexing text field we need to supply the index
+                # size
+                if ($cname eq 'text') {
+                    delete $column_info->{default_value};
+                    
+                    if (exists $for_indexing{$name}) {
+                        delete $for_indexing{$name};
+                        $for_text_indexing{$name} = 1;
+                    }
                 }
                 
                 $column_info->{data_type} = $cname;
@@ -552,6 +568,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->add_method('sqlt_deploy_hook' => sub {
             my ($self, $sqlt_table) = @_;
             $sqlt_table->add_index(name => 'psuedo_keys', fields => [keys %for_indexing]);
+            
+            #*** have no idea how to specify key lengths, as required when
+            #    indexing a text column in mysql.
+            #    SQL::Translator::Schema::Index is no help, and using type =>
+            #    'full_text' doesn't work.
+            #if (keys %for_text_indexing) {
+            #    $sqlt_table->add_index(name => 'text_keys', fields => [keys %for_text_indexing]);
+            #}
         });
     }
     

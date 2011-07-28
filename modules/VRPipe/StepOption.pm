@@ -14,7 +14,7 @@ class VRPipe::StepOption extends VRPipe::Persistent {
                        allow_key_to_default => 1);
     
     has 'default_value' => (is => 'rw',
-                            isa => Varchar[256],
+                            isa => Varchar[255],
                             traits => ['VRPipe::Persistent::Attributes'],
                             is_key => 1,
                             default => '',
