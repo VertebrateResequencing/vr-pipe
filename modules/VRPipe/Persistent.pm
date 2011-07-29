@@ -101,11 +101,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     use MooseX::NonMoose;
     use B::Deparse;
     use Storable qw(nfreeze thaw);
+    use Digest::SHA qw(sha256_base64);
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
     
-    __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
+    __PACKAGE__->load_components(qw/FilterColumn InflateColumn::DateTime/);
     
     has 'id' => (is => 'rw',
                  isa => IntSQL[16],
@@ -126,9 +127,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my (@psuedo_keys, %for_indexing, %for_text_indexing, %key_defaults);
+        my (@psuedo_keys, %for_indexing, %key_defaults, %flations, %filters);
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
-        my %flations;
         my $meta = $class->meta;
         foreach my $attr ($meta->get_all_attributes) {
             next unless $attr->does('VRPipe::Persistent::Attributes');
@@ -207,8 +207,22 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     $cname = 'varchar';
                     $size = $1;
                 }
+                elsif ($cname =~ /Char\[(\d+)\]/) {
+                    $cname = 'char';
+                    $size = $1;
+                }
                 elsif ($cname eq 'Bool') {
                     $cname = 'bool';
+                }
+                elsif ($cname eq 'IndexedText') {
+                    $filters{$name} = { filter_from_storage => '_from_indexedtext',
+                                        filter_to_storage => '_to_indexedtext' };
+                    $cname = 'int';
+                    $size = 16;
+                    $is_numeric = 1;
+                }
+                elsif ($cname eq 'Text') {
+                    $cname = 'text';
                 }
                 elsif ($cname =~ /Ref/) {
                     if ($cname eq 'CodeRef') {
@@ -275,23 +289,16 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
                 }
                 
-                # mysql has a supposed limit on varchars of 255, and an index
-                # size limit of 996, with some tools autoconverting large
-                # varchars to text...
-                if ($size && $size > 255) {
-                    $cname = 'text';
-                    $size = undef;
-                    $is_numeric = 0;
-                }
+                #die "When you need to store data bigger than 255 characters, use Text or IndexedText instead\n" if $size > 255;
                 
-                # in mysql, when indexing text field we need to supply the index
-                # size
+                # we never try to index text columns, since SQL::Translator
+                # doesn't know how to create indexes with lengths, as needed by
+                # mysql
                 if ($cname eq 'text') {
                     delete $column_info->{default_value};
                     
                     if (exists $for_indexing{$name}) {
                         delete $for_indexing{$name};
-                        $for_text_indexing{$name} = 1;
                     }
                 }
                 
@@ -335,6 +342,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # setup inflations
         while (my ($name, $ref) = each %flations) {
             $class->inflate_column($name, $ref);
+        }
+        
+        # setup filters
+        while (my ($name, $ref) = each %filters) {
+            $class->filter_column($name, $ref);
         }
         
         # now that dbic has finished creating/altering accessor methods, delete
@@ -482,6 +494,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     if ($val && ref($val) && (ref($val) eq 'HASH' || ref($val) eq 'ARRAY')) {
                         $find_args{$key} = nfreeze($val);
                     }
+                    
+                    if (exists $filters{$key}) {
+                        $find_args{$key} = $self->_to_indexedtext($val);
+                        $args{$key} = $val;
+                    }
                 }
             }
             
@@ -568,20 +585,18 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->add_method('sqlt_deploy_hook' => sub {
             my ($self, $sqlt_table) = @_;
             $sqlt_table->add_index(name => 'psuedo_keys', fields => [keys %for_indexing]);
-            
-            #*** have no idea how to specify key lengths, as required when
-            #    indexing a text column in mysql.
-            #    SQL::Translator::Schema::Index is no help, and using type =>
-            #    'full_text' doesn't work.
-            
-            #*** one crazy solution might be to auto-convert and store the
-            #    column as both a _raw text version of itself, with its md5
-            #    checksum in a column we index...
-            
-            #if (keys %for_text_indexing) {
-            #    $sqlt_table->add_index(name => 'text_keys', fields => [keys %for_text_indexing]);
-            #}
         });
+    }
+    
+    sub _from_indexedtext {
+        my $it = VRPipe::Persistent::IndexedText->get(id => $_[1]);
+        return $it->text;
+    }
+    sub _to_indexedtext {
+        my $sha = sha256_base64($_[1]);
+        my $it;
+        eval "\$it = VRPipe::Persistent::IndexedText->get(sha => q[$sha], text => q[$_[1]]);"; #*** evald because otherwise MooseX::Types::TypeDecorator::AUTOLOAD tries to run get!?!!?!
+        return $it->id;
     }
     
     # like discard_changes, except we don't clumsily wipe out the whole $self

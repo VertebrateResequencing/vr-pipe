@@ -45,7 +45,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                                                StepState Submission StepAdaptor
                                                PersistentArray StepOption
                                                PersistentArrayMember Manager
-                                               File StepIODefinition/]});
+                                               File StepIODefinition/],
+                               'VRPipe::Persistent' => [qw/IndexedText/]});
 }
 
 1;

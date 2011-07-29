@@ -32,14 +32,15 @@ use warnings;
 
 # predeclare our own types
 use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
-                                  ArrayRefOfStrings FileOrHandle Varchar
+                                  ArrayRefOfStrings FileOrHandle Varchar Char
                                   IntSQL File Dir MaybeFile MaybeDir StrOrEnv
                                   MaybeStrOrEnv Datetime VRPFileOrHandle
                                   Persistent PersistentObject RelationshipArg
                                   PersistentArray ArrayRefOfPersistent
                                   PersistentHashRef FileType AbsoluteFile
                                   PersistentFileHashRef OpenMode AnyFileHandle
-                                  ParserType MapperType PreviousStepOutput)];
+                                  ParserType MapperType PreviousStepOutput
+                                  Text IndexedText)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -186,9 +187,13 @@ subtype Varchar,
     as Parameterizable[Str, Int],
     where {
         my ($string, $int) = @_;
+        return 0 if $int > 255;
         $int >= length($string) ? 1 : 0;
     },
     message { "'$_' is too long" };
+
+subtype Char,
+    as Varchar;
 
 subtype IntSQL,
     as Parameterizable[Int, Int],
@@ -198,11 +203,14 @@ subtype IntSQL,
     },
     message { defined $_ ? "'$_' is too long" : "number is undefined" };
 
+subtype Text,
+    as Str;
+
+subtype IndexedText,
+    as Str;
+
 class_type('VRPipe::Persistent');
 subtype PersistentObject, as 'VRPipe::Persistent';
-#    as Object,
-#    where { $_->isa('VRPipe::Persistent') },
-#    message { "Not a Persistent object" };
 
 subtype Persistent,
     as PositiveInt, # can't coerce IntSQL[16]
