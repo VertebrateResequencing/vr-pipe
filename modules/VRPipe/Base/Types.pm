@@ -39,7 +39,8 @@ use MooseX::Types -declare => [qw(PositiveInt VerbosityValue ArrayRefOfInts
                                   PersistentArray ArrayRefOfPersistent
                                   PersistentHashRef FileType AbsoluteFile
                                   PersistentFileHashRef OpenMode AnyFileHandle
-                                  ParserType MapperType PreviousStepOutput)];
+                                  ParserType MapperType PreviousStepOutput
+                                  Text)];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -189,6 +190,9 @@ subtype Varchar,
         $int >= length($string) ? 1 : 0;
     },
     message { "'$_' is too long" };
+
+subtype Text,
+    as Str;
 
 subtype IntSQL,
     as Parameterizable[Int, Int],
