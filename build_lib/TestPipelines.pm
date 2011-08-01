@@ -20,7 +20,7 @@ sub get_output_dir {
 }
 
 sub handle_pipeline {
-    my $give_up = 200;
+    my $give_up = 100;
     while (! $manager->trigger) {
         last if $give_up-- <= 0;
         $manager->handle_submissions;
