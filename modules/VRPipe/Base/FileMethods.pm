@@ -41,6 +41,7 @@ role VRPipe::Base::FileMethods {
     use File::Path qw(make_path remove_tree);
     use File::Copy;
     use File::Temp;
+    use Digest::MD5;
     
     our $cat_marker = "---------------------------------VRPipe--concat---------------------------------\n";
     
@@ -337,6 +338,21 @@ role VRPipe::Base::FileMethods {
             }
         }
         return $is_correct;
+    }
+    
+    method verify_md5 (File $path, Str $md5) {
+        my $vrfile = VRPipe::File->get(path => $path);
+        my $fh = $vrfile->open;
+        binmode($fh);
+        
+        if (Digest::MD5->new->addfile($fh)->hexdigest eq $md5) {
+            $vrfile->md5($md5);
+            $vrfile->update;
+            return 1;
+        }
+        else {
+            return 0;
+        }
     }
 }
 
