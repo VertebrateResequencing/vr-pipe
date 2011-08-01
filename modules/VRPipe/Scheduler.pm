@@ -1,6 +1,7 @@
 use VRPipe::Base;
 
 class VRPipe::Scheduler extends VRPipe::Persistent {
+    use Digest::MD5;
     use VRPipe::Config;
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
@@ -220,11 +221,13 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $root_dir = $self->output_root;
         my $hashing_string = ref($for).'::'.$for->id;
         
-        #*** supposed to be placed in subdirs based on a hashing of
-        #    $hashing_string, but for now just stick it in a subdir directly
-        #    named after $hashing_string
+        my $dmd5 = Digest::MD5->new();
+        $dmd5->add($hashing_string);
+        my $md5 = $dmd5->hexdigest;
+        my @chars = split("", $md5);
+        
         $hashing_string =~ s/\:/_/g;
-        my $output_dir = dir($root_dir, $hashing_string);
+        my $output_dir = dir($root_dir, @chars[0..3], $hashing_string);
         
         $output_dir->mkpath;
         return $output_dir;

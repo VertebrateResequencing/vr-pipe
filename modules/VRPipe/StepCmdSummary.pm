@@ -2,7 +2,7 @@ use VRPipe::Base;
 
 class VRPipe::StepCmdSummary extends VRPipe::Persistent {
     has 'exe' => (is => 'rw',
-                  isa => Varchar[1024],
+                  isa => Varchar[255],
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
@@ -12,7 +12,7 @@ class VRPipe::StepCmdSummary extends VRPipe::Persistent {
                       is_key => 1);
     
     has 'summary' => (is => 'rw',
-                      isa => Varchar[1024],
+                      isa => Varchar[255],
                       traits => ['VRPipe::Persistent::Attributes'],
                       is_key => 1);
     

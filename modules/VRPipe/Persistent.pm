@@ -207,6 +207,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     $cname = 'varchar';
                     $size = $1;
                 }
+                elsif ($cname eq 'Text') {
+                    $cname = 'text';
+                }
                 elsif ($cname eq 'Bool') {
                     $cname = 'bool';
                 }

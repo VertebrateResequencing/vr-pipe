@@ -30,7 +30,7 @@ class VRPipe::Step extends VRPipe::Persistent with VRPipe::StepRole {
                                  traits => ['VRPipe::Persistent::Attributes']);
     
     has 'description' => (is => 'rw',
-                          isa => Varchar[1024],
+                          isa => Text,
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_nullable => 1);
     

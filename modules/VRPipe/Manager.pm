@@ -177,7 +177,16 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 else {
                     # this is the first time we're looking at this step for
                     # this data member for this pipelinesetup
-                    my $completed = $step->parse();
+                    my $completed;
+                    try {
+                        $completed = $step->parse();
+                    }
+                    catch ($err) {
+                        warn $err;
+                        $all_done = 0;
+                        last;
+                    }
+                    
                     if ($completed) {
                         # on instant complete, parse calls post_process itself
                         # and only returns true if that was successfull
