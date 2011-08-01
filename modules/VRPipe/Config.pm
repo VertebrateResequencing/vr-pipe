@@ -164,7 +164,7 @@ class VRPipe::Config {
     
     has testing_scheduler_output_root => (
         is      => 'rw',
-        question => 'What root directory should production scheduler output go to?',
+        question => 'What root directory should test scheduler output go to?',
         default => sub { File::Spec->tmpdir() },
         question_number => ++$question_number
     );
