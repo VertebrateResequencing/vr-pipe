@@ -26,7 +26,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                                                                version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
                                                                summary => "$samtools view -bSu \$sam_file | $samtools sort -n -o - samtools_nsort_tmp | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - samtools_csort_tmp | $samtools fillmd -u - \$reference_fasta > \$fixed_bam_file"));
             
-            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $req = $self->new_requirements(memory => 3500, time => 8);
             foreach my $sam (@{$self->inputs->{sam_files}}) {
                 my $bam_basename = $sam->basename;
                 $bam_basename =~ s/\.sam$//;

@@ -289,7 +289,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
         #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
         #    for now
-        return 'normal';
+        return $requirements->time > 12 ? 'long' : 'normal';
     }
     
     method run_on_node (Persistent :$submission?, Persistent :$array?, Maybe[PositiveInt] :$index?, PositiveInt :$heartbeat_interval?) {

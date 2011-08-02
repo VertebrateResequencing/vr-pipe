@@ -55,7 +55,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                 $cmds{$ended} = $cmd;
             }
             
-            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $req = $self->new_requirements(memory => 7900, time => 24);
             
             my @fq_files = @{$self->inputs->{fastq_files}};
             my @sai_files = @{$self->inputs->{sai_files}};
