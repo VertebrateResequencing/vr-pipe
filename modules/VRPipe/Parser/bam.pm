@@ -95,10 +95,10 @@ use VRPipe::Base;
 class VRPipe::Parser::bam with VRPipe::ParserRole {
     use Devel::GlobalDestruction;
     
-    use Inline C => Config => FILTERS => 'Strip_POD' =>
-               INC => "-I$ENV{SAMTOOLS}" =>
-               LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" =>
-               CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
+    #use Inline C => Config => FILTERS => 'Strip_POD' =>
+    #           INC => "-I$ENV{SAMTOOLS}" =>
+    #           LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" =>
+    #           CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
     
     our %flags = (paired_tech    => 0x0001,
                   paired_map     => 0x0002,
@@ -121,7 +121,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
                       default => sub { {} });
     
     sub BUILD {
-        shift->_reset();
+        #shift->_reset();
     }
     
     method _get_fh {
@@ -136,7 +136,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
             open(my $fh, $open) || $self->throw("Couldn't open '$open': $!");
             
             # open in the C API
-            ($self->{_chead}, $self->{_cbam}, $self->{_cb}) = $self->_initialize_bam($filename);
+            #($self->{_chead}, $self->{_cbam}, $self->{_cb}) = $self->_initialize_bam($filename);
             
             return $fh;
         }
@@ -144,165 +144,165 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
             $self->throw("bam parser only supports VRPipe::File or path inputs");
         }
     }
-    
-    use Inline C => <<'END_C';
-
-=head2 is_sequencing_paired
-
- Title   : is_sequencing_paired
- Usage   : if ($obj->is_sequencing_paired($flag)) { ... };
- Function: Ask if a given flag indicates the read was paired in sequencing.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_sequencing_paired(SV* self, int flag) {
-    return (flag & 0x0001) > 0 ? 1 : 0;
-}
-
-=head2 is_mapped_paired
-
- Title   : is_mapped_paired
- Usage   : if ($obj->is_mapped_paired($flag)) { ... };
- Function: Ask if a given flag indicates the read was mapped in a proper pair.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_mapped_paired(SV* self, int flag) {
-    return (flag & 0x0002) > 0 ? 1 : 0;
-}
-
-=head2 is_mapped
-
- Title   : is_mapped
- Usage   : if ($obj->is_mapped($flag)) { ... };
- Function: Ask if a given flag indicates the read was itself mapped.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_mapped(SV* self, int flag) {
-    return (flag & 0x0004) == 0 ? 1 : 0;
-}
-
-=head2 is_mate_mapped
-
- Title   : is_mate_mapped
- Usage   : if ($obj->is_mate_mapped($flag)) { ... };
- Function: Ask if a given flag indicates the read's mate was mapped.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_mate_mapped(SV* self, int flag) {
-    return (flag & 0x0008) == 0 ? 1 : 0;
-}
-
-=head2 is_reverse_strand
-
- Title   : is_reverse_strand
- Usage   : if ($obj->is_reverse_strand($flag)) { ... };
- Function: Ask if a given flag indicates the read is on the reverse stand.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_reverse_strand(SV* self, int flag) {
-    return (flag & 0x0010) > 0 ? 1 : 0;
-}
-
-=head2 is_mate_reverse_strand
-
- Title   : is_mate_reverse_strand
- Usage   : if ($obj->is_mate_reverse_strand($flag)) { ... };
- Function: Ask if a given flag indicates the read's mate is on the reverse
-           stand.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_mate_reverse_strand(SV* self, int flag) {
-    return (flag & 0x0020) > 0 ? 1 : 0;
-}
-
-=head2 is_first
-
- Title   : is_first
- Usage   : if ($obj->is_first($flag)) { ... };
- Function: Ask if a given flag indicates the read was the first of a pair.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_first(SV* self, int flag) {
-    return (flag & 0x0040) > 0 ? 1 : 0;
-}
-
-=head2 is_second
-
- Title   : is_second
- Usage   : if ($obj->is_second($flag)) { ... };
- Function: Ask if a given flag indicates the read was the second of a pair.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_second(SV* self, int flag) {
-    return (flag & 0x0080) > 0 ? 1 : 0;
-}
-
-=head2 is_primary
-
- Title   : is_primary
- Usage   : if ($obj->is_primary($flag)) { ... };
- Function: Ask if a given flag indicates the read alignment was primary.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_primary(SV* self, int flag) {
-    return (flag & 0x0100) == 0 ? 1 : 0;
-}
-
-=head2 passes_qc
-
- Title   : passes_qc
- Usage   : if ($obj->passes_qc($flag)) { ... };
- Function: Ask if a given flag indicates the read passes quality checks.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int passes_qc(SV* self, int flag) {
-    return (flag & 0x0200) == 0 ? 1 : 0;
-}
-
-=head2 is_duplicate
-
- Title   : is_duplicate
- Usage   : if ($obj->is_duplicate($flag)) { ... };
- Function: Ask if a given flag indicates the read was a duplicate.
- Returns : boolean
- Args    : int (the flag recieved from $result_holder->{FLAG})
-
-=cut
-
-int is_duplicate(SV* self, int flag) {
-    return (flag & 0x0400) > 0 ? 1 : 0;
-}
-
-END_C
+#    
+#    use Inline C => <<'END_C';
+#
+#=head2 is_sequencing_paired
+#
+# Title   : is_sequencing_paired
+# Usage   : if ($obj->is_sequencing_paired($flag)) { ... };
+# Function: Ask if a given flag indicates the read was paired in sequencing.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_sequencing_paired(SV* self, int flag) {
+#    return (flag & 0x0001) > 0 ? 1 : 0;
+#}
+#
+#=head2 is_mapped_paired
+#
+# Title   : is_mapped_paired
+# Usage   : if ($obj->is_mapped_paired($flag)) { ... };
+# Function: Ask if a given flag indicates the read was mapped in a proper pair.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_mapped_paired(SV* self, int flag) {
+#    return (flag & 0x0002) > 0 ? 1 : 0;
+#}
+#
+#=head2 is_mapped
+#
+# Title   : is_mapped
+# Usage   : if ($obj->is_mapped($flag)) { ... };
+# Function: Ask if a given flag indicates the read was itself mapped.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_mapped(SV* self, int flag) {
+#    return (flag & 0x0004) == 0 ? 1 : 0;
+#}
+#
+#=head2 is_mate_mapped
+#
+# Title   : is_mate_mapped
+# Usage   : if ($obj->is_mate_mapped($flag)) { ... };
+# Function: Ask if a given flag indicates the read's mate was mapped.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_mate_mapped(SV* self, int flag) {
+#    return (flag & 0x0008) == 0 ? 1 : 0;
+#}
+#
+#=head2 is_reverse_strand
+#
+# Title   : is_reverse_strand
+# Usage   : if ($obj->is_reverse_strand($flag)) { ... };
+# Function: Ask if a given flag indicates the read is on the reverse stand.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_reverse_strand(SV* self, int flag) {
+#    return (flag & 0x0010) > 0 ? 1 : 0;
+#}
+#
+#=head2 is_mate_reverse_strand
+#
+# Title   : is_mate_reverse_strand
+# Usage   : if ($obj->is_mate_reverse_strand($flag)) { ... };
+# Function: Ask if a given flag indicates the read's mate is on the reverse
+#           stand.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_mate_reverse_strand(SV* self, int flag) {
+#    return (flag & 0x0020) > 0 ? 1 : 0;
+#}
+#
+#=head2 is_first
+#
+# Title   : is_first
+# Usage   : if ($obj->is_first($flag)) { ... };
+# Function: Ask if a given flag indicates the read was the first of a pair.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_first(SV* self, int flag) {
+#    return (flag & 0x0040) > 0 ? 1 : 0;
+#}
+#
+#=head2 is_second
+#
+# Title   : is_second
+# Usage   : if ($obj->is_second($flag)) { ... };
+# Function: Ask if a given flag indicates the read was the second of a pair.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_second(SV* self, int flag) {
+#    return (flag & 0x0080) > 0 ? 1 : 0;
+#}
+#
+#=head2 is_primary
+#
+# Title   : is_primary
+# Usage   : if ($obj->is_primary($flag)) { ... };
+# Function: Ask if a given flag indicates the read alignment was primary.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_primary(SV* self, int flag) {
+#    return (flag & 0x0100) == 0 ? 1 : 0;
+#}
+#
+#=head2 passes_qc
+#
+# Title   : passes_qc
+# Usage   : if ($obj->passes_qc($flag)) { ... };
+# Function: Ask if a given flag indicates the read passes quality checks.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int passes_qc(SV* self, int flag) {
+#    return (flag & 0x0200) == 0 ? 1 : 0;
+#}
+#
+#=head2 is_duplicate
+#
+# Title   : is_duplicate
+# Usage   : if ($obj->is_duplicate($flag)) { ... };
+# Function: Ask if a given flag indicates the read was a duplicate.
+# Returns : boolean
+# Args    : int (the flag recieved from $result_holder->{FLAG})
+#
+#=cut
+#
+#int is_duplicate(SV* self, int flag) {
+#    return (flag & 0x0400) > 0 ? 1 : 0;
+#}
+#
+#END_C
     
 =head2 sam_version
 

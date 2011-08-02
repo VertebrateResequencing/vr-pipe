@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-use Path::Class qw(file);
+use Path::Class;
 use Cwd;
 
 BEGIN {
@@ -64,7 +64,7 @@ is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd,
 # sequence_index
 ok $ds = VRPipe::DataSourceFactory->create('sequence_index', {method => 'lane_fastqs',
                                                               source => file(qw(t data datasource.sequence_index)),
-                                                              options => {}}), 'could create a sequence_index datasource';
+                                                              options => { local_root_dir => $cwd }}), 'could create a sequence_index datasource';
 
 @results = ();
 while (my $result = $ds->next_result) {

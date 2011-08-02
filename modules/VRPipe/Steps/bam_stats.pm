@@ -10,7 +10,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-            $self->throw("foo");
+            $self->throw("bam_stats not yet implemented");
         };
     }
     method outputs_definition {

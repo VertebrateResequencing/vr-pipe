@@ -24,7 +24,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
                   VRPipe::Step->get(name => 'bwa_sam'),
                   VRPipe::Step->get(name => 'sam_to_fixed_bam'),
                   VRPipe::Step->get(name => 'bam_merge_lane_splits'),
-                  VRPipe::Step->get(name => 'bam_stats')
+                  #VRPipe::Step->get(name => 'bam_stats')
                  ],
                  
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'fastq_files'),

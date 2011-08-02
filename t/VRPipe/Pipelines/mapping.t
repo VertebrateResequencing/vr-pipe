@@ -257,7 +257,7 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
 
 my $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $fastq_split_outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => $element_id)->output_files->{split_fastq_files};
+    my $fastq_split_outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => $element_id)->output_files->{split_fastq_files};
     $recorded_outputs += @$fastq_split_outs;
 }
 is_deeply [$existing_outputs, $recorded_outputs], [31, 31], 'all the split files that should have been created by the fastq_split step exist and were recorded as step outputs';
