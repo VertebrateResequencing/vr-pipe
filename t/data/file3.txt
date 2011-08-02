@@ -1,0 +1,2 @@
+3: a text file
+3: with two lines

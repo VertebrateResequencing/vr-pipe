@@ -1,0 +1,114 @@
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@uk10k-1-2-01>
+Subject: Job 892561[8]: <vrpipe4[1-9]> Done
+
+Job <vrpipe4[1-9]> was submitted from host <uk10k-1-1-01> by user <sb10> in cluster <uk10k>.
+Job was executed on host(s) <uk10k-1-2-01>, in queue <normal>, as user <sb10> in cluster <uk10k>.
+</nfs/users/nfs_s/sb10> was used as the home directory.
+</nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe> was used as the working directory.
+Started at Tue Jun  7 16:34:13 2011
+Results reported at Tue Jun  7 16:34:28 2011
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+perl -MVRPipe::Persistent::SchemaBase -MVRPipe::Scheduler -e "VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); VRPipe::Scheduler->get(id => 3)->run_on_node(index => shift, array => 4);"
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time   :      5.05 sec.
+    Max Memory :         1 MB
+    Max Swap   :        21 MB
+
+    Max Processes  :         1
+    Max Threads    :         1
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file </lustre/scratch105/vrpipe/VRPipe__PersistentArray__4/scheduler_stderr.8> for stderr output of this job.
+
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@uk10k-2-1-12>
+Subject: Job 892564[8]: <vrpipe4[1-9]> Done
+
+Job <vrpipe4[1-9]> was submitted from host <uk10k-1-1-01> by user <sb10> in cluster <uk10k>.
+Job was executed on host(s) <uk10k-2-1-12>, in queue <normal>, as user <sb10> in cluster <uk10k>.
+</nfs/users/nfs_s/sb10> was used as the home directory.
+</nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe> was used as the working directory.
+Started at Tue Jun  7 16:36:08 2011
+Results reported at Tue Jun  7 16:36:21 2011
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+perl -MVRPipe::Persistent::SchemaBase -MVRPipe::Scheduler -e "VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); VRPipe::Scheduler->get(id => 3)->run_on_node(index => shift, array => 4);"
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time   :      4.98 sec.
+    Max Memory :         1 MB
+    Max Swap   :        21 MB
+
+    Max Processes  :         1
+    Max Threads    :         1
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file </lustre/scratch105/vrpipe/VRPipe__PersistentArray__4/scheduler_stderr.8> for stderr output of this job.
+
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@uk10k-1-2-14>
+Subject: Job 892567[8]: <vrpipe4[1-9]> Done
+
+Job <vrpipe4[1-9]> was submitted from host <uk10k-1-1-01> by user <sb10> in cluster <uk10k>.
+Job was executed on host(s) <uk10k-1-2-14>, in queue <normal>, as user <sb10> in cluster <uk10k>.
+</nfs/users/nfs_s/sb10> was used as the home directory.
+</nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe> was used as the working directory.
+Started at Tue Jun  7 16:36:55 2011
+Results reported at Tue Jun  7 16:37:02 2011
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+perl -MVRPipe::Persistent::SchemaBase -MVRPipe::Scheduler -e "VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); VRPipe::Scheduler->get(id => 3)->run_on_node(index => shift, array => 4);"
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time   :      4.75 sec.
+    Max Memory :         1 MB
+    Max Swap   :        21 MB
+
+    Max Processes  :         1
+    Max Threads    :         1
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file </lustre/scratch105/vrpipe/VRPipe__PersistentArray__4/scheduler_stderr.8> for stderr output of this job.
+
