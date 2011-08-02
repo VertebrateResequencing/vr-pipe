@@ -28,7 +28,7 @@ class VRPipe::File extends VRPipe::Persistent {
                 builder => 'check_file_existence_on_disc');
     
     has 's' => (is => 'rw',
-                isa => IntSQL[64],
+                isa => IntSQL[16],
                 traits => ['VRPipe::Persistent::Attributes'],
                 builder => 'check_file_size_on_disc');
     
@@ -38,7 +38,7 @@ class VRPipe::File extends VRPipe::Persistent {
                   is_nullable => 1);
     
     has '_lines' => (is => 'rw',
-                    isa => IntSQL[64],
+                    isa => IntSQL[16],
                     traits => ['VRPipe::Persistent::Attributes'],
                     is_nullable => 1);
     

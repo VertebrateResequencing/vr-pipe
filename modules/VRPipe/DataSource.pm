@@ -14,7 +14,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                      is_key => 1);
     
     has 'source' => (is => 'rw',
-                     isa => Varchar[64],
+                     isa => Text,
                      traits => ['VRPipe::Persistent::Attributes'],
                      is_key => 1);
     
