@@ -23,7 +23,7 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
                                               basename => $ifile->basename.'.md5',
                                               type => 'txt',
                                               metadata => {md5_checksum_of => $ifile->stringify})->path;
-               $self->dispatch([qq{md5sum $ifile > $ofile}, $self->new_requirements(memory => 50, time => 1)]);
+               $self->dispatch([qq{md5sum $ifile > $ofile}, $self->new_requirements(memory => 500, time => 1)]);
             }
         };
     }

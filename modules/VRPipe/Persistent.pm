@@ -108,7 +108,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
     
     has 'id' => (is => 'rw',
-                 isa => IntSQL[16],
+                 isa => IntSQL[9],
                  traits => ['VRPipe::Persistent::Attributes'],
                  is_auto_increment => 1,
                  is_primary_key => 1);
@@ -199,8 +199,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 my $size = 0;
                 my $is_numeric = 0;
                 if ($cname =~ /IntSQL\[(\d+)\]/) {
-                    $cname = 'int';
                     $size = $1;
+                    if ($size < 3) {
+                        $cname = 'tinyint';
+                    }
+                    elsif ($size < 5) {
+                        $cname = 'smallint';
+                    }
+                    elsif ($size < 7) {
+                        $cname = 'mediumint';
+                    }
+                    elsif ($size < 10) {
+                        $cname = 'int';
+                    }
+                    else {
+                        $cname = 'bigint';
+                    }
+                    
                     $is_numeric = 1;
                 }
                 elsif ($cname =~ /Varchar\[(\d+)\]/) {

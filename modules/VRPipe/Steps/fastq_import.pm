@@ -13,13 +13,14 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
                                                               max_files => -1,
                                                               metadata => {remote_path => 'the complete remote location of the file',
                                                                            expected_md5 => 'the md5 checksum the file is supposed to have',
-                                                                           optional => ['remote_path', 'expected_md5']}) };
+                                                                           optional => ['remote_path', 'expected_md5']},
+                                                              check_existence => 0) };
     }
     method body_sub {
         return sub {
             my $self = shift;
             
-            my $req = $self->new_requirements(memory => 50, time => 1);
+            my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $fq_file (@{$self->inputs->{fastq_files}}) {
                 # our output file is our input file
                 my $ifile = $fq_file->path;
@@ -51,7 +52,6 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
         my $meta = $fq_file->meta;
         my $expected_md5 = $meta->{expected_md5};
         my $local_dir = $fq_file->dir;
-        $self->make_path($local_dir);
         my $out_file = $fq_file->path;
         
         $fq_file->disconnect;

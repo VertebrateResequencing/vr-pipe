@@ -13,11 +13,15 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
         return VRPipe::Parser->create('sequence_index', {file => $file});
     }
     
-    method lane_fastqs (Defined :$handle, Bool :$ignore_withdrawn = 1, Str|Dir :$remote_root_dir?, Str|Dir :$local_root_dir?, Bool :$require_fastqs = 1, Str :$platform?, Str :$analysis_group?) {
+    method lane_fastqs (Defined :$handle, Bool :$ignore_withdrawn = 1, Str|Dir :$remote_root_dir?, Str|Dir :$local_root_dir?, Bool :$require_fastqs?, Str :$platform?, Str :$analysis_group?) {
         my $lanes_hash = $self->_lanes_hash;
         
         if ($remote_root_dir && ! $local_root_dir) {
             $self->throw("when remote_root_dir is specified, local_root_dir is required");
+        }
+        
+        if (! defined $require_fastqs) {
+            $require_fastqs = $remote_root_dir ? 0 : 1;
         }
         
         unless ($lanes_hash) {
@@ -75,10 +79,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
                 my $remote_path;
                 if ($remote_root_dir) {
                     if ($remote_root_dir =~ /:\/\//) {
-                        $remote_path = join('/', $remote_root_dir, $fastq);
+                        $remote_root_dir =~ s/\/$//;
+                        $remote_path = join('/', $remote_root_dir, $pr->[0]);
                     }
                     else {
-                        $remote_path = file($remote_root_dir, $fastq)->stringify;
+                        $remote_path = file($remote_root_dir, $pr->[0])->stringify;
                     }
                 }
                 

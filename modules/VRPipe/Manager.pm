@@ -268,7 +268,20 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # Submission and Job methods to work out why and resubmit them as appropriate,
         # potentially with updated Requirements. max_retries defaults to 3.
         
-        #*** not yet implemented...
+        #*** not yet fully implemented...
+        
+        foreach my $sub (@$submissions) {
+            next unless $sub->failed;
+            
+            if ($sub->retries >= $max_retries) {
+                warn "submission ", $sub->id, " retried $max_retries times now, giving up\n";
+            }
+            else {
+                # *** supposed to figure out why it failed and adjust reqs as appropriate...
+                $sub->extra_memory;
+                $sub->retry;
+            }
+        }
         
         return 1;
     }
@@ -284,7 +297,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # update the status of each submission in case any of them finished
         my @still_not_done;
         foreach my $sub (@$submissions) {
-            if ($sub->job->running) {
+            my $job = $sub->job;
+            if ($job->running) {
                 # user's scheduler might kill the submission if it runs too long in the
                 # queue it was initially submitted to; user could do something like this
                 # every 15mins:
@@ -297,10 +311,15 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 #    # queue:
                 #    $sub->scheduler->switch_queues($sub);
                 #}
+                
+                # check we've had a recent heartbeat
+                if ($job->unresponsive) {
+                    $job->kill_job;
+                }
             }
-            elsif ($sub->job->finished) {
+            elsif ($job->finished) {
                 $sub->update_status();
-                next;
+                next if $sub->done;
             }
             else {
                 # we must be pending in the scheduler

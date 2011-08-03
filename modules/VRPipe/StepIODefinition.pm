@@ -28,6 +28,13 @@ class VRPipe::StepIODefinition extends VRPipe::Persistent {
                        default => sub { {} },
                        allow_key_to_default => 1);
     
+    has 'check_existence' => (is => 'rw',
+                              isa => 'Bool',
+                              traits => ['VRPipe::Persistent::Attributes'],
+                              is_key => 1,
+                              default => 1,
+                              allow_key_to_default => 1);
+    
     has 'description' => (is => 'rw',
                           isa => Varchar[255],
                           traits => ['VRPipe::Persistent::Attributes'],

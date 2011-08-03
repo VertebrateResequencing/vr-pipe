@@ -249,7 +249,9 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # time, cpu etc.
         my $queue = $self->determine_queue($requirements);
         # *** ...
-        my $requirments_string = "-q $queue";
+        my $megabytes = $requirements->memory;
+        my $m = $megabytes * 1000;
+        my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
         
         # work out the scheduler output locations and how to pass on the
         # scheduler array index to the perl cmd

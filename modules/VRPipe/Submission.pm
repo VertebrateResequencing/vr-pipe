@@ -323,6 +323,35 @@ class VRPipe::Submission extends VRPipe::Persistent {
         $file->s || return;
         return VRPipe::Parser->create('cat', {file => $file});
     }
+    
+    method retry {
+        return unless ($self->done || $self->failed);
+        
+        # reset the job
+        my $job = $self->job;
+        unless ($job->finished) {
+            $job->kill_job;
+        }
+        
+        my $ofiles = $job->output_files;
+        foreach my $file (@$ofiles) {
+            $file->unlink;
+        }
+        
+        $job->reset_job;
+        
+        # reset ourself
+        my $retries = $self->retries;
+        $self->_sid(undef);
+        $self->_failed(0);
+        $self->_done(0);
+        $self->retries($retries + 1);
+        $self->_aid(undef);
+        $self->_scheduled(undef);
+        $self->_claim(0);
+        $self->_hid(undef);
+        $self->update;
+    }
 }
 
 1;
