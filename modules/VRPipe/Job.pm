@@ -4,6 +4,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     use DateTime;
     use Cwd;
     use Sys::Hostname;
+    use Net::SSH qw(ssh);
     
     has 'cmd' => (is => 'rw',
                   isa => Text,
@@ -217,11 +218,12 @@ class VRPipe::Job extends VRPipe::Persistent {
             my $dir = $self->dir;
             my $cmd = $self->cmd;
             my $stdout_file = $self->stdout_file->path; #*** call here in child, then below in parent, creating 2 identical rows in db?... should not be possible!
+            $stdout_file->dir->mkpath;
             my $stderr_file = $self->stderr_file->path; #*** but only 1 copy of the e?!
             $self->disconnect;
             
-            open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT: $!");
-            open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR: $!");
+            open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
+            open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
             chdir($dir);
             exec($cmd);
         }
@@ -298,7 +300,33 @@ class VRPipe::Job extends VRPipe::Persistent {
         }
     }
     
-    method reset {
+    method time_since_heartbeat {
+        return unless $self->running;
+        my $last_heartbeat = $self->heartbeat->epoch;
+        my $t = time();
+        return $t - $last_heartbeat;
+    }
+    
+    method unresponsive {
+        my $interval = $self->heartbeat_interval;
+        my $elapsed = $self->time_since_heartbeat;
+        return $elapsed > ($interval * 3) ? 1 : 0;
+    }
+    
+    method kill_job {
+        return unless $self->running;
+        my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
+        $self->disconnect;
+        ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
+                                             #    Net::SSH::Perl is able to always log us in, but can take over a minute!
+        # *** do we care if the kill fails?...
+        $self->running(0);
+        $self->finished(1);
+        $self->exit_code(9);
+        $self->update;
+    }
+    
+    method reset_job {
         return if $self->running;
         #*** race condition
         $self->running(0);
