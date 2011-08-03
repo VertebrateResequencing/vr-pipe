@@ -79,10 +79,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceRole {
                 my $remote_path;
                 if ($remote_root_dir) {
                     if ($remote_root_dir =~ /:\/\//) {
-                        $remote_path = join('/', $remote_root_dir, $fastq);
+                        $remote_root_dir =~ s/\/$//;
+                        $remote_path = join('/', $remote_root_dir, $pr->[0]);
                     }
                     else {
-                        $remote_path = file($remote_root_dir, $fastq)->stringify;
+                        $remote_path = file($remote_root_dir, $pr->[0])->stringify;
                     }
                 }
                 
