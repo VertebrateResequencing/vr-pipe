@@ -35,7 +35,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
                 $self->output_file(output_key => 'bwa_index_text_files', output_dir => $ref->dir->stringify, basename => $ref->basename.'.'.$suffix, type => 'txt');
             }
             
-            $self->dispatch([$cmd, $self->new_requirements(memory => 3000, time => 1), {block_and_skip_if_ok => 1}]);
+            $self->dispatch([$cmd, $self->new_requirements(memory => 3900, time => 1), {block_and_skip_if_ok => 1}]);
         };
     }
     method outputs_definition {

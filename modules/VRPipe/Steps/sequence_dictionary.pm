@@ -32,7 +32,7 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
             
             my $code = qq[use VRPipe::Steps::sequence_dictionary; VRPipe::Steps::sequence_dictionary->dicter(ref => q[$ref], dict => q[$dict_file], constants => q[$constants]);];
             
-            $self->dispatch_vrpipecode($code, $self->new_requirements(memory => 50, time => 1), {block_and_skip_if_ok => 1});
+            $self->dispatch_vrpipecode($code, $self->new_requirements(memory => 500, time => 1), {block_and_skip_if_ok => 1});
         };
     }
     method outputs_definition {

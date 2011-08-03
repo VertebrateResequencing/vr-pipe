@@ -39,7 +39,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             $ended{pe} = @pe == 2 ? \@pe : undef;
             $ended{se} = $se ? [$se] : undef;
             my $out_root = $self->output_root;
-            my $req = $self->new_requirements(memory => 50, time => 1);
+            my $req = $self->new_requirements(memory => 500, time => 1);
             
             my $chunk_size = $self->options->{fastq_chunk_size};
             
