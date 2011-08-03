@@ -55,6 +55,7 @@ my $build = VRPipeBuild->new(
                               'MooseX::Aliases' => 0,
                               'MooseX::Declare' => 0,
                               'Net::FTP::Robust' => 0,
+                              'Net::SSH' => 0,
                               'Parallel::ForkManager' => 0,
                               'Path::Class' => 0,
                               'POSIX' => 0,
