@@ -146,7 +146,9 @@ role VRPipe::Base::Debuggable {
 =cut
     method throw (ClassName|Object $self: Str $message = '[no message]') {
         my $cwd = getcwd();
-        my $first_line = "FATAL ERROR on $time{'yyyy/mm/dd hh:mm:ss'} in $cwd";
+        #my $first_line = "FATAL ERROR on $time{'yyyy/mm/dd hh:mm:ss'} in $cwd";
+        my $t = time();
+        my $first_line = "FATAL ERROR at epoch $t in $cwd";
         
         my $capture = IO::Capture::Stderr->new();
         $capture->start();

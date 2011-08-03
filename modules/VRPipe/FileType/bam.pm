@@ -5,7 +5,9 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
     
     around check_type {
         $self->$orig || return 0;
-        return $self->check_magic($self->file, $correct_magic);
+        #return $self->check_magic($self->file, $correct_magic); #*** for some reason, this, which in other contexts takes <1second, takes 10s of seconds in the Manager loop
+        my $path = $self->file;
+        return $path =~ /\.bam$/ ? 1 : 0;
     }
     
     method num_header_lines {
