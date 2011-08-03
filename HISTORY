@@ -1,3 +1,5 @@
+0.03    0.02 only worked on test dataset; this should be the first version to
+        work on real data, following important schema changes and Step fixes
 0.02    Most interesting features not yet implemented, but this is the first
         working version, needed to do the 1000genomes phase2 (re)mapping
 0.01    No real files; just starting up repository
