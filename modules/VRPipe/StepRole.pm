@@ -226,8 +226,14 @@ role VRPipe::StepRole {
         my @missing;
         # check the files we actually output are as expected
         while (my ($key, $val) = each %$hash) {
+            my $def = $defs->{$key};
+            my $check_s = 1;
+            if ($def && $def->isa('VRPipe::StepIODefinition')) {
+                $check_s = $def->check_existence;
+            }
+            
             foreach my $file (@$val) {
-                if (! $file->s) {
+                if ($check_s && ! $file->s) {
                     push(@missing, $file->path);
                 }
                 else {
@@ -241,7 +247,6 @@ role VRPipe::StepRole {
                     }
                     
                     # check the expected metadata keys exist
-                    my $def = $defs->{$key};
                     if ($def && $def->isa('VRPipe::StepIODefinition')) {
                         my @needed = $def->required_metadata_keys;
                         if (@needed) {
@@ -403,7 +408,7 @@ role VRPipe::StepRole {
     
     method dispatch_md5sum (VRPipe::File $vrfile, Maybe[Str] $expected_md5) {
         my $path = $vrfile->path;
-        my $req = $self->new_requirements(memory => 50, time => 1);
+        my $req = $self->new_requirements(memory => 500, time => 1);
         
         if ($expected_md5) {
             return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); if (Digest::MD5->new->addfile(*FILE)->hexdigest eq q[$expected_md5]) { VRPipe::File->get(path => q[$path], md5 => q[$expected_md5]); } else { die q[md5sum of $path does not match expected value] }],
