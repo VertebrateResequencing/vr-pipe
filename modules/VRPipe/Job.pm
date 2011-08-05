@@ -173,6 +173,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         # go ahead and run the cmd, also forking to run a heartbeat process
         # at the same time
         $self->running(1);
+        $self->start_time(DateTime->now());
         $self->finished(0);
         $self->exit_code(undef);
         $self->update;
@@ -211,7 +212,6 @@ class VRPipe::Job extends VRPipe::Persistent {
             $self->pid($$);
             $self->host(hostname());
             $self->user(getlogin || getpwuid($<));
-            $self->start_time(DateTime->now());
             $self->update;
             
             # get all info from db and disconnect before using the info below
@@ -302,15 +302,29 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     method time_since_heartbeat {
         return unless $self->running;
-        my $last_heartbeat = $self->heartbeat->epoch;
+        my $heartbeat = $self->heartbeat || $self->start_time || $self->throw("job ".$self->id." is running, yet has neither a heartbeat nor a start time");
         my $t = time();
-        return $t - $last_heartbeat;
+        return $t - $heartbeat->epoch;
     }
     
     method unresponsive {
         my $interval = $self->heartbeat_interval;
         my $elapsed = $self->time_since_heartbeat;
-        return $elapsed > ($interval * 3) ? 1 : 0;
+        
+        # try and allow for mysql server time being different to our host time,
+        # and other related timing vagueries
+        my $multiplier;
+        if ($interval < 60) {
+            $multiplier = 10;
+        }
+        elsif ($interval < 300) {
+            $multiplier = 3;
+        }
+        else {
+            $multiplier = 1;
+        }
+        
+        return $elapsed > ($interval * $multiplier) ? 1 : 0;
     }
     
     method kill_job {
