@@ -194,6 +194,9 @@ subtype Varchar,
 
 subtype Text,
     as Str;
+coerce Text,
+    from 'Path::Class::File',
+    via { $_->absolute->stringify };
 
 subtype IntSQL,
     as Parameterizable[Int, Int],
