@@ -57,13 +57,13 @@ foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
     $element_id++;
     my $step_index = 0;
     foreach my $suffix ('step_one', 'step_one.step_two', 'step_one.step_two.step_three', 'step_one.step_two.step_three.step_four') {
-        push(@output_files, file($output_dir, $element_id, $expected_step_names[$step_index], "$in.$suffix"));
+        push(@output_files, file($output_dir, output_subdirs($element_id), $expected_step_names[$step_index], "$in.$suffix"));
         
         if ($suffix eq 'step_one.step_two.step_three.step_four') {
-            push(@final_files, file($output_dir_clean, $element_id, $expected_step_names[$step_index], "$in.$suffix"));
+            push(@final_files, file($output_dir_clean, output_subdirs($element_id), $expected_step_names[$step_index], "$in.$suffix"));
         }
         else {
-            push(@deleted_files, file($output_dir_clean, $element_id, $expected_step_names[$step_index], "$in.$suffix"));
+            push(@deleted_files, file($output_dir_clean, output_subdirs($element_id), $expected_step_names[$step_index], "$in.$suffix"));
         }
         
         $step_index++;
@@ -71,9 +71,9 @@ foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
 }
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
 
-my $ofile = VRPipe::File->get(path => file($output_dir, 3, 'test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'));
+my $ofile = VRPipe::File->get(path => file($output_dir, output_subdirs(3), 'test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'));
 my $ometa = $ofile->metadata;
-my $o2meta = VRPipe::File->get(path => file($output_dir, 2, 'test_step_four', 'file2.txt.step_one.step_two.step_three.step_four'))->metadata;
+my $o2meta = VRPipe::File->get(path => file($output_dir, output_subdirs(2), 'test_step_four', 'file2.txt.step_one.step_two.step_three.step_four'))->metadata;
 is_deeply [$ometa->{one_meta}, $ometa->{two_meta}, $ometa->{three_meta}, $o2meta->{three_meta}, $ometa->{four_meta}], [50, 'body_decided_two_option', 'no_three_meta', 'StepOption_default_decided_three_option', 'bar'], 'metadata of one of the final output files was as expected';
 
 my $existing_files = 0;
@@ -83,7 +83,7 @@ foreach my $file (@deleted_files) {
 is $existing_files, 0, 'all but the final files were deleted from the run with cleanup enabled';
 
 my $expected_output = "3: a text file\n3: with two lines\n";
-is_deeply [scalar($ofile->slurp), scalar(VRPipe::File->get(path => file($output_dir_clean, 3, 'test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'))->slurp)], [$expected_output, $expected_output], 'both runs of the pipeline gave good output files';
+is_deeply [scalar($ofile->slurp), scalar(VRPipe::File->get(path => file($output_dir_clean, output_subdirs(3), 'test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'))->slurp)], [$expected_output, $expected_output], 'both runs of the pipeline gave good output files';
 
 done_testing;
 exit;

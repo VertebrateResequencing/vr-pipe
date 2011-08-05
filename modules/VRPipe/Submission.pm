@@ -188,6 +188,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method archive_output {
+        my $jso = $self->job->stdout_file || $self->throw("no job stdout_file for job ".$self->job->id);
+        my $sso = $self->job_stdout_file || $self->throw("no archival destination for job output for submission ".$self->id);
         $self->concatenate($self->job->stdout_file, $self->job_stdout_file, unlink_source => 1);
         $self->concatenate($self->job->stderr_file, $self->job_stderr_file, unlink_source => 1);
         

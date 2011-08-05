@@ -358,6 +358,14 @@ role VRPipe::Base::FileMethods {
         binmode($fh);
         return Digest::MD5->new->addfile($fh)->hexdigest;
     }
+    
+    method hashed_dirs (Str $hashing_string, PositiveInt $levels = 4) {
+        my $dmd5 = Digest::MD5->new();
+        $dmd5->add($hashing_string);
+        my $md5 = $dmd5->hexdigest;
+        my @chars = split("", $md5);
+        return @chars[0..$levels - 1];
+    }
 }
 
 1;

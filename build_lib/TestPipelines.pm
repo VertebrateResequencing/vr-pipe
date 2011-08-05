@@ -6,7 +6,7 @@ use Exporter 'import';
 use Path::Class;
 use lib "t";
 
-our @EXPORT = qw(get_output_dir handle_pipeline);
+our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs);
 
 our $manager = VRPipe::Manager->get();
 
@@ -34,6 +34,11 @@ sub handle_pipeline {
         }
     }
     return $all_created;
+}
+
+sub output_subdirs {
+    my $element_id = shift;
+    return ($manager->hashed_dirs('VRPipe::DataElement::'.$element_id), $element_id);
 }
 
 1;

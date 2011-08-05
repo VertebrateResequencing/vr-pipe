@@ -10,7 +10,7 @@ BEGIN {
     
     use_ok('VRPipe::Persistent::Schema');
     
-    use TestPersistentReal;
+    use TestPipelines;
 }
 
 
@@ -19,9 +19,7 @@ BEGIN {
 # all of the following set up stuff should have been tested in PersistentReal.t
 # so we don't bother with tests unless we actually get to the manager
 my $scheduler = VRPipe::Scheduler->get();
-my $output_root = dir($scheduler->output_root, 'manager_test_output');
-$scheduler->remove_tree($output_root);
-$scheduler->make_path($output_root);
+my $output_root = get_output_dir('manager_test_output');
 
 # pipeline 1
 my $single_step = VRPipe::Step->get(name => 'element_outputter',
@@ -44,7 +42,7 @@ my $first_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps1', datasource =
 
 my @first_output_files;
 foreach my $element_num (1..5) {
-    push(@first_output_files, file($first_pipeline_output_dir, VRPipe::DataElement->get(datasource => $five_element_datasource->id, result => {line => "fed_result_$element_num"})->id, 'element_outputter', "fed_result_$element_num.o"));
+    push(@first_output_files, file($first_pipeline_output_dir, output_subdirs(VRPipe::DataElement->get(datasource => $five_element_datasource->id, result => {line => "fed_result_$element_num"})->id), 'element_outputter', "fed_result_$element_num.o"));
 }
 
 # pipeline 2
@@ -59,7 +57,7 @@ my $input1_file = VRPipe::File->get(path => $input1_path, type => 'txt');
 my $single_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
 my $multi_step_pipeline = VRPipe::Pipeline->get(name => 'multi_step_pipeline', description => 'simple test pipeline with five steps');
 
-my $output1_path = file($second_pipeline_output_dir, VRPipe::DataElement->get(datasource => $single_element_datasource->id, result => {line => "single_element"})->id, "step_1", 'output1.txt');
+my $output1_path = file($second_pipeline_output_dir, output_subdirs(VRPipe::DataElement->get(datasource => $single_element_datasource->id, result => {line => "single_element"})->id), "step_1", 'output1.txt');
 my $output1_file = VRPipe::File->get(path => $output1_path, type => 'txt');
 
 my @steps;
@@ -125,7 +123,7 @@ my $second_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps2', datasource 
 
 my @second_output_files = ($output1_file->path);
 foreach my $step_num (2..5) {
-    my $ofile = file($second_pipeline_output_dir, VRPipe::DataElement->get(datasource => $single_element_datasource->id, result => {line => "single_element"})->id, "step_$step_num", $step_num == 4 ? 'step4_basename.o' : "step${step_num}_output.txt");
+    my $ofile = file($second_pipeline_output_dir, output_subdirs(VRPipe::DataElement->get(datasource => $single_element_datasource->id, result => {line => "single_element"})->id), "step_$step_num", $step_num == 4 ? 'step4_basename.o' : "step${step_num}_output.txt");
     push(@second_output_files, $ofile);
 }
 
@@ -155,12 +153,12 @@ my $md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps3',
                                                    pipeline => $prewritten_step_pipeline,
                                                    options => {md5_files_in_source_dir => 0});
 
-my @md5_output_files = (file($prewritten_step_pipeline_output_dir, 7, 'md5_file_production', 'file.bam.md5'),
-                        file($prewritten_step_pipeline_output_dir, 8, 'md5_file_production', 'file.cat.md5'),
-                        file($prewritten_step_pipeline_output_dir, 9, 'md5_file_production', 'file.txt.md5'),
-                        file($prewritten_step_pipeline_output_dir, 7, 'md5_file_production', 'file.bam.md5.md5'),
-                        file($prewritten_step_pipeline_output_dir, 8, 'md5_file_production', 'file.cat.md5.md5'),
-                        file($prewritten_step_pipeline_output_dir, 9, 'md5_file_production', 'file.txt.md5.md5'));
+my @md5_output_files = (file($prewritten_step_pipeline_output_dir, output_subdirs(7), 'md5_file_production', 'file.bam.md5'),
+                        file($prewritten_step_pipeline_output_dir, output_subdirs(8), 'md5_file_production', 'file.cat.md5'),
+                        file($prewritten_step_pipeline_output_dir, output_subdirs(9), 'md5_file_production', 'file.txt.md5'),
+                        file($prewritten_step_pipeline_output_dir, output_subdirs(7), 'md5_file_production', 'file.bam.md5.md5'),
+                        file($prewritten_step_pipeline_output_dir, output_subdirs(8), 'md5_file_production', 'file.cat.md5.md5'),
+                        file($prewritten_step_pipeline_output_dir, output_subdirs(9), 'md5_file_production', 'file.txt.md5.md5'));
 
 is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manager';
 
@@ -168,9 +166,9 @@ my @md5s;
 foreach my $file (file(qw(t data file.bam))->absolute,
                   file(qw(t data file.cat))->absolute,
                   file(qw(t data file.txt))->absolute,
-                  file($prewritten_step_pipeline_output_dir, 7, 'md5_file_production', 'file.bam.md5'),
-                  file($prewritten_step_pipeline_output_dir, 8, 'md5_file_production', 'file.cat.md5'),
-                  file($prewritten_step_pipeline_output_dir, 9, 'md5_file_production', 'file.txt.md5')) {
+                  file($prewritten_step_pipeline_output_dir, output_subdirs(7), 'md5_file_production', 'file.bam.md5'),
+                  file($prewritten_step_pipeline_output_dir, output_subdirs(8), 'md5_file_production', 'file.cat.md5'),
+                  file($prewritten_step_pipeline_output_dir, output_subdirs(9), 'md5_file_production', 'file.txt.md5')) {
     push(@md5s, VRPipe::File->get(path => $file)->md5);
 }
 is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec bc5e5541094af2ddf06d8d6a3ef6e101 3f07e8796553d8dbebdc55d59febeab6 cb683a2796e39c24338cfc23ded5a299)], 'md5s were all set in db';
@@ -179,20 +177,3 @@ is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90de
 
 done_testing;
 exit;
-
-sub handle_pipeline {
-    my $give_up = 200;
-    while (! $manager->trigger) {
-        last if $give_up-- <= 0;
-        $manager->handle_submissions;
-        sleep(1);
-    }
-    my $all_created = 1;
-    foreach my $ofile (@_) {
-        unless (-s $ofile) {
-            warn "$ofile is missing\n";
-            $all_created = 0;
-        }
-    }
-    return $all_created;
-}

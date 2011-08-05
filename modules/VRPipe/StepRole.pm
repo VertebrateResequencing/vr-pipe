@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 role VRPipe::StepRole {
+    use Digest::MD5;
+    
     method name {
         my $class = ref($self);
         my ($name) = $class =~ /.+::(.+)/;
@@ -85,7 +87,12 @@ role VRPipe::StepRole {
     method _build_output_root {
         my $step_state = $self->step_state || $self->throw("Cannot get output root without step state");
         my $pipeline_root = $step_state->pipelinesetup->output_root;
-        return dir($pipeline_root, $step_state->dataelement->id, $self->name);
+        
+        my $de_id = $step_state->dataelement->id;
+        my $hashing_string = 'VRPipe::DataElement::'.$de_id;
+        my @subdirs = $self->hashed_dirs($hashing_string);
+        
+        return dir($pipeline_root, @subdirs, $de_id, $self->name);
     }
     method _build_last_output_dir {
         return $self->output_root;
