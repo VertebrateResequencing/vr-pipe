@@ -6,8 +6,8 @@ use Getopt::Long;
 use aliased 'VRPipe::Persistent::Schema' => 'PS';
 use aliased 'DBIx::Class::DeploymentHandler' => 'DH';
 
-my $from = 1; # change this default every time we do a new stable release
 my $to = PS->VERSION;
+my $from = $to - 1;
 my $help = 0;
 GetOptions("from=i" => \$from,
            "to=i" => \$to,
