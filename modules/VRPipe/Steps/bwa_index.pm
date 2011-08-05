@@ -3,9 +3,12 @@ use VRPipe::Base;
 class VRPipe::Steps::bwa_index with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
-                 bwa_index_cmd => VRPipe::StepOption->get(description => 'the near-complete bwa index command line, including desired options, but excluding the reference fasta file',
+                 bwa_index_options => VRPipe::StepOption->get(description => 'options to bwa index, excluding the reference fasta file',
                                                           optional => 1,
-                                                          default_value => 'bwa index -a bwtsw') };
+                                                          default_value => '-a bwtsw'),
+                 bwa_exe => VRPipe::StepOption->get(description => 'path to your bwa executable',
+                                                    optional => 1,
+                                                    default_value => 'bwa') };
     }
     method inputs_definition {
         return { };
@@ -13,19 +16,18 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-            my $ref = Path::Class::File->new($self->options->{reference_fasta});
+            my $options = $self->options;
+            my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $cmd = $self->options->{bwa_index_cmd};
-            my @c = split(" ", $cmd);
-            unless ($c[1] eq 'index') {
-                $self->throw("bad bwa_index_cmd '$cmd'");
+            my $bwa_exe = $options->{bwa_exe};
+            my $bwa_opts = $options->{bwa_index_options};
+            if ($bwa_opts =~ /$ref|index/) {
+                $self->throw("bwa_index_options should not include the reference or index subcommand");
             }
+            my $cmd = $bwa_exe.' index '.$bwa_opts;
             
-            if ($cmd =~ /$ref/) {
-                $self->throw("bwa_index_cmd should not include the reference");
-            }
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => Path::Class::File->new($c[0])->basename, version => VRPipe::StepCmdSummary->determine_version($c[0], '^Version: (.+)$'), summary => $cmd.' $reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $cmd.' $reference_fasta'));
             $cmd .= ' '.$ref;
             
             foreach my $suffix (qw(bwt pac rbwt rpac rsa sa)) {

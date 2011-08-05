@@ -283,7 +283,7 @@ is $stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
 
 $jobs[2]->run;
 is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
-ok $jobs[2]->reset, 'could reset a job';
+ok $jobs[2]->reset_job, 'could reset a job';
 is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time],
           [0, 0, 0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
 my $child_pid = fork();

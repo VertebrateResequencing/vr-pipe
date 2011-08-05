@@ -3,9 +3,12 @@ use VRPipe::Base;
 class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
-                 bwa_aln_cmd => VRPipe::StepOption->get(description => 'the near-complete bwa aln command line, including desired options, but excluding the input fastq, reference and -f option',
+                 bwa_aln_options => VRPipe::StepOption->get(description => 'options to bwa aln, excluding the input fastq, reference and -f option',
                                                         optional => 1,
-                                                        default_value => 'bwa aln -q 15') };
+                                                        default_value => '-q 15'),
+                 bwa_exe => VRPipe::StepOption->get(description => 'path to your bwa executable',
+                                                    optional => 1,
+                                                    default_value => 'bwa') };
     }
     method inputs_definition {
         return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq',
@@ -19,20 +22,18 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-            my $ref = Path::Class::File->new($self->options->{reference_fasta});
+            my $options = $self->options;
+            my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $cmd = $self->options->{bwa_aln_cmd};
-            my @c = split(" ", $cmd);
-            unless ($c[1] eq 'aln') {
-                $self->throw("bad bwa_aln_cmd '$cmd'");
+            my $bwa_exe = $options->{bwa_exe};
+            my $bwa_opts = $options->{bwa_aln_options};
+            if ($bwa_opts =~ /$ref|-f|aln/) {
+                $self->throw("bwa_aln_options should not include the reference or -f option, or the aln sub command");
             }
+            my $cmd = $bwa_exe.' aln '.$bwa_opts;
             
-            if ($cmd =~ /$ref|-f/) {
-                $self->throw("bwa_aln_cmd should not include the reference or -f option");
-            }
-            
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => Path::Class::File->new($c[0])->basename, version => VRPipe::StepCmdSummary->determine_version($c[0], '^Version: (.+)$'), summary => $cmd.' -f $sai_file $reference_fasta $fastq_file'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $cmd.' -f $sai_file $reference_fasta $fastq_file'));
             
             my $req = $self->new_requirements(memory => 7900, time => 24);
             foreach my $fastq (@{$self->inputs->{fastq_files}}) {

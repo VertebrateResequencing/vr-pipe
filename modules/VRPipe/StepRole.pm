@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 role VRPipe::StepRole {
+    use Digest::MD5;
+    
     method name {
         my $class = ref($self);
         my ($name) = $class =~ /.+::(.+)/;
@@ -85,7 +87,12 @@ role VRPipe::StepRole {
     method _build_output_root {
         my $step_state = $self->step_state || $self->throw("Cannot get output root without step state");
         my $pipeline_root = $step_state->pipelinesetup->output_root;
-        return dir($pipeline_root, $step_state->dataelement->id, $self->name);
+        
+        my $de_id = $step_state->dataelement->id;
+        my $hashing_string = 'VRPipe::DataElement::'.$de_id;
+        my @subdirs = $self->hashed_dirs($hashing_string);
+        
+        return dir($pipeline_root, @subdirs, $de_id, $self->name);
     }
     method _build_last_output_dir {
         return $self->output_root;
@@ -135,6 +142,15 @@ role VRPipe::StepRole {
             }
             else {
                 $self->throw("invalid class ".ref($val)." supplied for option '$key' definition");
+            }
+        }
+        
+        # add in requirements overrides that pertain to us
+        my $name = $self->name;
+        foreach my $resource (qw(memory time cpus tmp_space local_space custom)) {
+            my $user_key = $name.'_'.$resource;
+            if (defined $user_opts->{$user_key}) {
+                $return{$resource.'_override'} = $user_opts->{$user_key};
             }
         }
         
@@ -370,6 +386,17 @@ role VRPipe::StepRole {
     }
     
     method new_requirements (Int :$memory, Int :$time, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
+        # user can override settings set in the step body_sub by providing
+        # options
+        my $options = $self->options;
+        if (defined $options->{memory_override}) {
+            $memory = $options->{memory_override};
+        }
+        if (defined $options->{time_override}) {
+            $time = $options->{time_override};
+        }
+        #*** and the other resources?...
+        
         return VRPipe::Requirements->get(memory => $memory,
                                          time => $time,
                                          $cpus ? (cpus => $cpus) : (),

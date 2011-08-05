@@ -342,10 +342,8 @@ role VRPipe::Base::FileMethods {
     
     method verify_md5 (File $path, Str $md5) {
         my $vrfile = VRPipe::File->get(path => $path);
-        my $fh = $vrfile->open;
-        binmode($fh);
         
-        if (Digest::MD5->new->addfile($fh)->hexdigest eq $md5) {
+        if ($self->file_md5($vrfile) eq $md5) {
             $vrfile->md5($md5);
             $vrfile->update;
             return 1;
@@ -353,6 +351,20 @@ role VRPipe::Base::FileMethods {
         else {
             return 0;
         }
+    }
+    
+    method file_md5 (VRPipe::File $vrfile) {
+        my $fh = $vrfile->openr;
+        binmode($fh);
+        return Digest::MD5->new->addfile($fh)->hexdigest;
+    }
+    
+    method hashed_dirs (Str $hashing_string, PositiveInt $levels = 4) {
+        my $dmd5 = Digest::MD5->new();
+        $dmd5->add($hashing_string);
+        my $md5 = $dmd5->hexdigest;
+        my @chars = split("", $md5);
+        return @chars[0..$levels - 1];
     }
 }
 

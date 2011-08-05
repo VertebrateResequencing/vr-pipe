@@ -3,11 +3,14 @@ use VRPipe::Base;
 class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file the sai files were aligned with'),
-                 bwa_samse_cmd => VRPipe::StepOption->get(description => 'the near-complete bwa samse command line, including desired options, but excluding the input sai, fastq, reference, -r and -f',
+                 bwa_samse_options => VRPipe::StepOption->get(description => 'options to bwa samse, excluding the input sai, fastq, reference, -r and -f',
                                                           optional => 1,
-                                                          default_value => 'bwa samse'),
-                 bwa_sampe_cmd => VRPipe::StepOption->get(description => 'the near-complete bwa sampe command line, including desired options, but excluding the input sai, fastq, reference, -r and -f; defaults to bwa sampe with -a set as appropriate for the fastq insert_size',
-                                                          optional => 1) };
+                                                          default_value => ''),
+                 bwa_sampe_options => VRPipe::StepOption->get(description => 'options to bwa sampe, excluding the input sai, fastq, reference, -r and -f; defaults to bwa sampe with -a set as appropriate for the fastq insert_size',
+                                                          optional => 1),
+                 bwa_exe => VRPipe::StepOption->get(description => 'path to your bwa executable',
+                                                    optional => 1,
+                                                    default_value => 'bwa') };
     }
     method inputs_definition {
         return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq',
@@ -35,23 +38,20 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-            my $ref = Path::Class::File->new($self->options->{reference_fasta});
+            my $options = $self->options;
+            my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my %cmds;
-            my $exe;
+            my $bwa_exe = $options->{bwa_exe};
             foreach my $ended ('se', 'pe') {
-                my $cmd = $self->options->{"bwa_sam${ended}_cmd"} || 'bwa sampe';
-                my @c = split(" ", $cmd);
-                unless ($c[1] eq "sam$ended") {
-                    $self->throw("bad bwa_sam${ended}_cmd '$cmd'");
+                my $opts = $options->{"bwa_sam${ended}_options"} || '';
+                if ($opts =~ /$ref|-r|-f|sam$ended/) {
+                    $self->throw("bwa_sam${ended}_cmd should not include the ref or -r or -f option, or the sam$ended sub command");
                 }
                 
-                if ($cmd =~ /$ref|-r|-f/) {
-                    $self->throw("bwa_sam${ended}_cmd should not include the ref or -r or -f option");
-                }
-                
-                $exe = $c[0];
+                my $cmd = $bwa_exe." sam$ended ".$opts;
+                $cmd =~ s/\s+$//;
                 $cmds{$ended} = $cmd;
             }
             
@@ -167,7 +167,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                 }
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => Path::Class::File->new($exe)->basename, version => VRPipe::StepCmdSummary->determine_version($exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'));
         };
     }
     method outputs_definition {

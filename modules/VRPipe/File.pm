@@ -267,6 +267,12 @@ class VRPipe::File extends VRPipe::Persistent {
         return $lines;
     }
     
+    method update_md5 (Str $md5?) {
+        $md5 ||= $self->file_md5($self);
+        $self->md5($md5);
+        $self->update;
+    }
+    
     sub DEMOLISH {
         return if in_global_destruction;
         shift->close;

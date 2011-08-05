@@ -13,48 +13,52 @@ BEGIN {
 }
 
 # list
-ok my $ds = VRPipe::DataSourceFactory->create('list', {method => 'all',
-                                                       source => file(qw(t data datasource.list)),
-                                                       options => {}}), 'could create a list datasource';
+ok my $ds = VRPipe::DataSource->get(type => 'list',
+                                    method => 'all',
+                                    source => file(qw(t data datasource.list))->absolute->stringify,
+                                    options => {}), 'could create a list datasource';
 
 my @results;
-while (my $result = $ds->next_result) {
-    push(@results, $result);
+while (my $element = $ds->next_element) {
+    push(@results, $element->result);
 }
 is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => 'henry'}], 'got all results correctly';
 
-$ds = VRPipe::DataSourceFactory->create('list', {method => 'all',
-                                                 source => file(qw(t data datasource.list)),
-                                                 options => {skip_comments => 0}});
+$ds = VRPipe::DataSource->get(type => 'list',
+                              method => 'all',
+                              source => file(qw(t data datasource.list))->absolute->stringify,
+                              options => {skip_comments => 0});
 
 @results = ();
-while (my $result = $ds->next_result) {
-    push(@results, $result);
+while (my $element = $ds->next_element) {
+    push(@results, $element->result);
 }
 is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => '# comment'}, {line => 'henry'}], 'got even more results with extra options';
 
 # fofn
-ok $ds = VRPipe::DataSourceFactory->create('fofn', {method => 'all',
-                                                    source => file(qw(t data datasource.fofn)),
-                                                    options => {}}), 'could create a fofn datasource';
+ok $ds = VRPipe::DataSource->get(type => 'fofn',
+                                 method => 'all',
+                                 source => file(qw(t data datasource.fofn))->absolute->stringify,
+                                 options => {}), 'could create a fofn datasource';
 
 @results = ();
-while (my $result = $ds->next_result) {
-    push(@results, $result);
+while (my $element = $ds->next_element) {
+    push(@results, $element->result);
 }
 my $cwd = cwd();
 is_deeply \@results, [{paths => [file($cwd, 't', 'data', 'file.bam')]}, {paths => [file($cwd, 't', 'data', 'file.cat')]}, {paths => [file($cwd, 't', 'data', 'file.txt')]}], 'got correct results for fofn all';
 
 # delimited
-ok $ds = VRPipe::DataSourceFactory->create('delimited', {method => 'grouped_single_column',
-                                                         source => file(qw(t data datasource.fastqs)),
-                                                         options => {delimiter => "\t",
-                                                                     group_by => 1,
-                                                                     column => 2}}), 'could create a delimited datasource';
+ok $ds = VRPipe::DataSource->get(type => 'delimited',
+                                 method => 'grouped_single_column',
+                                 source => file(qw(t data datasource.fastqs))->absolute->stringify,
+                                 options => {delimiter => "\t",
+                                             group_by => 1,
+                                             column => 2}), 'could create a delimited datasource';
 
 @results = ();
-while (my $result = $ds->next_result) {
-    push(@results, $result);
+while (my $element = $ds->next_element) {
+    push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], group => '2822_6'},
                       {paths => [file($cwd, 't/data/2822_7_1.fastq'), file($cwd, 't/data/2822_7_2.fastq')], group => '2822_7'},
@@ -62,13 +66,14 @@ is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd,
                       {paths => [file($cwd, 't/data/8324_8_1.fastq'), file($cwd, 't/data/8324_8_2.fastq')], group => '8324_8'}], 'got correct results for delimited grouped_single_column';
 
 # sequence_index
-ok $ds = VRPipe::DataSourceFactory->create('sequence_index', {method => 'lane_fastqs',
-                                                              source => file(qw(t data datasource.sequence_index)),
-                                                              options => { local_root_dir => $cwd }}), 'could create a sequence_index datasource';
+ok $ds = VRPipe::DataSource->get(type => 'sequence_index',
+                                 method => 'lane_fastqs',
+                                 source => file(qw(t data datasource.sequence_index))->absolute->stringify,
+                                 options => { local_root_dir => $cwd }), 'could create a sequence_index datasource';
 
 @results = ();
-while (my $result = $ds->next_result) {
-    push(@results, $result);
+while (my $element = $ds->next_element) {
+    push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6.fastq'), file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], lane => '2822_6'},
                       {paths => [file($cwd, 't/data/2822_7_1.fastq'), file($cwd, 't/data/2822_7_2.fastq')], lane => '2822_7'},
@@ -156,12 +161,13 @@ SKIP: {
         }
     }
     
-    ok $ds = VRPipe::DataSourceFactory->create('vrtrack', {method => 'lanes',
-                                                           source => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                                           options => {import => 1, mapped => 0}}), 'could create a vrtrack datasource';
+    ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                     method => 'lanes',
+                                     source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                     options => {import => 1, mapped => 0}), 'could create a vrtrack datasource';
     
     my $results = 0;
-    while (my $result = $ds->next_result) {
+    while (my $element = $ds->next_element) {
         $results++;
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
