@@ -1,21 +1,25 @@
 use VRPipe::Base;
 
-class VRPipe::DataSource::list with VRPipe::DataSourceRole {
+class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
     use VRPipe::File;
     
-    has '_vrpfile' => (is => 'rw',
-                       isa => 'VRPipe::File');
-    
     method _open_source {
-        my $source = file($self->source)->absolute;
-        my $file = VRPipe::File->get(path => $source, type => 'txt');
-        $file->e || $self->throw("list file $source does not exist!");
-        $self->_vrpfile($file); # so that it isn't destroyed, which would close the handle
+        my $file = $self->source_file;
         return $file->openr;
     }
     
     method all (Defined :$handle, Bool :$skip_comments = 1, Bool :$line_is_path = 0) {
-        my $result;
+        my @elements;
+        foreach my $result ($self->_all_results(handle => $handle, skip_comments => $skip_comments, line_is_path => $line_is_path)) {
+            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $result, withdrawn => 0));
+        }
+        return \@elements;
+    }
+    
+    method _all_results (Defined :$handle, Bool :$skip_comments = 1, Bool :$line_is_path = 0) {
+        my $key_name = $line_is_path ? 'paths' : 'line';
+        
+        my @results;
         while (<$handle>) {
             if (/^\s*$/) {
                 next;
@@ -24,15 +28,13 @@ class VRPipe::DataSource::list with VRPipe::DataSourceRole {
                 next;
             }
             chomp;
-            $result = $_;
-            last;
+            
+            my $result = $_;
+            $result = $line_is_path ? [file($result)->absolute->stringify] : $result;
+            push(@results, { $key_name => $result });
         }
-        $result || return;
         
-        my $key_name = $line_is_path ? 'paths' : 'line';
-        $result = $line_is_path ? [file($result)->absolute->stringify] : $result;
-        my %result = ($key_name => $result);
-        return \%result;
+        return @results;
     }
 }
 

@@ -54,7 +54,25 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                                    reference_public_url => 'ftp://s.suis.com/ref.fa',
                                                                    reference_species => 'S.Suis',
                                                                    bwa_index_cmd => 'bwa index -a is',
-                                                                   cleanup => 0});
+                                                                   cleanup => 0,
+                                                                   sequence_dictionary_memory => 150,
+                                                                   sequence_dictionary_time => 1,
+                                                                   bwa_index_memory => 150,
+                                                                   bwa_index_time => 1,
+                                                                   fastq_import_memory => 150,
+                                                                   fastq_import_time => 1,
+                                                                   fastq_metadata_memory => 150,
+                                                                   fastq_metadata_time => 1,
+                                                                   fastq_split_memory => 150,
+                                                                   fastq_split_time => 1,
+                                                                   bwa_aln_fastq_memory => 150,
+                                                                   bwa_aln_fastq_time => 1,
+                                                                   bwa_sam_memory => 150,
+                                                                   bwa_sam_time => 1,
+                                                                   sam_to_fixed_bam_memory => 150,
+                                                                   sam_to_fixed_bam_time => 1,
+                                                                   bam_merge_lane_splits_memory => 150,
+                                                                   bam_merge_lane_splits_time => 1});
 
 handle_pipeline();
 

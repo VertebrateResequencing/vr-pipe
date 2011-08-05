@@ -138,6 +138,15 @@ role VRPipe::StepRole {
             }
         }
         
+        # add in requirements overrides that pertain to us
+        my $name = $self->name;
+        foreach my $resource (qw(memory time cpus tmp_space local_space custom)) {
+            my $user_key = $name.'_'.$resource;
+            if (defined $user_opts->{$user_key}) {
+                $return{$resource.'_override'} = $user_opts->{$user_key};
+            }
+        }
+        
         return \%return;
     }
     
@@ -370,6 +379,17 @@ role VRPipe::StepRole {
     }
     
     method new_requirements (Int :$memory, Int :$time, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
+        # user can override settings set in the step body_sub by providing
+        # options
+        my $options = $self->options;
+        if (defined $options->{memory_override}) {
+            $memory = $options->{memory_override};
+        }
+        if (defined $options->{time_override}) {
+            $time = $options->{time_override};
+        }
+        #*** and the other resources?...
+        
         return VRPipe::Requirements->get(memory => $memory,
                                          time => $time,
                                          $cpus ? (cpus => $cpus) : (),

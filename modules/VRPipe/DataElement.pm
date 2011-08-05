@@ -13,6 +13,16 @@ class VRPipe::DataElement extends VRPipe::Persistent {
                      traits => ['VRPipe::Persistent::Attributes'],
                      is_key => 1);
     
+    has 'withdrawn' => (is => 'rw',
+                        isa => 'Bool',
+                        traits => ['VRPipe::Persistent::Attributes'],
+                        default => 0);
+    
+    has 'changed' => (is => 'rw',
+                      isa => 'Bool',
+                      traits => ['VRPipe::Persistent::Attributes'],
+                      default => 0);
+    
     __PACKAGE__->make_persistent();
 }
 
