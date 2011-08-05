@@ -7,7 +7,7 @@ class VRPipe::StepCmdSummary extends VRPipe::Persistent {
                   is_key => 1);
     
     has 'version' => (is => 'rw',
-                      isa => Varchar[16],
+                      isa => Varchar[32],
                       traits => ['VRPipe::Persistent::Attributes'],
                       is_key => 1);
     
