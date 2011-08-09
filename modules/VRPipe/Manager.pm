@@ -19,6 +19,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
     has '_instance_run_start' => (is => 'rw',
                                   isa => Datetime);
     
+    
+    has 'global_limit' => (is => 'rw',
+                           isa => PositiveInt);
+    
     # public getters for our private attributes
     method running {
         return $self->_running;
@@ -29,10 +33,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    around get (ClassName|Object $self: Persistent :$id?) {
+    around get (ClassName|Object $self: Persistent :$id?, PositiveInt :$global_limit = 500) {
         # our db-storage needs are class-wide, so we only have 1 row in our
         # table
-        return $self->$orig(id => 1);
+        return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
     method setups (Str :$pipeline_name?) {
@@ -139,13 +143,20 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         my $pipeline = $setup->pipeline;
         my @step_members = $pipeline->steps;
+        my $num_steps = scalar(@step_members);
         
         my $datasource = $setup->datasource;
         my $output_root = $setup->output_root;
         $self->make_path($output_root);
         my $all_done = 1;
+        my $incomplete_elements = 0;
+        my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
+            last if $incomplete_elements == $limit;
+            $incomplete_elements++;
+            
             my %previous_step_outputs;
+            my $already_completed_steps = 0;
             foreach my $member (@step_members) {
                 my $step_number = $member->step_number;
                 my $state = VRPipe::StepState->get(stepmember => $member,
@@ -155,7 +166,20 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                 if ($state->complete) {
                     $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
+                    $already_completed_steps++;
+                    
+                    if ($already_completed_steps == $num_steps) {
+                        # this element completed all steps in the pipeline
+                        $incomplete_elements--;
+                    }
+                    
                     next;
+                }
+                
+                #*** hack to aid 1kg remapping
+                if ($step->name eq 'bam_realignment_around_known_indels') {
+                    $incomplete_elements-- if $already_completed_steps == 9;
+                    last;
                 }
                 
                 # have we previously done the dispatch dance and are currently
@@ -242,8 +266,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
         else {
             my $schema = $self->result_source->schema;
             my $rs = $schema->resultset('Submission')->search({ '_done' => 0 });
+            my $limit = $self->global_limit;
+            my $count = 0;
             while (my $sub = $rs->next) {
                 push(@not_done, $sub);
+                $count++;
+                last if $count >= $limit;
             }
         }
         
@@ -315,18 +343,22 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 # check we've had a recent heartbeat
                 if ($job->unresponsive) {
                     $job->kill_job;
+                    $sub->update_status();
                 }
             }
             elsif ($job->finished) {
                 $sub->update_status();
                 next if $sub->done;
             }
-            else {
-                # we must be pending in the scheduler
-                #my $pend_time = $sub->pend_time;
-                # this also works when we're running/finished by taking the difference
-                # between $job->start_time and $self->scheduled. Otherwise its the
-                # difference between the time now and $self->scheduled.
+            elsif ($sub->scheduled) {
+                # we may be pending in the scheduler, but if we've been
+                # apparently pending for ages, check the scheduler really is
+                # pending us and if not reset the submission
+                my $pend_time = $sub->pend_time;
+                if ($pend_time > 43200) {
+                    $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
+                    $sub->unschedule_if_not_pending;
+                }
             }
             
             push(@still_not_done, $sub);
