@@ -150,7 +150,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method update_status {
-        $self->throw("Cannot call update_status when the job is not finished") unless $self->job->finished;
+        $self->throw("Cannot call update_status when the job ".$self->job->id." is not finished") unless $self->job->finished;
         return if $self->done || $self->failed;
         
         if ($self->job->ok) {
@@ -188,8 +188,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method archive_output {
-        my $jso = $self->job->stdout_file || $self->throw("no job stdout_file for job ".$self->job->id);
-        my $sso = $self->job_stdout_file || $self->throw("no archival destination for job output for submission ".$self->id);
+        my $jso = $self->job->stdout_file || $self->warn("no job stdout_file for job ".$self->job->id);
+        my $sso = $self->job_stdout_file || $self->warn("no archival destination for job output for submission ".$self->id);
+        return unless ($jso && $sso);
         $self->concatenate($self->job->stdout_file, $self->job_stdout_file, unlink_source => 1);
         $self->concatenate($self->job->stderr_file, $self->job_stderr_file, unlink_source => 1);
         
@@ -326,6 +327,26 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return VRPipe::Parser->create('cat', {file => $file});
     }
     
+    method pend_time {
+        my $job = $self->job;
+        my $scheduled_time = $self->_scheduled || $self->throw("called pend_time, yet submission ".$self->id." has not been scheduled!");
+        $scheduled_time = $scheduled_time->epoch;
+        if ($job->running || $job->finished) {
+            return $job->start_time->epoch -$scheduled_time;
+        }
+        else {
+            return time() - $scheduled_time;
+        }
+    }
+    
+    method unschedule_if_not_pending {
+        return unless $self->sid;
+        
+        #*** check with the scheduler if we're pending
+        
+        $self->_reset;
+    }
+    
     method retry {
         return unless ($self->done || $self->failed);
         
@@ -344,10 +365,14 @@ class VRPipe::Submission extends VRPipe::Persistent {
         
         # reset ourself
         my $retries = $self->retries;
+        $self->retries($retries + 1);
+        $self->_reset;
+    }
+    
+    method _reset {
         $self->_sid(undef);
         $self->_failed(0);
         $self->_done(0);
-        $self->retries($retries + 1);
         $self->_aid(undef);
         $self->_scheduled(undef);
         $self->_claim(0);
