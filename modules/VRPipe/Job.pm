@@ -330,10 +330,12 @@ class VRPipe::Job extends VRPipe::Persistent {
     method kill_job {
         return unless $self->running;
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
-        $self->disconnect;
-        ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
-                                             #    Net::SSH::Perl is able to always log us in, but can take over a minute!
-        # *** do we care if the kill fails?...
+        if ($user && $host && $pid) {
+            $self->disconnect;
+            ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
+                                                 #    Net::SSH::Perl is able to always log us in, but can take over a minute!
+            # *** do we care if the kill fails?...
+        }
         $self->running(0);
         $self->finished(1);
         $self->exit_code(9);
