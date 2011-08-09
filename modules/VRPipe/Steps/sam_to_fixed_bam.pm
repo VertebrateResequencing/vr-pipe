@@ -17,14 +17,15 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-            my $ref = Path::Class::File->new($self->options->{reference_fasta});
+            my $options = $self->options;
+            my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $samtools = $self->options->{samtools_exe};
+            my $samtools = $options->{samtools_exe};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => Path::Class::File->new($samtools)->basename,
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools',
                                                                version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                                                               summary => "$samtools view -bSu \$sam_file | $samtools sort -n -o - samtools_nsort_tmp | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - samtools_csort_tmp | $samtools fillmd -u - \$reference_fasta > \$fixed_bam_file"));
+                                                               summary => "samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file"));
             
             my $req = $self->new_requirements(memory => 3500, time => 8);
             foreach my $sam (@{$self->inputs->{sam_files}}) {

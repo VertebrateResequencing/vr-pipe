@@ -33,7 +33,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
             }
             my $cmd = $bwa_exe.' aln '.$bwa_opts;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $cmd.' -f $sai_file $reference_fasta $fastq_file'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => 'bwa aln '.$bwa_opts.' -f $sai_file $reference_fasta $fastq_file'));
             
             my $req = $self->new_requirements(memory => 7900, time => 24);
             foreach my $fastq (@{$self->inputs->{fastq_files}}) {
