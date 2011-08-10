@@ -226,7 +226,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                             }
                         }
                         else {
-                            $self->throw("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
+                            #$self->throw("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
+                            # it is possible for a parse to result in a different step being started over because input files were missing
                         }
                     }
                 }

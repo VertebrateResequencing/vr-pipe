@@ -90,7 +90,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
             return 1;
         }
         else {
-            $sai_path->unlink;
+            $sai_file->unlink;
             $self->throw("cmd [$cmd_line] failed because $max_processed reads were processed, yet there were $expected_reads reads in the fastq file");
         }
     }

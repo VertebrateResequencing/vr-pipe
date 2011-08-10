@@ -351,6 +351,24 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return unless ($self->done || $self->failed);
         
         # reset the job
+        $self->_reset_job;
+        
+        # reset ourself
+        my $retries = $self->retries;
+        $self->retries($retries + 1);
+        $self->_reset;
+    }
+    
+    method start_over {
+        # reset the job
+        $self->_reset_job;
+        
+        # reset outself and also set retries to 0
+        $self->retries(0);
+        $self->_reset;
+    }
+    
+    method _reset_job {
         my $job = $self->job;
         unless ($job->finished) {
             $job->kill_job;
@@ -362,11 +380,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
         
         $job->reset_job;
-        
-        # reset ourself
-        my $retries = $self->retries;
-        $self->retries($retries + 1);
-        $self->_reset;
     }
     
     method _reset {
