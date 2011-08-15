@@ -85,7 +85,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 }
             }
             
-            my $req = $self->new_requirements(memory => 5100, time => 8);
+            my $req = $self->new_requirements(memory => 1000, time => 1);
             my $step_state = $self->step_state->id;
             while (my ($paired, $in_bams) = each %bams) {
                 my $basename = $lane;
