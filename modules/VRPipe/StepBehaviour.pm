@@ -88,6 +88,12 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
             $state->unlink_output_files;
         }
     }
+    
+    method start_over (ArrayRef[VRPipe::StepState] $states) {
+        foreach my $state (@$states) {
+            $state->start_over;
+        }
+    }
 }
 
 1;
