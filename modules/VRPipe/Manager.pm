@@ -152,8 +152,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
-            #*** we really need a shortcut to avoid looping through elements that have already completed all steps - new elementstate that gives element completion state for a particular setup?
-            #    ... and if we keep the number of steps completed, perhaps we can skip right to the next step that needs work, and use the adaptor to figure out how to build the pso...
+            my $estate = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+            next if $estate->complete;
+            
             last if $incomplete_elements == $limit;
             $incomplete_elements++;
             warn $element->id, " $incomplete_elements\n";
@@ -173,6 +174,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     
                     if ($already_completed_steps == $num_steps) {
                         # this element completed all steps in the pipeline
+                        $estate->complete(1);
+                        $estate->update;
                         $incomplete_elements--;
                     }
                     
@@ -181,7 +184,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 
                 #*** hack to aid 1kg remapping
                 if ($step->name eq 'bam_realignment_around_known_indels') {
-                    $incomplete_elements-- if $already_completed_steps == 9;
+                    if ($already_completed_steps == 9) {
+                        $estate->complete(1);
+                        $estate->update;
+                        $incomplete_elements--;
+                    }
                     last;
                 }
                 
