@@ -152,8 +152,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
+            #*** we really need a shortcut to avoid looping through elements that have already completed all steps - new elementstate that gives element completion state for a particular setup?
+            #    ... and if we keep the number of steps completed, perhaps we can skip right to the next step that needs work, and use the adaptor to figure out how to build the pso...
             last if $incomplete_elements == $limit;
             $incomplete_elements++;
+            warn $element->id, " $incomplete_elements\n";
             
             my %previous_step_outputs;
             my $already_completed_steps = 0;
@@ -222,7 +225,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         if (@$dispatched) {
                             foreach my $arrayref (@$dispatched) {
                                 my ($cmd, $reqs, $job_args) = @$arrayref;
-                                my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
                             }
                         }
                         else {
@@ -247,16 +250,24 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
+            # is there a behaviour to trigger?
+            my $behaviour = VRPipe::StepBehaviour->get(pipeline => $pipeline, after_step => $step_number);
+            $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
             $state->complete(1);
             $state->update;
         }
-        
-        # is there a behaviour to trigger?
-        my $behaviour = VRPipe::StepBehaviour->get(pipeline => $pipeline, after_step => $step_number);
-        $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
     }
     
-    method unfinished_submissions (ArrayRef[VRPipe::Submission] :$submissions?) {
+    #*** passing any large ref of refs to a 'method' causes a memory leak, so we
+    #    must forego type checking and use plain subs for the methods that
+    #    accept submission subrefs as args
+    
+    #method unfinished_submissions (ArrayRef[VRPipe::Submission] :$submissions?) {
+    sub unfinished_submissions {
+        my ($self, %args) = @_;
+        my $submissions = delete $args{submissions};
+        $self->throw("unexpected args") if keys %args;
+        
         my @not_done;
         
         if ($submissions) {
@@ -292,7 +303,13 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    method resubmit_failures (PositiveInt :$max_retries, ArrayRef[VRPipe::Submission] :$submissions) {
+    #method resubmit_failures (PositiveInt :$max_retries, ArrayRef[VRPipe::Submission] :$submissions) {
+    sub resubmit_failures {
+        my ($self, %args) = @_;
+        my $max_retries = delete $args{max_retries} || $self->throw("max_retries is required");
+        my $submissions = delete $args{submissions} || $self->throw("submissions is required");
+        $self->throw("unexpected args") if keys %args;
+        
         # this checks all the ->submissions for ones that failed, and uses the standard
         # Submission and Job methods to work out why and resubmit them as appropriate,
         # potentially with updated Requirements. max_retries defaults to 3.
@@ -303,7 +320,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             next unless $sub->failed;
             
             if ($sub->retries >= $max_retries) {
-                warn "submission ", $sub->id, " retried $max_retries times now, giving up\n";
+                #warn "submission ", $sub->id, " retried $max_retries times now, giving up\n";
             }
             else {
                 # *** supposed to figure out why it failed and adjust reqs as appropriate...
@@ -315,7 +332,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return 1;
     }
     
-    method check_running (ArrayRef[VRPipe::Submission] $submissions) {
+    #method check_running (ArrayRef[VRPipe::Submission] $submissions) {
+    sub check_running { 
+        my ($self, $submissions) = @_;
         # this does the dance of checking if any of the currently running ->submissions
         # are approaching their time limit, and switching queues as appropriate. It
         # also checks that all running Jobs have had a recent heartbeat, and if not
@@ -356,7 +375,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 # apparently pending for ages, check the scheduler really is
                 # pending us and if not reset the submission
                 my $pend_time = $sub->pend_time;
-                if ($pend_time > 43200) {
+                if ($pend_time > 86400) {
                     $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
                     $sub->unschedule_if_not_pending;
                 }
@@ -368,7 +387,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return \@still_not_done;
     }
     
-    method batch_and_submit (ArrayRef[VRPipe::Submission] $submissions) {
+    #method batch_and_submit (ArrayRef[VRPipe::Submission] $submissions) {
+    sub batch_and_submit {
+        my ($self, $submissions) = @_;
+        
         # this groups all the non-permanently-failed ->submissions into lists based
         # on shared Requirements objects, creates [PersistentArray, Requirements] for
         # each group, and uses those to do a Scheduler->submit for each group. If a
