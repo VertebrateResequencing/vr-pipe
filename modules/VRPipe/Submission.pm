@@ -340,9 +340,13 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method unschedule_if_not_pending {
-        return unless $self->sid;
+        my $sid = $self->sid || return;
+        my $aid = $self->_aid;
+        my $scheduler = $self->scheduler;
         
-        #*** check with the scheduler if we're pending
+        my $status = $scheduler->sid_status($sid, $aid);
+        return if $status eq 'PEND';
+        $scheduler->kill_sid($sid, $aid, 5);
         
         $self->_reset;
     }
