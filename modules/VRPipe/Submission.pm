@@ -199,13 +199,15 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method archive_output {
         my $jso = $self->job->stdout_file || $self->warn("no job stdout_file for job ".$self->job->id);
-        my $sso = $self->job_stdout_file || $self->warn("no archival destination for job output for submission ".$self->id);
-        return unless ($jso && $sso);
-        $self->move($jso, $sso);
-        $self->move($self->job->stderr_file, $self->job_stderr_file);
+        return unless $jso;
+        $self->move($jso, $self->job_stdout_file) if $jso->e;
+        my $jse = $self->job->stderr_file;
+        $self->move($jse, $self->job_stderr_file) if $jse->e;
         
-        $self->move($self->scheduler_stdout_file(orig => 1), $self->scheduler_stdout_file);
-        $self->move($self->scheduler_stderr_file(orig => 1), $self->scheduler_stderr_file);
+        my $scso = $self->scheduler_stdout_file(orig => 1);
+        $self->move($scso, $self->scheduler_stdout_file) if $scso->e;
+        my $scse = $self->scheduler_stderr_file(orig => 1);
+        $self->move($scse, $self->scheduler_stderr_file) if $scse->e;
     }
     
     # requirement passthroughs and extra_* methods

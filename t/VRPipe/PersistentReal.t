@@ -316,15 +316,11 @@ ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit t
 my $tlimit = time() + 1800;
 wait_until_done($test_sub);
 ok $test_sub->done, 'submission ran to completion';
-my $job4_stdout_parser = $test_sub->job_stdout;
-$job4_stdout_parser->next_record;
-is_deeply $job4_stdout_parser->parsed_record, [qw(1 2 3 4 5)], 'the submissions job did really run correctly';
+is $test_sub->job_stdout, "1\n2\n3\n4\n5\n", 'the submissions job did really run correctly';
 $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[1], requirements => $reqs[0]);
 $schedulers[2]->submit(submission => $test_sub);
 wait_until_done($test_sub);
-$job4_stdout_parser = $test_sub->job_stdout;
-$job4_stdout_parser->next_record;
-is_deeply $job4_stdout_parser->parsed_record, [], 'running the same job in a different submission does not really rerun the job';
+is $test_sub->job_stdout, undef, 'running the same job in a different submission does not really rerun the job';
 
 # job arrays
 my @subs_array;
@@ -340,9 +336,7 @@ throws_ok { $schedulers[2]->submit(array => \@subs_array); } qr/failed to claim 
 wait_until_done(@subs_array);
 my $good_outputs = 0;
 foreach my $sub (@subs_array) {
-    my $cat_parser = $sub->job_stdout;
-    $cat_parser->next_record;
-    $good_outputs++ if join('', @{$cat_parser->parsed_record}) eq join('', 1..9).$sub->job->pid;
+    $good_outputs++ if $sub->job_stdout eq join("\n", 1..9)."\n".$sub->job->pid."\n";
 }
 is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
 my $good_beats = 0;
@@ -376,9 +370,7 @@ SKIP: {
     lap(__LINE__); # 1046 2613 1818
     my $good_outputs = 0;
     foreach my $sub (@subs_array) {
-        my $cat_parser = $sub->job_stdout;
-        $cat_parser->next_record;
-        $good_outputs++ if join('', @{$cat_parser->parsed_record}) eq join('', 1..300).$sub->job->pid;
+        $good_outputs++ if $sub->job_stdout eq join("\n", 1..300)."\n".$sub->job->pid."\n";
     }
     lap(__LINE__); # 12 192 171
     is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
