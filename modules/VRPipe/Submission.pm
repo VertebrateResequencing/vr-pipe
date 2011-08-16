@@ -191,7 +191,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         my $jso = $self->job->stdout_file || $self->warn("no job stdout_file for job ".$self->job->id);
         my $sso = $self->job_stdout_file || $self->warn("no archival destination for job output for submission ".$self->id);
         return unless ($jso && $sso);
-        $self->concatenate($self->job->stdout_file, $self->job_stdout_file, unlink_source => 1);
+        $self->concatenate($jso, $sso, unlink_source => 1);
         $self->concatenate($self->job->stderr_file, $self->job_stderr_file, unlink_source => 1);
         
         $self->add_cat_marker($self->scheduler_stderr_file);
