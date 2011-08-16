@@ -153,11 +153,16 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
             my $estate = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-            next if $estate->complete;
+            my $completed_steps = $estate->completed_steps;
+            next if $completed_steps == $num_steps;
+            
+            #*** hack to aid 1kg remapping
+            if ($pipeline->name eq '1000genomes_illumina_mapping_with_improvement') {
+                next if $completed_steps == 9;
+            }
             
             last if $incomplete_elements == $limit;
             $incomplete_elements++;
-            warn $element->id, " $incomplete_elements\n";
             
             my %previous_step_outputs;
             my $already_completed_steps = 0;
@@ -172,10 +177,14 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
                     $already_completed_steps++;
                     
+                    if ($already_completed_steps > $completed_steps) {
+                        $estate->completed_steps($already_completed_steps);
+                        $completed_steps = $already_completed_steps;
+                        $estate->update;
+                    }
+                    
                     if ($already_completed_steps == $num_steps) {
                         # this element completed all steps in the pipeline
-                        $estate->complete(1);
-                        $estate->update;
                         $incomplete_elements--;
                     }
                     
@@ -185,8 +194,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 #*** hack to aid 1kg remapping
                 if ($step->name eq 'bam_realignment_around_known_indels') {
                     if ($already_completed_steps == 9) {
-                        $estate->complete(1);
-                        $estate->update;
                         $incomplete_elements--;
                     }
                     last;

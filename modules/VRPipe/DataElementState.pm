@@ -15,10 +15,10 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
                           is_key => 1,
                           belongs_to => 'VRPipe::DataElement');
     
-    has 'complete' => (is => 'rw',
-                       isa => 'Bool',
-                       traits => ['VRPipe::Persistent::Attributes'],
-                       default => 0);
+    has 'completed_steps' => (is => 'rw',
+                              isa => IntSQL[4],
+                              traits => ['VRPipe::Persistent::Attributes'],
+                              default => 0);
     
     __PACKAGE__->make_persistent();
 }

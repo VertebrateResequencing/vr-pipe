@@ -150,6 +150,10 @@ class VRPipe::StepState extends VRPipe::Persistent {
             $sub->delete;
         }
         
+        # clear the dataelementstate to 0 steps completed; not important to try
+        # and figure out the correct number of steps to set it to
+        VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
+        
         # now reset self
         $self->unlink_output_files;
         $self->complete(0);
