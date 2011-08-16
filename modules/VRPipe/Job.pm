@@ -309,7 +309,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     method unresponsive {
         my $interval = $self->heartbeat_interval;
-        my $elapsed = $self->time_since_heartbeat;
+        my $elapsed = $self->time_since_heartbeat || 0;
         
         # try and allow for mysql server time being different to our host time,
         # and other related timing vagueries
