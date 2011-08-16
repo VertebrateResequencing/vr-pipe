@@ -213,9 +213,18 @@ role VRPipe::StepRole {
                         $result = VRPipe::File->get(path => file($result)->absolute);
                     }
                     
-                    my $type = VRPipe::FileType->create($val->type, {file => $result->path});
-                    unless ($type->check_type) {
-                        $self->throw("file ".$result->path." was not the correct type");
+                    my $wanted_type = $val->type;
+                    if ($result->s) {
+                        my $type = VRPipe::FileType->create($val->type, {file => $result->path});
+                        unless ($type->check_type) {
+                            $self->throw("file ".$result->path." was not the correct type");
+                        }
+                    }
+                    else {
+                        my $db_type = $result->type;
+                        if ($db_type && $wanted_type ne $db_type) {
+                            $self->throw("file ".$result->path." was not the correct type");
+                        }
                     }
                     
                     push(@vrfiles, $result);
@@ -336,8 +345,46 @@ role VRPipe::StepRole {
     }
     
     method parse {
+        # if we have missing input files, check to see if some other step
+        # created them, and start those steps over in the hopes the files will
+        # be recreated; otherwise throw
         my @missing = $self->missing_input_files;
-        $self->throw("Required input files are missing: (@missing)") if @missing;
+        if (@missing) {
+            my $with_recourse = 0;
+            my %states_to_restart;
+            my $schema = $self->result_source->schema;
+            foreach my $path (@missing) {
+                my $file = VRPipe::File->get(path => $path);
+                my $rs = $schema->resultset('StepOutputFile')->search({ file => $file->id });
+                my $count = 0;
+                my $state;
+                while (my $sof = $rs->next) {
+                    $count++;
+                    $state = $sof->stepstate;
+                }
+                
+                if ($count == 1) {
+                    $with_recourse++;
+                    push(@{$states_to_restart{$state->id}}, $file->path);
+                }
+            }
+            
+            if ($with_recourse == @missing) {
+                while (my ($state_id, $files) = each %states_to_restart) {
+                    #*** would have make inactive pipeline active as well...
+                    #    how to make sure Manager parses this step soon?...
+                    my $state = VRPipe::StepState->get(id => $state_id);
+                    if ($state->complete) {
+                        #$self->warn("to regenerate needed input files (@$files) for stepstate ".$self->step_state->id.", will start stepstate $state_id over again");
+                        $state->start_over;
+                    }
+                }
+                return 0;
+            }
+            else {
+                $self->throw("Required input files are missing: (@missing)");
+            }
+        }
         
         $self->_run_coderef('body_sub');
         

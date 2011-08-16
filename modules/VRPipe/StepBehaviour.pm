@@ -62,7 +62,7 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
             my ($method, @steps) = @$behaviour;
             $self->throw("'$method' is not a valid behaviour") unless $self->can($method);
             
-            return $self->$method(\@steps);
+            return $self->$method($self->step_numbers_to_states(\@steps));
         }
     }
     
@@ -80,12 +80,18 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
             }
         }
         
-        return @states;
+        return \@states;
     }
     
-    method delete_outputs (ArrayRef[PositiveInt] $steps) {
-        foreach my $state ($self->step_numbers_to_states($steps)) {
+    method delete_outputs (ArrayRef[VRPipe::StepState] $states) {
+        foreach my $state (@$states) {
             $state->unlink_output_files;
+        }
+    }
+    
+    method start_over (ArrayRef[VRPipe::StepState] $states) {
+        foreach my $state (@$states) {
+            $state->start_over;
         }
     }
 }

@@ -19,6 +19,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
     has '_instance_run_start' => (is => 'rw',
                                   isa => Datetime);
     
+    
+    has 'global_limit' => (is => 'rw',
+                           isa => PositiveInt);
+    
     # public getters for our private attributes
     method running {
         return $self->_running;
@@ -29,10 +33,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    around get (ClassName|Object $self: Persistent :$id?) {
+    around get (ClassName|Object $self: Persistent :$id?, PositiveInt :$global_limit = 500) {
         # our db-storage needs are class-wide, so we only have 1 row in our
         # table
-        return $self->$orig(id => 1);
+        return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
     method setups (Str :$pipeline_name?) {
@@ -139,13 +143,29 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         my $pipeline = $setup->pipeline;
         my @step_members = $pipeline->steps;
+        my $num_steps = scalar(@step_members);
         
         my $datasource = $setup->datasource;
         my $output_root = $setup->output_root;
         $self->make_path($output_root);
         my $all_done = 1;
+        my $incomplete_elements = 0;
+        my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
+            my $estate = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+            my $completed_steps = $estate->completed_steps;
+            next if $completed_steps == $num_steps;
+            
+            #*** hack to aid 1kg remapping
+            if ($pipeline->name eq '1000genomes_illumina_mapping_with_improvement') {
+                next if $completed_steps == 9;
+            }
+            
+            last if $incomplete_elements == $limit;
+            $incomplete_elements++;
+            
             my %previous_step_outputs;
+            my $already_completed_steps = 0;
             foreach my $member (@step_members) {
                 my $step_number = $member->step_number;
                 my $state = VRPipe::StepState->get(stepmember => $member,
@@ -155,7 +175,28 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                 if ($state->complete) {
                     $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
+                    $already_completed_steps++;
+                    
+                    if ($already_completed_steps > $completed_steps) {
+                        $estate->completed_steps($already_completed_steps);
+                        $completed_steps = $already_completed_steps;
+                        $estate->update;
+                    }
+                    
+                    if ($already_completed_steps == $num_steps) {
+                        # this element completed all steps in the pipeline
+                        $incomplete_elements--;
+                    }
+                    
                     next;
+                }
+                
+                #*** hack to aid 1kg remapping
+                if ($step->name eq 'bam_realignment_around_known_indels') {
+                    if ($already_completed_steps == 9) {
+                        $incomplete_elements--;
+                    }
+                    last;
                 }
                 
                 # have we previously done the dispatch dance and are currently
@@ -198,11 +239,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         if (@$dispatched) {
                             foreach my $arrayref (@$dispatched) {
                                 my ($cmd, $reqs, $job_args) = @$arrayref;
-                                my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
                             }
                         }
                         else {
-                            $self->throw("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
+                            #$self->throw("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
+                            # it is possible for a parse to result in a different step being started over because input files were missing
                         }
                     }
                 }
@@ -222,16 +264,24 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
+            # is there a behaviour to trigger?
+            my $behaviour = VRPipe::StepBehaviour->get(pipeline => $pipeline, after_step => $step_number);
+            $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
             $state->complete(1);
             $state->update;
         }
-        
-        # is there a behaviour to trigger?
-        my $behaviour = VRPipe::StepBehaviour->get(pipeline => $pipeline, after_step => $step_number);
-        $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
     }
     
-    method unfinished_submissions (ArrayRef[VRPipe::Submission] :$submissions?) {
+    #*** passing any large ref of refs to a 'method' causes a memory leak, so we
+    #    must forego type checking and use plain subs for the methods that
+    #    accept submission subrefs as args
+    
+    #method unfinished_submissions (ArrayRef[VRPipe::Submission] :$submissions?) {
+    sub unfinished_submissions {
+        my ($self, %args) = @_;
+        my $submissions = delete $args{submissions};
+        $self->throw("unexpected args") if keys %args;
+        
         my @not_done;
         
         if ($submissions) {
@@ -242,8 +292,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
         else {
             my $schema = $self->result_source->schema;
             my $rs = $schema->resultset('Submission')->search({ '_done' => 0 });
+            my $limit = $self->global_limit;
+            my $count = 0;
             while (my $sub = $rs->next) {
                 push(@not_done, $sub);
+                $count++;
+                last if $count >= $limit;
             }
         }
         
@@ -263,7 +317,13 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    method resubmit_failures (PositiveInt :$max_retries, ArrayRef[VRPipe::Submission] :$submissions) {
+    #method resubmit_failures (PositiveInt :$max_retries, ArrayRef[VRPipe::Submission] :$submissions) {
+    sub resubmit_failures {
+        my ($self, %args) = @_;
+        my $max_retries = delete $args{max_retries} || $self->throw("max_retries is required");
+        my $submissions = delete $args{submissions} || $self->throw("submissions is required");
+        $self->throw("unexpected args") if keys %args;
+        
         # this checks all the ->submissions for ones that failed, and uses the standard
         # Submission and Job methods to work out why and resubmit them as appropriate,
         # potentially with updated Requirements. max_retries defaults to 3.
@@ -274,7 +334,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             next unless $sub->failed;
             
             if ($sub->retries >= $max_retries) {
-                warn "submission ", $sub->id, " retried $max_retries times now, giving up\n";
+                #warn "submission ", $sub->id, " retried $max_retries times now, giving up\n";
             }
             else {
                 # *** supposed to figure out why it failed and adjust reqs as appropriate...
@@ -286,7 +346,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return 1;
     }
     
-    method check_running (ArrayRef[VRPipe::Submission] $submissions) {
+    #method check_running (ArrayRef[VRPipe::Submission] $submissions) {
+    sub check_running { 
+        my ($self, $submissions) = @_;
         # this does the dance of checking if any of the currently running ->submissions
         # are approaching their time limit, and switching queues as appropriate. It
         # also checks that all running Jobs have had a recent heartbeat, and if not
@@ -315,18 +377,22 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 # check we've had a recent heartbeat
                 if ($job->unresponsive) {
                     $job->kill_job;
+                    $sub->update_status();
                 }
             }
             elsif ($job->finished) {
                 $sub->update_status();
                 next if $sub->done;
             }
-            else {
-                # we must be pending in the scheduler
-                #my $pend_time = $sub->pend_time;
-                # this also works when we're running/finished by taking the difference
-                # between $job->start_time and $self->scheduled. Otherwise its the
-                # difference between the time now and $self->scheduled.
+            elsif ($sub->scheduled) {
+                # we may be pending in the scheduler, but if we've been
+                # apparently pending for ages, check the scheduler really is
+                # pending us and if not reset the submission
+                my $pend_time = $sub->pend_time;
+                if ($pend_time > 86400) {
+                    $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
+                    $sub->unschedule_if_not_pending;
+                }
             }
             
             push(@still_not_done, $sub);
@@ -335,7 +401,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return \@still_not_done;
     }
     
-    method batch_and_submit (ArrayRef[VRPipe::Submission] $submissions) {
+    #method batch_and_submit (ArrayRef[VRPipe::Submission] $submissions) {
+    sub batch_and_submit {
+        my ($self, $submissions) = @_;
+        
         # this groups all the non-permanently-failed ->submissions into lists based
         # on shared Requirements objects, creates [PersistentArray, Requirements] for
         # each group, and uses those to do a Scheduler->submit for each group. If a

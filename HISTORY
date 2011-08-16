@@ -1,3 +1,5 @@
+0.06    Myriad performance and stability improvements necessary to get the
+        mapping pipeline running smoothly
 0.05    Critical performance fix for dealing with large datasources
 0.04    Critical performance fix for checking bam file type
 0.03    0.02 only worked on test dataset; this should be the first version to

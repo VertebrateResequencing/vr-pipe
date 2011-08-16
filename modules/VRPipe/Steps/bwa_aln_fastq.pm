@@ -33,9 +33,9 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
             }
             my $cmd = $bwa_exe.' aln '.$bwa_opts;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $cmd.' -f $sai_file $reference_fasta $fastq_file'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => 'bwa aln '.$bwa_opts.' -f $sai_file $reference_fasta $fastq_file'));
             
-            my $req = $self->new_requirements(memory => 7900, time => 24);
+            my $req = $self->new_requirements(memory => 2900, time => 2);
             foreach my $fastq (@{$self->inputs->{fastq_files}}) {
                 my $sai_file = $self->output_file(output_key => 'bwa_sai_files',
                                                   output_dir => $fastq->dir,
@@ -90,7 +90,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
             return 1;
         }
         else {
-            $sai_path->unlink;
+            $sai_file->unlink;
             $self->throw("cmd [$cmd_line] failed because $max_processed reads were processed, yet there were $expected_reads reads in the fastq file");
         }
     }

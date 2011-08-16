@@ -335,11 +335,31 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         return 1;
     }
     
+    method kill_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {
+        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
+        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger
+        #    specific for now.
+        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+        my $t = time();
+        while (1) {
+            last if time() - $t > $secs;
+            
+            #*** fork and kill child if over time limit?
+            my $status = $self->sid_status($sid, $aid);
+            last if ($status eq 'UNKNOWN' || $status eq 'DONE' || $status eq 'EXIT');
+            
+            system("bkill $id");
+            
+            sleep(1);
+        }
+        return 1;
+    }
+    
     method sid_status (PositiveInt $sid, Int $aid) {
         #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
         #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
         #    for now.
-        my $id = $aid ? "$sid\[$aid\]" : $sid; # when aid is 0, it was not a job array
+        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
         open(my $bfh, "bjobs $id |") || $self->warn("Could not call bjobs $id");
         my $status;
         if ($bfh) {

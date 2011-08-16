@@ -207,11 +207,12 @@ role VRPipe::Base::FileMethods {
             $self->throw("move of $sp => $dp failed: $!");
         }
         else {
-            $source->update_stats_from_disc;
             $dest->update_stats_from_disc;
+            
+            #*** track somewhere in db that file was moved? so that
+            #    we $source act as a psuedo db-based auto-symlink to $dest
+            $source->delete;
         }
-        #*** track somewhere in db that file was moved, so that
-        #    we $source act as a psuedo db-based auto-symlink to $dest
     }
     alias mv => 'move';
 
@@ -228,7 +229,7 @@ role VRPipe::Base::FileMethods {
     method tempfile {
         my $ft = File::Temp->new(@_);
         $self->_remember_file_temp($ft);
-        return ($ft, Path::Clasee::File->new($ft->filename));
+        return ($ft, Path::Class::File->new($ft->filename));
     }
     alias tmpfile => 'tempfile';
 

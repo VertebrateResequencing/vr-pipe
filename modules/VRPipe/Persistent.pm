@@ -126,13 +126,16 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my (@psuedo_keys, %for_indexing, %for_text_indexing, %key_defaults);
+        my (@psuedo_keys, @non_persistent, %for_indexing, %for_text_indexing, %key_defaults);
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my %flations;
         my $meta = $class->meta;
         foreach my $attr ($meta->get_all_attributes) {
-            next unless $attr->does('VRPipe::Persistent::Attributes');
             my $name = $attr->name;
+            unless ($attr->does('VRPipe::Persistent::Attributes')) {
+                push(@non_persistent, $name);
+                next;
+            }
             
             my $column_info = {};
             my $vpa_meta = VRPipe::Persistent::Attributes->meta;
@@ -503,6 +506,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             }
             
+            my %non_persistent_args;
+            foreach my $key (@non_persistent) {
+                exists $args{$key} || next;
+                $non_persistent_args{$key} = delete $args{$key};
+            }
+            
             $self->reconnect;
             
             my $rs = $schema->resultset("$class");
@@ -523,8 +532,13 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     $return->update;
                 }
                 else {
-                    # create the row
+                    # create the row using all db column keys
                     $return = $rs->create({%find_args, %args});
+                }
+                
+                # update the object with any non-persistent args supplied
+                while (my ($method, $value) = each %non_persistent_args) {
+                    $return->$method($value);
                 }
                 
                 # for some reason the result_source has no schema, so
@@ -549,8 +563,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     # because that may be driver-specific, and because we may
                     # be nested and so $err could be unrelated
                     if ($retries < $max_retries) {
-                        $retries++;
+                        # actually, we will check the $err message, and if it is
+                        # definitely a restart situation, we won't increment
+                        # retries
+                        unless ($err =~ /Deadlock|try restarting transaction/) {
+                            $retries++;
+                        }
                         sleep(1);
+                        
                         next;
                     }
                     else {

@@ -55,7 +55,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                 $cmds{$ended} = $cmd;
             }
             
-            my $req = $self->new_requirements(memory => 7900, time => 24);
+            my $req = $self->new_requirements(memory => 4900, time => 2);
             
             my @fq_files = @{$self->inputs->{fastq_files}};
             my @sai_files = @{$self->inputs->{sai_files}};
@@ -167,6 +167,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
                 }
             }
             
+            $summary_cmd =~ s/^\S+/bwa/;
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)'));
         };
     }

@@ -227,7 +227,6 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     alias unlink => 'remove';
     alias rm => 'remove';
-    alias delete => 'remove';
     
     method update_stats_from_disc (PositiveInt :$retries = 1) {
         my $current_s = $self->s;

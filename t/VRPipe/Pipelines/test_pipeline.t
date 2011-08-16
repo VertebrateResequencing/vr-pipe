@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 15;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -84,6 +84,28 @@ is $existing_files, 0, 'all but the final files were deleted from the run with c
 
 my $expected_output = "3: a text file\n3: with two lines\n";
 is_deeply [scalar($ofile->slurp), scalar(VRPipe::File->get(path => file($output_dir_clean, output_subdirs(3), 'test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'))->slurp)], [$expected_output, $expected_output], 'both runs of the pipeline gave good output files';
+
+
+# let's reset the final step of the cleaned-up pipeline and rerun, to test if
+# we trigger a cascade of step resets when it discovers previous step output
+# files have been deleted
+my $last_stepstate = VRPipe::StepState->get(pipelinesetup => 2, dataelement => 3, stepmember => 4);
+$last_stepstate->start_over;
+
+ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output after we did start_over on the last cleaned-up stepstate';
+
+
+# check that we can access job and scheduler std output/err files
+my $submission = VRPipe::Submission->get(id => 1);
+my $scheduler = VRPipe::Scheduler->get();
+my $subm_dir = dir($scheduler->output_root, qw(7 c 4 4 VRPipe__PersistentArray__1));
+is $submission->scheduler_stdout_file->path, file($subm_dir, 'scheduler_stdout.1.r0'), 'scheduler_stdout_file was correct';
+is $submission->scheduler_stderr_file->path, file($subm_dir, 'scheduler_stderr.1.r0'), 'scheduler_stderr_file was correct';
+is $submission->job_stdout_file->path, file($subm_dir, 'job_stdout.1.r0'), 'job_stdout_file was correct';
+is $submission->job_stderr_file->path, file($subm_dir, 'job_stderr.1.r0'), 'job_stderr_file was correct';
+is $submission->scheduler_stderr, undef, 'scheduler_stderr had no content';
+my $parser = $submission->scheduler_stdout;
+ok $parser->does('VRPipe::ParserRole'), 'scheduler_stdout returns a parser';
 
 done_testing;
 exit;
