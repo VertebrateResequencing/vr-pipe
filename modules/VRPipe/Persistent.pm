@@ -563,6 +563,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     # because that may be driver-specific, and because we may
                     # be nested and so $err could be unrelated
                     if ($retries < $max_retries) {
+                        $self->debug("will retry get due to txn failure: $err\n");
+                        
                         # actually, we will check the $err message, and if it is
                         # definitely a restart situation, we won't increment
                         # retries
@@ -609,6 +611,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             #*** SQL::Translator::Schema::Index does not support setting
             #    key lengths, and using type => 'full_text' doesn't work.
+            #    Perhaps we can store our desire to index somehwere, and then
+            #    the deploy script can do like:
+            #    create index path_index on file path(255); (varying depending on dbtype)
+            #    after it has created the tables
             
             #if (keys %for_text_indexing) {
             #    $sqlt_table->add_index(name => 'text_keys', fields => [keys %for_text_indexing]);

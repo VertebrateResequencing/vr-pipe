@@ -152,6 +152,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
+            $self->debug("$incomplete_elements ".$element->id);
             my $estate = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
             my $completed_steps = $estate->completed_steps;
             next if $completed_steps == $num_steps;
@@ -358,8 +359,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         # update the status of each submission in case any of them finished
         my @still_not_done;
+        my $c = 0;
         foreach my $sub (@$submissions) {
             my $job = $sub->job;
+            $c++;
+            $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
             if ($job->running) {
                 # user's scheduler might kill the submission if it runs too long in the
                 # queue it was initially submitted to; user could do something like this
@@ -381,7 +385,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 }
             }
             elsif ($job->finished) {
+                $self->debug(" -- finishing...");
                 $sub->update_status();
+                $self->debug(" -- success");
                 next if $sub->done;
             }
             elsif ($sub->scheduled) {

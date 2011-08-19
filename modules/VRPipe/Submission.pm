@@ -172,9 +172,21 @@ class VRPipe::Submission extends VRPipe::Persistent {
         #*** these 2 calls are probably the cause of massive delays when going
         #    from jobs being finished to submissions being done... can we
         #    optimise?
+        #    It is actualy the archive_output that causes the ~1s delays,
+        #    and it is not the filesystem operations, but the retrieval of
+        #    the 8 VRPipe::File objects... at the very least path column of file
+        #    table must be indexed, or delays go up to ~6s+
+        my $t1 = time();
         $self->sync_scheduler;
+        my $t2 = time();
         $self->archive_output;
+        my $t3 = time();
         $self->_sid(undef);
+        if ($t3 - $t1 > 2) {
+            my $ss_t = $t2 - $t1;
+            my $ao_t = $t3 - $t2;
+            $self->debug("in update_status, sync_scheduler took $ss_t seconds; archive_output took $ao_t seconds");
+        }
         
         $self->update;
     }
@@ -200,14 +212,18 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method archive_output {
         my $jso = $self->job->stdout_file || $self->warn("no job stdout_file for job ".$self->job->id);
         return unless $jso;
-        $self->move($jso, $self->job_stdout_file) if $jso->e;
+        my $sso = $self->job_stdout_file;
+        $self->move($jso, $sso) if $jso->e;
         my $jse = $self->job->stderr_file;
-        $self->move($jse, $self->job_stderr_file) if $jse->e;
+        my $sse = $self->job_stderr_file;
+        $self->move($jse, $sse) if $jse->e;
         
         my $scso = $self->scheduler_stdout_file(orig => 1);
-        $self->move($scso, $self->scheduler_stdout_file) if $scso->e;
+        my $dest = $self->scheduler_stdout_file;
+        $self->move($scso, $dest) if $scso->e;
         my $scse = $self->scheduler_stderr_file(orig => 1);
-        $self->move($scse, $self->scheduler_stderr_file) if $scse->e;
+        $dest = $self->scheduler_stderr_file;
+        $self->move($scse, $dest) if $scse->e;
     }
     
     # requirement passthroughs and extra_* methods

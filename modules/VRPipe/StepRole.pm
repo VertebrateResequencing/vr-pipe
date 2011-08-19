@@ -375,7 +375,7 @@ role VRPipe::StepRole {
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
-                        #$self->warn("to regenerate needed input files (@$files) for stepstate ".$self->step_state->id.", will start stepstate $state_id over again");
+                        $self->debug("to regenerate needed input files (@$files) for stepstate ".$self->step_state->id.", will start stepstate $state_id over again");
                         $state->start_over;
                     }
                 }
