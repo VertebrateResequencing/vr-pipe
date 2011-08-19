@@ -613,13 +613,24 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             #    key lengths, and using type => 'full_text' doesn't work.
             #    Perhaps we can store our desire to index somehwere, and then
             #    the deploy script can do like:
-            #    create index path_index on file path(255); (varying depending on dbtype)
-            #    after it has created the tables
             
             #if (keys %for_text_indexing) {
             #    $sqlt_table->add_index(name => 'text_keys', fields => [keys %for_text_indexing]);
             #}
         });
+        
+        #*** for these, need to get them manually indexed post-deploy, like:
+        #    create index path_index on file path(255); (varying depending on dbtype)
+        #    create index output_root_index on scheduler (output_root(255));
+        #    create index cmd_dir_index on job (cmd(255), dir(255));
+        #    create index requirements_index on requirements (custom(255));
+        #    create index result_index on dataelement (result(255));
+        #    create index source_options_index on datasource (source(255), options(255));
+        #    create index outputroot_options_index on pipelinesetup (output_root(255), options(255));
+        #    create index allowed_values_index on stepoption (allowed_values(255));
+        #    create index metadata_index on stepiodefinition (metadata(255));
+        #use Data::Dumper;
+        #warn "$class needs text indexing:\n", Dumper(\%for_text_indexing), "\n" if keys %for_text_indexing;
     }
     
     # like discard_changes, except we don't clumsily wipe out the whole $self
