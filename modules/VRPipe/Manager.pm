@@ -215,6 +215,21 @@ class VRPipe::Manager extends VRPipe::Persistent {
                             $self->throw("submissions completed, but post_process failed");
                         }
                     }
+                    else {
+                        # don't count this toward the limit if all the
+                        # submissions have failed 3 times *** max_retries needs to be consistent and set between trigger and handle
+                        my $fails = 0;
+                        foreach my $sub (@submissions) {
+                            next unless $sub->failed;
+                            if ($sub->retries >= 3) {
+                                $fails++;
+                            }
+                        }
+                        
+                        if ($fails == @submissions) {
+                            $incomplete_elements--;
+                        }
+                    }
                 }
                 else {
                     # this is the first time we're looking at this step for
@@ -293,12 +308,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
         else {
             my $schema = $self->result_source->schema;
             my $rs = $schema->resultset('Submission')->search({ '_done' => 0 });
-            my $limit = $self->global_limit;
-            my $count = 0;
             while (my $sub = $rs->next) {
                 push(@not_done, $sub);
-                $count++;
-                last if $count >= $limit;
             }
         }
         
@@ -335,7 +346,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             next unless $sub->failed;
             
             if ($sub->retries >= $max_retries) {
-                #warn "submission ", $sub->id, " retried $max_retries times now, giving up\n";
+                $self->debug("submission ".$sub->id." retried $max_retries times now, giving up");
             }
             else {
                 # *** supposed to figure out why it failed and adjust reqs as appropriate...
@@ -418,8 +429,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # a PersistentArray step.
         
         my %batches;
+        my $limit = $self->global_limit;
+        my $count = 0;
         foreach my $sub (@$submissions) {
             next if ($sub->sid || $sub->done || $sub->failed);
+            $count++;
+            last if $count >= $limit;
             push(@{$batches{$sub->requirements->id}}, $sub);
         }
         
