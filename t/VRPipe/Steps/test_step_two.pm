@@ -49,6 +49,9 @@ class VRPipe::Steps::test_step_two with VRPipe::StepRole {
     method description {
         return "test step two";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
     
     method do_step_two (ClassName|Object $self: Str $cmd_line) {
         # do some pre-processing...

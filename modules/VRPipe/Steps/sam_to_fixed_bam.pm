@@ -46,12 +46,35 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                                                   type => 'bam',
                                                   metadata => $bam_meta);
                 
+                my @temp_files;
+                $temp_files[0] = $self->output_file(output_key => 'temp_bam_files',
+                                                    basename => '.samtools_view_tmp.bam',
+                                                    type => 'bam',
+                                                    temporary => 1);
+                
+                $temp_files[1] = $self->output_file(output_key => 'temp_bam_files',
+                                                    basename => '.samtools_nsort_tmp.bam',
+                                                    type => 'bam',
+                                                    temporary => 1);
+                
+                $temp_files[2] = $self->output_file(output_key => 'temp_bam_files',
+                                                    basename => '.samtools_fixmate_tmp.bam',
+                                                    type => 'bam',
+                                                    temporary => 1);
+                
+                $temp_files[3] = $self->output_file(output_key => 'temp_bam_files',
+                                                    basename => '.samtools_csort_tmp.bam',
+                                                    type => 'bam',
+                                                    temporary => 1);
+                
                 my $bam_dir = $bam_file->dir;
                 my $sam_path = $sam->path;
                 my $bam_path = $bam_file->path;
                 my $nprefix = Path::Class::File->new($bam_dir, '.samtools_nsort_tmp');
                 my $cprefix = Path::Class::File->new($bam_dir, '.samtools_csort_tmp');
-                my $this_cmd = "$samtools view -bSu $sam_path | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd -u - $ref > $bam_path";
+                
+                #my $this_cmd = "$samtools view -bSu $sam_path | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd -u - $ref > $bam_path";
+                my $this_cmd = "$samtools view -bSu $sam_path > $temp_files[0]; $samtools sort -n -m 2800000000 $temp_files[0] $nprefix; $samtools fixmate $temp_files[1] $temp_files[2]; $samtools sort -m 2800000000 $temp_files[2] $cprefix; $samtools fillmd -u $temp_files[3] $ref > $bam_path";
                 
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_to_fixed_bam', 'fix_and_check', [$this_cmd, $req, {output_files => [$bam_file]}]);
             }
@@ -69,6 +92,9 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
     }
     method description {
         return "Turns a sam file into an uncompressed coordinate-sorted bam file with fixed mates and correct NM tag values";
+    }
+    method max_simultaneous {
+        return 0;
     }
     
     method fix_and_check (ClassName|Object $self: Str $cmd_line) {

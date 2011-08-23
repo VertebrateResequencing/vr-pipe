@@ -454,6 +454,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     eval "require ${class}s::$args{name};"; # eval within a try because can't get require to work with a variable name otherwise?!
                     die "$@\n" if $@;
                     my $factory_class = "${class}NonPersistentFactory";
+                    eval "require $factory_class;";
+                    die "$@\n" if $@;
                     my $obj = $factory_class->create($args{name}, {});
                     
                     # now setup %args based on $obj; doing things this way means

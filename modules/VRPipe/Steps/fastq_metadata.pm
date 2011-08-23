@@ -71,6 +71,9 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
     method description {
         return "Takes a fastq file and associates metadata with the file in the VRPipe database, making the fastq file usable in other fastq-related Steps";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
     
     method stats_from_fastqcheck (ClassName|Object $self: Str $cmd_line) {
         my ($fq_path, $fqc_path) = $cmd_line =~ /^fastqcheck (\S+) > (\S+)$/;
