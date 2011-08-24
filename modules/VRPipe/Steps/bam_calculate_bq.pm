@@ -24,6 +24,9 @@ class VRPipe::Steps::bam_calculate_bq with VRPipe::StepRole {
     method description {
         return "Corrects NM & MD tags and calculates BQ (BAQ scores) to aid downstream variant calling";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

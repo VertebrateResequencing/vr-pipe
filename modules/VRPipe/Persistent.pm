@@ -454,6 +454,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     eval "require ${class}s::$args{name};"; # eval within a try because can't get require to work with a variable name otherwise?!
                     die "$@\n" if $@;
                     my $factory_class = "${class}NonPersistentFactory";
+                    eval "require $factory_class;";
+                    die "$@\n" if $@;
                     my $obj = $factory_class->create($args{name}, {});
                     
                     # now setup %args based on $obj; doing things this way means
@@ -563,7 +565,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     # because that may be driver-specific, and because we may
                     # be nested and so $err could be unrelated
                     if ($retries < $max_retries) {
-                        $self->debug("will retry get due to txn failure: $err\n");
+                        #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
                         
                         # actually, we will check the $err message, and if it is
                         # definitely a restart situation, we won't increment

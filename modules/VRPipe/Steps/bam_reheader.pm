@@ -55,6 +55,9 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method description {
         return "Replaces a bam header so that it has complete sequence information, a good RG line, and chained PG lines";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

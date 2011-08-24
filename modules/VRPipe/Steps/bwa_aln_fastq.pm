@@ -63,6 +63,9 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
     method description {
         return "Aligns the input fastq(s) with bwa to the reference";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
     
     method aln_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($sai_path) = $cmd_line =~ /-f (\S+)/;

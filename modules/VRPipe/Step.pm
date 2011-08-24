@@ -29,6 +29,11 @@ class VRPipe::Step extends VRPipe::Persistent with VRPipe::StepRole {
                                  isa => PersistentHashRef,
                                  traits => ['VRPipe::Persistent::Attributes']);
     
+    has 'max_simultaneous' => (is => 'rw',
+                               isa => IntSQL[4],
+                               traits => ['VRPipe::Persistent::Attributes'],
+                               default => 0); # meaning unlimited
+    
     has 'description' => (is => 'rw',
                           isa => Text,
                           traits => ['VRPipe::Persistent::Attributes'],

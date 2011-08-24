@@ -34,7 +34,7 @@ role VRPipe::PipelineRole {
             my $step_id = $step->id;
             my $rs = $schema->resultset('StepMember')->search(
                 {
-                    'step' => $step->id,
+                    'step' => $step_id,
                     'pipeline' => $self->id,
                     'step_number' => ++$step_num
                 }
@@ -61,6 +61,8 @@ role VRPipe::PipelineRole {
             #*** not yet implemented
             
             # construct pipeline from scratch
+            $self->_num_steps(0);
+            $self->update;
             @sms = ();
             foreach my $step (@$steps) {
                 push(@sms, $self->add_step($step));

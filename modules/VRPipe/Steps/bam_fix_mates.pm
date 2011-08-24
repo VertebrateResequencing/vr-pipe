@@ -22,6 +22,9 @@ class VRPipe::Steps::bam_fix_mates with VRPipe::StepRole {
     method description {
         return "Fixes mate information and coordinate sorts a name-sorted bam file";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

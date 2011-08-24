@@ -22,6 +22,9 @@ class VRPipe::Steps::bam_realignment_around_known_indels with VRPipe::StepRole {
     method description {
         return "Realigns reads around known indels to improve subsequent variant calling, producing a name-sorted uncompressed bam";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

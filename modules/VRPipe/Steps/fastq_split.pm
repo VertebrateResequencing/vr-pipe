@@ -77,6 +77,9 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
     method description {
         return "Takes a single-ended fastq file and/or 2 fastq files of a paired-end run and splits them into multiple smaller fastq files";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
     
 =head2 fastq_split
 

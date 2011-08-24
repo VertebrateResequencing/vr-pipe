@@ -14,6 +14,7 @@ role VRPipe::StepRole {
     requires 'post_process_sub';
     requires 'outputs_definition';
     requires 'description';
+    requires 'max_simultaneous';
     
     # these may be needed by body_sub and post_process_sub
     has 'step_state' => (is => 'rw',
