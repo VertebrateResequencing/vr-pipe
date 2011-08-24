@@ -45,8 +45,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                                                StepState Submission StepAdaptor
                                                PersistentArray StepOption
                                                PersistentArrayMember Manager
-                                               StepOutputFile
-                                               DataElementState StepIODefinition/]});
+                                               StepIODefinition StepOutputFile
+                                               DataElementState/]});
 }
 
 1;
