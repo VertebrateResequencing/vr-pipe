@@ -565,7 +565,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     # because that may be driver-specific, and because we may
                     # be nested and so $err could be unrelated
                     if ($retries < $max_retries) {
-                        $self->debug("will retry get due to txn failure: $err\n");
+                        #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
                         
                         # actually, we will check the $err message, and if it is
                         # definitely a restart situation, we won't increment
