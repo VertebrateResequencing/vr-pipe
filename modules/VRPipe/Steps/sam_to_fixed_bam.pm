@@ -31,6 +31,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
             foreach my $sam (@{$self->inputs->{sam_files}}) {
                 my $bam_basename = $sam->basename;
                 $bam_basename =~ s/\.sam$//;
+                my $prefix_base = '.'.$bam_basename;
                 $bam_basename .= '.bam';
                 
                 my $sam_meta = $sam->metadata;
@@ -49,8 +50,9 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                 my $bam_dir = $bam_file->dir;
                 my $sam_path = $sam->path;
                 my $bam_path = $bam_file->path;
-                my $nprefix = Path::Class::File->new($bam_dir, '.samtools_nsort_tmp');
-                my $cprefix = Path::Class::File->new($bam_dir, '.samtools_csort_tmp');
+                my $nprefix = Path::Class::File->new($bam_dir, $prefix_base.'.samtools_nsort_tmp');
+                my $cprefix = Path::Class::File->new($bam_dir, $prefix_base.'.samtools_csort_tmp');
+                
                 my $this_cmd = "$samtools view -bSu $sam_path | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd -u - $ref > $bam_path";
                 
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_to_fixed_bam', 'fix_and_check', [$this_cmd, $req, {output_files => [$bam_file]}]);
@@ -69,6 +71,9 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
     }
     method description {
         return "Turns a sam file into an uncompressed coordinate-sorted bam file with fixed mates and correct NM tag values";
+    }
+    method max_simultaneous {
+        return 0;
     }
     
     method fix_and_check (ClassName|Object $self: Str $cmd_line) {

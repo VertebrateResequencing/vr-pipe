@@ -141,6 +141,9 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
     method description {
         return "Merges multiple bam files for the same lane (mapped from splits of the same fastq pair) into a single bam file (per library layout). Also ensures the header has complete sequence information, a good RG line, and chained PG lines"; #*** , and that all records have an RG tag
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
     
     method merge_and_check (ClassName|Object $self: Str|File :$samtools, Str|File :$dict, Str|File :$output, Persistent :$step_state, ArrayRef[Str|File] :$bams) {
         # make a nice sam header

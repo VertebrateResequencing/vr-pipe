@@ -22,6 +22,9 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     method description {
         return "Calculates various statistics about bam files, producing .bas files";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

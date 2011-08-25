@@ -55,6 +55,9 @@ class VRPipe::Steps::test_step_four with VRPipe::StepRole {
     method description {
         return "test step four";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

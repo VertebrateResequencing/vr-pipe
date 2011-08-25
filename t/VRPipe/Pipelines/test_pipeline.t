@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 15;
+    use Test::Most tests => 16;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -24,10 +24,13 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 
 $pipeline = VRPipe::Pipeline->get(name => 'test_pipeline');
 @s_names = ();
+my @s_nums = ();
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
+    push(@s_nums, $stepmember->step_number);
 }
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps after a second retrieval';
+is_deeply \@s_nums, [1, 2, 3, 4], 'the pipeline has the correct step numbers after a second retrieval';
 
 my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my test pipeline setup',
                                                     datasource => VRPipe::DataSource->get(type => 'fofn',

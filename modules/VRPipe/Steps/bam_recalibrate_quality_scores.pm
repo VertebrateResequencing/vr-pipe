@@ -22,6 +22,9 @@ class VRPipe::Steps::bam_recalibrate_quality_scores with VRPipe::StepRole {
     method description {
         return "Recalibrate quality scores of each mapped base using GATK";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

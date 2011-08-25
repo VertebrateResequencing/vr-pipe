@@ -152,6 +152,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
+            $self->debug("$incomplete_elements ".$element->id);
             my $estate = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
             my $completed_steps = $estate->completed_steps;
             next if $completed_steps == $num_steps;
@@ -161,6 +162,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 next if $completed_steps == 9;
             }
             
+            # we're using the 'global' limit here to reduce possible db burden,
+            # but it doesn't matter that this is used as a per-pipelinesetup
+            # limit. handle_submissions() gives us a true global limit on how
+            # many jobs will run at once
             last if $incomplete_elements == $limit;
             $incomplete_elements++;
             
@@ -211,7 +216,25 @@ class VRPipe::Manager extends VRPipe::Persistent {
                             next;
                         }
                         else {
-                            $self->throw("submissions completed, but post_process failed");
+                            # we warn instead of throw, because the step may
+                            # have discovered its output files are missing and
+                            # restarted itself
+                            $self->warn("submissions completed, but post_process failed");
+                        }
+                    }
+                    else {
+                        # don't count this toward the limit if all the
+                        # submissions have failed 3 times *** max_retries needs to be consistent and set between trigger and handle
+                        my $fails = 0;
+                        foreach my $sub (@submissions) {
+                            next unless $sub->failed;
+                            if ($sub->retries >= 3) {
+                                $fails++;
+                            }
+                        }
+                        
+                        if ($fails == @submissions) {
+                            $incomplete_elements--;
                         }
                     }
                 }
@@ -292,12 +315,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
         else {
             my $schema = $self->result_source->schema;
             my $rs = $schema->resultset('Submission')->search({ '_done' => 0 });
-            my $limit = $self->global_limit;
-            my $count = 0;
             while (my $sub = $rs->next) {
                 push(@not_done, $sub);
-                $count++;
-                last if $count >= $limit;
             }
         }
         
@@ -334,7 +353,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             next unless $sub->failed;
             
             if ($sub->retries >= $max_retries) {
-                #warn "submission ", $sub->id, " retried $max_retries times now, giving up\n";
+                $self->debug("submission ".$sub->id." retried $max_retries times now, giving up");
             }
             else {
                 # *** supposed to figure out why it failed and adjust reqs as appropriate...
@@ -358,8 +377,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         # update the status of each submission in case any of them finished
         my @still_not_done;
+        my $c = 0;
         foreach my $sub (@$submissions) {
             my $job = $sub->job;
+            $c++;
+            $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
             if ($job->running) {
                 # user's scheduler might kill the submission if it runs too long in the
                 # queue it was initially submitted to; user could do something like this
@@ -381,7 +403,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 }
             }
             elsif ($job->finished) {
+                $self->debug(" -- finishing...");
                 $sub->update_status();
+                $self->debug(" -- success");
                 next if $sub->done;
             }
             elsif ($sub->scheduled) {
@@ -411,9 +435,65 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # group consists of only 1 Submission, then it won't bother with the creating
         # a PersistentArray step.
         
+        # we can have step-specific limits on how many subs to run at once; see
+        # if any are in place and set them globally for all setups
+        my %step_limits;
+        my $do_step_limits = 0;
+        foreach my $setup ($self->setups) {
+            if ($setup->active) {
+                my $user_opts = $setup->options;
+                
+                my @stepms = $setup->pipeline->steps;
+                foreach my $stepm (@stepms) {
+                    my $step = $stepm->step;
+                    my $step_name = $step->name;
+                    
+                    my $limit = $user_opts->{$step_name.'_max_simultaneous'};
+                    unless ($limit) {
+                        $limit = $step->max_simultaneous;
+                    }
+                    
+                    if ($limit) {
+                        if (! defined $step_limits{$step_name} || $limit < $step_limits{$step_name}) {
+                            $step_limits{$step_name} = $limit;
+                        }
+                        $do_step_limits = 1;
+                    }
+                }
+            }
+        }
+        
+        # if any step limits are in place we first have to see how many of each
+        # step are currently in the scheduler
+        my %step_counts;
+        if ($do_step_limits) {
+            my $schema = $self->result_source->schema;
+            my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_sid' => { '!=', undef } });
+            while (my $sub = $rs->next) {
+                $step_counts{$sub->stepstate->stepmember->step->name}++;
+            }
+        }
+        
         my %batches;
+        my $limit = $self->global_limit;
+        my $count = 0;
         foreach my $sub (@$submissions) {
             next if ($sub->sid || $sub->done || $sub->failed);
+            
+            # step limit handling
+            if ($do_step_limits) {
+                my $step_name = $sub->stepstate->stepmember->step->name;
+                if (exists $step_limits{$step_name}) {
+                    $step_counts{$step_name}++;
+                    next if $step_counts{$step_name} > $step_limits{$step_name};
+                }
+            }
+            
+            # global limit handling
+            $count++;
+            last if $count >= $limit;
+            
+            # we're good to batch this one
             push(@{$batches{$sub->requirements->id}}, $sub);
         }
         

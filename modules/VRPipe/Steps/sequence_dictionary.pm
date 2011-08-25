@@ -44,6 +44,9 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
     method description {
         return "Creates a sequence dictionary (.dict file) from a fasta file, suitable for use by Picard/GATK and for forming good bam headers";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
     
     method dicter (ClassName|Object $self: Str|File :$ref, Str|File :$dict, Str :$constants?) {
         my $pars = VRPipe::Parser->create('fasta', {file => $ref});

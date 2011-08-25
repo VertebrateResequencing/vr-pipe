@@ -53,6 +53,9 @@ class VRPipe::Steps::test_step_three with VRPipe::StepRole {
     method description {
         return "test step three";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
     
     method do_step_three (ClassName|Object $self: Str|File $in_path, Str|File $out_path) {
         # do some complicated custom perl, not possible with a simple cmd line...

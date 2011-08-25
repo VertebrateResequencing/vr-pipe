@@ -1,3 +1,4 @@
+0.07    Fixed critical bug in mapping pipeline; should now work properly
 0.06    Myriad performance and stability improvements necessary to get the
         mapping pipeline running smoothly
 0.05    Critical performance fix for dealing with large datasources

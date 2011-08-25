@@ -1,0 +1,161 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::Persistent::Schema;
+use POSIX qw(ceil);
+use Getopt::Long;
+
+my $help = 0;
+my $retries = 3;
+my ($desired_sub, $desired_setup, $desired_step);
+GetOptions("help" => \$help,
+           "submission=i" => \$desired_sub,
+           "setup=s" => \$desired_setup,
+           "step=s" => \$desired_step,
+           "retries=i" => \$retries);
+
+if ($help) {
+    print <<HELP;
+See details related to failed submissions:
+vrpipe-failed_submissions [options]
+
+Options:
+    --submission <int> Show details for a single submission only
+    --setup <int|string> Show details for submissions belonging to the given pipeline setup (by id or name)
+    --step <string> Show details for submissions that failed while doing the step with this name
+    --retries <int> (default 3) Only report on failed submissions with this number of retries
+HELP
+    exit;
+}
+
+if ($desired_sub && ($desired_setup || $desired_step)) {
+    warn "--submission is mutually exclusive of other options; they will be ignored\n";
+    undef $desired_setup;
+    undef $desired_step;
+}
+
+my @subs;
+if ($desired_sub) {
+    @subs = (VRPipe::Submission->get(id => $desired_sub));
+}
+else {
+    my $m = VRPipe::Manager->get;
+    my $schema = $m->result_source->schema;
+    my $rs = $schema->resultset("Submission")->search({ "_failed" => 1, retries => $retries });
+    while (my $sub = $rs->next) {
+        push(@subs, $sub);
+    }
+}
+
+if ($desired_setup) {
+    if ($desired_setup =~ /^\d+$/) {
+        my $m = VRPipe::Manager->get;
+        my $schema = $m->result_source->schema;
+        my $rs = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+        unless ($rs) {
+            die "$desired_setup is not a valid pipeline setup id\n";
+        }
+        $desired_setup = $rs->name;
+    }
+}
+
+my $count = 0;
+my %summary;
+foreach my $sub (@subs) {
+    my $state = $sub->stepstate;
+    my $setup = $state->pipelinesetup->name;
+    if ($desired_setup) {
+        next unless $setup eq $desired_setup;
+    }
+    
+    my $stepm = $state->stepmember;
+    my $step_num = $stepm->step_number;
+    my $step_name = $stepm->step->name;
+    if ($desired_step) {
+        next unless $step_name eq $desired_step;
+    }
+    
+    my $job = $sub->job;
+    my $req = $sub->requirements;
+    my $de = $state->dataelement->id;
+    my $scheduler = $sub->scheduler->type;
+    
+    $count++;
+    $summary{$step_name}++;
+    print "---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" has been retried ", $sub->retries, " times\n";
+    print "The job is trying to do:\n", $job->cmd, "\n";
+    print "The working directory for the job was ", $job->dir, "\n";
+    print "We reserved ", $req->memory, "MB memory and ", $req->time, "hrs of time\n";
+    
+    my $pars = $sub->scheduler_stdout;
+    my $scheduler_ofile = $sub->scheduler_stdout_file->path;
+    if ($pars) {
+        my $so = $sub->scheduler_stdout_file->path;
+        my $mem = $pars->memory;
+        my $sec = $pars->time;
+        my $days = int($sec/(24*60*60));
+        my $hrs = ($sec/(60*60))%24;
+        my $mins = ($sec/60)%60;
+        my $remaining_secs = $sec%60;
+        print "The $scheduler output ($scheduler_ofile) says that actual memory used was ${mem}MB and it took ${sec}seconds ($days days, $hrs hrs, $mins mins, $remaining_secs secs)\n";
+    }
+    else {
+        print "The $scheduler output ($scheduler_ofile) was missing, so actual memory and time used is unknown\n";
+    }
+    
+    my $se = $sub->scheduler_stderr;
+    if ($se) {
+        print "The scheduler had some stderr:\n";
+        show_output($se, $sub->scheduler_stderr_file->path);
+    }
+    
+    my $jo = $sub->job_stdout;
+    if ($jo) {
+        print "The job itself produced some stdout:\n";
+        show_output($jo, $sub->job_stdout_file->path);
+    }
+    
+    my $je = $sub->job_stderr;
+    if ($je) {
+        print "The job itself produced some stderr:\n";
+        show_output($je, $sub->job_stderr_file->path);
+    }
+    
+    print "---\n\n";
+}
+
+unless ($desired_sub) {
+    print "\n$count submissions have failed $retries times\n";
+    unless ($desired_step) {
+        print "Here's the break-down by step name:\n";
+        while (my ($name, $count) = each %summary) {
+            print "  $name => $count\n";
+        }
+    }
+}
+
+exit;
+
+
+sub show_output {
+    my ($output, $file) = @_;
+    print "\n";
+    
+    my @lines = split("\n", $output);
+    if (@lines > 25) {
+        for (1..10, @lines-10..@lines) {
+            print $lines[$_ - 1], "\n";
+        }
+        my $other_lines = @lines - 20;
+        print "\n[... $other_lines more lines in $file ...]\n\n";
+        for (@lines-10..@lines) {
+            print $lines[$_ - 1], "\n";
+        }
+    }
+    else {
+        print $output;
+    }
+    
+    print "\n";
+}

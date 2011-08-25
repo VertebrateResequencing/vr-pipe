@@ -49,6 +49,9 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
     method description {
         return "Takes a file, calculates its md5 checksum, produces a file called <input filename>.md5, and updates the persistent database with the md5 of the file";
     }
+    method max_simultaneous {
+        return 0; # meaning unlimited
+    }
 }
 
 1;

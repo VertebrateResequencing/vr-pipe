@@ -14,6 +14,7 @@ role VRPipe::StepRole {
     requires 'post_process_sub';
     requires 'outputs_definition';
     requires 'description';
+    requires 'max_simultaneous';
     
     # these may be needed by body_sub and post_process_sub
     has 'step_state' => (is => 'rw',
@@ -375,7 +376,7 @@ role VRPipe::StepRole {
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
-                        #$self->warn("to regenerate needed input files (@$files) for stepstate ".$self->step_state->id.", will start stepstate $state_id over again");
+                        $self->debug("to regenerate needed input files (@$files) for stepstate ".$self->step_state->id.", will start stepstate $state_id over again");
                         $state->start_over;
                     }
                 }
@@ -414,13 +415,16 @@ role VRPipe::StepRole {
     
     method post_process {
         my $ok = $self->_run_coderef('post_process_sub');
-        my $debug_desc = "step ".$self->name." failed for data element ".$self->data_element->id." and pipelinesetup ".$self->step_state->pipelinesetup->id;
         my $stepstate = $self->step_state;
+        my $debug_desc = "step ".$self->name." failed for data element ".$self->data_element->id." and pipelinesetup ".$self->step_state->pipelinesetup->id." (stepstate ".$stepstate->id.")";
+        
         if ($ok) {
             my @missing = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@missing) {
-                $self->throw("Some output files are missing (@missing) for $debug_desc");
+                $self->warn("Some output files are missing (@missing) for $debug_desc");
+                $stepstate->start_over;
+                return 0;
             }
             else {
                 return 1;
