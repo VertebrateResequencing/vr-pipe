@@ -27,11 +27,11 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                                                                version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
                                                                summary => "samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file"));
             
-            my $user_mem = $options->{memory_override} || 2900;
-            my $req = $self->new_requirements(memory => $user_mem, time => 1);
+            my $req = $self->new_requirements(memory => 2900, time => 1);
             foreach my $sam (@{$self->inputs->{sam_files}}) {
                 my $bam_basename = $sam->basename;
                 $bam_basename =~ s/\.sam$//;
+                my $prefix_base = '.'.$bam_basename;
                 $bam_basename .= '.bam';
                 
                 my $sam_meta = $sam->metadata;
@@ -47,39 +47,15 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                                                   type => 'bam',
                                                   metadata => $bam_meta);
                 
-                my @temp_files;
-                $temp_files[0] = $self->output_file(output_key => 'temp_bam_files',
-                                                    basename => '.samtools_view_tmp.bam',
-                                                    type => 'bam',
-                                                    temporary => 1);
-                
-                $temp_files[1] = $self->output_file(output_key => 'temp_bam_files',
-                                                    basename => '.samtools_nsort_tmp.bam',
-                                                    type => 'bam',
-                                                    temporary => 1);
-                
-                $temp_files[2] = $self->output_file(output_key => 'temp_bam_files',
-                                                    basename => '.samtools_fixmate_tmp.bam',
-                                                    type => 'bam',
-                                                    temporary => 1);
-                
-                $temp_files[3] = $self->output_file(output_key => 'temp_bam_files',
-                                                    basename => '.samtools_csort_tmp.bam',
-                                                    type => 'bam',
-                                                    temporary => 1);
-                my @tp = map { $_->path } @temp_files;
-                
                 my $bam_dir = $bam_file->dir;
                 my $sam_path = $sam->path;
                 my $bam_path = $bam_file->path;
-                my $nprefix = Path::Class::File->new($bam_dir, '.samtools_nsort_tmp');
-                my $cprefix = Path::Class::File->new($bam_dir, '.samtools_csort_tmp');
+                my $nprefix = Path::Class::File->new($bam_dir, $prefix_base.'.samtools_nsort_tmp');
+                my $cprefix = Path::Class::File->new($bam_dir, $prefix_base.'.samtools_csort_tmp');
                 
-                #my $this_cmd = "$samtools view -bSu $sam_path | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd -u - $ref > $bam_path";
-                my $m = $user_mem * 1000000;
-                my $this_cmd = "$samtools view -bSu $sam_path > $tp[0]; $samtools sort -n -m $m $tp[0] $nprefix; $samtools fixmate $tp[1] $tp[2]; $samtools sort -m $m $tp[2] $cprefix; $samtools fillmd -u $tp[3] $ref > $bam_path";
+                my $this_cmd = "$samtools view -bSu $sam_path | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd -u - $ref > $bam_path";
                 
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_to_fixed_bam', 'fix_and_check', [$this_cmd, $req, {output_files => [$bam_file, @temp_files]}]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_to_fixed_bam', 'fix_and_check', [$this_cmd, $req, {output_files => [$bam_file]}]);
             }
         };
     }
