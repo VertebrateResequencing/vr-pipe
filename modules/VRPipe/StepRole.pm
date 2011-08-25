@@ -415,13 +415,16 @@ role VRPipe::StepRole {
     
     method post_process {
         my $ok = $self->_run_coderef('post_process_sub');
-        my $debug_desc = "step ".$self->name." failed for data element ".$self->data_element->id." and pipelinesetup ".$self->step_state->pipelinesetup->id;
         my $stepstate = $self->step_state;
+        my $debug_desc = "step ".$self->name." failed for data element ".$self->data_element->id." and pipelinesetup ".$self->step_state->pipelinesetup->id." (stepstate ".$stepstate->id.")";
+        
         if ($ok) {
             my @missing = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@missing) {
-                $self->throw("Some output files are missing (@missing) for $debug_desc");
+                $self->warn("Some output files are missing (@missing) for $debug_desc");
+                $stepstate->start_over;
+                return 0;
             }
             else {
                 return 1;

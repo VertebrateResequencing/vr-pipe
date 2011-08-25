@@ -216,7 +216,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
                             next;
                         }
                         else {
-                            $self->throw("submissions completed, but post_process failed");
+                            # we warn instead of throw, because the step may
+                            # have discovered its output files are missing and
+                            # restarted itself
+                            $self->warn("submissions completed, but post_process failed");
                         }
                     }
                     else {
