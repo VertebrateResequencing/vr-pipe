@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 16;
+    use Test::Most tests => 18;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -96,6 +96,13 @@ my $last_stepstate = VRPipe::StepState->get(pipelinesetup => 2, dataelement => 3
 $last_stepstate->start_over;
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output after we did start_over on the last cleaned-up stepstate';
+
+
+# let's also test manually starting a particular dataelement over from scratch
+my $de_to_restart = VRPipe::DataElement->get(id => 3);
+$de_to_restart->start_from_scratch($test_pipelinesetup_clean);
+is_deeply [-e $final_files[-1], -e $final_files[-2]], [undef, 1], 'start_from_scratch deleted the final output file for the particular datalement, but not others';
+ok handle_pipeline(@output_files, @final_files), 'pipeline ran and recreated files for the scratched dataelement';
 
 
 # check that we can access job and scheduler std output/err files

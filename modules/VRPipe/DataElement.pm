@@ -24,6 +24,10 @@ class VRPipe::DataElement extends VRPipe::Persistent {
                       default => 0);
     
     __PACKAGE__->make_persistent();
+    
+    method start_from_scratch (VRPipe::PipelineSetup $setup, ArrayRef[PositiveInt] $step_numbers?) {
+        VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $self)->start_from_scratch($step_numbers ? $step_numbers : ());
+    }
 }
 
 1;
