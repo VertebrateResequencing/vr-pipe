@@ -397,7 +397,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # reset the job
         $self->_reset_job;
         
-        # reset outself and also set retries to 0
+        # reset ourself and also set retries to 0
         $self->retries(0);
         $self->_reset;
     }
