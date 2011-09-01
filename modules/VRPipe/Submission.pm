@@ -317,12 +317,12 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_scheduler_std_file('scheduler_error_file', 'txt', $orig);
     }
     method scheduler_stdout {
-        my $file = $self->scheduler_stdout_file;
+        my $file = $self->scheduler_stdout_file || return;
         $file->s || return;
         return VRPipe::Parser->create('lsf', {file => $file}); #*** should not be hard-coded for lsf
     }
     method scheduler_stderr {
-        my $file = $self->scheduler_stderr_file;
+        my $file = $self->scheduler_stderr_file || return;
         $file->s || return;
         return $file->slurp;
     }
