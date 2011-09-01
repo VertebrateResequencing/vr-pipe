@@ -4,6 +4,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     use VRPipe::Config;
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
+    use VRPipe::SchedulerMethodsFactory;
     
     has 'type' => (is => 'rw',
                    isa => Varchar[64],
@@ -28,6 +29,18 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     method default_output_root (ClassName|Object $self:) {
         my $method_name = VRPipe::Persistent::SchemaBase->database_deployment.'_scheduler_output_root';
         return $vrp_config->$method_name();
+    }
+    
+    # VRPipe::Schedulers::[type] classes will provide scheduler-specific
+    # methods
+    has 'scheduler_instance' => (is => 'ro',
+                                 isa => 'Object',
+                                 builder => '_instantiate_method_class',
+                                 lazy => 1,
+                                 handles => 'VRPipe::SchedulerMethodsRole');
+    
+    method _instantiate_method_class (ClassName|Object $self:) {
+        return VRPipe::SchedulerMethodsFactory->create(lc($self->type), {});
     }
     
 =head2 submit
@@ -181,20 +194,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # and serially running the jobs one-at-a-time itself.
     }
     
-    method get_sid (Str $cmd) {
-        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
-        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
-        #    for now
-        my $output = `$cmd`;
-        my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
-        if ($sid) {
-            return $sid;
-        }
-        else {
-            $self->throw("Failed to submit to scheduler");
-        }
-    }
-    
     method build_command_line (VRPipe::Requirements :$requirements, PersistentObject :$for, PositiveInt :$heartbeat_interval?) {
         # figure out where STDOUT & STDERR of the scheduler should go
         my $output_dir = $self->output_dir($for);
@@ -211,7 +210,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
         
         return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements,
-                                                                   output_dir => $output_dir,
+                                                                   stdo_file => $self->scheduler_output_file($output_dir),
+                                                                   stde_file => $self->scheduler_error_file($output_dir),
                                                                    cmd => $cmd,
                                                                    $for->isa('VRPipe::PersistentArray') ? (array => $for) : ()));
     }
@@ -229,65 +229,11 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         return $output_dir;
     }
     
-    method submit_command {
-        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
-        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
-        #    for now
-        return 'bsub';
-    }
-    
-    method submit_args (VRPipe::Requirements :$requirements, Dir :$output_dir, Str :$cmd, VRPipe::PersistentArray :$array?) {
-        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
-        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
-        #    for now
-        
-        # access the requirments object and build up the string based on memory,
-        # time, cpu etc.
-        my $queue = $self->determine_queue($requirements);
-        # *** ...
-        my $megabytes = $requirements->memory;
-        my $m = $megabytes * 1000;
-        my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
-        
-        # work out the scheduler output locations and how to pass on the
-        # scheduler array index to the perl cmd
-        my $index_spec = '';
-        my $array_def = '';
-        my $ofile = $self->scheduler_output_file($output_dir);
-        my $efile = $self->scheduler_error_file($output_dir);
-        my $output_string;
-        if ($array) {
-            $index_spec = ''; #*** something that gives the index to be shifted into perl -e; for LSF we leave it empty and will pick up an env var elsewhere instead
-            $output_string = "-o $ofile.\%I -e $efile.\%I";
-            my $size = $array->size;
-            my $uniquer = $array->id;
-            $array_def = qq{-J "vrpipe$uniquer\[1-$size]" };
-        }
-        else {
-            $output_string = "-o $ofile -e $efile";
-        }
-        
-        #*** could solve issue of having to have _aid and _hid in Submission
-        #    purely to allow us to find where the lsf output went by having
-        #    output go to named pipe that stores directly in db against the
-        #    submission id. Same could be done for Job output. Would it work
-        #    across the farm?
-        
-        return qq[$array_def$output_string $requirments_string '$cmd$index_spec'];
-    }
-    
     method scheduler_output_file (Dir $output_dir) {
         return file($output_dir, 'scheduler_stdout');
     }
     method scheduler_error_file (Dir $output_dir) {
         return file($output_dir, 'scheduler_stderr');
-    }
-    
-    method determine_queue (VRPipe::Requirements $requirements) {
-        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
-        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
-        #    for now
-        return $requirements->time > 12 ? 'long' : 'normal';
     }
     
     method run_on_node (Persistent :$submission?, Persistent :$array?, Maybe[PositiveInt] :$index?, PositiveInt :$heartbeat_interval?) {
@@ -313,13 +259,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         }
     }
     
-    method get_1based_index (Maybe[PositiveInt] $index?) {
-        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
-        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
-        #    for now.
-        $index ? return $index : return $ENV{LSB_JOBINDEX};
-    }
-    
     method wait_for_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {
         my $t = time();
         while (1) {
@@ -333,45 +272,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             sleep(1);
         }
         return 1;
-    }
-    
-    method kill_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {
-        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
-        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger
-        #    specific for now.
-        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
-        my $t = time();
-        while (1) {
-            last if time() - $t > $secs;
-            
-            #*** fork and kill child if over time limit?
-            my $status = $self->sid_status($sid, $aid);
-            last if ($status eq 'UNKNOWN' || $status eq 'DONE' || $status eq 'EXIT');
-            
-            system("bkill $id");
-            
-            sleep(1);
-        }
-        return 1;
-    }
-    
-    method sid_status (PositiveInt $sid, Int $aid) {
-        #*** supposed to be implemented in eg. VRPipe::Schedulers::LSF if
-        #    $self->type eq 'LSF'; hard-coded to something LSF&Sanger specific
-        #    for now.
-        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
-        open(my $bfh, "bjobs $id |") || $self->warn("Could not call bjobs $id");
-        my $status;
-        if ($bfh) {
-            while (<$bfh>) {
-                if (/^$sid\s+\S+\s+(\S+)/) {
-                    $status = $1;
-                }
-            }
-            close($bfh);
-        }
-        
-        return $status || 'UNKNOWN'; # *** needs to return a word in a defined vocabulary suitable for all schedulers
     }
 
 =pod
