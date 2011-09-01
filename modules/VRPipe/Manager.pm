@@ -397,7 +397,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 #}
                 
                 # check we've had a recent heartbeat
+                $self->debug(" -- running...");
                 if ($job->unresponsive) {
+                    $self->debug(" -- unresponsive");
                     $job->kill_job;
                     $sub->update_status();
                 }
@@ -413,7 +415,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 # apparently pending for ages, check the scheduler really is
                 # pending us and if not reset the submission
                 my $pend_time = $sub->pend_time;
-                if ($pend_time > 86400) {
+                $self->debug(" -- pending for $pend_time seconds...");
+                if ($pend_time > 21600) { #*** rather than check every time check_running is called after 6hrs have passed, can we only check again once every subsequent hour?
                     $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
                     $sub->unschedule_if_not_pending;
                 }
