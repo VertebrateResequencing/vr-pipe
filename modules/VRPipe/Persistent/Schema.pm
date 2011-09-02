@@ -46,7 +46,9 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                                                PersistentArray StepOption
                                                PersistentArrayMember Manager
                                                StepIODefinition StepOutputFile
-                                               DataElementState/]});
+                                               DataElementState
+                                               LocalSchedulerJob
+                                               LocalSchedulerJobState/]});
 }
 
 1;
