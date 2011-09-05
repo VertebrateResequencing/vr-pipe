@@ -3,6 +3,7 @@ use VRPipe::Base;
 class VRPipe::Manager extends VRPipe::Persistent {
     use Parallel::ForkManager;
     use Sys::CPU;
+    use POSIX qw(ceil);
     
     our $DEFAULT_MAX_PROCESSES = Sys::CPU::cpu_count();
     
@@ -356,8 +357,21 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 $self->debug("submission ".$sub->id." retried $max_retries times now, giving up");
             }
             else {
-                # *** supposed to figure out why it failed and adjust reqs as appropriate...
-                $sub->extra_memory;
+                my $parser = $sub->scheduler_stdout;
+                if ($parser) {
+                    my $status = $parser->status;
+                    #*** how can we make parser status method be present for all
+                    #    scheduler outputs, and how can we make the return
+                    #    values generic?
+                    if ($status eq 'MEMLIMIT') {
+                        $sub->extra_memory;
+                    }
+                    elsif ($status eq 'RUNLIMIT') {
+                        my $hrs = ceil($parser->time / 60 / 60) + 1;
+                        my $current_hrs = $sub->time;
+                        $sub->extra_time($hrs - $current_hrs);
+                    }
+                }
                 $sub->retry;
             }
         }
