@@ -243,7 +243,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method time {
         return $self->requirements->time;
     }
-    method extra_time (Int $extra = 3600) {
+    method extra_time (Int $extra = 1) {
         $self->_add_extra('time', $extra);
     }
     
