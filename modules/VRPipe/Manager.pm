@@ -3,6 +3,7 @@ use VRPipe::Base;
 class VRPipe::Manager extends VRPipe::Persistent {
     use Parallel::ForkManager;
     use Sys::CPU;
+    use POSIX qw(ceil);
     
     our $DEFAULT_MAX_PROCESSES = Sys::CPU::cpu_count();
     
@@ -352,12 +353,25 @@ class VRPipe::Manager extends VRPipe::Persistent {
         foreach my $sub (@$submissions) {
             next unless $sub->failed;
             
-            if ($sub->retries >= $max_retries) {
+            if ($sub->retries > $max_retries) {
                 $self->debug("submission ".$sub->id." retried $max_retries times now, giving up");
             }
             else {
-                # *** supposed to figure out why it failed and adjust reqs as appropriate...
-                $sub->extra_memory;
+                my $parser = $sub->scheduler_stdout;
+                if ($parser) {
+                    my $status = $parser->status;
+                    #*** how can we make parser status method be present for all
+                    #    scheduler outputs, and how can we make the return
+                    #    values generic?
+                    if ($status eq 'MEMLIMIT') {
+                        $sub->extra_memory;
+                    }
+                    elsif ($status eq 'RUNLIMIT') {
+                        my $hrs = ceil($parser->time / 60 / 60) + 1;
+                        my $current_hrs = $sub->time;
+                        $sub->extra_time($hrs - $current_hrs);
+                    }
+                }
                 $sub->retry;
             }
         }
@@ -397,7 +411,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 #}
                 
                 # check we've had a recent heartbeat
+                $self->debug(" -- running...");
                 if ($job->unresponsive) {
+                    $self->debug(" -- unresponsive");
                     $job->kill_job;
                     $sub->update_status();
                 }
@@ -413,7 +429,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 # apparently pending for ages, check the scheduler really is
                 # pending us and if not reset the submission
                 my $pend_time = $sub->pend_time;
-                if ($pend_time > 86400) {
+                $self->debug(" -- pending for $pend_time seconds...");
+                if ($pend_time > 21600) { #*** rather than check every time check_running is called after 6hrs have passed, can we only check again once every subsequent hour?
                     $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
                     $sub->unschedule_if_not_pending;
                 }

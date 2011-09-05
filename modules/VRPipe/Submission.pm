@@ -243,7 +243,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method time {
         return $self->requirements->time;
     }
-    method extra_time (Int $extra = 3600) {
+    method extra_time (Int $extra = 1) {
         $self->_add_extra('time', $extra);
     }
     
@@ -317,12 +317,12 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_scheduler_std_file('scheduler_error_file', 'txt', $orig);
     }
     method scheduler_stdout {
-        my $file = $self->scheduler_stdout_file;
+        my $file = $self->scheduler_stdout_file || return;
         $file->s || return;
         return VRPipe::Parser->create('lsf', {file => $file}); #*** should not be hard-coded for lsf
     }
     method scheduler_stderr {
-        my $file = $self->scheduler_stderr_file;
+        my $file = $self->scheduler_stderr_file || return;
         $file->s || return;
         return $file->slurp;
     }
@@ -397,7 +397,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # reset the job
         $self->_reset_job;
         
-        # reset outself and also set retries to 0
+        # reset ourself and also set retries to 0
         $self->retries(0);
         $self->_reset;
     }
