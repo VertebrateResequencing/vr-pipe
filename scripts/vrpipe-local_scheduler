@@ -3,24 +3,12 @@ use strict;
 use warnings;
 use lib 'modules';
 
-use VRPipe::Persistent::Schema;
-use Getopt::Long;
 use VRPipe::LocalScheduler;
 
-my $help = 0;
-my $deployment = 'testing';
-GetOptions("help" => \$help,
-           "deployment=s" => \$deployment);
-
-if ($help) {
-    usage();
-}
-
-VRPipe::Persistent::SchemaBase->database_deployment($deployment);
 my $ls = VRPipe::LocalScheduler->new_with_options();
 
 my ($command, @others) = @{$ls->extra_argv};
-defined $command || usage("No command specified\n");
+defined $command || die "No command specified\n";
 
 $ls->start   if $command eq 'start';
 $ls->status  if $command eq 'status';
@@ -28,28 +16,21 @@ $ls->restart if $command eq 'restart';
 $ls->stop    if $command eq 'stop';
 
 if ($command eq 'submit') {
-    warn "command is submit and other args are (@others)\n";
-    
+    my $cmd = $others[0] || die "submit must be supplied a command to run\n";
+    $ls->submit($cmd);
+    exit;
+}
+elsif ($command eq 'job') {
+    my $id = $others[0] || die "job must be supplied an id\n";
+    $ls->job($id);
+    exit;
+}
+elsif ($command eq 'kill') {
+    @others || die "kill must be supplied one or more ids\n";
+    $ls->kill(@others);
     exit;
 }
 else {
     warn($ls->status_message);
     exit($ls->exit_code);
-}
-
-
-sub usage {
-    my $msg = shift;
-    warn $msg, "\n" if $msg;
-    
-    die <<HELP;
-Queue up and run commands on the local machine:
-vrpipe-local_scheduler start
-vrpipe-local_scheduler submit
-vrpipe-local_scheduler stop
-
-Options:
-    --deployment testing|production (default testing)
-
-HELP
 }

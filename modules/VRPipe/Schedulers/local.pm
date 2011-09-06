@@ -11,8 +11,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         if ($array) {
             $output_string = "-o $stdo_file.\%I -e $stde_file.\%I";
             my $size = $array->size;
-            my $uniquer = $array->id;
-            $array_def = qq{-J "vrpipe$uniquer\[1-$size]" };
+            $array_def = "-a $size";
         }
         else {
             $output_string = "-o $stdo_file -e $stde_file";
@@ -50,7 +49,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             my $status = $self->sid_status($sid, $aid);
             last if ($status eq 'UNKNOWN' || $status eq 'DONE' || $status eq 'EXIT');
             
-            system("bkill $id");
+            system("vrpipe-local_scheduler kill $id");
             
             sleep(1);
         }
@@ -59,7 +58,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     
     method sid_status (PositiveInt $sid, Int $aid) {
         my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
-        open(my $bfh, "bjobs $id |") || $self->warn("Could not call bjobs $id");
+        open(my $bfh, "vrpipe-local_scheduler job $id |") || $self->warn("Could not call vrpipe-local_scheduler job $id");
         my $status;
         if ($bfh) {
             while (<$bfh>) {
