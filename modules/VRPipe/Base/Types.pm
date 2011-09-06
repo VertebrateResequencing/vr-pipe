@@ -143,7 +143,7 @@ class_type('File::Temp::File');
 subtype FileType,
     as Str,
     where { my $type = $_; length($type) <= 3 || return 0;
-            $type =~ /^(?:any|bam|bin|cat|fq|lsf|txt)$/ || return 0; return 1;
+            $type =~ /^(?:any|bam|bin|cat|fq|lsf|txt|vcf)$/ || return 0; return 1;
             #*** this hard-coding above required to solve the following eval'd
             #    require on $type == bin failing and causing death (despite the
             #    eval) in some obscure complicated way in some but not all
