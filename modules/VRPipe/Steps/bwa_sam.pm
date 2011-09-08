@@ -216,7 +216,7 @@ class VRPipe::Steps::bwa_sam with VRPipe::StepRole {
             return 1;
         }
         else {
-            $sam_path->unlink;
+            $sam_file->unlink;
             $self->throw("cmd [$cmd_line] failed because $lines lines were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
         }
     }
