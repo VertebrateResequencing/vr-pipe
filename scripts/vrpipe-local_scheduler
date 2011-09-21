@@ -20,17 +20,20 @@ if ($command eq 'submit') {
     $ls->submit($cmd);
     exit;
 }
-elsif ($command eq 'job') {
-    my $id = $others[0] || die "job must be supplied an id\n";
-    $ls->job($id);
+elsif ($command eq 'jobs') {
+    $ls->jobs(\@others);
     exit;
 }
 elsif ($command eq 'kill') {
     @others || die "kill must be supplied one or more ids\n";
-    $ls->kill(@others);
+    $ls->kill(\@others);
+    exit;
+}
+elsif ($command eq 'process_queue') {
+    $ls->process_queue;
     exit;
 }
 else {
-    warn($ls->status_message);
+    warn $ls->status_message, "\n";
     exit($ls->exit_code);
 }

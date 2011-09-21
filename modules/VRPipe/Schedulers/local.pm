@@ -58,7 +58,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     
     method sid_status (PositiveInt $sid, Int $aid) {
         my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
-        open(my $bfh, "vrpipe-local_scheduler job $id |") || $self->warn("Could not call vrpipe-local_scheduler job $id");
+        open(my $bfh, "vrpipe-local_scheduler jobs $id |") || $self->warn("Could not call vrpipe-local_scheduler jobs $id");
         my $status;
         if ($bfh) {
             while (<$bfh>) {
