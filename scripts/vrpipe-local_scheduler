@@ -1,0 +1,39 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use lib 'modules';
+
+use VRPipe::LocalScheduler;
+
+my $ls = VRPipe::LocalScheduler->new_with_options();
+
+my ($command, @others) = @{$ls->extra_argv};
+defined $command || die "No command specified\n";
+
+$ls->start   if $command eq 'start';
+$ls->status  if $command eq 'status';
+$ls->restart if $command eq 'restart';
+$ls->stop    if $command eq 'stop';
+
+if ($command eq 'submit') {
+    my $cmd = $others[0] || die "submit must be supplied a command to run\n";
+    $ls->submit($cmd);
+    exit;
+}
+elsif ($command eq 'jobs') {
+    $ls->jobs(\@others);
+    exit;
+}
+elsif ($command eq 'kill') {
+    @others || die "kill must be supplied one or more ids\n";
+    $ls->kill(\@others);
+    exit;
+}
+elsif ($command eq 'process_queue') {
+    $ls->process_queue;
+    exit;
+}
+else {
+    warn $ls->status_message, "\n";
+    exit($ls->exit_code);
+}

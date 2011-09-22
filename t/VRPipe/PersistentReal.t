@@ -24,6 +24,7 @@ ok my $default_type = VRPipe::Scheduler->default_type, 'could get a default type
 ok my $default_output_root = VRPipe::Scheduler->default_output_root, 'could get a default output root';
 ok $schedulers[2] = VRPipe::Scheduler->get(), 'created another Scheduler using get() with no args';
 is_deeply [$schedulers[2]->id, $schedulers[2]->type, $schedulers[2]->output_root], [3, $default_type, $default_output_root], 'scheduler3 has default fields';
+$schedulers[2]->start_scheduler;
 
 my $output_dir = dir($schedulers[2]->output_root, 'persistent_test_output');
 $schedulers[2]->remove_tree($output_dir);
@@ -382,6 +383,7 @@ SKIP: {
     is $good_beats, 1000, 'each arrayed job had the correct number of heartbeats';
 }
 
+$schedulers[2]->stop_scheduler;
 done_testing;
 exit;
 
