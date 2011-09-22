@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 role VRPipe::SchedulerMethodsRole {
+    requires 'start_command';
+    requires 'stop_command';
     requires 'submit_command';
     requires 'submit_args';
     requires 'determine_queue';

@@ -43,6 +43,15 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         return VRPipe::SchedulerMethodsFactory->create(lc($self->type), {});
     }
     
+    method start_scheduler {
+        my $cmd = $self->start_command;
+        system("$cmd > /dev/null 2> /dev/null");
+    }
+    method stop_scheduler {
+        my $cmd = $self->stop_command;
+        system("$cmd > /dev/null 2> /dev/null");
+    }
+    
 =head2 submit
 
  Title   : submit
@@ -273,7 +282,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         }
         return 1;
     }
-
+    
 =pod
     # query and manipulate a particular submission (these methods access the
     # scheduler itself, so should normally be avoided; use Submission and Job

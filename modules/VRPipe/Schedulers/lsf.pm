@@ -1,6 +1,13 @@
 use VRPipe::Base;
 
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
+    method start_command {
+        return 'bjobs'; #*** actually, I've no idea how to start lsf
+    }
+    method stop_command {
+        return 'bjobs'; #*** actually, I've no idea how to stop lsf
+    }
+    
     method submit_command {
         return 'bsub';
     }

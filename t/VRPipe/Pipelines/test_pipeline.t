@@ -117,5 +117,4 @@ is $submission->scheduler_stderr, undef, 'scheduler_stderr had no content';
 my $parser = $submission->scheduler_stdout;
 ok $parser->does('VRPipe::ParserRole'), 'scheduler_stdout returns a parser';
 
-done_testing;
-exit;
+finish;

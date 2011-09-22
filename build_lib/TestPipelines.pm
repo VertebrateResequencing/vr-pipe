@@ -6,13 +6,18 @@ use Exporter 'import';
 use Path::Class;
 use lib "t";
 
-our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs);
+our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs finish);
 
 our $manager = VRPipe::Manager->get();
+our $scheduler;
+
+BEGIN {
+    $scheduler = VRPipe::Scheduler->get();
+    $scheduler->start_scheduler;
+}
 
 sub get_output_dir {
     my $sub_dir = shift;
-    my $scheduler = VRPipe::Scheduler->get();
     my $output_dir = dir($scheduler->output_root, 'pipelines_test_output', $sub_dir);
     $scheduler->remove_tree($output_dir);
     $scheduler->make_path($output_dir);
@@ -39,6 +44,11 @@ sub handle_pipeline {
 sub output_subdirs {
     my $element_id = shift;
     return ($manager->hashed_dirs('VRPipe::DataElement::'.$element_id), $element_id);
+}
+
+sub finish {
+    $scheduler->stop_scheduler;
+    exit;
 }
 
 1;

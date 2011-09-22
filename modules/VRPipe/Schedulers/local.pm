@@ -1,6 +1,13 @@
 use VRPipe::Base;
 
 class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
+    method start_command {
+        return 'vrpipe-local_scheduler start';
+    }
+    method stop_command {
+        return 'vrpipe-local_scheduler stop';
+    }
+    
     method submit_command {
         return 'vrpipe-local_scheduler submit';
     }
@@ -11,7 +18,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         if ($array) {
             $output_string = "-o $stdo_file.\%I -e $stde_file.\%I";
             my $size = $array->size;
-            $array_def = "-a $size";
+            $array_def = "-a $size ";
         }
         else {
             $output_string = "-o $stdo_file -e $stde_file";
