@@ -175,5 +175,4 @@ is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90de
 
 #*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
 
-done_testing;
-exit;
+finish;

@@ -1,3 +1,4 @@
+0.09    Scheduler independence: local can now be used for testing
 0.08    Submission retries now add time where necessary
 0.07    Fixed critical bug in mapping pipeline; should now work properly
 0.06    Myriad performance and stability improvements necessary to get the

@@ -49,8 +49,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
- Function: Parse the next report from the lsf file, starting with the last and
-           working backwards.
+ Function: Parse the next line from the fastqcheck file.
  Returns : boolean (false at end of output; check the parsed_record for the
            actual information)
  Args    : n/a
