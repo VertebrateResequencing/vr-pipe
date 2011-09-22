@@ -1,0 +1,189 @@
+use VRPipe::Base;
+
+class VRPipe::LocalScheduler {
+    with 'MooseX::Daemonize';
+    use Parallel::ForkManager;
+    use Sys::CPU;
+    use Cwd;
+    use POSIX qw(ceil);
+    
+    use VRPipe::Config;
+    my $vrp_config = VRPipe::Config->new();
+    use VRPipe::Persistent::Schema;
+    
+    our $schema;
+    our $DEFAULT_CPUS = Sys::CPU::cpu_count();
+    
+    has 'deployment' => (is => 'ro',
+                         isa => 'Str',
+                         default => 'testing',
+                         documentation => 'testing|production (default testing): determins which database is used to track locally scheduled jobs');
+    
+    has 'pidbase' => (is => 'rw',
+                      isa => Dir,
+                      coerce => 1,
+                      builder => '_default_pidbase',
+                      lazy => 1);
+    
+    has 'cpus' => (is => 'ro',
+                   isa => 'Int',
+                   default => $DEFAULT_CPUS);
+    
+    # for submit
+    has 'o' => (is => 'ro',
+                isa => 'Str',
+                documentation => 'absolute path to stdout of scheduler (required for submit)');
+    
+    has 'e' => (is => 'ro',
+                isa => 'Str',
+                documentation => 'absolute path to stderr of scheduler (required for submit)');
+    
+    has 'a' => (is => 'ro',
+                isa => 'Int',
+                documentation => 'to specify a job array give the size of the array (default 1)',
+                default => 1);
+    
+    
+    sub BUILD {
+        my $self = shift;
+        my $d = $self->deployment;
+        unless ($d eq 'testing' || $d eq 'production') {
+            $self->throw("'$d' is not a valid deployment type; --deployment testing|production");
+        }
+        VRPipe::Persistent::SchemaBase->database_deployment($self->deployment);
+        $schema = VRPipe::Manager->get->result_source->schema;
+    }
+    
+    method _default_pidbase {
+        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment.'_scheduler_output_root';
+        return $vrp_config->$method_name();
+    }
+    
+    after start {
+        return unless $self->is_daemon;
+        
+        while (1) {
+            $self->process_queue;
+            sleep(5);
+        }
+    }
+    
+    method submit (Str $cmd) {
+        my $o_file = $self->o;
+        my $e_file = $self->e;
+        unless ($o_file && $e_file) {
+            $self->throw("-o and -e are required for submit");
+        }
+        
+        my $array_size = $self->a;
+        my $lsj = VRPipe::LocalSchedulerJob->get(cmd => $cmd, array_size => $array_size, cwd => cwd());
+        
+        foreach my $aid (1..$array_size) {
+            my $this_o = $o_file;
+            $this_o =~ s/\%I/$aid/g;
+            my $this_e = $e_file;
+            $this_e =~ s/\%I/$aid/g;
+            VRPipe::LocalSchedulerJobState->get(localschedulerjob => $lsj, aid => $aid, o_file => $this_o, e_file => $this_e, user => getlogin || getpwuid($<));
+        }
+        
+        my $sid = $lsj->id;
+        print "Job <$sid> is submitted\n";
+    }
+    
+    method jobs (ArrayRef $ids) {
+        my @lsjss;
+        if (@$ids) {
+            foreach my $id (@$ids) {
+                push(@lsjss, $self->job_states($id));
+            }
+        }
+        else {
+            my $rs = $schema->resultset('LocalSchedulerJob');
+            while (my $lsj = $rs->next) {
+                push(@lsjss, $lsj->jobstates);
+            }
+        }
+        
+        return unless @lsjss;
+        
+        print join("\t", qw(JOBID INDEX STAT USER EXEC_HOST SUBMIT_TIME)), "\n";
+        foreach my $lsjs (@lsjss) {
+            my $lsj = $lsjs->localschedulerjob;
+            print join("\t", $lsj->id, $lsjs->aid, $lsjs->current_status, $lsjs->user, $lsjs->host || '', $lsj->creation_time), "\n";
+        }
+    }
+    
+    method job_states ($id) {
+        my ($sid, $aid);
+        if ($id =~ /(\d+)\[(\d+)\]/) {
+            ($sid, $aid) = ($1, $2);
+        }
+        elsif ($id =~ /^\d+$/) {
+            $sid = $id;
+        }
+        else {
+            $self->throw("bad id format '$id'");
+        }
+        
+        my $rs = $schema->resultset('LocalSchedulerJob')->search({id => $sid});
+        my $lsj = $rs->next;
+        
+        unless ($lsj) {
+            print "Job <$sid> is not found\n";
+            return;
+        }
+        
+        my @lsjss;
+        $rs = $schema->resultset('LocalSchedulerJobState')->search({localschedulerjob => $sid});
+        while (my $lsjs = $rs->next) {
+            if ($aid) {
+                next unless $lsjs->aid == $aid;
+            }
+            push(@lsjss, $lsjs);
+        }
+        if ($aid && ! @lsjss) {
+            print "Job <$sid\[$aid\]> is not found\n";
+            return;
+        }
+        
+        return @lsjss;
+    }
+    
+    method unfinished_lsjss {
+        my @lsjss;
+        my $rs = $schema->resultset('LocalSchedulerJobState')->search({start_time => undef});
+        while (my $lsjs = $rs->next) {
+            push(@lsjss, $lsjs);
+        }
+        return @lsjss;
+    }
+    
+    method process_queue {
+        my @lsjss = $self->unfinished_lsjss;
+        @lsjss || return;
+        
+        my $fm = Parallel::ForkManager->new($self->cpus);
+        
+        foreach my $lsjs (@lsjss) {
+            $fm->start and next; # fork
+            print "lsjs ", $lsjs->id, " with aid ", $lsjs->aid, " is next to start\n";
+            $lsjs->start_job;
+            print "came back from start_job\n";
+            $fm->finish;
+        }
+        $fm->wait_all_children;
+        
+        return 1;
+    }
+    
+    method kill (ArrayRef $ids) {
+        my @lsjss;
+        foreach my $id (@$ids) {
+            push(@lsjss, $self->job_states($id));
+        }
+        
+        foreach my $lsjss (@lsjss) {
+            $lsjss->kill_job;
+        }
+    }
+}

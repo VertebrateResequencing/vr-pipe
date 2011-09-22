@@ -353,7 +353,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         foreach my $sub (@$submissions) {
             next unless $sub->failed;
             
-            if ($sub->retries > $max_retries) {
+            if ($sub->retries >= $max_retries) {
                 $self->debug("submission ".$sub->id." retried $max_retries times now, giving up");
             }
             else {

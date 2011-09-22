@@ -37,7 +37,7 @@ Sendu Bala: sb10 at sanger ac uk
 use VRPipe::Base;
 
 class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
-    our $VERSION = 10;
+    our $VERSION = 11;
     __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
                                                DataSource DataElement Pipeline
                                                StepCmdSummary StepMember File
@@ -46,7 +46,9 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                                                PersistentArray StepOption
                                                PersistentArrayMember Manager
                                                StepIODefinition StepOutputFile
-                                               DataElementState/]});
+                                               DataElementState
+                                               LocalSchedulerJob
+                                               LocalSchedulerJobState/]});
 }
 
 1;
