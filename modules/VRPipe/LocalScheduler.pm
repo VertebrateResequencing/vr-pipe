@@ -166,9 +166,7 @@ class VRPipe::LocalScheduler {
         
         foreach my $lsjs (@lsjss) {
             $fm->start and next; # fork
-            print "lsjs ", $lsjs->id, " with aid ", $lsjs->aid, " is next to start\n";
             $lsjs->start_job;
-            print "came back from start_job\n";
             $fm->finish;
         }
         $fm->wait_all_children;
