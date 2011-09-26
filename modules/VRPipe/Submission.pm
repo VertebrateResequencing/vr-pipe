@@ -300,7 +300,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return ($for, $index);
     }
     
-    method _scheduler_std_file (Str $method where {$_ eq 'scheduler_output_file' || $_ eq 'scheduler_error_file'}, Str $type where {$_ eq 'lsf' || $_ eq 'txt'}, Bool $orig = 0) {
+    method _scheduler_std_file (Str $method where {$_ eq 'scheduler_output_file' || $_ eq 'scheduler_error_file'}, Str $type, Bool $orig = 0) {
         my $std_dir = $self->std_dir || return;
         my $std_io_file = $self->scheduler->$method($std_dir);
         my (undef, $index) = $self->_for;
@@ -311,7 +311,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return VRPipe::File->get(path => $std_io_file, type => $type);
     }
     method scheduler_stdout_file (Bool :$orig = 0) {
-        return $self->_scheduler_std_file('scheduler_output_file', 'lsf', $orig); #*** should not be hard-coded for lsf
+        return $self->_scheduler_std_file('scheduler_output_file', substr($self->scheduler->type, 0, 3), $orig);
     }
     method scheduler_stderr_file (Bool :$orig = 0) {
         return $self->_scheduler_std_file('scheduler_error_file', 'txt', $orig);
@@ -319,7 +319,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method scheduler_stdout {
         my $file = $self->scheduler_stdout_file || return;
         $file->s || return;
-        return VRPipe::Parser->create('lsf', {file => $file}); #*** should not be hard-coded for lsf
+        return VRPipe::Parser->create(substr($self->scheduler->type, 0, 3), {file => $file});
     }
     method scheduler_stderr {
         my $file = $self->scheduler_stderr_file || return;

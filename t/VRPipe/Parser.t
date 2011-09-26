@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 40;
+    use Test::Most tests => 45;
     
     use_ok('VRPipe::Parser');
     
@@ -41,6 +41,15 @@ undef $p;
 $p = VRPipe::Parser->create('lsf', {file => file(qw(t data lsf.stdout))});
 $p->next_record;
 is $p->parsed_record->[4], 4.75, 'next_record and parsed_record work on the first (last) record';
+
+# loc
+undef $p;
+$p = VRPipe::Parser->create('loc', {file => file(qw(t data parser.loc))});
+is $p->time, 20, 'local parser time is correct';
+is $p->cmd, 'perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); VRPipe::Scheduler->get(id => 1)->run_on_node(index => shift, array => 2);"', 'local parser cmd is correct';
+is $p->status, 'OK', 'local parser status is correct';
+is $p->sid, 2, 'local parser sid is correct';
+is $p->aid, 1, 'local parser aid is correct';
 
 throws_ok {$p = VRPipe::Parser->create('cat', {file => 't/data/not.extant'}); $p->next_record; } qr/does not exist, so cannot be opened for reading/, 'throws when asked to parse a non-existant file';
 
