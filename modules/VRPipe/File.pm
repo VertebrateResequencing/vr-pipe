@@ -266,6 +266,16 @@ class VRPipe::File extends VRPipe::Persistent {
         return $lines;
     }
     
+    method num_records {
+        my $s = $self->s || return 0;
+        
+        my $records = 0;
+        my $ft = VRPipe::FileType->create($self->type, {file => $self->path});
+        $records = $ft->num_records;
+        
+        return $records;
+    }
+    
     method update_md5 (Str $md5?) {
         $md5 ||= $self->file_md5($self);
         $self->md5($md5);
