@@ -631,6 +631,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         #    create index outputroot_options_index on pipelinesetup (output_root(255), options(255));
         #    create index allowed_values_index on stepoption (allowed_values(255));
         #    create index metadata_index on stepiodefinition (metadata(255));
+        #    create index summary_index on stepcmdsummary (summary(255));
         #use Data::Dumper;
         #warn "$class needs text indexing:\n", Dumper(\%for_text_indexing), "\n" if keys %for_text_indexing;
     }
