@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 45;
+    use Test::Most tests => 51;
     
     use_ok('VRPipe::Parser');
     
@@ -97,6 +97,21 @@ while ($p->next_record) {
     push(@records, $pr->[0].'+'.length($pr->[1]));
 }
 is_deeply [@records], ["fake_chr1+290640", "fake_chr2+1716851"], 'fasta file was parsed correctly';
+
+# bam
+$p = VRPipe::Parser->create('bam', {file => file(qw(t data file.bam))});
+is $p->sam_version, '1.0', 'sam version could be parsed from bam file';
+is $p->sequence_info('2', 'LN'), 243199373, 'chrom length could be parsed from bam file';
+is $p->program_info('bwa', 'VN'), '0.5.5', 'program info could be parsed from bam file';
+is $p->readgroup_info('SRR035022', 'LB'), 'Solexa-16652', 'readgroup info could be parsed from bam file';
+is_deeply [$p->samples], ['NA06984'], 'could get all samples from bam file';
+
+$num_records = 0;
+while ($p->next_record) {
+    $num_records++;
+}
+is $num_records, 3, 'correct number of records found in bam file';
+
 
 # sequence.index
 {

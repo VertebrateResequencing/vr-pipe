@@ -116,6 +116,10 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
                             isa => 'HashRef',
                             default => sub { {} });
     
+    has '_header' => (is => 'rw',
+                      isa => 'HashRef',
+                      default => sub { {} });
+    
     has '_writes' => (is => 'rw',
                       isa => 'HashRef',
                       default => sub { {} });
@@ -360,7 +364,8 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
            program id and tag (like 'VN' or 'CL') for specific info
 
 =cut
-    method program_info (@args) {
+    sub program_info {
+        my ($self, @args) = @_;
         return $self->_handle_multi_line_header_types('PG', @args);
     }
     
@@ -389,7 +394,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
         else {
             my (@known_prg, @unknown_prg);
             for my $program (@programs) {
-                if ($program =~ /bwa|maq|ssaha|bfast|stampy/) {
+                if ($program =~ /bwa|maq|ssaha|bfast|stampy/i) {
                     push @known_prg, $program;
                 }
                 elsif ($program !~ /GATK/) {
@@ -467,7 +472,8 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
            sequence id and tag (like 'LN' or 'M5') for specific info
 
 =cut
-    method sequence_info (@args) {
+    sub sequence_info {
+        my ($self, @args) = @_;
         return $self->_handle_multi_line_header_types('SQ', @args);
     }
     
@@ -488,7 +494,8 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
            readgroup id and tag (like 'LB' or 'SM') for specific info
 
 =cut
-    method readgroup_info (@args) {
+    sub readgroup_info {
+        my ($self, @args) = @_;
         return $self->_handle_multi_line_header_types('RG', @args);
     }
     
@@ -516,7 +523,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
         return @uniques;
     }
     
-    method _handle_multi_line_header_types (Str $type, Str $id, Str $tag) {
+    method _handle_multi_line_header_types (Str $type, Str $id?, Str $tag?) {
         my $lines = $self->_get_header_type($type) || return;
         
         # organise the data into by-id hash
@@ -565,24 +572,21 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
         my $fh = $self->fh() || return;
         
         $self->_get_header();
+        my $hash = $self->_header;
         
-        #*** in the middle of implementing...
-        #if (defined $self->{'_header'.$fh_id} && defined $self->{'_header'.$fh_id}->{$type}) {
-        #    return $self->{'_header'.$fh_id}->{$type};
-        #}
+        if (defined $hash->{$type}) {
+            return $hash->{$type};
+        }
         
         return;
     }
     
-    sub _get_header {
-        my $self = shift;
-        
+    method _get_header {
         my $fh = $self->fh() || return;
-        my $fh_id = $self->_fh_id;
+        return 1 if $self->_header_parsed();
         
-        return if $self->{'_got_header'.$fh_id};
+        my $hash = $self->_header;
         
-        my $non_header;
         while (<$fh>) {
             if (/^@/) {
                 #@HD     VN:1.0  GO:none SO:coordinate
@@ -595,21 +599,20 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
                 
                 if ($type eq 'HD') {
                     # we only expect and handle one of these lines per file
-                    $self->{'_header'.$fh_id}->{$type} = \@tags;
+                    $hash->{$type} = \@tags;
                 }
                 else {
-                    push(@{$self->{'_header'.$fh_id}->{$type}}, \@tags);
+                    push(@{$hash->{$type}}, \@tags);
                 }
             }
             else {
-                # allow header line to not be present
-                $non_header = $_;
-                last;
+                $self->throw("Got a header line from a bam file that did not start with '\@'!: $_");
             }
         }
         
-        $self->{'_got_header'.$fh_id} = 1;
-        $self->{'_first_record'.$fh_id} = $non_header;
+        $self->_header($hash);
+        $self->_set_header_parsed();
+        return 1;
     }
     
     method next_record {
