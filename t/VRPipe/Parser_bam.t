@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 40;
+    use Test::Most tests => 45;
     
     use_ok('VRPipe::Parser');
     
@@ -52,7 +52,8 @@ is $pr->{NM}, 1, 'parsed_record contains correct NM for last line';
 is $pr->{MD}, '47A6', 'parsed_record contains correct MD for last line';
 
 # more tests in a different file
-$pb = VRPipe::Parser->create('bam', {file => file(qw(t data parser2.bam))});
+my $b_file = Path::Class::File->new(qw(t data parser.2.bam));
+$pb = VRPipe::Parser->create('bam', {file => $b_file});
 $pb->get_fields('QNAME', 'FLAG', 'RNAME', 'POS', 'MAPQ', 'CIGAR', 'MRNM', 'MPOS', 'ISIZE', 'SEQ', 'QUAL', 'XT', 'NM', 'SM', 'AM', 'X0', 'X1', 'XM', 'XO', 'XG', 'MD', 'SEQ_LENGTH', 'MAPPED_SEQ_LENGTH');
 $pb->next_record;
 $pr = $pb->parsed_record();
@@ -66,7 +67,6 @@ while ($pb->next_record) {
 is_deeply $pr, { QNAME => 'IL3_2822:6:1:46:1362', FLAG => 133, RG => '*', RNAME => '*', POS => 0, MAPQ => 0, CIGAR => '*', MRNM => '*', MPOS => 0, ISIZE => 0, SEQ => 'CGTTGTAGCTGAGGCTGACATTGAATTTTCACATCTCGAAAGCTTCATCAGTCT', SEQ_LENGTH => 54, QUAL => '??,<-(\'4+9/&<A>8((2)4<?835?>.9+(.\'%39@<8<3\'6,.)-==./.(', XT => '*'}, 'next_record test on last line';
 
 # test region();
-my $b_file = Path::Class::File->new(qw(t data parser.2.bam));
 $pb = VRPipe::Parser->create('bam', {file => $b_file});
 my $c = 0;
 foreach my $region ('Streptococcus_suis:29888-50000', 'Streptococcus_suis:80000-90000', 'Streptococcus_suis:60000-70000') {
@@ -78,7 +78,8 @@ foreach my $region ('Streptococcus_suis:29888-50000', 'Streptococcus_suis:80000-
 is $c, 18, 'getting multiple regions test';
 
 # test writing
-my $temp_dir = $pb->tempdir();
+my $for_tmp_dir = VRPipe::Manager->get;
+my $temp_dir = $for_tmp_dir->tempdir();
 my $out_bam1 = Path::Class::File->new($temp_dir, 'out1.bam');
 my $out_bam2 = Path::Class::File->new($temp_dir, 'out2.bam');
 my $out_bam3 = Path::Class::File->new($temp_dir, 'out3.bam');
