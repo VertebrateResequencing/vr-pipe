@@ -6,7 +6,7 @@ use Exporter 'import';
 use Path::Class;
 use lib "t";
 
-our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs finish);
+our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline finish);
 
 our $manager = VRPipe::Manager->get();
 our $scheduler;
@@ -44,6 +44,20 @@ sub handle_pipeline {
 sub output_subdirs {
     my $element_id = shift;
     return ($manager->hashed_dirs('VRPipe::DataElement::'.$element_id), $element_id);
+}
+
+sub create_single_step_pipeline {
+    my ($step_name, $input_key) = @_;
+    
+    my $step = VRPipe::Step->get(name => $step_name) || die "Could not create a step named '$step_name'\n";
+    my $pipeline_name = $step_name.'_pipeline';
+    my $pipeline = VRPipe::Pipeline->get(name => $pipeline_name, description => 'test pipeline for the '.$step_name.' step');
+    VRPipe::StepMember->get(step => $step, pipeline => $pipeline, step_number => 1);
+    VRPipe::StepAdaptor->get(pipeline => $pipeline, to_step => 1, adaptor_hash => { $input_key => { data_element => 0 } });
+    
+    my $output_dir = get_output_dir($pipeline_name);
+    
+    return ($output_dir, $pipeline, $step);
 }
 
 sub finish {
