@@ -17,8 +17,14 @@ role VRPipe::ParserRole {
     
     has 'fh' => (is => 'ro',
                  isa => AnyFileHandle,
+                 writer => '_set_fh',
                  lazy => 1,
                  builder => '_get_fh');
+    
+    has 'filename' => (is => 'ro',
+                       isa => 'Str',
+                       lazy => 1,
+                       builder => '_get_filename');
     
     has '_buffer_store' => (is => 'ro',
                             traits => ['Array'],
@@ -62,6 +68,17 @@ role VRPipe::ParserRole {
         }
         else {
             return $file;
+        }
+    }
+    
+    method _get_filename {
+        $self->fh;
+        my $vrpf = $self->_vrpipe_file;
+        if ($vrpf) {
+            return $vrpf->path->stringify;
+        }
+        else {
+            return '-';
         }
     }
     
@@ -141,6 +158,33 @@ role VRPipe::ParserRole {
         $self->$orig($tell);
     }
     
+=head2 seek
+
+ Title   : seek
+ Usage   : $self->seek($pos, $whence);
+ Function: Behaves exactly like Perl's standard seek(), except that if the
+           filehandle was made by opening a .gz file for reading, you can
+           effectively seek backwards.
+ Returns : boolean (for success)
+ Args    : position to seek to, position to seek from
+
+=cut
+    method seek (Int $tell, Int $whence) {
+        my $fh = $self->fh() || return;
+        
+        if (ref($fh) eq 'IO::Uncompress::Gunzip') {
+            # we can't go backwards, so close and re-open without changing our
+            # fh id
+            close($fh);
+            my $z = IO::Uncompress::Gunzip->new($self->file->stringify);
+            $self->{_fh} = $z;
+            $fh = $z;
+            $self->_set_fh($fh);
+        }
+        
+        CORE::seek($fh, $tell, $whence);
+    }
+    
 =head2 _seek_first_result
 
  Title   : _seek_first_result
@@ -167,7 +211,7 @@ role VRPipe::ParserRole {
             $tell = 0;
         }
         
-        seek($self->fh, $tell, 0);
+        $self->seek($tell, 0);
     }
     
 =head2 _restore_position
@@ -194,7 +238,7 @@ role VRPipe::ParserRole {
             return;
         }
         
-        seek($fh, $self->{_tell}, 0);
+        $self->seek($self->_tell, 0);
         if (ref($self->parsed_record) eq 'ARRAY') {
             my @current_results = @{$self->_current_results};
             for my $i (0..$#current_results) {
