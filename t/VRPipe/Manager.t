@@ -142,7 +142,7 @@ is handle_pipeline(@first_output_files, @second_output_files), 1, 'multi-step pi
 my $prewritten_step_pipeline = VRPipe::Pipeline->get(name => 'md5_pipeline', description => 'simple test pipeline with two steps that create md5 files');
 VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, to_step => 1, adaptor_hash => { md5_file_input => { data_element => 0 } });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
-VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, to_step => 2, adaptor_hash => { md5_file_input => { md5_files => => 1 } });
+VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, to_step => 2, adaptor_hash => { md5_file_input => { md5_files => 1 } });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
 
 my $fofn_datasource = VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn)));
