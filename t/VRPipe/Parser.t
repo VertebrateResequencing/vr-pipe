@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 66;
+    use Test::Most tests => 71;
     
     use_ok('VRPipe::Parser');
     
@@ -110,6 +110,14 @@ while ($p->next_record) {
     $num_records++;
 }
 is $num_records, 3, 'correct number of records found in bam file';
+
+# bamcheck (only parses the header so far...)
+$p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck))});
+is $p->sequences, 2000, 'bamcheck sequences method worked';
+is $p->is_paired, 1, 'bamcheck is_paired worked';
+is $p->bases_mapped_cigar, 58663, 'bamcheck bases_mapped_cigar worked';
+is $p->error_rate, '2.151271e-02', 'bamcheck error_rate worked';
+is $p->insert_size_standard_deviation, 70.9, 'bamcheck insert_size_standard_deviation worked';
 
 # fastq
 {
