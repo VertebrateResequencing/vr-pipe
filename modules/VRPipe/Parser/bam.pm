@@ -9,12 +9,6 @@ use VRPipe::Parser;
 # create object, supplying bam file
 my $pars = VRPipe::Parser->create('bam', {file => $bam_file});
 
-# loop through the file, getting records
-while ($pars->next_record()) {
-    my $fastq_file = $parsed_record->[0];
-    # etc.
-}
-
 # get header information
 my $program = $pars->program();
 my %readgroup_info = $pars->readgroup_info();
