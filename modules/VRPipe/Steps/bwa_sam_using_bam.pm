@@ -99,9 +99,8 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                         next;
                     }
                     
-                    my $reads = $bam_meta->{reads};
-                    $reads -= $paired_reads if $paired eq 'se';
-                    my $bases = $bam_meta->{bases}; #*** this is wrong...
+                    my $reads = $bam_meta->{reads}; #*** what happens when a bam had mixed paired and unpaired reads?
+                    my $bases = $bam_meta->{bases};
                     
                     my $this_cmd;
                     my @bams = ($bam);
