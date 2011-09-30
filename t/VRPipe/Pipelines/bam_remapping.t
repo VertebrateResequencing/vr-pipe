@@ -20,7 +20,7 @@ my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(sequence_dictionary bwa_index bam_metadata bwa_aln_bam bwa_sam_using_bam sam_to_fixed_bam)], 'the pipeline has the correct steps'; # bam_stats
+is_deeply \@s_names, [qw(sequence_dictionary bwa_index bam_metadata bwa_aln_bam bwa_sam_using_bam sam_to_fixed_bam bam_reheader)], 'the pipeline has the correct steps'; # bam_stats
 
 my $ref_fa_source = file(qw(t data S_suis_P17.fa));
 my $ref_dir = dir($mapping_output_dir, 'ref');
@@ -38,6 +38,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis remapping
                                                                    reference_public_url => 'ftp://s.suis.com/ref.fa',
                                                                    reference_species => 'S.Suis',
                                                                    bwa_index_options => '-a is',
+                                                                   uncompressed_fixed_bam_output => 0,
                                                                    cleanup => 0,
                                                                    sequence_dictionary_memory => 150,
                                                                    sequence_dictionary_time => 1,
