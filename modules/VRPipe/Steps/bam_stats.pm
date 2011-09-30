@@ -197,7 +197,14 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
            field of the RG line(s) in the header
 
 =cut
-    method bas (File $in_bame, File $out_bas, Int :$release_date? where {/^\d{8}$/}, File :$sequence_index?, Bool :$rg_from_pu?) {
+    method bas (File $in_bam, File $out_bas, Int :$release_date? where {/^\d{8}$/}, File :$seq_index?, Bool :$rg_from_pu?) {
+        my %tech_to_platform = (SLX => 'ILLUMINA',
+                                '454' => 'LS454',
+                                SOLID => 'ABI_SOLID',
+                                ILLUMINA => 'ILLUMINA',
+                                'LS454' => 'LS454',
+                                ABI_SOLID => 'ABI_SOLID',);
+        
         $release_date =~ /^\d{8}$/ || $self->throw("bad release date '$release_date'");
         
         my $working_bas = $out_bas.'.working';
