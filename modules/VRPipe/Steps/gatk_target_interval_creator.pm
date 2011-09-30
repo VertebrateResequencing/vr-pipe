@@ -1,14 +1,20 @@
 use VRPipe::Base;
 
-class VRPipe::Steps::bam_realignment_around_known_indels with VRPipe::StepRole {
+# java -Xmx1g -jar /path/to/GenomeAnalysisTK.jar \
+#  -T RealignerTargetCreator \
+#  -R /path/to/reference.fasta \
+#  -o /path/to/output.intervals \
+#  -known /path/to/Devine_Mills.indel_sites.vcf.gz \
+#  -known /path/to/1000Genomes.indel_sites.vcf.gz
+
+class VRPipe::Steps::gatk_target_interval_creator with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
-                 gatk_path => VRPipe::StepOption->get(description => 'path to GATK jar files'
-                                                      optional => 1,
-                                                      default_value => "$ENV{GATK}/GenomeAnalysisTK.jar"),
-                 known_indels => VRPipe::StepOption->get(description => 'ref to an array of absolute paths to VCF files of known indel sites'),
-                 dbsnp => VRPipe::StepOption->get(description => 'absolute path to dbSNP VCF file'),
-                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories', optional => 1, default_value => ''),
+        known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites'),
+                 target_intervals_options => VRPipe::StepOption->get(description => 'command line options for GATK RealignerTargetCreator; excludes -known options which are set by another StepOption', optional => 1),
+                 gatk_path => VRPipe::StepOption->get(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"),
+                 java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
+                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
                 };
     }
     method inputs_definition {
@@ -16,88 +22,58 @@ class VRPipe::Steps::bam_realignment_around_known_indels with VRPipe::StepRole {
     }
     method body_sub {
         return sub {
+            use VRPipe::Utils::gatk;
+            
             my $self = shift;
             my $options = $self->options;
-            my $gatk_exe = $options{gatk_path};
+            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
             
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $bindings = $options->{realign_bindings};
-            # check bindings okay
-            
-            my $intervals = $self->inputs->{intervals_file};
-            
-            my $realign_opts = $options->{gatk_realign_options};
-            if ($realign_opts =~ /$ref|-o|-I|IndelRealigner/) {
-                $self->throw("gatk_realign_options should not include the reference");
+            my $intervals_opts = $options->{target_intervals_options};
+            if ($intervals_opts =~ /$ref|known|RealignerTargetCreator/) {
+                $self->throw("target_intervals_options should not include the reference, known file options or RealignerTargetCreator task command");
             }
             
-            my $req = $self->new_requirements(memory => 3999, time => 2);
-            my $memory = $req->memory;
-            my $java_mem = int($memory * 0.9);
-            my $xss = 280;
-            if ($java_mem > 1000) {
-                $xss = "-Xss${xss}m";
-            }
-            else {
-                $xss = ''; # login node with small memory limit doesn't like Xss option at all
-            }
-            my $temp_dir = $options->{tmp_dir};
-            $temp_dir = $self->tempdir($temp_dir ? (DIR => $temp_dir) : ());
+            # Determine basename for intervals file
+            my $known_indels = $options->{known_indels_for_realignment};
+            my @knowns = $known_indels =~ m/-known (\S+)/g;
+            @knowns || $self->throw('No known indel sites supplied');
+            my @known_files = map { Path::Class::File->new($_) } @knowns;
+            my $basename = join '_', map { $_->basename } @known_files;
+            $basename =~ s/\.vcf(\.gz)?$//g;
             
-            my $task_exe = "java -Xmx${java_mem}m -Xms${java_mem}m $xss -Djava.io.tmpdir=$temp_dir -server -XX:+UseParallelGC -XX:ParallelGCThreads=2 -jar $gatk_exe -T RealignerTargetCreator";
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-                                   version => VRPipe::StepCmdSummary->determine_version(qq[java -jar $gatk_exe -h], 'v([\d\.\-]+)'), 
-                                   summary => 'java -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $ref -o $intervals_file '));
+                                   version => $gatk->determine_gatk_version(),
+                                   summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) '.$intervals_opts));
             
             my $intervals_file = $self->output_file(output_key => 'intervals_file',
-                                              # basename => $bam->basename,
+                                              output_dir => $known_files[0]->dir->stringify, # arbitrarily place intervals file in the directory of the first listed file
+                                              basename => qq[$basename.intervals],
                                               type => 'txt',
-                                              metadata => {source_bam => $bam->path->stringify,
-                                                           reference_fasta => $ref->stringify,
-                                                           reads => $bam->metadata->{reads}});
-            my $this_cmd = qq[$task_exe -R $ref $bindings -o $intervals_file->path $realign_opts];
-            $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_realignment_around_known_indels', 'realign_and_check', [$this_cmd, $req, {output_files => [$realigned_bam_file]}]); 
+                                              metadata => { known_files => join(',', @knowns) });
+            
+            my $req = $self->new_requirements(memory => 1200, time => 1);
+            my $jvm_args = $gatk->jvm_args($req->memory);
+            
+            my $this_cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T RealignerTargetCreator -R $ref -o ].$intervals_file->path.qq[ $known_indels $intervals_opts];
+            $self->dispatch([$this_cmd, $req, {block_and_skip_if_ok => 1}]);
         };
     }
     method outputs_definition {
-        return { intervals_file => VRPipe::StepIODefinition->get(type => 'txt', description => 'intervals file') };
+        return { intervals_file => VRPipe::StepIODefinition->get(type => 'txt', 
+                                                                 description => 'GATK intervals file for known indel sites',
+                                                                 metadata => { known_files => 'comma separated list of known indel file(s) used to create the intervals file' }) };
     }
     method post_process_sub {
         return sub { return 1; };
     }
     method description {
-        return "Realigns reads around known indels to improve subsequent variant calling, producing a name-sorted uncompressed bam";
+        return "Creates target intervals file for known indel sites";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
-    }
-    
-    method realign_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($in_bam_path, $realigned_bam_path) = $cmd_line =~ /-I (\S+) -o (\S+)/;
-        $in_bam_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $realigned_bam_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        
-        my $in_bam_file = VRPipe::File->get(path => $in_bam_path);
-        my $realigned_bam_file = VRPipe::File->get(path => $realigned_bam_path);
-        
-        my $expected_reads = $in_bam_file->metadata->{reads};
-        
-        $in_bam_file->disconnect;
-        $realigned_bam_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-        
-        $realigned_bam_file->update_stats_from_disc(retries => 3);
-        my $actual_reads = $bam_file->lines;
-        
-        if ($actual_lines == $expected_lines) {
-            return 1;
-        }
-        else {
-            $realigned_bam_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $actual_lines lines were generated in the realigned bam file, yet there were $expected_lines lines in the original bam file");
-        }
     }
 }
 

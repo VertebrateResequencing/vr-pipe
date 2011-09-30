@@ -1,15 +1,19 @@
 use VRPipe::Base;
 
-# net.sf.picard.sam.FixMateInformation INPUT=[/lustre/scratch106/projects/uk10k/TRACKING/UK10K_COHORT_TWINSUK/QTL211713/SLX/HUMbpgRVWDIAAPEI_11/110501_I283_FCB012RABXX_L5_HUMbpgRVWDIAAPEI-11/24175.pe.realigned.bam] OUTPUT=/lustre/scratch106/projects/uk10k/TRACKING/UK10K_COHORT_TWINSUK/
-# QTL211713/SLX/HUMbpgRVWDIAAPEI_11/110501_I283_FCB012RABXX_L5_HUMbpgRVWDIAAPEI-11/24175.pe.realigned.sorted.working.bam SORT_ORDER=coordinate TMP_DIR=/lustre/scratch106/tmp/1yyuaitrS2 VALIDATION_STRINGENCY=SILENT MAX_RECORDS_IN_RAM=990000    VERBOSITY=INFO QUIET=false COMPRESSION_LEVEL=5 CREATE_INDEX=false CREATE_M
-# D5_FILE=false
+#java -Djava.io.tmpdir=/path/to/tmpdir \  [this argument recommended when dealing with large input]
+#   -jar FixMateInformation.jar \
+#   INPUT=<input1.bam> \
+#   OUTPUT=<fixedBam.bam> \
+#   SO=coordinate \
+#   VALIDATION_STRINGENCY=SILENT
+
 
 class VRPipe::Steps::bam_fix_mates with VRPipe::StepRole {
     method options_definition {
-        return { picard_path => VRPipe::StepOption->get(description => 'path to Picard jar files'
-                                              optional => 1,
-                                              default_value => "$ENV{PICARD}"),
-                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories', optional => 1, default_value => ''),
+        return { picard_fix_mates_options => VRPipe::StepOption->get(description => '', optional => 1, default_value => ' SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
+                 picard_path => VRPipe::StepOption->get(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
+                 java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
+                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
                };
     }
     method inputs_definition {
@@ -17,39 +21,41 @@ class VRPipe::Steps::bam_fix_mates with VRPipe::StepRole {
     }
     method body_sub {
         return sub {
+            use VRPipe::Utils::picard;
+            
             my $self = shift;
             my $options = $self->options;
-            my $exe = File::Spec->catfile($options{picard_path}, 'FixMateInformation.jar');
+            my $picard = VRPipe::Utils::picard->new(picard_path => $options->{picard_path}, java_exe => $options->{java_exe});
+            my $fixmates_jar = Path::Class::File->new($picard->picard_path, 'FixMateInformation.jar');
+            
+            my $fixmate_options = $options->{picard_fix_mates_options};
+            # if ($fixmate_options =~ /FixMateInformation|MAX_RECORDS_IN_RAM/) {
+            #     $self->throw("picard_fix_mates_options should not include the FixMateInformation command or MAX_RECORDS_IN_RAM option (this is automatically set by the java memory allocation for the step)");
+            # }
+            
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
+                                   version => $picard->determine_picard_version(),
+                                   summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file'.$fixmate_options));
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
             my $memory = $req->memory;
-            my $java_mem = int($memory * 0.9);
-            my $xss = 280;
-            if ($java_mem > 1000) {
-                $xss = "-Xss${xss}m";
-            }
-            else {
-                $xss = ''; # login node with small memory limit doesn't like Xss option at all
-            }
-            my $temp_dir = $options->{tmp_dir};
-            $temp_dir = $self->tempdir($temp_dir ? (DIR => $temp_dir) : ());
-            
-            my $task_exe = "java -Xmx${java_mem}m -Xms${java_mem}m $xss -Djava.io.tmpdir=$temp_dir -server -XX:+UseParallelGC -XX:ParallelGCThreads=2 -jar $gatk_exe -T IndelRealigner";
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-                                   version => VRPipe::StepCmdSummary->determine_version(qq[java -jar $gatk_exe -h], 'v([\d\.\-]+[a-z\d]*)'), 
-                                   summary => 'java -jar GenomeAnalysisTK.jar -T IndelRealigner -R $ref -B:dbsnp,VCF $dbsnp -B:indels,VCF $known_indels -I $in_bam -o $realigned_bam -targetIntervals $intervals_file '.$realign_opts));
+            # $fixmate_options .= ' MAX_RECORDS_IN_RAM='.$memory*90;
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_base = $bam->basename;
                 my $bam_meta = $bam->metadata;
-                my $realigned_base = $bam_base;
-                $realigned_base =~ s/bam$/realign.bam/;
-                my $realigned_bam_file = $self->output_file(output_key => 'realigned_bam_files',
-                                                  basename => $realigned_base,
+                my $mate_fixed_base = $bam_base;
+                $mate_fixed_base =~ s/bam$/sort.bam/;
+                my $mate_fixed_file = $self->output_file(output_key => 'fixmate_bam_files',
+                                                  basename => $mate_fixed_base,
                                                   type => 'bam',
                                                   metadata => $bam_meta);
-                my $this_cmd = qq[$task_exe -R $ref $dbsnp $known_indels -I $bam->path -o $realigned_bam_file->path -targetIntervals $intervals->path $realign_opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_realignment_around_known_indels', 'realign_and_check', [$this_cmd, $req, {output_files => [$realigned_bam_file]}]); 
+                
+                my $temp_dir = $options->{tmp_dir} || $mate_fixed_file->dir;
+                my $jvm_args = $picard->jvm_args($memory, $temp_dir);
+                
+                my $this_cmd = $picard->java_exe." $jvm_args -jar $fixmates_jar INPUT=".$bam->path." OUTPUT=".$mate_fixed_file->path." $fixmate_options";
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_fix_mates', 'fix_mates_and_check', [$this_cmd, $req, {output_files => [$mate_fixed_file]}]); 
             }
         };
     }
@@ -64,6 +70,31 @@ class VRPipe::Steps::bam_fix_mates with VRPipe::StepRole {
     }
     method max_simultaneous {
         return 0; # meaning unlimited
+    }
+    method fix_mates_and_check (ClassName|Object $self: Str $cmd_line) {
+        my ($in_path, $out_path) = $cmd_line =~ /INPUT=(\S+) OUTPUT=(\S+)/;
+        $in_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        
+        my $in_file = VRPipe::File->get(path => $in_path);
+        my $out_file = VRPipe::File->get(path => $out_path);
+        my $in_ft = VRPipe::FileType->create($in_file->type, {file => $in_file->path});
+        my $out_ft = VRPipe::FileType->create($out_file->type, {file => $out_file->path});
+        
+        $in_file->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        $out_file->update_stats_from_disc(retries => 3);
+        my $expected_reads = $in_file->metadata->{reads} || $in_ft->num_records;
+        my $actual_reads = $out_ft->num_records;
+        
+        if ($actual_reads == $expected_reads) {
+            return 1;
+        }
+        else {
+            $out_file->unlink;
+            $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
+        }
     }
 }
 
