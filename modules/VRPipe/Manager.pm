@@ -363,13 +363,15 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     #*** how can we make parser status method be present for all
                     #    scheduler outputs, and how can we make the return
                     #    values generic?
-                    if ($status eq 'MEMLIMIT') {
-                        $sub->extra_memory;
-                    }
-                    elsif ($status eq 'RUNLIMIT') {
-                        my $hrs = ceil($parser->time / 60 / 60) + 1;
-                        my $current_hrs = $sub->time;
-                        $sub->extra_time($hrs - $current_hrs);
+                    if ($status) {
+                        if ($status eq 'MEMLIMIT') {
+                            $sub->extra_memory;
+                        }
+                        elsif ($status eq 'RUNLIMIT') {
+                            my $hrs = ceil($parser->time / 60 / 60) + 1;
+                            my $current_hrs = $sub->time;
+                            $sub->extra_time($hrs - $current_hrs);
+                        }
                     }
                 }
                 $sub->retry;
