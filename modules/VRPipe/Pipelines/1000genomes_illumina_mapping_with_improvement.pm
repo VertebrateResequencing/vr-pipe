@@ -25,7 +25,7 @@ class VRPipe::Pipelines::1000genomes_illumina_mapping_with_improvement with VRPi
                   VRPipe::Step->get(name => 'sam_to_fixed_bam'),#8
                   VRPipe::Step->get(name => 'bam_merge_lane_splits'),#9
                   
-                  VRPipe::Step->get(name => 'intervals_targets'),#10
+                  VRPipe::Step->get(name => 'gatk_target_interval_creator'),#10
                   VRPipe::Step->get(name => 'bam_realignment_around_known_indels'),#11
                   VRPipe::Step->get(name => 'bam_fix_mates'),#12 # should be able to skip this -- need to check
                   VRPipe::Step->get(name => 'bam_count_covariates'),#13
