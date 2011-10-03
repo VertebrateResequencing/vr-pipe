@@ -6,7 +6,9 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     use VRPipe::Utils::Math;
     
     method options_definition {
-        return { };
+        return { release_date => VRPipe::StepOption->get(description => 'for DCC-style filenames, provide the release date', optional => 1),
+                 sequence_index => VRPipe::StepOption->get(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index', optional => 1),
+                 rg_from_pu => VRPipe::StepOption->get(description => 'boolean which if true means that bam headers have their RG identifiers in the PU field instead of ID field of the RG lines in the bam header', optional => 1, default_value => 0) };
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to calculate stats for') };
@@ -14,7 +16,26 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-            $self->throw("bam_stats not yet implemented");
+            
+            my $options = $self->options;
+            my $extra_args = '';
+            foreach my $extra (qw(release_date sequence_index rg_from_pu)) {
+                if ($options->{$extra}) {
+                    $extra_args .= ", $extra => q[$options->{$extra}]";
+                }
+            }
+            
+            my $req = $self->new_requirements(memory => 500, time => 1);
+            foreach my $bam (@{$self->inputs->{bam_files}}) {
+                my $bas = $self->output_file(output_key => 'bas_files',
+                                             #output_dir => $bam->dir, # *** important to have them in the same dir as input bam?
+                                             basename => $bam->basename.'.bas',
+                                             type => 'txt');
+                my $bam_path = $bam->path;
+                my $bas_path = $bas->path;
+                my $this_cmd = "use VRPipe::Steps::bam_stats; VRPipe::Steps::bam_stats->bas(q[$bam_path], q[$bas_path]$extra_args);";
+                $self->dispatch_vrpipecode($this_cmd, $req, {output_files => [$bas]});
+            }
         };
     }
     method outputs_definition {
@@ -29,6 +50,13 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     method max_simultaneous {
         return 0; # meaning unlimited
     }
+    
+    our %tech_to_platform = (SLX => 'ILLUMINA',
+                             '454' => 'LS454',
+                             SOLID => 'ABI_SOLID',
+                             ILLUMINA => 'ILLUMINA',
+                             LS454 => 'LS454',
+                             ABI_SOLID => 'ABI_SOLID');
     
 =head2 bam_statistics
 
@@ -45,9 +73,9 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
            there are accurate NM tags for each record)
 
 =cut
-    method bam_statistics (ClassName|Object $self: File $bam_file) {
+    method bam_statistics (ClassName|Object $self: Str|File $bam_file) {
         # go through the bam and accumulate all the raw stats in little memory
-        my $pb = VRPipe::Parser->create('bam', {file => $bam_file});
+        my $pb = VRPipe::Parser->create('bam', {file => file($bam_file)});
         $pb->get_fields('SEQ_LENGTH', 'MAPPED_SEQ_LENGTH', 'FLAG', 'QUAL', 'MAPQ', 'ISIZE', 'RG', 'NM');
         my $pr = $pb->parsed_record();
         
@@ -191,24 +219,24 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
            Optionally, to have DCC-style filenames, supply a release_date =>
            YYYYMMDD int describing the date of the release.
            You can also supply sequence_index => sequence.index file (optional
-           if your bam headers are good), and finally an optional boolean
+           if your bam headers are good), and an optional boolean
            rg_from_pu which if true means that RG ids are taken to be
            meaningless, with the true read group identifier being in the PU
-           field of the RG line(s) in the header
+           field of the RG line(s) in the header. Finally there is an optional
+           chr => Str arguement, which will put that chr in the DCC-style
+           filename of column 1.
 
 =cut
-    method bas (File $in_bam, File $out_bas, Int :$release_date? where {/^\d{8}$/}, File :$seq_index?, Bool :$rg_from_pu?) {
-        my %tech_to_platform = (SLX => 'ILLUMINA',
-                                '454' => 'LS454',
-                                SOLID => 'ABI_SOLID',
-                                ILLUMINA => 'ILLUMINA',
-                                'LS454' => 'LS454',
-                                ABI_SOLID => 'ABI_SOLID',);
+    method bas (ClassName|Object $self: Str|File $in_bam, Str|File $out_bas, Int :$release_date? where {/^\d{8}$/}, File :$sequence_index?, Bool :$rg_from_pu?, Str :$chr?) {
+        unless (ref($in_bam) && ref($in_bam) eq 'VRPipe::File') {
+            $in_bam = VRPipe::File->get(path => file($in_bam));
+        }
+        unless (ref($out_bas) && ref($out_bas) eq 'VRPipe::File') {
+            $out_bas = VRPipe::File->get(path => file($out_bas));
+        }
         
-        $release_date =~ /^\d{8}$/ || $self->throw("bad release date '$release_date'");
-        
-        my $working_bas = $out_bas.'.working';
-        open(my $bas_fh, '>', $working_bas) || $self->throw("Couldn't write to '$working_bas': $!");
+        my $working_bas = VRPipe::File->get(path => $out_bas->path.'.working');
+        my $bas_fh = $working_bas->openw;
         
         my $expected_lines = 0;
         
@@ -228,30 +256,123 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
         $expected_lines++;
         
         # get the stats for each read group
-        my %readgroup_data = $self->bam_statistics($in_bam);
+        my %readgroup_data = $self->bam_statistics($in_bam->path);
         
-        # get the meta data
-        my $hu = VertRes::Utils::Hierarchy->new(verbose => $self->verbose);
-        my $dcc_filename = $hu->dcc_filename($in_bam, $release_date, $seq_index, undef, $rg_from_pu);
-        
-        my $md5;
-        my $md5_file = $in_bam.'.md5';
-        if (-s $md5_file) {
-            open(my $md5fh, $md5_file) || $self->throw("Couldn't open md5 file '$md5_file': $!");
-            my $line = <$md5fh>;
-            ($md5) = split(' ', $line);
+        # figure out filename for column 1
+        my $dcc_filename;
+        if ($release_date) {
+            my %readgroup_info;
+            my $algorithm = 'unknown_algorithm';
+            my $bp = VRPipe::Parser->create('bam', {file => $in_bam});
+            %readgroup_info = $bp->readgroup_info();
+            $algorithm = $bp->program;
+            $bp->close;
+            
+            my $sample;
+            my $platform = 'unknown_platform';
+            my $raw_pl;
+            my $project;
+            my %techs;
+            my $example_rg;
+            while (my ($rg, $info) = each %readgroup_info) {
+                # there should only be one sample, so we just pick the first
+                $sample ||= $info->{SM};
+                $example_rg ||= $rg_from_pu ? $info->{PU} : $rg;
+                
+                # might be more than one of these if we're a sample-level bam.
+                # We standardise on the DCC nomenclature for the 3 platforms;
+                # they should be in this form anyway, so this is just-in-case
+                $platform = $info->{PL};
+                $raw_pl = $platform;
+                if ($platform =~ /illumina|slx/i) {
+                    $platform = 'ILLUMINA';
+                }
+                elsif ($platform =~ /solid/i) {
+                    $platform = 'ABI_SOLID';
+                }
+                elsif ($platform =~ /454/) {
+                    $platform = 'LS454';
+                }
+                $techs{$platform}++;
+                
+                $project ||= $info->{DS};
+            }
+            $sample ||= 'unknown_sample';
+            
+            # picard merge may have tried to uniqueify the rg, so pluck off .\d
+            $example_rg =~ s/\.\d+$//;
+            
+            unless (defined $example_rg) {
+                $self->throw("The bam '".$in_bam->path."' had no RG in the header!");
+            }
+            
+            # instead of the srp (project code), we now have population and
+            # analysis group in it's place. These things are not stored in the
+            # bam header, so we must check the sequence.index file to figure
+            # this out. We assume that all the readgroups have the same pop and
+            # ag, since they DCC only do same-sample bams
+            # sometimes dcc_filename is used just to make bas files, and
+            # sometimes we don't care about the dcc_file being correct, so we
+            # don't want to require passing in sequence.index file
+            my ($pop, $ag) = ('unknown_population', 'unknown_analysisgroup');
+            if ($sequence_index) {
+                my $sip = VRPipe::Parser->create('sequence_index', {file => $sequence_index});
+                $pop = $sip->lane_info($example_rg, 'POPULATION') || 'unknown_population';
+                $ag = $sip->lane_info($example_rg, 'ANALYSIS_GROUP') || 'unknown_analysisgroup';
+                $ag =~ s/\s/_/g;
+            }
+            
+            # if there's more than 1 tech, it doesn't appear in the filename
+            if (keys %techs > 1) {
+                $platform = '';
+            }
+            else {
+                $platform .= '.';
+            }
+            
+            my $bamname = $in_bam->basename;
+            my $chrom = '';
+            if ($chr) {
+                if ($chr =~ /^(?:\d+|[XY]|MT)$/) {
+                    $chr = 'chrom'.$chr;
+                }
+                $chrom = "$chr.";
+            }
+            elsif ($bamname =~ /\.?(chrom(?:\d+|[XY]|MT)|nonchrom|unmapped|mapped)\./) {
+                $chrom = "$1.";
+            }
+            
+            # picard merge can fuck with program names, converting them to unique numbers
+            if ($algorithm eq 'unknown_algorithm' || $algorithm =~ /^\d+$/ || $algorithm =~ /GATK/) { 
+                if ($platform =~ /ILLUMINA/) {
+                    $algorithm = 'bwa';
+                }
+                elsif ($platform =~ /454/) {
+                    $algorithm = 'ssaha2';
+                }
+                elsif ($raw_pl eq 'solid') {
+                    $algorithm = 'mosaik';
+                }
+                elsif ($platform =~ /SOLID/) {
+                    $algorithm = 'bfast';
+                }
+            }
+            
+            $dcc_filename = "$sample.$chrom$platform$algorithm.$pop.$ag.$release_date";
         }
         else {
-            my $dmd5 = Digest::MD5->new();
-            open(FILE, $in_bam) or $self->throw("Couldn't open bam '$in_bam': $!");
-            binmode(FILE);
-            $dmd5->addfile(*FILE);
-            $md5 = $dmd5->hexdigest;
+            $dcc_filename = $in_bam->basename;
         }
         
-        my $sip = VertRes::Parser::sequence_index->new(file => $seq_index) if $seq_index;
+        # get the md5 of the bam file
+        my $md5 = $in_bam->md5;
+        unless ($md5) {
+            $in_bam->update_md5;
+            $md5 = $in_bam->md5;
+        }
         
-        my $pb = VertRes::Parser::bam->new(file => $in_bam);
+        my $sip = VRPipe::Parser->create('sequence_index', {file => $sequence_index}) if $sequence_index;
+        my $pb = VRPipe::Parser->create('bam', {file => $in_bam});
         
         # if necessary, convert from arbitrary RG ids to the lane identifier stored
         # in PU
@@ -323,17 +444,16 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                                      $data{duplicate_reads} || 0), "\n";
             $expected_lines++;
         }
-        close($bas_fh);
+        $working_bas->close;
         
-        my $io = VertRes::IO->new(file => $working_bas);
-        my $actual_lines = $io->num_lines;
+        my $actual_lines = $working_bas->lines;
         if ($actual_lines == $expected_lines) {
-            move($working_bas, $out_bas) || $self->throw("Could not move $working_bas to $out_bas");
+            $working_bas->move($working_bas, $out_bas);
             return 1;
         }
         else {
-            unlink($working_bas);
-            $self->warn("Wrote $expected_lines to $out_bas, but only read back $actual_lines! Deleted the output.");
+            $working_bas->unlink;
+            $self->warn("Wrote $expected_lines lines to ".$out_bas->path.", but only read back $actual_lines! Deleted the output.");
             return 0;
         }
     }
