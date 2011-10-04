@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 9;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -171,7 +171,9 @@ foreach my $file (file(qw(t data file.bam))->absolute,
                   file($prewritten_step_pipeline_output_dir, output_subdirs(9), 'md5_file_production', 'file.txt.md5')) {
     push(@md5s, VRPipe::File->get(path => $file)->md5);
 }
-is_deeply [@md5s], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec bc5e5541094af2ddf06d8d6a3ef6e101 3f07e8796553d8dbebdc55d59febeab6 cb683a2796e39c24338cfc23ded5a299)], 'md5s were all set in db';
+is_deeply [@md5s[0..2]], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec)], 'md5s were all set in db';
+
+ok $md5s[3] && $md5s[4] && $md5s[5], 'md5s of md5 files were all set in db';
 
 #*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
 
