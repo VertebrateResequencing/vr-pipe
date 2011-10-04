@@ -227,7 +227,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
            filename of column 1.
 
 =cut
-    method bas (ClassName|Object $self: Str|File $in_bam, Str|File $out_bas, Int :$release_date? where {/^\d{8}$/}, File :$sequence_index?, Bool :$rg_from_pu?, Str :$chr?) {
+    method bas (ClassName|Object $self: Str|File $in_bam, Str|File $out_bas, Int :$release_date? where {/^\d{8}$/}, Str|File :$sequence_index?, Bool :$rg_from_pu?, Str :$chr?) {
         unless (ref($in_bam) && ref($in_bam) eq 'VRPipe::File') {
             $in_bam = VRPipe::File->get(path => file($in_bam));
         }

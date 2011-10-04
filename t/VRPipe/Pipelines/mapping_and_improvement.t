@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use File::Copy;
 use Path::Class;
-use Cwd;
 
 BEGIN {
     use Test::Most tests => 4;
@@ -61,8 +60,6 @@ my $known_sites = file($res_dir, 'known_sites.vcf.gz')->stringify;
 copy($known_sites_source, $known_sites);
 copy($known_sites_source.'.tbi', $known_sites.'.tbi');
 
-my $cwd = cwd();
-
 my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                        datasource => VRPipe::DataSource->get(type => 'sequence_index',
                                                                                              method => 'lane_fastqs',
@@ -80,7 +77,9 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                                    known_sites_for_recalibration => "-knownSites $known_sites",
                                                                    gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
                                                                    gatk_path => '/software/vertres/bin-external/GenomeAnalysisTK-1.2-29/',
-                                                                   header_comment_file => file($cwd, qw(t data header_comment))->stringify,
+                                                                   header_comment_file => file(qw(t data header_comment))->absolute->stringify,
+                                                                   release_date => 20111004,
+                                                                   sequence_index => file(qw(t data datasource.sequence_index))->absolute->stringify,
                                                                    cleanup => 0,
                                                                    sequence_dictionary_memory => 150,
                                                                    sequence_dictionary_time => 1,
