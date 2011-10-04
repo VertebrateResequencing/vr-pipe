@@ -82,8 +82,8 @@ my $improvement_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis impro
                                                                    known_indels_for_realignment => "-known $known_indels",
                                                                    known_sites_for_recalibration => "-knownSites $known_sites",
                                                                    gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
-                                                                   gatk_path => '/nfs/users/nfs_s/sm15/src/GATK/dist',
-                                                                   picard_path => '/nfs/users/nfs_s/sm15/src/picard/dist',
+                                                                   gatk_path => '/software/vertres/bin-external/GenomeAnalysisTK-1.2-29/',
+                                                                   picard_path => '/software/vertres/bin-external/picard-tools-1.53/',
                                                                    cleanup => 0,
                                                                    sequence_dictionary_memory => 150,
                                                                    sequence_dictionary_time => 1});

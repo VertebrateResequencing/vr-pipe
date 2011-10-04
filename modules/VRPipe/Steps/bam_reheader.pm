@@ -4,7 +4,8 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method options_definition {
         return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
                                                          optional => 1,
-                                                         default_value => 'samtools') };
+                                                         default_value => 'samtools'),
+                 header_comment_file => VRPipe::StepOption->get(description => 'path to your file containing SAM comment lines to include in the header',optional => 1) };
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam',
@@ -30,6 +31,11 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             my $options = $self->options;
             my $samtools = $options->{samtools_exe};
             my $dict_path = $self->inputs->{dict_file}->[0]->path;
+            my $comment = '';
+            if ($options->{header_comment_file}) {
+                $comment = Path::Class::File->new($options->{header_comment_file});
+                $self->throw("header_comment_file must be an absolute path if it is supplied") unless $comment->is_absolute;
+            }
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
             my $step_state = $self->step_state->id;
@@ -49,7 +55,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                      type => 'txt',
                                      temporary => 1);
 
-                my $this_cmd = "use VRPipe::Steps::bam_reheader; VRPipe::Steps::bam_reheader->reheader_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$headed_bam_path], step_state => $step_state, bam => q[$bam_path]);";
+                my $this_cmd = "use VRPipe::Steps::bam_reheader; VRPipe::Steps::bam_reheader->reheader_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$headed_bam_path], step_state => $step_state, bam => q[$bam_path], comment => q[$comment]);";
                 $self->dispatch_vrpipecode($this_cmd, $req); # deliberately do not include {output_files => [$headed_bam_file]} so that any temp files we made will get their stats updated prior to auto-deletion
             }
         };
@@ -79,7 +85,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method max_simultaneous {
         return 0; # meaning unlimited
     }
-    method reheader_and_check (ClassName|Object $self: Str|File :$samtools, Str|File :$dict, Str|File :$output, Persistent :$step_state, Str|File :$bam) {
+    method reheader_and_check (ClassName|Object $self: Str|File :$samtools, Str|File :$dict, Str|File :$output, Persistent :$step_state, Str|File :$bam, Str|File :$comment?) {
         # make a nice sam header
         my $header_file = VRPipe::File->get(path => $output.'.header');
         my $header_path = $header_file->path;
@@ -97,6 +103,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             print $hfh $_;
             $header_lines++;
         }
+        $dict_file->close;
         
         # construct the RG line from the bam metadata
         my $headed_bam_file = VRPipe::File->get(path => $output);
@@ -146,6 +153,16 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             $header_lines++;
             
             $pp = $step_name;
+        }
+        if ($comment) {
+            my $comment_file = VRPipe::File->get(path => $comment);
+            my $cfh = $comment_file->openr;
+            while (<$cfh>) {
+                next unless /^\@CO/;
+                print $hfh $_;
+                $header_lines++;
+            }
+            $comment_file->close;
         }
         $header_file->close;
         
