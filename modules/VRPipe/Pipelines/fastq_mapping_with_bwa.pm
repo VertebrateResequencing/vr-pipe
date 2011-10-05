@@ -5,7 +5,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
         return 'fastq_mapping_with_bwa';
     }
     method _num_steps {
-        return 9;
+        return 10;
     }
     method description {
         return 'Map reads in fastq files to a reference genome with bwa';

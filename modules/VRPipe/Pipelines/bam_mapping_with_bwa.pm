@@ -5,7 +5,7 @@ class VRPipe::Pipelines::bam_mapping_with_bwa with VRPipe::PipelineRole {
         return 'bam_mapping_with_bwa';
     }
     method _num_steps {
-        return 7;
+        return 8;
     }
     method description {
         return 'Map reads in bam files to a reference genome with bwa';
