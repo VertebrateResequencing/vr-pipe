@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use File::Copy;
 use Path::Class;
-use Cwd;
 
 BEGIN {
     use Test::Most tests => 7;
@@ -61,12 +60,11 @@ my @results = ();
 while (my $element = $ds->next_element) {
     push(@results, $element->result);
 }
-my $cwd = cwd();
-is_deeply \@results, [{paths => [file($cwd, 't', 'data', '2822_7.pe.bam')]}, 
-                      {paths => [file($cwd, 't', 'data', '2822_6.pe.bam')]}, 
-                      {paths => [file($cwd, 't', 'data', '2822_6.se.bam')]}, 
-                      {paths => [file($cwd, 't', 'data', '2823_4.pe.bam')]}, 
-                      {paths => [file($cwd, 't', 'data', '8324_8.pe.bam')]}], 'got correct results for fofn all';
+is_deeply \@results, [{paths => [file('t', 'data', '2822_7.pe.bam')->absolute]}, 
+                      {paths => [file('t', 'data', '2822_6.pe.bam')->absolute]}, 
+                      {paths => [file('t', 'data', '2822_6.se.bam')->absolute]}, 
+                      {paths => [file('t', 'data', '2823_4.pe.bam')->absolute]}, 
+                      {paths => [file('t', 'data', '8324_8.pe.bam')->absolute]}], 'got correct results for fofn all';
 
 my $improvement_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis improvement',
                                                        datasource => VRPipe::DataSource->get(type => 'fofn',
@@ -82,8 +80,8 @@ my $improvement_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis impro
                                                                    known_indels_for_realignment => "-known $known_indels",
                                                                    known_sites_for_recalibration => "-knownSites $known_sites",
                                                                    gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
-                                                                   gatk_path => '/software/vertres/bin-external/GenomeAnalysisTK-1.2-29/',
-                                                                   picard_path => '/software/vertres/bin-external/picard-tools-1.53/',
+                                                                   gatk_path => $ENV{GATK},
+                                                                   picard_path => $ENV{PICARD},
                                                                    cleanup => 0,
                                                                    sequence_dictionary_memory => 150,
                                                                    sequence_dictionary_time => 1});
