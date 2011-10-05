@@ -154,9 +154,9 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         $self->update;
         
         # write out info to stdout file
-        open(my $ofh, '>>', file($cwd, $stdout_file)) || $self->throw("Could not append to $stdout_file");
+        open(my $ofh, '>>', $stdout_file) || $self->throw("Could not append to $stdout_file");
         my $end_time = $self->end_time;
-        print $ofh "#---\n# Finished at $end_time\n# Exit code: $exit_code ($exit_meaning)\n#--- vrpipe-local_scheduler report end ---\n\n";
+        print $ofh "#---\n# Finished at: $end_time\n# Exit code: $exit_code ($exit_meaning)\n#--- vrpipe-local_scheduler report end ---\n\n";
         close($ofh);
     }
     

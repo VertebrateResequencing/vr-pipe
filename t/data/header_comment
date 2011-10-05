@@ -1,0 +1,2 @@
+@CO	realignment around known indels file: resources/known_indels.vcf.gz
+@CO	quality score recalibration file: resources/known_sites.vcf.gz

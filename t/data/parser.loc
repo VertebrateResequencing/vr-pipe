@@ -1,0 +1,12 @@
+#--- vrpipe-local_scheduler report start ---
+# Job: 2[1]
+# Started at: 2011-09-26T10:09:29
+# Running on: uk10k-1-1-01 for user: sb10 in working dir: /nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe
+# Cmd: perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); VRPipe::Scheduler->get(id => 1)->run_on_node(index => shift, array => 2);"
+# STDERR from this Cmd, if any, appears in /lustre/scratch105/vrpipe/testing/d/9/2/8/VRPipe__PersistentArray__2/scheduler_stderr.1
+# STDOUT from this Cmd, if any, appears below
+#---
+#---
+# Finished at: 2011-09-26T10:09:49
+# Exit code: 0 (finished OK)
+#--- vrpipe-local_scheduler report end ---

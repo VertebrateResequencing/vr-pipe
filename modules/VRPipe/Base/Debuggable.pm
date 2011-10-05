@@ -65,6 +65,10 @@ role VRPipe::Base::Debuggable {
 
 =cut
     method verbose (ClassName|Object $self: VerbosityValue $value?, VerbosityValue $old_val?) {
+        unless (ref($self)) {
+            return $GLOBAL_VERBOSITY || 0;
+        }
+        
         if (defined $value) {
             $self->{verbose} = ($value);
         }

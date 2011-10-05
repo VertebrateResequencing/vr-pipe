@@ -159,9 +159,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
             next if $completed_steps == $num_steps;
             
             #*** hack to aid 1kg remapping
-            if ($pipeline->name eq '1000genomes_illumina_mapping_with_improvement') {
-                next if $completed_steps == 9;
-            }
+            # if ($pipeline->name eq '1000genomes_illumina_mapping_with_improvement') {
+            #     next if $completed_steps == 9;
+            # }
             
             # we're using the 'global' limit here to reduce possible db burden,
             # but it doesn't matter that this is used as a per-pipelinesetup
@@ -198,12 +198,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 }
                 
                 #*** hack to aid 1kg remapping
-                if ($step->name eq 'bam_realignment_around_known_indels') {
-                    if ($already_completed_steps == 9) {
-                        $incomplete_elements--;
-                    }
-                    last;
-                }
+                # if ($step->name eq 'bam_realignment_around_known_indels') {
+                #     if ($already_completed_steps == 9) {
+                #         $incomplete_elements--;
+                #     }
+                #     last;
+                # }
                 
                 # have we previously done the dispatch dance and are currently
                 # waiting on submissions to complete?
@@ -363,13 +363,15 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     #*** how can we make parser status method be present for all
                     #    scheduler outputs, and how can we make the return
                     #    values generic?
-                    if ($status eq 'MEMLIMIT') {
-                        $sub->extra_memory;
-                    }
-                    elsif ($status eq 'RUNLIMIT') {
-                        my $hrs = ceil($parser->time / 60 / 60) + 1;
-                        my $current_hrs = $sub->time;
-                        $sub->extra_time($hrs - $current_hrs);
+                    if ($status) {
+                        if ($status eq 'MEMLIMIT') {
+                            $sub->extra_memory;
+                        }
+                        elsif ($status eq 'RUNLIMIT') {
+                            my $hrs = ceil($parser->time / 60 / 60) + 1;
+                            my $current_hrs = $sub->time;
+                            $sub->extra_time($hrs - $current_hrs);
+                        }
                     }
                 }
                 $sub->retry;

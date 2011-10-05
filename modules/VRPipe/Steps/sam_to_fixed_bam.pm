@@ -3,6 +3,9 @@ use VRPipe::Base;
 class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
+                 uncompressed_fixed_bam_output => VRPipe::StepOption->get(description => 'A booleon to choose if the output bams from this step should be uncompressed',
+                                                                          optional => 1,
+                                                                          default_value => 1),
                  samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools') };
@@ -23,9 +26,10 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
             
             my $samtools = $options->{samtools_exe};
             
+            my $u = $options->{uncompressed_fixed_bam_output} ? ' -u' : ' -b';
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools',
                                                                version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                                                               summary => "samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file"));
+                                                               summary => "samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd$u - \$reference_fasta > \$fixed_bam_file"));
             
             my $req = $self->new_requirements(memory => 2900, time => 1);
             foreach my $sam (@{$self->inputs->{sam_files}}) {
@@ -53,7 +57,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                 my $nprefix = Path::Class::File->new($bam_dir, $prefix_base.'.samtools_nsort_tmp');
                 my $cprefix = Path::Class::File->new($bam_dir, $prefix_base.'.samtools_csort_tmp');
                 
-                my $this_cmd = "$samtools view -bSu $sam_path | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd -u - $ref > $bam_path";
+                my $this_cmd = "$samtools view -bSu $sam_path | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd$u - $ref > $bam_path";
                 
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_to_fixed_bam', 'fix_and_check', [$this_cmd, $req, {output_files => [$bam_file]}]);
             }
