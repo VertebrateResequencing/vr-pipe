@@ -62,15 +62,13 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
         
         my $in_file = VRPipe::File->get(path => $in_path);
         my $out_file = VRPipe::File->get(path => $out_path);
-        my $in_ft = VRPipe::FileType->create($in_file->type, {file => $in_file->path});
-        my $out_ft = VRPipe::FileType->create($out_file->type, {file => $out_file->path});
         
         $in_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $out_file->update_stats_from_disc(retries => 3);
-        my $expected_reads = $in_file->metadata->{reads} || $in_ft->num_records;
-        my $actual_reads = $out_ft->num_records;
+        my $expected_reads = $in_file->metadata->{reads} || $in_file->num_records;
+        my $actual_reads = $out_file->num_records;
         
         if ($actual_reads == $expected_reads) {
             return 1;
