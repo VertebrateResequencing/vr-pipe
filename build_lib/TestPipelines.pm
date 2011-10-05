@@ -25,12 +25,26 @@ sub get_output_dir {
 }
 
 sub handle_pipeline {
-    my $give_up = 100;
+    my $give_up = 1000;
     while (! $manager->trigger) {
         last if $give_up-- <= 0;
         $manager->handle_submissions;
+        
+        # check for repeated failures
+        my $submissions = $manager->unfinished_submissions();
+        if ($submissions) {
+            foreach my $sub (@$submissions) {
+                next unless $sub->failed;
+                if ($sub->retries >= 3) {
+                    warn "some submissions failed 3 times, giving up\n";
+                    return 0;
+                }
+            }
+        }
+        
         sleep(1);
     }
+    
     my $all_created = 1;
     foreach my $ofile (@_) {
         unless (-s $ofile) {
@@ -38,6 +52,7 @@ sub handle_pipeline {
             $all_created = 0;
         }
     }
+    
     return $all_created;
 }
 
