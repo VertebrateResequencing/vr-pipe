@@ -6,9 +6,7 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
                  smalt_index_options => VRPipe::StepOption->get(description => 'options to bwa index, excluding the reference fasta file',
                                                               optional => 1,
                                                               default_value => '-k 13 -s 13'),
-                 smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable',
-                                                    optional => 1,
-                                                    default_value => 'smalt') };
+                 smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
     }
     method inputs_definition {
         return { };
@@ -30,18 +28,17 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
                                                                version => VRPipe::StepCmdSummary->determine_version($smalt_exe.' version', '^Version: (.+)$'), 
                                                                summary => 'smalt index '.$smalt_opts.' $index_base $reference_fasta'));
             
-            my $ref_base = $ref;
-            $ref_base =~ s/\.\S+$//;
             my $index_base = $smalt_opts;
             $index_base =~ s/[^ks0-9]//g;
-            $index_base = $ref_base.$index_base;
-            my $cmd = $smalt_exe.' index '.$smalt_opts.' '.$index_base.' '.$ref;
+            $index_base = $ref->basename.'_'.$index_base;
+            my $index_base_path = Path::Class::File->new($ref->dir, $index_base);
+            my $cmd = $smalt_exe.' index '.$smalt_opts.' '.$index_base_path.' '.$ref;
             
             foreach my $suffix (qw(sma smi)) {
                 $self->output_file(output_key => 'smalt_index_binary_files', 
                                    output_dir => $ref->dir->stringify, 
-                                   basename => $ref->basename.'.'.$suffix, 
-                                   type => 'bin'
+                                   basename => $index_base.'.'.$suffix, 
+                                   type => 'bin',
                                    metadata => { index_base => $index_base });
             }
             
@@ -52,7 +49,7 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
         return { smalt_index_binary_files => VRPipe::StepIODefinition->get(type => 'bin', 
                                                                            description => 'the files produced by smalt index', 
                                                                            min_files => 2, 
-                                                                           max_files => 2
+                                                                           max_files => 2,
                                                                            metadata => { index_base => 'base used in smalt index command'}) };
     }
     method post_process_sub {
