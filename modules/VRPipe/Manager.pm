@@ -153,15 +153,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
         while (my $element = $datasource->next_element) {
-            $self->debug("$incomplete_elements ".$element->id);
             my $estate = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
             my $completed_steps = $estate->completed_steps;
+            $self->debug("incomplete element loop $incomplete_elements for element id ".$element->id." which has completed $completed_steps steps of $num_steps");
             next if $completed_steps == $num_steps;
-            
-            #*** hack to aid 1kg remapping
-            # if ($pipeline->name eq '1000genomes_illumina_mapping_with_improvement') {
-            #     next if $completed_steps == 9;
-            # }
             
             # we're using the 'global' limit here to reduce possible db burden,
             # but it doesn't matter that this is used as a per-pipelinesetup
@@ -196,14 +191,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     
                     next;
                 }
-                
-                #*** hack to aid 1kg remapping
-                # if ($step->name eq 'bam_realignment_around_known_indels') {
-                #     if ($already_completed_steps == 9) {
-                #         $incomplete_elements--;
-                #     }
-                #     last;
-                # }
                 
                 # have we previously done the dispatch dance and are currently
                 # waiting on submissions to complete?

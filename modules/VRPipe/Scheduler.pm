@@ -13,13 +13,11 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                    is_key => 1,
                    allow_key_to_default => 1);
     
-    has 'output_root' => (is => 'rw',
+    has 'output_root' => (is => 'ro',
                           isa => Dir,
                           coerce => 1,
                           builder => 'default_output_root',
-                          traits => ['VRPipe::Persistent::Attributes'],
-                          is_key => 1,
-                          allow_key_to_default => 1);
+                          lazy => 1);
     
     method default_type (ClassName|Object $self:) {
         my $method_name = VRPipe::Persistent::SchemaBase->database_deployment.'_scheduler';
