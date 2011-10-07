@@ -56,7 +56,7 @@ you take action on those submissions (after a confirmation prompt):
                          associated jobs and setting the number of retires back
                          to 0. NB: the exact same cmd lines will be retried,
                          since the jobs are not out-right deleted.
-    --full_reset         All submissions associated with the the step and data
+    --full_reset         All submissions associated with the step and data
                          element of the submissions that you chose will be
                          deleted outright along with their jobs and all output
                          files. VRPipe will then recreate new submissions and
