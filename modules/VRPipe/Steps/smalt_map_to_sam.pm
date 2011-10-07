@@ -3,12 +3,8 @@ use VRPipe::Base;
 class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
-                 smalt_map_to_sam_options => VRPipe::StepOption->get(description => 'options to smalt map -f samsoft',
-                                                          optional => 1,
-                                                          default_value => ''),
-                 smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable',
-                                                    optional => 1,
-                                                    default_value => 'smalt') };
+                 smalt_map_to_sam_options => VRPipe::StepOption->get(description => 'options to smalt map -f samsoft', optional => 1),
+                 smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
     }
     method inputs_definition {
         return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq',
@@ -40,14 +36,14 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my %cmds;
             my $smalt_exe = $options->{smalt_exe};
-            my $opts = $options->{"smalt_map${ended}_options"} || '';
+            my $opts = $options->{smalt_map_to_sam_options};
+            $opts = $opts ? " $opts" : '';
             if ($opts =~ /$ref|map|-i|-f|samsoft/) {
                 $self->throw("smalt_map_to_sam_options should not include the ref or -r or -i option, or the map sub command");
             }
             
-            my $cmd = $smalt_exe." map -f samsoft ".$opts;
+            my $cmd = $smalt_exe." map -f samsoft ";
             
             my $req = $self->new_requirements(memory => 4900, time => 2);
             
@@ -66,6 +62,7 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                 $fqs_by_lane{$lane}->{$chunk}->{$paired} = [$path];
             }
             
+            my $these_opts = $opts;
             while (my ($lane, $chunks) = each %fqs_by_lane) {
                 while (my ($chunk, $ends) = each %$chunks) {
                     while (my ($paired, $paths) = each %$ends) {
@@ -76,18 +73,18 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                         my $reads = $fq_meta->{reads};
                         my $bases = $fq_meta->{bases};
                         
-                        my $this_cmd;
                         if ($paired == 0) {
-                            $this_cmd = $cmd;
+                            $these_opts = $opts;
                         }
                         else {
-                            $this_cmd = $cmd;
                             my $mate_paths = $ends->{2};
                             push(@fqs, $mate_paths->[0]);
-                            push(@sais, $mate_paths->[1]);
                             
-                            my $insert_size = $fq_meta->{insert_size} || 500;
-                            my $max = $insert_size * 3;
+                           unless ($these_opts =~ /-i/) {
+                                my $insert_size = $fq_meta->{insert_size} || 2750;
+                                my $max = $insert_size * 2;
+                                $these_opts = "$opts -i $max";
+                            }
                             
                             $reads += $fqs_by_path{$fqs[1]}->[3]->{reads};
                             $bases += $fqs_by_path{$fqs[1]}->[3]->{bases};
@@ -133,24 +130,21 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                         }
                         
                         my $ended = $paired ? 'pe' : 'se';
-                        my  = $self->output_file(output_key => 'smalt_sam_files',
+                        my $sam_file = $self->output_file(output_key => 'smalt_sam_files',
                                                           basename => $chunk ? "$lane.$ended.$chunk.sam" : "$lane.$ended.sam",
                                                           type => 'txt',
                                                           metadata => $sam_meta);
                         
-                        $this_cmd .= " -f samsoft -o ".$sam_file->path." $index_base @fqs";
+                        my $this_cmd = "$cmd$these_opts -o ".$sam_file->path." $index_base @fqs";
                         $self->dispatch_wrapped_cmd('VRPipe::Steps::smalt_map_to_sam', 'map_and_check', [$this_cmd, $req, {output_files => [$sam_file]}]);
                     }
                 }
             }
             
-            my $is = '';
-            if () {
-                $is = "-i $insert_max ";
-            }
+            my $summary_cmd = "smalt map -f samsoft$these_opts -o \$sam_file \$index_base \$fastq_file(s)";
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'smalt', 
                                                                version => VRPipe::StepCmdSummary->determine_version($smalt_exe.' version', '^Version: (.+)$'), 
-                                                               summary => 'smalt map '.$is.'-f samsoft -o $sam_file $index_base $fastq_file(s)'));
+                                                               summary => $summary_cmd));
         };
     }
     method outputs_definition {
@@ -194,11 +188,11 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
         $sam_file->update_stats_from_disc(retries => 3);
         my $lines = $sam_file->lines;
         
-        if ($lines > $expected_reads) {
+        if ($lines >= $expected_reads) {
             return 1;
         }
         else {
-            $sam_path->unlink;
+            $sam_file->unlink;
             $self->throw("cmd [$cmd_line] failed because $lines lines were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
         }
     }

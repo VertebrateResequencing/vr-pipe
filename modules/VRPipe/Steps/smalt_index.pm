@@ -5,7 +5,7 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
                  smalt_index_options => VRPipe::StepOption->get(description => 'options to bwa index, excluding the reference fasta file',
                                                               optional => 1,
-                                                              default_value => '-k 13 -s 13'),
+                                                              default_value => '-k 13 -s 4'),
                  smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
     }
     method inputs_definition {
@@ -39,7 +39,7 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
                                    output_dir => $ref->dir->stringify, 
                                    basename => $index_base.'.'.$suffix, 
                                    type => 'bin',
-                                   metadata => { index_base => $index_base });
+                                   metadata => { index_base => $index_base_path->stringify });
             }
             
             $self->dispatch([$cmd, $self->new_requirements(memory => 3900, time => 1), {block_and_skip_if_ok => 1}]);
