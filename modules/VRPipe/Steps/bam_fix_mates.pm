@@ -10,7 +10,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_fix_mates with VRPipe::StepRole {
     method options_definition {
-        return { picard_fix_mates_options => VRPipe::StepOption->get(description => '', optional => 1, default_value => ' SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
+        return { picard_fix_mates_options => VRPipe::StepOption->get(description => '', optional => 1, default_value => 'SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
                  picard_path => VRPipe::StepOption->get(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
                  java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
                  tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
@@ -32,7 +32,7 @@ class VRPipe::Steps::bam_fix_mates with VRPipe::StepRole {
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
                                    version => $picard->determine_picard_version(),
-                                   summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file'.$fixmate_options));
+                                   summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file '.$fixmate_options));
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
             my $memory = $req->memory;

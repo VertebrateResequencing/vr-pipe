@@ -12,6 +12,19 @@ class VRPipe::FileType::fq extends VRPipe::FileType::txt {
         }
         return 0;
     }
+    
+    method num_records {
+        my $path = $self->file;
+        my $records;
+        if ($path =~ /\.gz$/){
+            $records = `gunzip -c $path | fastqcheck | head -1`;
+        } else {
+            $records = `fastqcheck $path | head -1`;
+        }
+        ($records) = $records =~ m/^(\d+) sequences/;
+        $records |= 0;
+        return $records;
+    }
 }
 
 1;
