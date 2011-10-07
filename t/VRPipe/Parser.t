@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 71;
+    use Test::Most tests => 73;
     
     use_ok('VRPipe::Parser');
     
@@ -118,6 +118,10 @@ is $p->is_paired, 1, 'bamcheck is_paired worked';
 is $p->bases_mapped_cigar, 58663, 'bamcheck bases_mapped_cigar worked';
 is $p->error_rate, '2.151271e-02', 'bamcheck error_rate worked';
 is $p->insert_size_standard_deviation, 70.9, 'bamcheck insert_size_standard_deviation worked';
+# some (newer?) bamcheck files have more lines than others:
+$p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_mq0))});
+is $p->reads_mq0, 1859041, 'reads_mq0 worked';
+is $p->pairs_with_other_orientation, 5857, 'pairs_with_other_orientation worked';
 
 # fastq
 {

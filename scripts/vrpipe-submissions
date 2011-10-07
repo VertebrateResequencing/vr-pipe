@@ -1,0 +1,268 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::Persistent::SchemaBase;
+
+use POSIX qw(ceil);
+use Getopt::Long;
+
+my $help = 0;
+my $retries = 0;
+my $deployment = 'production';
+my ($desired_sub, $desired_setup, $desired_step, $failed, $all, $start_over,
+    $full_reset, $no_report, $force_with_all);
+GetOptions("help" => \$help,
+           "deployment=s" => \$deployment,
+           "submission=i" => \$desired_sub,
+           "setup=s" => \$desired_setup,
+           "step=s" => \$desired_step,
+           "failed" => \$failed,
+           "retries=i" => \$retries,
+           "all" => \$all,
+           "start_over" => \$start_over,
+           "full_reset" => \$full_reset,
+           "no_report" => \$no_report,
+           "force_with_all" => \$force_with_all);
+
+if ($deployment !~ /^(?:testing|production)$/) {
+    warn "--deployment must be develop|production\n";
+    $help = 1;
+}
+
+if ($help) {
+    print <<HELP;
+See details related to incomplete submissions:
+vrpipe-submissions [options]
+
+Options:
+    --deployment <develop|production> (default production) See submissions in
+                                      your develop or production database
+    --submission <int>   Show details for this single submission only
+    --setup <int|string> Only show details for submissions belonging to the
+                         given pipeline setup (by id or name)
+    --step <string>      Only show details for submissions created for the step
+                         with this name
+    --failed             Only show submissions that have failed
+    --retries <int>      Only report on submissions with this number of retries
+    --all                Normally only details of incomplete submissions are
+                         given; this shows even ones that are done (maybe very
+                         slow)
+    
+After the above options have been used to filter the list of all submissions,
+and their details have been printed to screen, the following options will let
+you take action on those submissions (after a confirmation prompt):
+    --start_over         Start the submissions over again, resetting their
+                         associated jobs and setting the number of retires back
+                         to 0. NB: the exact same cmd lines will be retried,
+                         since the jobs are not out-right deleted.
+    --full_reset         All submissions associated with the the step and data
+                         element of the submissions that you chose will be
+                         deleted outright along with their jobs and all output
+                         files. VRPipe will then recreate new submissions and
+                         jobs for those steps and data elements. This is what
+                         you'd need to use if you changed options for a step
+                         that would result in new cmd lines.
+    --no_report          Don't print out full details of each submission, just
+                         start_over or full_reset them as fast as possible.
+    
+HELP
+    exit;
+}
+
+if ($desired_sub && ($desired_setup || $desired_step)) {
+    warn "--submission is mutually exclusive of setup and step; they will be ignored\n";
+    undef $desired_setup;
+    undef $desired_step;
+}
+
+if ($all && $failed) {
+    warn "--all and --failed don't make sense togother; ignoring --all\n";
+    undef $all;
+}
+
+if ($start_over && $full_reset) {
+    warn "--start_over and --full_reset don't make sense togither; ignoring --full_reset\n";
+    undef $full_reset;
+}
+if ($all && ! $force_with_all && ($start_over || $full_reset)) {
+    die "Sorry, --all combined with --start_over or --full_reset seems like a really bad idea. Use --force_with_all if you're really really sure\n";
+}
+
+VRPipe::Persistent::SchemaBase->database_deployment($deployment);
+require VRPipe::Persistent::Schema;
+
+my @subs;
+if ($desired_sub) {
+    @subs = (VRPipe::Submission->get(id => $desired_sub));
+}
+else {
+    my $m = VRPipe::Manager->get;
+    my $schema = $m->result_source->schema;
+    my $rs = $schema->resultset("Submission")->search({ $all ? () : ("_done" => 0), $failed ? ("_failed" => 1) : (), $retries ? (retries => $retries) : () });
+    while (my $sub = $rs->next) {
+        push(@subs, $sub);
+    }
+}
+
+if ($desired_setup) {
+    # convert to setup name
+    if ($desired_setup =~ /^\d+$/) {
+        my $m = VRPipe::Manager->get;
+        my $schema = $m->result_source->schema;
+        my $rs = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+        unless ($rs) {
+            die "$desired_setup is not a valid pipeline setup id\n";
+        }
+        $desired_setup = $rs->name;
+    }
+}
+
+my $count = 0;
+my %summary;
+my @final_subs;
+foreach my $sub (@subs) {
+    my $state = $sub->stepstate;
+    my $setup = $state->pipelinesetup->name;
+    if ($desired_setup) {
+        next unless $setup eq $desired_setup;
+    }
+    
+    my $stepm = $state->stepmember;
+    my $step_num = $stepm->step_number;
+    my $step_name = $stepm->step->name;
+    if ($desired_step) {
+        next unless $step_name eq $desired_step;
+    }
+    
+    my $job = $sub->job;
+    my $req = $sub->requirements;
+    my $de = $state->dataelement->id;
+    my $scheduler = $sub->scheduler->type;
+    
+    $count++;
+    push(@final_subs, $sub);
+    $summary{$step_name}++;
+    
+    next if $no_report;
+    
+    my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+    print "---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" is $sub_state, having been retried ", $sub->retries, " times\n";
+    my $job_state = $job->finished ? 'finished' : ($job->running ? 'running' : 'pending');
+    my $job_extra = $job_state eq 'finished' ? ', having exited with code '.$job->exit_code : '';
+    print "The job is $job_state$job_extra; its command line is:\n", $job->cmd, "\n";
+    print "The working directory for the job is ", $job->dir, "\n";
+    print "We reserved ", $req->memory, "MB memory and ", $req->time, "hrs of time\n";
+    
+    unless ($sub_state eq 'scheduled') {
+        my $pars = $sub->scheduler_stdout;
+        my $scheduler_ofile = $sub->scheduler_stdout_file;
+        $scheduler_ofile &&= $scheduler_ofile->path;
+        $scheduler_ofile ||= 'unknown path';
+        if ($pars) {
+            my $so = $sub->scheduler_stdout_file->path;
+            my $mem = $pars->memory;
+            my $sec = $pars->time;
+            my $days = int($sec/(24*60*60));
+            my $hrs = ($sec/(60*60))%24;
+            my $mins = ($sec/60)%60;
+            my $remaining_secs = $sec%60;
+            my $extra = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
+            print "The $scheduler output ($scheduler_ofile) says that actual memory used was ${mem}MB and it took $sec secs$extra\n";
+        }
+        else {
+            print "The $scheduler output ($scheduler_ofile) was missing, so actual memory and time used is unknown\n";
+        }
+        
+        my $se = $sub->scheduler_stderr;
+        if ($se) {
+            print "The scheduler had some stderr:\n";
+            show_output($se, $sub->scheduler_stderr_file->path);
+        }
+    }
+    
+    unless ($job_state eq 'pending') {
+        my $jo = $sub->job_stdout;
+        if ($jo) {
+            print "The job itself produced some stdout:\n";
+            show_output($jo, $sub->job_stdout_file->path);
+        }
+        
+        my $je = $sub->job_stderr;
+        if ($je) {
+            print "The job itself produced some stderr:\n";
+            show_output($je, $sub->job_stderr_file->path);
+        }
+    }
+    
+    print "---\n\n";
+}
+
+unless ($desired_sub) {
+    unless ($count == 0 || $no_report) {
+        print "\n";
+    }
+    print "$count submissions passed your filter\n";
+    if ($count && ! $desired_step) {
+        print "Here's the break-down by step name:\n";
+        while (my ($name, $count) = each %summary) {
+            print "  $name => $count\n";
+        }
+    }
+}
+
+if ($count > 0 && ($start_over || $full_reset)) {
+    my $action = $start_over ? 'reset' : 'delete';
+    warn "\nAre you sure you want to $action these submissions? [y/n]\n";
+    my $answer = <>;
+    chomp($answer);
+    if ($answer eq 'y') {
+        if ($start_over) {
+            foreach my $sub (@final_subs) {
+                $sub->start_over;
+            }
+        }
+        else {
+            my %sss;
+            foreach my $sub (@final_subs) {
+                my $ss = $sub->stepstate;
+                $sss{$ss->id} = $ss;
+            }
+            undef @final_subs;
+            undef @subs;
+            
+            foreach my $ss (values %sss) {
+                $ss->start_over;
+            }
+        }
+        warn "Done\n";
+    }
+    else {
+        warn "You didn't confirm, so exiting\n";
+    }
+}
+
+exit;
+
+
+sub show_output {
+    my ($output, $file) = @_;
+    print "\n";
+    
+    my @lines = split("\n", $output);
+    if (@lines > 25) {
+        for (1..10, @lines-10..@lines) {
+            print $lines[$_ - 1], "\n";
+        }
+        my $other_lines = @lines - 20;
+        print "\n[... $other_lines more lines in $file ...]\n\n";
+        for (@lines-10..@lines) {
+            print $lines[$_ - 1], "\n";
+        }
+    }
+    else {
+        print $output;
+    }
+    
+    print "\n";
+}

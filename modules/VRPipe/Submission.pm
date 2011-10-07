@@ -347,12 +347,12 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_job_std_file('err');
     }
     method job_stdout {
-        my $file = $self->job_stdout_file;
+        my $file = $self->job_stdout_file || return;
         $file->s || return;
         return $file->slurp;
     }
     method job_stderr {
-        my $file = $self->job_stderr_file;
+        my $file = $self->job_stderr_file || return;
         $file->s || return;
         return $file->slurp;
     }
