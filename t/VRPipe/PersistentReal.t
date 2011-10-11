@@ -16,14 +16,14 @@ BEGIN {
 
 # some quick basic tests for all the core domain classes
 my @schedulers;
-ok $schedulers[0] = VRPipe::Scheduler->get(type => 'LSF', output_root => '/foo'), 'created a Scheduler using get()';
-is_deeply [$schedulers[0]->id, $schedulers[0]->type, $schedulers[0]->output_root], [1, 'LSF', '/foo'], 'scheduler1 has the expected fields';
-ok $schedulers[1] = VRPipe::Scheduler->get(type => 'local', output_root => '/bar'), 'created another Scheduler using get()';
-is_deeply [$schedulers[1]->id, $schedulers[1]->type, $schedulers[1]->output_root], [2, 'local', '/bar'], 'scheduler2 has the expected fields';
+ok $schedulers[0] = VRPipe::Scheduler->get(type => 'LSF'), 'created a Scheduler using get()';
+is_deeply [$schedulers[0]->id, $schedulers[0]->type], [1, 'LSF'], 'scheduler1 has the expected fields';
+ok $schedulers[1] = VRPipe::Scheduler->get(type => 'local'), 'created another Scheduler using get()';
+is_deeply [$schedulers[1]->id, $schedulers[1]->type], [2, 'local'], 'scheduler2 has the expected fields';
 ok my $default_type = VRPipe::Scheduler->default_type, 'could get a default type';
 ok my $default_output_root = VRPipe::Scheduler->default_output_root, 'could get a default output root';
 ok $schedulers[2] = VRPipe::Scheduler->get(), 'created another Scheduler using get() with no args';
-is_deeply [$schedulers[2]->id, $schedulers[2]->type, $schedulers[2]->output_root], [3, $default_type, $default_output_root], 'scheduler3 has default fields';
+is_deeply [$schedulers[2]->id, $schedulers[2]->type, $schedulers[2]->output_root], [1, $default_type, $default_output_root], 'scheduler3 has default fields';
 $schedulers[2]->start_scheduler;
 
 my $output_dir = dir($schedulers[2]->output_root, 'persistent_test_output');
