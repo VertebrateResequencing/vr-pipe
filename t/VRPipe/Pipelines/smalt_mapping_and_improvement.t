@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
+    use Test::Most tests => 5;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -102,7 +102,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                                    bam_merge_lane_splits_memory => 150,
                                                                    bam_merge_lane_splits_time => 1});
 
-handle_pipeline();
+ok handle_pipeline(), 'pipeline ran ok';
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
