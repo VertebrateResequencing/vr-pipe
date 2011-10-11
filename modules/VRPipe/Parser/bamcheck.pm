@@ -41,6 +41,10 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                            isa => 'Int',
                            writer => '_reads_duplicated');
     
+    has 'reads_mq0' => (is => 'ro',
+                           isa => 'Int',
+                           writer => '_reads_mq0');
+    
     has 'total_length' => (is => 'ro',
                            isa => 'Int',
                            writer => '_total_length');
@@ -88,6 +92,18 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
     has 'insert_size_standard_deviation' => (is => 'ro',
                                   isa => 'Num',
                                   writer => '_insert_size_standard_deviation');
+    
+    has 'inward_oriented_pairs' => (is => 'ro',
+                         isa => 'Int',
+                         writer => '_inward_oriented_pairs');
+    
+    has 'outward_oriented_pairs' => (is => 'ro',
+                         isa => 'Int',
+                         writer => '_outward_oriented_pairs');
+    
+    has 'pairs_with_other_orientation' => (is => 'ro',
+                         isa => 'Int',
+                         writer => '_pairs_with_other_orientation');
     
 =head2 parsed_record
 
@@ -153,17 +169,24 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
             if (/^SN\s+([^:]+):\s+(\S+)/) {
                 my $method = $1;
                 my $value = $2;
+                my $orig_method = $method;
                 $method =~ s/\s+/_/g;
                 $method = 'first_fragments' if $method eq '1st_fragments';
                 $method = 'bases_mapped_cigar' if $method eq 'bases_mapped_(cigar)';
-                $method = '_'.$method;
+                $method = lc('_'.$method);
+                unless ($self->can($method)) {
+                    $self->warn("unexpected SN line $orig_method");
+                    next;
+                }
                 $self->$method($value);
                 $saw++;
             }
-            last if $saw == 22;
+            else {
+                last if $saw >= 22;
+            }
         }
         
-        if ($saw == 22) {
+        if ($saw >= 22) {
             $self->_set_header_parsed();
             return 1;
         }

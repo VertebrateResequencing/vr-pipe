@@ -12,22 +12,23 @@ BEGIN {
     use TestPipelines;
 }
 
-my $mapping_output_dir = get_output_dir('mapping_with_improvement');
+my $mapping_output_dir = get_output_dir('smalt_mapping_with_improvement');
 
-ok my $mapping_pipeline = VRPipe::Pipeline->get(name => '1000genomes_illumina_mapping_with_improvement'), 'able to get a pre-written pipeline';
+ok my $mapping_pipeline = VRPipe::Pipeline->get(name => '1000genomes_454_mapping_with_improvement'), 'able to get a pre-written pipeline';
 
 my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(sequence_dictionary
-                             bwa_index
+                             smalt_index
                              fastq_import
                              fastq_metadata
                              fastq_split
-                             bwa_aln_fastq
-                             bwa_sam
+                             fastq_decompress
+                             smalt_map_to_sam
                              sam_to_fixed_bam
+                             bam_add_readgroup
                              bam_merge_lane_splits
                              bam_index
                              gatk_target_interval_creator
@@ -72,7 +73,8 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                                                    reference_assembly_name => 'SSuis1',
                                                                    reference_public_url => 'ftp://s.suis.com/ref.fa',
                                                                    reference_species => 'S.Suis',
-                                                                   bwa_index_options => '-a is',
+                                                                   smalt_index_options => '-k 13 -s 4',
+                                                                   fixed_bam_seq_from_reference => 1,
                                                                    known_indels_for_realignment => "-known $known_indels",
                                                                    known_sites_for_recalibration => "-knownSites $known_sites",
                                                                    gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
@@ -103,18 +105,18 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
 ok handle_pipeline(), 'pipeline ran ok';
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 11, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 9, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 12, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 14, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 13, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 15, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 16, dataelement => 1)->cmd_summary->summary],
-          ['bwa index -a is $reference_fasta',
-           'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file',
-           'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)',
-           'samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file',
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 16, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 17, dataelement => 1)->cmd_summary->summary],
+          ['smalt index -k 13 -s 4 $index_base $reference_fasta',
+           'smalt map -f samsoft -i 400 -o $sam_file $index_base $fastq_file(s)',
+           'samtools view -bSu $sam_file -T $reference_fasta | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file',
+           'java $jvm_args -jar AddOrReplaceReadGroups.jar INPUT=$bam_file OUTPUT=$rg_added_bam_file RGID=$lane RGLB=$library RGPL=$platform RGPU=$platform_unit RGSM=$sample RGCN=$centre RGDS=$study VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0',
            'java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) ',
            'java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file -known $known_indels_file(s) -LOD 0.4 -model KNOWNS_ONLY -compress 0 --disable_bam_indexing',
            'java $jvm_args -jar GenomeAnalysisTK.jar -T CountCovariates -R $reference_fasta -I $bam_file -recalFile $bam_file.recal_data.csv -knownSites $known_sites_file(s) -l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',

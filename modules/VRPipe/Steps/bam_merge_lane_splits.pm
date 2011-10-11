@@ -19,7 +19,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                                                                          center_name => 'center name',
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study',
-                                                                         insert_size => 'expected (mean) insert size if paired',,
+                                                                         insert_size => 'expected (mean) insert size if paired',
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',

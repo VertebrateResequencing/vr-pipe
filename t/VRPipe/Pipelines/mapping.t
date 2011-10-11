@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 16;
+    use Test::Most tests => 17;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -95,7 +95,7 @@ VRPipe::PipelineSetup->get(name => 's_suis mapping',
                                        bam_merge_lane_splits_memory => 150,
                                        bam_merge_lane_splits_time => 1});
 
-handle_pipeline();
+ok handle_pipeline(), 'pipeline ran ok';
 
 is_deeply [VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)->md5,
            VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)->metadata,

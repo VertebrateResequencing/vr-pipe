@@ -8,6 +8,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use VRPipe::FileType;
     
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
+    our %file_type_map = (fastq => 'fq');
     
     has 'path' => (is => 'rw',
                    isa => AbsoluteFile, # we can't be nice and auto convert relative to absolute because alterations made by moose during construction do not affect what gets put in the db
@@ -74,9 +75,16 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method _filetype_from_extension {
         my $path = $self->path;
-        my ($type) = $path =~ /\.(\w{2,3})$/;
+        my ($type) = $path =~ /\.([^.]*)$/;
         $type ||= 'any';
         $type = lc($type);
+        if ($type eq 'gz') {
+            $path =~ s/\.gz$//;
+            $type = VRPipe::File->get(path => $path)->type;
+        }
+        if (exists $file_type_map{$type}) {
+            $type = $file_type_map{$type};
+        }
         eval "require VRPipe::FileType::$type;";
         return $@ ? 'any' : $type;
     }
