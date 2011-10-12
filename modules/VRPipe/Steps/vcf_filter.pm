@@ -5,7 +5,7 @@ class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
 		return { 'vcf-filter_options' => VRPipe::StepOption->get(description => 'vcf-filter options'),
 			'vcf-filter_exe' => VRPipe::StepOption->get(description => 'path to vcf-filter executable',
 					optional => 1,
-					default_value => '/software/vertres/scripts/vcf-filter'),
+					default_value => 'vcf-filter'),
 			'tabix_exe' => VRPipe::StepOption->get(description => 'path to your tabix executable',
 					optional => 1,
 					default_value => 'tabix') };
@@ -23,15 +23,18 @@ class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
 			my $tabix_exe = $options->{tabix_exe};
 			my $filter_exe = $options->{'vcf-filter_exe'};
 			my $filter_opts = $options->{'vcf-filter_options'};
+			my $cat_exe;
 
 			my $req = $self->new_requirements(memory => 500, time => 1);
 			foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
 				my $basename = $vcf_file->basename;
-				if ($basename =~ /\.gz$/) {
-					$basename =~ s/\.gz$/.filtered.gz/;
+				if ($basename =~ /\.vcf.gz$/) {
+					$basename =~ s/\.vcf.gz$/.filt.vcf.gz/;
+					$cat_exe = 'zcat';
 				}
 				else {
-					$basename =~ s/\.vcf$/.filtered.vcf/;
+					$basename =~ s/\.vcf$/.filt.vcf/;
+					$cat_exe = 'cat';
 				}
 				my $filtered_vcf = $self->output_file(output_key => 'filtered_vcf', basename => $basename, type => 'vcf');
 				my $tbi = $self->output_file(output_key => 'tbi_file', basename => $basename.'.tbi', type => 'bin');
@@ -39,7 +42,7 @@ class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
 				my $input_path = $vcf_file->path;
 				my $output_path = $filtered_vcf->path;
 
-				my $this_cmd = "gunzip -c $input_path | $filter_exe  $filter_opts | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path";
+				my $this_cmd = "$cat_exe $input_path | $filter_exe $filter_opts | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path";
 
 				$self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_filter', 'filter_vcf', [$this_cmd, $req, {output_files => [$filtered_vcf, $tbi]}]);
 			}
@@ -57,14 +60,14 @@ class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
 		return sub { return 1; };
 	}
 	method description {
-		return "Soft-filter input VCFs, creating an output VCF for every input";
+		return "Soft-filters input VCFs, creating an output VCF for every input";
 	}
 	method max_simultaneous {
 		return 0; # meaning unlimited
 	}
 
 	method filter_vcf (ClassName|Object $self: Str $cmd_line) {
-		my ($input_path, $output_path) = $cmd_line =~ /gunzip -c (\S+) .* vcf (\S+)$/;
+		my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* vcf (\S+)$/;
 		my $input_file = VRPipe::File->get(path => $input_path);
 
 		my $input_lines = $input_file->lines;

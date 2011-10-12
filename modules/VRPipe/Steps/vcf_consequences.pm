@@ -15,40 +15,40 @@ class VRPipe::Steps::vcf_consequences with VRPipe::StepRole {
                                                             description => 'annotated vcf files',
                                                             max_files => -1) };
     }
-    method body_sub {
-        return sub {
-            my $self = shift;
-            
-	    my $options = $self->options;
-	    my $tabix_exe = $options->{tabix_exe};
-            my $con_exe = $options->{'vcf2consequences_exe'};
-            my $con_opts = $options->{'vcf2consequences_options'};
-	    
-	    if ($con_opts =~ /-v/) {
-                $self->throw("vcf2consequences_options should not include the reference or -v option");
-            }
-	    
-            my $req = $self->new_requirements(memory => 500, time => 1);
-            foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
-                my $basename = $vcf_file->basename;
-                if ($basename =~ /\.gz$/) {
-                    $basename =~ s/\.gz$/.conseq.gz/;
-                }
-                else {
-                    $basename =~ s/\.vcf$/.conseq.vcf/;
-                }
-                my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename, type => 'vcf');
-                my $tbi = $self->output_file(output_key => 'tbi_file', basename => $basename.'.tbi', type => 'bin');
-                
-                my $input_path = $vcf_file->path;
-                my $output_path = $conseq_vcf->path;
-		
-		my $this_cmd = "$con_exe -v $input_path $con_opts | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path;";
-		
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_consequences', 'consequence_vcf', [$this_cmd, $req, {output_files => [$conseq_vcf, $tbi]}]);
-            }
-        };
-    }
+	method body_sub {
+		return sub {
+			my $self = shift;
+
+			my $options = $self->options;
+			my $tabix_exe = $options->{tabix_exe};
+			my $con_exe = $options->{'vcf2consequences_exe'};
+			my $con_opts = $options->{'vcf2consequences_options'};
+
+			if ($con_opts =~ /-v/) {
+				$self->throw("vcf2consequences_options should not include the reference or -v option");
+			}
+
+			my $req = $self->new_requirements(memory => 500, time => 1);
+			foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
+				my $basename = $vcf_file->basename;
+				if ($basename =~ /\.vcf.gz$/) {
+					$basename =~ s/\.vcf.gz$/.conseq.vcf.gz/;
+				}
+				else {
+					$basename =~ s/\.vcf$/.conseq.vcf/;
+				}
+				my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename, type => 'vcf');
+				my $tbi = $self->output_file(output_key => 'tbi_file', basename => $basename.'.tbi', type => 'bin');
+
+				my $input_path = $vcf_file->path;
+				my $output_path = $conseq_vcf->path;
+
+				my $this_cmd = "$con_exe -v $input_path $con_opts | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path;";
+
+				$self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_consequences', 'consequence_vcf', [$this_cmd, $req, {output_files => [$conseq_vcf, $tbi]}]);
+			}
+		};
+	}
     method outputs_definition {
         return { conseq_vcf => VRPipe::StepIODefinition->get(type => 'vcf',
                                                              description => 'annotated vcf file with consequences',
@@ -61,7 +61,7 @@ class VRPipe::Steps::vcf_consequences with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "Annotated VCF files with consequences";
+        return "Adds consequence annotation to VCF files";
     }
     method max_simultaneous {
         return 0; # meaning unlimited

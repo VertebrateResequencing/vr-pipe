@@ -28,8 +28,8 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 			my $req = $self->new_requirements(memory => 5000, time => 1);
 			foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
 				my $basename = $vcf_file->basename;
-				if ($basename =~ /\.gz$/) {
-					$basename =~ s/\.gz$/.vep.txt/;
+				if ($basename =~ /\.vcf.gz$/) {
+					$basename =~ s/\.vcf.gz$/.vep.txt/;
 					$cat_exe = 'zcat';
 				}
 				else {
@@ -64,7 +64,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
     
     method vep_analysis (ClassName|Object $self: Str $cmd_line) {
 
-        my ($input_path, $output_path) = $cmd_line =~ /\S+ (\S+) .* -o (\S[^;]+)$/;
+        my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* -o (\S[^;]+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         my $input_lines = $input_file->lines;
         

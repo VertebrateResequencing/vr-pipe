@@ -24,12 +24,12 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.gz$/) {
-                    $basename =~ s/\.gz$/.annotated.gz/;
+                if ($basename =~ /\.vcf.gz$/) {
+                    $basename =~ s/\.vcf.gz$/.annot.vcf.gz/;
 					$cat_exe = 'zcat';
                 }
                 else {
-                    $basename =~ s/\.vcf$/.annotated.vcf/;
+                    $basename =~ s/\.vcf$/.annot.vcf/;
 					$cat_exe = 'cat';
                 }
                 my $annotated_vcf = $self->output_file(output_key => 'annotated_vcf', basename => $basename, type => 'vcf');

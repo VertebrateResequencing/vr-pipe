@@ -40,8 +40,8 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
 				my $vep_txt = $self->inputs->{vep_txt}[$i];
 
 				my $basename = $vcf_file->basename;
-				if ($basename =~ /\.gz$/) {
-					$basename =~ s/\.gz$/.conseq.gz/;
+				if ($basename =~ /\.vcf.gz$/) {
+					$basename =~ s/\.vcf.gz$/.conseq.vcf.gz/;
 				}
 				else {
 					$basename =~ s/\.vcf$/.conseq.vcf/;
