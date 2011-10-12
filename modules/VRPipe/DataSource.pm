@@ -63,6 +63,34 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         return @elements;
     }
     
+    method incomplete_element_states (VRPipe::PipelineSetup $setup, Int $limit?) {
+        my $source = $self->_source_instance || return;
+        if ($source->_has_changed) {
+            my $elements = $source->_get_elements;
+            
+            foreach my $element (@$elements) {
+                VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+            }
+            
+            $self->_changed_marker($source->_changed_marker);
+            $self->update;
+        }
+        
+        my $pipeline = $setup->pipeline;
+        my $num_steps = $pipeline->steps;
+        
+        my $schema = $self->result_source->schema;
+        my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
+                                                                { join => 'dataelement', $limit ? (rows => $limit) : () });
+        
+        my @incomplete;
+        while (my $state = $rs->next) {
+            push(@incomplete, $state);
+        }
+        
+        return \@incomplete;
+    }
+    
     method next_element {
         my $source = $self->_source_instance || return;
         
