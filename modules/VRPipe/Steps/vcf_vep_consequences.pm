@@ -31,7 +31,7 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
 				$self->throw("vcf2consequences_options should not include the -i or -v option");
 			}
 
-			my $req = $self->new_requirements(memory => 500, time => 1);
+			my $req = $self->new_requirements(memory => 5000, time => 1);
 
 			#foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
 			my $i;

@@ -25,7 +25,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 				$self->throw("vep_options should not include the -i or -o option");
 			}
 
-			my $req = $self->new_requirements(memory => 500, time => 1);
+			my $req = $self->new_requirements(memory => 5000, time => 1);
 			foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
 				my $basename = $vcf_file->basename;
 				if ($basename =~ /\.gz$/) {

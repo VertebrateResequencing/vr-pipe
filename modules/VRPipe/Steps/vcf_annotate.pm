@@ -2,7 +2,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf-annotate_options' => VRPipe::StepOption->get(description => '...'),
+        return { 'vcf-annotate_options' => VRPipe::StepOption->get(description => 'vcf-annotate options'),
                  'vcf-annotate_exe' => VRPipe::StepOption->get(description => 'path to your vcf-annotate executable',
                                                                optional => 1,
                                                                default_value => 'vcf-annotate') };

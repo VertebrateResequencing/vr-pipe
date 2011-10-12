@@ -30,6 +30,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge
                                                     output_root => $output_dir,
                                                     pipeline => $pipeline,
                                                     options => {'vcf-annotate_options' => '-a /lustre/scratch106/projects/uk10k/ref/snps/g1k_dbsnp132_annot.tab.gz -d /lustre/scratch106/projects/uk10k/ref/snps/g1k_dbsnp132_annot_desc.txt -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ',
+                                                                'vcf-filter_options' => '-f /nfs/vertres01/conf/uk10k_gatk_20110715.filter',
                                                                 'vcf2consequences_options' => '-s Homo_sapiens -gerp -grantham',
                                                                 cleanup => 0});
 
