@@ -142,6 +142,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         # touch every child of setup
         
+        my $setup_id = $setup->id;
         my $pipeline = $setup->pipeline;
         my @step_members = $pipeline->steps;
         my $num_steps = scalar(@step_members);
@@ -152,11 +153,14 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $all_done = 1;
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
-        while (my $element = $datasource->next_element) {
-            my $estate = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+        
+        my $estates = $datasource->incomplete_element_states($setup);
+        
+        foreach my $estate (@$estates) {
+            my $element = $estate->dataelement;
             my $completed_steps = $estate->completed_steps;
-            $self->debug("incomplete element loop $incomplete_elements for element id ".$element->id." which has completed $completed_steps steps of $num_steps");
-            next if $completed_steps == $num_steps;
+            $self->debug("setup $setup_id | incomplete element loop $incomplete_elements for element id ".$element->id." which has completed $completed_steps steps of $num_steps");
+            next if $completed_steps == $num_steps; # (rare, if ever?)
             
             # we're using the 'global' limit here to reduce possible db burden,
             # but it doesn't matter that this is used as a per-pipelinesetup

@@ -46,6 +46,11 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                         lazy => 1,
                         builder => '_build_elements');
     
+    has '_incomplete_elements' => (is => 'rw',
+                                   isa => 'HashRef',
+                                   lazy => 1,
+                                   builder => '_build_incomplete_elements');
+    
     has '_next_element' => (is => 'rw',
                             isa => 'Int',
                             default => 0);
@@ -61,6 +66,31 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             push(@elements, $element);
         }
         return @elements;
+    }
+    
+    method incomplete_element_states (VRPipe::PipelineSetup $setup) {
+        my $source = $self->_source_instance || return;
+        if ($source->_has_changed) {
+            $source->_get_elements;
+            $self->_changed_marker($source->_changed_marker);
+            $self->update;
+        }
+        
+        my $pipeline = $setup->pipeline;
+        my $num_steps = $pipeline->steps;
+        
+        my $schema = $self->result_source->schema;
+        warn "doing a search for states with pipelinesetup ", $setup->id, " and completed_steps < $num_steps\n";
+        my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps} });
+        
+        my @incomplete;
+        while (my $state = $rs->next) {
+            next if $state->dataelement->withdrawn;
+            push(@incomplete, $state);
+        }
+        warn "got ", scalar(@incomplete), " states\n";
+        
+        return \@incomplete;
     }
     
     method next_element {
