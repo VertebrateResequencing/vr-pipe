@@ -80,18 +80,13 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         my $num_steps = $pipeline->steps;
         
         my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps} },
-                                                                $limit ? ({rows => $limit}) : ());
+        my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
+                                                                { join => 'dataelement', $limit ? (rows => $limit) : () });
         
         my @incomplete;
-        my $count = 0;
         while (my $state = $rs->next) {
-            $count++;
-            next if $state->dataelement->withdrawn;
             push(@incomplete, $state);
         }
-        
-        warn "$count es vs ", scalar(@incomplete), "\n";
         
         return \@incomplete;
     }
