@@ -21,8 +21,6 @@ BEGIN {
 my $scheduler = VRPipe::Scheduler->get();
 my $output_root = get_output_dir('manager_test_output');
 
-$scheduler->set_verbose_global(1);
-
 # pipeline 1
 my $single_step = VRPipe::Step->get(name => 'element_outputter',
                                     inputs_definition => { },

@@ -154,7 +154,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
         
-        my $estates = $datasource->incomplete_element_states($setup);
+        # we're using the 'global' limit here to reduce possible db burden,
+        # but it doesn't matter that this is used as a per-pipelinesetup
+        # limit. handle_submissions() gives us a true global limit on how
+        # many jobs will run at once
+        my $estates = $datasource->incomplete_element_states($setup, $limit);
         
         foreach my $estate (@$estates) {
             my $element = $estate->dataelement;
@@ -162,11 +166,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $self->debug("setup $setup_id | incomplete element loop $incomplete_elements for element id ".$element->id." which has completed $completed_steps steps of $num_steps");
             next if $completed_steps == $num_steps; # (rare, if ever?)
             
-            # we're using the 'global' limit here to reduce possible db burden,
-            # but it doesn't matter that this is used as a per-pipelinesetup
-            # limit. handle_submissions() gives us a true global limit on how
-            # many jobs will run at once
-            last if $incomplete_elements == $limit;
             $incomplete_elements++;
             
             my %previous_step_outputs;
