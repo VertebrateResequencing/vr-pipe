@@ -5,7 +5,7 @@ use Path::Class;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 13;
+    use Test::Most tests => 15;
     
     use_ok('VRPipe::DataSourceFactory');
     
@@ -64,6 +64,19 @@ is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd,
                       {paths => [file($cwd, 't/data/2822_7_1.fastq'), file($cwd, 't/data/2822_7_2.fastq')], group => '2822_7'},
                       {paths => [file($cwd, 't/data/2823_4_1.fastq'), file($cwd, 't/data/2823_4_2.fastq')], group => '2823_4'},
                       {paths => [file($cwd, 't/data/8324_8_1.fastq'), file($cwd, 't/data/8324_8_2.fastq')], group => '8324_8'}], 'got correct results for delimited grouped_single_column';
+
+# delimited all columns
+ok $ds = VRPipe::DataSource->get(type => 'delimited',
+                                 method => 'all_columns',
+                                 source => file(qw(t data datasource.2col))->absolute->stringify,
+                                 options => {delimiter => "\t"}), 'could create a delimited datasource';
+
+@results = ();
+while (my $element = $ds->next_element) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{paths => [file($cwd, 't/data/file.txt'), file($cwd, 't/data/file2.txt')]},
+                      {paths => [file($cwd, 't/data/file3.txt'), file($cwd, 't/data/file.cat')]}], 'got correct results for delimited all_columns';
 
 # sequence_index
 ok $ds = VRPipe::DataSource->get(type => 'sequence_index',

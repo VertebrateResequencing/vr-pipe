@@ -6,7 +6,6 @@ class VRPipe::FileType::vcf extends VRPipe::FileType::txt {
         # uncompressed vcf files
         
         #*** worth doing something like checking the first line of file?
-        
         return 1;
     }
     

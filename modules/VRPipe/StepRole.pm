@@ -218,13 +218,23 @@ role VRPipe::StepRole {
                     if ($result->s) {
                         my $type = VRPipe::FileType->create($val->type, {file => $result->path});
                         unless ($type->check_type) {
-                            $self->throw("file ".$result->path." was not the correct type");
+                            if ($type->type eq 'any') {
+                                $result->type($wanted_type);
+                            }
+                            else {
+                                $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type ".$type->type);
+                            }
                         }
                     }
                     else {
                         my $db_type = $result->type;
                         if ($db_type && $wanted_type ne $db_type) {
-                            $self->throw("file ".$result->path." was not the correct type");
+                            if ($db_type eq 'any') {
+                                $result->type($wanted_type);
+                            }
+                            else {
+                                $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
+                            }
                         }
                     }
                     
