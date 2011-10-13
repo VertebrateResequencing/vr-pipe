@@ -9,7 +9,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
         return \@elements;
     }
     
-    around _all_results (Defined :$handle, Str :$delimiter, ArrayRef :$path_columns?) {
+    around _all_results (Defined :$handle, Str :$delimiter, ArrayRef :$path_columns?, :$columns_are_paths) {
         my %result;
         $path_columns ||= [];
         my %path_cols = map { $_ => 1 } @$path_columns;
@@ -20,7 +20,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
             
             my $del_result;
             for my $key (1..@split) {
-                if (exists $path_cols{$key}) {
+                if ($columns_are_paths || exists $path_cols{$key}) {
                     push(@{$del_result->{paths}}, file($split[$key - 1])->absolute->stringify);
                 }
                 else {
@@ -41,6 +41,14 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
             push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { $key_name => $hash_ref->{$key_name} }));
         }
         
+        return \@elements;
+    }
+    
+    method all_columns (Defined :$handle, Str :$delimiter) {
+        my @elements;
+        foreach my $hash_ref ($self->_all_results(handle => $handle, delimiter => $delimiter, columns_are_paths => 1)) {
+            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths} }));
+        }
         return \@elements;
     }
     

@@ -57,7 +57,7 @@ ok my $ds = VRPipe::DataSource->get(type => 'fofn',
                                  options => {}), 'could create a fofn datasource';
 
 my @results = ();
-while (my $element = $ds->next_element) {
+foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file('t', 'data', '2822_7.pe.bam')->absolute]}, 

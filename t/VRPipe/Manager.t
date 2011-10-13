@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 10;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -174,6 +174,24 @@ foreach my $file (file(qw(t data file.bam))->absolute,
 is_deeply [@md5s[0..2]], [qw(21efc0b1cc21390f4dcc97795227cdf4 2f8545684149f81e26af90dec0c6869c eb8fa3ffb310ce9a18617210572168ec)], 'md5s were all set in db';
 
 ok $md5s[3] && $md5s[4] && $md5s[5], 'md5s of md5 files were all set in db';
+
+# test that a new pipelinesetup will work when using a previously completed
+# datasource
+$prewritten_step_pipeline_output_dir = dir($output_root, 'md5_pipeline2');
+$md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4',
+                                                datasource => $fofn_datasource,
+                                                output_root => $prewritten_step_pipeline_output_dir,
+                                                pipeline => $prewritten_step_pipeline,
+                                                options => {md5_files_in_source_dir => 0});
+
+@md5_output_files = (file($prewritten_step_pipeline_output_dir, output_subdirs(7), 'md5_file_production', 'file.bam.md5'),
+                     file($prewritten_step_pipeline_output_dir, output_subdirs(8), 'md5_file_production', 'file.cat.md5'),
+                     file($prewritten_step_pipeline_output_dir, output_subdirs(9), 'md5_file_production', 'file.txt.md5'),
+                     file($prewritten_step_pipeline_output_dir, output_subdirs(7), 'md5_file_production', 'file.bam.md5.md5'),
+                     file($prewritten_step_pipeline_output_dir, output_subdirs(8), 'md5_file_production', 'file.cat.md5.md5'),
+                     file($prewritten_step_pipeline_output_dir, output_subdirs(9), 'md5_file_production', 'file.txt.md5.md5'));
+
+is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manager, using a previously completed datasource';
 
 #*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
 
