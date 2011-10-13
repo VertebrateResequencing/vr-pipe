@@ -159,8 +159,10 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                         $rg_line .= '\tDS:'.$ds;
                     }
                     
+                    my $lane_base = $lane;
+                    $lane_base =~ s/\W/_/g;
                     my $sam_file = $self->output_file(output_key => 'bwa_sam_files',
-                                                      basename => "$lane.$paired.sam",
+                                                      basename => "$lane_base.$paired.sam",
                                                       type => 'txt',
                                                       metadata => $sam_meta);
                     
