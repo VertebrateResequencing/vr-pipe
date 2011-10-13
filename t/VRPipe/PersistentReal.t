@@ -111,10 +111,8 @@ $ds[1] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/d
 is_fields [qw/id type method source/], $ds[1], [2, 'list', 'all', 't/data/datasource.onelist'], 'ds2 has the expected fields';
 
 my @de;
-foreach my $de_num (1..5) {
-    # create
-    $ds[0]->next_element;
-}
+# create
+$ds[0]->elements;
 foreach my $de_num (1..5) {
     # get
     push(@de, VRPipe::DataElement->get(id => $de_num));
