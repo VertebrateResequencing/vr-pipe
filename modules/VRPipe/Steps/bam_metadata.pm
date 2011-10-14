@@ -90,18 +90,22 @@ class VRPipe::Steps::bam_metadata with VRPipe::StepRole {
             $parser = VRPipe::Parser->create('bam', {file => $bam_file});
             my %rg_info = $parser->readgroup_info();
             my @rgs = keys %rg_info;
-            if (@rgs > 1) {
-                $self->warn("Since there is more than 1 readgroup, can't choose what metadata to extract");
-                $new_meta->{lane} = $bam_path;
-            }
-            else {
+            if (@rgs == 1) {
                 my $info = $rg_info{$rgs[0]};
-                $new_meta->{lane} = $rgs[0];
+                $new_meta->{lane} = $info->{PU} ? $info->{PU} : $rgs[0];
                 $new_meta->{library} = $info->{LB} if $info->{LB};
                 $new_meta->{sample} = $info->{SM} if $info->{SM};
                 $new_meta->{center_name} = $info->{CN} if $info->{CN};
                 $new_meta->{platform} = $info->{PL} if $info->{PL};
                 $new_meta->{study} = $info->{DS} if $info->{DS};
+            }
+            if (@rgs != 1 || "$new_meta->{lane}" eq "1") {
+                # call the name something we can be most sure is maximally
+                # unique
+                my $rg = $bam_path;
+                $rg =~ s/\.bam$//;
+                $rg =~ s/\W/_/g;
+                $new_meta->{lane} = $rg;
             }
             
             $bam_file->add_metadata($new_meta);

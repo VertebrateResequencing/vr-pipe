@@ -19,7 +19,7 @@ ok my $ds = VRPipe::DataSource->get(type => 'list',
                                     options => {}), 'could create a list datasource';
 
 my @results;
-while (my $element = $ds->next_element) {
+foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => 'henry'}], 'got all results correctly';
@@ -30,7 +30,7 @@ $ds = VRPipe::DataSource->get(type => 'list',
                               options => {skip_comments => 0});
 
 @results = ();
-while (my $element = $ds->next_element) {
+foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => '# comment'}, {line => 'henry'}], 'got even more results with extra options';
@@ -42,7 +42,7 @@ ok $ds = VRPipe::DataSource->get(type => 'fofn',
                                  options => {}), 'could create a fofn datasource';
 
 @results = ();
-while (my $element = $ds->next_element) {
+foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
 my $cwd = cwd();
@@ -57,7 +57,7 @@ ok $ds = VRPipe::DataSource->get(type => 'delimited',
                                              column => 2}), 'could create a delimited datasource';
 
 @results = ();
-while (my $element = $ds->next_element) {
+foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], group => '2822_6'},
@@ -85,7 +85,7 @@ ok $ds = VRPipe::DataSource->get(type => 'sequence_index',
                                  options => { local_root_dir => $cwd }), 'could create a sequence_index datasource';
 
 @results = ();
-while (my $element = $ds->next_element) {
+foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6.fastq'), file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], lane => '2822_6'},
@@ -180,7 +180,7 @@ SKIP: {
                                      options => {import => 1, mapped => 0}), 'could create a vrtrack datasource';
     
     my $results = 0;
-    while (my $element = $ds->next_element) {
+    foreach my $element (@{$ds->elements}) {
         $results++;
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';

@@ -22,6 +22,8 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
+    #*** stepoutputfile rows are still there after using start_from_scratch...
+    
     method start_from_scratch (ArrayRef[PositiveInt] $step_numbers?) {
         # by default, we'll start_over all steps that produced output files in
         # the default output directory for our element

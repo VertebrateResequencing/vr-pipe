@@ -1,0 +1,137 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::Persistent::SchemaBase;
+
+use Getopt::Long;
+
+my $help = 0;
+my $deployment = 'production';
+my (@desired_setups, $list);
+GetOptions("help" => \$help,
+           "deployment=s" => \$deployment,
+           "setups=s{,}" => \@desired_setups,
+           "list" => \$list);
+
+if ($deployment !~ /^(?:testing|production)$/) {
+    warn "--deployment must be testing|production\n";
+    $help = 1;
+}
+
+if ($help) {
+    print <<HELP;
+See the overall state of active pipeline setups:
+vrpipe-status [options]
+
+Options:
+    --deployment <testing|production> (default production) See pipelinesetups in
+                                      your testing or production database
+    --setups <int|string> Only show details for the given pipeline setup (by id
+                          or name). You can provide multiple ids/names at once.
+    --list                Just list out the setup names and ids, so you can
+                          subsequently run this using --setups
+
+HELP
+    exit;
+}
+
+VRPipe::Persistent::SchemaBase->database_deployment($deployment);
+require VRPipe::Persistent::Schema;
+
+my @setups;
+my $m = VRPipe::Manager->get;
+my $schema = $m->result_source->schema;
+if (@desired_setups) {
+    my @found;
+    foreach my $desired_setup (@desired_setups) {
+        my $found;
+        if ($desired_setup =~ /^\d+$/) {
+            $found = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+            unless ($found) {
+                warn "$desired_setup is not a valid pipeline setup id\n";
+                next;
+            }
+        }
+        else {
+            $found = $schema->resultset("PipelineSetup")->find({ name => $desired_setup });
+            unless ($found) {
+                warn "$desired_setup is not a valid pipeline setup name\n";
+                next;
+            }
+        }
+        push(@found, $found);
+    }
+    
+    @found || exit;
+    
+    @setups = (@found);
+}
+else {
+    @setups = $m->setups;
+}
+
+my %summary;
+foreach my $setup (@setups) {
+    print "--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") ---\n";
+    next if $list;
+    
+    my $pipeline = $setup->pipeline;
+    my $step_members = $pipeline->steps;
+    print 'Pipeline: ', $pipeline->name, ' | ', $step_members, ' steps | ', $pipeline->description, "\n";
+    my $ps_opts = $setup->options;
+    if (keys %$ps_opts) {
+        display_hash('PipelineSetup options', $ps_opts);
+    }
+    else {
+        print "(used with default/no options)\n";
+    }
+    print 'PipelineSetup outout root: ', $setup->output_root, "\n";
+    
+    my $datasource = $setup->datasource;
+    print 'Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source, "\n";
+    my $ds_opts = $datasource->options;
+    if (keys %$ds_opts) {
+        display_hash('Datasource options', $ds_opts);
+    }
+    else {
+        print "(used with default/no options)\n";
+    }
+    
+    my $num_elements = scalar(@{$datasource->elements});
+    my @incomplete = @{$datasource->incomplete_element_states($setup)};
+    my $num_incomplete = @incomplete;
+    print "\nThere are a total of $num_elements Data Elements in the datasource to work on, and $num_incomplete elements are incomplete\n";
+    if (@incomplete) {
+        my %status_hash;
+        my $fully_complete = $num_elements - $num_incomplete;
+        $status_hash{"$step_members steps completed"} = $fully_complete;
+        my $num_steps_complete = $fully_complete * $step_members;
+        foreach my $es (@incomplete) {
+            my $completed_steps = $es->completed_steps;
+            $num_steps_complete += $completed_steps;
+            $status_hash{"$completed_steps steps completed"}++;
+        }
+        display_hash('Breakdown', \%status_hash);
+        
+        my $steps_to_complete = $num_elements * $step_members;
+        my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
+        print "Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)\n";
+    }
+    else {
+        print "Pipeline currently 100\% complete!\n";
+    }
+    
+    print "------\n\n";
+}
+
+
+exit;
+
+sub display_hash {
+    my ($name, $hash) = @_;
+    print $name, ":\n";
+    foreach my $key (sort keys %$hash) {
+        print "\t", $key, ' => ', $hash->{$key}, "\n";
+    }
+}

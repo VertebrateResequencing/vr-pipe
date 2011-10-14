@@ -76,7 +76,8 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                 my $source_bam = $sai_meta->{source_bam};
                 my $read_type = $sai_meta->{paired};
                 my $paired = $read_type == 0 ? 'se' : 'pe';
-                my $ref = $bams_by_path{$source_bam} || $self->throw("got a sai file $path with source_bam $source_bam, but that bam was not an input fastq to bwa_sam_using_bam Step");
+                my $ref = $bams_by_path{$source_bam};
+                $ref || $self->throw("got a sai file $path with source_bam $source_bam, but that bam was not an input fastq to bwa_sam_using_bam Step");
                 push(@{$by_lane{$ref->[0]}->{$paired}->{sais}}, $path);
                 $by_lane{$ref->[0]}->{$paired}->{bam} = $source_bam;
             }
@@ -158,8 +159,10 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                         $rg_line .= '\tDS:'.$ds;
                     }
                     
+                    my $lane_base = $lane;
+                    $lane_base =~ s/\W/_/g;
                     my $sam_file = $self->output_file(output_key => 'bwa_sam_files',
-                                                      basename => "$lane.$paired.sam",
+                                                      basename => "$lane_base.$paired.sam",
                                                       type => 'txt',
                                                       metadata => $sam_meta);
                     
