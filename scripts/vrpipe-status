@@ -30,7 +30,7 @@ Options:
     --setups <int|string> Only show details for the given pipeline setup (by id
                           or name). You can provide multiple ids/names at once.
     --list                Just list out the setup names and ids, so you can
-                          subsequently run this using --setup
+                          subsequently run this using --setups
 
 HELP
     exit;
