@@ -1,3 +1,8 @@
+0.12    Fixes for bam_mapping_with_bwa. New VCF annotation-related steps
+        and pipelines. Triggering pipelines in Manager has been optimised
+        slightly
+0.11    Fixes for bam_mapping_with_bwa. New smalt mapping pipeline for
+        handling 454 sequence data.
 0.10    Bam Improvement steps now fully implemented. New bam_mapping_with_bwa
         pipeline
 0.09    Scheduler independence: local can now be used for testing
