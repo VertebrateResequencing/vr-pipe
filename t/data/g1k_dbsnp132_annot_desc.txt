@@ -1,0 +1,2 @@
+key=INFO,ID=KGPilot123,Number=0,Type=Flag,Description="1000 Genome discovery all pilots 2010(1,2,3)"
+key=INFO,ID=dbSNP,Number=1,Type=Integer,Description="First SNP Build for RS"

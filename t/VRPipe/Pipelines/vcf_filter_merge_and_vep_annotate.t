@@ -5,9 +5,7 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 4;
-    
     use_ok('VRPipe::Persistent::Schema');
-    
     use TestPipelines;
 }
 
@@ -21,20 +19,23 @@ foreach my $stepmember ($pipeline->steps) {
 my @expected_step_names = qw(vcf_filter vcf_merge vcf_annotate vep_analysis vcf_vep_consequences);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
+my $filter_opt_file = file(qw(t data uk10k_gatk_20110715.filter))->absolute->stringify;
+my $annot_file = file(qw(t data g1k_dbsnp132_annot.tab.gz))->absolute->stringify;
+my $annot_desc_file = file(qw(t data g1k_dbsnp132_annot_desc.txt))->absolute->stringify;
+my $vep_cache = file(qw(t data vep_cache))->absolute->stringify;
+my $gerp_cache = file(qw(t data gerp_cache))->absolute->stringify;
+
 my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge_and_vep_annotate pipeline setup',
                                                     datasource => VRPipe::DataSource->get(type => 'delimited',
                                                                                           method => 'all_columns',
                                                                                           options => { delimiter => "\t" },
-                                                                                          #source => '/lustre/scratch106/user/cj5/vep2.2/obesity_test.fofn'),
                                                                                           source => file(qw(t data datasource.vcfs))),
                                                     output_root => $output_dir,
                                                     pipeline => $pipeline,
-                                                    options => {'vcf-annotate_options' => '-a /lustre/scratch106/projects/uk10k/ref/snps/g1k_dbsnp132_annot.tab.gz -d /lustre/scratch106/projects/uk10k/ref/snps/g1k_dbsnp132_annot_desc.txt -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ',
-                                                                'vcf-filter_options' => '-f /nfs/vertres01/conf/uk10k_gatk_20110715.filter',
-                                                                'vep_options' => '--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir /lustre/scratch106/user/cj5/vep_cache',
-                                                                'vep_exe' => '/nfs/users/nfs_c/cj5/vr-codebase/scripts/variant_effect_predictor.pl',
-                                                                'vcf2consequences_exe' => '/nfs/users/nfs_c/cj5/vr-codebase/scripts/vcf2consequences_vep',
-                                                                'vcf2consequences_options' => '-grantham --gerp /lustre/scratch106/user/cj5/gerp_db/hs',
+                                                    options => {'vcf-annotate_options' => "-a $annot_file -d $annot_desc_file -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ",
+                                                                'vcf-filter_options' => "-f $filter_opt_file",
+                                                                'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+                                                                'vcf2consequences_options' => "-grantham --gerp $gerp_cache",
                                                                 cleanup => 0});
 
 my (@output_files,@final_files);
