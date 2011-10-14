@@ -84,8 +84,9 @@ foreach my $setup (@setups) {
         display_hash('PipelineSetup options', $ps_opts);
     }
     else {
-        print "(run with default/no options)\n";
+        print "(used with default/no options)\n";
     }
+    print 'PipelineSetup outout root: ', $setup->output_root, "\n";
     
     my $datasource = $setup->datasource;
     print 'Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source, "\n";
@@ -94,7 +95,7 @@ foreach my $setup (@setups) {
         display_hash('Datasource options', $ds_opts);
     }
     else {
-        print "(run with default/no options)\n";
+        print "(used with default/no options)\n";
     }
     
     my $num_elements = scalar(@{$datasource->elements});
