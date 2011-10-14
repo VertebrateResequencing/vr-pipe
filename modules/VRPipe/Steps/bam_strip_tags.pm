@@ -18,7 +18,8 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $tag_strip_bam = $self->output_file(output_key => 'tag_stripped_bam_files',
                                                        basename => $bam->basename,
-                                                       type => 'bam');
+                                                       type => 'bam',
+                                                       metadata => $bam->metadata);
                 
                 my $bam_path = $bam->path;
                 my $tag_strip_bam_path = $tag_strip_bam->path;
