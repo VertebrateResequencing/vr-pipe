@@ -15,7 +15,7 @@ GetOptions("help" => \$help,
            "list" => \$list);
 
 if ($deployment !~ /^(?:testing|production)$/) {
-    warn "--deployment must be develop|production\n";
+    warn "--deployment must be testing|production\n";
     $help = 1;
 }
 
@@ -25,8 +25,8 @@ See the overall state of active pipeline setups:
 vrpipe-status [options]
 
 Options:
-    --deployment <develop|production> (default production) See pipelinesetups in
-                                      your develop or production database
+    --deployment <testing|production> (default production) See pipelinesetups in
+                                      your testing or production database
     --setups <int|string> Only show details for the given pipeline setup (by id
                           or name). You can provide multiple ids/names at once.
     --list                Just list out the setup names and ids, so you can
