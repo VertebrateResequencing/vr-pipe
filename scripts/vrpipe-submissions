@@ -26,7 +26,7 @@ GetOptions("help" => \$help,
            "force_with_all" => \$force_with_all);
 
 if ($deployment !~ /^(?:testing|production)$/) {
-    warn "--deployment must be develop|production\n";
+    warn "--deployment must be testing|production\n";
     $help = 1;
 }
 
@@ -36,8 +36,8 @@ See details related to incomplete submissions:
 vrpipe-submissions [options]
 
 Options:
-    --deployment <develop|production> (default production) See submissions in
-                                      your develop or production database
+    --deployment <testing|production> (default production) See submissions in
+                                      your testing or production database
     --submission <int>   Show details for this single submission only
     --setup <int|string> Only show details for submissions belonging to the
                          given pipeline setup (by id or name)
