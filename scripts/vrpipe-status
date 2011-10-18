@@ -41,9 +41,9 @@ require VRPipe::Persistent::Schema;
 
 my @setups;
 my $m = VRPipe::Manager->get;
-my $schema = $m->result_source->schema;
 if (@desired_setups) {
     my @found;
+    my $schema = $m->result_source->schema;
     foreach my $desired_setup (@desired_setups) {
         my $found;
         if ($desired_setup =~ /^\d+$/) {
@@ -71,7 +71,6 @@ else {
     @setups = $m->setups;
 }
 
-my %summary;
 foreach my $setup (@setups) {
     print "--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") ---\n";
     next if $list;

@@ -1,0 +1,27 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use lib '/my/vrpipe/checkout/modules';
+use VRPipe::Persistent::SchemaBase;
+VRPipe::Persistent::SchemaBase->database_deployment('testing');
+use VRPipe::Persistent::Schema;
+
+use Getopt::Long;
+my $verbose = 0;
+my $result = GetOptions("verbose" => \$verbose);
+
+my $manager = VRPipe::Manager->get();
+$manager->set_verbose_global(1) if $verbose;
+
+handle_pipeline();
+print STDERR "\n";
+
+exit;
+
+sub handle_pipeline {
+    while (1) {
+        last if $manager->trigger;
+	print STDERR ". ";
+        sleep(60);
+    }
+}
