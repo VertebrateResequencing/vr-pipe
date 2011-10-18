@@ -2,7 +2,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf-annotate_options' => VRPipe::StepOption->get(description => 'vcf-annotate options'),
+        return { 'vcf-annotate_options' => VRPipe::StepOption->get(description => 'vcf-annotate pass 1 options'),
+                 'vcf-annotate_2_options' => VRPipe::StepOption->get(description => 'vcf-annotate pass 2 options'),
                  'vcf-annotate_exe' => VRPipe::StepOption->get(description => 'path to your vcf-annotate executable',
                                                                optional => 1,
                                                                default_value => 'vcf-annotate') };
@@ -19,6 +20,7 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
 	    my $options = $self->options;
             my $an_exe = $options->{'vcf-annotate_exe'};
             my $an_opts = $options->{'vcf-annotate_options'};
+            my $an_2_opts = $options->{'vcf-annotate_2_options'};
 			my $cat_exe;
 	    
             my $req = $self->new_requirements(memory => 500, time => 1);
@@ -37,7 +39,8 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
                 my $input_path = $vcf_file->path;
                 my $output_path = $annotated_vcf->path;
                 
-                my $this_cmd = "$cat_exe $input_path | $an_exe $an_opts | bgzip -c > $output_path";
+				# Two-pass annotation
+                my $this_cmd = "$cat_exe $input_path | $an_exe $an_opts | $an_exe $an_2_opts | bgzip -c > $output_path";
 		
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_annotate', 'annotate_vcf', [$this_cmd, $req, {output_files => [$annotated_vcf]}]);
             }
