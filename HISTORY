@@ -1,3 +1,5 @@
+0.13    Various fixes for pipelines. Memory leak issues fixed. Various
+        front-end scripts added.
 0.12    Fixes for bam_mapping_with_bwa. New VCF annotation-related steps
         and pipelines. Triggering pipelines in Manager has been optimised
         slightly
