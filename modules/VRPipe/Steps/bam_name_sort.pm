@@ -21,8 +21,8 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 3000, time => 2);
             my $memory = $req->memory;
             
-            my $m = (($memory * 1000000) / 100) * 95;
-            my $opts = "sort -n -m $m";
+            # my $m = (($memory * 1000000) / 100) * 95; # we no longer use -m because in some cases samtools can use way more than the figure we specify, so safest to go with the small default
+            my $opts = "sort -n";
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $in_base = $bam->basename;
