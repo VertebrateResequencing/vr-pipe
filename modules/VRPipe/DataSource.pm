@@ -73,7 +73,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         $self->_prepare_elements_and_states || return;
         
         my $pipeline = $setup->pipeline;
-        my $num_steps = $pipeline->steps;
+        my $num_steps = $pipeline->step_members;
         
         my $schema = $self->result_source->schema;
         my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
