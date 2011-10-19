@@ -23,7 +23,7 @@ class VRPipe::Utils::java {
         {
             $temp_dir = ' -Djava.io.tmpdir='.$self->tempdir(DIR => $dir);
         }
-        return qq[-Xmx${java_mem}m -Xms${java_mem}m$xss$temp_dir -server -XX:+UseParallelGC -XX:ParallelGCThreads=2];
+        return qq[-Xmx${java_mem}m -Xms${java_mem}m$xss$temp_dir -server -XX:+UseSerialGC];
     }
 }
 
