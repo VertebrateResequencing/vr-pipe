@@ -72,7 +72,7 @@ ok $ds = VRPipe::DataSource->get(type => 'delimited',
                                  options => {delimiter => "\t"}), 'could create a delimited datasource';
 
 @results = ();
-while (my $element = $ds->next_element) {
+foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file($cwd, 't/data/file.txt'), file($cwd, 't/data/file2.txt')]},
