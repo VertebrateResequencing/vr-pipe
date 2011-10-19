@@ -1,0 +1,5 @@
+key=INFO,ID=AF_AFR,Number=1,Type=Float,Description='Allele Frequency in African population (YRI,LWK,ASW)'
+key=INFO,ID=AF_AMR,Number=1,Type=Float,Description='Allele Frequency in American population (MXL,CLM,PUR)'
+key=INFO,ID=AF_ASN,Number=1,Type=Float,Description='Allele Frequency in Asian population (CHB,CHS,JPT)'
+key=INFO,ID=AF_EUR,Number=1,Type=Float,Description='Allele Frequency in European population (CEU,TSI,FIN,GBR,IBS)'
+key=INFO,ID=AF_MAX,Number=1,Type=Float,Description='Maximum Allele Frequency'
