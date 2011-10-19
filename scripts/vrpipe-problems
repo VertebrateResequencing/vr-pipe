@@ -1,0 +1,99 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::Persistent::SchemaBase;
+
+use POSIX qw(ceil);
+use Getopt::Long;
+
+my $help = 0;
+my $retries = 3;
+my $deployment = 'production';
+my ($desired_setup);
+GetOptions("help" => \$help,
+           "deployment=s" => \$deployment,
+           "setup=s" => \$desired_setup);
+
+if ($deployment !~ /^(?:testing|production)$/) {
+    warn "--deployment must be testing|production\n";
+    $help = 1;
+}
+
+if ($help) {
+    print <<HELP;
+Provide an overview of problems with pipelines that need user intervention to
+resolve:
+vrpipe-problems [options]
+
+Options:
+    --deployment <testing|production> (default production) See submissions in
+                                      your testing or production database
+    --submission <int>   Show details for this single submission only
+    --retries <int>      The number of retries the dispatch daemon is set to
+                         attempt before giving up (default 3)
+    
+HELP
+    exit;
+}
+
+VRPipe::Persistent::SchemaBase->database_deployment($deployment);
+require VRPipe::Persistent::Schema;
+
+my @subs;
+my $m = VRPipe::Manager->get;
+my $schema = $m->result_source->schema;
+my $rs = $schema->resultset("Submission")->search({ "_failed" => 1, retries => $retries });
+while (my $sub = $rs->next) {
+    push(@subs, $sub);
+}
+
+if ($desired_setup) {
+    # convert to setup name
+    if ($desired_setup =~ /^\d+$/) {
+        my $m = VRPipe::Manager->get;
+        my $schema = $m->result_source->schema;
+        my $rs = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+        unless ($rs) {
+            die "$desired_setup is not a valid pipeline setup id\n";
+        }
+        $desired_setup = $rs->name;
+    }
+}
+
+my %summary;
+foreach my $sub (@subs) {
+    my $state = $sub->stepstate;
+    my $setup = $state->pipelinesetup;
+    my $setup_name = $setup->name;
+    if ($desired_setup) {
+        next unless $setup_name eq $desired_setup;
+    }
+    
+    my $stepm = $state->stepmember;
+    my $step_name = $stepm->step->name;
+    
+    $summary{$setup->id.'|[]|'.$setup_name}->{$stepm->step_number.'|[]|'.$step_name}++;
+}
+
+my $key_sort = sub { my ($ay) = split('\|\[\]\|', $a); my ($be) = split('\|\[\]\|', $b); $ay <=> $be  };
+if (keys %summary) {
+    foreach my $setup (sort $key_sort keys %summary) {
+        my ($setup_id, $setup_name) = split('\|\[\]\|', $setup);
+        print "---\nPipeline Setup '$setup_name' (id $setup_id) has the following problems:\n";
+        
+        my $steps = $summary{$setup};
+        foreach my $step (sort $key_sort keys %{$steps}) {
+            my ($step_id, $step_name) = split('\|\[\]\|', $step);
+            my $fails = $steps->{$step};
+            print "\t", "Step $step_name has failed for $fails Data Elements; investigate by running: vrpipe-submissions --setup $setup_id --step '$step_name'\n";
+        }
+        
+        print "---\n\n";
+    }
+}
+else {
+    print "There are currently no problems requiring user intervention\n";
+}
+
+exit;
