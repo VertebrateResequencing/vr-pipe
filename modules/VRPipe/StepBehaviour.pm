@@ -74,7 +74,7 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
         my %step_nums = map { $_ => 1 } @$steps;
         
         my @states;
-        foreach my $stepm ($pipeline->steps) {
+        foreach my $stepm ($pipeline->step_members) {
             if (exists $step_nums{$stepm->step_number}) {
                 push(@states, VRPipe::StepState->get(stepmember => $stepm, pipelinesetup => $ps, dataelement => $de));
             }

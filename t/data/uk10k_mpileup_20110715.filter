@@ -1,0 +1,7 @@
+all	DP	<	4.0	MinDP	Minimum depth at locus
+all	DP	>	2000.0	MaxDP	Maximum depth at locus
+all	MQ	<=	25.0	MQual	Minimum mapping quality
+snp	GENOTYPE/GQ	<=	25.0	GQual	Minimum genotype quality
+snp	QUAL	<=	30.0	MinQ	Minimum quality at locus
+indel	GENOTYPE/GQ	<=	60.0	iGQual	Minimum indel genotype quality
+indel	QUAL	<=	60.0	iMinQ	Minimum quality at indel locus

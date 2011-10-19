@@ -73,7 +73,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         $self->_prepare_elements_and_states || return;
         
         my $pipeline = $setup->pipeline;
-        my $num_steps = $pipeline->steps;
+        my $num_steps = $pipeline->step_members;
         
         my $schema = $self->result_source->schema;
         my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
@@ -100,9 +100,21 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         if ($source->_has_changed) {
             my $elements = $source->_get_elements;
             
+            my %current_elements;
             foreach my $element (@$elements) {
+                $current_elements{$element->id} = 1;
                 foreach my $setup (@setups) {
                     VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+                }
+            }
+            
+            # withdrawn any elements that are no longer in the datasource
+            my $schema = $self->result_source->schema;
+            my $rs = $schema->resultset('DataElement')->search({ datasource => $self->id, withdrawn => 0 });
+            while (my $element = $rs->next) {
+                unless (exists $current_elements{$element->id}) {
+                    $element->withdrawn(1);
+                    $element->update;
                 }
             }
             

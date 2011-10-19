@@ -1,0 +1,8 @@
+snp	QUAL	<	30.0	MinQ	Minimum quality at locus
+snp	QD	<	5.0	MinQD	Minimum quality by depth at locus
+snp	HRun	>	5.0	MaxHRun	Max homopolymer run length
+snp	SB	>	-0.10	StrBias	Max strand bias
+indel	FS	>	200.0	iMaxFS	Max Fishers p-value
+indel	QD	<	2.0	iMinQD	Minimum indel quality by depth
+indel	ReadPosRankSum	<	-20.0	iMinRank	Minimum Z-score
+indel	InbreedingCoeff	<	-0.8	iMinInbreed	Minimum inbreeding coefficient

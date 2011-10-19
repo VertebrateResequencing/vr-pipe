@@ -40,8 +40,10 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 
 				my $input_path = $vcf_file->path;
 				my $output_path = $vep_txt->path;
+				my $tmp_path = "$output_path.tmp";	# fix to vep 2.2 sort order
+				my $tmp_exe = "/lustre/scratch106/user/cj5/vep2.2/vep_resort.sh";
 
-				my $this_cmd = "$cat_exe $input_path | $vep_exe $vep_opts -o $output_path";
+				my $this_cmd = "$cat_exe $input_path | $vep_exe $vep_opts -o $tmp_path; $tmp_exe $tmp_path > $output_path";
 
 				$self->dispatch_wrapped_cmd('VRPipe::Steps::vep_analysis', 'vep_analysis', [$this_cmd, $req, {output_files => [$vep_txt]}]);
 			}
@@ -64,7 +66,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
     
     method vep_analysis (ClassName|Object $self: Str $cmd_line) {
 
-        my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* -o (\S[^;]+)$/;
+        my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* (\S[^;]+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         my $input_lines = $input_file->lines;
         

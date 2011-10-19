@@ -1,0 +1,420 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::Persistent::SchemaBase;
+
+use POSIX qw(ceil);
+use Getopt::Long;
+use Data::Dumper;
+use Path::Class;
+
+my $help = 0;
+my $deployment = 'production';
+my @steps;
+my ($desired_setup, $list, $output_dir, $output_with_input, $output_by_metadata,
+    $basename_as_output, $basename_as_input, $basename_regex);
+GetOptions("help" => \$help,
+           "deployment=s" => \$deployment,
+           "setup=s" => \$desired_setup,
+           "steps=s{,}" => \@steps,
+           "list:i" => \$list,
+           "output_dir=s" => \$output_dir,
+           "output_with_input" => \$output_with_input,
+           "output_by_metadata=s" => \$output_by_metadata,
+           "basename_as_output" => \$basename_as_output,
+           "basename_as_input=s" => \$basename_as_input,
+           "basename_regex=s" => \$basename_regex);
+
+my ($search, $replace);
+unless ($help) {
+    if ($deployment !~ /^(?:testing|production)$/) {
+        warn "--deployment must be testing|production\n";
+        $help = 1;
+    }
+    
+    unless ($desired_setup) {
+        warn "--desired_setup is required\n";
+        $help = 1;
+    }
+    
+    unless (defined $list) {
+        if ($output_by_metadata && ! $output_dir) {
+            warn "--output_by_metadata needs --output_dir\n";
+            $help = 1;
+        }
+        if ($output_dir && $output_with_input) {
+            warn "--output_dir and --output_with_input are mutually exclusive\n";
+            $help = 1;
+        }
+        unless ($output_dir || $output_with_input) {
+            warn "one of --output_dir and --output_with_input are required\n";
+            $help = 1;
+        }
+        
+        if ($basename_as_output && $basename_as_input) {
+            warn "--basename_as_output and --basename_as_input are mutually exclusive\n";
+            $help = 1;
+        }
+        unless ($basename_as_output || $basename_as_input) {
+            warn "one of --basename_as_output and --basename_as_input are required\n";
+            $help = 1;
+        }
+    }
+    
+    if ($basename_regex) {
+        ($search, $replace) = split('#', $basename_regex);
+        unless ($search && $replace) {
+            warn "the --basename_regex must include a '#' to separate search from replace\n";
+            $help = 1;
+        }
+    }
+}
+
+if ($help) {
+    print <<HELP;
+Symlink the output files of a pipeline into a more usable directory structure:
+vrpipe-output [options]
+
+Required:
+    --setup <int|string>  Get the output of this pipeline setup (id or name)
+
+Before trying to choose where your symlinks will go and what they'll be called,
+you may wish to just list the inputs from your datasource and the resulting
+output files with their metadata:
+    --list <int>?          List out the relationship between input and outputs,
+                           with an optional limit on the number of inputs to
+                           show (default all with no value supplied)
+If not using --list, the remaining options come into play; at least one option
+from each grouping must be chosen.
+
+Choose which output files you want symlinks for:
+    --steps <step name|number>
+                          One or more step names/numbers to choose which step
+                          outputs you're interested in. If a step outputs more
+                          than one kind of file, you can limit to just one of
+                          the kinds by saying something like --steps
+                          "stepname|kindname". If --steps isn't supplied at all,
+                          all output files of all steps will get a symlink.
+
+Choose where the symlinks should go:
+    --output_dir <path>   The output (root) directory for files
+    --output_by_metadata <string>
+                          Place symlinks in a sub directory of --output_dir,
+                          based on the metadata on the output file. The string
+                          you must supply should be of the form "key1/key2"
+                          which would place the symlink for an output file with
+                          metadata {key1 => 'foo', key2 => 'bar' } in
+                          output_dir/foo/bar/. If there are multiple output
+                          files per input, and only one of them has the chosen
+                          metadata, all the other output file symlinks are
+                          placed in the same directory as the one with the
+                          metadata. Non-word characters in metadata values are
+                          converted to underscores to generate the sub directory
+                          names.
+ OR
+    --output_with_input   Symlinks for output files should be placed in the same
+                          directory their input files were in
+    
+Choose what the symlink basename should be:
+    --basename_as_output  Basename is what the pipeline itself chose to call the
+                          output file
+ OR
+    --basename_as_input <string>
+                          Basename is the same as that of the input file with
+                          its extension replaced with the supplied string plus
+                          the output extension
+ The resulting basename of either of these options can then be optionally
+ modified with:
+    --basename_regex <search_regex#replace_string>
+                          Supply a regex and replacement string to alter the
+                          basename, eg. --basename_regex 'foo#bar' will turn
+                          basename thefoo.file into thebar.file
+
+Other options:
+    --deployment <testing|production> (default production)
+                          Use your testing or production database
+    
+HELP
+    exit;
+}
+
+VRPipe::Persistent::SchemaBase->database_deployment($deployment);
+require VRPipe::Persistent::Schema;
+
+my $m = VRPipe::Manager->get;
+my $schema = $m->result_source->schema;
+my $setup;
+if ($desired_setup =~ /^\d+$/) {
+    $setup = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+    unless ($setup) {
+        die "$desired_setup is not a valid pipeline setup id\n";
+    }
+}
+else {
+    $setup = $schema->resultset("PipelineSetup")->find({ name => $desired_setup });
+    unless ($setup) {
+        die "$desired_setup is not a valid pipeline setup name\n";
+    }
+}
+
+# handle --steps
+my %desired_steps;
+my $limit_steps = 0;
+if (@steps) {
+    $limit_steps = 1;
+    foreach my $step_name (@steps) {
+        my ($name, $kind) = split('\|', $step_name);
+        $kind ||= 'all';
+        if ($name =~ /^\d+$/) {
+            $desired_steps{numbers}->{$name}->{$kind} = 1;
+        }
+        else {
+            $desired_steps{names}->{$name}->{$kind} = 1;
+        }
+    }
+}
+my @step_members = $setup->pipeline->steps;
+my @allowed_step_members;
+my %allowed_kinds;
+if ($limit_steps) {
+    foreach my $stepm (@step_members) {
+        my $smid = $stepm->id;
+        my $step_name = $stepm->step->name;
+        if (exists $desired_steps{names}->{$step_name}) {
+            foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
+        }
+        my $step_num = $stepm->step_number;
+        if (exists $desired_steps{numbers}->{$step_num}) {
+            foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
+        }
+        next unless keys %{$allowed_kinds{$smid}};
+        
+        push(@allowed_step_members, $stepm);
+    }
+}
+else {
+    foreach my $stepm (@step_members) {
+        my $smid = $stepm->id;
+        $allowed_kinds{$smid}->{all} = 1;
+    }
+    @allowed_step_members = (@step_members);
+}
+
+# loop through completed elements
+my $pipeline_length = @step_members;
+my $elements = $setup->datasource->elements;
+my $count = 0;
+my $incomplete = 0;
+foreach my $element (@$elements) {
+    my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+    unless ($element_state->completed_steps == $pipeline_length) {
+        $incomplete++;
+        next;
+    }
+    
+    my $eident = "DataElement ".$element->id;
+    
+    my ($element_result, $input_parent_dir, $input_basename);
+    if (defined $list || $output_with_input || $basename_as_input) {
+        $element_result = $element->result;
+        my $input_paths = $element_result->{paths};
+        if ($input_paths) {
+            $input_parent_dir = common_parent_dir($input_paths);
+            
+            if ($basename_as_input) {
+                if (@$input_paths == 1) {
+                    $input_basename = file($input_paths->[0])->basename;
+                    $input_basename =~ s/\.[^\.]+$//;
+                }
+                else {
+                    warn "$eident doesn't have exactly one input path associated with it, so --basename_as_input won't work; skipping\n";
+                    next;
+                }
+            }
+        }
+    }
+    
+    # get output file details
+    my %output_files;
+    my @output_files;
+    foreach my $stepm (@allowed_step_members) {
+        my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
+        my $step_outs = $stepstate->output_files;
+        my $smid = $stepm->id;
+        my $force = exists $allowed_kinds{$smid}->{all};
+        my $step_name = $stepm->step->name;
+        my $step_num = $stepm->step_number;
+        my $step_desc = "Step $step_num ($step_name)";
+        while (my ($kind, $files) = each %$step_outs) {
+            unless ($force) {
+                next unless exists $allowed_kinds{$smid}->{$kind};
+            }
+            my @files = grep { $_->s } @$files;
+            next unless @files;
+            
+            my @file_data;
+            foreach my $file (@files) {
+                my %hash;
+                $hash{path} = $file->path->stringify;
+                my $meta = $file->metadata;
+                $hash{metadata} = $meta if keys %$meta;
+                push(@file_data, \%hash);
+            }
+            $output_files{$step_desc}->{$kind} = \@file_data;
+            push(@output_files, @files);
+        }
+    }
+    
+    if (defined $list) {
+        # print out useful info about the input
+        print "--- Data Element ", $element->id, " ---\n";
+        my $dump = Dumper($element_result);
+        $dump =~ s/\$VAR1 = \{\s*?\n/Input:\n/;
+        $dump =~ s/\n\s+\};\s+//;
+        print $dump, "\n";
+        if ($input_parent_dir) {
+            print "--output_with_input symlinks would go in here: $input_parent_dir\n";
+        }
+        else {
+            print "--output_with_input can't be used, since there's no common parent directory for the input files\n";
+        }
+        
+        # print out useful info about the output files
+        print "\n";
+        $dump = Dumper(\%output_files);
+        $dump =~ s/\$VAR1 = \{\s*?\n/Output:\n/;
+        $dump =~ s/\n\s+\};\s+//;
+        print $dump, "\n";
+        
+        print "------\n\n";
+        if ($list) {
+            last if ++$count >= $list;
+        }
+    }
+    else {
+        # work out the output dir
+        my $this_output_dir;
+        if ($output_with_input) {
+            unless ($input_parent_dir) {
+                warn "$eident has no common parent directory for its input files, so --output_with_input doesn't work for it; skipping\n";
+                next;
+            }
+            $this_output_dir = dir($input_parent_dir);
+        }
+        else {
+            if ($output_by_metadata) {
+                my @subdir_keys = split('\/', $output_by_metadata);
+                
+                # find the first output file metadata that has all these keys
+                my @subdirs;
+                foreach my $file (@output_files) {
+                    my $metadata = $file->metadata;
+                    my @these_dirs;
+                    foreach my $key (@subdir_keys) {
+                        if (defined $metadata->{$key}) {
+                            my $sub_dir = $metadata->{$key};
+                            $sub_dir =~ s/\W/_/g;
+                            push(@these_dirs, $sub_dir);
+                        }
+                    }
+                    if (@these_dirs == @subdir_keys) {
+                        @subdirs = @these_dirs;
+                        last;
+                    }
+                }
+                
+                unless (@subdirs) {
+                    warn "$eident resulted in output files, none of which had metadata keys @subdir_keys; skipping\n";
+                    next;
+                }
+                $this_output_dir = dir($output_dir, @subdirs);
+            }
+            else {
+                $this_output_dir = dir($output_dir);
+            }
+            
+            $this_output_dir->mkpath;
+        }
+        
+        # create a symlink for each output file
+        foreach my $output_file (@output_files) {
+            # work out the basename
+            my $this_basename;
+            my $obase = $output_file->basename;
+            if ($basename_as_output) {
+                $this_basename = $obase;
+            }
+            elsif ($basename_as_input) {
+                my ($suffix) = $obase =~ /\.([^\.]+)$/;
+                $this_basename = $input_basename.'.'.$suffix;
+            }
+            
+            if ($basename_regex) {
+                $this_basename =~ s/$search/$replace/;
+                my @captured = (undef, $1, $2, $3, $4, $5, $6, $7, $8, $9);
+                foreach my $i (1..9) {
+                    my $capture = $captured[$i] || next;
+                    $this_basename =~ s/\$$i/$capture/;
+                }
+            }
+            
+            my $dest = file($this_output_dir, $this_basename);
+            
+            # make sure it doesn't already exist
+            my $source = $output_file->path;
+            if (-e $dest) {
+                unless (-l $dest && $dest->resolve->absolute eq $source) {
+                    warn "Can't create symlink $source => $dest since the destination already exists and isn't a symlink pointing to the source; skipping\n";
+                }
+                next;
+            }
+            
+            # create symlink (we don't care about VRPipe knowing about the
+            # existance of this file)
+            symlink($source, $dest);
+        }
+    }
+}
+
+warn "$incomplete incomplete data elements were ignored\n" if $incomplete;
+
+exit;
+
+sub common_parent_dir {
+    my $file_paths = shift;
+    
+    my @dir_lists;
+    my $shallowest;
+    foreach my $file_path (@$file_paths) {
+        my $file = file($file_path);
+        my $dir = $file->dir;
+        my @dirs = $dir->dir_list;
+        if (! $shallowest || @dirs < $shallowest) {
+            $shallowest = $#dirs;
+        }
+        push(@dir_lists, [@dirs]);
+    }
+    
+    my $deepest_common = 0;
+    foreach my $depth (0..$shallowest) {
+        my %dir_names;
+        foreach my $list (@dir_lists) {
+            $dir_names{$list->[$depth]}++;
+        }
+        
+        if (keys %dir_names > 1) {
+            last;
+        }
+        else {
+            $deepest_common = $depth;
+        }
+    }
+    
+    return unless $deepest_common;
+    return dir((@{$dir_lists[0]})[0..$deepest_common]);
+}

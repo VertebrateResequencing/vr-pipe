@@ -452,7 +452,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             if ($setup->active) {
                 my $user_opts = $setup->options;
                 
-                my @stepms = $setup->pipeline->steps;
+                my @stepms = $setup->pipeline->step_members;
                 foreach my $stepm (@stepms) {
                     my $step = $stepm->step;
                     my $step_name = $step->name;
