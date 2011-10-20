@@ -20,9 +20,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
     has '_instance_run_start' => (is => 'rw',
                                   isa => Datetime);
     
-    
     has 'global_limit' => (is => 'rw',
                            isa => PositiveInt);
+    
+    has '_created_pipelines' => (is => 'rw',
+                                 isa => 'HashRef');
     
     # public getters for our private attributes
     method running {
@@ -44,10 +46,23 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $rs = $self->result_source->schema->resultset('PipelineSetup');
         my @setups;
         while (my $ps = $rs->next) {
+            my $p = $ps->pipeline;
             if ($pipeline_name) {
-                my $p = $ps->pipeline;
                 next unless $p->name eq $pipeline_name;
             }
+            
+            # before spooling, whilst we are still in a single process, make
+            # sure that all pipelines have had their step members created using
+            # the steps method. *** steps() currently gives a memory leak, so
+            # that's the other reason we are careful to only call it once per
+            # pipeline
+            my $created = $self->_created_pipelines;
+            unless (exists $created->{$p->id}) {
+                $p->steps;
+                $created->{$p->id} = 1;
+                $self->_created_pipelines($created);
+            }
+            
             push(@setups, $ps);
         }
         
@@ -144,7 +159,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         my $setup_id = $setup->id;
         my $pipeline = $setup->pipeline;
-        my @step_members = $pipeline->steps;
+        my @step_members = $pipeline->step_members;
         my $num_steps = scalar(@step_members);
         
         my $datasource = $setup->datasource;
