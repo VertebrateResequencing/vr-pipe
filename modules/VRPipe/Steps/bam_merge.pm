@@ -1,14 +1,12 @@
 use VRPipe::Base;
 
-class VRPipe::Steps::bam_merge with VRPipe::StepRole {
-    method options_definition {
-        return { merge_sam_files_options => VRPipe::StepOption->get(description => 'options for picard MergeSamFiles', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT'),
+class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
+    around options_definition {
+        return { %{$self->$orig},
+                 merge_sam_files_options => VRPipe::StepOption->get(description => 'options for picard MergeSamFiles', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT'),
                  bam_merge_keep_single_paired_separate => VRPipe::StepOption->get(description => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
                                                                                   optional => 1,
                                                                                   default_value => 1),
-                 picard_path => VRPipe::StepOption->get(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
-                 java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
-                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
                 };
     }
     method inputs_definition {

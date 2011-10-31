@@ -1,11 +1,9 @@
 use VRPipe::Base;
 
-class VRPipe::Steps::bam_mark_duplicates with VRPipe::StepRole {
-    method options_definition {
-        return { markdup_options => VRPipe::StepOption->get(description => 'command line options for Picard MarkDuplicates', optional => 1, default_value => 'ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'),
-                 picard_path => VRPipe::StepOption->get(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
-                 java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
-                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
+class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
+    around options_definition {
+        return { %{$self->$orig},
+                 markdup_options => VRPipe::StepOption->get(description => 'command line options for Picard MarkDuplicates', optional => 1, default_value => 'ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'),
                 };
     }
     method inputs_definition {
