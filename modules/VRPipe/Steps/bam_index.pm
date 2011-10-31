@@ -55,7 +55,7 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
         
         my $correct_magic = [qw(102 101 111 001)];
         
-        if ($bai_file->check_magic($bai_file->path->absolute->stringify, $correct_magic)) {
+        if ($bai_file->check_magic($bai_file->path, $correct_magic)) {
             return 1;
         }
         else {
