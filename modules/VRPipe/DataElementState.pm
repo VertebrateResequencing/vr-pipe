@@ -33,7 +33,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             %step_numbers = map { $_ => 1 } @$step_numbers;
         }
         else {
-            $do_our_steps = 1;
+            %step_numbers = map { $_ => 1 } $self->our_step_numbers;
         }
         
         # get all the stepstates made for our dataelement and pipeline and
@@ -42,27 +42,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         my $rs = $schema->resultset('StepState')->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id });
         my @sss; # (we must go through the search results before using the objects, because in using them we disconnect from the db, breaking the search)
         while (my $ss = $rs->next) {
-            if ($do_our_steps) {
-                my $our_output_dir = $ss->stepmember->step(step_state => $ss)->output_root;
-                
-                my @ofiles = $ss->_output_files;
-                my $ours = 1;
-                foreach my $sof (@ofiles) {
-                    next if $sof->output_key eq 'temp';
-                    my $path = $sof->file->path;
-                    
-                    unless ($path =~ /^$our_output_dir/) {
-                        $ours = 0;
-                        last;
-                    }
-                }
-                
-                next unless $ours;
-            }
-            else {
-                next unless exists $step_numbers{$ss->stepmember->step_number};
-            }
-            
+            next unless exists $step_numbers{$ss->stepmember->step_number};
             push(@sss, $ss);
         }
         
@@ -74,6 +54,33 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         # we'll call it explicitly incase that ever changes
         $self->completed_steps(0);
         $self->update;
+    }
+    
+    method our_step_numbers {
+        my $schema = $self->result_source->schema;
+        my $rs = $schema->resultset('StepState')->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id });
+        my %step_nums;
+        while (my $ss = $rs->next) {
+            my $our_output_dir = $ss->stepmember->step(step_state => $ss)->output_root;
+            
+            my @ofiles = $ss->_output_files;
+            my $ours = 1;
+            foreach my $sof (@ofiles) {
+                next if $sof->output_key eq 'temp';
+                my $path = $sof->file->path;
+                
+                unless ($path =~ /^$our_output_dir/) {
+                    $ours = 0;
+                    last;
+                }
+            }
+            
+            $ours || next;
+            $step_nums{$ss->stepmember->step_number} = 1;
+        }
+        
+        my @step_nums = sort { $a <=> $b } keys %step_nums;
+        return @step_nums;
     }
 }
 
