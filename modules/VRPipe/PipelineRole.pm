@@ -90,11 +90,13 @@ role VRPipe::PipelineRole {
             my $module = "VRPipe::Pipelines::$name";
             
             #*** this causes a memory leak, complicated to resolve...
-            try { require $module; }
+            try { eval "require $module;";
+                  unless ($@) {
+                      my $obj = $module->new();
+                      $self->_construct_pipeline($obj->_step_list);
+                  }
+                }
             catch { return; }
-            
-            my $obj = $module->new();
-            $self->_construct_pipeline($obj->_step_list);
         }
     }
 }
