@@ -22,17 +22,15 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    #*** stepoutputfile rows are still there after using start_from_scratch...
-    
     method start_from_scratch (ArrayRef[PositiveInt] $step_numbers?) {
-        # by default, we'll start_over all steps that produced output files in
-        # the default output directory for our element
         my $do_our_steps = 0;
         my %step_numbers;
         if ($step_numbers && @$step_numbers > 0) {
             %step_numbers = map { $_ => 1 } @$step_numbers;
         }
         else {
+            # by default, we'll start_over all steps that produced output files
+            # unique to our own stepstates
             %step_numbers = map { $_ => 1 } $self->our_step_numbers;
         }
         
@@ -58,21 +56,36 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
     
     method our_step_numbers {
         my $schema = $self->result_source->schema;
+        
+        # get all our stepstates
         my $rs = $schema->resultset('StepState')->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id });
-        my %step_nums;
+        my @step_states;
+        my %ss_ids;
         while (my $ss = $rs->next) {
-            my $our_output_dir = $ss->stepmember->step(step_state => $ss)->output_root;
-            
+            push(@step_states, $ss);
+            $ss_ids{$ss->id} = 1;
+        }
+        
+        my %step_nums;
+        foreach my $ss (@step_states) {
             my @ofiles = $ss->_output_files;
             my $ours = 1;
+            # go through all the output files of our step state
             foreach my $sof (@ofiles) {
                 next if $sof->output_key eq 'temp';
-                my $path = $sof->file->path;
                 
-                unless ($path =~ /^$our_output_dir/) {
-                    $ours = 0;
-                    last;
+                # check that all other step states that output this same file
+                # are also our own step states
+                $rs = $schema->resultset('StepOutputFile')->search({ file => $sof->file->id });
+                while (my $other_sof = $rs->next) {
+                    my $other_ss = $other_sof->stepstate;
+                    unless (exists $ss_ids{$other_ss->id}) {
+                        $ours = 0;
+                        last;
+                    }
                 }
+                
+                last unless $ours;
             }
             
             $ours || next;
