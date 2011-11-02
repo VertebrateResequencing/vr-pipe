@@ -1,0 +1,302 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::Persistent::SchemaBase;
+
+use POSIX qw(ceil);
+use Getopt::Long;
+
+my $help = 0;
+my $retries = 3;
+my $deployment = 'production';
+my ($desired_ele, $desired_setup, $failed, $all, $start_from_scratch,
+    $no_report, $force_with_all);
+GetOptions("help" => \$help,
+           "deployment=s" => \$deployment,
+           "element=i" => \$desired_ele,
+           "setup=s" => \$desired_setup,
+           "failed" => \$failed,
+           "retries=i" => \$retries,
+           "all" => \$all,
+           "start_from_scratch" => \$start_from_scratch,
+           "no_report" => \$no_report,
+           "force_with_all" => \$force_with_all);
+
+if ($deployment !~ /^(?:testing|production)$/) {
+    warn "--deployment must be testing|production\n";
+    $help = 1;
+}
+
+if ($help) {
+    print <<HELP;
+See details related to incomplete element states:
+vrpipe-elements [options]
+
+Options:
+    --deployment <testing|production> (default production) See submissions in
+                                      your testing or production database
+    --element <int>      Show details for this single element state only
+    --setup <int|string> Only show details for elements that are part of the
+                         given pipeline setup (by id or name)
+    --failed             Only show elements that have have stalled in a pipeline
+                         due to repeated failures that couldn't be overcome
+                         automatically
+    --retries <int>      When using --failed, this is the number of retries are
+                         needed before something is considered to have stalled
+                         (default 3)
+    --all                Normally only details of incomplete elements are
+                         given; this shows even ones that are done (may be very
+                         slow)
+    
+After the above options have been used to filter the list of all elements,
+and their details have been printed to screen, the following options will let
+you take action on those elements (after a confirmation prompt):
+    --start_from_scratch For each pipeline you will be asked for a list of
+                         steps, and these will be fully reset so it is as if
+                         those steps had never been run for all the element
+                         states that went through that pipeline
+    --no_report          Don't print out full details of each element, just
+                         start_from_scratch as fast as possible
+    
+HELP
+    exit;
+}
+
+if ($all && $failed) {
+    warn "--all and --failed don't make sense togother; ignoring --all\n";
+    undef $all;
+}
+
+if ($all && ! $force_with_all && $start_from_scratch) {
+    die "Sorry, --all combined with --start_from_scratch seems like a really bad idea. Use --force_with_all if you're really really sure\n";
+}
+
+VRPipe::Persistent::SchemaBase->database_deployment($deployment);
+require VRPipe::Persistent::Schema;
+
+my $m = VRPipe::Manager->get;
+my $schema = $m->result_source->schema;
+
+my @setups;
+if ($desired_setup) {
+    if ($desired_setup =~ /^\d+$/) {
+        my $rs = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+        unless ($rs) {
+            die "$desired_setup is not a valid pipeline setup id\n";
+        }
+        @setups = ($rs);
+    }
+    else {
+        my $rs = $schema->resultset("PipelineSetup")->find({ name => $desired_setup });
+        unless ($rs) {
+            die "$desired_setup is not a valid pipeline setup name\n";
+        }
+        @setups = ($rs);
+    }
+}
+else {
+    my $rs = $schema->resultset('PipelineSetup');
+    while (my $ps = $rs->next) {
+        push(@setups, $ps);
+    }
+}
+
+my @element_states;
+if ($desired_ele) {
+    @element_states = (VRPipe::DataElementState->get(id => $desired_ele));
+}
+else {
+    foreach my $setup (@setups) {
+        if ($all) {
+            my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup, 'dataelement.withdrawn' => 0 },
+                                                                    { join => 'dataelement' });
+            
+            while (my $state = $rs->next) {
+                push(@element_states, $state);
+            }
+        }
+        else {
+            my $estates = $setup->datasource->incomplete_element_states($setup);
+            if ($failed) {
+                my $pipeline = $setup->pipeline;
+                foreach my $estate (@$estates) {
+                    my $rs = $schema->resultset('StepMember')->search({ step_number => ($estate->completed_steps + 1), pipeline => $pipeline });
+                    my @sms;
+                    while (my $sm = $rs->next) {
+                        push(@sms, $sm);
+                    }
+                    my $step_member;
+                    if (@sms == 1) {
+                        $step_member = $sms[0];
+                    }
+                    else {
+                        warn "element state ", $estate->id, " didn't have exactly 1 corresponding step member; skipping\n";
+                        next;
+                    }
+                    
+                    my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
+                    if ($sstate->complete) {
+                        warn "weird, I ment to get a failed stepstate for estate ", $estate->id, " at step ", ($estate->completed_steps + 1), " but it was complete! Skipping\n";
+                        next;
+                    }
+                    
+                    $rs = $schema->resultset('Submission')->search({ retries => $retries, '_failed' => 1, stepstate => $sstate });
+                    my $found = $rs->next;
+                    if ($found) {
+                        #*** can we combine all the above into one big search search query with multiple joins?...
+                        push(@element_states, $estate);
+                    }
+                }
+            }
+            else {
+                push(@element_states, @$estates);
+            }
+        }
+    }
+}
+
+my $count = 0;
+my %summary;
+my %for_scratching;
+foreach my $estate (@element_states) {
+    my $setup = $estate->pipelinesetup;
+    my $pipeline = $setup->pipeline;
+    my @stepms = $pipeline->step_members;
+    my $num_steps = @stepms;
+    my $pipe_name = $pipeline->name." ($num_steps steps)";
+    my $completed_steps = $estate->completed_steps;
+    my $last_step_name;
+    foreach my $stepm (@stepms) {
+        next unless $stepm->step_number == $completed_steps;
+        my $step = $stepm->step;
+        $last_step_name = $stepm->step->name." (step $completed_steps)";
+    }
+    
+    $count++;
+    $summary{$pipe_name}->{$last_step_name}++;
+    push(@{$for_scratching{$pipeline->id}}, $estate);
+    
+    next if $no_report;
+    
+    my $step_desc;
+    if ($completed_steps == $num_steps) {
+        $step_desc = ': complete!';
+    }
+    else {
+        my $current_step_num = $completed_steps + 1;
+        my ($step_member) = grep { $_->step_number == $current_step_num } @stepms;
+        my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
+        
+        my $rs = $schema->resultset('Submission')->search({ stepstate => $sstate->id });
+        my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
+        while (my $sub = $rs->next) {
+            if ($sub->failed) {
+                if ($sub->retries >= $retries) {
+                    $num_perm_failed++;
+                }
+                else {
+                    $num_failed++;
+                }
+            }
+            elsif ($sub->done) {
+                $num_done++;
+            }
+            else {
+                if ($sub->job->running) {
+                    $num_running++;
+                }
+                else {
+                    $num_scheduled++;
+                }
+            }
+        }
+        
+        my $current_step_name = $step_member->step->name;
+        my $status = $num_perm_failed ? 'STALLED' : 'working';
+        my @subs_desc;
+        if ($num_perm_failed) {
+            push(@subs_desc, "$num_perm_failed PERMANENTLY failed");
+        }
+        if ($num_failed) {
+            push(@subs_desc, "$num_failed temporarily failed");
+        }
+        if ($num_done) {
+            push(@subs_desc, "$num_done finished ok");
+        }
+        if ($num_running) {
+            push(@subs_desc, "$num_running currently running");
+        }
+        if ($num_scheduled) {
+            push(@subs_desc, "$num_scheduled scheduled to run");
+        }
+        my $subs_desc;
+        if (@subs_desc) {
+            $subs_desc = '(submission breakdown = '.join(', ', @subs_desc).')';
+        }
+        else {
+            $subs_desc = '(no submissons created for step state '.$sstate->id.' yet)';
+        }
+        
+        $step_desc = ": currently $status on $current_step_name $subs_desc";
+    }
+    
+    print "ElementState ", $estate->id, " for pipeline $pipe_name in setup ", $setup->id, " completed step $last_step_name$step_desc\n";
+}
+
+unless ($desired_ele) {
+    unless ($count == 0 || $no_report) {
+        print "\n";
+    }
+    print "$count element states passed your filter\n";
+    if ($count) {
+        print "Here's the break-down by the name of the step the element last completed successfully:\n";
+        while (my ($pipe_name, $step_details) = each %summary) {
+            print "  $pipe_name =>\n";
+            while (my ($name, $count) = each %$step_details) {
+                print "    $name => $count\n";
+            }
+        }
+    }
+}
+
+if ($count > 0 && $start_from_scratch) {
+    while (my ($pipeline_id, $estates) = each %for_scratching) {
+        my $count = @$estates;
+        my $pipeline = VRPipe::Pipeline->get(id => $pipeline_id);
+        warn "\nAre you sure you want to start $count data element states over from scratch for steps (that you'll choose next) in pipeline '", $pipeline->name, "'? [y/n]\n";
+        my $answer = <>;
+        chomp($answer);
+        if ($answer eq 'y') {
+            # give the user a step list to choose from, and provide them a
+            # reasonable default
+            warn "Provide a space-separated list of step numbers you'd like to start over from scratch (you should avoid steps that produce output shared by multiple elements/pipelines):\n";
+            foreach my $stepm ($pipeline->step_members) {
+                warn '  ', $stepm->step_number, ': ', $stepm->step->name, "\n";
+            }
+            my @default_steps = $estates->[0]->our_step_numbers;
+            warn '[', join(' ', @default_steps), "]\n";
+            $answer = <>;
+            chomp($answer);
+            my @desired_steps;
+            if ($answer) {
+                my $max = $pipeline->_num_steps;
+                @desired_steps = sort { $a <=> $b } grep { $_ =~ /^\d+$/ && $_ >= 1 && $_ <= $max } split(/\s+/, $answer);
+            }
+            else {
+                @desired_steps = @default_steps;
+            }
+            warn "Will redo steps ", join(', ', @desired_steps), "\n";
+            
+            foreach my $estate (@$estates) {
+                $estate->start_from_scratch(\@desired_steps);
+            }
+            warn "Done\n";
+        }
+        else {
+            warn "You said no, so skipping\n";
+        }
+    }
+}
+
+exit;
