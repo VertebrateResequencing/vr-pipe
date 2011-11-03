@@ -18,11 +18,6 @@ class VRPipe::DataElement extends VRPipe::Persistent {
                         traits => ['VRPipe::Persistent::Attributes'],
                         default => 0);
     
-    has '_changed_marker' => (is => 'rw',
-                             isa => Varchar[255],
-                             traits => ['VRPipe::Persistent::Attributes'],
-                             is_nullable => 1);
-    
     __PACKAGE__->make_persistent(); # has_many => [element_states => 'VRPipe::DataElementState'] doesn't work because of ordering issues?
     
     method element_states {
