@@ -106,7 +106,6 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 foreach my $meta (qw(expected_md5 reads bases)) {
                     next unless $new_metadata->{$meta};
                     if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
-                        $new_metadata->{fastq_file_changed} = 1;
                         $changed = 1;
                         last;
                     }
@@ -114,7 +113,6 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 foreach my $meta (qw(lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
                     next unless $new_metadata->{$meta};
                     if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
-                        $new_metadata->{hierarchical_info_changed} = 1;
                         $changed = 1;
                         last;
                     }
