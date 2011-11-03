@@ -88,11 +88,15 @@ role VRPipe::PipelineRole {
         if ($self->isa('VRPipe::Persistent')) {
             my $name = $self->name;
             my $module = "VRPipe::Pipelines::$name";
-            eval "require $module;";
-            unless ($@) {
-                my $obj = $module->new();
-                $self->_construct_pipeline($obj->_step_list);
-            }
+            
+            #*** this causes a memory leak, complicated to resolve...
+            try { eval "require $module;";
+                  unless ($@) {
+                      my $obj = $module->new();
+                      $self->_construct_pipeline($obj->_step_list);
+                  }
+                }
+            catch { return; }
         }
     }
 }

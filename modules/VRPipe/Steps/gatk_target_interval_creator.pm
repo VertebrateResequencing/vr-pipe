@@ -7,15 +7,11 @@ use VRPipe::Base;
 #  -known /path/to/Devine_Mills.indel_sites.vcf.gz \
 #  -known /path/to/1000Genomes.indel_sites.vcf.gz
 
-class VRPipe::Steps::gatk_target_interval_creator with VRPipe::StepRole {
-    method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
-        known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites'),
-                 target_intervals_options => VRPipe::StepOption->get(description => 'command line options for GATK RealignerTargetCreator; excludes -known options which are set by another StepOption', optional => 1),
-                 gatk_path => VRPipe::StepOption->get(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"),
-                 java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
-                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
-                };
+class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
+    around options_definition {
+        return { %{$self->$orig},
+                 known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites'),
+                 target_intervals_options => VRPipe::StepOption->get(description => 'command line options for GATK RealignerTargetCreator; excludes -known options which are set by another StepOption', optional => 1)};
     }
     method inputs_definition {
         return { };

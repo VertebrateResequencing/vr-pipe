@@ -1,3 +1,6 @@
+0.14    More front-end scripts added. Sequence index datasource now
+        starts changed elements over from scratch, so we can now change
+        the source file safely.
 0.13    Various fixes for pipelines. Memory leak issues fixed. Various
         front-end scripts added.
 0.12    Fixes for bam_mapping_with_bwa. New VCF annotation-related steps

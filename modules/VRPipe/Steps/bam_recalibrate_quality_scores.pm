@@ -8,13 +8,10 @@ use VRPipe::Base;
 #   -o<realigned.recalibrated.bam>   \
 #   -recalFile my_reads.recal_data.csv
 
-class VRPipe::Steps::bam_recalibrate_quality_scores with VRPipe::StepRole {
-    method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
+class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk {
+    around options_definition {
+        return { %{$self->$orig},
                  bam_recalibration_options => VRPipe::StepOption->get(description => 'command line options for GATK TableRecalibration', optional => 1, default_value => '-l INFO --disable_bam_indexing'),
-                 gatk_path => VRPipe::StepOption->get(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"),
-                 java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
-                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
                 };
     }
     method inputs_definition {

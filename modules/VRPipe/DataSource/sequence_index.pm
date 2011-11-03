@@ -135,7 +135,13 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
         my @elements = ();
         foreach my $lane (sort keys %$lanes_hash) {
             my $hash_ref = $lanes_hash->{$lane};
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $hash_ref->{paths}, lane => $lane}, changed => $hash_ref->{changed}, withdrawn => 0));
+            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $hash_ref->{paths}, lane => $lane}, withdrawn => 0));
+            
+            if ($hash_ref->{changed}) {
+                foreach my $estate ($elements[-1]->element_states) {
+                    $estate->start_from_scratch;
+                }
+            }
         }
         return \@elements;
     }

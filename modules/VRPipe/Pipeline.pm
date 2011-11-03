@@ -16,12 +16,12 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_nullable => 1);
     
-    __PACKAGE__->make_persistent(has_many => [steps => 'VRPipe::StepMember']); # *** do not call steps...
+    __PACKAGE__->make_persistent(has_many => [steps => 'VRPipe::StepMember']);
     
-    # for some bizarre reason, calling a method called steps (regardless of if
-    # the has_many option is given to make_persistent) causes a memory leak,
-    # so we define a method called step_members that does pretty much exactly
-    # what steps method did
+    # steps must be called to initially create stepmembers for a new pipeline,
+    # but currently causes a memory leak, so we want to call it only once.
+    # Everywhere else we call step_members to just get back the existing
+    # step members
     sub step_members {
         my $self = shift;
         my $schema = $self->result_source->schema;
