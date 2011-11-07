@@ -158,6 +158,11 @@ class VRPipe::StepState extends VRPipe::Persistent {
         $self->unlink_output_files;
         $self->complete(0);
         $self->update;
+        
+        # remove output file rows from the db
+        foreach my $sof ($self->_output_files) {
+            $sof->delete;
+        }
     }
 }
 

@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 5;
+    use Test::Most tests => 6;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -121,5 +121,10 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
            'java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file -l INFO --disable_bam_indexing',
            'samtools calmd -Erb $bam_file $reference_fasta > $bq_bam_file'],
           'cmd summaries for the major steps were as expected';
+
+# test start_from_scratch with this more complicated pipeline
+my $de_to_restart = VRPipe::DataElement->get(id => 1);
+my $des_to_restart = VRPipe::DataElementState->get(pipelinesetup => $mapping_pipelinesetup, dataelement => $de_to_restart);
+is_deeply [$des_to_restart->our_step_numbers], [3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18], 'our_step_numbers gave steps that are safe to restart';
 
 finish;
