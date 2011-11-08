@@ -4,6 +4,7 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
                  smalt_map_to_sam_options => VRPipe::StepOption->get(description => 'options to smalt map -f samsoft', optional => 1),
+                 smalt_map_to_sam_pe_options => VRPipe::StepOption->get(description => 'additional options for smalt map -f samsoft for paired end reads', optional => 1),
                  smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
     }
     method inputs_definition {
@@ -38,7 +39,9 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
             
             my $smalt_exe = $options->{smalt_exe};
             my $opts = $options->{smalt_map_to_sam_options};
+            my $opts_pe = $options->{smalt_map_to_sam_pe_options};
             $opts = $opts ? " $opts" : '';
+            $opts_pe = $opts_pe ? " $opts_pe" : '';
             if ($opts =~ /$ref|map|-i|-f|samsoft/) {
                 $self->throw("smalt_map_to_sam_options should not include the ref or -r or -i option, or the map sub command");
             }
@@ -80,11 +83,9 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                             my $mate_paths = $ends->{2};
                             push(@fqs, $mate_paths->[0]);
                             
-                           unless ($these_opts =~ /-i/) {
-                                my $insert_size = $fq_meta->{insert_size} || 2750;
-                                my $max = $insert_size * 2;
-                                $these_opts = "$opts -i $max";
-                            }
+                            my $insert_size = $fq_meta->{insert_size} || 2750;
+                            my $max = $insert_size * 2;
+                            $these_opts = "$opts$opts_pe -i $max";
                             
                             $reads += $fqs_by_path{$fqs[1]}->[3]->{reads};
                             $bases += $fqs_by_path{$fqs[1]}->[3]->{bases};
