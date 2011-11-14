@@ -5,6 +5,7 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
                  smalt_map_to_sam_options => VRPipe::StepOption->get(description => 'options to smalt map -f samsoft', optional => 1),
                  smalt_map_to_sam_pe_options => VRPipe::StepOption->get(description => 'additional options for smalt map -f samsoft for paired end reads', optional => 1),
+                 smalt_map_reverse_input_read_order => VRPipe::StepOption->get(description => 'option to reverse the order in which reads are inputted to smalt map', optional => 1, default_value => 0),
                  smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
     }
     method inputs_definition {
@@ -82,6 +83,9 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                         else {
                             my $mate_paths = $ends->{2};
                             push(@fqs, $mate_paths->[0]);
+                            if ($options->{smalt_map_reverse_input_read_order}) {
+                                @fqs = reverse @fqs;
+                            }
                             
                             my $insert_size = $fq_meta->{insert_size} || 2750;
                             my $max = $insert_size * 2;
