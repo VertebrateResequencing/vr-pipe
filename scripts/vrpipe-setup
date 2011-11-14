@@ -8,11 +8,13 @@ use Getopt::Long;
 
 my $help = 0;
 my $deployment = 'production';
-my ($desired_setup, $override_reqs, $list);
+my ($desired_setup, $override_reqs, $deactivate, $reactivate, $list);
 GetOptions("help" => \$help,
            "deployment=s" => \$deployment,
            "setup=s" => \$desired_setup,
            "requirements" => \$override_reqs,
+           "deactivate" => \$deactivate,
+           "reactivate" => \$reactivate,
            "list" => \$list);
 
 if ($deployment !~ /^(?:testing|production)$/) {
@@ -25,10 +27,23 @@ if ($desired_setup && $list) {
     $list = 0;
 }
 
+if (($override_reqs || $deactivate || $reactivate) && ! $desired_setup) {
+    warn "--requirments, --deactivate and --activate only make sense when given a --setup; ignoring them\n";
+    undef $override_reqs;
+    undef $deactivate;
+    undef $reactivate;
+}
+
+if ($deactivate && $reactivate) {
+    warn "--deactivate and --activate are mutually exclusive; ignoring them both\n";
+    undef $deactivate;
+    undef $reactivate;
+}
+
 if ($help) {
     print <<HELP;
 Setup a new pipeline, or alter the configuration of an existing one:
-vrpipe-status [options]
+vrpipe-setup [options]
 
 Options:
     --deployment <testing|production> (default production) Create/change
@@ -38,6 +53,8 @@ Options:
     --requirments         When changing an existing setup, be given the option
                           to override step resource requirments (eg. memory
                           needed)
+    --deactivate          Turn off the given --setup
+    --reactivate          Turn on the given --setup
     --list                Just list out the setup names and ids, so you can
                           subsequently run this using --setup
 
@@ -67,79 +84,100 @@ if ($desired_setup) {
 }
 
 if ($setup) {
-    # allow the user to change pipeline setup options
-    print "Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") currently has these options:\n";
-    
-    # Get a list of all options possible, without duplication
-    my %option_names;
-    my $option_num = 0;
-    my @options;
-    foreach my $stepm ($setup->pipeline->step_members) {
-        my $step = $stepm->step;
-        my $option_defs = $step->options_definition;
-        foreach my $key (sort keys %$option_defs) {
-            next if exists $option_names{$key};
-            $option_num++;
-            $option_names{$key} = $option_num;
-            
-            my $step_option = $option_defs->{$key};
-            $options[$option_num] = [$key, $step_option->description, $step_option->optional, $step_option->default_value, $step_option->allowed_values];
+    # are we de/reactivating it?
+    if ($deactivate || $reactivate) {
+        if ($deactivate) {
+            $setup->active(0);
         }
+        elsif ($reactivate) {
+            $setup->active(1);
+        }
+        $setup->update;
         
-        if ($override_reqs) {
-            # also give the generic memory/time etc. options user could set for this
-            # step
-            my $step_name = $step->name;
-            foreach my $resource (qw(memory time cpus tmp_space)) { # local_space custom
-                my $key = $step_name.'_'.$resource;
+        my $active = $setup->active;
+        
+        print "The 'active' state of Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") is now $active\n";
+    }
+    else {
+        # allow the user to change pipeline setup options
+        print "Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") currently has these options:\n";
+        
+        # Get a list of all options possible, without duplication
+        my %option_names;
+        my $option_num = 0;
+        my @options;
+        foreach my $stepm ($setup->pipeline->step_members) {
+            my $step = $stepm->step;
+            my $option_defs = $step->options_definition;
+            foreach my $key (sort keys %$option_defs) {
                 next if exists $option_names{$key};
                 $option_num++;
                 $option_names{$key} = $option_num;
-                $options[$option_num] = [$key, "Override the $resource requirement for the step '$step_name'", 1, '', []];
+                
+                my $step_option = $option_defs->{$key};
+                $options[$option_num] = [$key, $step_option->description, $step_option->optional, $step_option->default_value, $step_option->allowed_values];
             }
-        }
-    }
-    
-    # Show the user the list, along with currently set options, allow them to
-    # change an option, then repeat until they choose to finish
-    while (1) {
-        my $current_opts = $setup->options;
-        foreach my $i (1..$option_num) {
-            my ($key, $desc, $optional, $default, $allowed) = @{$options[$i]};
-            my $current = defined $current_opts->{$key} ? $current_opts->{$key} : '[not set]';
-            my $comment = $optional ? 'optional' : 'REQUIRED';
-            print "$i. $key ($comment) => $current\n";
-            print "\tDescription: $desc\n";
-            if ($default) {
-                print "\tDefault: $default\n";
-            }
-            if (@$allowed) {
-                print "\tAllowed values: ", join(' | ', @$allowed), "\n";
+            
+            if ($override_reqs) {
+                # also give the generic memory/time etc. options user could set for this
+                # step
+                my $step_name = $step->name;
+                foreach my $resource (qw(memory time cpus tmp_space)) { # local_space custom
+                    my $key = $step_name.'_'.$resource;
+                    next if exists $option_names{$key};
+                    $option_num++;
+                    $option_names{$key} = $option_num;
+                    $options[$option_num] = [$key, "Override the $resource requirement for the step '$step_name'", 1, '', []];
+                }
             }
         }
         
-        my $choice = pick_number("Choose an option to change", $option_num);
-        my $chosen_key = $options[$choice]->[0];
-        print STDERR "Provide a new value for '$chosen_key': ";
-        my $val = <>;
-        chomp($val);
-        $current_opts->{$chosen_key} = $val;
-        $setup->options($current_opts);
-        $setup->update;
-        print "Option updated!\n\n";
+        # Show the user the list, along with currently set options, allow them to
+        # change an option, then repeat until they choose to finish
+        while (1) {
+            my $current_opts = $setup->options;
+            foreach my $i (1..$option_num) {
+                my ($key, $desc, $optional, $default, $allowed) = @{$options[$i]};
+                my $current = defined $current_opts->{$key} ? $current_opts->{$key} : '[not set]';
+                my $comment = $optional ? 'optional' : 'REQUIRED';
+                print "$i. $key ($comment) => $current\n";
+                print "\tDescription: $desc\n";
+                if ($default) {
+                    print "\tDefault: $default\n";
+                }
+                if (@$allowed) {
+                    print "\tAllowed values: ", join(' | ', @$allowed), "\n";
+                }
+            }
+            
+            my $choice = pick_number("Choose an option to change", $option_num);
+            my $chosen_key = $options[$choice]->[0];
+            print STDERR "Provide a new value for '$chosen_key': ";
+            my $val = <>;
+            chomp($val);
+            $current_opts->{$chosen_key} = $val;
+            $setup->options($current_opts);
+            $setup->update;
+            print "Option updated!\n\n";
+            
+            print STDERR "Do you want to change another option? [y/n] n: ";
+            my $answer = <>;
+            chomp($answer);
+            last unless $answer eq 'y';
+            print "\n";
+        }
         
-        print STDERR "Do you want to change another option? [y/n] n: ";
-        my $answer = <>;
-        chomp($answer);
-        last unless $answer eq 'y';
-        print "\n";
+        # (probably not a good idea to allow changing datasource options?...)
     }
-    
-    # (probably not a good idea to allow changing datasource options?...)
 }
 elsif ($list) {
-    # list existing setups
-    system("vrpipe-status --deployment $deployment --list"); #*** bleugh...
+    # list existing setups, including those that have been deactivated
+    my $schema = $m->result_source->schema;
+    my $rs = $schema->resultset("PipelineSetup");
+    while (my $setup = $rs->next) {
+        my $active = $setup->active ? 'active' : 'inactive';
+        print "Pipeline Setup '", $setup->name, "' (id ", $setup->id, ", $active)\n";
+    }
 }
 else {
     # allow the user to create a new setup
