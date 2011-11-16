@@ -37,7 +37,7 @@ role VRPipe::DataSourceRole {
         return $elements;
     }
     
-    method _get_methods {
+    method get_methods {
         my $metarole = Moose::Meta::Role->initialize(__PACKAGE__);
         my @meta_methods = $metarole->get_method_list;
         push(@meta_methods, $metarole->get_attribute_list);
