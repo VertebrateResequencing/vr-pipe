@@ -1,6 +1,29 @@
 use VRPipe::Base;
     
 class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
+    method description {
+        return "Use information in a delimited text file.";
+    }
+    method source_description {
+        return "The path to a delimited text file.";
+    }
+    method method_description (Str $method) {
+        if ($method eq 'all') {
+            return "Each element will consist of a list of all the fields on a single line.";
+        }
+        elsif ($method eq 'single_column') {
+            return "Each element will consist of the entry of a particular column from a single line.";
+        }
+        elsif ($method eq 'all_columns') {
+            return "Each element will consist of a list of all the file paths on a single line.";
+        }
+        elsif ($method eq 'grouped_single_column') {
+            return "Each element will consist of the file paths given in a particular column, grouped by another column.";
+        }
+        
+        return '';
+    }
+    
     method all (Defined :$handle, Str :$delimiter, ArrayRef :$path_columns?) {
         my @elements;
         foreach my $result ($self->_all_results(handle => $handle, delimiter => $delimiter, $path_columns ? ( path_columns => $path_columns) : ())) {

@@ -3,6 +3,20 @@ use VRPipe::Base;
 class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
     use VRPipe::File;
     
+    method description {
+        return "Use a simple list of items in a file as your source.";
+    }
+    method source_description {
+        return "The path to a file with one item per line.";
+    }
+    method method_description (Str $method) {
+        if ($method eq 'all') {
+            return "Each element will correspond to a single line from the file.";
+        }
+        
+        return '';
+    }
+    
     method _open_source {
         my $file = $self->source_file;
         return $file->openr;

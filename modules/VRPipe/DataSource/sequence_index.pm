@@ -3,6 +3,20 @@ use VRPipe::Base;
 class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
     use VRPipe::Parser;
     
+    method description {
+        return "Use fastq files specified in a DCC sequence.index file, associating all the metadata available";
+    }
+    method source_description {
+        return "The path to a DCC sequence.index file; format details can be found here: http://www.1000genomes.org/formats#IndexFiles";
+    }
+    method method_description (Str $method) {
+        if ($method eq 'lane_fastqs') {
+            return "An element will comprise all the fastqs for a single lane (read group - column 3), and the fastq files will have metadata from the other columns associated with them.";
+        }
+        
+        return '';
+    }
+    
     method _open_source {
         my $file = $self->source_file;
         return VRPipe::Parser->create('sequence_index', {file => $file});
