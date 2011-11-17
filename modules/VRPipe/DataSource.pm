@@ -26,11 +26,6 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                       allow_key_to_default => 1,
                       is_key => 1);
     
-    has 'description' => (is => 'rw',
-                          isa => Text,
-                          traits => ['VRPipe::Persistent::Attributes'],
-                          is_nullable => 1);
-    
     has '_changed_marker' => (is => 'rw',
                              isa => Varchar[255],
                              traits => ['VRPipe::Persistent::Attributes'],
@@ -39,7 +34,8 @@ class VRPipe::DataSource extends VRPipe::Persistent {
     has '_source_instance' => (is => 'rw',
                                isa => 'Defined',
                                lazy => 1,
-                               builder => '_build_source');
+                               builder => '_build_source',
+                               handles => [qw(description source_description method_description)]);
     
     method _build_source {
         my $changed_marker = $self->_changed_marker;

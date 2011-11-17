@@ -111,7 +111,7 @@ foreach my $setup (@setups) {
             $num_steps_complete += $completed_steps;
             $status_hash{"$completed_steps steps completed"}++;
         }
-        display_hash('Breakdown', \%status_hash);
+        display_hash('Breakdown', \%status_hash, sub { my ($ay) = $a =~ /^(\d+)/; my ($be) = $b =~ /^(\d+)/; $ay <=> $be });
         
         my $steps_to_complete = $num_elements * $step_members;
         my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
@@ -128,9 +128,10 @@ foreach my $setup (@setups) {
 exit;
 
 sub display_hash {
-    my ($name, $hash) = @_;
+    my ($name, $hash, $sort) = @_;
+    $sort ||= sub { $a cmp $b };
     print $name, ":\n";
-    foreach my $key (sort keys %$hash) {
+    foreach my $key (sort $sort keys %$hash) {
         print "\t", $key, ' => ', $hash->{$key}, "\n";
     }
 }

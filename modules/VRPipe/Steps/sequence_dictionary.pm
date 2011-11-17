@@ -48,7 +48,7 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
         return 0; # meaning unlimited
     }
     
-    method dicter (ClassName|Object $self: Str|File :$ref, Str|File :$dict, Str :$constants?) {
+    method dicter (ClassName|Object $self: Str|File :$ref!, Str|File :$dict!, Str :$constants?) {
         my $pars = VRPipe::Parser->create('fasta', {file => $ref});
         
         my $dict_file = VRPipe::File->get(path => $dict);
