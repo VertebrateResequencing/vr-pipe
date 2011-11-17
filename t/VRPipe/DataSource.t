@@ -5,7 +5,7 @@ use Path::Class;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 15;
+    use Test::Most tests => 17;
     
     use_ok('VRPipe::DataSourceFactory');
     
@@ -77,6 +77,13 @@ foreach my $element (@{$ds->elements}) {
 }
 is_deeply \@results, [{paths => [file($cwd, 't/data/file.txt'), file($cwd, 't/data/file2.txt')]},
                       {paths => [file($cwd, 't/data/file3.txt'), file($cwd, 't/data/file.cat')]}], 'got correct results for delimited all_columns';
+
+# test get_methods and method_options
+$ds = $ds->_source_instance;
+is_deeply [sort $ds->get_methods], [qw(all all_columns grouped_single_column single_column)], 'get_methods returned all the expected methods';
+is_deeply [$ds->method_options('single_column')], [['named', 'delimiter', 1, undef, 'Str'],
+                                                   ['named', 'column', 1, undef, 'PositiveInt'],
+                                                   ['named', 'column_is_path', 0, 1, 'Bool']], 'method_options showed us what options the single_column method takes';
 
 # sequence_index
 ok $ds = VRPipe::DataSource->get(type => 'sequence_index',
