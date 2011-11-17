@@ -12,7 +12,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 'vrpipe-local_scheduler submit';
     }
     
-    method submit_args (VRPipe::Requirements :$requirements, File :$stdo_file, File :$stde_file, Str :$cmd, VRPipe::PersistentArray :$array?) {
+    method submit_args (VRPipe::Requirements :$requirements!, File :$stdo_file!, File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
         my $array_def = '';
         my $output_string;
         if ($array) {

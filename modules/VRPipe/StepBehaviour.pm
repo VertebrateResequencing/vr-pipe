@@ -35,7 +35,7 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method behave (VRPipe::DataElement :$data_element, VRPipe::PipelineSetup :$pipeline_setup) {
+    method behave (VRPipe::DataElement :$data_element!, VRPipe::PipelineSetup :$pipeline_setup!) {
         my $go_ahead = 0;
         my $regulated_by = $self->regulated_by;
         if ($regulated_by) {

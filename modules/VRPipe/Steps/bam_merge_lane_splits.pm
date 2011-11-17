@@ -145,7 +145,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         return 0; # meaning unlimited
     }
     
-    method merge_and_check (ClassName|Object $self: Str|File :$samtools, Str|File :$dict, Str|File :$output, Persistent :$step_state, ArrayRef[Str|File] :$bams) {
+    method merge_and_check (ClassName|Object $self: Str|File :$samtools!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, ArrayRef[Str|File] :$bams!) {
         # make a nice sam header
         my $header_file = VRPipe::File->get(path => $output.'.header');
         my $header_path = $header_file->path;

@@ -22,7 +22,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
         return VRPipe::Parser->create('sequence_index', {file => $file});
     }
     
-    method lane_fastqs (Defined :$handle, Bool :$ignore_withdrawn = 1, Str|Dir :$remote_root_dir?, Str|Dir :$local_root_dir?, Bool :$require_fastqs?, Str :$platform?, Str :$analysis_group?) {
+    method lane_fastqs (Defined :$handle!, Bool :$ignore_withdrawn = 1, Str|Dir :$remote_root_dir?, Str|Dir :$local_root_dir?, Bool :$require_fastqs?, Str :$platform?, Str :$analysis_group?) {
         if ($remote_root_dir && ! $local_root_dir) {
             $self->throw("when remote_root_dir is specified, local_root_dir is required");
         }
