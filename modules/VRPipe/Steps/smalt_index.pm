@@ -42,7 +42,7 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
                                    metadata => { index_base => $index_base_path->stringify });
             }
             
-            $self->dispatch([$cmd, $self->new_requirements(memory => 3900, time => 1), {block_and_skip_if_ok => 1}]);
+            $self->dispatch([$cmd, $self->new_requirements(memory => 6000, time => 1), {block_and_skip_if_ok => 1}]);
         };
     }
     method outputs_definition {
