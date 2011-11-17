@@ -341,7 +341,7 @@ sub describe_io_def {
     my $io_def = shift;
     
     print "\tFile type = ", $io_def->type, " (", $io_def->description, ")\n";
-    my $files_comment = $io_def->check_existence ? 'and the must exist' : "and they don't have to exist yet";
+    my $files_comment = $io_def->check_existence ? 'and they must exist' : "and they don't have to exist yet";
     my $max = $io_def->max_files;
     if ($max == -1) {
         $max = 'unlimited';
