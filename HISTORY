@@ -1,3 +1,5 @@
+0.15    Front-end for creating PipelineSetups; improvements to smalt
+        mapping so we can map 454 data in 1000 genomes.
 0.14    More front-end scripts added. Sequence index datasource now
         starts changed elements over from scratch, so we can now change
         the source file safely.

@@ -201,7 +201,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # and serially running the jobs one-at-a-time itself.
     }
     
-    method build_command_line (VRPipe::Requirements :$requirements, PersistentObject :$for, PositiveInt :$heartbeat_interval?) {
+    method build_command_line (VRPipe::Requirements :$requirements!, PersistentObject :$for!, PositiveInt :$heartbeat_interval?) {
         # figure out where STDOUT & STDERR of the scheduler should go
         my $output_dir = $self->output_dir($for);
         
@@ -280,65 +280,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         }
         return 1;
     }
-    
-=pod
-    # query and manipulate a particular submission (these methods access the
-    # scheduler itself, so should normally be avoided; use Submission and Job
-    # methods to track state instead):
-    if ($sub->scheduled) {
-       # $sub->scheduled means that $sub has a ->sid, which is what the following
-       # methods extract to work the answers out. It does intellegent caching of
-       # data extracted from the scheduler for a given sid, so all these repeated
-       # calls may only result in ~1 system call.
-       
-       if ($sch->pending($sub)) {
-           my $current_queue = $sch->queue($sub);
-       }
-       elsif ($sch->running($sub)) {
-           # perhaps you want to clear out a submission that you know from the
-           # job itself has already finished, but the scheduler has gotten
-           # 'stuck':
-           $sch->kill($sub);
-           # this tries a normal kill and waits for the ->sid to be cleared, and
-           # failing that tries again with a more severe kill/clear if the
-           # scheduler supports such a thing. Eventually it will return boolean
-           # depending on if the kill was successful (->sid is no longer visible
-           # in the list of sids presented by the scheduler).
-           
-           # or perhaps you've noticed the run time is approaching the limit you
-           # set in Requirements, and you want to switch queues before the
-           # scheduler kills your job:
-           $sch->switch_queues($sub);
-           # this method recalcluates the queue given the current Requirments
-           # object associated with $sub, and if this is different from ->queue,
-           # then it will attempt a queue switch and return 1 if successful, 0 if
-           # no switch was necessary, and -1 if the switch failed.
-       }
-       elsif ($sch->finished($sub)) {
-           # these methods fall back on reading the output files on disc if the
-           # scheduler has forgotten about the sid in question:
-           if ($sch->done($sub)) {
-               # yay!
-           }
-           elsif ($sch->failed($sub)) {
-               my $exit_code = $sch->exit_code($sub);
-               if ($sch->ran_out_of_memory) { ... }
-               elsif ($sch->ran_out_of_time) { ... }
-               elsif ($sch->killed) {
-                   # Submission finished due to something like ->kill being called;
-                   # ie. the user killed the job deliberly, so a resubmission could
-                   # work
-               }
-               else {
-                   # Submission ended due to the Job crashing for some other
-                   # unknown reason. You should make sure $sub->update_status() got
-                   # called, and then use Submission methods to investigate the
-                   # STDOUT and STDERR files.
-               }
-           }
-       }
-    }
-=cut
     
     __PACKAGE__->make_persistent();
 }

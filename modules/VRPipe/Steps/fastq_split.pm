@@ -103,7 +103,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
            chunk_size => int (max number of bases per chunk)
 
 =cut
-    method fastq_split (ClassName|Object $self: Str|Dir :$split_dir, ArrayRef[Str|File] :$fastqs, PositiveInt :$chunk_size) {
+    method fastq_split (ClassName|Object $self: Str|Dir :$split_dir!, ArrayRef[Str|File] :$fastqs!, PositiveInt :$chunk_size!) {
         -d $split_dir || $self->throw("fastq_split split_dir '$split_dir' does not exist");
         
         my $splits = $self->_splits($fastqs, $chunk_size);
@@ -319,7 +319,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
         return $split_num;
     }
     
-    method fastq_split_outs (ClassName|Object $self: Str|Dir :$split_dir, ArrayRef[Str|File] :$fastqs, PositiveInt :$chunk_size) {
+    method fastq_split_outs (ClassName|Object $self: Str|Dir :$split_dir!, ArrayRef[Str|File] :$fastqs!, PositiveInt :$chunk_size!) {
         my $splits = $self->_splits($fastqs, $chunk_size);
         
         my @outs;

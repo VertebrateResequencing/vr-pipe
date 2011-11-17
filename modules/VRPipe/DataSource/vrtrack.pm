@@ -33,7 +33,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $self->_changed_marker('changed');
     }
     
-    method lanes (Defined :$handle,
+    method lanes (Defined :$handle!,
                   ArrayRef :$project?,
                   ArrayRef :$sample?,
                   ArrayRef :$individual?,

@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 
-use lib '/nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe/modules';
 use VRPipe::Persistent::SchemaBase;
 use Module::Find;
 
@@ -231,7 +230,7 @@ else {
     # pick a method
     print "\n";
     my $chosen_method;
-    my @method_names = $ds->_get_methods;
+    my @method_names = $ds->get_methods;
     if (@method_names == 1) {
         $chosen_method = $method_names[0];
         print "The $chosen_ds_type DataSource has only one method: $chosen_method (", $ds->method_description($chosen_method), ")\n";
@@ -342,7 +341,7 @@ sub describe_io_def {
     my $io_def = shift;
     
     print "\tFile type = ", $io_def->type, " (", $io_def->description, ")\n";
-    my $files_comment = $io_def->check_existence ? 'and the must exist' : "and they don't have to exist yet";
+    my $files_comment = $io_def->check_existence ? 'and they must exist' : "and they don't have to exist yet";
     my $max = $io_def->max_files;
     if ($max == -1) {
         $max = 'unlimited';
