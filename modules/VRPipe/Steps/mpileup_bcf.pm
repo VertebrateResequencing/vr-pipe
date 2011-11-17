@@ -34,7 +34,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
                 my $bcf_path = $bcf_file->path;
 
                 my $cmd = qq[$samtools mpileup $mpileup_opts $bam_path > $bcf_path];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::mpileup_bcf', 'mpileup_bcf', [$cmd, $req, {output_files => [$bcf_file]}]); 
+                $self->dispatch([$cmd, $req, {output_files => [$bcf_file]}]); 
             }
         };
     }
@@ -50,19 +50,6 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method max_simultaneous {
         return 0; # meaning unlimited
     }
-    method mpileup_bcf (ClassName|Object $self: Str $cmd_line) {
-        my ($bam_path, $bcf_path) = $cmd_line =~ / (\S+) > (\S+)$/;
-        
-        my $bam_file = VRPipe::File->get(path => $bam_path);
-        my $bcf_file = VRPipe::File->get(path => $bcf_path);
-        
-        $bam_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-        
-        $bcf_file->update_stats_from_disc;
-        
-    }
-
 }
 
 1;

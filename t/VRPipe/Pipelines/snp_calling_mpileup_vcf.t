@@ -39,7 +39,6 @@ my $element_id = 0;
 foreach my $file (@files) {
   $element_id++;
   $file =~ s/bam$/vcf.gz/;
-  print STDERR ("$element_id: $file", output_subdirs($element_id),"\n");
   push(@output_files, file($output_dir, output_subdirs($element_id), 'mpileup_vcf', $file));
 }
 
