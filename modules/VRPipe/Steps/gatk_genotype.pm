@@ -14,9 +14,10 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 genotyper_opts => VRPipe::StepOption->get(description => 'options for GATK UnifiedGenotyper'),
+                 genotyper_opts => VRPipe::StepOption->get(description => 'options for GATK UnifiedGenotyper, excluding -R,-D,-I,-o'),
                  dbsnp_ref => VRPipe::StepOption->get(description => 'absolute path to dbsnp reference file used to populate the vcf ID column', optional => 1, default_value => '/lustre/scratch105/projects/g1k/ref/broad_recal_data/dbsnp_130_b37.rod'),
                  reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta', optional => 1, default_value => '/lustre/scratch105/projects/g1k/ref/main_project/human_g1k_v37.fasta'),
+                 max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', optional => 1, default_value => 10),
                };
     }
 
@@ -35,6 +36,7 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
             my $reference_fasta = $options->{reference_fasta};
             my $dbsnp_ref = $options->{dbsnp_ref};
             my $genotyper_opts = $options->{genotyper_opts};
+            my $max_cmdline_bams = $options->{max_cmdline_bams};
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
                                   version => $gatk->determine_gatk_version(),
@@ -42,28 +44,31 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $gatk->jvm_args($req->memory);
+
+			if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
+				$self->warn("[todo] Generate a bam fofn");
+			}
             
+			my $bam_list;
             foreach my $bam (@{$self->inputs->{bam_files}}) {
-
                 my $bam_path = $bam->path;
-				my $basename = $bam->basename;
-				$basename =~ s/bam$/vcf.gz/;
-                my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'bin');
-                my $vcf_path = $vcf_file->path;
-
-				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T UnifiedGenotyper -R $reference_fasta -D $dbsnp_ref $genotyper_opts -I $bam_path -o $vcf_path ];
-                $self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
+				$bam_list .= "-I $bam_path ";
             }
+			my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "gatk_var.vcf.gz", type => 'bin');
+			my $vcf_path = $vcf_file->path;
+
+			my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T UnifiedGenotyper -R $reference_fasta -D $dbsnp_ref $genotyper_opts $bam_list -o $vcf_path ];
+			$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
         };
     }
     method outputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a .vcf.gz file for each input bam file') };
+        return { vcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a .vcf.gz file for each set of input bam files') };
     }
     method post_process_sub {
         return sub { return 1; };
     }
     method description {
-        return "Run gatk UnifiedGenotyper, generating one vcf per bam";
+        return "Run gatk UnifiedGenotyper for one or more bams, generating one vcf per set of bams";
     }
     method max_simultaneous {
         return 0; # meaning unlimited

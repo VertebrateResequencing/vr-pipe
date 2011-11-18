@@ -22,21 +22,24 @@ my @expected_step_names = qw(gatk_genotype);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_gatk_vcf pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data hs_chr20.bam.fofn))),
+		datasource => VRPipe::DataSource->get(type => 'delimited',
+			method => 'all_columns',
+			options => { delimiter => "\t" },
+			source => file(qw(t data hs_chr20.bam.fofn))),
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { cleanup => 0, 
 		dbsnp_ref => file(qw(t data dbsnp_130_b37.chr20.reduced.rod))->absolute->stringify,
 		reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
 		genotyper_opts => '-stand_call_conf 50.0 -stand_emit_conf 10.0 ', }
-);
+		);
 
 my (@output_files,@final_files);
-my @files = ('hs_chr20.a.bam','hs_chr20.b.bam');
+my @files = ('hs_chr20.a.bam','hs_chr20.c.bam');
 my $element_id = 0;
-foreach my $file (@files) {
+foreach (@files) {
   $element_id++;
-  $file =~ s/bam$/vcf.gz/;
+  my $file = 'gatk_var.vcf.gz';
   push(@output_files, file($output_dir, output_subdirs($element_id), 'gatk_genotype', $file));
 }
 
