@@ -40,7 +40,7 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
     method max_simultaneous {
         return 0; # meaning unlimited
     }
-    method tag_strip (ClassName|Object $self: Str|File $in_bam, Str|File $out_bam, ArrayRef[Str] :$tags_to_strip) {
+    method tag_strip (ClassName|Object $self: Str|File $in_bam!, Str|File $out_bam!, ArrayRef[Str] :$tags_to_strip!) {
         @{$tags_to_strip} > 0 || $self->throw("You must supply tags to be strippped");
         
         unless (ref($in_bam) && ref($in_bam) eq 'VRPipe::File') {

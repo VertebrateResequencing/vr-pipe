@@ -90,10 +90,10 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
         $output_file->update_stats_from_disc;
         my $output_lines = $output_file->lines;
         
-	# Should have extra header lines
+	# Should have an extra header line, but possible that duplicate header lines were removed
         unless ($output_lines >= $input_lines) {
             $output_file->unlink;
-            $self->throw("Output VCF has $output_lines lines, less than input $input_lines");
+            $self->warn("Output VCF has $output_lines lines, less than input $input_lines");
         }
         else {
             return 1;

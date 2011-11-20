@@ -319,10 +319,7 @@ role VRPipe::StepRole {
         return &$ref($self);
     }
     
-    method output_file (Str :$output_key, File|Str :$basename, FileType :$type, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
-        #*** for some bizarre reason, type can be left out and the checking doesn't complain!
-        $self->throw("type must be supplied") unless $type;
-        
+    method output_file (Str :$output_key!, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
         $output_dir ||= $self->output_root;
         $output_dir = dir($output_dir);
         if ($sub_dir) {
@@ -446,7 +443,7 @@ role VRPipe::StepRole {
         }
     }
     
-    method new_requirements (Int :$memory, Int :$time, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
+    method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
         # user can override settings set in the step body_sub by providing
         # options
         my $options = $self->options;

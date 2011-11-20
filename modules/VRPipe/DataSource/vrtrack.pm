@@ -4,6 +4,20 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     use VertRes::Utils::VRTrackFactory;
     use VertRes::Utils::Hierarchy;
     
+    method description {
+        return "Use a VRTrack database to extract information from";
+    }
+    method source_description {
+        return "The name of the VRTrack database; assumes your database connection details are held in the normal set of VRTrack-related environment variables";
+    }
+    method method_description (Str $method) {
+        if ($method eq 'lanes') {
+            return "An element will comprise the name of a lane (only).";
+        }
+        
+        return '';
+    }
+    
     method _open_source {
         return VertRes::Utils::VRTrackFactory->instantiate(database => $self->source, mode => 'r');
     }
@@ -19,7 +33,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $self->_changed_marker('changed');
     }
     
-    method lanes (Defined :$handle,
+    method lanes (Defined :$handle!,
                   ArrayRef :$project?,
                   ArrayRef :$sample?,
                   ArrayRef :$individual?,

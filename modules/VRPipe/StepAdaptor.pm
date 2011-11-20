@@ -20,7 +20,7 @@ class VRPipe::StepAdaptor extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method adapt (Str :$input_key, PreviousStepOutput :$pso?, VRPipe::DataElement :$data_element?) {
+    method adapt (Str :$input_key!, PreviousStepOutput :$pso?, VRPipe::DataElement :$data_element?) {
         if ((defined $pso ? 1 : 0) + (defined $data_element ? 1 : 0) != 1) {
             $self->throw("Exactly one of pso or data_element must be supplied");
         }

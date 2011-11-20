@@ -50,7 +50,7 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
         return 0; # meaning unlimited
     }
     
-    method download_fastq (ClassName|Object $self: Str :$source, Str|File :$dest) {
+    method download_fastq (ClassName|Object $self: Str :$source!, Str|File :$dest!) {
         my $fq_file = VRPipe::File->get(path => $dest);
         my $meta = $fq_file->meta;
         my $expected_md5 = $meta->{expected_md5};

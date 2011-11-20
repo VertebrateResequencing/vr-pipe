@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use VRPipe::Persistent::SchemaBase;
+use Module::Find;
 
 use Getopt::Long;
 
@@ -67,8 +68,9 @@ require VRPipe::Persistent::Schema;
 
 my $setup;
 my $m = VRPipe::Manager->get;
+my $schema = $m->result_source->schema;
+
 if ($desired_setup) {
-    my $schema = $m->result_source->schema;
     if ($desired_setup =~ /^\d+$/) {
         $setup = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
         unless ($setup) {
@@ -152,17 +154,13 @@ if ($setup) {
             
             my $choice = pick_number("Choose an option to change", $option_num);
             my $chosen_key = $options[$choice]->[0];
-            print STDERR "Provide a new value for '$chosen_key': ";
-            my $val = <>;
-            chomp($val);
+            my $val = ask_question("Provide a new value for '$chosen_key'");
             $current_opts->{$chosen_key} = $val;
             $setup->options($current_opts);
             $setup->update;
             print "Option updated!\n\n";
             
-            print STDERR "Do you want to change another option? [y/n] n: ";
-            my $answer = <>;
-            chomp($answer);
+            my $answer = ask_question("Do you want to change another option?", [qw(y n)], 'n');
             last unless $answer eq 'y';
             print "\n";
         }
@@ -172,7 +170,6 @@ if ($setup) {
 }
 elsif ($list) {
     # list existing setups, including those that have been deactivated
-    my $schema = $m->result_source->schema;
     my $rs = $schema->resultset("PipelineSetup");
     while (my $setup = $rs->next) {
         my $active = $setup->active ? 'active' : 'inactive';
@@ -181,28 +178,304 @@ elsif ($list) {
 }
 else {
     # allow the user to create a new setup
-    die "Creating new setups is not yet implemented\n";
+    my $setup_name = ask_question("What would you like to call your new pipeline setup?", undef, undef, 1, \&already_exists, 'PipelineSetup', 'name');
+    my $pipeline = ask_for_object("Pick a pipeline from the list to run", 'Pipeline', 'name');
+    my @sms = $pipeline->steps;
+    my @steps = map { $_->step } @sms;
+    
+    # find the step that whoes input is the data element
+    my @adaptors = $schema->resultset('StepAdaptor')->search({ pipeline => $pipeline->id });
+    my ($source_input_step_num, $source_input_step_kind);
+    ADAP: foreach my $adaptor (@adaptors) {
+        my $hash = $adaptor->adaptor_hash;
+        while (my ($kind, $ins_hash) = each %$hash) {
+            if (exists $ins_hash->{data_element}) {
+                $source_input_step_num = $adaptor->to_step;
+                $source_input_step_kind = $kind;
+                last ADAP;
+            }
+        }
+    }
+    unless ($source_input_step_num) {
+        die "Your chosen pipeline doesn't seem to accept any user input!\n";
+    }
+    
+    # figure out what sort of input data is expected
+    my ($source_input_step) = map { $_->step; } grep { $_->step_number == $source_input_step_num } @sms;
+    my $source_input_io_def = $source_input_step->inputs_definition->{$source_input_step_kind};
+    print "Your chosen pipeline takes DataSource input during step $source_input_step_num (", $source_input_step->name, " - ", $source_input_step->description, "), which expects:\n";
+    describe_io_def($source_input_io_def);
+    
+    # ask the user for the DataSource details
+    my @ds_types;
+    my $ds_num = 0;
+    print "\n";
+    foreach my $ds_type (sub_modules('DataSource')) {
+        $ds_num++;
+        my $ds_module = "VRPipe::DataSource::$ds_type";
+        eval "require $ds_module;";
+        my $ds = $ds_module->new;
+        print "$ds_num. $ds_type (", $ds->description, ")\n";
+        $ds_types[$ds_num] = $ds_type;
+    }
+    my $chosen_ds_num = pick_number("Pick a DataSource type from the list", $ds_num);
+    my $chosen_ds_type = $ds_types[$chosen_ds_num];
+    
+    # get the source
+    my $ds_module = "VRPipe::DataSource::$chosen_ds_type";
+    my $ds = $ds_module->new;
+    print "$chosen_ds_type DataSources have a source described as:\n", $ds->source_description, "\n";
+    my $ds_source = ask_question("Supply the source", undef, undef, 1);
+    
+    # pick a method
+    print "\n";
+    my $chosen_method;
+    my @method_names = $ds->get_methods;
+    if (@method_names == 1) {
+        $chosen_method = $method_names[0];
+        print "The $chosen_ds_type DataSource has only one method: $chosen_method (", $ds->method_description($chosen_method), ")\n";
+    }
+    else {
+        my $method_num = 0;
+        my @ds_methods;
+        foreach my $method (@method_names) {
+            $method_num++;
+            print "$method_num. $method (", $ds->method_description($method), ")\n";
+            $ds_methods[$method_num] = $method;
+        }
+        my $chosen_method_num = pick_number("Pick one of the $chosen_ds_type DataSource methods from the list", $method_num);
+        $chosen_method = $ds_methods[$chosen_method_num];
+    }
+    
+    # pick method options
+    my %chosen_method_args;
+    my @method_opts = $ds->method_options($chosen_method);
+    if (@method_opts) {
+        print "\nPlease provide your options to the '$chosen_method' method:\n";
+        foreach my $method_opt (@method_opts) {
+            my ($kind, $name, $req, $default, $constraint) = @$method_opt;
+            next unless $kind eq 'named';
+            my $comment = $req ? 'REQUIRED' : 'optional';
+            my $arg = ask_question("\t$name ($comment, a $constraint)", undef, $default, $req);
+            if (defined $arg && "$arg" ne '') {
+                $chosen_method_args{$name} = $arg;
+            }
+        }
+    }
+    else {
+        print "(the '$chosen_method' method has no options)\n";
+    }
+    
+    # pick pipeline (step) options
+    my %step_options;
+    my %step_option_order;
+    my $soo_i = 0;
+    foreach my $step (@steps) {
+        my $step_name = $step->name;
+        my $def = $step->options_definition;
+        while (my ($key, $vso) = each %$def) {
+            unless (exists $step_options{$key}) {
+                $soo_i++;
+                $step_option_order{$soo_i} = $key;
+            }
+            
+            push(@{$step_options{$key}->{steps}}, $step_name);
+            # *** how do we better handle different steps having the same option
+            #     key but different vsos? Ignored for now; we just use the last
+            $step_options{$key}->{vso} = $vso;
+        }
+    }
+    my %pipeline_args;
+    if (keys %step_options) {
+        print "\nPlease provide options for the '", $pipeline->name, "' pipeline:\n";
+        foreach my $soo_i (sort { $a <=> $b } keys %step_option_order) {
+            my $key = $step_option_order{$soo_i};
+            my @steps = @{$step_options{$key}->{steps}};
+            my $vso = $step_options{$key}->{vso};
+            my $comment = $vso->optional ? 'optional' : 'REQUIRED';
+            $comment .= ', used by step';
+            $comment .= 's' if @steps > 1;
+            my $arg = ask_question("\t$key ($comment ".join(", ", @steps).")\n\t".$vso->description, $vso->allowed_values, $vso->default_value, ! $vso->optional); #*** could vso be altered so that it could actually validate the answer right away?...
+            if (defined $arg && "$arg" ne '') {
+                $pipeline_args{$key} = $arg;
+            }
+        }
+    }
+    else {
+        print "\n(the ", $pipeline->name, " pipeline has no options)\n";
+    }
+    
+    # *** ask for resource requirment overrides for each step? But we don't
+    #     know what defaults each step has...
+    
+    # output root?
+    my $output_root = ask_question("Please provide the absolute path to the root directory that output files will be written to", undef, undef, 1);
+    
+    # confirm with the user everything is correct
+    print "\nWe've now gathered all information; here's what you've asked for:\n";
+    print "\tPipelineSetup name: $setup_name\n";
+    print "\tDataSource: $chosen_ds_type\->$chosen_method with source $ds_source\n";
+    while (my ($key, $val) = each %chosen_method_args) {
+        print "\t\t$key => $val\n";
+    }
+    print "\tPipeline: ", $pipeline->name, " (outputting to $output_root)\n";
+    while (my ($key, $val) = each %pipeline_args) {
+        print "\t\t$key => $val\n";
+    }
+    my $correct = ask_question("Is all of this correct?", [qw(y n)], undef, 1);
+    
+    # actually create the datasource and pipelinesetup
+    if ($correct eq 'y') {
+        my $ds = VRPipe::DataSource->get(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args);
+        my $ps = VRPipe::PipelineSetup->get(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args);
+        print "\nYour new PipelineSetup has been created!\nName: $setup_name; Id: ", $ps->id, " (remember at least one of these for use later)\n";
+    }
+    else {
+        die "Abandoning the setup, nothing was done\n";
+    }
 }
 
 exit;
 
-sub pick_number {
-    my ($question, $max) = @_;
+sub describe_io_def {
+    my $io_def = shift;
     
-    print STDERR "\n$question: ";
+    print "\tFile type = ", $io_def->type, " (", $io_def->description, ")\n";
+    my $files_comment = $io_def->check_existence ? 'and they must exist' : "and they don't have to exist yet";
+    my $max = $io_def->max_files;
+    if ($max == -1) {
+        $max = 'unlimited';
+    }
+    print "\tNumber of files = ", $io_def->min_files, '..', $max, " ($files_comment)\n";
+    my $metadata = $io_def->metadata;
+    if (keys %$metadata) {
+        print "\tFiles must also have the following metadata associated with them (so be sure to pick a DataSource capable of adding this metadata):\n";
+        my %optional = map { $_ => 1 } @{delete $metadata->{optional}};
+        foreach my $key (sort keys %$metadata) {
+            my $val = $metadata->{$key};
+            my $comment = exists $optional{$key} ? 'optional' : 'REQUIRED';
+            print "\t\t$key => $val ($comment)\n";
+        }
+    }
+}
+
+sub sub_modules {
+    my $base = shift;
+    $base = "VRPipe::$base";
+    my @modules = findsubmod $base;
+    unless (@modules) {
+        @modules = findsubmod "${base}s";
+    }
+    my @names;
+    foreach my $module (@modules) {
+        my ($name) = $module =~ /::([^:]+)$/;
+        push(@names, $name);
+    }
+    return @names;
+}
+
+sub make_all_objects {
+    my $class = shift;
+    my @modules = sub_modules($class);
+    $class = "VRPipe::$class";
+    foreach my $name (@modules) {
+        $class->get(name => $name);
+    }
+}
+
+sub ask_for_object {
+    my ($question, $class, $column) = @_;
+    make_all_objects($class);
+    my $rs = $schema->resultset($class);
+    my @things;
+    while (my $thing = $rs->next) {
+        push(@things, $thing);
+    }
+    my %things = map { $_->$column => $_ } @things;
+    my @thing_keys = sort keys %things;
+    print "\n";
+    my %num_to_key;
+    foreach my $i (0..$#thing_keys) {
+        my $num = $i + 1;
+        my $key = $thing_keys[$i];
+        $num_to_key{$num} = $key;
+        print "$num. $key";
+        my $obj = $things{$key};
+        if ($obj->can('description')) {
+            print ' [', $obj->description, ']';
+        }
+        print "\n";
+    }
+    my $chosen_num = pick_number($question, scalar(@thing_keys));
+    return $things{$num_to_key{$chosen_num}};
+}
+
+sub already_exists {
+    my ($class, $key, $value) = @_;
+    my @found = $schema->resultset($class)->search({ $key => $value });
+    if (@found) {
+        return "a $class already exists with $key '$value'";
+    }
+    return;
+}
+
+sub ask_question {
+    my ($question, $possibles, $default, $required, $not_allowed, @na_args) = @_;
+    undef $possibles unless $possibles && @$possibles;
+    
+    print STDERR "\n$question";
+    my %allowed;
+    if ($possibles) {
+        print STDERR " <", join('|', @$possibles), ">";
+        %allowed = map { $_ => 1 } @$possibles;
+    }
+    if ($default) {
+        print STDERR " [$default]";
+    }
+    print STDERR ": ";
     
     my $answer;
     do {
         $answer = <>;
         chomp($answer);
         
-        unless (defined $answer && $answer =~ /^\d+$/ && $answer >= 1 && $answer <= $max) {
-            undef $answer;
-            warn "Your answer must be a number between 1 and $max\n";
-            print STDERR "\n$question: ";
+        if ($possibles) {
+            unless (exists $allowed{$answer}) {
+                if ($default && ! $answer) {
+                    $answer = $default;
+                }
+                else {
+                    undef $answer;
+                    print STDERR "Your answer must be one of <", join('|', @$possibles), ">: ";
+                }
+            }
+        }
+        elsif (! $answer && "$answer" ne "0") {
+            if ($default) {
+                $answer = $default;
+            }
+            elsif ($required) {
+                undef $answer;
+                print STDERR "An answer is required. Try again: ";
+            }
+        }
+        
+        if ($answer && $not_allowed) {
+            push(@na_args, $answer);
+            my $reason = &$not_allowed(@na_args);
+            if ($reason) {
+                undef $answer;
+                pop(@na_args);
+                print STDERR "Your answer isn't allowed because $reason. Try again: ";
+            }
         }
     }
     while (! defined $answer);
     
     return $answer;
+}
+
+sub pick_number {
+    my ($question, $max) = @_;
+    return ask_question($question, [1..$max], undef, 1);
 }

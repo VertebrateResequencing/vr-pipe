@@ -1,7 +1,30 @@
 use VRPipe::Base;
     
 class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
-    method all (Defined :$handle, Str :$delimiter, ArrayRef :$path_columns?) {
+    method description {
+        return "Use information in a delimited text file.";
+    }
+    method source_description {
+        return "The path to a delimited text file.";
+    }
+    method method_description (Str $method) {
+        if ($method eq 'all') {
+            return "Each element will consist of a list of all the fields on a single line.";
+        }
+        elsif ($method eq 'single_column') {
+            return "Each element will consist of the entry of a particular column from a single line.";
+        }
+        elsif ($method eq 'all_columns') {
+            return "Each element will consist of a list of all the file paths on a single line.";
+        }
+        elsif ($method eq 'grouped_single_column') {
+            return "Each element will consist of the file paths given in a particular column, grouped by another column.";
+        }
+        
+        return '';
+    }
+    
+    method all (Defined :$handle!, Str :$delimiter!, ArrayRef :$path_columns?) {
         my @elements;
         foreach my $result ($self->_all_results(handle => $handle, delimiter => $delimiter, $path_columns ? ( path_columns => $path_columns) : ())) {
             push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $result));
@@ -9,7 +32,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
         return \@elements;
     }
     
-    around _all_results (Defined :$handle, Str :$delimiter, ArrayRef :$path_columns?, :$columns_are_paths) {
+    around _all_results (Defined :$handle!, Str :$delimiter!, ArrayRef :$path_columns?, Bool :$columns_are_paths?) {
         my %result;
         $path_columns ||= [];
         my %path_cols = map { $_ => 1 } @$path_columns;
@@ -33,7 +56,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
         return @results;
     }
     
-    method single_column (Defined :$handle, Str :$delimiter, PositiveInt :$column, Bool :$column_is_path = 1) {
+    method single_column (Defined :$handle!, Str :$delimiter!, PositiveInt :$column!, Bool :$column_is_path = 1) {
         my $key_name = $column_is_path ? 'paths' : $column;
         
         my @elements;
@@ -44,7 +67,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
         return \@elements;
     }
     
-    method all_columns (Defined :$handle, Str :$delimiter) {
+    method all_columns (Defined :$handle!, Str :$delimiter!) {
         my @elements;
         foreach my $hash_ref ($self->_all_results(handle => $handle, delimiter => $delimiter, columns_are_paths => 1)) {
             push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths} }));
@@ -52,7 +75,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
         return \@elements;
     }
     
-    method grouped_single_column (Defined :$handle, Str :$delimiter, PositiveInt :$column, PositiveInt :$group_by, Bool :$column_is_path = 1) {
+    method grouped_single_column (Defined :$handle!, Str :$delimiter!, PositiveInt :$column!, PositiveInt :$group_by!, Bool :$column_is_path = 1) {
         my $group_hash;
         foreach my $hash_ref ($self->_all_results(handle => $handle, delimiter => $delimiter, $column_is_path ? (path_columns => [$column]) : ())) {
             push(@{$group_hash->{$hash_ref->{$group_by}}}, $column_is_path ? @{$hash_ref->{paths}} : $hash_ref->{$column});
