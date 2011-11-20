@@ -6,7 +6,7 @@ use Exporter 'import';
 use Path::Class;
 use lib "t";
 
-our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline finish);
+our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline get_bam_header get_bam_records finish);
 
 our $manager = VRPipe::Manager->get();
 our $scheduler;
@@ -73,6 +73,20 @@ sub create_single_step_pipeline {
     my $output_dir = get_output_dir($pipeline_name);
     
     return ($output_dir, $pipeline, $step);
+}
+
+sub get_bam_header {
+    my $bam = shift;
+    my $bam_path = $bam->absolute;
+    my $header = `samtools view -H $bam_path`;
+    return split /\n/, $header;
+}
+
+sub get_bam_records {
+    my $bam = shift;
+    my $bam_path = $bam->absolute;
+    my $records = `samtools view $bam_path`;
+    return split /\n/, $records;
 }
 
 sub finish {
