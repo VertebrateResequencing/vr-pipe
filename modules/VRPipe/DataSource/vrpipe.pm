@@ -59,6 +59,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             }
             
             my $max_step = 0;
+            my $final_smid;
             my @step_members = $setup->pipeline->step_members;
             foreach my $stepm (@step_members)
             {
@@ -71,7 +72,11 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                     {
                         $vrpipe_sources{$setup_id}->{stepmembers}->{$smid}->{$kind} = 1;
                     }
-                    $max_step = ($max_step > $step_num) ? $max_step : $step_num;
+                    if ($max_step < $step_num)
+                    {
+                        $max_step = $step_num;
+                        $final_smid = $smid;
+                    }
                 }
                 if (exists $desired_steps{numbers}->{$step_num})
                 {
@@ -79,10 +84,15 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                     {
                         $vrpipe_sources{$setup_id}->{stepmembers}->{$smid}->{$kind} = 1;
                     }
-                    $max_step = ($max_step > $step_num) ? $max_step : $step_num;
+                    if ($max_step < $step_num)
+                    {
+                        $max_step = $step_num;
+                        $final_smid = $smid;
+                    }
                 }
             }
             $vrpipe_sources{$setup_id}->{num_steps} = $max_step;
+            $vrpipe_sources{$setup_id}->{final_smid} = $final_smid;
         }
         return \%vrpipe_sources;
     }
@@ -101,7 +111,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             next if $result->{incomplete};
             my $paths = $result->{paths};
             push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $paths }, withdrawn => 0);
-            VRPipe::DataElementLink->get(parent => $result->{parent}, child => $elements[-1]->id);
+            VRPipe::DataElementLink->get(pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id}, child => $elements[-1]->id);
         }
         return \@elements;
     }
@@ -119,12 +129,13 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             foreach my $element (@{$elements})
             {
                 my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-                my %element_hash = ( parent => $element->id );
+                my %element_hash = ( parent => { element_id => $element->id, setup_id => $setup_id } );
                 foreach my $smid (keys %{$stepmembers})
                 {
                     my $stepm = $handle->resultset("StepMember")->find({ id => $smid });
                     my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
-                    my $incomplete = $element_state->completed_steps < $stepm->step_number; # is this data element incomplete?
+                    # my $incomplete = $element_state->completed_steps < $stepm->step_number; # is this data element incomplete?
+                    my $incomplete = !($stepstate->complete); # is this data element incomplete?
                     my $force = exists $stepmembers->{$smid}->{all};
                     my $step_outs = $stepstate->output_files;
                     while (my ($kind, $files) = each %{$step_outs})
@@ -148,7 +159,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                                 my $meta = $file->metadata;
                                 $hash{metadata} = $meta if (keys %{$meta});
                                 $hash{incomplete} = $incomplete;
-                                $hash{parent} = $element->id;
+                                $hash{parent} = { element_id => $element->id, setup_id => $setup_id };
                                 push(@output_files, \%hash);
                             }
                         }
@@ -186,7 +197,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths}, group => $group }, withdrawn => 0);
             foreach my $parent (@{$hash_ref->{parents}})
             {
-                VRPipe::DataElementLink->get(parent => $parent, child => $elements[-1]->id);
+                VRPipe::DataElementLink->get(pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $elements[-1]->id);
             }
         }
         
@@ -198,17 +209,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         my $schema = $self->_handle;
         my $sources = $self->vrpipe_sources;
         my @complete_list;
-        # my $complete = 0;
         foreach my $setup_id (sort keys %{$sources})
         {
             my $num_steps = $sources->{$setup_id}->{num_steps};
             my $num_complete = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 0}, { join => 'dataelement' });
             my $num_withdrawn = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 1}, { join => 'dataelement' });
             push @complete_list, ($num_complete, $num_withdrawn);
-            # $complete += $num_complete;
         }
         return join ',', @complete_list;
-        # return $complete;
     }
 
     method _has_changed
