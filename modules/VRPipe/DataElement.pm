@@ -22,7 +22,7 @@ class VRPipe::DataElement extends VRPipe::Persistent {
     
     method element_states {
         my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('DataElementState')->search({ dataelement => $self });
+        my $rs = $schema->resultset('DataElementState')->search({ dataelement => $self->id });
         my @states;
         while (my $state = $rs->next) {
             push(@states, $state);
