@@ -87,7 +87,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method max_simultaneous {
         return 0; # meaning unlimited
     }
-    method reheader_and_check (ClassName|Object $self: Str|File :$samtools, Str|File :$dict, Str|File :$output, Persistent :$step_state, Str|File :$bam, Str|File :$comment?) {
+    method reheader_and_check (ClassName|Object $self: Str|File :$samtools!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, Str|File :$bam!, Str|File :$comment?) {
         # make a nice sam header
         my $header_file = VRPipe::File->get(path => $output.'.header');
         my $header_path = $header_file->path;
@@ -205,7 +205,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             $self->throw("cmd [$cmd_line] failed because $actual_lines lines were generated in the reheaded bam file, yet there were $expected_lines records in the input bam files and header");
         }
     }
-    method command_history (ClassName|Object $self: VRPipe::PipelineSetup :$pipelinesetup, VRPipe::DataElement :$dataelement, VRPipe::StepMember :$stepmember) {
+    method command_history (ClassName|Object $self: VRPipe::PipelineSetup :$pipelinesetup!, VRPipe::DataElement :$dataelement!, VRPipe::StepMember :$stepmember!) {
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
         my $m = VRPipe::Manager->get;
