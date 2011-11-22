@@ -3,6 +3,7 @@ use VRPipe::Base;
 role VRPipe::PipelineRole {
     use VRPipe::StepAdaptorDefiner;
     use VRPipe::StepBehaviourDefiner;
+    use Module::Find;
     
     requires 'name';
     requires '_num_steps';
@@ -89,14 +90,16 @@ role VRPipe::PipelineRole {
             my $name = $self->name;
             my $module = "VRPipe::Pipelines::$name";
             
-            #*** this causes a memory leak, complicated to resolve...
-            try { eval "require $module;";
-                  unless ($@) {
+            my %modules = map { $_ => 1} findallmod(VRPipe::Pipelines); # cache this result somewhere. where??
+            if (exists $modules{$module}) {
+                eval "require $module;";
+                unless ($@) {
                       my $obj = $module->new();
                       $self->_construct_pipeline($obj->_step_list);
-                  }
                 }
-            catch { return; }
+            } else {
+                return;
+            }
         }
     }
 }
