@@ -1,17 +1,32 @@
 use VRPipe::Base;
 
-# my $ds = VRPipe::DataSource->get(type => 'vrpipe',
-#                                  method => 'group_by_metadata',
-#                                  source => '1000 genomes phase 2 (re)mapping[17:bam,18:txt]|1000 genomes phase 2 exome mapping[17]|1000 genomes phase 2 LS454 mapping[18]',
-#                                  options => {  metadata_keys => 'analysis_group|sample|platform|library' });
-
-# source => 'pipeline_setup_name[step_num:file_type,step_num:file_type]|pipeline_setup_id[step_name]|pipeline_step_id[step_name:file_type]',
-
 class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
 {
+    method description {
+        return "Use files created by VRPipe pipelines as a datasource.";
+    }
+    method source_description {
+        return "List of pipelinesetup names or ids separated by a pipe character '|'. Each pipeline setup or id may be followed in square brackets by the step number 
+        or step name which produced the output files to be used. Optionally, if a step produced multiple types of output files, the step name or number may be \
+        followed by the output file key to identify the correct files to be used. Multiple steps from the same pipeline setup may be specified. \
+        e.g. pipeline_setup_id[step_name:output_file_key]|pipeline_setup_name[step_number1,step_number2]'";
+    }
+    method method_description (Str $method) {
+        if ($method eq 'all') {
+            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all \
+            files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement.";
+        }
+        elsif ($method eq 'group_by_metadata') {
+            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata \
+            keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and \
+            library into one dataelement.";
+        }
+        
+        return '';
+    }
+
     has 'vrpipe_sources' => (is => 'ro',
                                isa => 'HashRef',
-                               # lazy => 1,
                                builder => '_build_vrpipe_sources');
 
     method _build_vrpipe_sources
@@ -103,7 +118,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return $m->result_source->schema;
     }
 
-    method all (Defined :$handle, Bool :$maintain_element_grouping = 1)
+    method all (Defined :$handle!, Bool :$maintain_element_grouping = 1)
     {
         my @elements;
         foreach my $result (@{$self->_all_results(handle => $handle, maintain_element_grouping => $maintain_element_grouping)})
@@ -116,7 +131,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return \@elements;
     }
 
-    method _all_results (Defined :$handle, Bool :$maintain_element_grouping = 1)
+    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1)
     {
         my @output_files;
         my $vrpipe_sources = $self->vrpipe_sources;
@@ -171,7 +186,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return \@output_files;
     }
 
-    method group_by_metadata (Defined :$handle, Str :$metadata_keys)
+    method group_by_metadata (Defined :$handle!, Str :$metadata_keys!)
     {
         my $group_hash;
         my @meta_keys = split /\|/, $metadata_keys;
@@ -204,6 +219,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return \@elements;
     }
 
+    # The changed marker for vrpipe datasources will be a comma separated list of the number 
+    # of elements in each of the pipelinesetups that have completed and the number that have 
+    # been withdrawn. Any change in these numbers will lead to the dataelements being revised. 
     method _element_state_status
     {
         my $schema = $self->_handle;
