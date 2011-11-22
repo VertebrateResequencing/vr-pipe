@@ -19,26 +19,26 @@ is_deeply [$step->id, $step->description], [1, 'Splits a BAM file into multiple 
 my $parse_bam = file(qw(t data parser.1kg_lane.bam))->absolute;
 my $test_bam = file(qw(t data 2822_6.pe.bam))->absolute;
 
-my @split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, pretend => 1);
-is scalar @split_bams, 26, 'output number of bams with defaults correct';
+my $split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, pretend => 1);
+is scalar keys %$split_bams, 26, 'output number of bams with defaults correct';
 
-@split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, non_chrom => 0, pretend => 1);
-is scalar @split_bams, 84, 'output number of bams with non_chrom option unset correct';
+$split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, non_chrom => 0, pretend => 1);
+is scalar keys %$split_bams, 84, 'output number of bams with non_chrom option unset correct';
 
-@split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, make_unmapped => 1, pretend => 1);
-is scalar @split_bams, 27, 'output number of bams with make_unmapped option set correct';
+$split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, make_unmapped => 1, pretend => 1);
+is scalar keys %$split_bams, 27, 'output number of bams with make_unmapped option set correct';
 
-@split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, only => '^20$', pretend => 1);
-is scalar @split_bams, 1, 'output number of bams with only chromosome 20 option set correct';
+$split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, only => '^20$', pretend => 1);
+is scalar keys %$split_bams, 1, 'output number of bams with only chromosome 20 option set correct';
 
-@split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, merge => { '^\d{1,2}$' => 'autosome' }, pretend => 1);
-is scalar @split_bams, 5, 'output number of bams with merging autosomal sequence option set correct';
+$split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, merge => { '^\d{1,2}$' => 'autosome' }, pretend => 1);
+is scalar keys %$split_bams, 5, 'output number of bams with merging autosomal sequence option set correct';
 
-@split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, merge => { '^[^\*]+' => 'mapped' }, non_chrom => 0, make_unmapped => 1, pretend => 1);
-is scalar @split_bams, 2, 'output number of bams with merge mapped sequence option set correct';
+$split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, merge => { '^[^\*]+' => 'mapped' }, non_chrom => 0, make_unmapped => 1, pretend => 1);
+is scalar keys %$split_bams, 2, 'output number of bams with merge mapped sequence option set correct';
 
-@split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, ignore => '^\d{1,2}$', pretend => 1);
-is scalar @split_bams, 4, 'output number of bams with ignore autosomal sequence option set correct';
+$split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $output_dir, ignore => '^\d{1,2}$', pretend => 1);
+is scalar keys %$split_bams, 4, 'output number of bams with ignore autosomal sequence option set correct';
 
 my $test_dir = dir($output_dir, 'test_1');
 $test_dir->mkpath;

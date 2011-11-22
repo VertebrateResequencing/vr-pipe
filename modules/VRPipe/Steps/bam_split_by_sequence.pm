@@ -13,8 +13,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
                     the other split bam files will contain unmapped reads where that read\'s mate was mapped', optional => 1, default_value => 0),
                  split_bam_all_unmapped => VRPipe::StepOption->get(description => 'boolean; when true, the described behaviour of make_unmapped above changes so that the unmapped file contains all unmapped reads, potentially \
                     duplicating reads in different split files', optional => 1, default_value => 0),
-                 split_bam_only => VRPipe::StepOption->get(description => '\'regex\' to only makes splits for sequences that match the regex. This changes the default of split_bam_make_unmapped to false, but you can turn it \
-                    back on explicitly. split_bam_non_chr is disabled', optional => 1) };
+                 split_bam_only => VRPipe::StepOption->get(description => '\'regex\' to only makes splits for sequences that match the regex. split_bam_non_chr is disabled', optional => 1) };
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to be split') };
@@ -36,13 +35,13 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
                 my $split_dir = $self->output_root->absolute->stringify;
                 my $bam_path = $bam->path;
                 my $args = "q[$bam_path], split_dir => q[$split_dir], ignore => q[$$options{split_bam_ignore}], non_chrom => $$options{split_bam_non_chrom}, merge => $$options{split_bam_merge}, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => q[$$options{split_bam_only}]";
-                my @split_bam_files = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($bam_path, split_dir => $split_dir, ignore => $$options{split_bam_ignore}, non_chrom => $$options{split_bam_non_chrom}, merge => $merge, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => $$options{split_bam_only}, pretend => 1);
+                my $split_bam_files = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($bam_path, split_dir => $split_dir, ignore => $$options{split_bam_ignore}, non_chrom => $$options{split_bam_non_chrom}, merge => $merge, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => $$options{split_bam_only}, pretend => 1);
                 my @output_files;
-                foreach my $split_bam (@split_bam_files) {
+                while (my ($split, $split_bam) = each %$split_bam_files) {
                     push @output_files, $self->output_file(output_key => 'split_bam_files',
                                                            basename => $split_bam->basename,
                                                            type => 'bam',
-                                                           metadata => { %{$bam->metadata}, split_source_bam => $bam->path->stringify});
+                                                           metadata => { %{$bam->metadata}, split_source_bam => $bam->path->stringify, split_sequence => $split });
                 }
                 my $this_cmd = "use VRPipe::Steps::bam_split_by_sequence; VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($args);";
                 $self->dispatch_vrpipecode($this_cmd, $req, {output_files => [@output_files]});
@@ -50,7 +49,9 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { split_bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'split bams for each sequence the reads were aligned to') };
+        return { split_bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'split bams for each sequence the reads were aligned to',
+                                                                  metadata => {split_source_bam => 'The original bam from which this this split sequence was derived',
+                                                                               split_sequence => 'The sequence prefix label describing the sequence split out into this bam'}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -61,44 +62,8 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
     method max_simultaneous {
         return 0; # meaning unlimited
     }
-    
-=head2 split_bam_by_sequence
 
-Title   : split_bam_by_sequence
-Usage   : my @bams = $obj->split_bam_by_sequence($bam_file);
-Function: Splits a bam file into multiple bam files, one for each sequence the
-        reads were aligned to.
-Returns : list of the bam files it made
-Args    : bam filename, optionally these hash options:
-        ignore => 'regex' to ignore sequences with ids that match the regex,
-                  eg. ignore => '^N[TC]_\d+' to avoid making splits for
-                  contigs
-        merge => {'regex' => 'prefix'} to put sequences with ids that match
-                  the regex into a single file with the corresponding prefix.
-                  ignore takes precendence.
-        non_chrom => boolean (default true; ignore takes precendence: does a
-                            merge for sequences that don't look chromosomal
-                            into a 'nonchrom' prefixed file; does not make
-                            individual bams for each non-chromosomsal seq if
-                            ignore has not been set)
-        make_unmapped => boolean (default false: a file prefixed with
-                                  'unmapped' is made containing all the
-                                  unmapped reads. NB: only unmapped pairs or
-                                  singletons appear in this file; the other
-                                  split bam files will contain unmapped reads
-                                  where that read's mate was mapped)
-        all_unmapped => boolean (default false; when true, the described
-                                 behaviour of make_unmapped above changes so
-                                 that the unmapped file contains all unmapped
-                                 reads, potentially duplicating reads in
-                                 different split files)
-        only => 'regex' to only makes splits for sequences that match the
-                 regex. This changes the default of make_unmapped to false,
-                 but you can turn it back on explicitly. non_chrom is disabled.
-
-=cut
-
-    method split_bam_by_sequence (ClassName|Object $self: Str|File $bam_file!, Dir|Str :$split_dir!, Str :$ignore?, Bool :$non_chrom = 1, HashRef[Str] :$merge = {}, Bool :$make_unmapped = 0, Bool :$all_unmapped = 0, Str :$only?, Bool :$pretend = 0) {
+    method split_bam_by_sequence (ClassName|Object $self: Str|File $bam_file!, Str|Dir :$split_dir!, Str :$ignore?, Bool :$non_chrom = 1, HashRef[Str] :$merge = {}, Bool :$make_unmapped = 0, Bool :$all_unmapped = 0, Str :$only?, Bool :$pretend = 0) {
         unless (ref($bam_file) && ref($bam_file) eq 'VRPipe::File') {
             $bam_file = VRPipe::File->get(path => file($bam_file));
         }
@@ -140,7 +105,7 @@ Args    : bam filename, optionally these hash options:
             
             foreach my $prefix (@prefixes) {
                 my $split_bam = VRPipe::File->get(path => file($split_dir, $prefix.'.'.$bam_file->basename));
-                $split_bams{$split_bam->path} = $split_bam;
+                $split_bams{$prefix} = $split_bam;
                 push(@{$seq_to_bam{$seq}}, $split_bam);
             }
         }
@@ -149,13 +114,13 @@ Args    : bam filename, optionally these hash options:
         my ($unmapped_bam, $skip_mate_mapped);
         if ($make_unmapped) {
             $unmapped_bam = VRPipe::File->get(path => file($split_dir, 'unmapped.'.$bam_file->basename));
-            $split_bams{$unmapped_bam->path} = $unmapped_bam;
+            $split_bams{unmapped} = $unmapped_bam;
             push(@get_fields, 'FLAG');
             $skip_mate_mapped = $all_unmapped ? 0 : 1;
         }
         
         if ($pretend) {
-            return values %split_bams;
+            return \%split_bams;
         }
         
         # stream through the bam, outputting all our desired files
@@ -208,7 +173,7 @@ Args    : bam filename, optionally these hash options:
             }
             else {
                 $self->warn("When attempting ".$bam_file->path." -> ".$split_bam->path." split, got $actual_reads reads instead of $expected_reads; will delete it");
-                # $unchecked->unlink;
+                $unchecked->unlink;
             }
         }
         $self->throw("Number of correct output files ".scalar @out_files." not equal to number of expected output files ".scalar keys %split_bams) unless (scalar @out_files == scalar keys %split_bams);
