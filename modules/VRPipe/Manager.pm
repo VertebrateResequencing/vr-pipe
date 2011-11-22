@@ -293,9 +293,16 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
-            # is there a behaviour to trigger?
-            my $behaviour = VRPipe::StepBehaviour->get(pipeline => $pipeline, after_step => $step_number);
-            $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
+            # are there a behaviours to trigger?
+            my $schema = $self->result_source->schema;
+            my $rs = $schema->resultset('StepBehaviour')->search({ pipeline => $pipeline->id, after_step => $step_number });
+            my @behaviours;
+            while (my $behaviour = $rs->next) {
+                push @behaviours, $behaviour;
+            }
+            foreach my $behaviour (@behaviours) {
+                $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
+            }
             $state->complete(1);
             $state->update;
         }
