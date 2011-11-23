@@ -3,6 +3,7 @@ package VRPipeBuild;
 BEGIN { unshift(@INC, './modules') }
 use base 'Module::Build';
 use VRPipe::Config;
+use Path::Class;
 
 my $vrp_config = VRPipe::Config->new();
 my $siteconfig_module_path = $vrp_config->config_module_path;
@@ -32,8 +33,10 @@ To specify the answer should come from an environment variable, type 'ENV{variab
 
 sub ACTION_realclean {
     my $self = shift;
-    unlink($siteconfig_module_path);
-    $self->SUPER::ACTION_realclean( @_ );
+    if (dir()->absolute->contains($siteconfig_module_path->dir)) {
+        unlink($siteconfig_module_path);
+    }
+    $self->SUPER::ACTION_realclean(@_);
 }
 
 # this method, called by create_build_script(), is just annoying and we don't
