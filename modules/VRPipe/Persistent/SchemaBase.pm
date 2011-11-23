@@ -65,8 +65,13 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
     }
     
     method database_deployment (ClassName $class: Str $set?) {
-        if ($set && ($set eq 'production' || $set eq 'testing')) {
-            $DATABASE_DEPLOYMENT = $set;
+        if ($set) {
+            if ($set eq 'production' || $set eq 'testing') {
+                $DATABASE_DEPLOYMENT = $set;
+            }
+            else {
+                die "Invalid deployment '$set'\n";
+            }
         }
         return $DATABASE_DEPLOYMENT;
     }
