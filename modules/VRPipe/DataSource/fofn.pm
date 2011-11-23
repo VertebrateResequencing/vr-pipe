@@ -15,12 +15,13 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
         return '';
     }
     
-    around all (Defined :$handle!) {
-        # it would be too expensive to check if each line of the file was
-        # actually a file by doing -e, so we'll let downstream catch the
-        # possible error
-        
-        return $self->$orig(handle => $handle, skip_comments => 1, line_is_path => 1);
+    method all (Defined :$handle!) {
+        my @elements;
+        foreach my $result ($self->_all_results(handle => $handle, skip_comments => 1, line_is_path => 1)) {
+            my $withdraw = -e $result->{paths}->[0] ? 0 : 1;
+            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $result, withdrawn => $withdraw));
+        }
+        return \@elements;
     }
 }
 
