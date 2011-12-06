@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 7;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -14,7 +14,8 @@ BEGIN {
 
 ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get the fastq_mapping_with_bwa pipeline';
 ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'merge_lanes'), 'able to get the merge_lanes pipeline';
-ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries_and_split'), 'able to get the merge_libraries_and_split pipeline';
+# ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries_and_split'), 'able to get the merge_libraries_and_split pipeline';
+ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries'), 'able to get the merge_libraries pipeline';
 
 my $mapping_dir = get_output_dir('mapping_mergeup_test');
 
@@ -83,9 +84,22 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                             reference_public_url => 'ftp://s.suis.com/ref.fa',
                                                                             reference_species => 'S.Suis',
                                                                             bam_merge_memory => 200,
+                                                                            # split_bam_make_unmapped => 1,
                                                                             cleanup => 1 });
 
-ok handle_pipeline(), 'pipelines ran ok';
+# my @final_files;
+# foreach my $element_id (8, 9) {
+#     foreach my $file ('fake_chr1.pe.bam', 'fake_chr2.pe.bam', 'unmapped.pe.bam') {
+#         push(@final_files, file($build_dir, output_subdirs($element_id), 'bam_split_by_sequence', $file));
+#     }
+# }
+
+my @final_files;
+foreach my $element_id (8, 9) {
+    push(@final_files, file($build_dir, output_subdirs($element_id), 'bam_reheader', 'pe.bam'));
+}
+
+ok handle_pipeline(@final_files), 'pipelines ran ok';
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
@@ -103,16 +117,26 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
            'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam VALIDATION_STRINGENCY=SILENT'],
           'cmd summaries for the major steps were as expected';
 
-# my @expected_header_lines = ("\@HD\tVN:1.0\tSO:coordinate",
-#                              "\@SQ\tSN:fake_chr1\tLN:290640\tM5:55f9584cf1f4194f13bbdc0167e0a05f\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
-#                              "\@SQ\tSN:fake_chr2\tLN:1716851\tM5:6dd2836053e5c4bd14ad49b5b2f2eb88\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
-#                              "\@RG\tID:2822_6\tLB:LIB01\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
-#                              "\@PG\tID:bwa_index\tPN:bwa\tVN:0.5.9-r16\tCL:bwa index -a is \$reference_fasta",
-#                              "\@PG\tID:bwa_aln_fastq\tPN:bwa\tPP:bwa_index\tVN:0.5.9-r16\tCL:bwa aln -q 15 -f \$sai_file \$reference_fasta \$fastq_file",
-#                              "\@PG\tID:bwa_sam\tPN:bwa\tPP:bwa_aln_fastq\tVN:0.5.9-r16\tCL:bwa sampe -a 600 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
-#                              "\@PG\tID:sam_to_fixed_bam\tPN:samtools\tPP:bwa_sam\tVN:0.1.17 (r973:277)\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file");
-# 
-# my @header_lines = get_bam_header($test_bam);
-# is_deeply \@header_lines, \@expected_header_lines, 'bam header is okay';
+my @expected_header_lines = ("\@HD\tVN:1.0\tSO:coordinate",
+                             "\@SQ\tSN:fake_chr1\tLN:290640\tM5:55f9584cf1f4194f13bbdc0167e0a05f\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
+                             "\@SQ\tSN:fake_chr2\tLN:1716851\tM5:6dd2836053e5c4bd14ad49b5b2f2eb88\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
+                             "\@RG\tID:2823_4\tLB:LIB02\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
+                             "\@RG\tID:2822_6\tLB:LIB01\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
+                             "\@RG\tID:2822_7\tLB:LIB01\tSM:SAMPLE01\tPI:205\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
+                             "\@PG\tID:bwa_index\tPN:bwa\tVN:0.5.9-r16\tCL:bwa index -a is \$reference_fasta",
+                             "\@PG\tID:bwa_aln_fastq\tPN:bwa\tPP:bwa_index\tVN:0.5.9-r16\tCL:bwa aln -q 15 -f \$sai_file \$reference_fasta \$fastq_file",
+                             "\@PG\tID:bwa_sam\tPN:bwa\tPP:bwa_aln_fastq\tVN:0.5.9-r16\tCL:bwa sampe -a 600 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
+                             "\@PG\tID:bwa_sam.1\tPN:bwa\tPP:bwa_aln_fastq\tVN:0.5.9-r16\tCL:bwa sampe -a 615 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
+                             "\@PG\tID:sam_to_fixed_bam\tPN:samtools\tPP:bwa_sam\tVN:0.1.17 (r973:277)\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
+                             "\@PG\tID:sam_to_fixed_bam.1\tPN:samtools\tPP:bwa_sam.1\tVN:0.1.17 (r973:277)\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
+                             "\@PG\tID:bam_merge\tPN:picard\tPP:sam_to_fixed_bam\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.1\tPN:picard\tPP:sam_to_fixed_bam.1\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_mark_duplicates\tPN:picard\tPP:bam_merge\tVN:1.53\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_mark_duplicates.1\tPN:picard\tPP:bam_merge.1\tVN:1.53\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.2\tPN:picard\tPP:bam_mark_duplicates\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.1.2\tPN:picard\tPP:bam_mark_duplicates.1\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT");
+
+my @header_lines = get_bam_header($final_files[0]);
+is_deeply \@header_lines, \@expected_header_lines, 'bam header is okay';
 
 finish;
