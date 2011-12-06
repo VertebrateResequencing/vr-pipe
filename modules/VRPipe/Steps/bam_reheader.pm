@@ -161,21 +161,14 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my $stepmember = $this_step_state->stepmember;
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
-        my $pp;
-        my %dups;
-        foreach my $pg_line ($self->command_history(pipelinesetup => $pipelinesetup, stepmember => $stepmember, dataelement => $dataelement))
+        foreach my $pg_line ($self->program_chain(pipelinesetup => $pipelinesetup, stepmember => $stepmember, dataelement => $dataelement))
         {
-            my $uniq = join '::', ($pg_line->{program_id}, $pg_line->{program_name}, $pg_line->{program_version});
-            $uniq =~ s/\W/_/g;
-            next if (exists $dups{$uniq});
-            $dups{$uniq} = 1;
             print $hfh "\@PG\tID:", $pg_line->{program_id}, "\tPN:", $pg_line->{program_name}, "\t";
-            if ($pp) {
-                print $hfh "PP:", $pp, "\t";
+            if ($pg_line->{previous_program} ne 'null') {
+                print $hfh "PP:", $pg_line->{previous_program}, "\t";
             }
             print $hfh "VN:", $pg_line->{program_version}, "\tCL:", $pg_line->{command_line}, "\n";
             $header_lines++;
-            $pp = $pg_line->{program_id};
         }
         if ($comment) {
             my $comment_file = VRPipe::File->get(path => $comment);
@@ -205,31 +198,99 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             $self->throw("cmd [$cmd_line] failed because $actual_lines lines were generated in the reheaded bam file, yet there were $expected_lines records in the input bam files and header");
         }
     }
+
+    method program_chain (ClassName|Object $self: VRPipe::PipelineSetup :$pipelinesetup!, VRPipe::DataElement :$dataelement!, VRPipe::StepMember :$stepmember!) {
+        my %chains;
+        foreach my $program ($self->command_history(pipelinesetup => $pipelinesetup, stepmember => $stepmember, dataelement => $dataelement))
+        {
+            foreach my $readgroup (@{$program->{element_readgroups}}) {
+                push @{$chains{$readgroup}}, $program;
+            }
+        }
+        my @readgroups = sort keys %chains;
+        
+        my @program_chain;
+        my %pg_lines;
+        my %pp;
+        my $branch = 1;
+        my $dup_id = 1;
+        while (@{$chains{$readgroups[-1]}}) {
+            my $duplicated_pid = 0;
+            foreach my $readgroup (@readgroups) {
+                my $program = shift @{$chains{$readgroup}};
+                
+                my $pid = $program->{program_id};
+                my $pn = $program->{program_name};
+                my $pv = $program->{program_version};
+                my $cl = $program->{command_line};
+                my $pp = $pp{$readgroup} || 'null';
+                
+                if ($pp =~ /([\.\d]+)$/) {
+                    $pid .= $1;
+                } 
+                
+                if (exists $pg_lines{"$pid"} && !(exists $pg_lines{"$pid"}->{"$pp"}->{"$pn"}->{"$pv"}->{"$cl"})) {
+                    if (exists $pg_lines{"$pid"}->{"$pp"}) {
+                        $pid .= ".$dup_id";
+                        $duplicated_pid = 1;
+                    } else {
+                        $pid .= ".$branch";
+                        $branch++;
+                    }
+                }
+
+                my $pg_hash = { program_id => $pid, program_name => $pn, program_version => $pv, command_line => $cl, previous_program => $pp };
+                push @program_chain, $pg_hash unless (exists $pg_lines{"$pid"}->{"$pp"}->{"$pn"}->{"$pv"}->{"$cl"});
+                $pg_lines{"$pid"}->{"$pp"}->{"$pn"}->{"$pv"}->{"$cl"} = 1;
+                $pp{$readgroup} = $pid;
+            }
+            $dup_id++ if ($duplicated_pid);
+        }
+        return @program_chain;
+    }
+
     method command_history (ClassName|Object $self: VRPipe::PipelineSetup :$pipelinesetup!, VRPipe::DataElement :$dataelement!, VRPipe::StepMember :$stepmember!) {
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
         my $m = VRPipe::Manager->get;
         my $schema = $m->result_source->schema;
-        my @program_chain;
+        
+        my @history;
         if ($pipelinesetup->datasource->type eq 'vrpipe') {
             my $vrpipe_sources = $pipelinesetup->datasource->_source_instance->vrpipe_sources;
-            foreach my $setup_id (keys %{$vrpipe_sources}) {
+            my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
+            while (my $link = $rs->next) {
+                my $setup_id = $link->pipelinesetup->id;
+                next unless exists $vrpipe_sources->{$setup_id};
                 my $this_pipelinesetup = VRPipe::PipelineSetup->get(id => $setup_id);
                 my $this_stepmember = VRPipe::StepMember->get(id => $vrpipe_sources->{$setup_id}->{final_smid});
-                my $rs = $schema->resultset('DataElementLink')->search({ pipelinesetup => $setup_id, child => $dataelement->id });
-                while (my $link = $rs->next) {
-                    push @program_chain, $self->command_history(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember);
-                }
+                push @history, $self->command_history(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember);
             }
         }
+        
+        my @readgroups = $self->element_readgroups($dataelement);
         foreach my $stepm ($pipeline->step_members) {
             my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary || next;
             my $step_name = $stepm->step->name;
-            my $pg_hash = { program_id => $step_name, program_name => $cmd_summary->exe, program_version => $cmd_summary->version, command_line => $cmd_summary->summary };
-            push @program_chain, $pg_hash;
+            my $pg_hash = { program_id => $step_name, program_name => $cmd_summary->exe, program_version => $cmd_summary->version, command_line => $cmd_summary->summary, element_readgroups => \@readgroups };
+            push @history, $pg_hash;
             last if $stepm->id == $this_stepm_id;
         }
-        return @program_chain;
+        return @history;
+    }
+
+    method element_readgroups (ClassName|Object $self: VRPipe::DataElement $dataelement!) {
+        my %readgroups;
+        my $result = $dataelement->result;
+        my $paths = $result->{paths} || $self->throw("data element ".$dataelement->id." gave a result with no paths");
+        foreach my $path (@$paths) {
+            my $bam = VRPipe::File->get(path => file($path)->absolute);
+            my $metadata = $bam->metadata;
+            foreach my $lane (split ',', $metadata->{lane}) {
+                $readgroups{$lane} = 1;
+            }
+        }
+        return sort keys %readgroups;
     }
 }
 
