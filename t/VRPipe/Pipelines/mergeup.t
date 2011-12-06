@@ -66,7 +66,7 @@ my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge
                                                                                                  options => { metadata_keys => 'sample|platform|library' } ),
                                                            output_root => $build_dir,
                                                            pipeline => $merge_lanes_pipeline,
-                                                           options => { bam_tags_to_strip => 'OQ|XM|XG|XO',
+                                                           options => { bam_tags_to_strip => 'OQ XM XG XO',
                                                                         bam_merge_keep_single_paired_separate => 1,
                                                                         bam_merge_memory => 200,
                                                                         cleanup => 1 });
