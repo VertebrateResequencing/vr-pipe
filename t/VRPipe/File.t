@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 20;
+    use Test::Most tests => 23;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -25,6 +25,15 @@ $vrfile = VRPipe::File->get(id => 1);
 $vrfile->add_metadata({baz => 'loman'});
 is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, {foo => 'bar', baz => 'loman'}, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
 cmp_ok $vrfile->s, '>=', 5, 'file has some size';
+
+ok my $orig_mtime = $vrfile->mtime, 'got mtime';
+sleep(2);
+system("touch ".$vrfile->path);
+my $new_mtime = $vrfile->mtime;
+is $orig_mtime, $new_mtime, 'mtime unchanged in ddb';
+$vrfile->update_stats_from_disc;
+$new_mtime = $vrfile->mtime;
+isnt $orig_mtime, $new_mtime, 'mtime updated in db';
 
 is $vrfile->lines, 2, 'lines() worked';
 

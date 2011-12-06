@@ -6,7 +6,7 @@ use Exporter 'import';
 use Path::Class;
 use lib "t";
 
-our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline finish);
+our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline get_bam_header get_bam_records finish);
 
 our $manager = VRPipe::Manager->get();
 our $scheduler;
@@ -26,7 +26,8 @@ sub get_output_dir {
 
 sub handle_pipeline {
     my $give_up = 1000;
-    while (! $manager->trigger) {
+    while (1) {
+        last if ($manager->trigger && all_pipelines_started());
         last if $give_up-- <= 0;
         $manager->handle_submissions;
         
@@ -73,6 +74,30 @@ sub create_single_step_pipeline {
     my $output_dir = get_output_dir($pipeline_name);
     
     return ($output_dir, $pipeline, $step);
+}
+
+sub all_pipelines_started {
+    my @setups = $manager->setups;
+    my $schema = $manager->result_source->schema;
+    foreach my $setup (@setups) {
+        my $rs = $schema->resultset('DataElement')->search({ datasource => $setup->datasource->id, withdrawn => 0 });
+        return 0 unless $rs->next;
+    }
+    return 1;
+}
+
+sub get_bam_header {
+    my $bam = shift;
+    my $bam_path = $bam->absolute;
+    my $header = `samtools view -H $bam_path`;
+    return split /\n/, $header;
+}
+
+sub get_bam_records {
+    my $bam = shift;
+    my $bam_path = $bam->absolute;
+    my $records = `samtools view $bam_path`;
+    return split /\n/, $records;
 }
 
 sub finish {

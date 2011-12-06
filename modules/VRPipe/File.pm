@@ -33,6 +33,13 @@ class VRPipe::File extends VRPipe::Persistent {
                 traits => ['VRPipe::Persistent::Attributes'],
                 builder => 'check_file_size_on_disc');
     
+    has 'mtime' => (is => 'rw',
+                    isa => Datetime,
+                    coerce => 1,
+                    traits => ['VRPipe::Persistent::Attributes'],
+                    builder => 'check_mtime_on_disc',
+                    is_nullable => 1);
+    
     has 'md5' => (is => 'rw',
                   isa => Varchar[64],
                   traits => ['VRPipe::Persistent::Attributes'],
@@ -71,6 +78,16 @@ class VRPipe::File extends VRPipe::Persistent {
         my $s = -s $path;
         
         return $s ? $s : 0;
+    }
+    
+    method check_mtime_on_disc (File $path?) {
+        $path ||= $self->path;
+        
+        my $st = $path->lstat;
+        my $mtime = $st ? $st->mtime : 0;
+        my $dt = DateTime->from_epoch(epoch => $mtime);
+        
+        return $dt;
     }
     
     method _filetype_from_extension {
@@ -238,23 +255,27 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method update_stats_from_disc (PositiveInt :$retries = 1) {
         my $current_s = $self->s;
+        my $current_mtime = $self->mtime;
         my $path = $self->path;
         $self->disconnect;
         
-        my ($new_e, $new_s);
+        my ($new_e, $new_s, $new_mtime);
         my $trys = 0;
         while (1) {
             $new_e = $self->check_file_existence_on_disc($path);
             $new_s = $self->check_file_size_on_disc($path);
+            $new_mtime = $self->check_mtime_on_disc($path);
             last if $new_s != $current_s;
+            last if $current_mtime ne $new_mtime;
             last if ++$trys == $retries;
             sleep 1;
         }
         
-        if (! $new_s || $current_s != $new_s) {
+        if (! $new_s || $current_s != $new_s || $current_mtime ne $new_mtime) {
             $self->_lines(undef);
             $self->e($new_e);
             $self->s($new_s);
+            $self->mtime($new_mtime);
             $self->update;
         }
     }
