@@ -6,7 +6,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return "Use files created by VRPipe pipelines as a datasource.";
     }
     method source_description {
-        return "List of pipelinesetup names or ids separated by a pipe character '|'. Each pipeline setup or id may be followed in square brackets by the step number 
+        return "List of pipelinesetup names or ids separated by a pipe character '|'. Each pipeline setup or id may be followed in square brackets by the step number \
         or step name which produced the output files to be used. Optionally, if a step produced multiple types of output files, the step name or number may be \
         followed by the output file key to identify the correct files to be used. Multiple steps from the same pipeline setup may be specified. \
         e.g. pipeline_setup_id[step_name:output_file_key]|pipeline_setup_name[step_number1,step_number2]'";
@@ -123,7 +123,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         my @elements;
         foreach my $result (@{$self->_all_results(handle => $handle, maintain_element_grouping => $maintain_element_grouping)})
         {
-            next if $result->{incomplete};
             my $paths = $result->{paths};
             push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $paths }, withdrawn => 0);
             VRPipe::DataElementLink->get(pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id}, child => $elements[-1]->id);
@@ -141,17 +140,17 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             my $setup = $handle->resultset("PipelineSetup")->find({ id => $setup_id });
             my $elements = $setup->datasource->elements;
             
-            foreach my $element (@{$elements})
+            foreach my $element (@$elements)
             {
                 my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
                 my %element_hash = ( parent => { element_id => $element->id, setup_id => $setup_id } );
                 foreach my $smid (keys %{$stepmembers})
                 {
                     my $stepm = $handle->resultset("StepMember")->find({ id => $smid });
-                    my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
-                    # my $incomplete = $element_state->completed_steps < $stepm->step_number; # is this data element incomplete?
-                    my $incomplete = !($stepstate->complete); # is this data element incomplete?
+                    my $pending = $element_state->completed_steps < $stepm->step_number ? 1 : 0; # is this data element pending?
+                    return [] if $pending;
                     my $force = exists $stepmembers->{$smid}->{all};
+                    my $stepstate = $handle->resultset("StepState")->find({stepmember => $stepm, dataelement => $element, pipelinesetup => $setup});
                     my $step_outs = $stepstate->output_files;
                     while (my ($kind, $files) = each %{$step_outs})
                     {
@@ -165,7 +164,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                             if ($maintain_element_grouping)
                             {
                                 push @{$element_hash{paths}}, $file->path->stringify;
-                                $element_hash{incomplete} ||= $incomplete;
+                                $element_hash{pending} ||= $pending;
                             }
                             else
                             {
@@ -173,7 +172,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                                 $hash{paths} = [ $file->path->stringify ];
                                 my $meta = $file->metadata;
                                 $hash{metadata} = $meta if (keys %{$meta});
-                                $hash{incomplete} = $incomplete;
+                                $hash{pending} = $pending;
                                 $hash{parent} = { element_id => $element->id, setup_id => $setup_id };
                                 push(@output_files, \%hash);
                             }
@@ -201,14 +200,13 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             my $group_key = join '|', @group_keys;
             push(@{$group_hash->{$group_key}->{paths}}, @{$hash_ref->{paths}});
             push(@{$group_hash->{$group_key}->{parents}}, $hash_ref->{parent});
-            $group_hash->{$group_key}->{incomplete} ||= $hash_ref->{incomplete};
+            $group_hash->{$group_key}->{pending} ||= $hash_ref->{pending};
         }
         
         my @elements;
         foreach my $group (sort keys %{$group_hash})
         {
             my $hash_ref = $group_hash->{$group};
-            next if $hash_ref->{incomplete};
             push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths}, group => $group }, withdrawn => 0);
             foreach my $parent (@{$hash_ref->{parents}})
             {
