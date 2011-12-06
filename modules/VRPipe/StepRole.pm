@@ -93,6 +93,10 @@ role VRPipe::StepRole {
         my $hashing_string = 'VRPipe::DataElement::'.$de_id;
         my @subdirs = $self->hashed_dirs($hashing_string);
         
+        # *** because the same step can appear multiple times in a pipeline,
+        #     the dir should contain step number as well as/instead of step
+        #     name... but will fixing this screw up finding outputs we already
+        #     made?
         return dir($pipeline_root, @subdirs, $de_id, $self->name);
     }
     method _build_last_output_dir {
