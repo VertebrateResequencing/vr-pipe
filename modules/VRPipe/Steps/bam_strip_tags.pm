@@ -53,9 +53,12 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
         my $bp = VRPipe::Parser->create('bam', {file => $in_bam});
         $bp->ignore_tags_on_write(@{$tags_to_strip});
         
+        my $out_bam_path = $out_bam->path->stringify;
         $in_bam->disconnect;
+        my $num_records = 0;
         while ($bp->next_record) {
-            $bp->write_result($out_bam->path);
+            $bp->write_result($out_bam_path);
+            $num_records++;
         }
         $bp->close;
         
