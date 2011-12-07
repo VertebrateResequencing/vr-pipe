@@ -10,6 +10,8 @@ role VRPipe::PipelineRole {
     requires 'description';
     requires 'steps';
     
+    our %pipeline_modules = map { $_ => 1 } findallmod(VRPipe::Pipelines);
+    
     method num_steps {
         return $self->_num_steps;
     }
@@ -90,8 +92,7 @@ role VRPipe::PipelineRole {
             my $name = $self->name;
             my $module = "VRPipe::Pipelines::$name";
             
-            my %modules = map { $_ => 1} findallmod(VRPipe::Pipelines); # cache this result somewhere. where??
-            if (exists $modules{$module}) {
+            if (exists $pipeline_modules{$module}) {
                 eval "require $module;";
                 unless ($@) {
                       my $obj = $module->new();
