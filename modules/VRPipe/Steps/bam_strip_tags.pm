@@ -64,7 +64,7 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
         
         $out_bam->update_stats_from_disc(retries => 3);
         
-        my $expected_reads = $in_bam->metadata->{reads} || $in_bam->num_records;
+        my $expected_reads = $in_bam->metadata->{reads} || $num_records;
         my $actual_reads = $out_bam->num_records;
         
         if ($actual_reads == $expected_reads) {
