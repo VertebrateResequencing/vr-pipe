@@ -22,15 +22,23 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $fq_file (@{$self->inputs->{fastq_files}}) {
-                # our output file is our input file
                 my $ifile = $fq_file->path;
-                $self->output_file(output_key => 'local_fastq_files', output_dir => $ifile->dir, basename => $ifile->basename, type => 'fq');
                 
                 my $meta = $fq_file->metadata;
                 my $remote_path = $meta->{remote_path};
                 if ($remote_path && $remote_path ne $ifile) {
+                    # download to the path of our input file, which doesn't
+                    # exist yet
+                    $self->output_file(output_key => 'local_fastq_files', output_dir => $ifile->dir, basename => $ifile->basename, type => 'fq', metadata => $fq_file->metadata);
                     $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_import; VRPipe::Steps::fastq_import->download_fastq(source => q[$remote_path], dest => q[$ifile]);],
                                                $req);
+                }
+                else {
+                    # symlink our existing input file to the pipeline output dir
+                    # so that if this step is restarted, we won't delete our
+                    # input file
+                    my $ofile = $self->output_file(output_key => 'local_fastq_files', basename => $ifile->basename, type => 'fq', metadata => $fq_file->metadata);
+                    $self->symlink($fq_file, $ofile);
                 }
             }
         };
