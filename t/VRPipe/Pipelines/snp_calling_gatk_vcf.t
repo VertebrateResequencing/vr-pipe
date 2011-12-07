@@ -40,7 +40,7 @@ my $element_id = 0;
 foreach (@files) {
   $element_id++;
   my $file = 'gatk_var.vcf.gz';
-  push(@output_files, file($output_dir, output_subdirs($element_id), 'gatk_genotype', $file));
+  push(@output_files, file($output_dir, output_subdirs($element_id), '1_gatk_genotype', $file));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

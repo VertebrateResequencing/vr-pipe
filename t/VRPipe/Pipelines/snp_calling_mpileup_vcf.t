@@ -40,7 +40,7 @@ my $element_id = 0;
 foreach (@files) {
   $element_id++;
   my $file = 'mpileup.vcf';
-  push(@output_files, file($output_dir, output_subdirs($element_id), 'mpileup_vcf', $file));
+  push(@output_files, file($output_dir, output_subdirs($element_id), '1_mpileup_vcf', $file));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
