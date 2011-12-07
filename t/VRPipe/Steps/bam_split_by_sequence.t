@@ -77,7 +77,7 @@ my $element_id=0;
 foreach my $bam (qw(2822_7.pe.bam 2822_6.pe.bam 2822_6.se.bam 2823_4.pe.bam 8324_8.pe.bam)) {
     $element_id++;
     foreach my $prefix (qw(mapped unmapped)) {
-        push(@output_files, file($output_dir, output_subdirs($element_id), 'bam_split_by_sequence', "$prefix.$bam"));
+        push(@output_files, file($output_dir, output_subdirs($element_id), '1_bam_split_by_sequence', "$prefix.$bam"));
     }
 }
 ok handle_pipeline(@output_files), 'single step bam_split_by_sequence pipeline ran and created all expected output files';

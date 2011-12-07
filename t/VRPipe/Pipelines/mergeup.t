@@ -90,13 +90,13 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
 # my @final_files;
 # foreach my $element_id (8, 9) {
 #     foreach my $file ('fake_chr1.pe.bam', 'fake_chr2.pe.bam', 'unmapped.pe.bam') {
-#         push(@final_files, file($build_dir, output_subdirs($element_id), 'bam_split_by_sequence', $file));
+#         push(@final_files, file($build_dir, output_subdirs($element_id), '4_bam_split_by_sequence', $file));
 #     }
 # }
 
 my @final_files;
 foreach my $element_id (8, 9) {
-    push(@final_files, file($build_dir, output_subdirs($element_id), 'bam_reheader', 'pe.bam'));
+    push(@final_files, file($build_dir, output_subdirs($element_id), '3_bam_reheader', 'pe.bam'));
 }
 
 ok handle_pipeline(@final_files), 'pipelines ran ok';
