@@ -16,7 +16,8 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     has 'behaviour' => (is => 'ro',
                         isa => Varchar[64],
                         traits => ['VRPipe::Persistent::Attributes'],
-                        is_key => 1);
+                        is_key => 1,
+                        default => 'delete_outputs');
     
     has 'behaviour_array' => (is => 'rw',
                               isa => 'ArrayRef',
