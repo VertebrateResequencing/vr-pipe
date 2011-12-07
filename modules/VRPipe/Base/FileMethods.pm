@@ -184,9 +184,32 @@ role VRPipe::Base::FileMethods {
         }
         else {
             $dest->update_stats_from_disc;
+            $dest->add_metadata($source->metadata);
         }
     }
     alias cp => 'copy';
+    
+=head2 symlink
+
+ Title   : symlink
+ Usage   : $obj->symlink($source, $dest);
+ Function: Symlink a file.
+ Returns : n/a
+ Args    : VRPipe::File source file, VRPipe::File destination file
+
+=cut
+    method symlink (VRPipe::File $source, VRPipe::File $dest) {
+        my $sp = $source->path;
+        my $dp = $dest->path;
+        my $success = symlink($sp, $dp);
+        unless ($success) {
+            $self->throw("symlink of $sp => $dp failed: $!");
+        }
+        else {
+            $dest->update_stats_from_disc;
+            $dest->add_metadata($source->metadata);
+        }
+    }
     
 =head2 move
 
@@ -208,6 +231,7 @@ role VRPipe::Base::FileMethods {
         }
         else {
             $dest->update_stats_from_disc;
+            $dest->add_metadata($source->metadata);
             
             #*** track somewhere in db that file was moved? so that
             #    we $source act as a psuedo db-based auto-symlink to $dest
