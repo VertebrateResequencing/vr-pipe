@@ -72,16 +72,30 @@ role VRPipe::PipelineRole {
             }
         }
         
-        #*** how do we delete adaptors and behaviour we no longer want?
-        
-        # create adaptors
-        foreach my $definer (@{$adaptor_defs}) {
-            $definer->define($self);
+        # create adaptors, deleting ones we no longer want
+        my %wanted_sas;
+        foreach my $definer (@$adaptor_defs) {
+            my $sa = $definer->define($self);
+            $wanted_sas{$sa->id} = 1;
+        }
+        my $rs = $schema->resultset('StepAdaptor')->search({ pipeline => $self->id });
+        while (my $sa = $rs->next) {
+            unless (exists $wanted_sas{$sa->id}) {
+                $sa->delete;
+            }
         }
         
-        # create behaviours
-        foreach my $definer (@{$behaviour_defs}) {
-            $definer->define($self);
+        # create behaviours, deleting ones we no longer want
+        my %wanted_sbs;
+        foreach my $definer (@$behaviour_defs) {
+            my $sb = $definer->define($self);
+            $wanted_sbs{$sb->id} = 1;
+        }
+        my $rs = $schema->resultset('StepBehaviour')->search({ pipeline => $self->id });
+        while (my $sb = $rs->next) {
+            unless (exists $wanted_sbs{$sb->id}) {
+                $sb->delete;
+            }
         }
         
         return @sms;
