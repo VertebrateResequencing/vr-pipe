@@ -448,7 +448,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
         
         my $actual_lines = $working_bas->lines;
         if ($actual_lines == $expected_lines) {
-            $working_bas->move($working_bas, $out_bas);
+            $working_bas->move($out_bas);
             return 1;
         }
         else {

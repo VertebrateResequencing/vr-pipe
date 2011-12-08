@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 23;
+    use Test::Most tests => 33;
     
     use_ok('VRPipe::Persistent::Schema');
     
@@ -30,7 +30,7 @@ ok my $orig_mtime = $vrfile->mtime, 'got mtime';
 sleep(2);
 system("touch ".$vrfile->path);
 my $new_mtime = $vrfile->mtime;
-is $orig_mtime, $new_mtime, 'mtime unchanged in ddb';
+is $orig_mtime, $new_mtime, 'mtime unchanged in db';
 $vrfile->update_stats_from_disc;
 $new_mtime = $vrfile->mtime;
 isnt $orig_mtime, $new_mtime, 'mtime updated in db';
@@ -60,7 +60,6 @@ $ofh = $vrofile->openw;
 $vrofile->close;
 is_deeply [$vrofile->lines, $vrofile->_lines], [0, undef], 'now has 0 lines after truncate write';
 
-
 $output_path = file($tmp_dir, 'output.txt.gz');
 ok $vrofile = VRPipe::File->get(path => $output_path, type => 'txt'), 'created another File using get()';
 ok $ofh = $vrofile->openw, 'was able to open a file for writing compressed';
@@ -76,6 +75,47 @@ ok $ifh = $vrofile->openr, 'was able to open a compressed file for reading';
 $vrofile->close;
 is_deeply \@lines, ["foo\n", "bar\n", "baz\n"], 'the compressed file could be read with openr';
 is $vrofile->lines, 3, 'raw_lines works correctly on a compressed file';
+
+# test moving and symlinking files
+my $source_path = file($tmp_dir, 'source.txt');
+my $vrsource = VRPipe::File->get(path => $source_path, type => 'txt', metadata => { test => 'meta' });
+$ofh = $vrsource->openw;
+print $ofh "foo\n";
+$vrsource->close;
+my $vrdest1 = VRPipe::File->get(path => file($tmp_dir, 'dest.txt'));
+my $vrdest2 = VRPipe::File->get(path => file($tmp_dir, 'dest2.txt'));
+my $vrdest3 = VRPipe::File->get(path => file($tmp_dir, 'dest3.txt'));
+my $vrdest4 = VRPipe::File->get(path => file($tmp_dir, 'dest4.txt'));
+$vrsource->move($vrdest1);
+$vrdest1->move($vrdest2);
+$vrdest2->symlink($vrdest3);
+$vrdest3->symlink($vrdest4);
+is_deeply [$vrsource->e, $vrdest1->e, $vrdest2->e, $vrdest3->e, $vrdest4->e, $vrdest4->s], [0, 0, 1, 1, 1, $vrdest2->s], 'file existance and sizes are correct after moves';
+is_deeply [$vrdest2->metadata->{test}, $vrdest4->metadata->{test}], ['meta', 'meta'], 'both final moved file and symlink have source metadata';
+my $real_fileid = $vrdest2->id;
+is $vrdest4->resolve->id, $real_fileid, 'the symlink resolves to the real file';
+is $vrsource->resolve->id, $real_fileid, 'the source resolves to the final move destination';
+
+$vrdest4->add_metadata({test2 => 'meta2'});
+is $vrdest2->metadata->{test2}, 'meta2', 'changing metadata on a symlink changes the source file as well';
+$ofh = $vrdest4->open('>>');
+print $ofh "bar\n";
+$vrdest4->close;
+is $vrdest2->s, $vrdest4->s, 'writing to a symlink updates the source size';
+$vrdest4->update_md5;
+$vrdest4->lines;
+is_deeply [$vrdest2->md5, $vrdest2->lines], [$vrdest4->md5, $vrdest4->lines], 'updating symlink md5 and lines updates the source md5 and lines as well';
+
+my $vrdest5 = VRPipe::File->get(path => file($tmp_dir, 'dest5.txt'));
+$vrdest4->move($vrdest5);
+is_deeply [$vrdest5->resolve->id, $vrdest4->resolve->id], [$real_fileid, $real_fileid], 'even a move of a symlink still resolves correctly for both source and dest';
+
+my $source_id = $vrsource->id;
+undef $vrsource;
+$vrfile = VRPipe::File->get(path => $source_path);
+is $vrfile->id, $source_id, 'without auto-resolve, getting a VRPipe::File with source path gives you the object for that literal path';
+$vrfile = VRPipe::File->get(path => $source_path, auto_resolve => 1);
+is $vrfile->id, $real_fileid, 'with auto-resolve, getting a VRPipe::File with source path gives you the object for the moved path';
 
 done_testing;
 exit;

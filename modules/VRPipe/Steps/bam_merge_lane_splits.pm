@@ -60,7 +60,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     my @fqs = split(',', $meta->{mapped_fastqs});
                     my @these_parents;
                     foreach my $fq (@fqs) {
-                        my $fq_file = VRPipe::File->get(path => $fq);
+                        my $fq_file = VRPipe::File->get(path => $fq, auto_resolve => 1);
                         my $parent = $fq_file->metadata->{source_fastq} || $self->throw("no source_fastq for one of the mapped fastqs of $this_path - was it really mapped from a fastq_split result?");
                         push(@these_parents, $parent);
                     }

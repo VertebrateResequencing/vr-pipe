@@ -168,7 +168,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
             my $expected_reads = $counts{$split_bam->path} || 0;
             
             if ($expected_reads == $actual_reads) {
-                $unchecked->move($unchecked, $split_bam) || $self->throw("Couldn't move ".$unchecked->path." to ".$split_bam->path."\n");
+                $unchecked->move($split_bam);
                 push(@out_files, $split_bam);
             }
             else {

@@ -38,7 +38,7 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
                     # so that if this step is restarted, we won't delete our
                     # input file
                     my $ofile = $self->output_file(output_key => 'local_fastq_files', basename => $ifile->basename, type => 'fq', metadata => $fq_file->metadata);
-                    $self->symlink($fq_file, $ofile);
+                    $fq_file->symlink($ofile);
                 }
             }
         };
