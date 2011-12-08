@@ -29,6 +29,11 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpil
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { cleanup => 0,
+		interval_list => file(qw(t data hs_chr20.invervals.bed))->absolute->stringify,
+        #samtools_mpileup_options => '-C50 -aug -r 20:1-70000',
+        samtools_mpileup_options => '-C50 -aug',
+		#reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
+		reference_fasta => "/lustre/scratch105/projects/g1k/ref/main_project/human_g1k_v37.fasta",
 		}
 );
 
