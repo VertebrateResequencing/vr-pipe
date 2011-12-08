@@ -33,7 +33,6 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
 
 			my $req = $self->new_requirements(memory => 5000, time => 1);
 
-			#foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
 			my $i;
 			for($i=0;$i<@{$self->inputs->{vcf_files}};$i++) {
 				my $vcf_file = $self->inputs->{vcf_files}[$i];

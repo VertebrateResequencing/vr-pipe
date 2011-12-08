@@ -192,7 +192,12 @@ role VRPipe::StepRole {
                 }
                 
                 if (! $results) {
-                    $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");
+                    if ($val->min_files == 0) {
+                        return \%return;
+                    }
+                    else {
+                        $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");
+                    }
                 }
                 
                 my $num_results = @$results;
@@ -256,6 +261,7 @@ role VRPipe::StepRole {
         # no files were made for
         while (my ($key, $val) = each %$defs) {
             next if exists $hash->{$key};
+            next if $val->min_files == 0;
             $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
         }
         
