@@ -10,7 +10,8 @@ role VRPipe::PipelineRole {
     requires 'description';
     requires 'steps';
     
-    our %pipeline_modules = map { $_ => 1 } findallmod(VRPipe::Pipelines);
+    our %pipeline_modules; # we need to delay finding our pipeline modules until the last moment, in case of lib changes
+    our $found_modules = 0;
     
     method num_steps {
         return $self->_num_steps;
@@ -91,7 +92,7 @@ role VRPipe::PipelineRole {
             my $sb = $definer->define($self);
             $wanted_sbs{$sb->id} = 1;
         }
-        my $rs = $schema->resultset('StepBehaviour')->search({ pipeline => $self->id });
+        $rs = $schema->resultset('StepBehaviour')->search({ pipeline => $self->id });
         while (my $sb = $rs->next) {
             unless (exists $wanted_sbs{$sb->id}) {
                 $sb->delete;
@@ -105,6 +106,11 @@ role VRPipe::PipelineRole {
         if ($self->isa('VRPipe::Persistent')) {
             my $name = $self->name;
             my $module = "VRPipe::Pipelines::$name";
+            
+            unless ($found_modules) {
+                %pipeline_modules = map { $_ => 1 } findallmod(VRPipe::Pipelines);
+                $found_modules = 1;
+            }
             
             if (exists $pipeline_modules{$module}) {
                 eval "require $module;";
