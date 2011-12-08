@@ -31,7 +31,6 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
 			my $merge_list_path = $merge_list->path;
 
 			my $cmd = qq[$vcf_concat_exe -f $merge_list_path | bgzip -c > $merged_vcf_path];
-			$self->warn($cmd);
             my $req = $self->new_requirements(memory => 500, time => 1);
 			$self->dispatch([$cmd, $req, {output_files => [$merged_vcf, $merge_list]}]); 
         };
