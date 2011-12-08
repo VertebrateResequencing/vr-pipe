@@ -73,7 +73,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
            there are accurate NM tags for each record)
 
 =cut
-    method bam_statistics (ClassName|Object $self: Str|File $bam_file) {
+    method bam_statistics (ClassName|Object $self: Str|File $bam_file!) {
         # go through the bam and accumulate all the raw stats in little memory
         my $pb = VRPipe::Parser->create('bam', {file => file($bam_file)});
         $pb->get_fields('SEQ_LENGTH', 'MAPPED_SEQ_LENGTH', 'FLAG', 'QUAL', 'MAPQ', 'ISIZE', 'RG', 'NM');
@@ -227,7 +227,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
            filename of column 1.
 
 =cut
-    method bas (ClassName|Object $self: Str|File $in_bam, Str|File $out_bas, Int :$release_date? where {/^\d{8}$/}, Str|File :$sequence_index?, Bool :$rg_from_pu?, Str :$chr?) {
+    method bas (ClassName|Object $self: Str|File $in_bam!, Str|File $out_bas!, Int :$release_date? where {/^\d{8}$/}, Str|File :$sequence_index?, Bool :$rg_from_pu?, Str :$chr?) {
         unless (ref($in_bam) && ref($in_bam) eq 'VRPipe::File') {
             $in_bam = VRPipe::File->get(path => file($in_bam));
         }
@@ -448,7 +448,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
         
         my $actual_lines = $working_bas->lines;
         if ($actual_lines == $expected_lines) {
-            $working_bas->move($working_bas, $out_bas);
+            $working_bas->move($out_bas);
             return 1;
         }
         else {

@@ -2,7 +2,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
     method options_definition {
-        return { bam_tags_to_strip => VRPipe::StepOption->get(description => 'Tags to strip from the BAM files', optional => 1, default_value => [qw(OQ XM XG XO E2)]) };
+        return { bam_tags_to_strip => VRPipe::StepOption->get(description => 'Tags to strip from the BAM files. Give tags separated by spaces.', optional => 1, default_value => 'OQ XM XG XO') };
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to strip tags from') };
@@ -12,7 +12,7 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
             my $self = shift;
             
             my $options = $self->options;
-            my @tags_to_strip = @{$options->{bam_tags_to_strip}};
+            my @tags_to_strip = split(/\s+/, $options->{bam_tags_to_strip});
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam (@{$self->inputs->{bam_files}}) {
@@ -53,15 +53,18 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
         my $bp = VRPipe::Parser->create('bam', {file => $in_bam});
         $bp->ignore_tags_on_write(@{$tags_to_strip});
         
+        my $out_bam_path = $out_bam->path->stringify;
         $in_bam->disconnect;
+        my $num_records = 0;
         while ($bp->next_record) {
-            $bp->write_result($out_bam->path);
+            $bp->write_result($out_bam_path);
+            $num_records++;
         }
         $bp->close;
         
         $out_bam->update_stats_from_disc(retries => 3);
         
-        my $expected_reads = $in_bam->metadata->{reads} || $in_bam->num_records;
+        my $expected_reads = $in_bam->metadata->{reads} || $num_records;
         my $actual_reads = $out_bam->num_records;
         
         if ($actual_reads == $expected_reads) {

@@ -44,11 +44,11 @@ my (@output_files,@final_files);
 my $element_id=0;
 foreach my $in ('test1', 'test2') {
 	$element_id++;
-    push(@output_files, file($output_dir, output_subdirs($element_id), 'vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz"));
-    push(@output_files, file($output_dir, output_subdirs($element_id), 'vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
-    push(@output_files, file($output_dir, output_subdirs($element_id), 'vcf_annotate', "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), 'vcf_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), 'vcf_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
+    push(@output_files, file($output_dir, output_subdirs($element_id), '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz"));
+    push(@output_files, file($output_dir, output_subdirs($element_id), '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
+    push(@output_files, file($output_dir, output_subdirs($element_id), '3_vcf_annotate', "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
+    push(@final_files, file($output_dir, output_subdirs($element_id), '4_vcf_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
+    push(@final_files, file($output_dir, output_subdirs($element_id), '4_vcf_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
 }
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
 

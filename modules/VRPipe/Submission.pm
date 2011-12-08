@@ -213,17 +213,17 @@ class VRPipe::Submission extends VRPipe::Persistent {
         my $jso = $self->job->stdout_file || $self->warn("no job stdout_file for job ".$self->job->id);
         return unless $jso;
         my $sso = $self->job_stdout_file;
-        $self->move($jso, $sso) if $jso->e;
+        $jso->move($sso) if $jso->e;
         my $jse = $self->job->stderr_file;
         my $sse = $self->job_stderr_file;
-        $self->move($jse, $sse) if $jse->e;
+        $jse->move($sse) if $jse->e;
         
         my $scso = $self->scheduler_stdout_file(orig => 1);
         my $dest = $self->scheduler_stdout_file;
-        $self->move($scso, $dest) if $scso->e;
+        $scso->move($dest) if $scso->e;
         my $scse = $self->scheduler_stderr_file(orig => 1);
         $dest = $self->scheduler_stderr_file;
-        $self->move($scse, $dest) if $scse->e;
+        $scse->move($dest) if $scse->e;
     }
     
     # requirement passthroughs and extra_* methods

@@ -93,7 +93,7 @@ role VRPipe::StepRole {
         my $hashing_string = 'VRPipe::DataElement::'.$de_id;
         my @subdirs = $self->hashed_dirs($hashing_string);
         
-        return dir($pipeline_root, @subdirs, $de_id, $self->name);
+        return dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number.'_'.$self->name);
     }
     method _build_last_output_dir {
         return $self->output_root;
@@ -192,7 +192,12 @@ role VRPipe::StepRole {
                 }
                 
                 if (! $results) {
-                    $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");
+                    if ($val->min_files == 0) {
+                        return \%return;
+                    }
+                    else {
+                        $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");
+                    }
                 }
                 
                 my $num_results = @$results;
@@ -256,6 +261,7 @@ role VRPipe::StepRole {
         # no files were made for
         while (my ($key, $val) = each %$defs) {
             next if exists $hash->{$key};
+            next if $val->min_files == 0;
             $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
         }
         

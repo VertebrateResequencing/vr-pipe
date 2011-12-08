@@ -93,19 +93,19 @@ my @files = ('2822_7.pe.bam', '2822_6.pe.bam', '2822_6.se.bam', '2823_4.pe.bam',
 my $element_id = 0;
 foreach my $file (@files) {
     $element_id++;
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'test_import_bams', $file);
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'test_import_bams', "$file.bai");
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '1_test_import_bams', $file);
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '1_test_import_bams', "$file.bai");
     $file =~ s/bam$/realign.bam/;
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'bam_realignment_around_known_indels', $file);
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '5_bam_realignment_around_known_indels', $file);
     $file =~ s/bam$/sort.bam/;
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'bam_fix_mates', $file);
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'bam_fix_mates', "$file.bai");
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '6_bam_fix_mates', $file);
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '6_bam_fix_mates', "$file.bai");
     $file =~ s/bam$/recal_data.csv/;
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'bam_count_covariates', $file);
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '8_bam_count_covariates', $file);
     $file =~ s/recal\_data\.csv$/recal.bam/;
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'bam_recalibrate_quality_scores', $file);
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '9_bam_recalibrate_quality_scores', $file);
     $file =~ s/bam$/calmd.bam/;
-    push @output_files, file($improvement_output_dir, output_subdirs($element_id), 'bam_calculate_bq', $file);
+    push @output_files, file($improvement_output_dir, output_subdirs($element_id), '10_bam_calculate_bq', $file);
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 

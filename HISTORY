@@ -1,3 +1,7 @@
+0.16    New merging pipelines and associated vrpipe datasource (for chaining
+        different pipelines together). Critical bug fixes that allow
+        changes in datasources to trigger restarts for the changed
+        elements.
 0.15    Front-end for creating PipelineSetups; improvements to smalt
         mapping so we can map 454 data in 1000 genomes.
 0.14    More front-end scripts added. Sequence index datasource now

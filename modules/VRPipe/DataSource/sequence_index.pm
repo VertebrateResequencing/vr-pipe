@@ -133,15 +133,16 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 }
             }
             
-            $vrfile->add_metadata($new_metadata,
-                                  replace_data => 0);
+            $vrfile->add_metadata($new_metadata, replace_data => 0);
             
             unless ($vrfile->s) {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
             push(@{$lanes_hash->{$pr->[2]}->{paths}}, $fastq);
-            $lanes_hash->{$pr->[2]}->{changed} = $changed;
+            if ($changed) {
+                push(@{$lanes_hash->{$pr->[2]}->{changed}}, [$vrfile, $new_metadata]);
+            }
         }
         
         my @elements = ();
@@ -152,6 +153,13 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             if ($hash_ref->{changed}) {
                 foreach my $estate ($elements[-1]->element_states) {
                     $estate->start_from_scratch;
+                }
+                
+                # only now that we've started from scratch do we we alter the
+                # metadata
+                foreach my $fm (@{$hash_ref->{changed}}) {
+                    my ($vrfile, $new_metadata) = @$fm;
+                    $vrfile->add_metadata($new_metadata, replace_data => 1);
                 }
             }
         }

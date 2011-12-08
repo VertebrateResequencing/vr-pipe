@@ -9,6 +9,7 @@ use Getopt::Long;
 
 my $help = 0;
 my $deployment = 'production';
+my $user = getlogin || getpwuid($<);
 my ($desired_setup, $override_reqs, $deactivate, $reactivate, $list);
 GetOptions("help" => \$help,
            "deployment=s" => \$deployment,
@@ -16,7 +17,8 @@ GetOptions("help" => \$help,
            "requirements" => \$override_reqs,
            "deactivate" => \$deactivate,
            "reactivate" => \$reactivate,
-           "list" => \$list);
+           "list" => \$list,
+           "user=s" => \$user);
 
 if ($deployment !~ /^(?:testing|production)$/) {
     warn "--deployment must be testing|production\n";
@@ -26,6 +28,11 @@ if ($deployment !~ /^(?:testing|production)$/) {
 if ($desired_setup && $list) {
     warn "--setup and --list don't make sense together; ignoring --list\n";
     $list = 0;
+}
+
+if ($user eq 'all' && ! $list) {
+    warn "--user all when not listing with --list don't make sense; when creating a new setup set a real user name with --user, or leave it to the default\n";
+    $help = 1;
 }
 
 if (($override_reqs || $deactivate || $reactivate) && ! $desired_setup) {
@@ -58,6 +65,10 @@ Options:
     --reactivate          Turn on the given --setup
     --list                Just list out the setup names and ids, so you can
                           subsequently run this using --setup
+    --user                When listing setups, only list those created by this
+                          user. When creating a setup, create for this user
+                          (defaults to your current username, specify 'all' to
+                          see setups from all users)
 
 HELP
     exit;
@@ -170,10 +181,16 @@ if ($setup) {
 }
 elsif ($list) {
     # list existing setups, including those that have been deactivated
-    my $rs = $schema->resultset("PipelineSetup");
+    my $rs;
+    if ($user eq 'all') {
+        $rs = $schema->resultset("PipelineSetup");
+    }
+    else {
+        $rs = $schema->resultset("PipelineSetup")->search( { user => $user } );
+    }
     while (my $setup = $rs->next) {
         my $active = $setup->active ? 'active' : 'inactive';
-        print "Pipeline Setup '", $setup->name, "' (id ", $setup->id, ", $active)\n";
+        print "Pipeline Setup '", $setup->name, "' (id ", $setup->id, ", $active for user ", $setup->user, ")\n";
     }
 }
 else {
@@ -313,7 +330,7 @@ else {
     
     # confirm with the user everything is correct
     print "\nWe've now gathered all information; here's what you've asked for:\n";
-    print "\tPipelineSetup name: $setup_name\n";
+    print "\tPipelineSetup name: $setup_name (for user $user)\n";
     print "\tDataSource: $chosen_ds_type\->$chosen_method with source $ds_source\n";
     while (my ($key, $val) = each %chosen_method_args) {
         print "\t\t$key => $val\n";
@@ -327,7 +344,7 @@ else {
     # actually create the datasource and pipelinesetup
     if ($correct eq 'y') {
         my $ds = VRPipe::DataSource->get(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args);
-        my $ps = VRPipe::PipelineSetup->get(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args);
+        my $ps = VRPipe::PipelineSetup->get(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args, user => $user);
         print "\nYour new PipelineSetup has been created!\nName: $setup_name; Id: ", $ps->id, " (remember at least one of these for use later)\n";
     }
     else {
@@ -341,7 +358,7 @@ sub describe_io_def {
     my $io_def = shift;
     
     print "\tFile type = ", $io_def->type, " (", $io_def->description, ")\n";
-    my $files_comment = $io_def->check_existence ? 'and the must exist' : "and they don't have to exist yet";
+    my $files_comment = $io_def->check_existence ? 'and they must exist' : "and they don't have to exist yet";
     my $max = $io_def->max_files;
     if ($max == -1) {
         $max = 'unlimited';

@@ -109,7 +109,7 @@ if ($desired_ele) {
 else {
     foreach my $setup (@setups) {
         if ($all) {
-            my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup, 'dataelement.withdrawn' => 0 },
+            my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, 'dataelement.withdrawn' => 0 },
                                                                     { join => 'dataelement' });
             
             while (my $state = $rs->next) {
@@ -121,7 +121,7 @@ else {
             if ($failed) {
                 my $pipeline = $setup->pipeline;
                 foreach my $estate (@$estates) {
-                    my $rs = $schema->resultset('StepMember')->search({ step_number => ($estate->completed_steps + 1), pipeline => $pipeline });
+                    my $rs = $schema->resultset('StepMember')->search({ step_number => ($estate->completed_steps + 1), pipeline => $pipeline->id });
                     my @sms;
                     while (my $sm = $rs->next) {
                         push(@sms, $sm);
@@ -137,11 +137,11 @@ else {
                     
                     my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
                     if ($sstate->complete) {
-                        warn "weird, I ment to get a failed stepstate for estate ", $estate->id, " at step ", ($estate->completed_steps + 1), " but it was complete! Skipping\n";
+                        warn "weird, I meant to get a failed stepstate for estate ", $estate->id, " at step ", ($estate->completed_steps + 1), " but it was complete! Skipping\n";
                         next;
                     }
                     
-                    $rs = $schema->resultset('Submission')->search({ retries => $retries, '_failed' => 1, stepstate => $sstate });
+                    $rs = $schema->resultset('Submission')->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
                     my $found = $rs->next;
                     if ($found) {
                         #*** can we combine all the above into one big search search query with multiple joins?...
@@ -274,7 +274,16 @@ if ($count > 0 && $start_from_scratch) {
             foreach my $stepm ($pipeline->step_members) {
                 warn '  ', $stepm->step_number, ': ', $stepm->step->name, "\n";
             }
-            my @default_steps = $estates->[0]->our_step_numbers;
+            my $furthest_estate;
+            my $furthest = 0;
+            foreach my $estate (@$estates) {
+                my $completed = $estate->completed_steps;
+                if ($completed > $furthest) {
+                    $furthest = $completed;
+                    $furthest_estate = $estate;
+                }
+            }
+            my @default_steps = $furthest_estate->our_step_numbers;
             warn '[', join(' ', @default_steps), "]\n";
             $answer = <>;
             chomp($answer);

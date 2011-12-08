@@ -43,6 +43,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                      traits => ['VRPipe::Persistent::Attributes'],
                      default => 1);
     
+    has 'user' => (is => 'rw',
+                   isa => Varchar[64],
+                   traits => ['VRPipe::Persistent::Attributes'],
+                   default => 'vrpipe');
+    
     __PACKAGE__->make_persistent(has_many => [states => 'VRPipe::StepState']);
 }
 

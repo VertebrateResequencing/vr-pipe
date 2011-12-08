@@ -101,9 +101,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     use MooseX::NonMoose;
     use B::Deparse;
     use Storable qw(nfreeze thaw);
+    use Module::Find;
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
+    
+    our %factory_modules;
     
     __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
     
@@ -438,6 +441,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # create the corresponding row in the db
         $meta->add_method('get' => sub {
             my ($self, %args) = @_;
+            
             my $schema = delete $args{schema};
             unless ($schema) {
                 unless ($GLOBAL_CONNECTED_SCHEMA) {
@@ -450,33 +454,43 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             # first see if there is a corresponding $class::$name class
             if (defined $args{name} && keys %args == 1) {
-                try {
-                    eval "require ${class}s::$args{name};"; # eval within a try because can't get require to work with a variable name otherwise?!
-                    die "$@\n" if $@;
-                    my $factory_class = "${class}NonPersistentFactory";
-                    eval "require $factory_class;";
-                    die "$@\n" if $@;
-                    my $obj = $factory_class->create($args{name}, {});
+                my $dir = $class.'s';
+                unless (exists $factory_modules{$class}) {
+                    $factory_modules{$class} = { map { s/^.+:://; $_ => 1 } findallmod($dir) };
+                }
+                
+                if (exists $factory_modules{$class}->{$args{name}}) {
+                    unless (exists $factory_modules{factories}) {
+                        $factory_modules{factories} = { map { $_ => 1 } grep { /NonPersistentFactory$/ } findallmod('VRPipe') };
+                    }
                     
-                    # now setup %args based on $obj; doing things this way means
-                    # we return a real Persistent object, but it is based on the
-                    # very latest non-persistent code
-                    my %these_args;
-                    foreach my $attr ($meta->get_all_attributes) {
-                        next unless $attr->does('VRPipe::Persistent::Attributes');
-                        my $method = $attr->name;
-                        next if $method eq 'id';
-                        $these_args{$method} = $obj->$method(); # incase $method() causes the try to bomb out, we don't directly alter %args until we've finished the loop
-                    }
-                    while (my ($key, $val) = each %these_args) {
-                        $args{$key} = $val;
+                    my $factory_class = "${class}NonPersistentFactory";
+                    if (exists $factory_modules{factories}->{$factory_class}) {
+                        eval "require $factory_class;";
+                        die "$@\n" if $@;
+                        my $obj = $factory_class->create($args{name}, {});
+                        
+                        # now setup %args based on $obj; doing things this way means
+                        # we return a real Persistent object, but it is based on the
+                        # very latest non-persistent code
+                        my %these_args;
+                        foreach my $attr ($meta->get_all_attributes) {
+                            next unless $attr->does('VRPipe::Persistent::Attributes');
+                            my $method = $attr->name;
+                            next if $method eq 'id';
+                            $these_args{$method} = $obj->$method(); # incase $method() causes the try to bomb out, we don't directly alter %args until we've finished the loop
+                        }
+                        while (my ($key, $val) = each %these_args) {
+                            $args{$key} = $val;
+                        }
                     }
                 }
-                catch ($err) {
-                    unless ($err =~ /^Can't locate/) {
-                        $self->throw($err);
-                    }
-                }
+            }
+            
+            my $resolve = delete $args{auto_resolve};
+            if ($resolve && $self->can('resolve')) {
+                my $obj = $self->get(%args);
+                return $obj->resolve;
             }
             
             my %find_args;

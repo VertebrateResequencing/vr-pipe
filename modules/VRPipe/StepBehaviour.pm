@@ -13,6 +13,12 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
                          traits => ['VRPipe::Persistent::Attributes'],
                          is_key => 1);
     
+    has 'behaviour' => (is => 'ro',
+                        isa => Varchar[64],
+                        traits => ['VRPipe::Persistent::Attributes'],
+                        is_key => 1,
+                        default => 'delete_outputs');
+    
     has 'behaviour_array' => (is => 'rw',
                               isa => 'ArrayRef',
                               traits => ['VRPipe::Persistent::Attributes'],
@@ -62,7 +68,12 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
             my ($method, @steps) = @$behaviour;
             $self->throw("'$method' is not a valid behaviour") unless $self->can($method);
             
-            return $self->$method($self->step_numbers_to_states(\@steps));
+            if ($method eq 'delete_inputs') {
+                $self->throw('delete_inputs is a special behaviour that only operate on step 0, i.e. files from the datasource') unless (@steps == 1 && $steps[0] == 0);
+                $self->$method;
+            } else {
+                return $self->$method($self->step_numbers_to_states(\@steps));
+            }
         }
     }
     
@@ -92,6 +103,15 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     method start_over (ArrayRef[VRPipe::StepState] $states) {
         foreach my $state (@$states) {
             $state->start_over;
+        }
+    }
+    
+    method delete_inputs {
+        my $data_element = $self->dataelement;
+        my $result = $data_element->result;
+        my $paths = $result->{paths} || $self->throw("data element ".$data_element->id." gave a result with no paths");
+        foreach my $path (@$paths) {
+            VRPipe::File->get(path => file($path)->absolute)->unlink;
         }
     }
 }

@@ -137,10 +137,10 @@ is_deeply [VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)-
              paired => 2,
              mate => file(qw(t data 8324_8_1.fastq))->absolute->stringify }], 'fastqs that went through the first step of the mapping pipeline have the correct metadata';
 
-my @split_fqs = (VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(1), 'fastq_split', 'se_8000', '2822_6.1.fastq')),
-                 VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(1), 'fastq_split', 'pe_8000', '2822_6_1.1.fastq.gz')),
-                 VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(1), 'fastq_split', 'pe_8000', '2822_6_2.3.fastq.gz')),
-                 VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(3), 'fastq_split', 'pe_8000', '2823_4_2.4.fastq.gz')));
+my @split_fqs = (VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(1), '5_fastq_split', 'se_8000', '2822_6.1.fastq')),
+                 VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_1.1.fastq.gz')),
+                 VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_2.3.fastq.gz')),
+                 VRPipe::File->get(path => file($mapping_output_dir, output_subdirs(3), '5_fastq_split', 'pe_8000', '2823_4_2.4.fastq.gz')));
 
 is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->metadata, $split_fqs[3]->metadata],
           [{ lane => '2822_6',
@@ -178,7 +178,7 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              avg_read_length => '61.00',
              analysis_group => 'low coverage',
              paired => 1,
-             mate => file($mapping_output_dir, output_subdirs(1), 'fastq_split', 'pe_8000', '2822_6_2.1.fastq.gz')->stringify,
+             mate => file($mapping_output_dir, output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_2.1.fastq.gz')->stringify,
              source_fastq => file(qw(t data 2822_6_1.fastq))->absolute->stringify },
            { lane => '2822_6',
              chunk => 3,
@@ -197,7 +197,7 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              avg_read_length => '54.00',
              analysis_group => 'low coverage',
              paired => 2,
-             mate => file($mapping_output_dir, output_subdirs(1), 'fastq_split', 'pe_8000', '2822_6_1.3.fastq.gz')->stringify,
+             mate => file($mapping_output_dir, output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_1.3.fastq.gz')->stringify,
              source_fastq => file(qw(t data 2822_6_2.fastq))->absolute->stringify },
            { lane => '2823_4',
              chunk => 4,
@@ -216,7 +216,7 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
              avg_read_length => '54.00',
              analysis_group => 'low coverage',
              paired => 2,
-             mate => file($mapping_output_dir, output_subdirs(3), 'fastq_split', 'pe_8000', '2823_4_1.4.fastq.gz')->stringify,
+             mate => file($mapping_output_dir, output_subdirs(3), '5_fastq_split', 'pe_8000', '2823_4_1.4.fastq.gz')->stringify,
              source_fastq => file(qw(t data 2823_4_2.fastq))->absolute->stringify }], 'split files that came out of the fastq_split step have the correct metadata';
 
 my $existing_outputs = 0;
@@ -231,56 +231,56 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
     $element_num++;
     if ($lane eq '2822_6') {
         for my $i (1..1) {
-            my $fq = file($mapping_output_dir, output_subdirs($element_num), 'fastq_split', 'se_8000', "${lane}.$i.fastq");
+            my $fq = file($mapping_output_dir, output_subdirs($element_num), '5_fastq_split', 'se_8000', "${lane}.$i.fastq");
             my $sai = $fq.'.sai';
             $existing_outputs += -s $fq ? 1 : 0;
             $existing_sai_outs += -s $sai ? 1 : 0;
-            my $sam = file($mapping_output_dir, output_subdirs($element_num), 'bwa_sam', "$lane.se.1.sam");
+            my $sam = file($mapping_output_dir, output_subdirs($element_num), '7_bwa_sam', "$lane.se.1.sam");
             $existing_sam_outs += -s $sam ? 1 : 0;
-            my $bam = file($mapping_output_dir, output_subdirs($element_num), 'sam_to_fixed_bam', "$lane.pe.$i.bam");
+            my $bam = file($mapping_output_dir, output_subdirs($element_num), '8_sam_to_fixed_bam', "$lane.pe.$i.bam");
             $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
         for my $i (1..3) {
             for my $j (1..2) {
-                my $fq = file($mapping_output_dir, output_subdirs($element_num), 'fastq_split', 'pe_8000', "${lane}_$j.$i.fastq.gz");
+                my $fq = file($mapping_output_dir, output_subdirs($element_num), '5_fastq_split', 'pe_8000', "${lane}_$j.$i.fastq.gz");
                 my $sai = $fq.'.sai';
                 $existing_outputs += -s $fq ? 1 : 0;
                 $existing_sai_outs += -s $sai ? 1 : 0;
             }
-            my $sam = file($mapping_output_dir, output_subdirs($element_num), 'bwa_sam', "$lane.pe.$i.sam");
+            my $sam = file($mapping_output_dir, output_subdirs($element_num), '7_bwa_sam', "$lane.pe.$i.sam");
             $existing_sam_outs += -s $sam ? 1 : 0;
-            my $bam = file($mapping_output_dir, output_subdirs($element_num), 'sam_to_fixed_bam', "$lane.pe.$i.bam");
+            my $bam = file($mapping_output_dir, output_subdirs($element_num), '8_sam_to_fixed_bam', "$lane.pe.$i.bam");
             $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
         
         foreach my $ended ('se', 'pe') {
-            my $bam = file($mapping_output_dir, output_subdirs($element_num), 'bam_merge_lane_splits', "$lane.$ended.bam");
+            my $bam = file($mapping_output_dir, output_subdirs($element_num), '9_bam_merge_lane_splits', "$lane.$ended.bam");
             $existing_final_bam_outs += -s $bam ? 1 : 0;
             push(@final_bams, VRPipe::File->get(path => $bam));
             
-            my $bas = file($mapping_output_dir, output_subdirs($element_num), 'bam_stats', "$lane.$ended.bam.bas");
+            my $bas = file($mapping_output_dir, output_subdirs($element_num), '10_bam_stats', "$lane.$ended.bam.bas");
             $existing_bas_outs += -s $bas ? 1 : 0;
         }
     }
     else {
         for my $i (1..4) {
             for my $j (1..2) {
-                my $fq = file($mapping_output_dir, output_subdirs($element_num), 'fastq_split', 'pe_8000', "${lane}_$j.$i.fastq.gz");
+                my $fq = file($mapping_output_dir, output_subdirs($element_num), '5_fastq_split', 'pe_8000', "${lane}_$j.$i.fastq.gz");
                 my $sai = $fq.'.sai';
                 $existing_outputs += -s $fq ? 1 : 0;
                 $existing_sai_outs += -s $sai ? 1 : 0;
             }
-            my $sam = file($mapping_output_dir, output_subdirs($element_num), 'bwa_sam', "$lane.pe.$i.sam");
+            my $sam = file($mapping_output_dir, output_subdirs($element_num), '7_bwa_sam', "$lane.pe.$i.sam");
             $existing_sam_outs += -s $sam ? 1 : 0;
-            my $bam = file($mapping_output_dir, output_subdirs($element_num), 'sam_to_fixed_bam', "$lane.pe.$i.bam");
+            my $bam = file($mapping_output_dir, output_subdirs($element_num), '8_sam_to_fixed_bam', "$lane.pe.$i.bam");
             $existing_split_bam_outs += -s $bam ? 1 : 0;
         }
         
-        my $bam = file($mapping_output_dir, output_subdirs($element_num), 'bam_merge_lane_splits', "$lane.pe.bam");
+        my $bam = file($mapping_output_dir, output_subdirs($element_num), '9_bam_merge_lane_splits', "$lane.pe.bam");
         $existing_final_bam_outs += -s $bam ? 1 : 0;
         push(@final_bams, VRPipe::File->get(path => $bam));
         
-        my $bas = file($mapping_output_dir, output_subdirs($element_num), 'bam_stats', "$lane.pe.bam.bas");
+        my $bas = file($mapping_output_dir, output_subdirs($element_num), '10_bam_stats', "$lane.pe.bam.bas");
         $existing_bas_outs += -s $bas ? 1 : 0;
     }
 }
@@ -381,7 +381,7 @@ is_deeply [@final_bam_metas],
              sample => 'SAMPLE01',
              platform => 'ILLUMINA',
              library => 'LIB01',
-             insert_size => 200,
+             insert_size => 205,
              reads => 500,
              bases => 28750,
              paired => 1,

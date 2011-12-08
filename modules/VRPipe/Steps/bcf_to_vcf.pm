@@ -30,7 +30,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 my $vcf_path = $vcf_file->path;
 
                 my $cmd = qq[$bcftools view $view_opts $bcf_path | bgzip -c > $vcf_path];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bcf_to_vcf', 'view_bcf', [$cmd, $req, {output_files => [$vcf_file]}]); 
+                $self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
             }
         };
     }
@@ -46,20 +46,6 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
     method max_simultaneous {
         return 0; # meaning unlimited
     }
-    method view_bcf (ClassName|Object $self: Str $cmd_line) {
-        my ($bcf_path, $vcf_path) = $cmd_line =~ / (\S+) \| bgzip -c > (\S+)$/;
-        
-        $bcf_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $vcf_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        my $bcf_file = VRPipe::File->get(path => $bcf_path);
-        my $vcf_file = VRPipe::File->get(path => $vcf_path);
-        
-        $bcf_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-        
-        $vcf_file->update_stats_from_disc;
-    }
-
 }
 
 1;

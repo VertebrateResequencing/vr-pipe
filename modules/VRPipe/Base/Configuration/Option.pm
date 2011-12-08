@@ -137,9 +137,16 @@ EOF
         
         if ($valid_ref) {
             my %allowed = map { $_ => 1 } @{$valid_ref};
-            while (! exists $allowed{$answer}) {
+            my $env_answer;
+            if ($answer =~ /^ENV\{(.+)}/) {
+                $env_answer = $ENV{$1};
+            }
+            while (! exists $allowed{$answer} && (defined $env_answer ? (! exists $allowed{$env_answer}) : 1)) {
                 warn "'$answer' was not a valid answer for that question; try again:\n";
                 $answer = $self->_prompt($valid, $default);
+                if ($answer =~ /^ENV\{(.+)}/) {
+                    $env_answer = $ENV{$1};
+                }
             }
         }
         
