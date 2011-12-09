@@ -14,9 +14,7 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
                  genotyper_opts => VRPipe::StepOption->get(description => 'options for GATK UnifiedGenotyper, excluding -R,-D,-I,-o'),
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta', 
-					optional => 1, 
-					default_value => '/lustre/scratch105/projects/g1k/ref/main_project/human_g1k_v37.fasta'),
+                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
                  max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', 
 					optional => 1, 
 					default_value => 10),
