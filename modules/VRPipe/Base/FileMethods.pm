@@ -10,8 +10,6 @@ class VRPipe::MyClass with (VRPipe::Base::FileMethods) {
     #...
     
     method my_method (Str $input, Str $source, Str $dest) {
-        $self->copy($source, $dest);
-        $self->move($dest, "$dest.moved");
         my $tempdir = $self->tempdir();
         ($handle, $tempfile) = $self->tempfile();
     }
@@ -163,58 +161,6 @@ role VRPipe::Base::FileMethods {
         }
     }
     alias rmtree => 'remove_tree';
-    
-=head2 copy
-
- Title   : copy (alias cp)
- Usage   : $obj->copy($source, $dest);
- Function: Copy a file. An alias to File::Copy::copy, but with VRPipe-style
-           handling of errors. Does not return a boolean; throws on failure
-           instead.
- Returns : n/a
- Args    : VRPipe::File source file, VRPipe::File destination file
-
-=cut
-    method copy (VRPipe::File $source, VRPipe::File $dest) {
-        my $sp = $source->path;
-        my $dp = $dest->path;
-        my $success = File::Copy::copy($sp, $dp);
-        unless ($success) {
-            $self->throw("copy of $sp => $dp failed: $!");
-        }
-        else {
-            $dest->update_stats_from_disc;
-        }
-    }
-    alias cp => 'copy';
-    
-=head2 move
-
- Title   : move (alias mv)
- Usage   : $obj->move($source, $dest);
- Function: Move a file. An alias to File::Copy::move, but with VRPipe-style
-           handling of errors. Does not return a boolean; throws on failure
-           instead.
- Returns : n/a
- Args    : VRPipe::File source file, VRPipe::File destination file
-
-=cut
-    method move (VRPipe::File $source, VRPipe::File $dest) {
-        my $sp = $source->path;
-        my $dp = $dest->path;
-        my $success = File::Copy::move($sp, $dp);
-        unless ($success) {
-            $self->throw("move of $sp => $dp failed: $!");
-        }
-        else {
-            $dest->update_stats_from_disc;
-            
-            #*** track somewhere in db that file was moved? so that
-            #    we $source act as a psuedo db-based auto-symlink to $dest
-            $source->delete;
-        }
-    }
-    alias mv => 'move';
 
 =head2 tempfile
 
@@ -279,7 +225,7 @@ role VRPipe::Base::FileMethods {
             }
         }
         elsif ($unlink_source) {
-                $self->move($source, $destination) if $source->e;
+                $source->move($destination) if $source->e;
                 $copy_over = 0;
                 $unlink_source = 0;
         }

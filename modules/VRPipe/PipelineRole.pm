@@ -10,6 +10,9 @@ role VRPipe::PipelineRole {
     requires 'description';
     requires 'steps';
     
+    our %pipeline_modules; # we need to delay finding our pipeline modules until the last moment, in case of lib changes
+    our $found_modules = 0;
+    
     method num_steps {
         return $self->_num_steps;
     }
@@ -70,16 +73,30 @@ role VRPipe::PipelineRole {
             }
         }
         
-        #*** how do we delete adaptors and behaviour we no longer want?
-        
-        # create adaptors
-        foreach my $definer (@{$adaptor_defs}) {
-            $definer->define($self);
+        # create adaptors, deleting ones we no longer want
+        my %wanted_sas;
+        foreach my $definer (@$adaptor_defs) {
+            my $sa = $definer->define($self);
+            $wanted_sas{$sa->id} = 1;
+        }
+        my $rs = $schema->resultset('StepAdaptor')->search({ pipeline => $self->id });
+        while (my $sa = $rs->next) {
+            unless (exists $wanted_sas{$sa->id}) {
+                $sa->delete;
+            }
         }
         
-        # create behaviours
-        foreach my $definer (@{$behaviour_defs}) {
-            $definer->define($self);
+        # create behaviours, deleting ones we no longer want
+        my %wanted_sbs;
+        foreach my $definer (@$behaviour_defs) {
+            my $sb = $definer->define($self);
+            $wanted_sbs{$sb->id} = 1;
+        }
+        $rs = $schema->resultset('StepBehaviour')->search({ pipeline => $self->id });
+        while (my $sb = $rs->next) {
+            unless (exists $wanted_sbs{$sb->id}) {
+                $sb->delete;
+            }
         }
         
         return @sms;
@@ -90,8 +107,12 @@ role VRPipe::PipelineRole {
             my $name = $self->name;
             my $module = "VRPipe::Pipelines::$name";
             
-            my %modules = map { $_ => 1} findallmod(VRPipe::Pipelines); # cache this result somewhere. where??
-            if (exists $modules{$module}) {
+            unless ($found_modules) {
+                %pipeline_modules = map { $_ => 1 } findallmod(VRPipe::Pipelines);
+                $found_modules = 1;
+            }
+            
+            if (exists $pipeline_modules{$module}) {
                 eval "require $module;";
                 unless ($@) {
                       my $obj = $module->new();

@@ -84,21 +84,21 @@ foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
     $element_id++;
     my $step_index = 0;
     foreach my $suffix ('step_one', 'step_one.step_two', 'step_one.step_two.step_three', 'step_one.step_two.step_three.step_four') {
-        push(@base_files, file($output_dir, output_subdirs($element_id), $expected_base_step_names[$step_index], "$in.$suffix"));
+        push(@base_files, file($output_dir, output_subdirs($element_id), ($step_index+1).'_'.$expected_base_step_names[$step_index], "$in.$suffix"));
         $step_index++;
     }
 }
 $element_id++;
 my $step_index = 0;
 foreach my $suffix ('txt', 'txt.step_one') {
-    push(@link_merge_files, file($output_dir_3, output_subdirs($element_id), $expected_link_step_names[$step_index], "merged.$suffix"));
+    push(@link_merge_files, file($output_dir_3, output_subdirs($element_id), ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
     $step_index++;
 }
 foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
     $element_id++;
     my $step_index = 0;
     foreach my $suffix ('txt', 'txt.step_one') {
-        push(@link_files, file($output_dir_2, output_subdirs($element_id), $expected_link_step_names[$step_index], "merged.$suffix"));
+        push(@link_files, file($output_dir_2, output_subdirs($element_id), ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
         $step_index++;
     }
 }

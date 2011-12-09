@@ -6,6 +6,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use File::ReadBackwards;
     use IO::Uncompress::AnyUncompress;
     use VRPipe::FileType;
+    use File::Copy;
     
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
@@ -54,6 +55,20 @@ class VRPipe::File extends VRPipe::Persistent {
                        isa => 'HashRef',
                        traits => ['VRPipe::Persistent::Attributes'],
                        default => sub { {} });
+    
+    has 'moved_to' => (is => 'rw',
+                       isa => Persistent,
+                       coerce => 1,
+                       traits => ['VRPipe::Persistent::Attributes'],
+                       belongs_to => 'VRPipe::File',
+                       is_nullable => 1);
+    
+    has 'parent' => (is => 'rw',
+                     isa => Persistent,
+                     coerce => 1,
+                     traits => ['VRPipe::Persistent::Attributes'],
+                     belongs_to => 'VRPipe::File',
+                     is_nullable => 1);
     
     has _opened_for_writing => (is => 'rw',
                                 isa => 'Bool',
@@ -132,6 +147,11 @@ class VRPipe::File extends VRPipe::Persistent {
         
         $self->metadata($new_meta);
         $self->update;
+        
+        my $resolve = $self->resolve;
+        if ($resolve ne $self) {
+            $resolve->add_metadata($meta, replace_data => $replace_data);
+        }
     }
     
     method openr {
@@ -240,18 +260,131 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method touch {
         $self->path->touch;
-        unless ($self->e) {
-            $self->update_stats_from_disc;
-        }
+        $self->update_stats_from_disc;
     }
     
     method remove {
         my $path = $self->path;
         $self->path->remove;
         $self->update_stats_from_disc;
+        $self->_lines(undef);
+        $self->update;
     }
     alias unlink => 'remove';
     alias rm => 'remove';
+    
+=head2 move
+
+ Title   : move (alias mv)
+ Usage   : $obj->move($dest);
+ Function: Move this file to another path.
+ Returns : n/a
+ Args    : VRPipe::File destination file
+
+=cut
+    method move (VRPipe::File $dest) {
+        my $sp = $self->path;
+        my $dp = $dest->path;
+        my $success = File::Copy::move($sp, $dp);
+        unless ($success) {
+            $self->throw("move of $sp => $dp failed: $!");
+        }
+        else {
+            $dest->update_stats_from_disc;
+            $dest->add_metadata($self->metadata);
+            my $parent = $self->parent;
+            if ($parent) {
+                $dest->parent($parent) if $self->parent;
+                $dest->update;
+            }
+            
+            $self->remove; # to update stats and _lines
+            $self->moved_to($dest);
+            $self->update;
+        }
+    }
+    alias mv => 'move';
+    
+=head2 symlink
+
+ Title   : symlink
+ Usage   : $obj->symlink($dest);
+ Function: Create a soft symlink to this file at another path.
+ Returns : n/a
+ Args    : VRPipe::File destination file
+
+=cut
+    method symlink (VRPipe::File $dest) {
+        my $sp = $self->path;
+        my $dp = $dest->path;
+        my $success = symlink($sp, $dp);
+        unless ($success) {
+            $self->throw("symlink of $sp => $dp failed: $!");
+        }
+        else {
+            $dest->update_stats_from_disc;
+            $dest->add_metadata($self->metadata);
+            $dest->parent($self);
+            $dest->update;
+        }
+    }
+    
+=head2 resolve
+
+ Title   : move (alias mv)
+ Usage   : my $real_file = $obj->resolve;
+ Function: If this file was created as a symlink (using VRPipe::File->symlink),
+           returns the VRPipe::File corresponding to the real file. If this file
+           was moved somewhere else, returns the VRPipe::File corresponding to
+           the current location. If neither of these is true, returns itself.
+ Returns : VRPipe::File object
+ Args    : n/a
+
+=cut
+    method resolve {
+        my $links_resolved;
+        my $parent = $self->parent;
+        if ($parent) {
+            $links_resolved = $parent->resolve;
+        }
+        else {
+            $links_resolved = $self;
+        }
+        
+        my $fully_resolved;
+        my $moved_to = $links_resolved->moved_to;
+        if ($moved_to) {
+            $fully_resolved = $moved_to->resolve;
+        }
+        else {
+            $fully_resolved = $links_resolved;
+        }
+        
+        return $fully_resolved;
+    }
+    
+=head2 copy
+
+ Title   : copy (alias cp)
+ Usage   : $obj->copy($dest);
+ Function: Copy this file to another path.
+ Returns : n/a
+ Args    : VRPipe::File source file, VRPipe::File destination file
+
+=cut
+    method copy (VRPipe::File $dest) {
+        my $sp = $self->path;
+        my $dp = $dest->path;
+        my $success = File::Copy::copy($sp, $dp);
+        unless ($success) {
+            $self->throw("copy of $sp => $dp failed: $!");
+        }
+        else {
+            $dest->update_stats_from_disc;
+            $dest->add_metadata($self->metadata);
+        }
+    }
+    alias cp => 'copy';
     
     method update_stats_from_disc (PositiveInt :$retries = 1) {
         my $current_s = $self->s;
@@ -276,7 +409,15 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->e($new_e);
             $self->s($new_s);
             $self->mtime($new_mtime);
+            if ($current_s != $new_s) {
+                $self->md5(undef);
+            }
             $self->update;
+        }
+        
+        my $resolve = $self->resolve;
+        if ($resolve ne $self) {
+            $resolve->update_stats_from_disc(retries => $retries);
         }
     }
     
@@ -294,6 +435,13 @@ class VRPipe::File extends VRPipe::Persistent {
         $lines || $self->throw("Failed to find any lines in ".$self->path.", even though it has size!");
         return $lines;
     }
+    after _lines {
+        my $resolve = $self->resolve;
+        if ($resolve ne $self) {
+            $resolve->_lines($self->{_lines}); #*** to avoid recursion we access the self hash!! rework?...
+            $resolve->update;
+        }
+    }
     
     method num_records {
         my $s = $self->s || return 0;
@@ -309,6 +457,13 @@ class VRPipe::File extends VRPipe::Persistent {
         $md5 ||= $self->file_md5($self);
         $self->md5($md5);
         $self->update;
+    }
+    after md5 {
+        my $resolve = $self->resolve;
+        if ($resolve ne $self) {
+            $resolve->md5($self->{md5}); #*** to avoid recursion we access the self hash!! rework?...
+            $resolve->update;
+        }
     }
     
     sub DEMOLISH {

@@ -59,7 +59,7 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
             foreach my $fq (@fq_files) {
                 my $fq_meta = $fq->metadata;
                 my $paired = $fq_meta->{paired};
-                my $path = $fq->path->stringify;
+                my $path = $fq->resolve->path->stringify;
                 my $lane = $fq_meta->{lane};
                 my $chunk = $fq_meta->{chunk} || 0;
                 $fqs_by_path{$path} = [$lane, $chunk, $paired, $fq_meta];

@@ -197,7 +197,6 @@ class VRPipe::Job extends VRPipe::Persistent {
                 sleep(1);
                 while (1) {
                     my $still_running = kill(0, $cmd_pid);
-                    last unless $still_running;
                     $self->heartbeat(DateTime->now());
                     $self->update;
                     $self->disconnect;
@@ -249,6 +248,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         $self->exit_code($exit_code);
         $self->update;
         
+        kill(9, $heartbeat_pid);
         # reap the heartbeat
         $self->_wait_for_child($heartbeat_pid);
     }
