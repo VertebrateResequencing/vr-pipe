@@ -15,7 +15,7 @@ ok my $p = VRPipe::Parser->create('lsf', {file => file(qw(t data lsf.stdout))}),
 $p->fh;
 is_deeply [$p->file, $p->_vrpipe_file->path], [file(qw(t data lsf.stdout)), file(qw(t data lsf.stdout))->absolute], 'file details are correct';
 
-throws_ok {$p = VRPipe::Parser->create('foo', {});} qr/Invalid implementation class/, 'throws when asked to create an invalid parser';
+throws_ok {$p = VRPipe::Parser->create('foo', {});} qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid parser';
 
 is $p->memory, 1, 'memory is correct without a next_record() call';
 is $p->cpu_time, 4.75, 'so is cpu_time';
