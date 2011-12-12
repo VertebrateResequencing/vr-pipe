@@ -140,7 +140,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                 my $split_file = $outs[$i]->[1];
                 $split_file->close();
                 $split_file->unlink;
-                symlink($fq_file->path, $split_file->path);
+                $fq_file->symlink($split_file);
                 
                 my $meta = $fq_file->metadata;
                 delete $meta->{expected_md5};
