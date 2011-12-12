@@ -12,7 +12,7 @@ use base qw(Module::Build Exporter);
 # all deps installed.
 
 sub required_modules {
-    return { perl => '5.8.8', #DBD::SQLite
+    return { perl => '5.8.8',
              'B::Deparse' => 0,
              'Class::Unload' => 0,
              'Crypt::CBC' => 0,
