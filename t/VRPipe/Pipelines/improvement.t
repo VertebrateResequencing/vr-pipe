@@ -5,10 +5,9 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 7;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 6;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES GATK PICARD)],
+                    required_exe => [qw(samtools)]);
     use TestPipelines;
 }
 
@@ -122,5 +121,5 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataeleme
            'java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file -l INFO --disable_bam_indexing',
            'samtools calmd -Erb $bam_file $reference_fasta > $bq_bam_file'],
           'cmd summaries for the major steps were as expected';
-          
+
 finish;

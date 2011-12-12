@@ -5,10 +5,9 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 19;
+    use VRPipeTest (required_exe => [qw(samtools)]);
     
     use_ok('VRPipe::FileType');
-    
-    use TestPersistentReal;
 }
 
 # txt
@@ -26,7 +25,7 @@ is $ft->type, 'bam', 'type is correct';
 is $ft->check_type(), 1, 'a bam file passes the check';
 is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [92, 89, 3], 'num_lines, num_header_lines and num_records work for a bam, file';
 
-throws_ok {$ft = VRPipe::FileType->create('foo', {});} qr/Invalid implementation class/, 'throws when asked to create an invalid filetype';
+throws_ok {$ft = VRPipe::FileType->create('foo', {});} qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype';
 
 ok my $parser = $ft->parser, 'could make a parser object';
 ok $parser->does('VRPipe::ParserRole'), 'the parser is really a parser';

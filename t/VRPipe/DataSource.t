@@ -6,10 +6,9 @@ use Cwd;
 
 BEGIN {
     use Test::Most tests => 17;
+    use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
-    
-    use TestPersistentReal;
 }
 
 # list

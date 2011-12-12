@@ -45,7 +45,7 @@ class VRPipe::Steps::fastq_decompress with VRPipe::StepRole {
         my $out_file = VRPipe::File->get(path => $out_path);
         
         unless ($in_file->path =~ /\.gz$/) {
-            symlink $in_file->path, $out_file->path;
+            $in_file->symlink($out_file);
             return 1;
         }
         

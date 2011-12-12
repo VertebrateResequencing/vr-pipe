@@ -6,10 +6,8 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 10;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 9;
+    use VRPipeTest;
     use TestPipelines;
 }
 
