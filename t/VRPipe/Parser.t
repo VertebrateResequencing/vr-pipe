@@ -5,10 +5,9 @@ use Path::Class qw(file);
 
 BEGIN {
     use Test::Most tests => 73;
+    use VRPipeTest;
     
     use_ok('VRPipe::Parser');
-    
-    use TestPersistentReal;
 }
 
 # lsf

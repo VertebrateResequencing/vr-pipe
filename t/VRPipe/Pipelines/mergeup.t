@@ -6,11 +6,11 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 7;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
+		    required_exe => [qw(samtools bwa)]);
     use TestPipelines;
-    use VRPipe::Utils::picard;
+    
+    use_ok('VRPipe::Utils::picard');
 }
 
 my $picard = VRPipe::Utils::picard->new();

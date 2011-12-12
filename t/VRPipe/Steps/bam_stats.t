@@ -5,12 +5,11 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 13;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    use_ok('VRPipe::Steps::bam_stats');
-    
+    use Test::Most tests => 12;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES SAMTOOLS)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Steps::bam_stats');
 }
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_stats', 'bam_files');

@@ -5,10 +5,8 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 7;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 6;
+    use VRPipeTest (required_exe => [qw(cat)]);
     use TestPipelines;
 }
 

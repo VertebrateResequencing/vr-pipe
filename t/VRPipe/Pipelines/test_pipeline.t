@@ -4,10 +4,8 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 18;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 17;
+    use VRPipeTest;
     use TestPipelines;
 }
 

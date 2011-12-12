@@ -4,12 +4,11 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 18;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    use_ok('VRPipe::Steps::bam_split_by_sequence');
-    
+    use Test::Most tests => 17;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES SAMTOOLS)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Steps::bam_split_by_sequence');
 }
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_split_by_sequence', 'bam_files');

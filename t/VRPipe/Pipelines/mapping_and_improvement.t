@@ -6,11 +6,12 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 12;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES GATK PICARD)],
+                    required_exe => [qw(samtools bwa)]);
+    use TestPipelines;
     
     use_ok('VRPipe::Persistent::Schema');
     use_ok('VRPipe::Parser');
-    
-    use TestPipelines;
 }
 
 my $mapping_output_dir = get_output_dir('mapping_with_improvement');

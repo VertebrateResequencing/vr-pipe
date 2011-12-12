@@ -5,10 +5,9 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 19;
+    use VRPipeTest (required_exe => [qw(samtools)]);
     
     use_ok('VRPipe::FileType');
-    
-    use TestPersistentReal;
 }
 
 # txt

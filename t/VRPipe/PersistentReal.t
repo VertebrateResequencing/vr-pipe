@@ -7,11 +7,10 @@ use File::Copy;
 
 BEGIN {
     use Test::Most tests => 106;
+    use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
     use_ok('VRPipe::Persistent::Schema');
-    
-    use TestPersistentReal;
 }
 
 # some quick basic tests for all the core domain classes
@@ -106,9 +105,9 @@ my @ds;
 ok $ds[0] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.fivelist'), 'created a DataSource using get()';
 undef $ds[0];
 $ds[0] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.fivelist');
-is_fields [qw/id type method source/], $ds[0], [1, 'list', 'all', 't/data/datasource.fivelist'], 'ds1 has the expected fields';
+is_deeply [$ds[0]->id, $ds[0]->type, $ds[0]->method, $ds[0]->source], [1, 'list', 'all', 't/data/datasource.fivelist'], 'ds1 has the expected fields';
 $ds[1] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.onelist');
-is_fields [qw/id type method source/], $ds[1], [2, 'list', 'all', 't/data/datasource.onelist'], 'ds2 has the expected fields';
+is_deeply [$ds[1]->id, $ds[1]->type, $ds[1]->method, $ds[1]->source], [2, 'list', 'all', 't/data/datasource.onelist'], 'ds2 has the expected fields';
 
 my @de;
 # create
@@ -123,7 +122,7 @@ my @pipelines;
 ok $pipelines[0] = VRPipe::Pipeline->get(name => 'p1', description => 'first test pipeline'), 'created a Pipeline using get()';
 undef $pipelines[0];
 $pipelines[0] = VRPipe::Pipeline->get(name => 'p1', description => 'first test pipeline');
-is_fields [qw/id name description/], $pipelines[0], [1, 'p1', 'first test pipeline'], 'pipeline1 has the expected fields';
+is_deeply [$pipelines[0]->id, $pipelines[0]->name, $pipelines[0]->description], [1, 'p1', 'first test pipeline'], 'pipeline1 has the expected fields';
 
 # create some more steps we can chain together into a proper pipeline
 VRPipe::Step->get(name => "step_2",

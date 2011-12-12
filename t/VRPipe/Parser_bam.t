@@ -5,10 +5,9 @@ use Path::Class qw(file);
 
 BEGIN {
     use Test::Most tests => 45;
+    use VRPipeTest;
     
     use_ok('VRPipe::Parser');
-    
-    use TestPersistentReal;
 }
 
 my $pb = VRPipe::Parser->create('bam', {file => file(qw(t data parser.bam))});
