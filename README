@@ -45,6 +45,11 @@ you can use sqlite, supplying a path for the database name.
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
 
+If you choose to use the local scheduler, you will need to add the scripts
+directory to your PATH prior to running tests. Note that the local scheduler
+currently doesn't work well with an sqlite database, so some tests are likely
+to fail with that combination.
+
 
 To test the code prior to using it:
 $ ./Build test
