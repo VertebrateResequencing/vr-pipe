@@ -52,7 +52,7 @@ class VRPipe::Config {
     has production_dbname => (
         is      => 'rw',
         question => 'What is the name of your production database?',
-        builder => '_build_test_dbname',
+        builder => '_build_production_dbname',
         question_number => ++$question_number
     );
     
@@ -77,6 +77,7 @@ class VRPipe::Config {
     has production_username => (
         is      => 'rw',
         question => 'What username is used to connect to your production database?',
+        skip => '_skip_based_on_production_db',
         default => '',
         env     => 'VRTRACK_RW_USER',
         question_number => ++$question_number
@@ -85,6 +86,7 @@ class VRPipe::Config {
     has production_password => (
         is      => 'rw',
         question => 'What password is used to connect to your production database?',
+        skip => '_skip_based_on_production_db',
         default => '',
         env     => 'VRTRACK_PASSWORD',
         secure => 1,
