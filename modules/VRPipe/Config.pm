@@ -45,13 +45,14 @@ class VRPipe::Config {
         question => 'What DRM should be used for production?',
         default => 'mysql',
         env => 'DBI_DRIVER',
-        valid => [qw(mysql postgres)],
+        valid => [qw(mysql postgres sqlite)],
         question_number => ++$question_number
     );
     
     has production_dbname => (
         is      => 'rw',
         question => 'What is the name of your production database?',
+        builder => '_build_test_dbname',
         question_number => ++$question_number
     );
     
@@ -192,7 +193,7 @@ class VRPipe::Config {
         my $dbtype = $self->_get_dbtype($prefix);
         if ($field eq 'dbname') {
             if ($dbtype eq 'sqlite') {
-                return ':memory:';
+                return '~/.vrpipe.db';
             }
             else {
                 return;
@@ -212,6 +213,9 @@ class VRPipe::Config {
     }
     method _default_based_on_production_db (Str $field) {
         return $self->_default_based_on_db('production', $field);
+    }
+    method _build_production_dbname {
+        return $self->_default_based_on_production_db('dbname');
     }
     method _build_test_dbname {
         return $self->_default_based_on_test_db('dbname');

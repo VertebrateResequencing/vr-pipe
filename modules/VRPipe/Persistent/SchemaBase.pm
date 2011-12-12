@@ -31,6 +31,7 @@ use VRPipe::Base;
 class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base::Moose) {
     use MooseX::NonMoose;
     use VRPipe::Config;
+    use File::HomeDir;
     my $vrp_config = VRPipe::Config->new();
     
     our $DATABASE_DEPLOYMENT = 'production';
@@ -91,7 +92,18 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
             return "dbi:Pg:dbname=$details{dbname};host=$details{dbhost};port=$details{dbport}";
         }
         elsif ($dbtype =~ /sqlite/i) {
-            return "dbi:SQLite:dbname=$details{dbname}";
+            my $name = $details{dbname};
+            if ($name =~ /^~/) {
+                my $home;
+                if ($name =~ /^~([\w]+)/) {
+                    $home = File::HomeDir->users_home($1);
+                }
+                else {
+                    $home = File::HomeDir->my_home;
+                }
+                $name =~ s/^~[\w]*/$home/;
+            }
+            return "dbi:SQLite:dbname=$name";
         }
         else {
             die "Unsupported database type '$dbtype'\n";
