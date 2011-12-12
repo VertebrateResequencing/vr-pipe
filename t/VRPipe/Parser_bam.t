@@ -5,7 +5,7 @@ use Path::Class qw(file);
 
 BEGIN {
     use Test::Most tests => 45;
-    use VRPipeTest;
+    use VRPipeTest (required_env => 'SAMTOOLS');
     
     use_ok('VRPipe::Parser');
 }
