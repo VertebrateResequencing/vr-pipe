@@ -119,6 +119,9 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
         if ($dbtype =~ /mysql/i) {
             $dbtype = 'MySQL';
         }
+        elsif ($dbtype =~ /sqlite/i) {
+            $dbtype = 'SQLite';
+        }
         
         return $dbtype;
     }
