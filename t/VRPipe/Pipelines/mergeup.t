@@ -5,9 +5,9 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 7;
+    use Test::Most tests => 12;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
-		    required_exe => [qw(samtools bwa)]);
+                    required_exe => [qw(samtools bwa)]);
     use TestPipelines;
     
     use_ok('VRPipe::Utils::picard');
@@ -21,6 +21,7 @@ my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^V
 ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get the fastq_mapping_with_bwa pipeline';
 ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'merge_lanes'), 'able to get the merge_lanes pipeline';
 ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries_and_split'), 'able to get the merge_libraries_and_split pipeline';
+ok my $release_pipeline = VRPipe::Pipeline->get(name => '1000genomes_release'), 'able to get the 1000genomes_release pipeline';
 
 my $mapping_dir = get_output_dir('mapping_mergeup_test');
 
@@ -68,7 +69,7 @@ my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge
                                                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                                                  method => 'group_by_metadata',
                                                                                                  source => 's_suis mapping[9:merged_lane_bams]',
-                                                                                                 options => { metadata_keys => 'sample|platform|library' } ),
+                                                                                                 options => { metadata_keys => 'analysis_group|population|sample|platform|library' } ),
                                                            output_root => $build_dir,
                                                            pipeline => $merge_lanes_pipeline,
                                                            options => { bam_tags_to_strip => 'OQ XM XG XO',
@@ -80,7 +81,7 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                                                      method => 'group_by_metadata',
                                                                                                      source => 's_suis merge lanes[3:markdup_bam_files]',
-                                                                                                     options => { metadata_keys => 'sample|platform' } ),
+                                                                                                     options => { metadata_keys => 'analysis_group|population|sample|platform' } ),
                                                                output_root => $build_dir,
                                                                pipeline => $merge_libraries_pipeline,
                                                                options => { bam_merge_keep_single_paired_separate => 0,
@@ -92,14 +93,44 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                             split_bam_make_unmapped => 1,
                                                                             cleanup => 1 });
 
-my @final_files;
+my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release',
+                                                               datasource => VRPipe::DataSource->get(type => 'vrpipe',
+                                                                                                     method => 'all',
+                                                                                                     source => 's_suis merge libraries[4:split_bam_files]',
+                                                                                                     options => { filter => 'split_sequence#^(fake_chr2|unmapped)$' } ),
+                                                               output_root => $build_dir,
+                                                               pipeline => $release_pipeline,
+                                                               options => { release_date => '19790320',
+                                                                            sequence_index => file(qw(t data datasource.sequence_index))->absolute->stringify,
+                                                                            rg_from_pu => 0 });
+
+my @mapping_files;
+my %bams = ('2822_6.pe.bam' => 1, '2822_6.se.bam' => 1, '2822_7.pe.bam' => 2, '2823_4.pe.bam' => 3, '8324_8.pe.bam' => 4);
+while (my ($bam, $element_id) = each %bams) {
+    push(@mapping_files, file($mapping_dir, output_subdirs($element_id), '9_bam_merge_lane_splits', $bam));
+    push(@mapping_files, file($mapping_dir, output_subdirs($element_id), '10_bam_stats', $bam.'.bas'));
+}
+
+my @split_files;
 foreach my $element_id (8, 9) {
     foreach my $file ('fake_chr1.pe.bam', 'fake_chr2.pe.bam', 'unmapped.pe.bam') {
-        push(@final_files, file($build_dir, output_subdirs($element_id), '4_bam_split_by_sequence', $file));
+        push(@split_files, file($build_dir, output_subdirs($element_id), '4_bam_split_by_sequence', $file));
     }
 }
 
-ok handle_pipeline(@final_files), 'pipelines ran ok';
+my @release_files;
+foreach my $element_id (10, 11) {
+    foreach my $file ('fake_chr2.pe.bam', 'unmapped.pe.bam') {
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.md5'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai.md5'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas.md5'));
+    }
+}
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'pipelines ran ok and correct output files created';
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
@@ -136,7 +167,21 @@ my @expected_header_lines = ("\@HD\tVN:1.0\tSO:coordinate",
                              "\@PG\tID:bam_merge.2\tPN:picard\tPP:bam_mark_duplicates\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
                              "\@PG\tID:bam_merge.1.2\tPN:picard\tPP:bam_mark_duplicates.1\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT");
 
-my @header_lines = get_bam_header($final_files[0]);
-is_deeply \@header_lines, \@expected_header_lines, 'bam header is okay';
+my @header_lines = get_bam_header($split_files[0]);
+is_deeply \@header_lines, \@expected_header_lines, 'split bam header is okay';
+
+# check start_from_scratch works correctly
+VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
+
+my @mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
+is_deeply \@mapping_exists, [1,1,1,1,1,1,1,1,1,1], 'mapping files were not deleted after merge element was restarted';
+
+my @split_exists = map { -s $_ ? 1 : 0 } @split_files;
+is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch';
+
+my @release_exists = map { -s $_ ? 1 : 0 } @release_files;
+is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch';
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated after a start from scratch';
 
 finish;
