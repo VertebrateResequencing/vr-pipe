@@ -65,11 +65,12 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             $symlink = VRPipe::File->get(path => file($symlink));
         }
         my $meta = $bam->metadata;
-        $bam->disconnect;
         
         my $bp = VRPipe::Parser->create('bam', {file => $bam});
         my %readgroup_info = $bp->readgroup_info();
         $bp->close;
+        
+        $bam->disconnect;
         
         my $sip = VRPipe::Parser->create('sequence_index', {file => $sequence_index});
         
@@ -85,7 +86,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             unless ($meta->{sample} eq $info->{SM} && $meta->{sample} eq $sample) {
                 push @fails, "sample metadata in db, bam header and sequence index do not agree: $$meta{sample}, $$info{SM}, $sample";
             }
-            unless ($meta->{center_name} eq $info->{CN} && $meta->{center_name} eq $center) {
+            unless ($meta->{center_name} =~ /$$info{CN}/ && $meta->{center_name} =~ /$center/ && $info->{CN} eq $center) {
                 push @fails, "center_name metadata in db, bam header and sequence index do not agree: $$meta{center_name}, $$info{CN}, $center";
             }
             unless ($meta->{platform} eq $info->{PL} && $meta->{platform} eq $platform) {
