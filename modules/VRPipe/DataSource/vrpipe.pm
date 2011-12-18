@@ -124,6 +124,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         my ($key, $regex);
         if ($filter) {
             ($key, $regex) = split('#', $filter);
+            $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless ($key && $regex);
         }
         my @elements;
         foreach my $result (@{$self->_all_results(handle => $handle, maintain_element_grouping => $maintain_element_grouping)})
@@ -131,9 +132,12 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             my $paths = $result->{paths};
             my @filtered_paths;
             foreach my $path (@$paths) {
-                my $file = VRPipe::File->get(path => file($path));;
                 if ($filter) {
+                    my $file = VRPipe::File->get(path => file($path));;
                     next unless $file->metadata->{$key} =~ m/$regex/;
+                    push @filtered_paths, $path;
+                }
+                else {
                     push @filtered_paths, $path;
                 }
             }
