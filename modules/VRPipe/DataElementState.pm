@@ -54,12 +54,13 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         $self->update;
         
         # If this data element was used as the source of another dataelement, we want to also restart those dataelements
-        # We don't do this if the user has specified specific steps to start from scratch
-        unless ($step_numbers && @$step_numbers > 0) {
-            $rs = $schema->resultset('DataElementLink')->search({ pipelinesetup => $self->pipelinesetup->id, parent => $self->dataelement->id });
-            while (my $link = $rs->next) {
-                VRPipe::DataElementState->get(pipelinesetup => $link->pipelinesetup, dataelement => $link->child)->start_from_scratch();
-            }
+        my @children;
+        $rs = $schema->resultset('DataElementLink')->search({ pipelinesetup => $self->pipelinesetup->id, parent => $self->dataelement->id });
+        while (my $link = $rs->next) {
+            push @children, $link->child->element_states;
+        }
+        foreach my $child (@children) {
+            $child->start_from_scratch();
         }
     }
     

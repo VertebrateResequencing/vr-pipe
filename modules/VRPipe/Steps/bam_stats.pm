@@ -30,7 +30,8 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                 my $bas = $self->output_file(output_key => 'bas_files',
                                              #output_dir => $bam->dir, # *** important to have them in the same dir as input bam?
                                              basename => $bam->basename.'.bas',
-                                             type => 'txt');
+                                             type => 'txt', 
+                                             metadata => $bam->metadata);
                 my $bam_path = $bam->path;
                 my $bas_path = $bas->path;
                 my $this_cmd = "use VRPipe::Steps::bam_stats; VRPipe::Steps::bam_stats->bas(q[$bam_path], q[$bas_path]$extra_args);";

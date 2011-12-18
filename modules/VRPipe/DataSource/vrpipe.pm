@@ -14,7 +14,8 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
     method method_description (Str $method) {
         if ($method eq 'all') {
             return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all \
-            files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement.";
+            files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option \
+            is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a metadata key which matches the regex.";
         }
         elsif ($method eq 'group_by_metadata') {
             return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata \
@@ -118,13 +119,35 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return $m->result_source->schema;
     }
 
-    method all (Defined :$handle!, Bool :$maintain_element_grouping = 1)
+    method all (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?)
     {
+        my ($key, $regex);
+        if ($filter) {
+            ($key, $regex) = split('#', $filter);
+            $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless ($key && $regex);
+        }
         my @elements;
         foreach my $result (@{$self->_all_results(handle => $handle, maintain_element_grouping => $maintain_element_grouping)})
         {
             my $paths = $result->{paths};
-            push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $paths }, withdrawn => 0);
+            my @filtered_paths;
+            foreach my $path (@$paths) {
+                if ($filter) {
+                    my $file = VRPipe::File->get(path => file($path));;
+                    next unless $file->metadata->{$key} =~ m/$regex/;
+                    push @filtered_paths, $path;
+                }
+                else {
+                    push @filtered_paths, $path;
+                }
+            }
+            next unless @filtered_paths;
+            my $res = { paths => \@filtered_paths };
+            if ($maintain_element_grouping) {
+                $res->{lane} = $result->{result}->{lane} if (exists $result->{result}->{lane});
+                $res->{group} = $result->{result}->{group} if (exists $result->{result}->{group});
+            }
+            push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $res, withdrawn => 0);
             VRPipe::DataElementLink->get(pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id}, child => $elements[-1]->id);
         }
         return \@elements;
@@ -143,7 +166,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             foreach my $element (@$elements)
             {
                 my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-                my %element_hash = ( parent => { element_id => $element->id, setup_id => $setup_id } );
+                my %element_hash = ( parent => { element_id => $element->id, setup_id => $setup_id }, result => $element->{result} );
                 foreach my $smid (keys %{$stepmembers})
                 {
                     my $stepm = $handle->resultset("StepMember")->find({ id => $smid });

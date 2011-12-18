@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 17;
+    use Test::Most tests => 19;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES SAMTOOLS)]);
     use TestPipelines;
     
@@ -81,6 +81,14 @@ foreach my $bam (qw(2822_7.pe.bam 2822_6.pe.bam 2822_6.se.bam 2823_4.pe.bam 8324
    }
 }
 ok handle_pipeline(@output_files), 'single step bam_split_by_sequence pipeline ran and created all expected output files';
+
+
+VRPipe::DataElementState->get(pipelinesetup => 1, dataelement => 5)->start_from_scratch();
+
+my @file_exists = map { -s $_ ? 1 : 0 } @output_files;
+is_deeply \@file_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0], 'correct files were removed after start from scratch';
+
+ok handle_pipeline(@output_files), 'all file recreated after an element was started from scratch';
 
 # run a longer test
 VRPipe::PipelineSetup->get(name => 'split_setup',
