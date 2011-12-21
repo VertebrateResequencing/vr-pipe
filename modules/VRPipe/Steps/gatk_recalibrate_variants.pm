@@ -57,7 +57,7 @@ class VRPipe::Steps::gatk_recalibrate_variants extends VRPipe::Steps::gatk {
 				my $tranches_path = $tranches_file->path;
 
 				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T VariantRecalibrator -R $reference_fasta -input $vcf_path -recalFile $recal_path -tranchesFile $tranches_path $var_recal_opts ];
-				$self->warn($cmd);
+#				$self->warn($cmd);
 				$self->dispatch([$cmd, $req, {output_files => [$recal_file, $tranches_file]}]); 
 			}
         };
