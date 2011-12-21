@@ -26,23 +26,23 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
 				print $ofh $vcf->path,"\n";
             }
 
-			my $merged_vcf = $self->output_file(output_key => 'merged_vcf', basename => "merged.vcf.gz", type => 'bin');
-			my $merged_vcf_path = $merged_vcf->path;
+			my $concat_vcf = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'bin');
+			my $concat_vcf_path = $concat_vcf->path;
 			my $merge_list_path = $merge_list->path;
 
-			my $cmd = qq[$vcf_concat_exe -f $merge_list_path | bgzip -c > $merged_vcf_path];
+			my $cmd = qq[$vcf_concat_exe -f $merge_list_path | bgzip -c > $concat_vcf_path];
             my $req = $self->new_requirements(memory => 500, time => 1);
-			$self->dispatch([$cmd, $req, {output_files => [$merged_vcf, $merge_list]}]); 
+			$self->dispatch([$cmd, $req, {output_files => [$concat_vcf, $merge_list]}]); 
         };
     }
     method outputs_definition {
-        return { merged_vcf => VRPipe::StepIODefinition->get(type => 'bin', max_files => 1, description => 'a merged catanated .vcf.gz file for each set of input vcfs')};
+        return { concat_vcf => VRPipe::StepIODefinition->get(type => 'bin', max_files => 1, description => 'a merged catanated .vcf.gz file for each set of input vcfs')};
     }
     method post_process_sub {
         return sub { return 1; };
     }
     method description {
-        return "Run vcf-merge, generating one catanated vcf per input set of vcf";
+        return "Run vcf-concat, generating one catanated vcf per input set of vcfs";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
