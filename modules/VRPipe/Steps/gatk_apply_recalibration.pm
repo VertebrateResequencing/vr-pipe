@@ -55,19 +55,19 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
 				my $tranches_file = $self->inputs->{tranches_files}[$i];
                 my $tranches_file_path = $tranches_file->path;
 
-				my $vcf_recal_file = $self->output_file(output_key => 'recalibrated_vcfs', basename => $basename, type => 'bin');
+				my $vcf_recal_file = $self->output_file(output_key => 'recalibrated_vcfs', basename => $basename, type => 'vcf');
 				my $vcf_recal_path = $vcf_recal_file->path;
 
 				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T ApplyRecalibration -R $reference_fasta --input $vcf_path -tranchesFile $tranches_file_path -recalFile $recal_file_path -o $vcf_recal_path $apply_recal_opts ];
-				$self->warn("input size check !!!!");
-				$self->warn($cmd);
+#				$self->warn("input size check !!!!");
+#				$self->warn($cmd);
 				$self->dispatch([$cmd, $req, {output_files => [$vcf_recal_file]}]); 
 				$self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_apply_recalibration', 'apply_recalibration', [$cmd, $req, {output_files => [$vcf_recal_file]}]);
 			}
         };
     }
     method outputs_definition {
-        return { recalibrated_vcfs => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a recalibrated vcf file for each input vcf') };
+        return { recalibrated_vcfs => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'a recalibrated vcf file for each input vcf') };
     }
     method post_process_sub {
         return sub { return 1; };
