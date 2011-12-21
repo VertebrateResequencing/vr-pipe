@@ -1,6 +1,6 @@
 use VRPipe::Base;
 
-#Example generic command for multi-sample SNP calling
+#Example generic command for UnifiedGenotyper GATK v1.3
 # java -jar GenomeAnalysisTK.jar \
 #   -R resources/Homo_sapiens_assembly18.fasta \
 #   -T UnifiedGenotyper \
@@ -11,17 +11,18 @@ use VRPipe::Base;
 #   -dcov [50] \
 
 class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
-    around options_definition {
-        return { %{$self->$orig},
-                 genotyper_opts => VRPipe::StepOption->get(description => 'options for GATK UnifiedGenotyper, excluding -R,-D,-I,-o'),
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-                 max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', 
-					optional => 1, 
-					default_value => 10),
-                 interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -L option', 
-					optional => 1,),
-               };
-    }
+	around options_definition {
+		return { %{$self->$orig},
+			genotyper_opts => VRPipe::StepOption->get(description => 'options for GATK UnifiedGenotyper, excluding -R,-D,-I,-o'),
+			reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
+			dbsnp_ref => VRPipe::StepOption->get(description => 'absolute path to dbsnp reference vcf', optional => 1),
+			max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', 
+				optional => 1, 
+				default_value => 10),
+			interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -L option', 
+				optional => 1,),
+	};
+}
 
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
@@ -38,10 +39,12 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
             my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
             
             my $reference_fasta = $options->{reference_fasta};
+            my $dbsnp_ref = $options->{dbsnp_ref};
             my $genotyper_opts = $options->{genotyper_opts};
             my $max_cmdline_bams = $options->{max_cmdline_bams};
-
             my $interval_list = $options->{interval_list};
+
+			$genotyper_opts .= " --dbsnp $dbsnp_ref " if $dbsnp_ref;
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $gatk->jvm_args($req->memory);
@@ -55,17 +58,27 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
                 my $bam_path = $bam->path;
 				$bam_list .= "-I $bam_path ";
             }
+
+			# if only one input file, use it to define the output file prefix
+			my $file_prefix;
+			if (scalar (@{$self->inputs->{bam_files}}) == 1) {
+				$file_prefix = $self->inputs->{bam_files}[0]->basename;
+				$file_prefix =~ s/\.bam//;
+			}
+			else {
+				$file_prefix = "gatk_var";
+			}
 			
 			# perform concurrent analyses if optional chunk file is present
 			if  ($self->inputs->{chunked_regions_file}) {
+				$self->warn("ignoring interval list $interval_list, not supported with chunking") if $interval_list;
 				my $chunk_file = $self->inputs->{chunked_regions_file}[0];
 				my $cfh = $chunk_file->openr;
 				while (<$cfh>) {
 					my ($chr,$from,$to) = split;
-					my $region = "${chr}:${from}-${to}";
 					my $chunk_opts = "$genotyper_opts -L ${chr}:${from}-${to}";
 
-					my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "gatk_par_${chr}_${from}_${to}.vcf.gz", type => 'bin');
+					my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}_${chr}_${from}_${to}.vcf.gz", type => 'bin');
 					my $vcf_path = $vcf_file->path;
 
 					my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $chunk_opts $bam_list -o $vcf_path ];
@@ -74,7 +87,7 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 			}
 			else {
 				$genotyper_opts .= " -L $interval_list " if $interval_list;
-				my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "gatk_var.vcf.gz", type => 'bin');
+				my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}.vcf.gz", type => 'bin');
 				my $vcf_path = $vcf_file->path;
 
 				$self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
@@ -82,6 +95,7 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 					summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta $genotyper_opts -I $bam_path -o $vcf_path'));
 
 				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $genotyper_opts $bam_list -o $vcf_path ];
+#				$self->warn($cmd);
 				$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
 			}
         };
@@ -93,11 +107,11 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
         return sub { return 1; };
     }
     method description {
-        return "Run gatk UnifiedGenotyper for one or more bams, generating either one vcf per set of bams, or a chunk set per bam set if chunked_regions_file is provided";
+        return "Run gatk UnifiedGenotyper for one or more bams, generating either one compressed vcf per set of bams, or a chunk set per bam if chunked_regions_file is provided";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
     }
 }
 
-1;
+;
