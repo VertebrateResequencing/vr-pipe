@@ -4,8 +4,9 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
-    use_ok('VRPipe::Persistent::Schema');
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+		    required_exe => [qw(variant_effect_predictor.pl vcf2consequences_vep tabix)]);
     use TestPipelines;
 }
 

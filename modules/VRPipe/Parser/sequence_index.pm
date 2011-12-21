@@ -257,7 +257,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
         my %lanes;
         
         # parse the whole file
-        $self->_seek_first_result();
+        $self->_seek_first_record();
         RESULT: while ($self->next_record) {
             if ($do_ignores) {
                 keys %ignores; # reset the iterator, since we may have nexted out

@@ -1,7 +1,6 @@
 package TestPipelines;
 use strict;
 use warnings;
-use TestPersistentReal;
 use Exporter 'import';
 use Path::Class;
 use lib "t";

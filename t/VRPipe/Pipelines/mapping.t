@@ -5,10 +5,9 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 17;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 16;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+                    required_exe => [qw(samtools bwa)]);
     use TestPipelines;
 }
 
@@ -363,6 +362,8 @@ is_deeply [@final_bam_metas],
              reads => 50,
              bases => 3050,
              paired => 0,
+             population => 'POP',
+             analysis_group => 'low coverage',
              mapped_fastqs => file(qw(t data 2822_6.fastq))->absolute->stringify },
            { lane => '2822_6',
              study => 'STUDY01',
@@ -374,6 +375,8 @@ is_deeply [@final_bam_metas],
              reads => 400,
              bases => 23000,
              paired => 1,
+             population => 'POP',
+             analysis_group => 'low coverage',
              mapped_fastqs => join(',', file(qw(t data 2822_6_1.fastq))->absolute->stringify, file(qw(t data 2822_6_2.fastq))->absolute->stringify) },
            { lane => '2822_7',
              study => 'STUDY01',
@@ -385,6 +388,8 @@ is_deeply [@final_bam_metas],
              reads => 500,
              bases => 28750,
              paired => 1,
+             population => 'POP',
+             analysis_group => 'low coverage',
              mapped_fastqs => join(',', file(qw(t data 2822_7_1.fastq))->absolute->stringify, file(qw(t data 2822_7_2.fastq))->absolute->stringify) },
            { lane => '2823_4',
              study => 'STUDY01',
@@ -396,6 +401,8 @@ is_deeply [@final_bam_metas],
              reads => 500,
              bases => 28750,
              paired => 1,
+             population => 'POP',
+             analysis_group => 'low coverage',
              mapped_fastqs => join(',', file(qw(t data 2823_4_1.fastq))->absolute->stringify, file(qw(t data 2823_4_2.fastq))->absolute->stringify) },
            { lane => '8324_8',
              study => 'STUDY01',
@@ -407,6 +414,8 @@ is_deeply [@final_bam_metas],
              reads => 500,
              bases => 28750,
              paired => 1,
+             population => 'POP',
+             analysis_group => 'low coverage',
              mapped_fastqs => join(',', file(qw(t data 8324_8_1.fastq))->absolute->stringify, file(qw(t data 8324_8_2.fastq))->absolute->stringify) }], 'final bam files have the correct metadata';
 
 is $existing_bas_outs, scalar(@final_bams), 'made a bas file for each final bam file';

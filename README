@@ -1,3 +1,121 @@
-VRPipe is a new generic pipeline system designed for use by the Vertebrate Resequencing team at the Sanger Instititue.
-It is currently under early planning and design stages.
-See the vr-codebase repository for our current production pipelines.
+VRPipe is a generic pipeline system designed for use by the Vertebrate
+Resequencing team at the Sanger Instititue, but also for broad use for anyone.
+
+For an overview of why it was created, read our vision document:
+https://github.com/VertebrateResequencing/vr-pipe/wiki/Vision
+
+It comprises mostly self-documented Perl code. There are both scripts and 
+modules within subfolders.
+
+Help on each module is currently of limited availability, but eventually all
+will be self-documented with POD, which can be read with eg. perldoc.
+
+Each script has a --help opion, eg:
+vrpipe-status --help
+
+
+INSTALLATION
+------------
+
+You will need the source version of samtools compiled with -fPIC and -m64 in the
+CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
+(which should now contain bam.h and libbam.a). Samtools can be downloaded from
+here: http://sourceforge.net/projects/samtools/files/samtools/
+
+It is also recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and
+create that directory.
+
+You require Module::Build in order for the Build.PL script to work. It is
+recommended you install Bundle::CPAN using cpan prior to attempting setup.
+
+
+First, do the initial setup and dependency installation:
+$ perl Build.PL
+
+If this says you have "ERRORS/WARNINGS FOUND IN PREREQUISITES" try:
+$ ./Build installdeps
+to install missing prerequisites from CPAN.
+
+It will also ask you a number of setup questions such as the details of your
+production and testing databases. It is recommended to use a stand-alone
+relational database such as MySQL. The pipeline functionality requires such a
+database, but if you're only using code such as a parser or the bas function
+you can use sqlite, supplying a path for the database name.
+
+Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
+is this file that holds your site-wide configuration of VRPipe.
+
+If you choose to use the local scheduler, you will need to add the scripts
+directory to your PATH prior to running tests. Note that the local scheduler
+currently doesn't work well with an sqlite database, so some tests are likely
+to fail with that combination.
+
+
+To test the code prior to using it:
+$ ./Build test
+
+A number of environment variables affect which tests run and how. In most cases
+it is fine to not worry about these extra variables. They are described here for
+the sake of completeness.
+VRPIPE_TEST_PIPELINES, when true, will fully test all the pipelines and steps
+                       instead of just the core functionality of the system.
+                       These tests take a very long time - potentially hours -
+                       so this is off by default. If you're interested in
+                       running a particular pipeline, you can test just that
+                       pipeline by setting this variable to true and then
+                       running:
+               $ ./Build test --test_files t/VRPipe/Pipelines/[name].t --verbose
+GATK, pointing to a directory containing GATK jar files, will enable tests that
+      require GATK
+VRPIPE_VRTRACK_TESTDB will enable testing of the VRTrack DataSource, using the
+                      value supplied as the database name (other database
+                      details will come from the standard VRTrack enironment
+                      variables)
+VRPIPE_VRTRACK_TESTDB_READY, when true, will disable re-creation of the VRTrack
+                             database to increase the speed of the test
+Additionally, tests that require certain executables will not run unless you
+have those executables in your PATH.
+
+
+To install:
+$ ./Build install
+(or just include the modules subdirectory in your PERL5LIB, and include the
+scripts subdirectory in your PATH)
+
+To create your production database (testing database is created automatically):
+$ vrpipe-db_deploy
+
+If in the future the VRPipe code is updated and there is a change to the schema,
+you will need to stop VRPipe, update your code, then run:
+$ vrpipe-db_upgrade
+
+
+To use:
+The daemons to run the system have not yet been written. In the mean time you
+can run scripts based on the examples vrpipe-trigger_pipelines and
+vrpipe-dispatch_pipelines. Set up a pipeline using vrpipe-setup and then it will
+run if you have the other two scripts running in the background.
+
+As a general point, any perl script you write that wants to use some VRPipe
+code should generally "use VRPipe::Persistent::Schema;". After that most things
+should work without further "use" statements.
+
+
+
+EXTERNAL SOFTWARE
+-----------------
+
+Some software need environment variables setup (using setenv in csh or export in
+bash). The following list shows the name of the software, the environment
+variable you need to set, and the value you should set it to, separated by
+commas.
+
+samtools,SAMTOOLS,/path/to/samtools/source_directory
+GATK,GATK,/path/to/gatk_jar_files
+picard,PICARD,/path/to/picard_jar_files
+
+eg. to have GATK work properly in our pipelines you might do:
+setenv GATK /path/to/gatk_jar_files
+or
+export GATK=/path/to/gatk_jar_files
+depending on what shell you are using.

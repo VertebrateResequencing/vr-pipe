@@ -5,17 +5,23 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 7;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 12;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
+                    required_exe => [qw(samtools bwa)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Utils::picard');
 }
+
+my $picard = VRPipe::Utils::picard->new();
+my $picard_version = $picard->determine_picard_version();
+my $bwa_version = VRPipe::StepCmdSummary->determine_version('bwa', '^Version: (.+)$');
+my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^Version: (.+)$');
 
 ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get the fastq_mapping_with_bwa pipeline';
 ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'merge_lanes'), 'able to get the merge_lanes pipeline';
-# ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries_and_split'), 'able to get the merge_libraries_and_split pipeline';
-ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries'), 'able to get the merge_libraries pipeline';
+ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries_and_split'), 'able to get the merge_libraries_and_split pipeline';
+ok my $release_pipeline = VRPipe::Pipeline->get(name => '1000genomes_release'), 'able to get the 1000genomes_release pipeline';
 
 my $mapping_dir = get_output_dir('mapping_mergeup_test');
 
@@ -63,7 +69,7 @@ my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge
                                                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                                                  method => 'group_by_metadata',
                                                                                                  source => 's_suis mapping[9:merged_lane_bams]',
-                                                                                                 options => { metadata_keys => 'sample|platform|library' } ),
+                                                                                                 options => { metadata_keys => 'analysis_group|population|sample|platform|library' } ),
                                                            output_root => $build_dir,
                                                            pipeline => $merge_lanes_pipeline,
                                                            options => { bam_tags_to_strip => 'OQ XM XG XO',
@@ -75,7 +81,7 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                                                      method => 'group_by_metadata',
                                                                                                      source => 's_suis merge lanes[3:markdup_bam_files]',
-                                                                                                     options => { metadata_keys => 'sample|platform' } ),
+                                                                                                     options => { metadata_keys => 'analysis_group|population|sample|platform' } ),
                                                                output_root => $build_dir,
                                                                pipeline => $merge_libraries_pipeline,
                                                                options => { bam_merge_keep_single_paired_separate => 0,
@@ -84,22 +90,47 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                             reference_public_url => 'ftp://s.suis.com/ref.fa',
                                                                             reference_species => 'S.Suis',
                                                                             bam_merge_memory => 200,
-                                                                            # split_bam_make_unmapped => 1,
+                                                                            split_bam_make_unmapped => 1,
                                                                             cleanup => 1 });
 
-# my @final_files;
-# foreach my $element_id (8, 9) {
-#     foreach my $file ('fake_chr1.pe.bam', 'fake_chr2.pe.bam', 'unmapped.pe.bam') {
-#         push(@final_files, file($build_dir, output_subdirs($element_id), '4_bam_split_by_sequence', $file));
-#     }
-# }
+my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release',
+                                                               datasource => VRPipe::DataSource->get(type => 'vrpipe',
+                                                                                                     method => 'all',
+                                                                                                     source => 's_suis merge libraries[4:split_bam_files]',
+                                                                                                     options => { filter => 'split_sequence#^(fake_chr2|unmapped)$' } ),
+                                                               output_root => $build_dir,
+                                                               pipeline => $release_pipeline,
+                                                               options => { release_date => '19790320',
+                                                                            sequence_index => file(qw(t data datasource.sequence_index))->absolute->stringify,
+                                                                            rg_from_pu => 0 });
 
-my @final_files;
-foreach my $element_id (8, 9) {
-    push(@final_files, file($build_dir, output_subdirs($element_id), '3_bam_reheader', 'pe.bam'));
+my @mapping_files;
+my %bams = ('2822_6.pe.bam' => 1, '2822_6.se.bam' => 1, '2822_7.pe.bam' => 2, '2823_4.pe.bam' => 3, '8324_8.pe.bam' => 4);
+while (my ($bam, $element_id) = each %bams) {
+    push(@mapping_files, file($mapping_dir, output_subdirs($element_id), '9_bam_merge_lane_splits', $bam));
+    push(@mapping_files, file($mapping_dir, output_subdirs($element_id), '10_bam_stats', $bam.'.bas'));
 }
 
-ok handle_pipeline(@final_files), 'pipelines ran ok';
+my @split_files;
+foreach my $element_id (8, 9) {
+    foreach my $file ('fake_chr1.pe.bam', 'fake_chr2.pe.bam', 'unmapped.pe.bam') {
+        push(@split_files, file($build_dir, output_subdirs($element_id), '4_bam_split_by_sequence', $file));
+    }
+}
+
+my @release_files;
+foreach my $element_id (10, 11) {
+    foreach my $file ('fake_chr2.pe.bam', 'unmapped.pe.bam') {
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.md5'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai.md5'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas.md5'));
+    }
+}
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'pipelines ran ok and correct output files created';
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
@@ -123,20 +154,34 @@ my @expected_header_lines = ("\@HD\tVN:1.0\tSO:coordinate",
                              "\@RG\tID:2823_4\tLB:LIB02\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@RG\tID:2822_6\tLB:LIB01\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@RG\tID:2822_7\tLB:LIB01\tSM:SAMPLE01\tPI:205\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
-                             "\@PG\tID:bwa_index\tPN:bwa\tVN:0.5.9-r16\tCL:bwa index -a is \$reference_fasta",
-                             "\@PG\tID:bwa_aln_fastq\tPN:bwa\tPP:bwa_index\tVN:0.5.9-r16\tCL:bwa aln -q 15 -f \$sai_file \$reference_fasta \$fastq_file",
-                             "\@PG\tID:bwa_sam\tPN:bwa\tPP:bwa_aln_fastq\tVN:0.5.9-r16\tCL:bwa sampe -a 600 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
-                             "\@PG\tID:bwa_sam.1\tPN:bwa\tPP:bwa_aln_fastq\tVN:0.5.9-r16\tCL:bwa sampe -a 615 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
-                             "\@PG\tID:sam_to_fixed_bam\tPN:samtools\tPP:bwa_sam\tVN:0.1.17 (r973:277)\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
-                             "\@PG\tID:sam_to_fixed_bam.1\tPN:samtools\tPP:bwa_sam.1\tVN:0.1.17 (r973:277)\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
-                             "\@PG\tID:bam_merge\tPN:picard\tPP:sam_to_fixed_bam\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
-                             "\@PG\tID:bam_merge.1\tPN:picard\tPP:sam_to_fixed_bam.1\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
-                             "\@PG\tID:bam_mark_duplicates\tPN:picard\tPP:bam_merge\tVN:1.53\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
-                             "\@PG\tID:bam_mark_duplicates.1\tPN:picard\tPP:bam_merge.1\tVN:1.53\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
-                             "\@PG\tID:bam_merge.2\tPN:picard\tPP:bam_mark_duplicates\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
-                             "\@PG\tID:bam_merge.1.2\tPN:picard\tPP:bam_mark_duplicates.1\tVN:1.53\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT");
+                             "\@PG\tID:bwa_index\tPN:bwa\tVN:$bwa_version\tCL:bwa index -a is \$reference_fasta",
+                             "\@PG\tID:bwa_aln_fastq\tPN:bwa\tPP:bwa_index\tVN:$bwa_version\tCL:bwa aln -q 15 -f \$sai_file \$reference_fasta \$fastq_file",
+                             "\@PG\tID:bwa_sam\tPN:bwa\tPP:bwa_aln_fastq\tVN:$bwa_version\tCL:bwa sampe -a 600 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
+                             "\@PG\tID:bwa_sam.1\tPN:bwa\tPP:bwa_aln_fastq\tVN:$bwa_version\tCL:bwa sampe -a 615 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
+                             "\@PG\tID:sam_to_fixed_bam\tPN:samtools\tPP:bwa_sam\tVN:$samtools_version\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
+                             "\@PG\tID:sam_to_fixed_bam.1\tPN:samtools\tPP:bwa_sam.1\tVN:$samtools_version\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
+                             "\@PG\tID:bam_merge\tPN:picard\tPP:sam_to_fixed_bam\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.1\tPN:picard\tPP:sam_to_fixed_bam.1\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_mark_duplicates\tPN:picard\tPP:bam_merge\tVN:$picard_version\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_mark_duplicates.1\tPN:picard\tPP:bam_merge.1\tVN:$picard_version\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.2\tPN:picard\tPP:bam_mark_duplicates\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.1.2\tPN:picard\tPP:bam_mark_duplicates.1\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT");
 
-my @header_lines = get_bam_header($final_files[0]);
-is_deeply \@header_lines, \@expected_header_lines, 'bam header is okay';
+my @header_lines = get_bam_header($split_files[0]);
+is_deeply \@header_lines, \@expected_header_lines, 'split bam header is okay';
+
+# check start_from_scratch works correctly
+VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
+
+my @mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
+is_deeply \@mapping_exists, [1,1,1,1,1,1,1,1,1,1], 'mapping files were not deleted after merge element was restarted';
+
+my @split_exists = map { -s $_ ? 1 : 0 } @split_files;
+is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch';
+
+my @release_exists = map { -s $_ ? 1 : 0 } @release_files;
+is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch';
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated after a start from scratch';
 
 finish;

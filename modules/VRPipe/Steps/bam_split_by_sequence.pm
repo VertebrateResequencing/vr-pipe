@@ -24,7 +24,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
             
             my $self = shift;
             my $options = $self->options;
-            $self->throw('split_bam_merge is not properly formed') unless ($options->{split_bam_merge} =~ m/^{.*}$/);
+            $self->throw('split_bam_merge is not properly formed') unless ($options->{split_bam_merge} =~ m/^\s*{.*}\s*$/);
             my $merge = eval "$$options{split_bam_merge}";
             
             my $req = $self->new_requirements(memory => 500, time => 1);
@@ -33,15 +33,19 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
                 my %all_sequences = $pb->sequence_info();
                 
                 my $split_dir = $self->output_root->absolute->stringify;
-                my $bam_path = $bam->path;
+                my $bam_path = $bam->path->stringify;
                 my $args = "q[$bam_path], split_dir => q[$split_dir], ignore => q[$$options{split_bam_ignore}], non_chrom => $$options{split_bam_non_chrom}, merge => $$options{split_bam_merge}, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => q[$$options{split_bam_only}]";
                 my $split_bam_files = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($bam_path, split_dir => $split_dir, ignore => $$options{split_bam_ignore}, non_chrom => $$options{split_bam_non_chrom}, merge => $merge, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => $$options{split_bam_only}, pretend => 1);
                 my @output_files;
-                while (my ($split, $split_bam) = each %$split_bam_files) {
+                while (my ($split, $split_bam_path) = each %$split_bam_files) {
+                    my $split_bam = Path::Class::File->new($split_bam_path);
+                    my $meta = $bam->metadata;
+                    delete $meta->{reads} if (exists $meta->{reads});
+                    delete $meta->{bases} if (exists $meta->{bases});
                     push @output_files, $self->output_file(output_key => 'split_bam_files',
                                                            basename => $split_bam->basename,
                                                            type => 'bam',
-                                                           metadata => { %{$bam->metadata}, split_source_bam => $bam->path->stringify, split_sequence => $split });
+                                                           metadata => { %$meta, split_source_bam => $bam_path, split_sequence => $split });
                 }
                 my $this_cmd = "use VRPipe::Steps::bam_split_by_sequence; VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($args);";
                 $self->dispatch_vrpipecode($this_cmd, $req, {output_files => [@output_files]});
@@ -50,7 +54,8 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
     }
     method outputs_definition {
         return { split_bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'split bams for each sequence the reads were aligned to',
-                                                                  metadata => {split_source_bam => 'The original bam from which this this split sequence was derived',
+                                                                  metadata => {reads => 'number of reads in the split bam',
+                                                                               split_source_bam => 'The original bam from which this this split sequence was derived',
                                                                                split_sequence => 'The sequence prefix label describing the sequence split out into this bam'}) };
     }
     method post_process_sub {
@@ -63,7 +68,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         return 0; # meaning unlimited
     }
 
-    method split_bam_by_sequence (ClassName|Object $self: Str|File $bam_file!, Str|Dir :$split_dir!, Str :$ignore?, Bool :$non_chrom = 1, HashRef[Str] :$merge = {}, Bool :$make_unmapped = 0, Bool :$all_unmapped = 0, Str :$only?, Bool :$pretend = 0) {
+    method split_bam_by_sequence (ClassName|Object $self: Str $bam_file!, Str :$split_dir!, Str :$ignore?, Bool :$non_chrom = 1, HashRef[Str] :$merge = {}, Bool :$make_unmapped = 0, Bool :$all_unmapped = 0, Str :$only?, Bool :$pretend = 0) {
         unless (ref($bam_file) && ref($bam_file) eq 'VRPipe::File') {
             $bam_file = VRPipe::File->get(path => file($bam_file));
         }
@@ -105,16 +110,17 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
             
             foreach my $prefix (@prefixes) {
                 my $split_bam = VRPipe::File->get(path => file($split_dir, $prefix.'.'.$bam_file->basename));
-                $split_bams{$prefix} = $split_bam;
-                push(@{$seq_to_bam{$seq}}, $split_bam);
+                $split_bams{$prefix} = $split_bam->path->stringify;
+                push(@{$seq_to_bam{$seq}}, $split_bam->path->stringify);
             }
         }
 
         my @get_fields = ('RNAME');
-        my ($unmapped_bam, $skip_mate_mapped);
+        my ($unmapped_bam_path, $skip_mate_mapped);
         if ($make_unmapped) {
-            $unmapped_bam = VRPipe::File->get(path => file($split_dir, 'unmapped.'.$bam_file->basename));
-            $split_bams{unmapped} = $unmapped_bam;
+            my $unmapped_bam = VRPipe::File->get(path => file($split_dir, 'unmapped.'.$bam_file->basename));
+            $unmapped_bam_path = $unmapped_bam->path->stringify;
+            $split_bams{unmapped} = $unmapped_bam_path;
             push(@get_fields, 'FLAG');
             $skip_mate_mapped = $all_unmapped ? 0 : 1;
         }
@@ -122,6 +128,8 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         if ($pretend) {
             return \%split_bams;
         }
+        
+        $bam_file->disconnect;
         
         # stream through the bam, outputting all our desired files
         my $parsed_record = $pb->parsed_record();
@@ -131,19 +139,19 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
             my $out_bams = $seq_to_bam{$parsed_record->{RNAME}};
             if ($out_bams) {
                 foreach my $out_bam (@{$out_bams}) {
-                    $pb->write_result($out_bam->path.'.unchecked.bam');
-                    $counts{$out_bam->path}++;
+                    $pb->write_result($out_bam.'.unchecked.bam');
+                    $counts{$out_bam}++;
                 }
             }
 
-            if ($unmapped_bam) {
+            if ($unmapped_bam_path) {
                 my $flag = $parsed_record->{FLAG};
                 unless ($pb->is_mapped($flag)) {
                     if ($skip_mate_mapped && $pb->is_sequencing_paired($flag)) {
                         next if $pb->is_mate_mapped($flag);
                     }
-                    $pb->write_result($unmapped_bam->path.'.unchecked.bam');
-                    $counts{$unmapped_bam->path}++;
+                    $pb->write_result($unmapped_bam_path.'.unchecked.bam');
+                    $counts{$unmapped_bam_path}++;
                 }
             }
         }
@@ -151,8 +159,12 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         
         # check all the bams we created
         my @out_files;
-        foreach my $split_bam (values %split_bams) {
-            my $unchecked = VRPipe::File->get(path => file($split_bam->path.'.unchecked.bam'));
+        foreach my $split_path (values %split_bams) {
+            my $unchecked_path = $split_path.'.unchecked.bam';
+            my $split_bam = VRPipe::File->get(path => file($split_path));
+            my $unchecked = VRPipe::File->get(path => file($unchecked_path));
+            
+            $unchecked->update_stats_from_disc(retries => 3);
             
             # the input bam might not have had reads mapped to every sequence in the
             # header, so we might not have created all the bams expected. Create
@@ -160,23 +172,32 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
             unless ($unchecked->s) {
                 $pb = VRPipe::Parser->create('bam', {file => $bam_file});
                 $pb->next_record;
-                $pb->_create_no_record_output_bam($unchecked);
+                $pb->_create_no_record_output_bam($unchecked_path);
                 $pb->close;
             }
             
+            $unchecked->disconnect;
+            
             my $actual_reads = $unchecked->num_records;
-            my $expected_reads = $counts{$split_bam->path} || 0;
+            my $expected_reads = $counts{$split_path} || 0;
             
             if ($expected_reads == $actual_reads) {
                 $unchecked->move($split_bam);
-                push(@out_files, $split_bam);
+                my $meta = $split_bam->metadata;
+                $meta->{reads} = $actual_reads;
+                $split_bam->add_metadata($meta, replace_data => 1);
+                push(@out_files, $split_path);
             }
             else {
                 $self->warn("When attempting ".$bam_file->path." -> ".$split_bam->path." split, got $actual_reads reads instead of $expected_reads; will delete it");
-                $unchecked->unlink;
+                $unchecked->remove;
             }
         }
-        $self->throw("Number of correct output files ".scalar @out_files." not equal to number of expected output files ".scalar keys %split_bams) unless (scalar @out_files == scalar keys %split_bams);
+        if (scalar @out_files == scalar keys %split_bams) {
+            return 1;
+        } else {
+            $self->throw("Number of correct output files ".scalar @out_files." not equal to number of expected output files ".scalar keys %split_bams);
+        }
     }
 }
 

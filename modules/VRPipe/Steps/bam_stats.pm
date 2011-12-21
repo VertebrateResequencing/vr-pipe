@@ -30,7 +30,8 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                 my $bas = $self->output_file(output_key => 'bas_files',
                                              #output_dir => $bam->dir, # *** important to have them in the same dir as input bam?
                                              basename => $bam->basename.'.bas',
-                                             type => 'txt');
+                                             type => 'txt', 
+                                             metadata => $bam->metadata);
                 my $bam_path = $bam->path;
                 my $bas_path = $bas->path;
                 my $this_cmd = "use VRPipe::Steps::bam_stats; VRPipe::Steps::bam_stats->bas(q[$bam_path], q[$bas_path]$extra_args);";
@@ -68,7 +69,8 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
            have the keys:
            total_bases, mapped_bases, total_reads, mapped_reads,
            mapped_reads_paired_in_seq, mapped_reads_properly_paired,
-           percent_mismatch, avg_qual, avg_isize, sd_isize, median_isize, mad
+           percent_mismatch, avg_qual, avg_isize, sd_isize, median_isize, mad,
+           duplicate_reads and duplicate_bases
  Args    : input bam file (must have been processed by samtools fillmd so that
            there are accurate NM tags for each record)
 
@@ -153,6 +155,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
             
             if ($pb->is_duplicate($flag)) {
                 $this_rg_data[14]++;
+                $this_rg_data[15] += $pr->{SEQ_LENGTH};
             }
             
             $readgroup_data{$rg} = \@this_rg_data;
@@ -198,6 +201,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
             $rg_stats{median_isize} = $median_isize;
             $rg_stats{mad} = $mad;
             $rg_stats{duplicate_reads} = $data[14] || 0;
+            $rg_stats{duplicate_bases} = $data[15] || 0;
             $stats{$rg} = \%rg_stats;
         }
         
@@ -252,7 +256,8 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                                  'mean_insert_size', 'insert_size_sd',
                                  'median_insert_size',
                                  'insert_size_median_absolute_deviation',
-                                 '#_duplicate_reads'), "\n";
+                                 '#_duplicate_reads',
+                                 '#_duplicate_bases'), "\n";
         $expected_lines++;
         
         # get the stats for each read group
@@ -441,7 +446,8 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                                      $data{sd_isize},
                                      $data{median_isize},
                                      $data{mad},
-                                     $data{duplicate_reads} || 0), "\n";
+                                     $data{duplicate_reads} || 0,
+                                     $data{duplicate_bases} || 0), "\n";
             $expected_lines++;
         }
         $working_bas->close;

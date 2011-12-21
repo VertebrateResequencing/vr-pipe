@@ -5,8 +5,9 @@ use Path::Class;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 4;
-    use_ok('VRPipe::Persistent::Schema');
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+		    required_exe => [qw(samtools vcf-concat bcftools)]);
     use TestPipelines;
 }
 

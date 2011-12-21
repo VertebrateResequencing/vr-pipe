@@ -4,12 +4,11 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 7;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    use_ok('VRPipe::Steps::bam_strip_tags');
-    
+    use Test::Most tests => 6;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES SAMTOOLS)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Steps::bam_strip_tags');
 }
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_strip_tags', 'bam_files');

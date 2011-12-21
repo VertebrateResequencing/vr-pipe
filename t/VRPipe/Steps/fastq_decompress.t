@@ -5,12 +5,12 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 9;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    use_ok('VRPipe::Steps::fastq_decompress');
-    
+    use Test::Most tests => 8;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+		    required_exe => [qw(gunzip)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Steps::fastq_decompress');
 }
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('fastq_decompress', 'compressed_fastq_files');

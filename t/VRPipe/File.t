@@ -4,11 +4,8 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 33;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
-    use TestPersistentReal;
+    use Test::Most tests => 32;
+    use VRPipeTest;
 }
 
 my $vrobj = VRPipe::Manager->get;

@@ -4,11 +4,10 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 73;
+    use Test::Most tests => 76;
+    use VRPipeTest;
     
     use_ok('VRPipe::Parser');
-    
-    use TestPersistentReal;
 }
 
 # lsf
@@ -16,7 +15,7 @@ ok my $p = VRPipe::Parser->create('lsf', {file => file(qw(t data lsf.stdout))}),
 $p->fh;
 is_deeply [$p->file, $p->_vrpipe_file->path], [file(qw(t data lsf.stdout)), file(qw(t data lsf.stdout))->absolute], 'file details are correct';
 
-throws_ok {$p = VRPipe::Parser->create('foo', {});} qr/Invalid implementation class/, 'throws when asked to create an invalid parser';
+throws_ok {$p = VRPipe::Parser->create('foo', {});} qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid parser';
 
 is $p->memory, 1, 'memory is correct without a next_record() call';
 is $p->cpu_time, 4.75, 'so is cpu_time';
@@ -122,6 +121,19 @@ is $p->insert_size_standard_deviation, 70.9, 'bamcheck insert_size_standard_devi
 $p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_mq0))});
 is $p->reads_mq0, 1859041, 'reads_mq0 worked';
 is $p->pairs_with_other_orientation, 5857, 'pairs_with_other_orientation worked';
+
+# bas
+$p = VRPipe::Parser->create('bas', {file => file(qw(t data example2.bas))});
+$pr = $p->parsed_record;
+@records = ();
+while ($p->next_record) {
+    push(@records, $pr->[0].'=='.$pr->[20]);
+}
+is_deeply \@records, ['NA00001.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122',
+                      'NA00002.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122',
+                      'NA00003.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122'], 'correct number of records found in bas file, and seems to be fully parsed';
+is $p->total_bases, 345000, 'total_bases worked';
+is $p->duplicate_bases, 366, 'duplicate_bases worked';
 
 # fastq
 {

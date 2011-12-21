@@ -123,7 +123,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         }
         
         if (scalar @in_paths == 1) {
-            symlink $in_paths[0], $out_path;
+            symlink($in_files[0]->path, $out_file->path); # don't use $in_files[0]->symlink because $out_file->metadata will be different
         } else {
             $out_file->disconnect;
             system($cmd_line) && $self->throw("failed to run [$cmd_line]");

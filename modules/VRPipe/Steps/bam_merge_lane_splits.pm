@@ -20,12 +20,14 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study',
                                                                          insert_size => 'expected (mean) insert size if paired',
+                                                                         analysis_group => 'project analysis group',
+                                                                         population => 'sample population',
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                          mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
                                                                          chunk => 'mapped_fastq(s) are this chunk of original fastq(s)',
-                                                                         optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}),
+                                                                         optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}),
                  dict_file => VRPipe::StepIODefinition->get(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
@@ -51,7 +53,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 
                 unless (defined $metas{$paired}) {
                     $metas{$paired} = {};
-                    foreach my $key (qw(lane library sample center_name platform study insert_size)) {
+                    foreach my $key (qw(lane library sample center_name platform study insert_size analysis_group population)) {
                         if (defined $meta->{$key}) {
                             $metas{$paired}->{$key} = $meta->{$key};
                         }
@@ -129,11 +131,13 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                                                                                 platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                                 study => 'name of the study, put in the DS field of the RG header line',
                                                                                 insert_size => 'expected (mean) insert size if paired',,
+                                                                                analysis_group => 'project analysis group',
+                                                                                population => 'sample population',
                                                                                 bases => 'total number of base pairs',
                                                                                 reads => 'total number of reads (sequences)',
                                                                                 paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
                                                                                 mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
-                                                                                optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}) };
+                                                                                optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method post_process_sub {
         return sub { return 1; };

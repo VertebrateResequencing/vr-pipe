@@ -1,8 +1,10 @@
 use VRPipe::Base;
 
 class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
-    use VertRes::Utils::VRTrackFactory;
-    use VertRes::Utils::Hierarchy;
+    # eval these so that test suite can pass syntax check on this module when
+    # VertRes is not installed
+    eval "use VertRes::Utils::VRTrackFactory;";
+    eval "use VertRes::Utils::Hierarchy;";
     
     method description {
         return "Use a VRTrack database to extract information from";
