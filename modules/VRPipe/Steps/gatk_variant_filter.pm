@@ -5,7 +5,7 @@ use VRPipe::Base;
 #   -R ref.fasta \
 #   -T VariantFiltration \
 #   -o output.vcf \
-#   --variant input.vcf \	# version 1.3+
+#   --variant input.vcf \
 #   --filterExpression "AB < 0.2 || MQ0 > 50" \
 #   --filterName "Nov09filters" \
 #   --mask mask.vcf \
@@ -52,7 +52,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
 				my $vcf_filt_path = $vcf_filt_file->path;
 
 				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path $var_filter_opts ];
-				$self->warn($cmd);
+#				$self->warn($cmd);
 				$self->dispatch([$cmd, $req, {output_files => [$vcf_filt_file]}]); 
 			}
         };
