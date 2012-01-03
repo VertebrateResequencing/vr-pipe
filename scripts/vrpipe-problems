@@ -13,7 +13,8 @@ my $deployment = 'production';
 my ($desired_setup);
 GetOptions("help" => \$help,
            "deployment=s" => \$deployment,
-           "setup=s" => \$desired_setup);
+           "setup=s" => \$desired_setup,
+           "retries=i" => \$retries);
 
 if ($deployment !~ /^(?:testing|production)$/) {
     warn "--deployment must be testing|production\n";
