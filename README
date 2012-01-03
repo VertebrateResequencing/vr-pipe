@@ -69,7 +69,7 @@ GATK, pointing to a directory containing GATK jar files, will enable tests that
       require GATK
 VRPIPE_VRTRACK_TESTDB will enable testing of the VRTrack DataSource, using the
                       value supplied as the database name (other database
-                      details will come from the standard VRTrack enironment
+                      details will come from the standard VRTrack environment
                       variables)
 VRPIPE_VRTRACK_TESTDB_READY, when true, will disable re-creation of the VRTrack
                              database to increase the speed of the test
