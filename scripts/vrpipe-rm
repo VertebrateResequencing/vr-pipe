@@ -1,0 +1,170 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::Persistent::SchemaBase;
+
+use Getopt::Long;
+use Path::Class;
+
+my $help = 0;
+my $deployment = 'production';
+my @steps;
+my ($desired_setup, $pretend, $verbose);
+GetOptions("help" => \$help,
+           "deployment=s" => \$deployment,
+           "setup=s" => \$desired_setup,
+           "steps=s{,}" => \@steps,
+           "pretend" => \$pretend,
+           "verbose" => \$verbose);
+
+my @search_and_replace;
+unless ($help) {
+    if ($deployment !~ /^(?:testing|production)$/) {
+        warn "--deployment must be testing|production\n";
+        $help = 1;
+    }
+    
+    if ($desired_setup || @steps) {
+        unless ($desired_setup) {
+            warn "--setup is required when using --steps\n";
+            $help = 1;
+        }
+        unless (@steps) {
+            warn "--steps is required when using --setup\n";
+            $help = 1;
+        }
+    }
+    
+    if ($pretend) {
+        $verbose = 1;
+    }
+}
+
+if ($help) {
+    print <<HELP;
+Delete files on disk, like unix 'rm', also updating the VRPipe database. Also
+let's you delete output files of particular steps in a particular pipeline.
+
+To delete specified files, use standard unix 'rm' arguments.
+
+To delete pipeline outputs, supply both:
+    --setup <int|string>          Pipeline setup (id or name)
+    --setups <step name|number>   One or more step names/numbers to choose which
+                                  step outputs you want to delete. If a step
+                                  outputs more than one kind of file, you can
+                                  limit to just one of the kinds by saying
+                                  something like --steps "stepname|kindname".
+
+Other options:
+    --pretend             Only print out what files would be deleted; don't
+                          actually delete anything
+    --verbose             Print out the files that are being deleted
+                          (automatically on if using --pretend)
+    --deployment <testing|production> (default production)
+                          Use your testing or production database
+
+HELP
+    exit;
+}
+
+VRPipe::Persistent::SchemaBase->database_deployment($deployment);
+require VRPipe::Persistent::Schema;
+
+my $m = VRPipe::Manager->get;
+my $schema = $m->result_source->schema;
+
+if ($desired_setup) {
+    my $setup;
+    if ($desired_setup =~ /^\d+$/) {
+        $setup = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+        unless ($setup) {
+            die "$desired_setup is not a valid pipeline setup id\n";
+        }
+    }
+    else {
+        $setup = $schema->resultset("PipelineSetup")->find({ name => $desired_setup });
+        unless ($setup) {
+            die "$desired_setup is not a valid pipeline setup name\n";
+        }
+    }
+    
+    # handle --steps
+    my %desired_steps;
+    foreach my $step_name (@steps) {
+        my ($name, $kind) = split('\|', $step_name);
+        $kind ||= 'all';
+        if ($name =~ /^\d+$/) {
+            $desired_steps{numbers}->{$name}->{$kind} = 1;
+        }
+        else {
+            $desired_steps{names}->{$name}->{$kind} = 1;
+        }
+    }
+    my @step_members = $setup->pipeline->steps;
+    my @allowed_step_members;
+    my %allowed_kinds;
+    foreach my $stepm (@step_members) {
+        my $smid = $stepm->id;
+        my $step_name = $stepm->step->name;
+        if (exists $desired_steps{names}->{$step_name}) {
+            foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
+        }
+        my $step_num = $stepm->step_number;
+        if (exists $desired_steps{numbers}->{$step_num}) {
+            foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
+        }
+        next unless keys %{$allowed_kinds{$smid}};
+        
+        push(@allowed_step_members, $stepm);
+    }
+    
+    # loop through completed elements
+    my $pipeline_length = @step_members;
+    my $elements = $setup->datasource->elements;
+    my $deleted = 0;
+    my $complete_elements = 0;
+    my $incomplete = 0;
+    foreach my $element (@$elements) {
+        my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+        unless ($element_state->completed_steps == $pipeline_length) {
+            $incomplete++;
+            next;
+        }
+        $complete_elements++;
+        
+        # delete outputs
+        foreach my $stepm (@allowed_step_members) {
+            my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
+            my $smid = $stepm->id;
+            my $force = exists $allowed_kinds{$smid}->{all};
+            
+            while (my ($kind, $files) = each %$step_outs) {
+                unless ($force) {
+                    next unless exists $allowed_kinds{$smid}->{$kind};
+                }
+                my @files = grep { $_->s } @$files;
+                next unless @files;
+                
+                my @file_data;
+                foreach my $file (@files) {
+                    my $path = $file->path->stringify;
+                    warn "$path\n" if $verbose;
+                    $file->unlink unless $pretend;
+                    $deleted++;
+                }
+            }
+        }
+    }
+    
+    warn "$incomplete incomplete data elements were ignored, and $deleted files were deleted for $complete_elements complete elements\n";
+}
+else {
+    die "normal rm not yet implemented\n";
+}
+
+exit;
