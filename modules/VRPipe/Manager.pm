@@ -509,17 +509,22 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # if any step limits are in place we first have to see how many of each
         # step are currently in the scheduler
         my %step_counts;
+        my $schema = $self->result_source->schema;
         if ($do_step_limits) {
-            my $schema = $self->result_source->schema;
             my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_sid' => { '!=', undef } });
             while (my $sub = $rs->next) {
                 $step_counts{$sub->stepstate->stepmember->step->name}++;
             }
         }
         
-        my %batches;
+        # we want to limit the number of jobs we have running based on the
+        # global limit, so we'll count the number of submissions we batch and
+        # end the submission loop when over the limit. We'll also start the
+        # count at the number of currently running jobs.
         my $limit = $self->global_limit;
-        my $count = 0;
+        my $count = $schema->resultset('Job')->count({ 'running' => 1 });
+        
+        my %batches;
         foreach my $sub (@$submissions) {
             next if ($sub->sid || $sub->done || $sub->failed);
             
