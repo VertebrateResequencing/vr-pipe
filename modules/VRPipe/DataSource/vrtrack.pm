@@ -1,9 +1,11 @@
 use VRPipe::Base;
 
 class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
-    use VertRes::Utils::VRTrackFactory;
-    use VertRes::Utils::Hierarchy;
-    
+    # eval these so that test suite can pass syntax check on this module when
+    # VertRes is not installed
+    eval "use VertRes::Utils::VRTrackFactory;";
+    eval "use VertRes::Utils::Hierarchy;";
+    use Digest::MD5 qw(md5_hex); 
     method description {
         return "Use a VRTrack database to extract information from";
     }
@@ -23,15 +25,22 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method _has_changed {
-        #*** need to figure out a nice way of determining if anything has
-        #    changed in the VRTrack db...
-        return 1;
+      return 1 unless defined($self->_changed_marker);#on first instantiation _changed_marker is undefined, defaults to changed in this case
+      my $vrtrack_source = $self->_open_source();
+      my $lane_change = VRTrack::Lane->all_field_values_in_database($vrtrack_source, 'changed');
+      my $file_md5 =  VRTrack::File->all_field_values_in_database($vrtrack_source, 'md5');
+      my $digest =  md5_hex join( @$lane_change, @$file_md5); 
+      return 1 if ($digest ne $self->_changed_marker);#checks for new or deleted lanes or changed files(including deleted/added files)
+      return 0; 
     }
     
     method _update_changed_marker {
-        #*** this needs to be properly implemented as well
-        $self->_changed_marker('changed');
-    }
+     my $vrtrack_source = $self->_open_source();
+     my $lane_change = VRTrack::Lane->all_field_values_in_database($vrtrack_source, 'changed');
+     my $file_md5    = VRTrack::File->all_field_values_in_database($vrtrack_source, 'md5');
+     my $digest      = md5_hex join( @$lane_change, @$file_md5); 
+     $self->_changed_marker($digest); 
+   }
     
     method lanes (Defined :$handle!,
                   ArrayRef :$project?,
@@ -107,57 +116,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             
             push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {lane => $lane->hierarchy_name}, withdrawn => 0));
         }
-        
+        $self->_update_changed_marker; 
         return \@elements;
     }
 }
-
-=pod
-    =head2 next_lane_path
-    
-      Arg [1]    : hash of hierarchy level name keys, with regex values. Special
-                   key of 'processed' with hashref value as per
-                   processed_lane_hnames.
-      Example    : all lanes:
-                   while (my $hname = $track->next_lane_path()) { ... }
-                   mapped, not yet improved lanes for sample NA01:
-                   while (my $hname = $track->next_lane_hname(sample => 'NA01',
-                       processed => { mapped => 1, improved => 0 })) { ... }
-      Description: retrieves a (optionally filtered) list of all lane hierarchy
-                   paths, ordered by project, sample, library names.
-      Returntype : arrayref
-    
-    =cut
-    
-    sub next_lane_path {
-        my ($self, %args) = @_;
-        my $processed = delete $args{processed};
-        my $store_name;
-        foreach my $key (sort keys %args) {
-            $store_name .= $key.'->'.$args{$key};
-        }
-        if ($processed) {
-            foreach my $key (sort keys %{$processed}) {
-                $store_name .= $key.'->'.$processed->{$key};
-            }
-        }
-        
-        unless (exists $self->{$store_name}) {
-            
-        }
-        
-        if (exists $self->{$store_name}) {
-            my $sth = $self->{$store_name};
-            my $row_data = $sth->fetchrow_arrayref;
-            if ($row_data) {
-                
-            }
-            else {
-                delete $self->{$store_name};
-                return;
-            }
-        }
-    }
-=cut
-
 1;
