@@ -1,3 +1,5 @@
+0.20    Improved handling of limits, so that a good amount of jobs are
+        always running
 0.19    Various fixes to 1000 genomes-related pipelines
 0.18    Fix to allow sqlite to be used in production
 0.17    Install process for new external users should now work/be easy

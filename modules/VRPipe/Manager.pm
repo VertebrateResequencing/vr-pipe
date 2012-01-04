@@ -169,11 +169,13 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
         
-        # we're using the 'global' limit here to reduce possible db burden,
-        # but it doesn't matter that this is used as a per-pipelinesetup
-        # limit. handle_submissions() gives us a true global limit on how
-        # many jobs will run at once
-        my $estates = $datasource->incomplete_element_states($setup, $limit);
+        # We don't pass a limit to incomplete_element_states since that could
+        # return all estates where all their submissions have failed 3 times.
+        # To avoid doing wasted cycles of the estates loop we do make use of
+        # limit though. The real limiting happens in handle_submissions()
+        my $estates = $datasource->incomplete_element_states($setup);
+        
+        $self->debug("Spool for setup ".$setup->id." got ".scalar(@$estates)." incomplete element states, given a limit of $limit");
         
         foreach my $estate (@$estates) {
             my $element = $estate->dataelement;
@@ -281,6 +283,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 $all_done = 0;
                 last;
             }
+            
+            last if $incomplete_elements > $limit;
         }
         
         # capture stop
@@ -333,6 +337,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
             }
         }
         
+        $self->debug("There are ".scalar(@not_done)." unfinished submissions to work on");
+        
         return @not_done ? \@not_done : undef;
     }
     
@@ -362,11 +368,13 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         #*** not yet fully implemented...
         
+        my $fails = 0;
         foreach my $sub (@$submissions) {
             next unless $sub->failed;
             
             if ($sub->retries >= $max_retries) {
                 $self->debug("submission ".$sub->id." retried $max_retries times now, giving up");
+                $fails++;
             }
             else {
                 my $parser = $sub->scheduler_stdout;
@@ -389,6 +397,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 $sub->retry;
             }
         }
+        
+        $self->debug("There were $fails permanently failed submission");
         
         return 1;
     }
@@ -453,6 +463,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
             push(@still_not_done, $sub);
         }
         
+        $self->debug("There are ".scalar(@still_not_done)." submissions that still aren't done");
+        
         return \@still_not_done;
     }
     
@@ -497,17 +509,22 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # if any step limits are in place we first have to see how many of each
         # step are currently in the scheduler
         my %step_counts;
+        my $schema = $self->result_source->schema;
         if ($do_step_limits) {
-            my $schema = $self->result_source->schema;
             my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_sid' => { '!=', undef } });
             while (my $sub = $rs->next) {
                 $step_counts{$sub->stepstate->stepmember->step->name}++;
             }
         }
         
-        my %batches;
+        # we want to limit the number of jobs we have running based on the
+        # global limit, so we'll count the number of submissions we batch and
+        # end the submission loop when over the limit. We'll also start the
+        # count at the number of currently running jobs.
         my $limit = $self->global_limit;
-        my $count = 0;
+        my $count = $schema->resultset('Job')->count({ 'running' => 1 });
+        
+        my %batches;
         foreach my $sub (@$submissions) {
             next if ($sub->sid || $sub->done || $sub->failed);
             

@@ -9,17 +9,20 @@ use Getopt::Long;
 
 my $help = 0;
 my $retries = 0;
+my $done = 0;
 my $deployment = 'production';
 my ($desired_sub, $desired_setup, $desired_step, $failed, $all, $start_over,
-    $full_reset, $no_report, $force_with_all);
+    $full_reset, $no_report, $force_with_all, $limit);
 GetOptions("help" => \$help,
            "deployment=s" => \$deployment,
            "submission=i" => \$desired_sub,
            "setup=s" => \$desired_setup,
            "step=s" => \$desired_step,
            "failed" => \$failed,
+           "done" => \$done,
            "retries=i" => \$retries,
            "all" => \$all,
+           "limit=i" => \$limit,
            "start_over" => \$start_over,
            "full_reset" => \$full_reset,
            "no_report" => \$no_report,
@@ -45,9 +48,11 @@ Options:
                          with this name
     --failed             Only show submissions that have failed
     --retries <int>      Only report on submissions with this number of retries
+    --done               Only show submissions that have succeeded
     --all                Normally only details of incomplete submissions are
                          given; this shows even ones that are done (maybe very
                          slow)
+    --limit <int>        Only show this number of submissions
     
 After the above options have been used to filter the list of all submissions,
 and their details have been printed to screen, the following options will let
@@ -76,8 +81,8 @@ if ($desired_sub && ($desired_setup || $desired_step)) {
     undef $desired_step;
 }
 
-if ($all && $failed) {
-    warn "--all and --failed don't make sense togother; ignoring --all\n";
+if ($all && ($failed || $done)) {
+    warn "--all and --failed/done don't make sense togother; ignoring --all\n";
     undef $all;
 }
 
@@ -92,29 +97,36 @@ if ($all && ! $force_with_all && ($start_over || $full_reset)) {
 VRPipe::Persistent::SchemaBase->database_deployment($deployment);
 require VRPipe::Persistent::Schema;
 
+my $m = VRPipe::Manager->get;
+my $schema = $m->result_source->schema;
+
+my $setup;
+if ($desired_setup) {
+    if ($desired_setup =~ /^\d+$/) {
+        $setup = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
+        unless ($setup) {
+            die "$desired_setup is not a valid pipeline setup id\n";
+        }
+    }
+    else {
+        $setup = $schema->resultset("PipelineSetup")->find({ name => $desired_setup });
+        unless ($setup) {
+            die "$desired_setup is not a valid pipeline setup name\n";
+        }
+    }
+}
+
 my @subs;
 if ($desired_sub) {
     @subs = (VRPipe::Submission->get(id => $desired_sub));
 }
 else {
-    my $m = VRPipe::Manager->get;
-    my $schema = $m->result_source->schema;
-    my $rs = $schema->resultset("Submission")->search({ $all ? () : ("_done" => 0), $failed ? ("_failed" => 1) : (), $retries ? (retries => $retries) : () });
+    my $rs = $schema->resultset("Submission")->search({ $all ? () : ("_done" => $done), $failed ? ("_failed" => 1) : (), $retries ? (retries => $retries) : (),
+                                                        $setup ? ('stepstate.pipelinesetup' => $setup->id) : (),
+                                                        $desired_step ? ('step.name' => $desired_step) : () },
+                                                      { $setup ? (join => ['stepstate', $desired_step ? ({ stepstate => { stepmember => 'step' } }) : ()]) : (), $limit ? (rows => $limit) : () });
     while (my $sub = $rs->next) {
         push(@subs, $sub);
-    }
-}
-
-if ($desired_setup) {
-    # convert to setup name
-    if ($desired_setup =~ /^\d+$/) {
-        my $m = VRPipe::Manager->get;
-        my $schema = $m->result_source->schema;
-        my $rs = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
-        unless ($rs) {
-            die "$desired_setup is not a valid pipeline setup id\n";
-        }
-        $desired_setup = $rs->name;
     }
 }
 
@@ -124,16 +136,10 @@ my @final_subs;
 foreach my $sub (@subs) {
     my $state = $sub->stepstate;
     my $setup = $state->pipelinesetup->name;
-    if ($desired_setup) {
-        next unless $setup eq $desired_setup;
-    }
     
     my $stepm = $state->stepmember;
     my $step_num = $stepm->step_number;
     my $step_name = $stepm->step->name;
-    if ($desired_step) {
-        next unless $step_name eq $desired_step;
-    }
     
     my $job = $sub->job;
     my $req = $sub->requirements;

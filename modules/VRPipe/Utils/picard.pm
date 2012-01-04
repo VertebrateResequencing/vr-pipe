@@ -1,11 +1,12 @@
 use VRPipe::Base;
 
 class VRPipe::Utils::picard extends VRPipe::Utils::java {
-    
     has 'picard_path' => (is => 'ro',
                           isa => Dir,
                           coerce => 1,
                           default => "$ENV{PICARD}");
+    
+    has '+memory_multiplier' => (default => 0.7);
     
     method determine_picard_version (ClassName|Object $self:) {
         my $picard_path = $self->picard_path;

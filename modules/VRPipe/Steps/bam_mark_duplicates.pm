@@ -24,7 +24,7 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
                                    version => $picard->determine_picard_version(),
                                    summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file '.$markdup_opts));
             
-            my $req = $self->new_requirements(memory => 4500, time => 2);
+            my $req = $self->new_requirements(memory => 5800, time => 2);
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_base = $bam->basename;
                 my $bam_meta = $bam->metadata;

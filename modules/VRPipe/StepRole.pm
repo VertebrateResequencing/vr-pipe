@@ -479,18 +479,21 @@ role VRPipe::StepRole {
     method dispatch_vrpipecode (Str $code, VRPipe::Requirements $req, HashRef $extra_args?) {
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
         
-        # use lib for anything that has been added to INC
+        # use lib for anything that has been added to INC, but only if we're
+        # testing, since production cannot (must not) work with temp altered INC
         my $use_lib = '';
-        use lib;
-        my %orig_inc = map { $_ => 1 } @lib::ORIG_INC;
-        my @new_lib;
-        foreach my $inc (@INC) {
-            unless (exists $orig_inc{$inc}) {
-                push(@new_lib, file($inc)->absolute);
+        if ($deployment eq 'testing') {
+            use lib;
+            my %orig_inc = map { $_ => 1 } @lib::ORIG_INC;
+            my @new_lib;
+            foreach my $inc (@INC) {
+                unless (exists $orig_inc{$inc}) {
+                    push(@new_lib, file($inc)->absolute);
+                }
             }
-        }
-        if (@new_lib) {
-            $use_lib = "use lib(qw(@new_lib)); ";
+            if (@new_lib) {
+                $use_lib = "use lib(qw(@new_lib)); ";
+            }
         }
         
         my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "${use_lib}VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); $code"];
