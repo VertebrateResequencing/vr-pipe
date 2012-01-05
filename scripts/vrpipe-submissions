@@ -256,13 +256,14 @@ sub show_output {
     print "\n";
     
     my @lines = split("\n", $output);
-    if (@lines > 25) {
-        for (1..10, @lines-10..@lines) {
+    my $num_lines = @lines;
+    if (@lines > 45) {
+        for (1..10) {
             print $lines[$_ - 1], "\n";
         }
-        my $other_lines = @lines - 20;
+        my $other_lines = $num_lines - 40;
         print "\n[... $other_lines more lines in $file ...]\n\n";
-        for (@lines-10..@lines) {
+        for (($num_lines-30)..$num_lines) {
             print $lines[$_ - 1], "\n";
         }
     }

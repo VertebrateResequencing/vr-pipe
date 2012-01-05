@@ -87,7 +87,7 @@ if (keys %summary) {
         foreach my $step (sort $key_sort keys %{$steps}) {
             my ($step_id, $step_name) = split('\|\[\]\|', $step);
             my $fails = $steps->{$step};
-            print "\t", "Step $step_name has failed for $fails Data Elements; investigate by running: vrpipe-submissions --setup $setup_id --step '$step_name'\n";
+            print "\t", "Step $step_name has failed for $fails Data Elements; investigate by running: vrpipe-submissions --setup $setup_id --step '$step_name' --failed\n";
         }
         
         print "---\n\n";
