@@ -166,7 +166,7 @@ role VRPipe::StepRole {
         my %return;
         while (my ($key, $val) = each %$hash) {
             if ($val->isa('VRPipe::File')) {
-                $return{$key} = [$val];
+                $return{$key} = [$val->resolve];
             }
             elsif ($val->isa('VRPipe::StepIODefinition')) {
                 # see if we have this $key in our previous_step_outputs or
@@ -246,12 +246,14 @@ role VRPipe::StepRole {
                     push(@vrfiles, $result);
                 }
                 
-                $return{$key} = \@vrfiles;
+                $return{$key} = [map { $_->resolve } @vrfiles];
             }
             else {
                 $self->throw("invalid class ".ref($val)." supplied for input '$key' value definition");
             }
         }
+        
+        
         
         return \%return;
     }
@@ -275,7 +277,7 @@ role VRPipe::StepRole {
             }
             
             foreach my $file (@$val) {
-                if ($check_s && ! $file->s) {
+                if ($check_s && ! $file->resolve->s) {
                     push(@missing, $file->path);
                 }
                 else {
