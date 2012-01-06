@@ -193,8 +193,7 @@ SKIP: {
    
  
     ### tests for  _has_changed ###
-
-    ok( ! $ds->_source_instance->_has_changed, ' _has_changed gives no change' );
+    ok( ! $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change' );
     
     # create a new row that has a later time stamp
     my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
@@ -204,22 +203,23 @@ SKIP: {
     $new_lane->is_withdrawn(0);
     $new_lane->library_id(16);
     $new_lane->update;
-    ok( $ds->_source_instance->_has_changed, ' _has_changed gives change after new lane insertion in test vrtrack db');
+    ok( $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after new lane insertion in test vrtrack db');
 
     # Go back to unchanged state by deleting this lane. Check we don't have any changes
     $new_lane->delete;
-    ok( !$ds->_source_instance->_has_changed, '_has_change gives no change after inserted lane deleted in test vrtrack db');
+    ok( !$ds->_source_instance->_has_changed, 'vrtrack datasource _has_change gives no change after inserted lane deleted in test vrtrack db');
 
      # then delete another lane and check for changes
-     my $lane_to_delete = VRTrack::Lane->new_by_name($vrtrack,'ERR003040' );
-     $lane_to_delete->delete;
-     ok($ds->_source_instance->_has_changed, '_has_changed gives change after another lane deletion in test vrtrack db');
+    my $lane_to_delete = VRTrack::Lane->new_by_name($vrtrack,'ERR003040' );
+    $lane_to_delete->delete;
+    ok($ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after another lane deletion in test vrtrack db');
 
      # change some md5 sums in the files
-     my $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
+    my $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
      # check for changes
-     $file->md5('34c009157187c5d9a7e976563ec1bad9');
-     ok($ds->_source_instance->_has_changed, '_has_changed got change after md5 change in file table in test vrtrack db');
-}
+    $file->md5('34c009157187c5d9a7e976563ec1bad9');
+    ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
+   
+  }
 
 exit;

@@ -5,7 +5,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     # VertRes is not installed
     eval "use VertRes::Utils::VRTrackFactory;";
     eval "use VertRes::Utils::Hierarchy;";
-    use Digest::MD5 qw(md5_hex); 
+    use Digest::MD5 qw(md5_hex);
     method description {
         return "Use a VRTrack database to extract information from";
     }
@@ -25,23 +25,23 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method _has_changed {
-      return 1 unless defined($self->_changed_marker);#on first instantiation _changed_marker is undefined, defaults to changed in this case
-      my $vrtrack_source = $self->_open_source();
-      my $lane_change = VRTrack::Lane->all_field_values_in_database($vrtrack_source, 'changed');
-      my $file_md5 =  VRTrack::File->all_field_values_in_database($vrtrack_source, 'md5');
-      my $digest =  md5_hex join( @$lane_change, @$file_md5); 
-      return 1 if ($digest ne $self->_changed_marker);#checks for new or deleted lanes or changed files(including deleted/added files)
+      return 1 unless defined($self->_changed_marker);#on first instantiation _changed_marker is undefined, defaults to changed in this case 
+      return 1 if ($self->_vrtrack_lane_file_checksum ne $self->_changed_marker);#checks for new or deleted lanes or changed files(including deleted/added files)
       return 0; 
     }
     
-    method _update_changed_marker {
-     my $vrtrack_source = $self->_open_source();
-     my $lane_change = VRTrack::Lane->all_field_values_in_database($vrtrack_source, 'changed');
-     my $file_md5    = VRTrack::File->all_field_values_in_database($vrtrack_source, 'md5');
-     my $digest      = md5_hex join( @$lane_change, @$file_md5); 
-     $self->_changed_marker($digest); 
+    method _update_changed_marker { 
+       $self->_changed_marker($self->_vrtrack_lane_file_checksum); 
    }
-    
+
+   method _vrtrack_lane_file_checksum {
+      my $vrtrack_source = $self->_open_source();
+      my $lane_change = VRTrack::Lane->_all_values_by_field($vrtrack_source, 'changed');
+      my $file_md5    = VRTrack::File->_all_values_by_field($vrtrack_source, 'md5');
+      my $digest      = md5_hex join( @$lane_change, @$file_md5); 
+      return $digest;
+  }
+ 
     method lanes (Defined :$handle!,
                   ArrayRef :$project?,
                   ArrayRef :$sample?,
@@ -119,5 +119,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $self->_update_changed_marker; 
         return \@elements;
     }
+
+
 }
 1;
