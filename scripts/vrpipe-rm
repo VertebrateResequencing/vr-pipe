@@ -6,17 +6,22 @@ use VRPipe::Persistent::SchemaBase;
 
 use Getopt::Long;
 use Path::Class;
+use File::Find;
 
 my $help = 0;
 my $deployment = 'production';
 my @steps;
-my ($desired_setup, $pretend, $verbose);
+my ($desired_setup, $pretend, $verbose, $force, $recurse);
 GetOptions("help" => \$help,
            "deployment=s" => \$deployment,
            "setup=s" => \$desired_setup,
            "steps=s{,}" => \@steps,
            "pretend" => \$pretend,
+           "f|force" => \$force,
+           "r|recursive" => \$recurse,
            "verbose" => \$verbose);
+
+my @paths = @ARGV;
 
 my @search_and_replace;
 unless ($help) {
@@ -66,6 +71,13 @@ Other options:
 
 HELP
     exit;
+}
+
+if (! $desired_setup && ! @paths) {
+    die <<ERROR;
+vrpipe-rm: missing operand
+Try `vrpipe-rm --help' for more information.
+ERROR
 }
 
 VRPipe::Persistent::SchemaBase->database_deployment($deployment);
@@ -165,8 +177,134 @@ if ($desired_setup) {
     
     warn "$incomplete incomplete data elements were ignored, and $deleted files ", ($pretend ? "would have been" : "were"), " deleted for $complete_elements complete elements\n" if $verbose;
 }
-else {
-    die "normal rm not yet implemented\n";
+
+my %protected_dirs;
+my %dirs_with_files;
+if (@paths) {
+    if ($recurse && ! $force) {
+        # find all protected directories ahead of time, since they complicate
+        # things
+        foreach my $path (@paths) {
+            next unless -e $path;
+            next unless -d $path;
+            find({ wanted => \&protected_dir, no_chdir => 1 }, $path);
+        }
+    }
+    
+    foreach my $path (@paths) {
+        if (-e $path || -l $path) {
+            if (-d $path) {
+                if ($recurse) {
+                    finddepth({ wanted => \&rm_path, preprocess => \&skip_protected_dirs, no_chdir => 1 }, $path);
+                }
+                else {
+                    warn "rm: cannot remove `$path': Is a directory\n";
+                }
+            }
+            else {
+                rm_path($path);
+            }
+        }
+        elsif (! $force) {
+            warn "rm: cannot remove `$path': No such file or directory\n";
+        }
+    }
+}
+
+sub protected_dir {
+    my $path = $_;
+    return if exists $protected_dirs{$path};
+    foreach my $protected (keys %protected_dirs) {
+        return if dir($protected)->subsumes($path);
+    }
+    
+    if (-d $path && ! -w $path && ! dir_is_empty($path)) {
+        print STDERR "rm: descend into write-protected directory `$path'? ";
+        my $answer = <STDIN>;
+        chomp($answer);
+        unless ($answer =~ /^y(?:es)?$/) {
+            $protected_dirs{$path} = 1;
+        }
+    }
+}
+
+sub dir_is_empty {
+    my $dir = shift;
+    my $dfh;
+    if (opendir($dfh, $dir)) {
+        readdir $dfh;
+        readdir $dfh;
+        if (readdir $dfh) {
+            return 0;
+        }
+        else {
+            return 1;
+        }
+    }
+    return 1;
+}
+
+sub skip_protected_dirs {
+    my @basenames;
+    foreach my $basename (@_) {
+        push(@basenames, $basename) unless exists $protected_dirs{dir($File::Find::dir, $basename)};
+    }
+    return @basenames;
+}
+
+sub rm_path {
+    my $path = $_ || shift;
+    if (-d $path) {
+        return if exists $protected_dirs{$path};
+        unless ($force) {
+            return unless dir_is_empty($path);
+        }
+        unless (is_protected($path)) {
+            rmdir($path);
+        }
+    }
+    else {
+        unless (is_protected($path)) {
+            my $vrfile = $schema->resultset("File")->find({ path => file($path)->absolute });
+            my $worked = 0;
+            if ($vrfile) {
+                $worked = $vrfile->unlink;
+            }
+            else {
+                $worked = file($path)->remove;
+            }
+            
+            unless ($worked) {
+                warn "rm: cannot remove `$path': Permission denied\n";
+            }
+        }
+    }
+}
+
+sub is_protected {
+    my $path = shift;
+    return 0 if $force;
+    return 0 if -w $path;
+    return 0 if -l $path;
+    
+    if (-d $path) {
+        print STDERR "rm: remove write-protected directory `$path'? ";
+    }
+    else {
+        if (-s $path) {
+            print STDERR "rm: remove write-protected regular file `$path'? ";
+        }
+        else {
+            print STDERR "rm: remove write-protected regular empty file `$path'? ";
+        }
+    }
+    my $answer = <STDIN>;
+    chomp($answer);
+    if ($answer =~ /^y(?:es)?$/) {
+        return 0;
+    }
+    
+    return 1;
 }
 
 exit;
