@@ -5,11 +5,14 @@ use Path::Class;
 use Cwd;
 
 BEGIN {
+<<<<<<< HEAD
     use Test::Most tests => 22;
+=======
+    use Test::Most tests => 17;
+    use VRPipeTest;
+>>>>>>> 076b5ebf19abae03c0fb5a9ac027f0a90700a501
     
     use_ok('VRPipe::DataSourceFactory');
-    
-    use TestPersistentReal;
 }
 
 # list

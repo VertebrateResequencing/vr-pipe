@@ -4,10 +4,9 @@ use warnings;
 
 BEGIN {
     use Test::Most tests => 3;
+    use VRPipeTest;
     
     use_ok('VRPipe::Persistent::Schema');
-    
-    use TestPersistentReal;
 }
 
 my $j1 = VRPipe::Job->get(cmd => 'foo');

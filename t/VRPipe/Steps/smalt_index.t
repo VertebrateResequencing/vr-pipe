@@ -5,12 +5,12 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    use_ok('VRPipe::Steps::smalt_index');
-    
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+		    required_exe => [qw(smalt)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Steps::smalt_index');
 }
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('smalt_index', '');

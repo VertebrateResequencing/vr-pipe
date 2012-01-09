@@ -1,3 +1,12 @@
+0.20    Improved handling of limits, so that a good amount of jobs are
+        always running
+0.19    Various fixes to 1000 genomes-related pipelines
+0.18    Fix to allow sqlite to be used in production
+0.17    Install process for new external users should now work/be easy
+0.16    New merging pipelines and associated vrpipe datasource (for chaining
+        different pipelines together). Critical bug fixes that allow
+        changes in datasources to trigger restarts for the changed
+        elements.
 0.15    Front-end for creating PipelineSetups; improvements to smalt
         mapping so we can map 454 data in 1000 genomes.
 0.14    More front-end scripts added. Sequence index datasource now

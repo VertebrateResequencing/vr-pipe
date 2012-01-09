@@ -5,12 +5,11 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 13;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    use_ok('VRPipe::Steps::bam_stats');
-    
+    use Test::Most tests => 12;
+    use VRPipeTest (required_env => [qw(SAMTOOLS)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Steps::bam_stats');
 }
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_stats', 'bam_files');
@@ -30,7 +29,8 @@ is_deeply {VRPipe::Steps::bam_stats->bam_statistics($test_bam)}, {SRR00001 => {t
                                                                                sd_isize => '74.10',
                                                                                median_isize => 275,
                                                                                mad => 48,
-                                                                               duplicate_reads => 2}}, 'bam_statistics test';
+                                                                               duplicate_reads => 2,
+                                                                               duplicate_bases => 122}}, 'bam_statistics test';
 
 my $given_bas = file($output_dir, 'test.bas');
 my $ok = VRPipe::Steps::bam_stats->bas($test_bam, $given_bas, release_date => 20100208);
@@ -57,14 +57,18 @@ ok open($tbfh, $given_bas), 'opened result .bas';
 close($tbfh);
 is_deeply \@given, \@expected2, 'bas output was as expected when converting RG PU to ID';
 
-
-# test as part of a pipeline
-my $setup = VRPipe::PipelineSetup->get(name => 'bsp_setup',
-                                       datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
-                                       output_root => $output_dir,
-                                       pipeline => $pipeline,
-                                       options => {});
-
-ok handle_pipeline(), 'single-step pipeline ran ok';
+SKIP: {
+    my $num_tests = 1;
+    skip "longer-running pipeline test disabled without VRPIPE_TEST_PIPELINES", $num_tests unless $ENV{VRPIPE_TEST_PIPELINES};
+    
+    # test as part of a pipeline
+    my $setup = VRPipe::PipelineSetup->get(name => 'bsp_setup',
+                                           datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
+                                           output_root => $output_dir,
+                                           pipeline => $pipeline,
+                                           options => {});
+    
+    ok handle_pipeline(), 'single-step pipeline ran ok';
+}
 
 finish;

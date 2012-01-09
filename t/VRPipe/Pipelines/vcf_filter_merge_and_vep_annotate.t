@@ -4,8 +4,9 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
-    use_ok('VRPipe::Persistent::Schema');
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+		    required_exe => [qw(vcf-filter vcf-isec vcf-annotate vcf-stats variant_effect_predictor.pl vcf2consequences_vep tabix)]);
     use TestPipelines;
 }
 
@@ -47,12 +48,12 @@ my (@output_files,@final_files);
 my $element_id=0;
 foreach my $in ('test1', 'test2') {
 	$element_id++;
-    push(@output_files, file($output_dir, output_subdirs($element_id), 'vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz"));
-    push(@output_files, file($output_dir, output_subdirs($element_id), 'vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
-    push(@output_files, file($output_dir, output_subdirs($element_id), 'vcf_annotate', "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), 'vcf_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), 'vcf_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), 'vcf_stats', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.stats"));
+    push(@output_files, file($output_dir, output_subdirs($element_id), '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz"));
+    push(@output_files, file($output_dir, output_subdirs($element_id), '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
+    push(@output_files, file($output_dir, output_subdirs($element_id), '3_vcf_annotate', "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
+    push(@final_files, file($output_dir, output_subdirs($element_id), '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
+    push(@final_files, file($output_dir, output_subdirs($element_id), '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
+    push(@final_files, file($output_dir, output_subdirs($element_id), '6_vcf_stats', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.stats"));
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 

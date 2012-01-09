@@ -19,12 +19,14 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                                                                            platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                            study => 'name of the study, put in the DS field of the RG header line',
                                                                            insert_size => 'expected (mean) insert size if paired',
+                                                                           analysis_group => 'project analysis group',
+                                                                           population => 'sample population',
                                                                            bases => 'total number of base pairs',
                                                                            reads => 'total number of reads (sequences)',
                                                                            paired => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
                                                                            mate => 'if paired, the path to the fastq that is our mate',
                                                                            chunk => 'if the fastq file was produced by fastq_split Step, the chunk number',
-                                                                           optional => ['mate', 'chunk', 'library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}),
+                                                                           optional => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}),
                  index_files => VRPipe::StepIODefinition->get(type => 'bin',
                                                             min_files => 2,
                                                             max_files => 2,
@@ -59,7 +61,7 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
             foreach my $fq (@fq_files) {
                 my $fq_meta = $fq->metadata;
                 my $paired = $fq_meta->{paired};
-                my $path = $fq->path->stringify;
+                my $path = $fq->resolve->path->stringify;
                 my $lane = $fq_meta->{lane};
                 my $chunk = $fq_meta->{chunk} || 0;
                 $fqs_by_path{$path} = [$lane, $chunk, $paired, $fq_meta];
@@ -133,6 +135,12 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                             $sam_meta->{study} = $ds;
                             $rg_line .= '\tDS:'.$ds;
                         }
+                        if (defined $fq_meta->{analysis_group}) {
+                            $sam_meta->{analysis_group} = $fq_meta->{analysis_group};
+                        }
+                        if (defined $fq_meta->{population}) {
+                            $sam_meta->{population} = $fq_meta->{population};
+                        }
                         
                         my $ended = $paired ? 'pe' : 'se';
                         my $sam_file = $self->output_file(output_key => 'smalt_sam_files',
@@ -163,12 +171,14 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                                                                              platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                              study => 'name of the study, put in the DS field of the RG header line',
                                                                              insert_size => 'expected (mean) insert size if paired',
+                                                                             analysis_group => 'project analysis group',
+                                                                             population => 'sample population',
                                                                              bases => 'total number of base pairs',
                                                                              reads => 'total number of reads (sequences)',
                                                                              paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                              mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
                                                                              chunk => 'if this was mapped with fastqs that were chunks of an original fastq, this tells you which chunk',
-                                                                             optional => ['chunk', 'library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}) };
+                                                                             optional => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method post_process_sub {
         return sub { return 1; };

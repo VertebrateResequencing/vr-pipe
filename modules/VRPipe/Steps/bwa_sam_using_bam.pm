@@ -23,12 +23,14 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study, put in the DS field of the RG header line',
                                                                          insert_size => 'expected (mean) insert size if paired',
+                                                                         analysis_group => 'project analysis group',
+                                                                         population => 'sample population',
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          forward_reads => 'number of forward reads',
                                                                          reverse_reads => 'number of reverse reads',
                                                                          paired => '0=single ended reads only; 1=paired end reads present',
-                                                                         optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}),
+                                                                         optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}),
                  sai_files => VRPipe::StepIODefinition->get(type => 'bin',
                                                             max_files => -1,
                                                             description => 'sai files, as produced by bwa aln',
@@ -158,6 +160,12 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                         $sam_meta->{study} = $ds;
                         $rg_line .= '\tDS:'.$ds;
                     }
+                    if (defined $bam_meta->{analysis_group}) {
+                        $sam_meta->{analysis_group} = $bam_meta->{analysis_group};
+                    }
+                    if (defined $bam_meta->{population}) {
+                        $sam_meta->{population} = $bam_meta->{population};
+                    }
                     
                     my $lane_base = $lane;
                     $lane_base =~ s/\W/_/g;
@@ -186,11 +194,13 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                                                                              platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                              study => 'name of the study, put in the DS field of the RG header line',
                                                                              insert_size => 'expected (mean) insert size if paired',
+                                                                             analysis_group => 'project analysis group',
+                                                                             population => 'sample population',
                                                                              bases => 'total number of base pairs',
                                                                              reads => 'total number of reads (sequences)',
                                                                              paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                              remapped_bam => 'the bam file that was (re)mapped',
-                                                                             optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}) };
+                                                                             optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method post_process_sub {
         return sub { return 1; };
