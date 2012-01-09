@@ -5,10 +5,9 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES',
+                    required_exe => [qw(bwa samtools)]);
     use TestPipelines;
 }
 

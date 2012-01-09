@@ -22,7 +22,8 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                         optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study']}
+                                                                         merged_bams => 'comma separated list of merged bam paths',
+                                                                         optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}
                                                             ),
                 };
     }
@@ -46,14 +47,13 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                 my $meta = $bam->metadata;
                 $paired ||= $meta->{paired};
                 my $ended = $meta->{paired} ? 'pe' : 'se';
-                push @{$merge_groups{$ended}}, $bam->path;
+                push @{$merge_groups{$ended}}, $bam;
             }
             
             # Merge single and paired end bams unless option says not to
             unless ($options->{bam_merge_keep_single_paired_separate}) {
                 if ($paired && exists $merge_groups{se}) {
-                    push @{$merge_groups{raw}}, @{delete $merge_groups{pe}};
-                    push @{$merge_groups{raw}}, @{delete $merge_groups{se}};
+                    push @{$merge_groups{pe}}, @{delete $merge_groups{se}};
                 }
             }
             
@@ -62,15 +62,21 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                    summary => 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam '.$opts));
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
-            while (my ($ended, $bam_paths) = each %merge_groups) {
+            while (my ($ended, $bam_files) = each %merge_groups) {
+                my @merged_bams;
+                foreach my $bam (@$bam_files) {
+                    my $paths = $bam->metadata->{merged_bams} || $bam->path->stringify;
+                    push @merged_bams, split(/,/, $paths);
+                }
                 my $merge_file = $self->output_file(output_key => 'merged_bam_files',
-                                                  basename => "$ended.bam",
-                                                  type => 'bam');
+                                                    basename => "$ended.bam",
+                                                    type => 'bam',
+                                                    metadata => { merged_bams => join(',', sort @merged_bams) });
                 
                 my $temp_dir = $options->{tmp_dir} || $merge_file->dir;
                 my $jvm_args = $picard->jvm_args($req->memory, $temp_dir);
                 
-                my $in_bams = join ' INPUT=', @{$bam_paths};
+                my $in_bams = join ' INPUT=', map { $_->path } @$bam_files;
                 $in_bams = ' INPUT='.$in_bams;
                 my $this_cmd = $picard->java_exe.qq[ $jvm_args -jar $merge_jar$in_bams OUTPUT=].$merge_file->path.qq[ $opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_merge', 'merge_and_check', [$this_cmd, $req, {output_files => [$merge_file]}]); 
@@ -90,6 +96,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                                                 bases => 'total number of base pairs',
                                                                                 reads => 'total number of reads (sequences)',
                                                                                 paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                                                                                merged_bams => 'comma separated list of merged bam paths',
                                                                                 optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study']}
                                                                     ),
                };
@@ -116,7 +123,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         }
         
         if (scalar @in_paths == 1) {
-            symlink $in_paths[0], $out_path;
+            symlink($in_files[0]->path, $out_file->path); # don't use $in_files[0]->symlink because $out_file->metadata will be different
         } else {
             $out_file->disconnect;
             system($cmd_line) && $self->throw("failed to run [$cmd_line]");
@@ -133,63 +140,24 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
             $reads += $meta->{reads};
             $bases += $meta->{bases};
             $paired ||= $meta->{paired};
-            if (exists $meta->{lane}) {
-                foreach my $lane (split /,/, $meta->{lane}) {
-                    $merge_groups{lane}->{$lane} = 1;
-                }
-            }
-            if (exists $meta->{library}) {
-                foreach my $library (split /,/, $meta->{library}) {
-                    $merge_groups{library}->{$library} = 1;
-                }
-            }
-            if (exists $meta->{platform}) {
-                foreach my $platform (split /,/, $meta->{platform}) {
-                    $merge_groups{platform}->{$platform} = 1;
-                }
-            }
-            if (exists $meta->{sample}) {
-                foreach my $sample (split /,/, $meta->{sample}) {
-                    $merge_groups{sample}->{$sample} = 1;
-                }
-            }
-            if (exists $meta->{center_name}) {
-                foreach my $center (split /,/, $meta->{center_name}) {
-                    $merge_groups{center_name}->{$center} = 1;
-                }
-            }
-            if (exists $meta->{study}) {
-                foreach my $study (split /,/, $meta->{study}) {
-                    $merge_groups{study}->{$study} = 1;
+            foreach my $key (keys %$meta) {
+                next if (grep /^$key$/, (qw(reads bases paired merged_bams)));
+                foreach my $value (split /,/, $meta->{$key}) {
+                    $merge_groups{$key}->{$value} = 1;
                 }
             }
         }
         my $actual_reads = $out_file->num_records;
         
         if ($actual_reads == $reads) {
-            my $new_meta = {};
-            $new_meta->{reads} = $actual_reads;
-            $new_meta->{bases} = $bases;
-            $new_meta->{paired} = $paired;
-            if (exists $merge_groups{lane}) {
-                $new_meta->{lane} = join ',', keys %{$merge_groups{lane}};
+            my %new_meta;
+            $new_meta{reads} = $actual_reads;
+            $new_meta{bases} = $bases;
+            $new_meta{paired} = $paired;
+            foreach my $key (keys %merge_groups) {
+                $new_meta{$key} = join(',', sort keys %{$merge_groups{$key}});
             }
-            if (exists $merge_groups{library}) {
-                $new_meta->{library} = join ',', keys %{$merge_groups{library}};
-            }
-            if (exists $merge_groups{platform}) {
-                $new_meta->{platform} = join ',', keys %{$merge_groups{platform}};
-            }
-            if (exists $merge_groups{sample}) {
-                $new_meta->{sample} = join ',', keys %{$merge_groups{sample}};
-            }
-            if (exists $merge_groups{center_name}) {
-                $new_meta->{center_name} = join ',', keys %{$merge_groups{center_name}};
-            }
-            if (exists $merge_groups{study}) {
-                $new_meta->{study} = join ',', keys %{$merge_groups{study}};
-            }
-            $out_file->add_metadata($new_meta);
+            $out_file->add_metadata(\%new_meta);
             return 1;
         }
         else {

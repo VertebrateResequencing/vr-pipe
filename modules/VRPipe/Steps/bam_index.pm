@@ -19,9 +19,9 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_path = $bam->path;
                 my $bai_file = $self->output_file(output_key => 'bai_files',
-                                              output_dir => $bam->dir,
                                               basename => $bam->basename.'.bai',
-                                              type => 'bin');
+                                              type => 'bin',
+                                              metadata => $bam->metadata);
                 my $bai_path = $bai_file->path;
                 my $cmd = qq[$samtools index $bam_path $bai_path];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_index', 'index_and_check', [$cmd, $req, {output_files => [$bai_file]}]); 

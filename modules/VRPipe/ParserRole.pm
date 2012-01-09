@@ -185,10 +185,10 @@ role VRPipe::ParserRole {
         CORE::seek($fh, $tell, $whence);
     }
     
-=head2 _seek_first_result
+=head2 _seek_first_record
 
- Title   : _seek_first_result
- Usage   : $self->_seek_first_result()
+ Title   : _seek_first_record
+ Usage   : $self->_seek_first_record()
  Function: Internal method for parser authors. Seeks back to before the first
            result (ie. after a header if present) so that next_result() will
            behave as if it was called for the first time on a file.
@@ -198,7 +198,7 @@ role VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-    method _seek_first_result {
+    method _seek_first_record {
         my $tell;
         if ($self->_got_header) {
             $tell = $self->_header_parsed;
@@ -222,7 +222,7 @@ role VRPipe::ParserRole {
            position to the location when _save_position() was last called; for
            use after you've seeked somewhere and done some work.
            If _save_position() was called at the true start of the file, this
-           actually calls _seek_first_result().
+           actually calls _seek_first_record().
  Returns : n/a
  Args    : n/a
 
@@ -234,7 +234,7 @@ role VRPipe::ParserRole {
             # we might have saved position before parsing the header, but now have
             # the flag set that we've parsed the header; don't seek back before
             # the header!
-            $self->_seek_first_result();
+            $self->_seek_first_record();
             return;
         }
         

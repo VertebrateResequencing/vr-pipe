@@ -101,7 +101,7 @@ foreach my $estate (@element_states) {
     my $num_steps = @stepms;
     my $pipe_name = $pipeline->name." ($num_steps steps)";
     my $completed_steps = $estate->completed_steps;
-    my $last_step_name;
+    my $last_step_name = 'no_steps_complete';
     foreach my $stepm (@stepms) {
         next unless $stepm->step_number == $completed_steps;
         my $step = $stepm->step;
@@ -211,7 +211,7 @@ if ($count > 0 && $start_from_scratch) {
             my $furthest = 0;
             foreach my $estate (@$estates) {
                 my $completed = $estate->completed_steps;
-                if ($completed > $furthest) {
+                if ($completed >= $furthest) {
                     $furthest = $completed;
                     $furthest_estate = $estate;
                 }

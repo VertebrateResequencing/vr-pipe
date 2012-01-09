@@ -4,8 +4,9 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
-    use_ok('VRPipe::Persistent::Schema');
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+		    required_exe => [qw(samtools bcftools)]);
     use TestPipelines;
 }
 
@@ -29,6 +30,10 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpil
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { cleanup => 0,
+		interval_list => file(qw(t data hs_chr20.invervals.bed))->absolute->stringify,
+        #samtools_mpileup_options => '-C50 -aug -r 20:1-70000',
+        samtools_mpileup_options => '-C50 -aug',
+		reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
 		}
 );
 
@@ -38,9 +43,9 @@ my $element_id = 0;
 foreach (@files) {
   $element_id++;
   my $file = 'mpileup.bcf';
-  push(@output_files, file($output_dir, output_subdirs($element_id), 'mpileup_bcf', $file));
+  push(@output_files, file($output_dir, output_subdirs($element_id), '1_mpileup_bcf', $file));
   $file =~ s/bcf$/vcf.gz/;
-  push(@output_files, file($output_dir, output_subdirs($element_id), 'bcf_to_vcf', $file));
+  push(@output_files, file($output_dir, output_subdirs($element_id), '2_bcf_to_vcf', $file));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

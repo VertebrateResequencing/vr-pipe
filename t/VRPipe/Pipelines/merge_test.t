@@ -5,10 +5,9 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 7;
-    
-    use_ok('VRPipe::Persistent::Schema');
-    
+    use Test::Most tests => 6;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD)],
+                    required_exe => [qw(samtools)]);
     use TestPipelines;
 }
 
@@ -51,7 +50,7 @@ my $merge_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge',
                                                                                                             column => 2 } ),
                                                        output_root => $merge_output_dir,
                                                        pipeline => $merge_pipeline,
-                                                       options => { bam_tags_to_strip => [qw(OQ XM XG XO)],
+                                                       options => { bam_tags_to_strip => 'OQ XM XG XO',
                                                                     bam_merge_keep_single_paired_separate => 1,
                                                                     cleanup => 0 });
 

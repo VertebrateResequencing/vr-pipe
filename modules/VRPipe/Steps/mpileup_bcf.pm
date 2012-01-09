@@ -2,15 +2,18 @@ use VRPipe::Base;
 
 class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
 	method options_definition {
-		return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable',
-				optional => 1,
-				default_value => 'samtools'),
-			   samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options',
-					   optional => 1,
-					   default_value => '-C50 -aug'),
+		return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', 
+					optional => 1, 
+					default_value => 'samtools'),
+			   samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options excluding -f', 
+					optional => 1, 
+					default_value => '-C50 -aug'),
+			   reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
 			   max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', 
-						optional => 1, 
-						default_value => 10),
+					optional => 1, 
+					default_value => 10),
+			   interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -l option', 
+					optional => 1,),
 		};
 	}
     method inputs_definition {
@@ -24,6 +27,10 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             my $options = $self->options;
             my $samtools = $options->{samtools_exe};
             my $mpileup_opts = $options->{samtools_mpileup_options};
+            my $reference_fasta = $options->{reference_fasta};
+
+            my $interval_list = $options->{interval_list};
+			$mpileup_opts .= " -l $interval_list " if $interval_list;
 
 			my $max_cmdline_bams = $options->{max_cmdline_bams};
 			if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
@@ -39,7 +46,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
 			my $bcf_path = $bcf_file->path;
 
             my $req = $self->new_requirements(memory => 500, time => 1);
-			my $cmd = qq[$samtools mpileup $mpileup_opts $bam_list > $bcf_path];
+			my $cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list > $bcf_path];
 			$self->dispatch([$cmd, $req, {output_files => [$bcf_file]}]); 
         };
     }

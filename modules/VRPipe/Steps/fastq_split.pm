@@ -140,7 +140,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                 my $split_file = $outs[$i]->[1];
                 $split_file->close();
                 $split_file->unlink;
-                symlink($fq_file->path, $split_file->path);
+                symlink($fq_file->path, $split_file->path); # don't use $fq_file->symlink because $split_file->metadata must be different
                 
                 my $meta = $fq_file->metadata;
                 delete $meta->{expected_md5};
@@ -332,13 +332,13 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                 my $suffix = $fq =~ /\.gz$/ ? 'fastq.gz' : 'fastq';
                 push(@outs, VRPipe::File->get(path => file($split_dir, "$prefix.1.$suffix"),
                                               type => 'fq',
-                                              metadata => { source_fastq => $fq->stringify }));
+                                              metadata => { source_fastq => $fq->resolve->stringify }));
             }
             else {
                 for my $split_num (1..$splits) {
                     push(@outs, VRPipe::File->get(path => file($split_dir, "$prefix.$split_num.fastq.gz"),
                                                   type => 'fq',
-                                                  metadata => { source_fastq => $fq->stringify }));
+                                                  metadata => { source_fastq => $fq->resolve->stringify }));
                 }
             }
         }

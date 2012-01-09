@@ -170,7 +170,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
 =cut
     method avg_base_quals {
         $self->_save_position || return;
-        $self->_seek_first_result();
+        $self->_seek_first_record();
         my $rh = $self->parsed_record();
         
         $self->next_record();
@@ -197,7 +197,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
 =cut
     method avg_qual {
         $self->_save_position || return;
-        $self->_seek_first_result();
+        $self->_seek_first_record();
         
         $self->next_record();
         

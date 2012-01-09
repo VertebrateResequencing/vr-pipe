@@ -52,6 +52,16 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         # we'll call it explicitly incase that ever changes
         $self->completed_steps(0);
         $self->update;
+        
+        # If this data element was used as the source of another dataelement, we want to also restart those dataelements
+        my @children;
+        $rs = $schema->resultset('DataElementLink')->search({ pipelinesetup => $self->pipelinesetup->id, parent => $self->dataelement->id });
+        while (my $link = $rs->next) {
+            push @children, $link->child->element_states;
+        }
+        foreach my $child (@children) {
+            $child->start_from_scratch();
+        }
     }
     
     method our_step_numbers {

@@ -41,18 +41,10 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                 my $prefix_base = '.'.$bam_basename;
                 $bam_basename .= '.bam';
                 
-                my $sam_meta = $sam->metadata;
-                my $bam_meta = {};
-                foreach my $key (qw(lane library sample center_name platform study insert_size bases reads paired mapped_fastqs chunk)) {
-                    if (defined $sam_meta->{$key}) {
-                        $bam_meta->{$key} = $sam_meta->{$key};
-                    }
-                }
-                
                 my $bam_file = $self->output_file(output_key => 'fixed_bam_files',
                                                   basename => $bam_basename,
                                                   type => 'bam',
-                                                  metadata => $bam_meta);
+                                                  metadata => $sam->metadata);
                 
                 my $bam_dir = $bam_file->dir;
                 my $sam_path = $sam->path;
