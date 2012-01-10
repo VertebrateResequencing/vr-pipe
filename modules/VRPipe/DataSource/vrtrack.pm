@@ -5,11 +5,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     # VertRes is not installed
     eval "use VertRes::Utils::VRTrackFactory;";
     eval "use VertRes::Utils::Hierarchy;";
-<<<<<<< HEAD
     use Digest::MD5 qw(md5_hex);
-=======
-    
->>>>>>> 076b5ebf19abae03c0fb5a9ac027f0a90700a501
     method description {
         return "Use a VRTrack database to extract information from";
     }
@@ -124,6 +120,30 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return \@elements;
     }
 
+   method lane_fastqs ( Defined :$handle!,
+                  ArrayRef :$project?,
+                  ArrayRef :$sample?,
+                  ArrayRef :$individual?,
+                  ArrayRef :$population?,
+                  ArrayRef :$platform?,
+                  ArrayRef :$centre?,
+                  ArrayRef :$library?,
+                  Str :$project_regex?,
+                  Str :$sample_regex?,
+                  Str :$library_regex?,
+                  Bool :$import?,
+                  Bool :$qc?,
+                  Bool :$mapped?,
+                  Bool :$stored?,
+                  Bool :$deleted?,
+                  Bool :$swapped?,
+                  Bool :$altered_fastq?,
+                  Bool :$improved?,
+                  Bool :$snp_called?){
+     
+   push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $hash_ref->{paths}, lane => $lane}, withdrawn => 0));
+                
 
+   }
 }
 1;
