@@ -2,191 +2,96 @@
 use strict;
 use warnings;
 
-use VRPipe::Persistent::SchemaBase;
-
-use POSIX qw(ceil);
-use Getopt::Long;
-use Data::Dumper;
+use VRPipe::FrontEnd;
 use Path::Class;
 
-my $help = 0;
-my $print = 0;
-my $md5 = 0;
-my $deployment = 'production';
-my @steps;
-my ($desired_setup, $list, $output_dir, $output_with_input, $output_by_metadata,
-    $basename_as_output, $basename_as_input, $basename_from_metadata, @basename_regex);
-GetOptions("help" => \$help,
-           "deployment=s" => \$deployment,
-           "setup=s" => \$desired_setup,
-           "steps=s{,}" => \@steps,
-           "list:i" => \$list,
-           "output_dir=s" => \$output_dir,
-           "output_with_input" => \$output_with_input,
-           "output_by_metadata=s" => \$output_by_metadata,
-           "basename_as_output" => \$basename_as_output,
-           "basename_as_input=s" => \$basename_as_input,
-           "basename_from_metadata=s" => \$basename_from_metadata,
-           "basename_regex=s" => \@basename_regex,
-           "print" => \$print,
-           "md5" => \$md5);
+my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of a pipeline into a more usable directory structure.",
+                                     opt_spec => [ [],
+                                                   [ q[Required:] ],
+                                                   [ 'setup=s', 'Get the output of this pipeline setup (id or name)', { persistent_object => 'PipelineSetup' } ],
+                                                   [],
+                                                   [ q[Before trying to choose where your symlinks will go and what they'll be called, you may wish to just list the inputs from your datasource and the resulting output files with their metadata:] ],
+                                                   [ 'list|l:i', q[List out the relationship between input and outputs, with an optional limit on the number of inputs to show (default all with no value supplied)] ],
+                                                   [],
+                                                   [ q[If not using --list, the remaining options come into play; at least one option from each grouping must be chosen.] ],
+                                                   [],
+                                                   [ q[Choose which output files you want symlinks for:] ],
+                                                   [ 'steps=s@', q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". If --steps isn't supplied at all, all output files of all steps will get a symlink. Can be repeated] ],
+                                                   [],
+                                                   [ q[Choose where the symlinks should go:] ],
+                                                   [ 'output_dir=s', 'The output (root) directory for files' ],
+                                                   [ 'output_by_metadata=s', q[Place symlinks in a sub directory of --output_dir, based on the metadata on the output file. The string you must supply should be of the form "key1/key2" which would place the symlink for an output file with metadata {key1 => 'foo', key2 => 'bar' } in output_dir/foo/bar/. If there are multiple output files per input, and only one of them has the chosen metadata, all the other output file symlinks are placed in the same directory as the one with the metadata. Non-word characters in metadata values are converted to underscores to generate the sub directory names] ],
+                                                   [ 'OR' ],
+                                                   [ 'output_with_input', q[Symlinks for output files should be placed in the same directory their input files were in ] ],
+                                                   [],
+                                                   [ q[Choose what the symlink basename should be:] ],
+                                                   [ 'basename_as_output', q[Basename is what the pipeline itself chose to call the output file] ],
+                                                   [ 'OR' ],
+                                                   [ 'basename_as_input=s', q[Basename is the same as that of the input file with its extension replaced with the supplied string plus the output extension] ],
+                                                   [ 'OR' ],
+                                                   [ 'basename_from_metadata=s', q[Basename is the based on the metadata associated with the output file. The string you must supply should be of the form "string.\%key1%.\%key2%.base"] ],
+                                                   [ q[The resulting basename of any of these options can then be optionally modified with:] ],
+                                                   [ 'basename_regex=s@', q[Supply a regex and replacement string to alter the basename, eg. --basename_regex 'foo#bar' will turn basename thefoo.file into thebar.file. Multiple replacement may be made by supplying the --basename_regex option multiple times] ],
+                                                   [],
+                                                   [ 'Other options:' ],
+                                                   [ 'print', q[Print symlinks to stdout. Good for creating a fofn of the output files] ],
+                                                   [ 'md5', q[Also print the md5 of the file to stdout if it has been recorded in the vrpipe database (--print is automatically turned on)] ] ]);
 
+my $print = $frontend->opts('print');
+my $md5 = $frontend->opts('md5');
+my $list = $frontend->opts('list');
+my $output_dir = $frontend->opts('output_dir');
+my $output_with_input = $frontend->opts('output_with_input');
+my $output_by_metadata = $frontend->opts('output_by_metadata');
+my $basename_as_output = $frontend->opts('basename_as_output');
+my $basename_as_input = $frontend->opts('basename_as_input');
+my $basename_from_metadata = $frontend->opts('basename_from_metadata');
+my @basename_regex = $frontend->option_was_set('basename_regex') ? @{$frontend->opts('basename_regex')} : ();
+my $setup = $frontend->get_pipelinesetups();
+my @steps = $frontend->option_was_set('steps') ? @{$frontend->opts('steps')} : ();
+
+unless ($setup) {
+    $frontend->die_with_error("--setup is required");
+}
+unless (defined $list) {
+    if ($output_by_metadata && ! $output_dir) {
+        $frontend->die_with_error("--output_by_metadata needs --output_dir");
+    }
+    if ($output_dir && $output_with_input) {
+        $frontend->die_with_error("--output_dir and --output_with_input are mutually exclusive");
+    }
+    unless ($output_dir || $output_with_input) {
+        $frontend->die_with_error("one of --output_dir and --output_with_input are required");
+    }
+    
+    if ($basename_as_output && $basename_as_input && $basename_from_metadata) {
+        $frontend->die_with_error("--basename_as_output, --basename_as_input and --basename_from_metadata are mutually exclusive");
+    }
+    unless ($basename_as_output || $basename_as_input || $basename_from_metadata) {
+        $frontend->die_with_error("one of --basename_as_output and --basename_as_input --basename_from_metadata are required");
+    }
+}
+if ($basename_from_metadata) {
+    my @splits = $basename_from_metadata =~ m/%/g;
+    unless (scalar @splits % 2 == 0) {
+        $frontend->die_with_error("the --basename_from_metadata must include an even number of '%' surrounding metadata keys to be replaced by their values");
+    }
+}
 my @search_and_replace;
-unless ($help) {
-    if ($deployment !~ /^(?:testing|production)$/) {
-        warn "--deployment must be testing|production\n";
-        $help = 1;
-    }
-    
-    unless ($desired_setup) {
-        warn "--desired_setup is required\n";
-        $help = 1;
-    }
-    
-    unless (defined $list) {
-        if ($output_by_metadata && ! $output_dir) {
-            warn "--output_by_metadata needs --output_dir\n";
-            $help = 1;
+if (@basename_regex) {
+    foreach my $regex (@basename_regex) {
+        my ($search, $replace) = split('#', $regex);
+        unless ($search && $replace) {
+            $frontend->die_with_error("the --basename_regex must include a '#' to separate search from replace");
         }
-        if ($output_dir && $output_with_input) {
-            warn "--output_dir and --output_with_input are mutually exclusive\n";
-            $help = 1;
-        }
-        unless ($output_dir || $output_with_input) {
-            warn "one of --output_dir and --output_with_input are required\n";
-            $help = 1;
-        }
-        
-        if ($basename_as_output && $basename_as_input && $basename_from_metadata) {
-            warn "--basename_as_output, --basename_as_input and --basename_from_metadata are mutually exclusive\n";
-            $help = 1;
-        }
-        unless ($basename_as_output || $basename_as_input || $basename_from_metadata) {
-            warn "one of --basename_as_output and --basename_as_input --basename_from_metadata are required\n";
-            $help = 1;
-        }
-    }
-    
-    if ($basename_from_metadata) {
-        my @splits = $basename_from_metadata =~ m/%/g;
-        unless (scalar @splits % 2 == 0) {
-            warn "the --basename_from_metadata must include an even number of '%' surrounding metadata keys to be replaced by their values\n";
-            $help = 1;
-        }
-    }
-    
-    if (@basename_regex) {
-        foreach my $regex (@basename_regex) {
-            my ($search, $replace) = split('#', $regex);
-            unless ($search && $replace) {
-                warn "the --basename_regex must include a '#' to separate search from replace\n";
-                $help = 1;
-            }
-            push @search_and_replace, [$search, $replace];
-        }
-    }
-    if ($md5 && !$print) {
-        warn "the --md5 option requires the --print option also be set\n";
-        $help = 1;
+        push @search_and_replace, [$search, $replace];
     }
 }
-
-if ($help) {
-    print <<HELP;
-Symlink the output files of a pipeline into a more usable directory structure:
-vrpipe-output [options]
-
-Required:
-    --setup <int|string>  Get the output of this pipeline setup (id or name)
-
-Before trying to choose where your symlinks will go and what they'll be called,
-you may wish to just list the inputs from your datasource and the resulting
-output files with their metadata:
-    --list <int>?          List out the relationship between input and outputs,
-                           with an optional limit on the number of inputs to
-                           show (default all with no value supplied)
-If not using --list, the remaining options come into play; at least one option
-from each grouping must be chosen.
-
-Choose which output files you want symlinks for:
-    --steps <step name|number>
-                          One or more step names/numbers to choose which step
-                          outputs you're interested in. If a step outputs more
-                          than one kind of file, you can limit to just one of
-                          the kinds by saying something like --steps
-                          "stepname|kindname". If --steps isn't supplied at all,
-                          all output files of all steps will get a symlink.
-
-Choose where the symlinks should go:
-    --output_dir <path>   The output (root) directory for files
-    --output_by_metadata <string>
-                          Place symlinks in a sub directory of --output_dir,
-                          based on the metadata on the output file. The string
-                          you must supply should be of the form "key1/key2"
-                          which would place the symlink for an output file with
-                          metadata {key1 => 'foo', key2 => 'bar' } in
-                          output_dir/foo/bar/. If there are multiple output
-                          files per input, and only one of them has the chosen
-                          metadata, all the other output file symlinks are
-                          placed in the same directory as the one with the
-                          metadata. Non-word characters in metadata values are
-                          converted to underscores to generate the sub directory
-                          names.
- OR
-    --output_with_input   Symlinks for output files should be placed in the same
-                          directory their input files were in
-    
-Choose what the symlink basename should be:
-    --basename_as_output  Basename is what the pipeline itself chose to call the
-                          output file
- OR
-    --basename_as_input <string>
-                          Basename is the same as that of the input file with
-                          its extension replaced with the supplied string plus
-                          the output extension
- OR
-    --basename_from_metadata <string.\%KEY1%.\%KEY2%.base>
-                          XXX
- The resulting basename of any of these options can then be optionally
- modified with:
-    --basename_regex <search_regex#replace_string>
-                          Supply a regex and replacement string to alter the
-                          basename, eg. --basename_regex 'foo#bar' will turn
-                          basename thefoo.file into thebar.file. Multiple 
-                          replacement may be made by supplying the 
-                          --basename_regex option multiple times.
-
-Other options:
-    --deployment <testing|production> (default production)
-                          Use your testing or production database
-    
-    --print               Print symlinks to stdout. Good for creating a fofn of 
-                          the output files.
-    --md5                 Also print the md5 of the file to stdout if it has been 
-                          recorded in the vrpipe database and the --print option 
-                          is set. 
-HELP
-    exit;
+if ($md5 && !$print) {
+    $print = 1;
 }
 
-VRPipe::Persistent::SchemaBase->database_deployment($deployment);
-require VRPipe::Persistent::Schema;
-
-my $m = VRPipe::Manager->get;
-my $schema = $m->result_source->schema;
-my $setup;
-if ($desired_setup =~ /^\d+$/) {
-    $setup = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
-    unless ($setup) {
-        die "$desired_setup is not a valid pipeline setup id\n";
-    }
-}
-else {
-    $setup = $schema->resultset("PipelineSetup")->find({ name => $desired_setup });
-    unless ($setup) {
-        die "$desired_setup is not a valid pipeline setup name\n";
-    }
-}
+my $schema = $frontend->schema;
 
 # handle --steps
 my %desired_steps;
@@ -262,7 +167,7 @@ foreach my $element (@$elements) {
                     $input_basename =~ s/\.[^\.]+$//;
                 }
                 else {
-                    warn "$eident doesn't have exactly one input path associated with it, so --basename_as_input won't work; skipping\n";
+                    $frontend->error("$eident doesn't have exactly one input path associated with it, so --basename_as_input won't work; skipping");
                     next;
                 }
             }
@@ -302,26 +207,26 @@ foreach my $element (@$elements) {
     
     if (defined $list) {
         # print out useful info about the input
-        print "--- Data Element ", $element->id, " ---\n";
+        $frontend->output("--- Data Element ", $element->id, " ---");
         my $dump = Dumper($element_result);
         $dump =~ s/\$VAR1 = \{\s*?\n/Input:\n/;
         $dump =~ s/\n\s+\};\s+//;
-        print $dump, "\n";
+        $frontend->output($dump);
         if ($input_parent_dir) {
-            print "--output_with_input symlinks would go in here: $input_parent_dir\n";
+            $frontend->output("--output_with_input symlinks would go in here: ", $input_parent_dir);
         }
         else {
-            print "--output_with_input can't be used, since there's no common parent directory for the input files\n";
+            $frontend->output("--output_with_input can't be used, since there's no common parent directory for the input files");
         }
         
         # print out useful info about the output files
-        print "\n";
+        $frontend->output("\n");
         $dump = Dumper(\%output_files);
         $dump =~ s/\$VAR1 = \{\s*?\n/Output:\n/;
         $dump =~ s/\n\s+\};\s+//;
-        print $dump, "\n";
+        $frontend->output($dump);
         
-        print "------\n\n";
+        $frontend->output("------\n\n");
         if ($list) {
             last if ++$count >= $list;
         }
@@ -331,7 +236,7 @@ foreach my $element (@$elements) {
         my $this_output_dir;
         if ($output_with_input) {
             unless ($input_parent_dir) {
-                warn "$eident has no common parent directory for its input files, so --output_with_input doesn't work for it; skipping\n";
+                $frontend->error("$eident has no common parent directory for its input files, so --output_with_input doesn't work for it; skipping");
                 next;
             }
             $this_output_dir = dir($input_parent_dir);
@@ -359,7 +264,7 @@ foreach my $element (@$elements) {
                 }
                 
                 unless (@subdirs) {
-                    warn "$eident resulted in output files, none of which had metadata keys @subdir_keys; skipping\n";
+                    $frontend->error("$eident resulted in output files, none of which had metadata keys @subdir_keys; skipping");
                     next;
                 }
                 $this_output_dir = dir($output_dir, @subdirs);
@@ -415,7 +320,7 @@ foreach my $element (@$elements) {
             my $source = $output_file->path;
             if (-e $dest) {
                 unless (-l $dest && $dest->resolve->absolute eq $source) {
-                    warn "Can't create symlink $source => $dest since the destination already exists and isn't a symlink pointing to the source; skipping\n";
+                    $frontend->error("Can't create symlink $source => $dest since the destination already exists and isn't a symlink pointing to the source; skipping");
                 }
                 next;
             }
@@ -424,14 +329,14 @@ foreach my $element (@$elements) {
             # existance of this file)
             symlink($source, $dest);
             if ($print) {
-                print $output_file->md5."\t" if ($md5 && $output_file->md5);
-                print "$dest\n";
+                $frontend->output($output_file->md5, "\t") if ($md5 && $output_file->md5);
+                $frontend->output($dest);
             }
         }
     }
 }
 
-warn "$incomplete incomplete data elements were ignored\n" if $incomplete;
+$frontend->error("$incomplete incomplete data elements were ignored") if $incomplete;
 
 exit;
 
