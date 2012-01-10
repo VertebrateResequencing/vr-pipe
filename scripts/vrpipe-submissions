@@ -2,123 +2,59 @@
 use strict;
 use warnings;
 
-use VRPipe::Persistent::SchemaBase;
+use VRPipe::FrontEnd;
 
-use POSIX qw(ceil);
-use Getopt::Long;
+my $frontend = VRPipe::FrontEnd->new(description => "See details related to incomplete submissions.",
+                                     opt_spec => [ [ 'submission=i', 'Show details for this single submission only', { persistent_object => 'Submission' } ],
+                                                   [ 'setup=s', 'Only show details for submissions belonging to the given PipelineSetup (by id or name)', { persistent_object => 'PipelineSetup' } ],
+                                                   [ 'step=s', 'Only show details for submissions created for the step with this name' ],
+                                                   [ 'failed|f', q[Only show submissions that have stalled due to repeated failures that couldn't be overcome automatically] ],
+                                                   [ 'retries|r=i', q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default => 3 } ],
+                                                   [ 'done', q[Only show submissions that have succeeded], { default => 0 } ],
+                                                   [ 'all|a', q[Normally only details of incomplete submissions are given; this shows everything (may be very slow)] ],
+                                                   [ 'limit=i', q[Only show this number of submissions] ],
+                                                   [],
+                                                   [ q[After the above options have been used to filter the list of all submissions, and their details have been printed to screen, the following options will let you take action on those submissions (after a confirmation prompt):] ],
+                                                   [ 'start_over', q[Start the submissions over again, resetting their associated jobs and setting the number of retries back to 0. NB: the exact same cmd lines will be retried, since the jobs are not out-right deleted] ],
+                                                   [ 'full_reset', q[All submissions associated with the step and data element of the submissions that you chose will be deleted outright along with their jobs and all output files. VRPipe will then recreate new submissions and jobs for those steps and data elements. This is what you'd need to use if you changed options for a step that would result in new cmd lines] ],
+                                                   [ 'no_report', q[Don't print out full details of each submission, just start_over or full_reset them as fast as possible] ],
+                                                   [ 'force_with_all', q[Force --start_over or --full_reset to work with --all], { hidden => 1 } ] ]);
 
-my $help = 0;
-my $retries = 0;
-my $done = 0;
-my $deployment = 'production';
-my ($desired_sub, $desired_setup, $desired_step, $failed, $all, $start_over,
-    $full_reset, $no_report, $force_with_all, $limit);
-GetOptions("help" => \$help,
-           "deployment=s" => \$deployment,
-           "submission=i" => \$desired_sub,
-           "setup=s" => \$desired_setup,
-           "step=s" => \$desired_step,
-           "failed" => \$failed,
-           "done" => \$done,
-           "retries=i" => \$retries,
-           "all" => \$all,
-           "limit=i" => \$limit,
-           "start_over" => \$start_over,
-           "full_reset" => \$full_reset,
-           "no_report" => \$no_report,
-           "force_with_all" => \$force_with_all);
+my $desired_sub = $frontend->option_was_set('submission');
+my $retries = $frontend->opts('retries');
+my $setup = $frontend->get_pipelinesetups();
+my $desired_step = $frontend->opts('step');
+my $failed = $frontend->opts('failed');
+my $all = $frontend->opts('all');
+my $done = $frontend->opts('done');
+my $limit = $frontend->opts('limit');
+my $start_over = $frontend->opts('start_over');
+my $full_reset = $frontend->opts('full_reset');
+my $no_report = $frontend->opts('no_report');
+my $force_with_all = $frontend->opts('force_with_all');
 
-if ($deployment !~ /^(?:testing|production)$/) {
-    warn "--deployment must be testing|production\n";
-    $help = 1;
-}
-
-if ($help) {
-    print <<HELP;
-See details related to incomplete submissions:
-vrpipe-submissions [options]
-
-Options:
-    --deployment <testing|production> (default production) See submissions in
-                                      your testing or production database
-    --submission <int>   Show details for this single submission only
-    --setup <int|string> Only show details for submissions belonging to the
-                         given pipeline setup (by id or name)
-    --step <string>      Only show details for submissions created for the step
-                         with this name
-    --failed             Only show submissions that have failed
-    --retries <int>      Only report on submissions with this number of retries
-    --done               Only show submissions that have succeeded
-    --all                Normally only details of incomplete submissions are
-                         given; this shows even ones that are done (maybe very
-                         slow)
-    --limit <int>        Only show this number of submissions
-    
-After the above options have been used to filter the list of all submissions,
-and their details have been printed to screen, the following options will let
-you take action on those submissions (after a confirmation prompt):
-    --start_over         Start the submissions over again, resetting their
-                         associated jobs and setting the number of retires back
-                         to 0. NB: the exact same cmd lines will be retried,
-                         since the jobs are not out-right deleted.
-    --full_reset         All submissions associated with the step and data
-                         element of the submissions that you chose will be
-                         deleted outright along with their jobs and all output
-                         files. VRPipe will then recreate new submissions and
-                         jobs for those steps and data elements. This is what
-                         you'd need to use if you changed options for a step
-                         that would result in new cmd lines.
-    --no_report          Don't print out full details of each submission, just
-                         start_over or full_reset them as fast as possible.
-    
-HELP
-    exit;
-}
-
-if ($desired_sub && ($desired_setup || $desired_step)) {
-    warn "--submission is mutually exclusive of setup and step; they will be ignored\n";
-    undef $desired_setup;
+if ($desired_sub && ($setup || $desired_step)) {
+    $frontend->error("--submission is mutually exclusive of --setup and --step; they will be ignored");
+    undef $setup;
     undef $desired_step;
 }
-
 if ($all && ($failed || $done)) {
-    warn "--all and --failed/done don't make sense togother; ignoring --all\n";
+    $frontend->error("--all and --failed/done don't make sense togother; ignoring --all");
     undef $all;
 }
-
 if ($start_over && $full_reset) {
-    warn "--start_over and --full_reset don't make sense togither; ignoring --full_reset\n";
+    $frontend->error("--start_over and --full_reset don't make sense togither; ignoring --full_reset");
     undef $full_reset;
 }
 if ($all && ! $force_with_all && ($start_over || $full_reset)) {
-    die "Sorry, --all combined with --start_over or --full_reset seems like a really bad idea. Use --force_with_all if you're really really sure\n";
+    $frontend->die_with_error("Sorry, --all combined with --start_over or --full_reset seems like a really bad idea. Use --force_with_all if you're really really sure");
 }
 
-VRPipe::Persistent::SchemaBase->database_deployment($deployment);
-require VRPipe::Persistent::Schema;
-
-my $m = VRPipe::Manager->get;
-my $schema = $m->result_source->schema;
-
-my $setup;
-if ($desired_setup) {
-    if ($desired_setup =~ /^\d+$/) {
-        $setup = $schema->resultset("PipelineSetup")->find({ id => $desired_setup });
-        unless ($setup) {
-            die "$desired_setup is not a valid pipeline setup id\n";
-        }
-    }
-    else {
-        $setup = $schema->resultset("PipelineSetup")->find({ name => $desired_setup });
-        unless ($setup) {
-            die "$desired_setup is not a valid pipeline setup name\n";
-        }
-    }
-}
+my $schema = $frontend->schema;
 
 my @subs;
 if ($desired_sub) {
-    @subs = (VRPipe::Submission->get(id => $desired_sub));
+    @subs = ($frontend->opts('submission'));
 }
 else {
     my $rs = $schema->resultset("Submission")->search({ $all ? () : ("_done" => $done), $failed ? ("_failed" => 1) : (), $retries ? (retries => $retries) : (),
@@ -153,12 +89,12 @@ foreach my $sub (@subs) {
     next if $no_report;
     
     my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
-    print "---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" is $sub_state, having been retried ", $sub->retries, " times\n";
+    $frontend->output("---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" is $sub_state, having been retried ", $sub->retries, " times");
     my $job_state = $job->finished ? 'finished' : ($job->running ? 'running' : 'pending');
     my $job_extra = $job_state eq 'finished' ? ', having exited with code '.$job->exit_code : '';
-    print "The job is $job_state$job_extra; its command line is:\n", $job->cmd, "\n";
-    print "The working directory for the job is ", $job->dir, "\n";
-    print "We reserved ", $req->memory, "MB memory and ", $req->time, "hrs of time\n";
+    $frontend->output("The job is $job_state$job_extra; its command line is:\n", $job->cmd);
+    $frontend->output("The working directory for the job is ", $job->dir);
+    $frontend->output("We reserved ", $req->memory, "MB memory and ", $req->time, "hrs of time");
     
     unless ($sub_state eq 'scheduled') {
         my $pars = $sub->scheduler_stdout;
@@ -174,15 +110,15 @@ foreach my $sub (@subs) {
             my $mins = ($sec/60)%60;
             my $remaining_secs = $sec%60;
             my $extra = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
-            print "The $scheduler output ($scheduler_ofile) says that actual memory used was ${mem}MB and it took $sec secs$extra\n";
+            $frontend->output("The $scheduler output ($scheduler_ofile) says that actual memory used was ${mem}MB and it took $sec secs$extra");
         }
         else {
-            print "The $scheduler output ($scheduler_ofile) was missing, so actual memory and time used is unknown\n";
+            $frontend->output("The $scheduler output ($scheduler_ofile) was missing, so actual memory and time used is unknown");
         }
         
         my $se = $sub->scheduler_stderr;
         if ($se) {
-            print "The scheduler had some stderr:\n";
+            $frontend->output("The scheduler had some stderr:");
             show_output($se, $sub->scheduler_stderr_file->path);
         }
     }
@@ -190,38 +126,33 @@ foreach my $sub (@subs) {
     unless ($job_state eq 'pending') {
         my $jo = $sub->job_stdout;
         if ($jo) {
-            print "The job itself produced some stdout:\n";
+            $frontend->output("The job itself produced some stdout:");
             show_output($jo, $sub->job_stdout_file->path);
         }
         
         my $je = $sub->job_stderr;
         if ($je) {
-            print "The job itself produced some stderr:\n";
+            $frontend->output("The job itself produced some stderr:");
             show_output($je, $sub->job_stderr_file->path);
         }
     }
     
-    print "---\n\n";
+    $frontend->output("---\n\n");
 }
 
 unless ($desired_sub) {
     unless ($count == 0 || $no_report) {
-        print "\n";
+        $frontend->output("\n");
     }
-    print "$count submissions passed your filter\n";
+    $frontend->output("$count submissions passed your filter");
     if ($count && ! $desired_step) {
-        print "Here's the break-down by step name:\n";
-        while (my ($name, $count) = each %summary) {
-            print "  $name => $count\n";
-        }
+        $frontend->display_hash("Here's the break-down by step name", \%summary);
     }
 }
 
 if ($count > 0 && ($start_over || $full_reset)) {
     my $action = $start_over ? 'reset' : 'delete';
-    warn "\nAre you sure you want to $action these submissions? [y/n]\n";
-    my $answer = <>;
-    chomp($answer);
+    my $answer = $frontend->ask_question(question => "\nAre you sure you want to $action these submissions?", possibles => [qw(y n)], required => 1);
     if ($answer eq 'y') {
         if ($start_over) {
             foreach my $sub (@final_subs) {
@@ -241,10 +172,10 @@ if ($count > 0 && ($start_over || $full_reset)) {
                 $ss->start_over;
             }
         }
-        warn "Done\n";
+        $frontend->output("Done");
     }
     else {
-        warn "You didn't confirm, so exiting\n";
+        $frontend->output("You didn't confirm, so exiting");
     }
 }
 
@@ -253,23 +184,23 @@ exit;
 
 sub show_output {
     my ($output, $file) = @_;
-    print "\n";
+    $frontend->output("\n");
     
     my @lines = split("\n", $output);
     my $num_lines = @lines;
     if (@lines > 45) {
         for (1..10) {
-            print $lines[$_ - 1], "\n";
+            $frontend->output($lines[$_ - 1]);
         }
         my $other_lines = $num_lines - 40;
-        print "\n[... $other_lines more lines in $file ...]\n\n";
+        $frontend->output("\n[... $other_lines more lines in $file ...]\n\n");
         for (($num_lines-30)..$num_lines) {
-            print $lines[$_ - 1], "\n";
+            $frontend->output($lines[$_ - 1]);
         }
     }
     else {
-        print $output;
+        $frontend->output($output);
     }
     
-    print "\n";
+    $frontend->output("\n");
 }

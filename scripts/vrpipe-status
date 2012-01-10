@@ -4,7 +4,7 @@ use warnings;
 
 use VRPipe::FrontEnd;
 
-my $frontend = VRPipe::FrontEnd->new(description => "See the overall state of active pipeline setups",
+my $frontend = VRPipe::FrontEnd->new(description => "See the overall state of active pipeline setups.",
                                      opt_spec => [ [ 'setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' } ],
                                                    [ 'list|l', 'Just list out the setup names and ids without details' ] ]);
 

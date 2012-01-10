@@ -2,10 +2,9 @@
 use strict;
 use warnings;
 
-use POSIX qw(ceil);
 use VRPipe::FrontEnd;
 
-my $frontend = VRPipe::FrontEnd->new(description => "See details related to incomplete element states",
+my $frontend = VRPipe::FrontEnd->new(description => "See details related to incomplete element states.",
                                      opt_spec => [ [ 'element=i', 'Show details for this single element state only', { persistent_object => 'DataElementState' } ],
                                                    [ 'setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' } ],
                                                    [ 'failed|f', q[Only show elements that have have stalled in a pipeline due to repeated failures that couldn't be overcome automatically] ],
@@ -18,7 +17,6 @@ my $frontend = VRPipe::FrontEnd->new(description => "See details related to inco
                                                    [ 'force_with_all', q[Force --start_from_scratch to work with --all], { hidden => 1 } ] ]);
 
 my $desired_ele = $frontend->option_was_set('element');
-my $desired_setup = $frontend->opts('setup');
 my $failed = $frontend->opts('failed');
 my $retries = $frontend->opts('retries');
 my $all = $frontend->opts('all');
@@ -66,13 +64,13 @@ else {
                         $step_member = $sms[0];
                     }
                     else {
-                        warn "element state ", $estate->id, " didn't have exactly 1 corresponding step member; skipping\n";
+                        $frontend->error("element state ", $estate->id, " didn't have exactly 1 corresponding step member; skipping");
                         next;
                     }
                     
                     my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
                     if ($sstate->complete) {
-                        warn "weird, I meant to get a failed stepstate for estate ", $estate->id, " at step ", ($estate->completed_steps + 1), " but it was complete! Skipping\n";
+                        $frontend->error("weird, I meant to get a failed stepstate for estate ", $estate->id, " at step ", ($estate->completed_steps + 1), " but it was complete! Skipping");
                         next;
                     }
                     
@@ -187,10 +185,7 @@ unless ($desired_ele) {
     if ($count) {
         $frontend->output("Here's the break-down by the name of the step the element last completed successfully:");
         while (my ($pipe_name, $step_details) = each %summary) {
-            $frontend->output("  $pipe_name =>");
-            while (my ($name, $count) = each %$step_details) {
-                $frontend->output("    $name => $count");
-            }
+            $frontend->display_hash("\t$pipe_name", $step_details);
         }
     }
 }
