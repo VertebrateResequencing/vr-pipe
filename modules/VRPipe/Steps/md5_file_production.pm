@@ -4,7 +4,7 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
     method options_definition {
         return { md5_files_in_source_dir => VRPipe::StepOption->get(description => 'should .md5 files be created in the same directory as their parent? (otherwise they go to the pipeline output directory)',
                                                                     optional => 1,
-                                                                    default_value => 1) };
+                                                                    default_value => 0) };
     }
     method inputs_definition {
         return { md5_file_input => VRPipe::StepIODefinition->get(type => 'any', max_files => -1, description => 'one or more files you want to calculate the md5 checksum of') };

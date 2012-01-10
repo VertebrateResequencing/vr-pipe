@@ -6,6 +6,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     eval "use VertRes::Utils::VRTrackFactory;";
     eval "use VertRes::Utils::Hierarchy;";
     use Digest::MD5 qw(md5_hex);
+    
     method description {
         return "Use a VRTrack database to extract information from";
     }
