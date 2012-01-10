@@ -33,9 +33,11 @@ class VRPipe::FrontEnd {
                      lazy => 1,
                      builder => '_build_schema');
     
+    has '_multiple_setups' => (is => 'rw',
+                               isa => 'Bool');
+    
     method _default_opt_spec {
         return [ [ 'deployment=s', 'Use the production or testing database', { default => 'production' } ],
-                 [ 'user=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ],
                  [ 'help|h', 'Print this usage message and exit' ] ];
     }
     
@@ -52,8 +54,22 @@ class VRPipe::FrontEnd {
         # interface, but do not use the actual GLD code.
         
         my $opt_spec = $self->opt_spec;
-        unless (@$opt_spec == 3 && $opt_spec->[-1]->[0] eq 'help|h') {
+        unless (@$opt_spec <= 3 && @$opt_spec >= 2 && $opt_spec->[-1]->[0] eq 'help|h') {
             my $default = $self->_default_opt_spec;
+            
+            foreach my $opt_spec (@$opt_spec) {
+                my ($def, $help, $extra) = @$opt_spec;
+                if ($help) {
+                    my ($name, $req_or_opt, $type) = split(/([=:])/, $def);
+                    if ($name eq 'setup') {
+                        if ($type eq 's@') {
+                            $default->[2] = $default->[1];
+                            $default->[1] = [ 'user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ];
+                            $self->_multiple_setups(1);
+                        }
+                    }
+                }
+            }
             push(@$opt_spec, [], [ 'General options:' ], @$default);
         }
         
@@ -68,7 +84,7 @@ class VRPipe::FrontEnd {
             if ($help) {
                 push(@opts, $def);
                 
-                my ($name, $type) = split(/[=:]/, $def);
+                my ($name, $req_or_opt, $type) = split(/([=:])/, $def);
                 
                 my ($long, $short) = length($name) == 1 ? (undef, $name) : (split(/\|/, $name));
                 if (! $short && length($long) == 1) {
@@ -90,7 +106,7 @@ class VRPipe::FrontEnd {
                 
                 if ($extra) {
                     my $default = $extra->{default};
-                    if ($default) {
+                    if (defined $default) {
                         $defaults{$long || $short} = $default;
                         $help = "[$default] ".$help;
                     }
@@ -114,12 +130,13 @@ class VRPipe::FrontEnd {
                     elsif ($type =~ /^f/) {
                         $value = '<num>';
                     }
+                    $value .= $req_or_opt eq ':' ? '?' : '';
                 }
                 
-                $usage .= form "  {[[[[[[[[[[[[[[[} {III} {[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[}", $option, $value, $help;
+                $usage .= form "  {[[[[[[[[[[[[[[[} {IIII} {[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[}", $option, $value, $help;
             }
             elsif ($def) {
-                $usage .= $def."\n";
+                $usage .= form "{[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[}", $def;
             }
             else {
                 $usage .= "\n";
@@ -196,26 +213,26 @@ class VRPipe::FrontEnd {
         $self->die_with_error($self->usage);
     }
     
-    method get_pipelinesetups (Str :$setup_option = 'setup', Bool :$inactive = 0) {
-        my @requested_setups = $self->option_was_set($setup_option) ? @{$self->opts($setup_option)} : ();
-        my $user = $self->opts('user');
+    method get_pipelinesetups (Bool :$inactive = 0) {
+        my @requested_setups = $self->option_was_set('setup') ? ($self->_multiple_setups ? @{$self->opts('setup')} : ($self->opts('setup'))) : ();
+        my $user = $self->opts('user') if $self->_multiple_setups;
         
         my @setups;
         if (@requested_setups) {
             @setups = @requested_setups;
         }
-        else {
+        elsif ($self->_multiple_setups) {
             my $rs = $self->schema->resultset("PipelineSetup")->search( { $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) } );
             while (my $setup = $rs->next) {
                 push(@setups, $setup);
             }
         }
         
-        unless (@setups) {
-            $self->die_with_error("No PipelineSetups match your settings");
+        if ($self->_multiple_setups && ! @setups) {
+            $self->die_with_error("No PipelineSetups match your settings (did you remember to specifiy --user?)");
         }
         
-        return @setups;
+        return $self->_multiple_setups ? @setups : $setups[0];
     }
     
     method output (@messages) {
@@ -235,8 +252,10 @@ class VRPipe::FrontEnd {
     method display_hash (Str $name, HashRef $hash, ArrayRef[Str] $key_order?) {
         $key_order ||= [ sort { $a cmp $b } keys %$hash ];
         $self->output("$name:");
+        my ($extra_tabs) = $name =~ /^(\t+)/;
+        $extra_tabs ||= '';
         foreach my $key (@$key_order) {
-            $self->output("\t", $key, ' => ', $hash->{$key});
+            $self->output("$extra_tabs\t", $key, ' => ', $hash->{$key});
         }
     }
     
@@ -255,7 +274,7 @@ class VRPipe::FrontEnd {
     }
     
     method make_all_objects (Str $class) {
-        my @modules = sub_modules($class);
+        my @modules = $self->sub_modules($class);
         $class = "VRPipe::$class";
         foreach my $name (@modules) {
             $class->get(name => $name);
@@ -263,7 +282,7 @@ class VRPipe::FrontEnd {
     }
     
     method ask_for_object (Str :$question!, Str :$class!, Str :$column!) {
-        make_all_objects($class);
+        $self->make_all_objects($class);
         my $rs = $self->schema->resultset($class);
         my @things;
         while (my $thing = $rs->next) {
@@ -284,11 +303,11 @@ class VRPipe::FrontEnd {
             }
             $self->output("\n");
         }
-        my $chosen_num = $self->pick_number($question, scalar(@thing_keys));
+        my $chosen_num = $self->pick_number(question => $question, max => scalar(@thing_keys));
         return $things{$num_to_key{$chosen_num}};
     }
     
-    method already_exists (Str :$class!, Str :$key!, Str :$value!) {
+    method already_exists (Str $class!, Str $key!, Str $value!) {
         my @found = $self->schema->resultset($class)->search({ $key => $value });
         if (@found) {
             return "a $class already exists with $key '$value'";
@@ -312,7 +331,7 @@ class VRPipe::FrontEnd {
         
         my $answer;
         do {
-            $answer = <>;
+            $answer = <STDIN>;
             chomp($answer);
             
             if ($possibles) {
