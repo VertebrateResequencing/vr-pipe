@@ -5,11 +5,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     # VertRes is not installed
     eval "use VertRes::Utils::VRTrackFactory;";
     eval "use VertRes::Utils::Hierarchy;";
-<<<<<<< HEAD
     use Digest::MD5 qw(md5_hex);
-=======
     
->>>>>>> 076b5ebf19abae03c0fb5a9ac027f0a90700a501
     method description {
         return "Use a VRTrack database to extract information from";
     }
