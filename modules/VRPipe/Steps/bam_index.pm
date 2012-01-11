@@ -19,6 +19,7 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_path = $bam->path;
                 my $bai_file = $self->output_file(output_key => 'bai_files',
+                                              output_dir => $bam->dir,
                                               basename => $bam->basename.'.bai',
                                               type => 'bin',
                                               metadata => $bam->metadata);
