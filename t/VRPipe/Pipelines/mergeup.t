@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 12;
+    use Test::Most tests => 18;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
                     required_exe => [qw(samtools bwa)]);
     use TestPipelines;
@@ -186,5 +186,28 @@ my @release_exists = map { -s $_ ? 1 : 0 } @release_files;
 is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch';
 
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated after a start from scratch';
+
+# if a mapped bam is moved, is everything okay?
+my $orig_bam = VRPipe::File->get(path => $mapping_files[8]);
+$mapping_pipeline->make_path(dir($orig_bam->dir.'_moved'));
+my $moved_bam = VRPipe::File->get(path => file($orig_bam->dir.'_moved', $orig_bam->basename));
+$orig_bam->move($moved_bam);
+is_deeply [-e $orig_bam->path, -e $moved_bam->path], [undef, 1], 'moved an improved bam';
+$mapping_files[8] = file($moved_bam->path);
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'all files are still okay after a bam was moved';
+
+VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
+
+@mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
+is_deeply \@mapping_exists, [1,1,1,1,1,1,1,1,1,1], 'mapping files were not deleted after merge element was restarted and after bam was moved';
+
+@split_exists = map { -s $_ ? 1 : 0 } @split_files;
+is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch after bam was moved';
+
+@release_exists = map { -s $_ ? 1 : 0 } @release_files;
+is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch after bam was moved';
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated from moved bam';
 
 finish;
