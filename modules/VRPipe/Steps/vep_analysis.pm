@@ -9,7 +9,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
     }
     method inputs_definition {
         return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf',
-                                                            description => 'annotated vcf files',
+                                                            description => 'vcf files',
                                                             max_files => -1) };
     }
 	method body_sub {

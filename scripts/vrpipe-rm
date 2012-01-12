@@ -1,0 +1,267 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::FrontEnd;
+use Path::Class;
+use File::Find;
+
+my $frontend = VRPipe::FrontEnd->new(description => "Delete files on disk, like unix 'rm', also updating the VRPipe database. Also let's you delete output files of a particular pipeline.",
+                                     opt_spec => [ [],
+                                                   [ q[To delete specified files, use standard unix 'rm' arguments.] ],
+                                                   [],
+                                                   [ q[To delete pipeline outputs, supply both:] ],
+                                                   [ 'setup=s', 'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' } ],
+                                                   [ 'steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times] ],
+                                                   [],
+                                                   [ q[Currently supported unix 'rm' options:] ],
+                                                   [ 'force|f', q[Ignore nonexistent files, never prompt] ],
+                                                   [ 'recursive|r', q[Remove directories and their contents recursively] ],
+                                                   [],
+                                                   [ q[Other options:] ],
+                                                   [ 'pretend|p', q[Only print out what files would be deleted; don't actually delete anything] ],
+                                                   [ 'verbose|v', q[Print out the files that are being deleted (automatically on if using --pretend)] ] ]);
+
+my $pretend = $frontend->opts('pretend');
+my $verbose = $frontend->opts('verbose');
+my $force = $frontend->opts('force');
+my $recurse = $frontend->opts('recursive');
+my $setup = $frontend->get_pipelinesetups();
+my @steps = $frontend->option_was_set('steps') ? @{$frontend->opts('steps')} : ();
+my @paths = @ARGV;
+
+if ($setup || @steps) {
+    unless ($setup) {
+        $frontend->die_with_error("--setup is required when using --steps");
+    }
+    unless (@steps) {
+        $frontend->die_with_error("--steps is required when using --setup");
+    }
+}
+if ($pretend) {
+    $verbose = 1;
+}
+if (! $setup && ! @paths) {
+    $frontend->die_with_error(qq[rm: missing operand\nTry `vrpipe-rm --help' for more information.]);
+}
+
+my $schema = $frontend->schema;
+
+if ($setup) {
+    # handle --steps
+    my %desired_steps;
+    foreach my $step_name (@steps) {
+        my ($name, $kind) = split('\|', $step_name);
+        $kind ||= 'all';
+        if ($name =~ /^\d+$/) {
+            $desired_steps{numbers}->{$name}->{$kind} = 1;
+        }
+        else {
+            $desired_steps{names}->{$name}->{$kind} = 1;
+        }
+    }
+    my @step_members = $setup->pipeline->steps;
+    my @allowed_step_members;
+    my %allowed_kinds;
+    foreach my $stepm (@step_members) {
+        my $smid = $stepm->id;
+        my $step_name = $stepm->step->name;
+        if (exists $desired_steps{names}->{$step_name}) {
+            foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
+        }
+        my $step_num = $stepm->step_number;
+        if (exists $desired_steps{numbers}->{$step_num}) {
+            foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
+        }
+        next unless keys %{$allowed_kinds{$smid}};
+        
+        push(@allowed_step_members, $stepm);
+    }
+    
+    # loop through completed elements
+    my $pipeline_length = @step_members;
+    my $elements = $setup->datasource->elements;
+    my $deleted = 0;
+    my $complete_elements = 0;
+    my $incomplete = 0;
+    foreach my $element (@$elements) {
+        my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+        unless ($element_state->completed_steps == $pipeline_length) {
+            $incomplete++;
+            next;
+        }
+        $complete_elements++;
+        
+        # delete outputs
+        foreach my $stepm (@allowed_step_members) {
+            my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
+            my $smid = $stepm->id;
+            my $force = exists $allowed_kinds{$smid}->{all};
+            
+            while (my ($kind, $files) = each %$step_outs) {
+                unless ($force) {
+                    next unless exists $allowed_kinds{$smid}->{$kind};
+                }
+                my @files = grep { $_->s } @$files;
+                next unless @files;
+                
+                my @file_data;
+                foreach my $file (@files) {
+                    if ($verbose) {
+                        my $path = $file->path->stringify;
+                        $frontend->output($path);
+                    }
+                    $file->unlink unless $pretend;
+                    $deleted++;
+                }
+            }
+        }
+    }
+    
+    $frontend->output("$incomplete incomplete data elements were ignored, and $deleted files ", ($pretend ? "would have been" : "were"), " deleted for $complete_elements complete elements") if $verbose;
+}
+
+my %protected_dirs;
+my %dirs_with_files;
+if (@paths) {
+    if ($recurse && ! $force) {
+        # find all protected directories ahead of time, since they complicate
+        # things
+        foreach my $path (@paths) {
+            next unless -e $path;
+            next unless -d $path;
+            find({ wanted => \&protected_dir, no_chdir => 1 }, $path);
+        }
+    }
+    
+    foreach my $path (@paths) {
+        if (-e $path || -l $path) {
+            if (-d $path) {
+                if ($recurse) {
+                    finddepth({ wanted => \&rm_path, preprocess => \&skip_protected_dirs, no_chdir => 1 }, $path);
+                }
+                else {
+                    $frontend->error("rm: cannot remove `$path': Is a directory");
+                }
+            }
+            else {
+                rm_path($path);
+            }
+        }
+        elsif (! $force) {
+            $frontend->error("rm: cannot remove `$path': No such file or directory");
+        }
+    }
+}
+
+sub protected_dir {
+    my $path = $_;
+    return if exists $protected_dirs{$path};
+    foreach my $protected (keys %protected_dirs) {
+        return if dir($protected)->subsumes($path);
+    }
+    
+    if (-d $path && ! -w $path && ! dir_is_empty($path)) {
+        my $answer = $frontend->ask_question(question => "rm: descend into write-protected directory `$path'?", possibles => ['y', 'n'], default => 'n');
+        unless ($answer eq 'y') {
+            $protected_dirs{$path} = 1;
+        }
+    }
+}
+
+sub dir_is_empty {
+    my $dir = shift;
+    my $dfh;
+    if (opendir($dfh, $dir)) {
+        readdir $dfh;
+        readdir $dfh;
+        if (readdir $dfh) {
+            return 0;
+        }
+        else {
+            return 1;
+        }
+    }
+    return 1;
+}
+
+sub skip_protected_dirs {
+    my @basenames;
+    foreach my $basename (@_) {
+        push(@basenames, $basename) unless exists $protected_dirs{dir($File::Find::dir, $basename)};
+    }
+    return @basenames;
+}
+
+sub rm_path {
+    my $path = $_ || shift;
+    if (-d $path) {
+        return if exists $protected_dirs{$path};
+        unless ($force) {
+            return unless dir_is_empty($path);
+        }
+        unless (is_protected($path)) {
+            if ($verbose) {
+                $frontend->output($path);
+            }
+            rmdir($path) unless $pretend;
+        }
+    }
+    else {
+        unless (is_protected($path)) {
+            my $vrfile = $schema->resultset("File")->find({ path => file($path)->absolute });
+            
+            if ($pretend) {
+                $frontend->output($path);
+            }
+            else {
+                my $worked = 0;
+                
+                if ($vrfile) {
+                    $worked = $vrfile->unlink;
+                }
+                else {
+                    $worked = file($path)->remove;
+                }
+                
+                unless ($worked) {
+                    $frontend->error("rm: cannot remove `$path': Permission denied");
+                }
+                elsif ($verbose) {
+                    $frontend->output($path);
+                }
+            }
+        }
+    }
+}
+
+sub is_protected {
+    my $path = shift;
+    return 0 if $force;
+    return 0 if -w $path;
+    return 0 if -l $path;
+    
+    my $answer;
+    if (-d $path) {
+        $answer = $frontend->ask_question(question => "rm: remove write-protected directory `$path'?", possibles => ['y', 'n'], default => 'n');
+    }
+    else {
+        if (-s $path) {
+            $answer = $frontend->ask_question(question => "rm: remove write-protected regular file `$path'?", possibles => ['y', 'n'], default => 'n');
+        }
+        else {
+            $answer = $frontend->ask_question(question => "rm: remove write-protected regular empty file `$path'?", possibles => ['y', 'n'], default => 'n');
+        }
+    }
+    if ($answer eq 'y') {
+        return 0;
+    }
+    
+    return 1;
+}
+
+exit;
