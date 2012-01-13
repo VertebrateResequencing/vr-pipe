@@ -121,7 +121,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return \@elements;
     }
 
-   method lane_fastqs ( Defined :$handle!,
+    method lane_fastqs (Defined :$handle!,
                   ArrayRef :$project?,
                   ArrayRef :$sample?,
                   ArrayRef :$individual?,
@@ -140,11 +140,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                   Bool :$swapped?,
                   Bool :$altered_fastq?,
                   Bool :$improved?,
-                  Bool :$snp_called?){
-     
-   push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $hash_ref->{paths}, lane => $lane}, withdrawn => 0));
-                
-
+                  Bool :$snp_called?) {
+        #push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $hash_ref->{paths}, lane => $lane}, withdrawn => 0));
    }
 }
 1;
