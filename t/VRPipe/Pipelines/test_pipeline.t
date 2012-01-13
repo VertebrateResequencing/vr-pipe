@@ -142,7 +142,7 @@ my $oks = 0;
 foreach my $i (0..$#output_files) {
     my $file = VRPipe::File->get(path => $output_files[$i]);
     my $mtime = $file->e ? $file->mtime : 0;
-    my $orig_mtime = $mtimes{$output_files[$i]};
+    my $orig_mtime = $mtimes{$output_files[$i]} || 0;
     if ($i == 11) {
         $oks++ if $mtime ne $orig_mtime;
     }
