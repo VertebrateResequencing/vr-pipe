@@ -318,7 +318,7 @@ class VRPipe::FrontEnd {
     method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?) {
         undef $possibles unless $possibles && @$possibles;
         
-        print STDERR "\n$question";
+        print STDERR "$question";
         my %allowed;
         if ($possibles) {
             print STDERR " <", join('|', @$possibles), ">";
