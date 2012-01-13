@@ -39,7 +39,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
       my $vrtrack_source = $self->_open_source();
       my $lane_change = VRTrack::Lane->_all_values_by_field($vrtrack_source, 'changed');
       my $file_md5    = VRTrack::File->_all_values_by_field($vrtrack_source, 'md5');
-      my $digest      = md5_hex join( @$lane_change, @$file_md5); 
+      my $digest      = md5_hex join( @$lane_change, map { defined $_ ? $_ : 'NULL' } @$file_md5); 
       return $digest;
   }
  
