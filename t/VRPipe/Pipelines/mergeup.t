@@ -125,7 +125,7 @@ my @release_files;
 foreach my $element_id (10, 11) {
     foreach my $file ('fake_chr2.pe.bam', 'unmapped.pe.bam') {
         push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '2_bam_index', $file.'.bai'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai'));
         push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas'));
         push(@release_files, file($build_dir, output_subdirs($element_id), '4_md5_file_production', $file.'.md5'));
         push(@release_files, file($build_dir, output_subdirs($element_id), '5_md5_file_production', $file.'.bai.md5'));
