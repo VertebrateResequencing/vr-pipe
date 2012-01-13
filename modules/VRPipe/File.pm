@@ -265,11 +265,14 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method remove {
         my $path = $self->path;
-        $self->path->remove;
+        my $worked = $self->path->remove;
         $self->update_stats_from_disc;
-        $self->_lines(undef);
-        $self->parent(undef);
-        $self->update;
+        if ($worked) {
+            $self->_lines(undef);
+            $self->parent(undef);
+            $self->update;
+        }
+        return $worked;
     }
     alias unlink => 'remove';
     alias rm => 'remove';

@@ -5,7 +5,7 @@ use Path::Class;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 17;
+    use Test::Most tests => 22;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -184,12 +184,46 @@ SKIP: {
                                      method => 'lanes',
                                      source => $ENV{VRPIPE_VRTRACK_TESTDB},
                                      options => {import => 1, mapped => 0}), 'could create a vrtrack datasource';
-    
     my $results = 0;
     foreach my $element (@{$ds->elements}) {
         $results++;
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
-}
+   
+ 
+    ### tests for  _has_changed ###
+    ok( ! $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change' );
+    
+    # create a new row that has a later time stamp
+    my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    my $name = 'new_lane';
+    sleep(2); # wait two seconds to create new lane so we have a later time stamp.
+    my $new_lane = VRTrack::Lane->create($vrtrack, $name);
+    $new_lane->is_withdrawn(0);
+    $new_lane->library_id(16);
+    $new_lane->update;
+    ok( $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after new lane insertion in test vrtrack db');
+
+    # Go back to unchanged state by deleting this lane. Check we don't have any changes
+    $new_lane->delete;
+    ok( !$ds->_source_instance->_has_changed, 'vrtrack datasource _has_change gives no change after inserted lane deleted in test vrtrack db');
+
+    # add a file to another lane and check for changes
+    my $lane_to_add_file_for = VRTrack::Lane->new_by_name($vrtrack, 'ERR003040');
+    my $newfile = $lane_to_add_file_for->add_file('new.fastq');
+    ok($ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after adding a file in test vrtrack db');
+    $newfile->delete; # return to original state so that _has_changed can be tested again
+
+    # change some md5 sums in the files
+    my $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
+    # check for changes
+    $file->md5('34c009157187c5d9a7e976563ec1bad9');
+    $file->update;
+    ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
+    
+    # return db to original state so running this test again will work
+    $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
+    $file->update;
+  }
 
 exit;

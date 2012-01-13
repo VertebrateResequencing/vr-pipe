@@ -27,8 +27,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
     }
 
     has 'vrpipe_sources' => (is => 'ro',
-                               isa => 'HashRef',
-                               builder => '_build_vrpipe_sources');
+                             isa => 'HashRef',
+                             builder => '_build_vrpipe_sources',
+                             lazy => 1);
 
     method _build_vrpipe_sources
     {

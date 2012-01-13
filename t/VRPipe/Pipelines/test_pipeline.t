@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 17;
+    use Test::Most tests => 20;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -114,5 +114,42 @@ is $submission->job_stderr_file->path, file($subm_dir, 'job_stderr.1.r0'), 'job_
 is $submission->scheduler_stderr, undef, 'scheduler_stderr had no content';
 my $parser = $submission->scheduler_stdout;
 ok $parser->does('VRPipe::ParserRole'), 'scheduler_stdout returns a parser';
+
+
+# let's test moving a mid-step output file and starting over a final step of the
+# non-cleaned pipeline, to confirm that it does not redo the mid-step but uses
+# the moved file
+my $orig_file = VRPipe::File->get(path => $output_files[10]);
+my $moved_file = VRPipe::File->get(path => $output_files[10].'.moved');
+$orig_file->move($moved_file);
+is_deeply [-e $output_files[10], -e $output_files[10].'.moved'], [undef, 1], 'we were able to move a step 3 output file';
+$output_files[10] = $output_files[10].'.moved';
+my %mtimes;
+foreach my $i (0..$#output_files) {
+    my $file = VRPipe::File->get(path => $output_files[$i]);
+    $mtimes{$output_files[$i]} = $file->e ? $file->mtime : 0;
+}
+$last_stepstate = VRPipe::StepState->get(pipelinesetup => 1, dataelement => 3, stepmember => 4);
+$last_stepstate->start_over;
+my $orig_final = VRPipe::File->get(path => $output_files[11]);
+my $new_final = $output_files[11];
+$new_final =~ s/step_three/step_three.moved/;
+$output_files[11] = $new_final;
+$new_final = VRPipe::File->get(path => $new_final);
+
+ok handle_pipeline(@output_files), 'pipeline ran and created all expected output after we did start_over on the last un-cleaned stepstate';
+my $oks = 0;
+foreach my $i (0..$#output_files) {
+    my $file = VRPipe::File->get(path => $output_files[$i]);
+    my $mtime = $file->e ? $file->mtime : 0;
+    my $orig_mtime = $mtimes{$output_files[$i]} || 0;
+    if ($i == 11) {
+        $oks++ if $mtime ne $orig_mtime;
+    }
+    else {
+        $oks++ if $mtime eq $orig_mtime;
+    }
+}
+is_deeply [$oks, -e $orig_file->path, $orig_final->e, $new_final->e], [12, undef, 0, 1], 'only the final step file we deleted was recreated (with a new name) - not the step 3 file we moved';
 
 finish;

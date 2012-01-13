@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 12;
+    use Test::Most tests => 18;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
                     required_exe => [qw(samtools bwa)]);
     use TestPipelines;
@@ -91,7 +91,9 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                             reference_species => 'S.Suis',
                                                                             bam_merge_memory => 200,
                                                                             split_bam_make_unmapped => 1,
-                                                                            cleanup => 1 });
+                                                                            cleanup => 1,
+                                                                            cleanup_inputs => 1,
+                                                                            remove_merged_bams => 1 });
 
 my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release',
                                                                datasource => VRPipe::DataSource->get(type => 'vrpipe',
@@ -102,7 +104,8 @@ my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release'
                                                                pipeline => $release_pipeline,
                                                                options => { release_date => '19790320',
                                                                             sequence_index => file(qw(t data datasource.sequence_index))->absolute->stringify,
-                                                                            rg_from_pu => 0 });
+                                                                            rg_from_pu => 0,
+                                                                            bai_files_in_source_dir => 0 });
 
 my @mapping_files;
 my %bams = ('2822_6.pe.bam' => 1, '2822_6.se.bam' => 1, '2822_7.pe.bam' => 2, '2823_4.pe.bam' => 3, '8324_8.pe.bam' => 4);
@@ -122,11 +125,11 @@ my @release_files;
 foreach my $element_id (10, 11) {
     foreach my $file ('fake_chr2.pe.bam', 'unmapped.pe.bam') {
         push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.md5'));
         push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai'));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai.md5'));
         push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas'));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas.md5'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '4_md5_file_production', $file.'.md5'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '5_md5_file_production', $file.'.bai.md5'));
+        push(@release_files, file($build_dir, output_subdirs($element_id), '6_md5_file_production', $file.'.bas.md5'));
     }
 }
 
@@ -183,5 +186,28 @@ my @release_exists = map { -s $_ ? 1 : 0 } @release_files;
 is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch';
 
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated after a start from scratch';
+
+# if a mapped bam is moved, is everything okay?
+my $orig_bam = VRPipe::File->get(path => $mapping_files[8]);
+$mapping_pipeline->make_path(dir($orig_bam->dir.'_moved'));
+my $moved_bam = VRPipe::File->get(path => file($orig_bam->dir.'_moved', $orig_bam->basename));
+$orig_bam->move($moved_bam);
+is_deeply [-e $orig_bam->path, -e $moved_bam->path], [undef, 1], 'moved an improved bam';
+$mapping_files[8] = file($moved_bam->path);
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'all files are still okay after a bam was moved';
+
+VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
+
+@mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
+is_deeply \@mapping_exists, [1,1,1,1,1,1,1,1,1,1], 'mapping files were not deleted after merge element was restarted and after bam was moved';
+
+@split_exists = map { -s $_ ? 1 : 0 } @split_files;
+is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch after bam was moved';
+
+@release_exists = map { -s $_ ? 1 : 0 } @release_files;
+is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch after bam was moved';
+
+ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated from moved bam';
 
 finish;
