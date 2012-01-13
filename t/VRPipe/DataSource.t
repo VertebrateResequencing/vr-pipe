@@ -208,17 +208,18 @@ SKIP: {
     $new_lane->delete;
     ok( !$ds->_source_instance->_has_changed, 'vrtrack datasource _has_change gives no change after inserted lane deleted in test vrtrack db');
 
-     # then delete another lane and check for changes
-    my $lane_to_delete = VRTrack::Lane->new_by_name($vrtrack,'ERR003040' );
-    $lane_to_delete->delete;
-    ok($ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after another lane deletion in test vrtrack db');
+    # add a file to another lane and check for changes
+    my $lane_to_add_file_for = VRTrack::Lane->new_by_name($vrtrack, 'ERR003040');
+    my $newfile = $lane_to_add_file_for->add_file('new.fastq');
+    ok($ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after adding a file in test vrtrack db');
+    $newfile->delete; # return to original state so that _has_changed can be tested again
 
-     # change some md5 sums in the files
+    # change some md5 sums in the files
     my $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
-     # check for changes
+    # check for changes
     $file->md5('34c009157187c5d9a7e976563ec1bad9');
+    $file->update;
     ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
-
     ### lane_fastqs tests
     warn $ds->_source_instance->lanes_fastqs( handle => $vrtrack, local_root_dir => dir( $cwd, 't') );
     ok(1);

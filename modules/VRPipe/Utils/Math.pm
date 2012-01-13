@@ -125,7 +125,7 @@ class VRPipe::Utils::Math {
            Optional mean of histogram, to save calculating it.
 
 =cut
-    method histogram_stats (HashRef $hash, Num $mean) {
+    method histogram_stats (HashRef $hash, Num $mean?) {
         my %stats;
         my $sd = 0;
         my $total = 0;

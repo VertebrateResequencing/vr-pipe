@@ -40,7 +40,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
       my $vrtrack_source = $self->_open_source();
       my $lane_change = VRTrack::Lane->_all_values_by_field($vrtrack_source, 'changed');
       my $file_md5    = VRTrack::File->_all_values_by_field($vrtrack_source, 'md5');
-      my $digest      = md5_hex join( @$lane_change, @$file_md5); 
+      my $digest      = md5_hex join( @$lane_change, map { defined $_ ? $_ : 'NULL' } @$file_md5); 
       return $digest;
   }
  
@@ -142,6 +142,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                   Bool :$swapped?,
                   Bool :$altered_fastq?,
                   Bool :$improved?,
+<<<<<<< HEAD
                   Bool :$snp_called?){
      my $hu = VertRes::Utils::Hierarchy->new();
         my @lanes = $hu->get_lanes(vrtrack => $handle,
@@ -250,4 +251,10 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
       return \@elements;
  }
 } 
+=======
+                  Bool :$snp_called?) {
+        #push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $hash_ref->{paths}, lane => $lane}, withdrawn => 0));
+   }
+}
+>>>>>>> 6d6ab465dcae9302a8763331d0b297903b13d6d3
 1;

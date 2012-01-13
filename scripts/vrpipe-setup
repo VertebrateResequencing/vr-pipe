@@ -184,6 +184,9 @@ else {
         $ds_num++;
         my $ds_module = "VRPipe::DataSource::$ds_type";
         eval "require $ds_module;";
+        if ($@) {
+            die $@;
+        }
         my $ds = $ds_module->new;
         $frontend->output("$ds_num. $ds_type (", $ds->description, ")");
         $ds_types[$ds_num] = $ds_type;
@@ -280,7 +283,24 @@ else {
     # *** ask for resource requirment overrides for each step? But we don't
     #     know what defaults each step has...
     
-    #*** ask for behaviour regulators...
+    # set regulations
+    my $reg = behaviours_to_regulators(get_pipeline_behaviours($pipeline));
+    if (keys %$reg) {
+        $frontend->output("\nCertain behaviours of your pipeline are regulated by boolean keys:");
+        foreach my $regulator (keys %$reg) {
+            $frontend->output("\t'$regulator' key controls the behaviours:");
+            my $methods = $reg->{$regulator}->{methods};
+            while (my ($method, $steps) = each %$methods) {
+                my @steps = sort { $a <=> $b } keys %$steps;
+                $frontend->output("\t\t'$method' - acts on steps ".join(', ', @steps));
+            }
+            my @defaults = keys %{$reg->{$regulator}->{defaults}};
+            my $default = @defaults == 1 ? $defaults[0] : 'mixed';
+            warn "default is $default\n";
+            my $regulation = $frontend->ask_question(question => "\tTurn this behaviour on (1) or off (0)?", possibles => [0, 1], "$default" ne 'mixed' ? (default => $default) : (required => 1));
+            $pipeline_args{$regulator} = $regulation;
+        }
+    }
     
     # output root?
     my $output_root = $frontend->ask_question(question => "Please provide the absolute path to the root directory that output files will be written to", required => 1);
@@ -328,4 +348,31 @@ sub describe_io_def {
             $frontend->output("\t\t$key => $val ($comment)");
         }
     }
+}
+
+sub get_pipeline_behaviours {
+    my $pipeline = shift;
+    my $rs = $schema->resultset("StepBehaviour")->search( { pipeline => $pipeline->id } );
+    my @bs;
+    while (my $b = $rs->next) {
+        push(@bs, $b);
+    }
+    return @bs;
+}
+
+sub behaviours_to_regulators {
+    my %reg;
+    foreach my $b (@_) {
+        my $regulator = $b->regulated_by || next;
+        my $array = $b->behaviour_array;
+        foreach my $behaviour (@$array) {
+            my ($method, @steps) = @$behaviour;
+            foreach my $step (@steps) {
+                $reg{$regulator}->{methods}->{$method}->{$step} = 1;
+            }
+        }
+        $reg{$regulator}->{defaults}->{$b->default_regulation} = 1;
+    }
+    
+    return \%reg;
 }
