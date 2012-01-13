@@ -4,10 +4,7 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
     method options_definition {
         return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
                                                          optional => 1,
-                                                         default_value => 'samtools'),
-                 bai_files_in_source_dir => VRPipe::StepOption->get(description => 'should .bai files be created in the same directory as their parent? (otherwise they go to the pipeline output directory)',
-                                                         optional => 1,
-                                                         default_value => 1) };
+                                                         default_value => 'samtools') };
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to index') };
@@ -17,13 +14,12 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
             my $self = shift;
             my $options = $self->options;
             my $samtools = $options->{samtools_exe};
-            my $bai_files_in_source_dir = $self->options->{bai_files_in_source_dir};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_path = $bam->path;
                 my $bai_file = $self->output_file(output_key => 'bai_files',
-                                              $bai_files_in_source_dir ? (output_dir => $bam->dir) : (),
+                                              output_dir => $bam->dir,
                                               basename => $bam->basename.'.bai',
                                               type => 'bin',
                                               metadata => $bam->metadata);
