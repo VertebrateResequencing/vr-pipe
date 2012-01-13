@@ -5,7 +5,7 @@ use Path::Class;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 22;
+    use Test::Most tests => 23;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -218,7 +218,9 @@ SKIP: {
      # check for changes
     $file->md5('34c009157187c5d9a7e976563ec1bad9');
     ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
-   
-  }
 
+    ### lane_fastqs tests
+    warn $ds->_source_instance->lanes_fastqs( handle => $vrtrack, local_root_dir => dir( $cwd, 't') );
+    ok(1);
+}
 exit;
