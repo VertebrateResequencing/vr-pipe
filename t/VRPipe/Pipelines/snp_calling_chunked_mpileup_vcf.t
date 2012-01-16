@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 use Path::Class;
-use Data::Dumper;
 
 BEGIN {
     use Test::Most tests => 3;
