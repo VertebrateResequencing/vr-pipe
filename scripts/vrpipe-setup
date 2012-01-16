@@ -7,6 +7,7 @@ use VRPipe::FrontEnd;
 my $frontend = VRPipe::FrontEnd->new(description => "Setup a new pipeline, or alter the configuration of an existing one.",
                                      opt_spec => [ [],
                                                    [ q[Run with no options to create a new PipelineSetup.] ],
+                                                   [ 'based_on=s', 'Provide the name or id of an existing PipelineSetup to create a new PipelineSetup based on it', { persistent_object => 'PipelineSetup' } ],
                                                    [],
                                                    [ q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:] ],
                                                    [ 'list|l', 'Just list out the setup names and ids, so you can subsequently rerun using --setup' ],
@@ -24,6 +25,7 @@ my $override_reqs = $frontend->opts('requirements');
 my $deactivate = $frontend->opts('deactivate');
 my $reactivate = $frontend->opts('reactivate');
 my $list = $frontend->opts('list');
+my $based_on = $frontend->opts('based_on');
 
 if ($setup && $list) {
     $frontend->error("--setup and --list don't make sense together; ignoring --list");
@@ -148,7 +150,14 @@ elsif ($list) {
 }
 else {
     # allow the user to create a new setup
-    my $pipeline = $frontend->ask_for_object(question => "Pick a pipeline from the above list to run", class => 'Pipeline', column => 'name');
+    my $pipeline;
+    if ($based_on) {
+        $pipeline = $based_on->pipeline;
+        $frontend->output("Based on PipelineSetup ", $based_on->id, ", your new setup will use the pipeline '", $pipeline->name, "'");
+    }
+    else {
+        $pipeline = $frontend->ask_for_object(question => "Pick a pipeline from the above list to run", class => 'Pipeline', column => 'name');
+    }
     
     my @sms = $pipeline->steps;
     my @steps = map { $_->step } @sms;
@@ -180,6 +189,13 @@ else {
     my @ds_types;
     my $ds_num = 0;
     $frontend->output("\n");
+    my ($based_on_ds, $based_on_ds_type, $based_on_ds_type_num, $based_on_ds_method, $based_on_ds_method_num, $based_on_ds_options);
+    if ($based_on) {
+        $based_on_ds = $based_on->datasource;
+        $based_on_ds_type = $based_on_ds->type;
+        $based_on_ds_method = $based_on_ds->method;
+        $based_on_ds_options = $based_on_ds->options;
+    }
     foreach my $ds_type ($frontend->sub_modules('DataSource')) {
         $ds_num++;
         my $ds_module = "VRPipe::DataSource::$ds_type";
@@ -190,15 +206,19 @@ else {
         my $ds = $ds_module->new;
         $frontend->output("$ds_num. $ds_type (", $ds->description, ")");
         $ds_types[$ds_num] = $ds_type;
+        
+        if ($based_on_ds_type && $based_on_ds_type eq $ds_type) {
+            $based_on_ds_type_num = $ds_num;
+        }
     }
-    my $chosen_ds_num = $frontend->pick_number(question => "Pick a DataSource type from the above list", max => $ds_num);
+    my $chosen_ds_num = $frontend->pick_number(question => "Pick a DataSource type from the above list", max => $ds_num, $based_on_ds ? (default => $based_on_ds_type_num) : ());
     my $chosen_ds_type = $ds_types[$chosen_ds_num];
     
     # get the source
     my $ds_module = "VRPipe::DataSource::$chosen_ds_type";
     my $ds = $ds_module->new;
     $frontend->output("$chosen_ds_type DataSources have a source described as:\n", $ds->source_description);
-    my $ds_source = $frontend->ask_question(question => "Supply the source", required => 1);
+    my $ds_source = $frontend->ask_question(question => "Supply the source", required => 1, $based_on_ds ? (default => $based_on_ds->source) : ());
     
     # pick a method
     $frontend->output("\n");
@@ -215,8 +235,12 @@ else {
             $method_num++;
             $frontend->output("$method_num. $method (", $ds->method_description($method), ")");
             $ds_methods[$method_num] = $method;
+            
+            if ($based_on_ds_method && $based_on_ds_method eq $method) {
+                $based_on_ds_method_num = $method_num;
+            }
         }
-        my $chosen_method_num = $frontend->pick_number(question => "Pick one of the $chosen_ds_type DataSource methods from the above list", max => $method_num);
+        my $chosen_method_num = $frontend->pick_number(question => "Pick one of the $chosen_ds_type DataSource methods from the above list", max => $method_num, $based_on_ds ? (default => $based_on_ds_method_num) : ());
         $chosen_method = $ds_methods[$chosen_method_num];
     }
     
@@ -229,6 +253,9 @@ else {
             my ($kind, $name, $req, $default, $constraint) = @$method_opt;
             next unless $kind eq 'named';
             my $comment = $req ? 'REQUIRED' : 'optional';
+            if ($based_on_ds_options && defined $based_on_ds_options->{$name}) {
+                $default = $based_on_ds_options->{$name};
+            }
             my $arg = $frontend->ask_question(question => "\t$name ($comment, a $constraint)", $default ? (default => $default) : (), required => $req);
             if (defined $arg && "$arg" ne '') {
                 $chosen_method_args{$name} = $arg;
@@ -261,6 +288,10 @@ else {
         }
     }
     my %pipeline_args;
+    my $based_on_options;
+    if ($based_on) {
+        $based_on_options = $based_on->options;
+    }
     if (keys %step_options) {
         $frontend->output("\nPlease provide options for the '", $pipeline->name, "' pipeline:");
         foreach my $soo_i (sort { $a <=> $b } keys %step_option_order) {
@@ -270,7 +301,14 @@ else {
             my $comment = $vso->optional ? 'optional' : 'REQUIRED';
             $comment .= ', used by step';
             $comment .= 's' if @steps > 1;
-            my $arg = $frontend->ask_question(question => "\t$key ($comment ".join(", ", @steps).")\n\t".$vso->description, possibles => $vso->allowed_values, default => $vso->default_value, required => ! $vso->optional); #*** could vso be altered so that it could actually validate the answer right away?...
+            my $default;
+            if ($based_on_options && defined $based_on_options->{$key}) {
+                $default = $based_on_options->{$key};
+            }
+            else {
+                $default = $vso->default_value;
+            }
+            my $arg = $frontend->ask_question(question => "\t$key ($comment ".join(", ", @steps).")\n\t".$vso->description, possibles => $vso->allowed_values, default => $default, required => ! $vso->optional); #*** could vso be altered so that it could actually validate the answer right away?...
             if (defined $arg && "$arg" ne '') {
                 $pipeline_args{$key} = $arg;
             }
@@ -295,15 +333,20 @@ else {
                 $frontend->output("\t\t'$method' - acts on steps ".join(', ', @steps));
             }
             my @defaults = keys %{$reg->{$regulator}->{defaults}};
-            my $default = @defaults == 1 ? $defaults[0] : 'mixed';
-            warn "default is $default\n";
+            my $default;
+            if ($based_on_options && defined $based_on_options->{$regulator}) {
+                $default = $based_on_options->{$regulator};
+            }
+            else {
+                $default = @defaults == 1 ? $defaults[0] : 'mixed';
+            }
             my $regulation = $frontend->ask_question(question => "\tTurn this behaviour on (1) or off (0)?", possibles => [0, 1], "$default" ne 'mixed' ? (default => $default) : (required => 1));
             $pipeline_args{$regulator} = $regulation;
         }
     }
     
     # output root?
-    my $output_root = $frontend->ask_question(question => "Please provide the absolute path to the root directory that output files will be written to", required => 1);
+    my $output_root = $frontend->ask_question(question => "Please provide the absolute path to the root directory that output files will be written to", required => 1, $based_on ? (default => $based_on->output_root->stringify) : ());
     
     my $setup_name = $frontend->ask_question(question => "What would you like to call your new pipeline setup?", required => 1, not_allowed => \&VRPipe::FrontEnd::already_exists, na_args => [$frontend, 'PipelineSetup', 'name']);
     
