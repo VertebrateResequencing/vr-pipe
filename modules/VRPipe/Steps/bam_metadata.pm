@@ -50,7 +50,7 @@ class VRPipe::Steps::bam_metadata with VRPipe::StepRole {
                                                                                        center_name => 'center name',
                                                                                        platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                                        study => 'name of the study, put in the DS field of the RG header line',
-                                                                                       optional => ['library', 'sample', 'center_name', 'platform', 'study']}) };
+                                                                                       optional => ['library', 'sample', 'center_name', 'platform', 'study', 'insert_size']}) };
     }
     method post_process_sub {
         return sub { return 1; };
