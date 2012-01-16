@@ -235,8 +235,10 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     }
                 }
             }
+            
             # if there was no metadata this will add metadata to the file.             
             $vrfile->add_metadata($new_metadata, replace_data => 0); 
+            
             # if there was a change in VRPipe metadata
             # -- update the metadata --                
             # unless ($vrfile->s) {
