@@ -57,7 +57,7 @@ if ($desired_sub) {
     @subs = ($frontend->opts('submission'));
 }
 else {
-    my $rs = $schema->resultset("Submission")->search({ $all ? () : ("_done" => $done), $failed ? ("_failed" => 1) : (), $retries ? (retries => $retries) : (),
+    my $rs = $schema->resultset("Submission")->search({ $all ? () : ("_done" => $done), $failed ? ("_failed" => 1, $retries ? (retries => $retries) : ()) : (),
                                                         $setup ? ('stepstate.pipelinesetup' => $setup->id) : (),
                                                         $desired_step ? ('step.name' => $desired_step) : () },
                                                       { $setup ? (join => ['stepstate', $desired_step ? ({ stepstate => { stepmember => 'step' } }) : ()]) : (), $limit ? (rows => $limit) : () });
