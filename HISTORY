@@ -1,3 +1,5 @@
+0.21    SNP discovery pipeline(s) now firming up; fixes for merging
+        pipelines
 0.20    Improved handling of limits, so that a good amount of jobs are
         always running
 0.19    Various fixes to 1000 genomes-related pipelines
