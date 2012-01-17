@@ -87,8 +87,15 @@ class VRPipe::File extends VRPipe::Persistent {
         $path ||= $self->path;
         
         # we want the size of the real file, not of a symlink
-        while (-l $path) {
-            $path = readlink($path);
+        if (-l $path) {
+            my $start_dir = file($path)->dir;
+            while (-l $path) {
+                $path = file(readlink($path));
+                unless ($path->is_absolute) {
+                    $path = file($start_dir, $path);
+                    $start_dir = $path->dir;
+                }
+            }
         }
         my $s = -s $path;
         
