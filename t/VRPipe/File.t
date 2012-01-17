@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 32;
+    use Test::Most tests => 34;
     use VRPipeTest;
 }
 
@@ -113,6 +113,12 @@ $vrfile = VRPipe::File->get(path => $source_path);
 is $vrfile->id, $source_id, 'without auto-resolve, getting a VRPipe::File with source path gives you the object for that literal path';
 $vrfile = VRPipe::File->get(path => $source_path, auto_resolve => 1);
 is $vrfile->id, $real_fileid, 'with auto-resolve, getting a VRPipe::File with source path gives you the object for the moved path';
+
+# test that s() and open() works correctly for relative symlinks
+my $symlink = file(qw(t data dirs for symlink higher.link))->absolute;
+$vrfile = VRPipe::File->get(path => $symlink);
+ok $vrfile->s, 's() worked for a complex relative symlink';
+is $vrfile->slurp, "the real file\n", 'slurp also worked on it';
 
 done_testing;
 exit;

@@ -324,7 +324,7 @@ class VRPipe::FrontEnd {
             print STDERR " <", join('|', @$possibles), ">";
             %allowed = map { $_ => 1 } @$possibles;
         }
-        if ($default) {
+        if (defined $default) {
             print STDERR " [$default]";
         }
         print STDERR ": ";
@@ -344,7 +344,7 @@ class VRPipe::FrontEnd {
                 }
                 
                 unless ($valid) {
-                    if ($default && ! $answer) {
+                    if (defined $default && ! $answer) {
                         $answer = $default;
                     }
                     else {
@@ -355,7 +355,7 @@ class VRPipe::FrontEnd {
                 }
             }
             elsif (! $answer && "$answer" ne "0") {
-                if ($default) {
+                if (defined $default) {
                     $answer = $default;
                 }
                 elsif ($required) {
@@ -379,8 +379,8 @@ class VRPipe::FrontEnd {
         return $answer;
     }
     
-    method pick_number (Str :$question!, PositiveInt :$max!) {
-        return $self->ask_question(question => $question, possibles => [1..$max], required => 1);
+    method pick_number (Str :$question!, PositiveInt :$max!, PositiveInt :$default?) {
+        return $self->ask_question(question => $question, possibles => [1..$max], required => 1, $default ? (default => $default) : ());
     }
 }
 

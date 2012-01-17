@@ -5,7 +5,7 @@ use Path::Class;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 22;
+    use Test::Most tests => 24;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -221,9 +221,17 @@ SKIP: {
     $file->update;
     ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
     
-    # return db to original state so running this test again will work
-    $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
-    $file->update;
-  }
+   ### lane_fastqs tests    
+   ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                 method => 'lanes_fastqs',
+                                 source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                 options => {import => 1, mapped => 0, local_root_dir => file($cwd,'t')->absolute->stringify, library => [  'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190'] } ), 'could create a vrtrack datasource';
 
+    @results = ();
+    foreach my $element (@{$ds->elements}) {
+      push(@results, $element->result);
+    }
+
+    is_deeply $results[0], {paths => [file($cwd, 't/data/NA19190/sequence_read/ERR003199.filt.fastq.gz'), file($cwd, 't/data/NA19190/sequence_read/ERR003199_1.filt.fastq.gz'), file($cwd, 't/data/NA19190/sequence_read/ERR003199_2.filt.fastq.gz')], lane => 'ERR003199'}, 'got correct results for vrtrack lane_fastqs'
+}
 exit;
