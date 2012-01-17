@@ -93,8 +93,8 @@ class VRPipe::File extends VRPipe::Persistent {
                 $path = file(readlink($path));
                 unless ($path->is_absolute) {
                     $path = file($start_dir, $path);
-                    $start_dir = $path->dir;
                 }
+                $start_dir = $path->dir;
             }
         }
         my $s = -s $path;
