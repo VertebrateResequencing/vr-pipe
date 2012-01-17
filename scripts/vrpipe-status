@@ -13,7 +13,12 @@ my $list = $frontend->opts('list');
 my @setups = $frontend->get_pipelinesetups();
 
 foreach my $setup (@setups) {
-    $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") ---");
+    my $active = $setup->active;
+    my $note = '';
+    unless ($active) {
+        $note = ' currently DEACTIVATED ';
+    }
+    $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") $note---");
     next if $list;
     
     my $pipeline = $setup->pipeline;
