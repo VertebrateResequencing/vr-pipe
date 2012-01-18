@@ -5,7 +5,7 @@ use Path::Class;
 use Cwd;
 
 BEGIN {
-    use Test::Most tests => 24;
+    use Test::Most tests => 25;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -232,6 +232,35 @@ SKIP: {
       push(@results, $element->result);
     }
 
-    is_deeply $results[0], {paths => [file($cwd, 't/data/NA19190/sequence_read/ERR003199.filt.fastq.gz'), file($cwd, 't/data/NA19190/sequence_read/ERR003199_1.filt.fastq.gz'), file($cwd, 't/data/NA19190/sequence_read/ERR003199_2.filt.fastq.gz')], lane => 'ERR003199'}, 'got correct results for vrtrack lane_fastqs'
+   is_deeply $results[0], {
+				paths => [
+						file($cwd, 't/data/NA19190/sequence_read/ERR003199.filt.fastq.gz'), 
+						file($cwd, 't/data/NA19190/sequence_read/ERR003199_1.filt.fastq.gz'), 
+						file($cwd, 't/data/NA19190/sequence_read/ERR003199_2.filt.fastq.gz') 
+                                         ],
+				lane  => 'ERR003199' 
+                           }, 'got correct results for vrtrack lane_fastqs';
+  my $vrfile = VRPipe::File->get(path => file($cwd, 't/data/NA19190/sequence_read/ERR003199.filt.fastq.gz'));
+  my $meta = $vrfile->metadata;
+  is_deeply $meta, { 'bases' => '1696783',
+          	     'withdrawn' => 0,
+          	     'population' => 'YRI',
+	             'paired' => 1,
+                     'reads' => '45859',
+                     'library' => 'g1k_sc_NA19190_YRI_1',
+                     'lane_id' => '101',
+                     'individual' => 'NA19190',
+                     'center_name' => 'SC',
+                     'sample' => 'NA19190',
+                     'platform' => 'SLX',
+                     'expected_md5' => 'dfa4364855815d7433c451a87f0520d0',
+                     'study' => 'SRP000542',
+                     'lane' => 'ERR003199',
+                     'study_name' => 'SRP000542',
+                     'insert_size' => 0,
+                     'sample_id' => '',
+                     'mate' => ''
+        }, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
+
 }
 exit;
