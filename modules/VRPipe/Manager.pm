@@ -220,6 +220,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     unless ($unfinished) {
                         my $ok = $step->post_process();
                         if ($ok) {
+                            $self->debug(" we just completed all the submissions from a previous parse");
                             $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
                             next;
                         }
@@ -231,6 +232,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         }
                     }
                     else {
+                        $self->debug(" we have ".scalar(@$unfinished)." unfinished submissions from a previous parse");
                         # don't count this toward the limit if all the
                         # submissions have failed 3 times *** max_retries needs to be consistent and set between trigger and handle
                         my $fails = 0;
@@ -263,6 +265,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         # on instant complete, parse calls post_process itself
                         # and only returns true if that was successfull
                         $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
+                        $self->debug(" parsing the step resulted in instant completion");
                         next;
                     }
                     else {
@@ -270,11 +273,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         if (@$dispatched) {
                             foreach my $arrayref (@$dispatched) {
                                 my ($cmd, $reqs, $job_args) = @$arrayref;
-                                VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                $self->debug(" parsing the step made new submission ".$sub->id." with job ".$sub->job->id);
                             }
                         }
                         else {
-                            #$self->throw("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
+                            $self->debug("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
                             # it is possible for a parse to result in a different step being started over because input files were missing
                         }
                     }
@@ -342,7 +346,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return @not_done ? \@not_done : undef;
     }
     
-    method handle_submissions (PositiveInt :$max_retries = 3) {
+    method handle_submissions (Int :$max_retries = 3) {
         my $submissions = $self->unfinished_submissions();
         if ($submissions) {
             $submissions = $self->check_running($submissions);
@@ -355,10 +359,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    #method resubmit_failures (PositiveInt :$max_retries, ArrayRef[VRPipe::Submission] :$submissions) {
+    #method resubmit_failures (Int :$max_retries, ArrayRef[VRPipe::Submission] :$submissions) {
     sub resubmit_failures {
         my ($self, %args) = @_;
-        my $max_retries = delete $args{max_retries} || $self->throw("max_retries is required");
+        my $max_retries = delete $args{max_retries};
+        $self->throw("max_retries is required") unless defined $max_retries;
         my $submissions = delete $args{submissions} || $self->throw("submissions is required");
         $self->throw("unexpected args") if keys %args;
         
@@ -443,7 +448,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 }
             }
             elsif ($job->finished) {
-                $self->debug(" -- finishing...");
+                $self->debug(" -- finishing by calling sub->update_status...");
                 $sub->update_status();
                 $self->debug(" -- success");
                 next if $sub->done;
@@ -547,6 +552,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         my $scheduler = VRPipe::Scheduler->get;
         while (my ($req_id, $subs) = each %batches) {
+            $self->debug("_~_ Batched and submitted an array of ".scalar(@$subs)." subs");
             my $sid = $scheduler->submit(array => $subs,
                                          requirements => VRPipe::Requirements->get(id => $req_id));
         }
