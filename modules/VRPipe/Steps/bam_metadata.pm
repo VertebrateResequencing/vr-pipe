@@ -6,7 +6,11 @@ class VRPipe::Steps::bam_metadata with VRPipe::StepRole {
     method options_definition {
         return { bamcheck_exe => VRPipe::StepOption->get(description => 'path to your bamcheck executable',
                                                          optional => 1,
-                                                         default_value => 'bamcheck') };
+                                                         default_value => 'bamcheck'),
+                 bamcheck_options => VRPipe::StepOption->get(description => 'options to bamcheck, excluding the value to -r which will come from reference_fasta option',
+                                                             optional => 1),
+                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file (for GC-depth calculation, only used if bamcheck_options contains -r)',
+                                                            optional => 1)};
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1) };
@@ -18,6 +22,23 @@ class VRPipe::Steps::bam_metadata with VRPipe::StepRole {
             my $options = $self->options;
             my $bamcheck_exe = $options->{bamcheck_exe};
             
+            my $opts = $options->{bamcheck_options};
+            my @meta_to_check = (qw(bases reads avg_read_length));
+            if ($opts) {
+                my $ref = $options->{reference_fasta};
+                if ($opts =~ /-r/ && $ref) {
+                    unless ($opts =~ /-r $ref/) {
+                        $opts =~ s/-r /-r $ref /;
+                    }
+                    
+                    #push(@meta_to_check, qw()); *** what difference does -r make to the bamcheck file?
+                }
+                
+                if ($opts =~ /-d/) {
+                    push(@meta_to_check, qw(rmdup_reads rmdup_reads_mapped rmdup_bases_mapped_c rmdup_bases rmdup_bases_trimmed));
+                }
+            }
+            
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam_file (@{$self->inputs->{bam_files}}) {
                 # our output file is our input file
@@ -25,10 +46,14 @@ class VRPipe::Steps::bam_metadata with VRPipe::StepRole {
                 $self->output_file(output_key => 'bam_files_with_metadata', output_dir => $ifile->dir, basename => $ifile->basename, type => 'bam');
                 
                 my $meta = $bam_file->metadata;
-                unless ($meta->{bases} && $meta->{reads} && $meta->{avg_read_length}) {
+                my $meta_count = 0;
+                foreach my $type (@meta_to_check) {
+                    $meta_count++ if $meta->{$type};
+                }
+                unless ($meta_count == @meta_to_check) {
                     my $check_file = $self->output_file(output_key => 'bamcheck_files', basename => $ifile->basename.'.bamcheck', type => 'txt', temporary => 1);
                     my $ofile = $check_file->path;
-                    $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_metadata', 'stats_from_bamcheck', ["$bamcheck_exe $ifile > $ofile", $req, {output_files => [$check_file]}]);
+                    $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_metadata', 'stats_from_bamcheck', ["$bamcheck_exe $opts $ifile > $ofile", $req, {output_files => [$check_file]}]);
                 }
             }
         };
@@ -78,13 +103,37 @@ class VRPipe::Steps::bam_metadata with VRPipe::StepRole {
             # parse the bamcheck file
             my $parser = VRPipe::Parser->create('bamcheck', {file => $check_file});
             open(my $ifh, $check_path) || die "could not open $check_path\n";
-            $new_meta->{reads} = $parser->sequences;
-            $new_meta->{paired} = $parser->is_paired;
-            $new_meta->{bases} = $parser->total_length;
-            $new_meta->{forward_reads} = $parser->first_fragments;
-            $new_meta->{reverse_reads} = $parser->last_fragments;
-            $new_meta->{avg_read_length} = $parser->average_length;
-            $new_meta->{insert_size} = $parser->insert_size_average;
+            
+            if ($cmd_line =~ /-d/) {
+                $new_meta->{rmdup_reads} = $parser->sequences;
+                $new_meta->{rmdup_reads_mapped} = $parser->reads_mapped;
+                $new_meta->{rmdup_bases} = $parser->total_length;
+                $new_meta->{rmdup_bases_mapped} = $parser->bases_mapped;
+                $new_meta->{rmdup_bases_mapped_c} = $parser->bases_mapped_cigar;
+                $new_meta->{rmdup_bases_trimmed} = $parser->bases_trimmed;
+            }
+            else {
+                $new_meta->{reads} = $parser->sequences;
+                $new_meta->{reads_mapped} = $parser->reads_mapped;
+                $new_meta->{bases} = $parser->total_length;
+                $new_meta->{bases_mapped} = $parser->bases_mapped;
+                $new_meta->{bases_mapped_c} = $parser->bases_mapped_cigar;
+                $new_meta->{bases_trimmed} = $parser->bases_trimmed;
+                
+                $new_meta->{reads_paired} = $parser->reads_paired;
+                $new_meta->{paired} = $parser->is_paired;
+                $new_meta->{error_rate} = $parser->error_rate;
+                $new_meta->{forward_reads} = $parser->first_fragments;
+                $new_meta->{reverse_reads} = $parser->last_fragments;
+                $new_meta->{avg_read_length} = $parser->average_length;
+                $new_meta->{insert_size} = $parser->insert_size_average;
+                $new_meta->{sd_insert_size} = $parser->insert_size_standard_deviation;
+            }
+            
+            if ($cmd_line =~ /-r/) {
+                # gc-stats?
+            }
+            
             
             # and get other metadata from bam header
             $parser = VRPipe::Parser->create('bam', {file => $bam_file});
