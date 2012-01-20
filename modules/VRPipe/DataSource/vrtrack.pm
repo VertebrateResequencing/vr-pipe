@@ -121,13 +121,103 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return \@elements;
     }
 
-  method lanes_bams( %args ){
-     # add to the argument list to filter on bam files
-     $args{'file_regex'} = 'bam$';
+  method lanes_bams( 
+      Defined :$handle!,
+                  Str|Dir :$local_root_dir!,
+                  ArrayRef :$project?,
+                  ArrayRef :$sample?,
+                  ArrayRef :$individual?,
+                  ArrayRef :$population?,
+                  ArrayRef :$platform?,
+                  ArrayRef :$centre?,
+                  ArrayRef :$library?,
+                  Str :$project_regex?,
+                  Str :$sample_regex?,
+                  Str :$library_regex?, 
+                  Str :$file_regex?, 
+                  Bool :$import?,
+                  Bool :$qc?,
+                  Bool :$mapped?,
+                  Bool :$stored?,
+                  Bool :$deleted?,
+                  Bool :$swapped?,
+                  Bool :$altered_fastq?,
+                  Bool :$improved?,
+                  Bool :$snp_called?
+     ){
+    my %args; 
+    # a utility function to do this in one go would be nice 
+    $args{handle} = $handle if defined($handle);
+    $args{local_root_dir} = $local_root_dir if defined($local_root_dir);
+    $args{project} = $project if defined($project);
+    $args{sample} = $sample if defined($sample);
+    $args{individual} = $population if defined($population);
+    $args{platform} = $platform if defined($platform);
+    $args{centre} = $centre if defined($centre);
+    $args{library} = $library if defined($library);
+    $args{project_regex} = $project_regex if defined($project_regex);
+    $args{sample_regex} = $sample_regex if defined($sample_regex);
+    $args{library_regex} = $library_regex if defined($library_regex);
+    $args{import} = $import if defined($import);
+    $args{qc} = $qc if defined($qc);
+    $args{mapped} = $mapped if defined($mapped);
+    $args{stored} = $stored if defined($stored);
+    $args{deleted} = $deleted if defined($deleted);
+    $args{swapped} = $swapped if defined($swapped);
+    $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
+    $args{improved} = $improved if defined($improved);
+    $args{snp_called} = $snp_called if defined($snp_called);
+    # add to the argument list to filter on bame files
+    $args{'file_regex'} = 'bam$';
     return $self->_lanes_files(%args);
   }
-
-  method lanes_fastqs( %args  ){
+      
+  method lanes_fastqs(
+           Defined :$handle!,
+                  Str|Dir :$local_root_dir!,
+                  ArrayRef :$project?,
+                  ArrayRef :$sample?,
+                  ArrayRef :$individual?,
+                  ArrayRef :$population?,
+                  ArrayRef :$platform?,
+                  ArrayRef :$centre?,
+                  ArrayRef :$library?,
+                  Str :$project_regex?,
+                  Str :$sample_regex?,
+                  Str :$library_regex?, 
+                  Str :$file_regex?, 
+                  Bool :$import?,
+                  Bool :$qc?,
+                  Bool :$mapped?,
+                  Bool :$stored?,
+                  Bool :$deleted?,
+                  Bool :$swapped?,
+                  Bool :$altered_fastq?,
+                  Bool :$improved?,
+                  Bool :$snp_called?
+     ){
+    # a utility function to do this in one go would be nice
+    my %args; 
+    $args{handle} = $handle if defined($handle);
+    $args{local_root_dir} = $local_root_dir if defined($local_root_dir);
+    $args{project} = $project if defined($project);
+    $args{sample} = $sample if defined($sample);
+    $args{individual} = $population if defined($population);
+    $args{platform} = $platform if defined($platform);
+    $args{centre} = $centre if defined($centre);
+    $args{library} = $library if defined($library);
+    $args{project_regex} = $project_regex if defined($project_regex);
+    $args{sample_regex} = $sample_regex if defined($sample_regex);
+    $args{library_regex} = $library_regex if defined($library_regex);
+    $args{import} = $import if defined($import);
+    $args{qc} = $qc if defined($qc);
+    $args{mapped} = $mapped if defined($mapped);
+    $args{stored} = $stored if defined($stored);
+    $args{deleted} = $deleted if defined($deleted);
+    $args{swapped} = $swapped if defined($swapped);
+    $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
+    $args{improved} = $improved if defined($improved);
+    $args{snp_called} = $snp_called if defined($snp_called);
     # add to the argument list to filter on fastq files
     $args{'file_regex'} = 'fastq\.gz$';
     return $self->_lanes_files(%args);
