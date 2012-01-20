@@ -7,8 +7,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     eval "use VertRes::Utils::Hierarchy;";
     use Digest::MD5 qw(md5_hex);
     use File::Spec::Functions;
-
-    method description {
+        method description {
         return "Use a VRTrack database to extract information from";
     }
     method source_description {
@@ -43,7 +42,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
       my $digest      = md5_hex join( @$lane_change, map { defined $_ ? $_ : 'NULL' } @$file_md5); 
       return $digest;
   }
- 
+
     method lanes (Defined :$handle!,
                   ArrayRef :$project?,
                   ArrayRef :$sample?,
@@ -122,7 +121,19 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return \@elements;
     }
 
-   method lanes_fastqs ( Defined :$handle!,
+  method lanes_bams( %args ){
+     # add to the argument list to filter on bam files
+     $args{'file_regex'} = 'bam$';
+    return $self->_lanes_files(%args);
+  }
+
+  method lanes_fastqs( %args  ){
+    # add to the argument list to filter on fastq files
+    $args{'file_regex'} = 'fastq\.gz$';
+    return $self->_lanes_files(%args);
+  }
+   
+   method _lanes_files ( Defined :$handle!,
                   Str|Dir :$local_root_dir!,
                   ArrayRef :$project?,
                   ArrayRef :$sample?,
@@ -133,7 +144,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                   ArrayRef :$library?,
                   Str :$project_regex?,
                   Str :$sample_regex?,
-                  Str :$library_regex?,
+                  Str :$library_regex?, 
+                  Str :$file_regex?, 
                   Bool :$import?,
                   Bool :$qc?,
                   Bool :$mapped?,
@@ -144,7 +156,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                   Bool :$improved?,
                   Bool :$snp_called?){
      my $hu = VertRes::Utils::Hierarchy->new();
-        my @lanes = $hu->get_lanes(vrtrack => $handle,
+     my @lanes = $hu->get_lanes(vrtrack => $handle,
                                    $project ? (project => $project) : (),
                                    $sample ? (sample => $sample) : (),
                                    $individual ? (individual => $individual) : (),
@@ -155,7 +167,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                                    $project_regex ? (project_regex => $project_regex) : (),
                                    $sample_regex ? (sample_regex => $sample_regex) : (),
                                    $library_regex ? (library_regex => $library_regex) : ());
-        
         my @elements;
         my $lane_changed_hash;
         foreach my $lane (@lanes) {
@@ -199,6 +210,9 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             my %lane_info = $hu->lane_info($lane->name );
             my @files;
             foreach my $file ( @{ $lane->files } ) {
+                 if( defined $file_regex ) {
+                   next unless $file->name =~ /$file_regex/;
+                 }
                  my $file_abs_path = file( $local_root_dir, $file->name)->stringify; 
                  my $new_metadata = {  
                                      expected_md5 => $file->md5,
