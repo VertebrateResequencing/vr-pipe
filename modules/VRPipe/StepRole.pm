@@ -447,7 +447,9 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
-            $self->throw("The post-processing part of $debug_desc");
+            $self->warn("The post-processing part of $debug_desc");
+            $stepstate->start_over;
+            return 0;
         }
     }
     
