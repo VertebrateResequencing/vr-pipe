@@ -20,6 +20,7 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
         my $path = $self->file;
         my $records = `samtools view -c $path`;
         ($records) = $records =~ /^(\d+)/m;
+        $records ||= 0;
         return $records;
     }
 }
