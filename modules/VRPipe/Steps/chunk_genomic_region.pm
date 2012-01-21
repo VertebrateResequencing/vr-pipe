@@ -7,7 +7,7 @@ class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
 				chrom_list =>  VRPipe::StepOption->get(description => 'Names of Chromosomes to split', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y' ),
 				chunk_size => VRPipe::StepOption->get(description => 'Split file chunk size', optional => 1, default_value => 100000000),
 				chunks_overlap => VRPipe::StepOption->get(description => 'chunk overlap size', optional => 1, default_value => 0),
-				ploidy_definition => VRPipe::StepOption->get(description => "ploidy structure definition, eg {default=>2,X=>[{region=>'1-60000',M=>1},{region=>'2699521-154931043',M=>1},],Y=>[{region=>'1-59373566',M=>1,F=>0},],}", optional => 1),
+				pseudo_autosomal_definition => VRPipe::StepOption->get(description => "structure definition if restricting sex chromosomes to pseudo_autosomal regions, eg {X=>[{region=>'1-60000'},{region=>'2699521-154931043'}],Y=>[{region=>'1-59373566'},],}", optional => 1),
 		};
 	}
     method inputs_definition {
@@ -23,14 +23,14 @@ class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
 			my $chrom_list = $options->{chrom_list};
 			my $chunk_size = $options->{chunk_size};
 			my $chunks_overlap = $options->{chunks_overlap};
-			my $ploidy_definition = $options->{ploidy_definition};
-			$ploidy_definition  =~ s/'/#/g;	# avoids parsing problems when passing args
+			my $pseudo_autosomal_definition = $options->{pseudo_autosomal_definition};
+			$pseudo_autosomal_definition  =~ s/'/#/g;	# avoids parsing problems when passing args
 
 			my $chunked_regions_file = $self->output_file(output_key => 'chunked_regions_file', basename => 'regions.txt', type => 'txt');
 			my $chunked_regions_file_path = $chunked_regions_file->path;
 
             my $req = $self->new_requirements(memory => 500, time => 1);
-			my $cmd = "use VRPipe::Steps::chunk_genomic_region; VRPipe::Steps::chunk_genomic_region->write_chunked_regions_file('$chunking_regions_file', '$chunked_regions_file_path', '$chrom_list', '$chunk_size', '$chunks_overlap', '$ploidy_definition');";
+			my $cmd = "use VRPipe::Steps::chunk_genomic_region; VRPipe::Steps::chunk_genomic_region->write_chunked_regions_file('$chunking_regions_file', '$chunked_regions_file_path', '$chrom_list', '$chunk_size', '$chunks_overlap', '$pseudo_autosomal_definition');";
 
 			$self->dispatch_vrpipecode($cmd, $req, {output_files => [$chunked_regions_file]});
 		};
@@ -49,14 +49,14 @@ class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
         return 0; # meaning unlimited
     }
 
-    method write_chunked_regions_file (ClassName|Object $self: Str|File $chunking_regions_file, Str|File $chunked_regions_file_path, Str $chrom_list, PositiveInt $chunk_size, Int $chunks_overlap, Str $ploidy_definition) {
+    method write_chunked_regions_file (ClassName|Object $self: Str|File $chunking_regions_file, Str|File $chunked_regions_file_path, Str $chrom_list, PositiveInt $chunk_size, Int $chunks_overlap, Str $pseudo_autosomal_definition) {
         
 			my $chroms = [split(' ',$chrom_list)];
-			my $ploidy;
-			if ($ploidy_definition) {
-				$ploidy_definition  =~ s/#/'/g;
-				eval '$ploidy='.$ploidy_definition;
-				die "Failed to define ploidy:$@" if $@;
+			my $pseudo_autosomal;
+			if ($pseudo_autosomal_definition) {
+				$pseudo_autosomal_definition  =~ s/#/'/g;
+				eval '$pseudo_autosomal='.$pseudo_autosomal_definition;
+				die "Failed to define pseudo_autosomal:$@" if $@;
 			}
 
 			my $reg_file = VRPipe::File->get(path => $chunking_regions_file);
@@ -76,12 +76,12 @@ class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
 					}
 					if ( !defined $chr ) { next; }
 
-					if ( !exists($ploidy->{$chr}) )
+					if ( !exists($pseudo_autosomal->{$chr}) )
 					{
 						push @chr_regions, { chr=>$chr, from=>$from, to=>$to };
 						next;
 					}
-					for my $reg (@{$ploidy->{$chr}})
+					for my $reg (@{$pseudo_autosomal->{$chr}})
 					{
 						my ($start,$end) = split(/-/,$$reg{region});
 						if ( $start>$from )
