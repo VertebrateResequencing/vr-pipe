@@ -5,7 +5,7 @@ class VRPipe::Pipelines::bam_mapping_with_stampy with VRPipe::PipelineRole {
         return 'bam_mapping_with_stampy';
     }
     method _num_steps {
-        return 12;
+        return 11;
     }
     method description {
         return 'Map reads in bam files to a reference genome with stampy (and bwa)';
@@ -25,8 +25,7 @@ class VRPipe::Pipelines::bam_mapping_with_stampy with VRPipe::PipelineRole {
                   VRPipe::Step->get(name => 'stampy_map_fastq'), #8
                   VRPipe::Step->get(name => 'sam_to_fixed_bam'), #9
                   VRPipe::Step->get(name => 'bam_merge_lane_splits'), #10
-                  VRPipe::Step->get(name => 'bam_reheader'), #11
-                  VRPipe::Step->get(name => 'bam_stats') #12
+                  VRPipe::Step->get(name => 'bam_stats') #11
                  ],
                  
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 5, to_key => 'bam_files'),
@@ -35,14 +34,12 @@ class VRPipe::Pipelines::bam_mapping_with_stampy with VRPipe::PipelineRole {
                    VRPipe::StepAdaptorDefiner->new(from_step => 7, to_step => 8, from_key => 'split_fastq_files', to_key => 'fastq_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 8, to_step => 9, from_key => 'stampy_sam_files', to_key => 'sam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 9, to_step => 10, from_key => 'fixed_bam_files', to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 10, to_step => 11, from_key => 'merged_lane_bams', to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 11, from_key => 'reference_dict', to_key => 'dict_file'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 11, to_step => 12, from_key => 'headed_bam_files', to_key => 'bam_files') ],
+                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 10, from_key => 'reference_dict', to_key => 'dict_file'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 10, to_step => 11, from_key => 'merged_lane_bams', to_key => 'bam_files') ],
                  
                  [ VRPipe::StepBehaviourDefiner->new(after_step => 8, behaviour => 'delete_outputs', act_on_steps => [5, 6, 7], regulated_by => 'cleanup', default_regulation => 1),
                    VRPipe::StepBehaviourDefiner->new(after_step => 9, behaviour => 'delete_outputs', act_on_steps => [8], regulated_by => 'cleanup', default_regulation => 1),
-                   VRPipe::StepBehaviourDefiner->new(after_step => 10, behaviour => 'delete_outputs', act_on_steps => [9], regulated_by => 'cleanup', default_regulation => 1),
-                   VRPipe::StepBehaviourDefiner->new(after_step => 11, behaviour => 'delete_outputs', act_on_steps => [10], regulated_by => 'cleanup', default_regulation => 1) ]);
+                   VRPipe::StepBehaviourDefiner->new(after_step => 10, behaviour => 'delete_outputs', act_on_steps => [9], regulated_by => 'cleanup', default_regulation => 1) ]);
     }
 }
 
