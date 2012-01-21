@@ -324,6 +324,8 @@ class VRPipe::Job extends VRPipe::Persistent {
             $multiplier = 1;
         }
         
+        $self->debug("   -- checking if unresponsive with a heartbeat interval of $interval, elapsed time of $elapsed s since last heartbeat, and multiplier $multiplier");
+        
         return $elapsed > ($interval * $multiplier) ? 1 : 0;
     }
     
@@ -338,6 +340,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         }
         $self->running(0);
         $self->finished(1);
+        $self->end_time(DateTime->now());
         $self->exit_code(9);
         $self->update;
     }

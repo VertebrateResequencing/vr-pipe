@@ -92,7 +92,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             unless ($meta->{platform} eq $info->{PL} && $meta->{platform} eq $platform) {
                 push @fails, "platform metadata in db, bam header and sequence index do not agree: $$meta{platform}, $$info{PL}, $platform";
             }
-            unless ($meta->{study} eq $info->{DS} && $meta->{study} eq $study) {
+            unless ($meta->{study} =~ /$$info{DS}/ && $meta->{study} =~ /$study/ && $info->{DS} eq $study) {
                 push @fails, "study metadata in db, bam header and sequence index do not agree: $$meta{study}, $$info{DS}, $study";
             }
             unless ($meta->{population} eq $population) {

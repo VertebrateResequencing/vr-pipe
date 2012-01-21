@@ -25,18 +25,22 @@ sub get_output_dir {
 
 sub handle_pipeline {
     my $give_up = 1000;
+    my $max_retries = VRPipeTest::max_retries();
+    my $debug = VRPipeTest::debug();
+    $manager->set_verbose_global(1) if $debug;
     while (1) {
         last if ($manager->trigger && all_pipelines_started());
         last if $give_up-- <= 0;
-        $manager->handle_submissions;
+        $manager->handle_submissions(max_retries => $max_retries);
         
         # check for repeated failures
         my $submissions = $manager->unfinished_submissions();
         if ($submissions) {
             foreach my $sub (@$submissions) {
                 next unless $sub->failed;
-                if ($sub->retries >= 3) {
-                    warn "some submissions failed 3 times, giving up\n";
+                if ($sub->retries >= $max_retries) {
+                    warn "some submissions failed ", ($max_retries + 1), " times, giving up\n";
+                    $manager->set_verbose_global(0) if $debug;
                     return 0;
                 }
             }
@@ -53,6 +57,7 @@ sub handle_pipeline {
         }
     }
     
+    $manager->set_verbose_global(0) if $debug;
     return $all_created;
 }
 

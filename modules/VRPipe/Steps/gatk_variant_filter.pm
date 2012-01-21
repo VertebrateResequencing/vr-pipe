@@ -20,7 +20,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
     }
 
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'one or more tabixed vcf files for hard-filtering variant calls'),
+        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'one or more tabixed vcf files for hard-filtering variant calls'),
 		};
     }
 
@@ -58,7 +58,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
         };
     }
     method outputs_definition {
-        return { filtered_vcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a hard-filtered vcf file for each input vcf') };
+        return { filtered_vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'a hard-filtered vcf file for each input vcf') };
     }
     method post_process_sub {
         return sub { return 1; };

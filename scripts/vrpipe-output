@@ -4,6 +4,7 @@ use warnings;
 
 use VRPipe::FrontEnd;
 use Path::Class;
+use Data::Dumper;
 
 my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of a pipeline into a more usable directory structure.",
                                      opt_spec => [ [],

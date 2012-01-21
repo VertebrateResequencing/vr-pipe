@@ -3,11 +3,13 @@ use VRPipe::Base;
 class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
-                 stampy_map_options => VRPipe::StepOption->get(description => 'options for stampy mapping, excluding the output, input fastq(s), reference and --bwa options',
+                 stampy_map_options => VRPipe::StepOption->get(description => 'options for stampy mapping, excluding the output, input fastq(s), reference, --bwa and --bwaoptions options',
+                                                               optional => 1),
+                 stampy_bwa_options => VRPipe::StepOption->get(description => 'to use bwa for premapping, supply the string you would give to --bwaoptions, excluding the reference',
                                                                optional => 1),
                  stampy_exe => VRPipe::StepOption->get(description => 'path to your stampy.py executable',
                                                        optional => 1,
-                                                       default_value => 'stampy.py')
+                                                       default_value => 'stampy.py'),
                  bwa_exe => VRPipe::StepOption->get(description => 'path to your bwa executable',
                                                     optional => 1,
                                                     default_value => 'bwa') };
@@ -30,7 +32,7 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                                                                            paired => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
                                                                            mate => 'if paired, the path to the fastq that is our mate',
                                                                            chunk => 'if the fastq file was produced by fastq_split Step, the chunk number',
-                                                                           optional => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']};
+                                                                           optional => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method body_sub {
         return sub {
@@ -41,11 +43,19 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
             
             my $stampy_exe = $options->{stampy_exe};
             my $stampy_opts = $options->{stampy_map_options};
-            if ($stampy_opts =~ /$ref|-h|-g|--bwa=|-M|-o|-f/) {
-                $self->throw("stampy_map_options should not include the output, input fastq(s), reference nor --bwa options");
+            if ($stampy_opts =~ /$ref|-h|-g|--bwa=|bwaoptions|-M|-o|-f/) {
+                $self->throw("stampy_map_options should not include the output, input fastq(s), reference, --bwa nor --bwaoptions options");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
+            my $bwa_opts = $options->{stampy_bwa_options};
+            if ($bwa_opts) {
+                if ($bwa_opts =~ /$ref/) {
+                    $self->throw("stampy_bwa_options should not include the reference");
+                }
+                $stampy_opts .= ' --bwa='.$options->{bwa_exe}.' --bwaoptions={'.$bwa_opts.' '.$ref.'}'; # {} instead of "" because of quoting in shell issues
+            }
+            
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy.py', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
             
             my $req = $self->new_requirements(memory => 5900, time => 2);
             my $cmd = $stampy_exe.' '.$stampy_opts." -g $ref -h $ref ";
@@ -81,23 +91,17 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                             $this_cmd = $cmd."-M $fqs[0]";
                         }
                         else {
-                            $this_cmd = $cmds{pe};
                             my $mate_path = $ends->{2};
                             push(@fqs, $mate_path);
                             
-                            unless ($this_cmd =~ /-a/) {
-                                my $insert_size = $fq_meta->{insert_size} || 500;
-                                my $max = $insert_size * 3;
-                                $this_cmd .= " -a $max";
-                            }
-                            $summary_cmd = $this_cmd;
+                            $this_cmd = $cmd."-M $fqs[0],$fqs[1]";
                             
                             $reads += $fqs_by_path{$fqs[1]}->[3]->{reads};
                             $bases += $fqs_by_path{$fqs[1]}->[3]->{bases};
                         }
                         
-                        # add metadata and construct RG line
-                        my $rg_line = '@RG\tID:'.$lane;
+                        # add metadata and construct readgroup info
+                        my $rg_arg = 'ID:'.$lane;
                         my $sam_meta = {lane => $lane,
                                         bases => $bases,
                                         reads => $reads,
@@ -107,32 +111,32 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         if (defined $fq_meta->{library}) {
                             my $lb = $fq_meta->{library};
                             $sam_meta->{library} = $lb;
-                            $rg_line .= '\tLB:'.$lb;
+                            $rg_arg .= ',LB:'.$lb;
                         }
                         if (defined $fq_meta->{sample}) {
                             my $sm = $fq_meta->{sample};
                             $sam_meta->{sample} = $sm;
-                            $rg_line .= '\tSM:'.$sm;
+                            $rg_arg .= ',SM:'.$sm;
                         }
                         if (defined $fq_meta->{insert_size}) {
                             my $pi = $fq_meta->{insert_size};
                             $sam_meta->{insert_size} = $pi;
-                            $rg_line .= '\tPI:'.$pi;
+                            $rg_arg .= ',PI:'.sprintf("%0.0f", $pi); # stampy enforces an int for PL
                         }
                         if (defined $fq_meta->{center_name}) {
                             my $cn = $fq_meta->{center_name};
                             $sam_meta->{center_name} = $cn;
-                            $rg_line .= '\tCN:'.$cn;
+                            $rg_arg .= ',CN:'.$cn;
                         }
                         if (defined $fq_meta->{platform}) {
                             my $pl = $fq_meta->{platform};
                             $sam_meta->{platform} = $pl;
-                            $rg_line .= '\tPL:'.$pl;
+                            $rg_arg .= ',PL:'.$pl;
                         }
                         if (defined $fq_meta->{study}) {
                             my $ds = $fq_meta->{study};
                             $sam_meta->{study} = $ds;
-                            $rg_line .= '\tDS:'.$ds;
+                            $rg_arg .= ',DS:'.$ds;
                         }
                         if (defined $fq_meta->{analysis_group}) {
                             $sam_meta->{analysis_group} = $fq_meta->{analysis_group};
@@ -142,13 +146,13 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         }
                         
                         my $ended = $paired ? 'pe' : 'se';
-                        my $sam_file = $self->output_file(output_key => 'bwa_sam_files',
+                        my $sam_file = $self->output_file(output_key => 'stampy_sam_files',
                                                           basename => $chunk ? "$lane.$ended.$chunk.sam" : "$lane.$ended.sam",
                                                           type => 'txt',
                                                           metadata => $sam_meta);
                         
-                        $this_cmd .= " -r '$rg_line' -f ".$sam_file->path." $ref @sais @fqs";
-                        $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_sam', 'sam_and_check', [$this_cmd, $req, {output_files => [$sam_file]}]);
+                        $this_cmd .= " --readgroup=$rg_arg -o ".$sam_file->path;
+                        $self->dispatch_wrapped_cmd('VRPipe::Steps::stampy_map_fastq', 'map_and_check', [$this_cmd, $req, {output_files => [$sam_file]}]);
                     }
                 }
             }
@@ -185,33 +189,26 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
     }
     
     method map_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($sai_path) = $cmd_line =~ /-f (\S+)/;
-        $sai_path || $self->throw("cmd_line [$cmd_line] had no -f output specified");
+        my ($sam_path) = $cmd_line =~ /-o (\S+)/;
+        $sam_path || $self->throw("cmd_line [$cmd_line] had no -o output specified");
+        $cmd_line =~ s/\{/"/;
+        $cmd_line =~ s/\}/"/;
         
-        my $sai_file = VRPipe::File->get(path => $sai_path);
-        my $expected_reads = $sai_file->metadata->{reads};
+        my $sam_file = VRPipe::File->get(path => $sam_path);
+        my $expected_reads = $sam_file->metadata->{reads};
         
-        $sai_file->disconnect;
-        open(my $efh, "$cmd_line 2>&1 |") || $self->throw("failed to run [$cmd_line]");
+        $sam_file->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $max_processed = 0;
-        while (<$efh>) {
-            warn $_;
-            if (/^\[bwa_aln_core\] (\d+) sequences have been processed/) {
-                my $processed = $1;
-                if ($processed > $max_processed) {
-                    $max_processed = $processed;
-                }
-            }
-        }
-        close($efh);
+        $sam_file->update_stats_from_disc(retries => 3);
+        my $lines = $sam_file->lines;
         
-        if ($max_processed == $expected_reads) {
+        if ($lines > $expected_reads) {
             return 1;
         }
         else {
-            $sai_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $max_processed reads were processed, yet there were $expected_reads reads in the fastq file");
+            $sam_file->unlink;
+            $self->throw("cmd [$cmd_line] failed because $lines lines were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
         }
     }
 }
