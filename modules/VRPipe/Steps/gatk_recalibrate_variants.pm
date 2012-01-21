@@ -50,10 +50,12 @@ class VRPipe::Steps::gatk_recalibrate_variants extends VRPipe::Steps::gatk {
 					$basename =~ s/\.vcf$/.recal.csv/;
 				}
 
-				my $recal_file = $self->output_file(output_key => 'recal_files', basename => $basename, type => 'txt');
+				my $recal_file = $self->output_file(output_key => 'recal_files', basename => $basename, type => 'txt',
+													metadata => {source_vcf => $vcf->path->stringify});
 				my $recal_path = $recal_file->path;
 				$basename =~ s/recal\.csv/tranches/;
-				my $tranches_file = $self->output_file(output_key => 'tranches_files', basename => $basename, type => 'txt');
+				my $tranches_file = $self->output_file(output_key => 'tranches_files', basename => $basename, type => 'txt',
+													metadata => {source_vcf => $vcf->path->stringify});
 				my $tranches_path = $tranches_file->path;
 
 				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T VariantRecalibrator -R $reference_fasta -input $vcf_path -recalFile $recal_path -tranchesFile $tranches_path $var_recal_opts ];
