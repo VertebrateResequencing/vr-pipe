@@ -5,7 +5,7 @@ class VRPipe::Pipelines::snp_calling_gatk_vcf with VRPipe::PipelineRole {
         return 'snp_calling_gatk_vcf';
     }
     method _num_steps {
-        return 6;
+        return 7;
     }
     method description {
         return 'Run gatk universal genotyper and variant filtration/recalibration';

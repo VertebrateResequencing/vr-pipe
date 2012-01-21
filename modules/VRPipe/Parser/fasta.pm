@@ -35,10 +35,6 @@ class VRPipe::Parser::fasta with VRPipe::ParserRole {
                              isa => 'Bool',
                              default => 0);
     
-    has '_lane_tells' => (is => 'rw',
-                          isa => 'HashRef',
-                          default => sub { {} });
-    
 =head2 parsed_record
 
  Title   : parsed_record

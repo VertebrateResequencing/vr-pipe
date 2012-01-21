@@ -484,6 +484,7 @@ role VRPipe::StepRole {
         # use lib for anything that has been added to INC, but only if we're
         # testing, since production cannot (must not) work with temp altered INC
         my $use_lib = '';
+        my $deploy = '';
         if ($deployment eq 'testing') {
             use lib;
             my %orig_inc = map { $_ => 1 } @lib::ORIG_INC;
@@ -496,9 +497,11 @@ role VRPipe::StepRole {
             if (@new_lib) {
                 $use_lib = "use lib(qw(@new_lib)); ";
             }
+            
+            $deploy = 'VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); ';
         }
         
-        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "${use_lib}VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); $code"];
+        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "$use_lib$deploy$code"];
         $self->dispatch([$cmd, $req, $extra_args]);
     }
     

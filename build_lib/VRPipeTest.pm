@@ -1,3 +1,19 @@
+=pod
+
+BEGIN {
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+                    required_exe => [qw(samtools bwa)],
+                    debug => 0,
+                    max_retries => 3);
+    use TestPipelines;
+}
+
+Set debug to 1 and max_retries to 0 when you're trying to investigate really
+obscure issues with a pipeline.
+
+=cut
+
 package VRPipeTest;
 use strict;
 use warnings;
@@ -11,6 +27,8 @@ VRPipe::Persistent::SchemaBase->database_deployment('testing'); # do not change 
 
 use constant WIN32 => $^O eq 'MSWin32';
 my $quote = WIN32 ? q/"/ : q/'/;
+our $max_retries = 3;
+our $debug = 0;
 
 sub import {
     my $class  = shift;
@@ -25,6 +43,12 @@ sub import {
             foreach (@to_check) {
                 skip_all_unless_exists($type => $_);
             }
+        }
+        elsif ($key eq 'max_retries') {
+            $max_retries = $val;
+        }
+        elsif ($key eq 'debug') {
+            $debug = $val;
         }
     }
     
@@ -133,6 +157,13 @@ sub can_execute_path {
 sub is_file_path {
     my $path = shift;
     return 1 if -e $path;
+}
+
+sub debug {
+    return $debug;
+}
+sub max_retries {
+    return $max_retries;
 }
 
 1;

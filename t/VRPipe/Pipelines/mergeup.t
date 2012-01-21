@@ -104,8 +104,7 @@ my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release'
                                                                pipeline => $release_pipeline,
                                                                options => { release_date => '19790320',
                                                                             sequence_index => file(qw(t data datasource.sequence_index))->absolute->stringify,
-                                                                            rg_from_pu => 0,
-                                                                            bai_files_in_source_dir => 0 });
+                                                                            rg_from_pu => 0 });
 
 my @mapping_files;
 my %bams = ('2822_6.pe.bam' => 1, '2822_6.se.bam' => 1, '2822_7.pe.bam' => 2, '2823_4.pe.bam' => 3, '8324_8.pe.bam' => 4);
