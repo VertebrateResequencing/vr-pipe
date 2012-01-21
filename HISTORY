@@ -1,3 +1,4 @@
+0.23    New Stampy mapping pipline. Fixes for SNP and DCC pipelines
 0.22    Critical fix for input files that are relative symlinks
 0.21    SNP discovery pipeline(s) now firming up; fixes for merging
         pipelines
