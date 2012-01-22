@@ -330,8 +330,11 @@ foreach my $element (@$elements) {
             # existance of this file)
             symlink($source, $dest);
             if ($print) {
-                $frontend->output($output_file->md5, "\t") if ($md5 && $output_file->md5);
-                $frontend->output($dest);
+                if ($md5 && $output_file->md5) {
+                    $frontend->output($output_file->md5, "\t", $dest);
+                } else {
+                    $frontend->output($dest);
+                }
             }
         }
     }
