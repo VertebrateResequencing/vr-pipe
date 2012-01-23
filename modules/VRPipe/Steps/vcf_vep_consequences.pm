@@ -16,6 +16,7 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
                                                             max_files => -1),
         		vep_txt => VRPipe::StepIODefinition->get(type => 'txt',
                                                              description => 'vep analysis output file',
+                                                             metadata => {source_vcf => 'the vcf file analysed by the VEP'},
                                                              max_files => -1) };
     }
 	method body_sub {
@@ -33,10 +34,18 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
 
 			my $req = $self->new_requirements(memory => 5000, time => 1);
 
-			my $i;
-			for($i=0;$i<@{$self->inputs->{vcf_files}};$i++) {
-				my $vcf_file = $self->inputs->{vcf_files}[$i];
-				my $vep_txt = $self->inputs->{vep_txt}[$i];
+			# put vep file metadata into hash for vcf name lookup
+			my(%vep_files);
+            foreach my $vep ( @{$self->inputs->{vep_txt}} ) {
+                my $path = $vep->path->stringify;
+                my $vep_meta = $vep->metadata;
+                my $source_vcf = $vep_meta->{source_vcf};
+				$vep_files{$source_vcf}=$path;
+            }
+
+            foreach my $vcf_file( @{$self->inputs->{vcf_files}} ) {
+				my $input_path = $vcf_file->path;
+                my $vep_txt_path = $vep_files{$input_path} || $self->throw("got no recal file for $input_path");
 
 				my $basename = $vcf_file->basename;
 				if ($basename =~ /\.vcf.gz$/) {
@@ -48,9 +57,7 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
 				my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename, type => 'vcf');
 				my $tbi = $self->output_file(output_key => 'tbi_file', basename => $basename.'.tbi', type => 'bin');
 
-				my $input_path = $vcf_file->path;
 				my $output_path = $conseq_vcf->path;
-				my $vep_txt_path = $vep_txt->path;
 
 				my $this_cmd = "$con_exe -v $input_path -i $vep_txt_path $con_opts | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path";
 
