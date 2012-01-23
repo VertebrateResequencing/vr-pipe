@@ -50,6 +50,17 @@ my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
                                                                    snp_binary_file => $snp_bin,
                                                                    glf_exe => $glf_exe});
 
-ok handle_pipeline(), 'pipeline ran ok';
+my (@output_files,@final_files);
+my $element_id=0;
+foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
+	$element_id++;
+    push(@output_files, file($checking_output_dir, output_subdirs($element_id), '1_genotype_mpileup_wgs', "${in}.bam.bcf"));
+    push(@final_files, file($checking_output_dir, output_subdirs($element_id), '2_genotype_checking', "${in}.bam.bcf.gtypex"));
+    push(@final_files, file($checking_output_dir, output_subdirs($element_id), '3_genotype_analysis', "${in}.bam.gtype"));
+}
+
+ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
+
+done_testing;
 
 finish;
