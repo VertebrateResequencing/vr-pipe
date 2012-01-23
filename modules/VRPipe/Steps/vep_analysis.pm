@@ -36,7 +36,8 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 					$basename .= '.vep.txt';
 					$cat_exe = 'cat';
 				}
-				my $vep_txt = $self->output_file(output_key => 'vep_txt', basename => $basename, type => 'txt');
+				my $vep_txt = $self->output_file(output_key => 'vep_txt', basename => $basename, type => 'txt',
+													metadata => {source_vcf => $vcf_file->path->stringify});
 
 				my $input_path = $vcf_file->path;
 				my $output_path = $vep_txt->path;
