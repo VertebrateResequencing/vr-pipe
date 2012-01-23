@@ -221,6 +221,10 @@ SKIP: {
     $file->update;
     ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
     
+    # return db to original state so running this test again will work
+    $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
+    $file->update;
+    
    ### lane_fastqs tests    
    ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
                                  method => 'lanes_fastqs',

@@ -153,21 +153,26 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
 my @expected_header_lines = ("\@HD\tVN:1.0\tSO:coordinate",
                              "\@SQ\tSN:fake_chr1\tLN:290640\tM5:55f9584cf1f4194f13bbdc0167e0a05f\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
                              "\@SQ\tSN:fake_chr2\tLN:1716851\tM5:6dd2836053e5c4bd14ad49b5b2f2eb88\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
-                             "\@RG\tID:2823_4\tLB:LIB02\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
+                             "\@RG\tID:2823_4\tLB:LIB02\tSM:SAMPLE01\tPI:195\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@RG\tID:2822_6\tLB:LIB01\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@RG\tID:2822_7\tLB:LIB01\tSM:SAMPLE01\tPI:205\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@PG\tID:bwa_index\tPN:bwa\tVN:$bwa_version\tCL:bwa index -a is \$reference_fasta",
                              "\@PG\tID:bwa_aln_fastq\tPN:bwa\tPP:bwa_index\tVN:$bwa_version\tCL:bwa aln -q 15 -f \$sai_file \$reference_fasta \$fastq_file",
                              "\@PG\tID:bwa_sam\tPN:bwa\tPP:bwa_aln_fastq\tVN:$bwa_version\tCL:bwa sampe -a 600 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
                              "\@PG\tID:bwa_sam.1\tPN:bwa\tPP:bwa_aln_fastq\tVN:$bwa_version\tCL:bwa sampe -a 615 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
+                             "\@PG\tID:bwa_sam.2\tPN:bwa\tPP:bwa_aln_fastq\tVN:$bwa_version\tCL:bwa sampe -a 585 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",
                              "\@PG\tID:sam_to_fixed_bam\tPN:samtools\tPP:bwa_sam\tVN:$samtools_version\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
                              "\@PG\tID:sam_to_fixed_bam.1\tPN:samtools\tPP:bwa_sam.1\tVN:$samtools_version\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
+                             "\@PG\tID:sam_to_fixed_bam.2\tPN:samtools\tPP:bwa_sam.2\tVN:$samtools_version\tCL:samtools view -bSu \$sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - \$reference_fasta > \$fixed_bam_file",
                              "\@PG\tID:bam_merge\tPN:picard\tPP:sam_to_fixed_bam\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
                              "\@PG\tID:bam_merge.1\tPN:picard\tPP:sam_to_fixed_bam.1\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.2\tPN:picard\tPP:sam_to_fixed_bam.2\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
                              "\@PG\tID:bam_mark_duplicates\tPN:picard\tPP:bam_merge\tVN:$picard_version\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
                              "\@PG\tID:bam_mark_duplicates.1\tPN:picard\tPP:bam_merge.1\tVN:$picard_version\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
-                             "\@PG\tID:bam_merge.2\tPN:picard\tPP:bam_mark_duplicates\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
-                             "\@PG\tID:bam_merge.1.2\tPN:picard\tPP:bam_mark_duplicates.1\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT");
+                             "\@PG\tID:bam_mark_duplicates.2\tPN:picard\tPP:bam_merge.2\tVN:$picard_version\tCL:java \$jvm_args -jar MarkDuplicates.jar INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.3\tPN:picard\tPP:bam_mark_duplicates\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.1.3\tPN:picard\tPP:bam_mark_duplicates.1\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT",
+                             "\@PG\tID:bam_merge.2.3\tPN:picard\tPP:bam_mark_duplicates.2\tVN:$picard_version\tCL:java \$jvm_args -jar MergeSamFiles.jar INPUT=\$bam_file(s) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT");
 
 my @header_lines = get_bam_header($split_files[0]);
 is_deeply \@header_lines, \@expected_header_lines, 'split bam header is okay';

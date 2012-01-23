@@ -215,7 +215,6 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my $branch = 1;
         my $dup_id = 1;
         while (@{$chains{$readgroups[-1]}}) {
-            my $duplicated_pid = 0;
             foreach my $readgroup (@readgroups) {
                 my $program = shift @{$chains{$readgroup}};
                 
@@ -231,8 +230,11 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 
                 if (exists $pg_lines{"$pid"} && !(exists $pg_lines{"$pid"}->{"$pp"}->{"$pn"}->{"$pv"}->{"$cl"})) {
                     if (exists $pg_lines{"$pid"}->{"$pp"}) {
+                        while (exists $pg_lines{"$pid.$dup_id"}) {
+                            last if (exists $pg_lines{"$pid.$dup_id"}->{"$pp"}->{"$pn"}->{"$pv"}->{"$cl"});
+                            $dup_id++;
+                        }
                         $pid .= ".$dup_id";
-                        $duplicated_pid = 1;
                     } else {
                         $pid .= ".$branch";
                         $branch++;
@@ -244,7 +246,6 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 $pg_lines{"$pid"}->{"$pp"}->{"$pn"}->{"$pv"}->{"$cl"} = 1;
                 $pp{$readgroup} = $pid;
             }
-            $dup_id++ if ($duplicated_pid);
         }
         return @program_chain;
     }
