@@ -48,6 +48,33 @@ my $stats_pipelinesetup = VRPipe::PipelineSetup->get(name => 'graphs_and_stats',
                                                        pipeline => $stats_pipeline,
                                                        options => {reference_fasta => $ref_fa, reference_fasta_stats =>$ref_fa_stats});
 
-ok handle_pipeline(), 'pipeline ran ok';
+my (@output_files,@final_files);
+my $element_id=0;
+my $sample = "NA20526";
+
+foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
+	$element_id++;
+    push(@output_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "${in}.bam.bamcheck"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-coverage.gp"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-content.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-insert-size.gp"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals3.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals-hm.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-acgt-cycles.gp"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-coverage.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-depth.gp"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-insert-size.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals.gp"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-acgt-cycles.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-content.gp"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-depth.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals2.png"));
+    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals-hm.gp"));
+}
+
+ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
+
+done_testing;
 
 finish;
