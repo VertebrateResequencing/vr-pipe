@@ -25,7 +25,7 @@ class VRPipe::Pipelines::genotype_checking_wgs with VRPipe::PipelineRole {
                    VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'gtypex_files_with_metadata', to_key => 'gtypex_files'),
                    ],
                  
-                 [ VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1),]);
+                 [ VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0),]);
     }
 }
 
