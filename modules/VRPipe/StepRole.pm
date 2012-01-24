@@ -2,6 +2,7 @@ use VRPipe::Base;
 
 role VRPipe::StepRole {
     use Digest::MD5;
+    use VRPipe::StepStatsUtil;
     
     method name {
         my $class = ref($self);
@@ -454,13 +455,26 @@ role VRPipe::StepRole {
     }
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
-        # user can override settings set in the step body_sub by providing
-        # options
+        # get the current mean+2sd memory and time of past runs of this step
+        my $ssu = VRPipe::StepStatsUtil->new(step => $self);
+        my $rec_mem = $ssu->recommended_memory;
+        my $rec_time = $ssu->recommended_time;
+        
+        # if we have recommendations, override the settings passed in from the
+        # step body_sub
+        if ($rec_mem) {
+            $memory = $rec_mem;
+        }
+        if ($rec_time) {
+            $time = $rec_time;
+        }
+        
+        # user can override by providing pipelinesetup options
         my $options = $self->options;
-        if (defined $options->{memory_override}) {
+        if (defined $options->{memory_override} && $options->{memory_override} > $memory) {
             $memory = $options->{memory_override};
         }
-        if (defined $options->{time_override}) {
+        if (defined $options->{time_override} && $options->{time_override} > $time) {
             $time = $options->{time_override};
         }
         #*** and the other resources?...

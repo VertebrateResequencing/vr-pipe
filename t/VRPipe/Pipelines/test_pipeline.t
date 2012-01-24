@@ -4,9 +4,11 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 20;
+    use Test::Most tests => 28;
     use VRPipeTest;
     use TestPipelines;
+    
+    use_ok('VRPipe::StepStatsUtil');
 }
 
 my $output_dir = get_output_dir('test_pipeline');
@@ -23,8 +25,10 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 $pipeline = VRPipe::Pipeline->get(name => 'test_pipeline');
 @s_names = ();
 my @s_nums = ();
+my $last_step;
 foreach my $stepmember ($pipeline->steps) {
-    push(@s_names, $stepmember->step->name);
+    $last_step = $stepmember->step;
+    push(@s_names, $last_step->name);
     push(@s_nums, $stepmember->step_number);
 }
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps after a second retrieval';
@@ -51,6 +55,11 @@ my $test_pipelinesetup_clean = VRPipe::PipelineSetup->get(name => 'my test pipel
                                                           options => {all_option => 'foo',
                                                                       one_option => 50,
                                                                       four_option => 'bar'});
+
+# before the step has ever been run, there is no recommended memory or time
+ok my $ssu = VRPipe::StepStatsUtil->new(step => $last_step), 'able to make a StepStatsUtil object';
+is $ssu->recommended_memory, undef, 'recommended_memory returns undef to start with';
+is $ssu->recommended_time, undef, 'recommended_time returns undef to start with';
 
 my (@output_files, @final_files, @deleted_files);
 my $element_id = 0;
@@ -151,5 +160,11 @@ foreach my $i (0..$#output_files) {
     }
 }
 is_deeply [$oks, -e $orig_file->path, $orig_final->e, $new_final->e], [12, undef, 0, 1], 'only the final step file we deleted was recreated (with a new name) - not the step 3 file we moved';
+
+# now that the step has run a number of times, we should have recommended reqs
+is $ssu->recommended_memory, 1, 'recommended_memory returns a new value at the end';
+is $ssu->recommended_time, 1, 'recommended_time returns new value at the end';
+is $ssu->recommended_time(pipelinesetup => $test_pipelinesetup_clean), 1, 'recommended_time can return values specific to a particular pipelinesetup';
+is_deeply [($ssu->mean_seconds())[0], ($ssu->mean_seconds(pipelinesetup => $test_pipelinesetup_clean))[0]], [6, 3], 'mean_time gives the correct counts the recommendations are based on';
 
 finish;
