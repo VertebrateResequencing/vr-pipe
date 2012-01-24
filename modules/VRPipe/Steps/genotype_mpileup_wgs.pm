@@ -3,21 +3,20 @@ use VRPipe::Base;
 class VRPipe::Steps::genotype_mpileup_wgs with VRPipe::StepRole {
 
 	method options_definition {
-        return { 
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
-        		 snp_binary_file => VRPipe::StepOption->get(description => 'absolute path to snp binary file used for genotyping'),
+        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
         		 samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools'),
-                 bin2hapmap_exe => VRPipe::StepOption->get(description => 'path to your hapmap2bin executable',
-                                                           optional => 1,
-                                                           default_value => 'bin2hapmap')
+                 samtools_options => VRPipe::StepOption->get(description => 'options provided for samtools mpileup', 
+                                                             optional => 1, 
+                                                             default_value => '-ugDI -d 1000')
         };
     }
 
     method inputs_definition {
         return { 
-        		 bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'bam files for bcf production')
+        		 bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'bam files for bcf production'),
+        		 hapmap_file => VRPipe::StepIODefinition->get(type => 'txt', description => 'text file with the hapmap output from the snp binary file'),
         };
     }
     
@@ -27,10 +26,9 @@ class VRPipe::Steps::genotype_mpileup_wgs with VRPipe::StepRole {
             my $options = $self->options;
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
-            my $snp_file = Path::Class::File->new($options->{snp_binary_file});
-            $self->throw("snp_binary_file must be an absolute path") unless $snp_file->is_absolute;
-            my $bin2hapmap = $options->{bin2hapmap_exe};
             my $samtools = $options->{samtools_exe};
+            my $samtools_options = $options->{samtools_options};
+            my $hapmap_path = $self->inputs->{hapmap_file}->[0]->path;
             my $req = $self->new_requirements(memory => 3900, time => 1);
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_path = $bam->path;
@@ -56,10 +54,8 @@ class VRPipe::Steps::genotype_mpileup_wgs with VRPipe::StepRole {
                                               type => 'bin',
                                               metadata => {sample => $sample});
                 my $bcf_path = $bcf_file->path;
-            	my $tmp_snp_1 = $self->output_file(output_key => 'tmp_files', basename => $bam_basename.'.tmp_1', type => 'txt', temporary => 1);
-            	my $tmp_file_1 = $tmp_snp_1->path;
-            	my $cmd = qq[$bin2hapmap -l $snp_file > $tmp_file_1 && $samtools mpileup -ugDI -d 1000 -l $tmp_file_1 -f $ref $bam_path > $bcf_path];
-                $self->dispatch([$cmd, $req, {output_files => [$bcf_file, $tmp_snp_1]}]);
+            	my $cmd = qq[$samtools mpileup $samtools_options -l $hapmap_path -f $ref $bam_path > $bcf_path];
+                $self->dispatch([$cmd, $req, {output_files => [$bcf_file]}]);
             }
         return 1;
         };
@@ -70,11 +66,7 @@ class VRPipe::Steps::genotype_mpileup_wgs with VRPipe::StepRole {
                                                                   max_files => -1,
                                                                   description => 'bcf file produced for bam file using samtools',
                                                                   metadata => {sample => 'sample name'}
-                                                                  ),
-                 tmp_files => VRPipe::StepIODefinition->get(type => 'txt',
-                                                                  max_files => -1,
-                                                                  description => 'tmp files used for samtools and mpileup ',
-                                                                  )	
+                                                                  )
          };
     }
     
@@ -82,7 +74,7 @@ class VRPipe::Steps::genotype_mpileup_wgs with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "This step creates a bcf file from a bam file for wgs studies";
+        return "This step uses samtools mpileup to create a bcf file from a bam file using a hapmap file";
     }
     method max_simultaneous {
         return 0;

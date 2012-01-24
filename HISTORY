@@ -1,3 +1,4 @@
+0.25    New StepStats system for quick access to memory/time used stats
 0.24    Critical fix for mapping pipeline
 0.23    New Stampy mapping pipline. Fixes for SNP and DCC pipelines
 0.22    Critical fix for input files that are relative symlinks
