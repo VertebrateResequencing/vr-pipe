@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 class VRPipe::Utils::java {
+    use POSIX qw(ceil);
+    
     has 'java_exe' => (is => 'ro',
                        isa => 'Str',
                        default => 'java');
@@ -10,7 +12,10 @@ class VRPipe::Utils::java {
                                 default => 0.9);
     
     method jvm_args (ClassName|Object $self: Int $memory, Str|Dir $dir?) {
-        my $java_mem = int($memory * $self->memory_multiplier);
+        my $java_mem = ceil($memory * $self->memory_multiplier);
+        if ($java_mem < 50) {
+            $java_mem = 50;
+        }
         my $xss = 280;
         if ($java_mem > 1000)
         {
