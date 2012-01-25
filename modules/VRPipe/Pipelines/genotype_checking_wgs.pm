@@ -15,10 +15,10 @@ class VRPipe::Pipelines::genotype_checking_wgs with VRPipe::PipelineRole {
     }
     
     method _step_list {
-        return ([ VRPipe::Step->get(name => 'snp_bin_to_hapmap'),#1
-                  VRPipe::Step->get(name => 'genotype_mpileup_wgs'),#2
-                  VRPipe::Step->get(name => 'genotype_checking'),#3
-                  VRPipe::Step->get(name => 'genotype_analysis'),#4
+        return ([ VRPipe::Step->get(name => 'snp_bin_hapmap_sites'),#1
+                  VRPipe::Step->get(name => 'mpileup_bcf_hapmap'),#2
+                  VRPipe::Step->get(name => 'glf_check_genotype'),#3
+                  VRPipe::Step->get(name => 'gtypex_genotype_analysis'),#4
                   ],
                  
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'hapmap_file'),

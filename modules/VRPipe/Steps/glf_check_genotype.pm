@@ -1,12 +1,15 @@
 use VRPipe::Base;
 
-class VRPipe::Steps::genotype_checking with VRPipe::StepRole {
+class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
 
 	method options_definition {
         return { snp_binary_file => VRPipe::StepOption->get(description => 'absolute path to binary file used for genotyping'),
-        		 glf_exe => VRPipe::StepOption->get(description => 'path to your glf executable',
+        		 glf_exe => VRPipe::StepOption->get(description => 'path to the glf executable',
                                                     optional => 1,
-                                                    default_value => 'glf')
+                                                    default_value => 'glf'),
+                 glf_options => VRPipe::StepOption->get(description => 'options for glf executable',
+                                                    optional => 1,
+                                                    default_value => 'checkGenotype -s -')
                };
     }
     
@@ -27,22 +30,19 @@ class VRPipe::Steps::genotype_checking with VRPipe::StepRole {
             my $snp_bin = Path::Class::File->new($options->{snp_binary_file});
             $self->throw("snp_binary_file must be an absolute path") unless $snp_bin->is_absolute;
             my $glf_exe = $options->{glf_exe};
+            my $glf_options = $options->{glf_options};
             my $req = $self->new_requirements(memory => 3900, time => 1);
             foreach my $bcf (@{$self->inputs->{bcf_files}}) {
                 my $bcf_path = $bcf->path;
                 my $bcf_basename = $bcf->basename;
                 my $meta = $bcf->metadata;
-                my $sample;
-                if ($meta->{sample}) {
-                	$sample = $meta->{sample};
-                }
-                $self->throw("unable to obtain sample name metadata from the bcf file") unless $sample;
+                my $sample = $meta->{sample};
                 my $gtypex_file = $self->output_file(output_key => 'gtypex_files_with_metadata',
                                               basename => $bcf_basename.'.gtypex',
                                               type => 'txt',
                                               metadata => {sample => $sample});
                 my $gtypex_path = $gtypex_file->path;
-            	my $cmd = qq[$glf_exe checkGenotype -s - $snp_bin $bcf_path > $gtypex_path];
+            	my $cmd = qq[$glf_exe $glf_options $snp_bin $bcf_path > $gtypex_path];
                 $self->dispatch([$cmd, $req, {output_files => [$gtypex_file]}]);	
             }
        };
@@ -61,7 +61,7 @@ class VRPipe::Steps::genotype_checking with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "This step performs checkGenotype using glf on bcf files";
+        return "Produces gtypex files of genotype likelihood scores for sample genotypes which are calculated by running glf checkGenotype against a snp binary file (of all samples) on bcf files";
     }
     
     method max_simultaneous {

@@ -9,8 +9,14 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
 					optional => 1, 
 					default_value => '-C50 -aug'),
 			   reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-			   max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', 
-					optional => 1, 
+			   bcftools_exe => VRPipe::StepOption->get(description => 'path to bcftools executable',
+					   optional => 1,
+					   default_value => 'bcftools'),
+			   bcftools_view_options => VRPipe::StepOption->get(description => 'bcftools view options',
+					   optional => 1,
+					   default_value => '-gcv'),
+			   max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line',
+					optional => 1,
 					default_value => 10),
 			   interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -l option', 
 					optional => 1,),
@@ -22,7 +28,6 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
 
     method body_sub {
         return sub {
-
             my $self = shift;
             my $options = $self->options;
             my $samtools = $options->{samtools_exe};
