@@ -1,0 +1,157 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use VRPipe::FrontEnd;
+use VRPipe::StepStatsUtil;
+
+my $frontend = VRPipe::FrontEnd->new(description => "Get wall-time and memory usage stats for steps or whole pipelines.",
+                                     opt_spec => [ [],
+                                                   [ q[At least one of the following options is required:] ],
+                                                   [ 'step=s@', 'Get stats for the given Step (by id or name); you can repeat this option', { persistent_object => 'Step' } ],
+                                                   [ 'setup=s@', 'Get stats for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' } ],
+                                                   [ 'pipeline=s@', 'Get stats for all the steps in the given Pipeline; you can repeat this option', { persistent_object => 'Pipeline' } ]
+                                                 ],
+                                     no_user_option => 1);
+
+unless ($frontend->option_was_set('step') || $frontend->option_was_set('setup') || $frontend->option_was_set('pipeline')) {
+    $frontend->die_with_error("At least one of --step, --setup or --pipeline must be supplied");
+}
+
+
+# resolve user options to steps
+my %steps;
+foreach my $step (@{$frontend->opts('step') || []}) {
+    $steps{$step->id}->{all} = 1;
+}
+
+foreach my $pipeline (@{$frontend->opts('pipeline') || []}) {
+    foreach my $stepmember ($pipeline->steps) {
+        $steps{$stepmember->step->id}->{all} = 1;
+    }
+}
+
+foreach my $setup (@{$frontend->opts('setup') || []}) {
+    my $setup_id = $setup->id;
+    foreach my $stepmember ($setup->pipeline->steps) {
+        $steps{$stepmember->step->id}->{$setup_id} = 1;
+    }
+}
+
+# get the stats per step, pipelinesetup and overall
+my %stats;
+my $schema = $frontend->schema;
+while (my ($step_id, $setup_ids) = each %steps) {
+    my $step = VRPipe::Step->get(id => $step_id);
+    my $ssu = VRPipe::StepStatsUtil->new(step => $step);
+    
+    if (exists $setup_ids->{all}) {
+        my $rs = $schema->resultset('StepStats')->search({ step => $step_id });
+        while (my $ss = $rs->next) {
+            add_stats($ss);
+        }
+    }
+    else {
+        foreach my $setup_id (keys %$setup_ids) {
+            my $rs = $schema->resultset('StepStats')->search({ step => $step_id, pipelinesetup => $setup_id });
+            while (my $ss = $rs->next) {
+                add_stats($ss);
+            }
+        }
+    }
+}
+
+# print out findings
+foreach my $by ('by_all', 'by_setup', 'by_step') {
+    if ($by eq 'by_all') {
+        print "\nOverall stats:\n";
+    }
+    elsif ($by eq 'by_setup') {
+        print "\nStats by PipelineSetup:\n";
+    }
+    else {
+        print "\nStats by Step:\n";
+    }
+    
+    my @id_order = $by eq 'by_all' ? ('overall') : (sort { $stats{$by}->{time}->{$b}->[4] <=> $stats{$by}->{time}->{$a}->[4] } keys %{$stats{$by}->{time}});
+    foreach my $id (@id_order) {
+        my $time_string = get_stats($stats{$by}->{time}->{$id}, 'time');
+        my $memory_string = get_stats($stats{$by}->{memory}->{$id}, 'memory');
+        
+        print "  $id:-\n    $time_string\n    $memory_string\n";
+    }
+}
+print "\n";
+
+exit;
+
+sub add_stats {
+    my $ss = shift;
+    my $step = $ss->step;
+    my $step_id = $step->name;
+    my $setup = $ss->pipelinesetup;
+    my $setup_id = $setup->name;
+    
+    foreach my $method ('memory', 'time') {
+        my $stat = $ss->$method() || next;
+        
+        foreach my $grouping ('overall', 'step', 'setup') {
+            my $array_ref;
+            if ($grouping eq 'overall') {
+                $array_ref = $stats{by_all}->{$method}->{overall} || [];
+                $stats{by_all}->{$method}->{overall} = $array_ref;
+            }
+            elsif ($grouping eq 'step') {
+                $array_ref = $stats{by_step}->{$method}->{$step_id} || [];
+                $stats{by_step}->{$method}->{$step_id} = $array_ref;
+            }
+            elsif ($grouping eq 'setup') {
+                $array_ref = $stats{by_setup}->{$method}->{$setup_id} || [];
+                $stats{by_setup}->{$method}->{$setup_id} = $array_ref;
+            }
+            
+            $array_ref->[0]++;
+            if ($array_ref->[0] == 1) {
+                $array_ref->[1] = $stat;
+                $array_ref->[2] = 0;
+                $array_ref->[3] = $stat;
+                if ($method eq 'time') {
+                    $array_ref->[4] = $stat;
+                }
+            }
+            else {
+                my $old_mean = $array_ref->[1];
+                $array_ref->[1] += ($stat - $old_mean) / $array_ref->[0];
+                $array_ref->[2] += ($stat - $old_mean) * ($stat - $array_ref->[1]);
+                if ($stat > $array_ref->[3]) {
+                    $array_ref->[3] = $stat;
+                }
+                if ($method eq 'time') {
+                    $array_ref->[4] += $stat;
+                }
+            }
+        }
+    }
+}
+
+sub get_stats {
+    my ($array_ref, $type) = @_;
+    my ($count, $mean, $sd, $max, $total) = @$array_ref;
+    
+    if ($count) {
+        $mean = sprintf("%0.0f", $mean);
+        $sd = sprintf("%0.0f", sqrt($sd / $count));
+    }
+    
+    if ($type eq 'time') {
+        my $days = int($total/(24*60*60));
+        my $hrs = ($total/(60*60))%24;
+        my $mins = ($total/60)%60;
+        my $remaining_secs = $total%60;
+        my $extra = $total > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
+        return "Mean seconds per job: $mean (sd $sd, max $max, n=$count); Total serial wall time: $total secs$extra";
+    }
+    else {
+        return "Mean MBs per job: $mean (sd $sd, max $max)";
+    }
+}
