@@ -33,7 +33,6 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
                 	$sample = $meta->{sample};
                 }
                 else {
-             	    my $bam_irods_dir = (split('_', $bam_basename))[0];
              	    my @samtools_sample = split("\t", `samtools view -H $bam_path | grep SM`);
              	    for my $sam_out ( @samtools_sample ) {
              	    	if ( $sam_out =~ s/^SM:// ) {
