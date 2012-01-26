@@ -20,6 +20,8 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
 					default_value => 10),
 			   interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -l option', 
 					optional => 1,),
+        		snp_sites_file => VRPipe::StepOption->get(description => 'absolute path to snp sites file used for genotyping',
+        		optional => 1,),					
 		};
 	}
     method inputs_definition {
