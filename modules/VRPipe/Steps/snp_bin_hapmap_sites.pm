@@ -1,10 +1,10 @@
 use VRPipe::Base;
 
-class VRPipe::Steps::snp_bin_to_hapmap with VRPipe::StepRole {
+class VRPipe::Steps::snp_bin_hapmap_sites with VRPipe::StepRole {
 
 	method options_definition {
         return { snp_binary_file => VRPipe::StepOption->get(description => 'absolute path to snp binary                                                    file used for genotyping'),
-        		 bin2hapmap_exe => VRPipe::StepOption->get(description => 'path to your bin2hapmap                                                executable',
+        		 bin2hapmap_exe => VRPipe::StepOption->get(description => 'path to bin2hapmap                                                executable',
                                                            optional => 1,
                                                            default_value => 'bin2hapmap'),
                  bin2hapmap_options => VRPipe::StepOption->get(description => 'options provided for                                               bin2hapmap',
@@ -41,7 +41,7 @@ class VRPipe::Steps::snp_bin_to_hapmap with VRPipe::StepRole {
     
     method outputs_definition {
         return { hapmap_file => VRPipe::StepIODefinition->get(type => 'txt',
-                                                              description => 'text file with the hapmap output from the snp binary file')	
+                                                              description => 'text file with the hapmap sites output from the snp binary file')	
          };
     }
     
@@ -49,7 +49,7 @@ class VRPipe::Steps::snp_bin_to_hapmap with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "This step uses bin2hapmap to create a hapmap file from a snp binary file";
+        return "This step uses bin2hapmap to create a hapmap sites file from a snp binary file";
     }
     method max_simultaneous {
         return 0;

@@ -36,6 +36,10 @@ class VRPipe::FrontEnd {
     has '_multiple_setups' => (is => 'rw',
                                isa => 'Bool');
     
+    has 'no_user_option' => (is => 'ro',
+                             isa => 'Bool',
+                             default => 0);
+    
     method _default_opt_spec {
         return [ [ 'deployment=s', 'Use the production or testing database', { default => 'production' } ],
                  [ 'help|h', 'Print this usage message and exit' ] ];
@@ -63,8 +67,10 @@ class VRPipe::FrontEnd {
                     my ($name, $req_or_opt, $type) = split(/([=:])/, $def);
                     if ($name eq 'setup') {
                         if ($type eq 's@') {
-                            $default->[2] = $default->[1];
-                            $default->[1] = [ 'user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ];
+                            unless ($self->no_user_option) {
+                                $default->[2] = $default->[1];
+                                $default->[1] = [ 'user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ];
+                            }
                             $self->_multiple_setups(1);
                         }
                     }

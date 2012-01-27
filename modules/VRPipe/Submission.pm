@@ -318,7 +318,10 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     method scheduler_stdout {
         my $file = $self->scheduler_stdout_file || return;
-        $file->s || return;
+        unless ($file->s) {
+            $file = $self->scheduler_stdout_file(orig => 1);
+            $file->s || return;
+        }
         return VRPipe::Parser->create(lc(substr($self->scheduler->type, 0, 3)), {file => $file});
     }
     method scheduler_stderr {
