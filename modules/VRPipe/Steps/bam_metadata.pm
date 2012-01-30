@@ -4,11 +4,10 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
     method body_sub {
         return sub {
             my $self = shift;
-            use VRPipe::Steps::bamcheck;
             
             my $options = $self->options;
             my $bamcheck_exe = $options->{bamcheck_exe};
-            my $opts = VRPipe::Steps::bamcheck->get_bamcheck_options($options);
+            my $opts = $self->get_bamcheck_options($options);
             my @meta_to_check = (qw(bases reads avg_read_length));
             if ($opts && $opts =~ /-d/) {
                 push(@meta_to_check, qw(rmdup_reads rmdup_reads_mapped rmdup_bases_mapped_c rmdup_bases rmdup_bases_trimmed));

@@ -28,17 +28,15 @@ class VRPipe::Steps::gatk_recalibrate_variants extends VRPipe::Steps::gatk {
 
     method body_sub {
         return sub {
-            use VRPipe::Utils::gatk;
-            
             my $self = shift;
             my $options = $self->options;
-            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
-            
+	    $self->handle_standard_options($options);
+	    
 			my $reference_fasta = $options->{reference_fasta};
             my $var_recal_opts = $options->{var_recal_opts};
 
             my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $jvm_args = $gatk->jvm_args($req->memory);
+            my $jvm_args = $self->jvm_args($req->memory);
 
             foreach my $vcf (@{$self->inputs->{vcf_files}}) {
                 my $vcf_path = $vcf->path;
@@ -58,8 +56,7 @@ class VRPipe::Steps::gatk_recalibrate_variants extends VRPipe::Steps::gatk {
 													metadata => {source_vcf => $vcf->path->stringify});
 				my $tranches_path = $tranches_file->path;
 
-				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T VariantRecalibrator -R $reference_fasta -input $vcf_path -recalFile $recal_path -tranchesFile $tranches_path $var_recal_opts ];
-#				$self->warn($cmd);
+				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T VariantRecalibrator -R $reference_fasta -input $vcf_path -recalFile $recal_path -tranchesFile $tranches_path $var_recal_opts ];
 				$self->dispatch([$cmd, $req, {output_files => [$recal_file, $tranches_file]}]); 
 			}
         };

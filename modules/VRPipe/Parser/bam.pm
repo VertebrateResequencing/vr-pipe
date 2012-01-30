@@ -400,7 +400,7 @@ END_C
         else {
             my (@known_prg, @unknown_prg);
             for my $program (@programs) {
-                if ($program =~ /bwa|maq|ssaha|bfast|stampy/i) {
+                if ($program =~ /bwa|maq|ssaha|bfast|stampy|smalt/i) {
                     if (exists $info{$program}{PN}){
                         push @known_prg, $info{$program}{PN};
                     } else {

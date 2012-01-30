@@ -311,6 +311,15 @@ class VRPipe::Manager extends VRPipe::Persistent {
             foreach my $behaviour (@behaviours) {
                 $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
             }
+            
+            # add to the StepStats
+            foreach my $submission ($state->submissions) {
+                my $sched_stdout = $submission->scheduler_stdout || next;
+                my $memory = ceil($sched_stdout->memory || $submission->memory);
+                my $time = ceil($sched_stdout->time || $submission->time);
+                VRPipe::StepStats->get(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
+            }
+            
             $state->complete(1);
             $state->update;
         }

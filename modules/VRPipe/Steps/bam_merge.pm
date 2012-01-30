@@ -29,12 +29,10 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::picard;
-            
             my $self = shift;
             my $options = $self->options;
-            my $picard = VRPipe::Utils::picard->new(picard_path => $options->{picard_path}, java_exe => $options->{java_exe});
-            my $merge_jar = Path::Class::File->new($picard->picard_path, 'MergeSamFiles.jar');
+            $self->handle_standard_options($options);
+            my $merge_jar = $self->jar('MergeSamFiles.jar');
             
             my $opts = $options->{merge_sam_files_options};
             if ($opts =~ /MergeSamFiles/) {
@@ -58,7 +56,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
             }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
-                                   version => $picard->determine_picard_version(),
+                                   version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam '.$opts));
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
@@ -74,11 +72,11 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                     metadata => { merged_bams => join(',', sort @merged_bams) });
                 
                 my $temp_dir = $options->{tmp_dir} || $merge_file->dir;
-                my $jvm_args = $picard->jvm_args($req->memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $in_bams = join ' INPUT=', map { $_->path } @$bam_files;
                 $in_bams = ' INPUT='.$in_bams;
-                my $this_cmd = $picard->java_exe.qq[ $jvm_args -jar $merge_jar$in_bams OUTPUT=].$merge_file->path.qq[ $opts];
+                my $this_cmd = $self->java_exe.qq[ $jvm_args -jar $merge_jar$in_bams OUTPUT=].$merge_file->path.qq[ $opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_merge', 'merge_and_check', [$this_cmd, $req, {output_files => [$merge_file]}]); 
             }
         };

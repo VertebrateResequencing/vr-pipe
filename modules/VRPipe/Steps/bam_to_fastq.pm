@@ -30,12 +30,10 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::picard;
-            
             my $self = shift;
             my $options = $self->options;
-            my $picard = VRPipe::Utils::picard->new(picard_path => $options->{picard_path}, java_exe => $options->{java_exe});
-            my $stf_jar = Path::Class::File->new($picard->picard_path, 'SamToFastq.jar');
+            $self->handle_standard_options($options);
+            my $stf_jar = $self->jar('SamToFastq.jar');
             
             my $opts = $options->{samtofastq_options};
             if ($opts =~ /SamToFastq|INPUT|FASTQ|OUTPUT_DIR/i) {
@@ -46,7 +44,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
             }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
-                                   version => $picard->determine_picard_version(),
+                                   version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar SamToFastq.jar INPUT=$bam_file(s) FASTQ=$lane.1.fastq SECOND_END_FASTQ=$lane.2.fastq'.$opts));
             my $req = $self->new_requirements(memory => 1000, time => 1);
             
@@ -65,49 +63,49 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                 my $out_spec;
                 my @fastqs;
                 if ($paired) {
-                    $fastq = $self->output_file(output_key => 'fastq_files',
-                                                basename => "$fastq_meta->{lane}.1.fastq",
-                                                type => 'fastq',
-                                                metadata => {%$fastq_meta,
-                                                             reads => $meta->{forward_reads},
-                                                             paired => 1});
+                    my $fastq = $self->output_file(output_key => 'fastq_files',
+                                                   basename => "$fastq_meta->{lane}.1.fastq",
+                                                   type => 'fq',
+                                                   metadata => {%$fastq_meta,
+                                                                reads => $meta->{forward_reads},
+                                                                paired => 1});
                     my $reverse = $self->output_file(output_key => 'fastq_files',
                                                      basename => "$fastq_meta->{lane}.2.fastq",
-                                                     type => 'fastq',
+                                                     type => 'fq',
                                                      metadata => {%$fastq_meta,
                                                                   reads => $meta->{reverse_reads},
                                                                   paired => 2});
                     @fastqs = ($fastq, $reverse);
                     
-                    $fastq->add_metadata(mate => $reverse->path->stringify);
-                    $reverse->add_metadata(mate => $fastq->path->stringify);
+                    $fastq->add_metadata({mate => $reverse->path->stringify});
+                    $reverse->add_metadata({mate => $fastq->path->stringify});
                     
                     $out_spec = 'FASTQ='.$fastq->path.' SECOND_END_FASTQ='.$reverse->path;
                 }
                 else {
-                    $fastq = $self->output_file(output_key => 'fastq_files',
-                                                basename => "$fastq_meta->{lane}.0.fastq",
-                                                type => 'fastq',
-                                                metadata => {%$fastq_meta,
-                                                             reads => $meta->{reads},
-                                                             bases => $meta->{bases},
-                                                             avg_read_length => sprintf("%0.2f", $meta->{reads} / $meta->{bases}),
-                                                             paired => 0});
+                    my $fastq = $self->output_file(output_key => 'fastq_files',
+                                                   basename => "$fastq_meta->{lane}.0.fastq",
+                                                   type => 'fq',
+                                                   metadata => {%$fastq_meta,
+                                                                reads => $meta->{reads},
+                                                                bases => $meta->{bases},
+                                                                avg_read_length => sprintf("%0.2f", $meta->{reads} / $meta->{bases}),
+                                                                paired => 0});
                     @fastqs = ($fastq);
                     
                     $out_spec = 'FASTQ='.$fastq->path;
                 }
                 
-                my $temp_dir = $options->{tmp_dir} || $fastq->dir;
-                my $jvm_args = $picard->jvm_args($req->memory, $temp_dir);
+                my $temp_dir = $options->{tmp_dir} || $fastqs[0]->dir;
+                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $picard->java_exe.qq[ $jvm_args -jar $stf_jar INPUT=$source_bam $out_spec $opts];
+                my $this_cmd = $self->java_exe.qq[ $jvm_args -jar $stf_jar INPUT=$source_bam $out_spec $opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_to_fastq', 'bam_to_fastq_and_check', [$this_cmd, $req, {output_files => \@fastqs}]); 
             }
         };
     }
     method outputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fastq', 
+        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', 
                                                               max_files => -1, 
                                                               description => '1 or more fastq files',
                                                               metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
@@ -123,8 +121,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                                                                            center_name => 'center name',
                                                                            platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                            study => 'name of the study',
-                                                                           optional => ['mate', 'library', 'sample', 'center_name', 'platform', 'study']}
-                                                                    ),
+                                                                           optional => ['mate', 'library', 'sample', 'center_name', 'platform', 'study']}),
                };
     }
     method post_process_sub {
@@ -211,8 +208,8 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
         foreach my $out_file (@out_files) {
             my $extra = $extra_meta{$out_file->id} || next;
             my $current_meta = $out_file->metadata;
-            $out_file->add_metadata(bases => $extra->{bases},
-                                    avg_read_length => sprintf("%0.2f", $current_meta->{reads} / $extra->{bases}));
+            $out_file->add_metadata({bases => $extra->{bases},
+                                    avg_read_length => sprintf("%0.2f", $current_meta->{reads} / $extra->{bases})});
         }
     }
 }

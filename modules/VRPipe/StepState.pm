@@ -144,9 +144,17 @@ class VRPipe::StepState extends VRPipe::Persistent {
     method start_over {
         # first reset all associated submissions in order to reset their jobs
         my @sub_ids;
+        my $schema = $self->result_source->schema;
         foreach my $sub ($self->submissions) {
             push(@sub_ids, $sub->id);
             $sub->start_over;
+            
+            # delete any stepstats there might be for us
+            my $rs = $schema->resultset('StepStats')->search({ submission => $sub->id });
+            while (my $ss = $rs->next) {
+                $ss->delete;
+            }
+            
             $sub->delete;
         }
         

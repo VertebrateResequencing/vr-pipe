@@ -17,7 +17,7 @@ my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of
                                                    [ q[If not using --list, the remaining options come into play; at least one option from each grouping must be chosen.] ],
                                                    [],
                                                    [ q[Choose which output files you want symlinks for:] ],
-                                                   [ 'steps=s@', q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". If --steps isn't supplied at all, all output files of all steps will get a symlink. Can be repeated] ],
+                                                   [ 'step=s@', q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated] ],
                                                    [],
                                                    [ q[Choose where the symlinks should go:] ],
                                                    [ 'output_dir=s', 'The output (root) directory for files' ],
@@ -49,7 +49,7 @@ my $basename_as_input = $frontend->opts('basename_as_input');
 my $basename_from_metadata = $frontend->opts('basename_from_metadata');
 my @basename_regex = $frontend->option_was_set('basename_regex') ? @{$frontend->opts('basename_regex')} : ();
 my $setup = $frontend->get_pipelinesetups();
-my @steps = $frontend->option_was_set('steps') ? @{$frontend->opts('steps')} : ();
+my @steps = $frontend->option_was_set('step') ? @{$frontend->opts('step')} : ();
 
 unless ($setup) {
     $frontend->die_with_error("--setup is required");
@@ -94,7 +94,7 @@ if ($md5 && !$print) {
 
 my $schema = $frontend->schema;
 
-# handle --steps
+# handle --step
 my %desired_steps;
 my $limit_steps = 0;
 if (@steps) {
@@ -190,7 +190,7 @@ foreach my $element (@$elements) {
             unless ($force) {
                 next unless exists $allowed_kinds{$smid}->{$kind};
             }
-            my @files = grep { $_->s } @$files;
+            my @files = grep { $_->s || $_->resolve->s } @$files;
             next unless @files;
             
             my @file_data;
@@ -326,12 +326,14 @@ foreach my $element (@$elements) {
                 next;
             }
             
-            # create symlink (we don't care about VRPipe knowing about the
-            # existance of this file)
-            symlink($source, $dest);
+            # create symlink
+            $source->symlink($dest);
             if ($print) {
-                $frontend->output($output_file->md5, "\t") if ($md5 && $output_file->md5);
-                $frontend->output($dest);
+                if ($md5 && $output_file->md5) {
+                    $frontend->output($output_file->md5, "\t", $dest);
+                } else {
+                    $frontend->output($dest);
+                }
             }
         }
     }
