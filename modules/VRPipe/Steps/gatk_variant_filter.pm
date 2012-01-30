@@ -26,17 +26,15 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
 
     method body_sub {
         return sub {
-            use VRPipe::Utils::gatk;
-            
             my $self = shift;
             my $options = $self->options;
-            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
+	    $self->handle_standard_options($options);
             
             my $var_filter_opts = $options->{var_filter_opts};
 			my $reference_fasta = $options->{reference_fasta};
 
             my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $jvm_args = $gatk->jvm_args($req->memory);
+            my $jvm_args = $self->jvm_args($req->memory);
 
             foreach my $vcf (@{$self->inputs->{vcf_files}}) {
                 my $vcf_path = $vcf->path;
@@ -51,8 +49,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
 				my $vcf_filt_file = $self->output_file(output_key => 'filtered_vcf_files', basename => $basename, type => 'vcf');
 				my $vcf_filt_path = $vcf_filt_file->path;
 
-				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path $var_filter_opts ];
-#				$self->warn($cmd);
+				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path $var_filter_opts ];
 				$self->dispatch([$cmd, $req, {output_files => [$vcf_filt_file]}]); 
 			}
         };

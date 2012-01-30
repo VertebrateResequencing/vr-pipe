@@ -27,17 +27,15 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
 
     method body_sub {
         return sub {
-            use VRPipe::Utils::gatk;
-            
             my $self = shift;
             my $options = $self->options;
-            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
+	    $self->handle_standard_options($options);
             
             my $apply_recal_opts = $options->{apply_recal_opts};
 			my $reference_fasta = $options->{reference_fasta};
 
             my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $jvm_args = $gatk->jvm_args($req->memory);
+            my $jvm_args = $self->jvm_args($req->memory);
 
 			# put recal and tranches file metadata into hashes for vcf name lookup
 			my(%recal_files,%tranches_files);
@@ -70,7 +68,7 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
 				my $vcf_recal_file = $self->output_file(output_key => 'recalibrated_vcfs', basename => $basename, type => 'vcf');
 				my $vcf_recal_path = $vcf_recal_file->path;
 
-				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T ApplyRecalibration -R $reference_fasta --input $vcf_path -tranchesFile $tranches_file_path -recalFile $recal_file_path -o $vcf_recal_path $apply_recal_opts ];
+				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T ApplyRecalibration -R $reference_fasta --input $vcf_path -tranchesFile $tranches_file_path -recalFile $recal_file_path -o $vcf_recal_path $apply_recal_opts ];
 				$self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_apply_recalibration', 'apply_recalibration', [$cmd, $req, {output_files => [$vcf_recal_file]}]);
 			}
         };

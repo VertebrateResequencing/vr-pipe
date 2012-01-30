@@ -18,11 +18,9 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::gatk;
-            
             my $self = shift;
             my $options = $self->options;
-            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
+            $self->handle_standard_options($options);
             
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
@@ -41,7 +39,7 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
             $basename =~ s/\.vcf(\.gz)?$//g;
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-                                   version => $gatk->determine_gatk_version(),
+                                   version => $self->gatk_version(),
                                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) '.$intervals_opts));
             
             my $intervals_file = $self->output_file(output_key => 'intervals_file',
@@ -51,9 +49,9 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
                                               metadata => { known_files => join(',', @knowns) });
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $jvm_args = $gatk->jvm_args($req->memory);
+            my $jvm_args = $self->jvm_args($req->memory);
             
-            my $this_cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T RealignerTargetCreator -R $ref -o ].$intervals_file->path.qq[ $known_indels $intervals_opts];
+            my $this_cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T RealignerTargetCreator -R $ref -o ].$intervals_file->path.qq[ $known_indels $intervals_opts];
             $self->dispatch([$this_cmd, $req, {block_and_skip_if_ok => 1}]);
         };
     }
