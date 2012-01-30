@@ -54,6 +54,11 @@ role VRPipe::StepRole {
     has 'previous_step_outputs' => (is => 'rw',
                                     isa => PreviousStepOutput);
     
+    has 'allow_smaller_recommended_requirements_override' => (is => 'rw',
+                                                              isa => 'Bool',
+                                                              lazy => 1,
+                                                              builder => '_build_smaller_recommended_requirements_override');
+    
     # when parse is called, we'll store our dispatched refs here
     has 'dispatched' => (is => 'ro',
                          traits  => ['Array'],
@@ -61,7 +66,8 @@ role VRPipe::StepRole {
                          lazy    => 1,
                          default => sub { [] },
                          handles => { _dispatch => 'push',
-                                      num_dispatched  => 'count' });
+                                      num_dispatched  => 'count' },
+                         writer => '_set_dispatched');
     
     # and we'll also store all the output files the body_sub makes
     has '_output_files' => (is => 'ro',
@@ -69,13 +75,15 @@ role VRPipe::StepRole {
                             isa     => 'HashRef',
                             lazy    => 1,
                             default => sub { {} },
-                            handles => { _remember_output_files => 'set' });
+                            handles => { _remember_output_files => 'set' },
+                            writer => '_set_output_files');
     has '_temp_files' => (is => 'ro',
                           traits  => ['Array'],
                           isa     => 'ArrayRef',
                           lazy    => 1,
                           default => sub { [] },
-                          handles => { _remember_temp_file => 'push' });
+                          handles => { _remember_temp_file => 'push' },
+                          writer => '_set_temp_files');
     has '_last_output_dir' => (is => 'rw',
                                isa => Dir,
                                lazy => 1,
@@ -106,6 +114,10 @@ role VRPipe::StepRole {
     method _build_temps {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
         return $step_state->temp_files;
+    }
+    
+    method _build_smaller_recommended_requirements_override {
+        return 1;
     }
     
     method _resolve_options {
@@ -403,7 +415,26 @@ role VRPipe::StepRole {
             }
         }
         
-        $self->_run_coderef('body_sub');
+        # $self is a VRPipe::Step, even when body_sub was defined in a
+        # VRPipe::Steps::subclass; to regain full benefits of inheritence in
+        # those body_sub subs, we'll load the real module and use that instead
+        # of $self
+        my $non_persistent = $self->_from_non_persistent;
+        if ($non_persistent) {
+            #*** this is pretty ugly - is there a better way?
+            $non_persistent->step_state($self->step_state);
+            $non_persistent->previous_step_outputs($self->previous_step_outputs);
+            
+            $non_persistent->_run_coderef('body_sub');
+            
+            $self->_set_output_files($non_persistent->_output_files);
+            $self->_set_temp_files($non_persistent->_temp_files);
+            $self->_last_output_dir($non_persistent->_last_output_dir);
+            $self->_set_dispatched($non_persistent->dispatched);
+        }
+        else {
+            $self->_run_coderef('body_sub');
+        }
         
         # store output and temp files on the StepState
         my $output_files = $self->_output_files;
@@ -456,16 +487,17 @@ role VRPipe::StepRole {
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
         # get the current mean+2sd memory and time of past runs of this step
-        my $ssu = VRPipe::StepStatsUtil->new(step => $self);
+        my $ssu = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : VRPipe::Step->get(name => $self->name));
         my $rec_mem = $ssu->recommended_memory;
         my $rec_time = $ssu->recommended_time;
         
         # if we have recommendations, override the settings passed in from the
         # step body_sub
-        if ($rec_mem) {
+        my $allow_override = $self->allow_smaller_recommended_requirements_override;
+        if ($rec_mem && ($allow_override ? $rec_mem > $memory : 1)) {
             $memory = $rec_mem;
         }
-        if ($rec_time) {
+        if ($rec_time && ($allow_override ? $rec_time > $time : 1)) {
             $time = $rec_time;
         }
         
