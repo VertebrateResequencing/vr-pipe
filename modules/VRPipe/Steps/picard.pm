@@ -1,6 +1,38 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::picard extends VRPipe::Steps::java {
+    has 'picard_path' => (is => 'ro',
+                          isa => Dir,
+                          coerce => 1,
+                          default => "$ENV{PICARD}");
+    
+    has '+memory_multiplier' => (default => 0.7);
+    
+    our %PICARD_VERSIONS;
+    has 'picard_version' => (is => 'ro',
+                             isa => 'Str',
+                             lazy => 1,
+                             builder => 'determine_picard_version');
+    
+    method determine_picard_version (ClassName|Object $self:) {
+        my $picard_path = $self->picard_path->stringify;
+        unless (defined $PICARD_VERSIONS{$picard_path}) {
+            my $version = 0;
+            opendir(my $dh, $picard_path) || $self->throw("Could not open picard directory $picard_path");
+            foreach (readdir $dh) 
+            {
+                if (/^picard-([\d\.]+)\.jar/)
+                {
+                    $version = $1;
+                    last;
+                }
+            }
+            closedir($dh);
+            $PICARD_VERSIONS{$picard_path} = $version;
+        }
+        return $PICARD_VERSIONS{$picard_path};
+    }
+    
     around options_definition {
         return { %{$self->$orig},
                  picard_path => VRPipe::StepOption->get(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
