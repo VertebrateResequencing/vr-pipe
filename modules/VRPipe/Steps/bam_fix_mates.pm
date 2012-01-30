@@ -19,17 +19,15 @@ class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::picard;
-            
             my $self = shift;
             my $options = $self->options;
-            my $picard = VRPipe::Utils::picard->new(picard_path => $options->{picard_path}, java_exe => $options->{java_exe});
-            my $fixmates_jar = Path::Class::File->new($picard->picard_path, 'FixMateInformation.jar');
+            $self->handle_standard_options($options);
+            my $fixmates_jar = $self->jar('FixMateInformation.jar');
             
             my $fixmate_options = $options->{picard_fix_mates_options};
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
-                                   version => $picard->determine_picard_version(),
+                                   version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file '.$fixmate_options));
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
@@ -46,9 +44,9 @@ class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
                                                   metadata => $bam_meta);
                 
                 my $temp_dir = $options->{tmp_dir} || $mate_fixed_file->dir;
-                my $jvm_args = $picard->jvm_args($memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($memory, $temp_dir);
                 
-                my $this_cmd = $picard->java_exe." $jvm_args -jar $fixmates_jar INPUT=".$bam->path." OUTPUT=".$mate_fixed_file->path." $fixmate_options";
+                my $this_cmd = $self->java_exe." $jvm_args -jar $fixmates_jar INPUT=".$bam->path." OUTPUT=".$mate_fixed_file->path." $fixmate_options";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_fix_mates', 'fix_mates_and_check', [$this_cmd, $req, {output_files => [$mate_fixed_file]}]); 
             }
         };

@@ -29,11 +29,9 @@ class VRPipe::Steps::bam_realignment_around_known_indels extends VRPipe::Steps::
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::gatk;
-            
             my $self = shift;
             my $options = $self->options;
-            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
+            $self->handle_standard_options($options);
             
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
@@ -47,7 +45,7 @@ class VRPipe::Steps::bam_realignment_around_known_indels extends VRPipe::Steps::
             }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-                                   version => $gatk->determine_gatk_version(),
+                                   version => $self->gatk_version(),
                                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file -known $known_indels_file(s) '.$realign_opts));
             
             my $req = $self->new_requirements(memory => 4500, time => 2);
@@ -62,9 +60,9 @@ class VRPipe::Steps::bam_realignment_around_known_indels extends VRPipe::Steps::
                                                   metadata => $bam_meta);
                 
                 my $temp_dir = $options->{tmp_dir} || $realigned_bam_file->dir;
-                my $jvm_args = $gatk->jvm_args($req->memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T IndelRealigner -R $ref -I ].$bam->path.qq[ -o ].$realigned_bam_file->path.qq[ -targetIntervals $intervals_file $known_indels $realign_opts];
+                my $this_cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T IndelRealigner -R $ref -I ].$bam->path.qq[ -o ].$realigned_bam_file->path.qq[ -targetIntervals $intervals_file $known_indels $realign_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_realignment_around_known_indels', 'realign_and_check', [$this_cmd, $req, {output_files => [$realigned_bam_file]}]); 
             }
         };

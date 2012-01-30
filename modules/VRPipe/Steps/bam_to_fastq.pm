@@ -30,12 +30,10 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::picard;
-            
             my $self = shift;
             my $options = $self->options;
-            my $picard = VRPipe::Utils::picard->new(picard_path => $options->{picard_path}, java_exe => $options->{java_exe});
-            my $stf_jar = Path::Class::File->new($picard->picard_path, 'SamToFastq.jar');
+            $self->handle_standard_options($options);
+            my $stf_jar = $self->jar('SamToFastq.jar');
             
             my $opts = $options->{samtofastq_options};
             if ($opts =~ /SamToFastq|INPUT|FASTQ|OUTPUT_DIR/i) {
@@ -46,7 +44,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
             }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
-                                   version => $picard->determine_picard_version(),
+                                   version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar SamToFastq.jar INPUT=$bam_file(s) FASTQ=$lane.1.fastq SECOND_END_FASTQ=$lane.2.fastq'.$opts));
             my $req = $self->new_requirements(memory => 1000, time => 1);
             
@@ -99,9 +97,9 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                 }
                 
                 my $temp_dir = $options->{tmp_dir} || $fastqs[0]->dir;
-                my $jvm_args = $picard->jvm_args($req->memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $picard->java_exe.qq[ $jvm_args -jar $stf_jar INPUT=$source_bam $out_spec $opts];
+                my $this_cmd = $self->java_exe.qq[ $jvm_args -jar $stf_jar INPUT=$source_bam $out_spec $opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_to_fastq', 'bam_to_fastq_and_check', [$this_cmd, $req, {output_files => \@fastqs}]); 
             }
         };

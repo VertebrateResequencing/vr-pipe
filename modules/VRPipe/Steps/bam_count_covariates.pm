@@ -25,11 +25,9 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::gatk;
-            
             my $self = shift;
             my $options = $self->options;
-            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
+            $self->handle_standard_options($options);
             
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
@@ -43,7 +41,7 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
             }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-                                   version => $gatk->determine_gatk_version(),
+                                   version => $self->gatk_version(),
                                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T CountCovariates -R $reference_fasta -I $bam_file -recalFile $bam_file.recal_data.csv -knownSites $known_sites_file(s) '.$covariates_options));
             
             my $req = $self->new_requirements(memory => 4500, time => 2);
@@ -59,9 +57,9 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
                                                   metadata => { source_bam => $bam->path->stringify });
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_file->dir;
-                my $jvm_args = $gatk->jvm_args($req->memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T CountCovariates -R $ref -I ].$bam->path.qq[ -recalFile ].$recal_file->path.qq[ $known_sites $covariates_options];
+                my $this_cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T CountCovariates -R $ref -I ].$bam->path.qq[ -recalFile ].$recal_file->path.qq[ $known_sites $covariates_options];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_count_covariates', 'count_covariates_and_check', [$this_cmd, $req, {output_files => [$recal_file]}]); 
             }
         };

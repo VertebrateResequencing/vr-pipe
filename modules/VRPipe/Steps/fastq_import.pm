@@ -55,7 +55,7 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
         return "If fastq files in the datasource are on an external ftp site, downloads them to local disc";
     }
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 50;
     }
     
     method download_fastq (ClassName|Object $self: Str :$source!, Str|File :$dest!) {

@@ -162,7 +162,7 @@ foreach my $i (0..$#output_files) {
 is_deeply [$oks, -e $orig_file->path, $orig_final->e, $new_final->e], [12, undef, 0, 1], 'only the final step file we deleted was recreated (with a new name) - not the step 3 file we moved';
 
 # now that the step has run a number of times, we should have recommended reqs
-is $ssu->recommended_memory, 1, 'recommended_memory returns a new value at the end';
+is $ssu->recommended_memory, 100, 'recommended_memory returns a new value at the end';
 is $ssu->recommended_time, 1, 'recommended_time returns new value at the end';
 is $ssu->recommended_time(pipelinesetup => $test_pipelinesetup_clean), 1, 'recommended_time can return values specific to a particular pipelinesetup';
 is_deeply [($ssu->mean_seconds())[0], ($ssu->mean_seconds(pipelinesetup => $test_pipelinesetup_clean))[0]], [6, 3], 'mean_time gives the correct counts the recommendations are based on';

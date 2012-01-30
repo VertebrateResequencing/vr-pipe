@@ -1,6 +1,34 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::gatk extends VRPipe::Steps::java {
+    has 'gatk_path' => (is => 'rw',
+                        isa => Dir,
+                        coerce => 1);
+    
+    around _build_standard_options {
+        return [@{$self->$orig}, 'gatk_path'];
+    }
+    
+    our %GATK_VERSIONS;
+    has 'gatk_version' => (is => 'ro',
+                           isa => 'Str',
+                           lazy => 1,
+                           builder => 'determine_gatk_version');
+    
+    method jar (ClassName|Object $self:) {
+        return file($self->gatk_path, 'GenomeAnalysisTK.jar');
+    }
+    
+    method determine_gatk_version (ClassName|Object $self:) {
+        my $gatk_jar = $self->jar->stringify;
+        unless (defined $GATK_VERSIONS{$gatk_jar}) {
+            my $jvm_args = $self->jvm_args(50);
+            my $java_exe = $self->java_exe;
+            $GATK_VERSIONS{$gatk_jar} = VRPipe::StepCmdSummary->determine_version(qq[$java_exe $jvm_args -jar $gatk_jar -h], 'v([\d\.\-]+[a-z\d]*)');
+        }
+        return $GATK_VERSIONS{$gatk_jar};
+    }
+    
     around options_definition {
         return { %{$self->$orig},
                  reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
