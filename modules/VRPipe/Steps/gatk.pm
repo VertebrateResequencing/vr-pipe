@@ -1,10 +1,13 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::gatk extends VRPipe::Steps::java {
-    has 'gatk_path' => (is => 'ro',
+    has 'gatk_path' => (is => 'rw',
                         isa => Dir,
-                        coerce => 1,
-                        default => "$ENV{GATK}");
+                        coerce => 1);
+    
+    around _build_standard_options {
+        return [@{$self->$orig}, 'gatk_path'];
+    }
     
     our %GATK_VERSIONS;
     has 'gatk_version' => (is => 'ro',

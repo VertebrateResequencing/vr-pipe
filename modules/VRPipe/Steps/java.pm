@@ -3,16 +3,24 @@ use VRPipe::Base;
 class VRPipe::Steps::java with VRPipe::StepRole {
     use POSIX qw(ceil);
     
-    has 'java_exe' => (is => 'ro',
-                       isa => 'Str',
-                       default => 'java');
+    has 'java_exe' => (is => 'rw',
+                       isa => 'Str');
     
     has 'memory_multiplier' => (is => 'ro',
                                 isa => 'Num',
                                 default => 0.9);
     
+    has 'standard_options' => (is => 'ro',
+                               isa => 'ArrayRef',
+                               lazy => 1,
+                               builder => '_build_standard_options');
+    
     method _build_smaller_recommended_requirements_override {
         return 0;
+    }
+    
+    method _build_standard_options {
+        return ['java_exe'];
     }
     
     method jvm_args (ClassName|Object $self: Int $memory, Str|Dir $dir?) {
@@ -33,6 +41,13 @@ class VRPipe::Steps::java with VRPipe::StepRole {
             $temp_dir = ' -Djava.io.tmpdir='.$self->tempdir(DIR => $dir);
         }
         return qq[-Xmx${java_mem}m -Xms${java_mem}m$xss$temp_dir -server -XX:+UseSerialGC];
+    }
+    
+    method handle_standard_options (HashRef $options) {
+        foreach my $method (@{$self->standard_options}) {
+            next unless defined $options->{$method};
+            $self->$method($options->{$method});
+        }
     }
     
     method options_definition {

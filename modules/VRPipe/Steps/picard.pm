@@ -1,12 +1,15 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::picard extends VRPipe::Steps::java {
-    has 'picard_path' => (is => 'ro',
+    has 'picard_path' => (is => 'rw',
                           isa => Dir,
-                          coerce => 1,
-                          default => "$ENV{PICARD}");
+                          coerce => 1);
     
     has '+memory_multiplier' => (default => 0.7);
+    
+    around _build_standard_options {
+        return [@{$self->$orig}, 'picard_path'];
+    }
     
     our %PICARD_VERSIONS;
     has 'picard_version' => (is => 'ro',
@@ -31,6 +34,10 @@ class VRPipe::Steps::picard extends VRPipe::Steps::java {
             $PICARD_VERSIONS{$picard_path} = $version;
         }
         return $PICARD_VERSIONS{$picard_path};
+    }
+    
+    method jar (ClassName|Object $self: Str $basename!) {
+        return file($self->picard_path, $basename);
     }
     
     around options_definition {
