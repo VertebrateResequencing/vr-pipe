@@ -3,7 +3,6 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
     around options_definition {
         return { %{$self->$orig},
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference fasta file'),
                  cramtools_bam_to_cram_options => VRPipe::StepOption->get(description => 'Options for cramtools cram command to convert bam to cram', optional => 1),
                };
     }
@@ -13,10 +12,12 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
     }
     method body_sub {
         return sub {
+            use VRPipe::Utils::cramtools; 
+            
             my $self = shift;
             my $options = $self->options;
-            my $cramtools = VRPipe::Utils::cramtools->new(cramtools_path => $options->{cramtools_path}, java_exe => $options->{java_exe});
-            my $cramtools_jar = Path::Class::File->new($cramtools->cramtools_path, 'cramtools.jar');
+            $self->handle_standard_options($options);
+            
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
@@ -26,7 +27,7 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
             }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cramtools', 
-                                   version => $cramtools->determine_cramtools_version(),
+                                   version => $self->cramtools_version(),
                                    summary => 'java $jvm_args -jar cramtools.jar cram --input-bam-file $bam_file --output-cram-file $cram_file --reference-fasta-file $reference_fasta '.$opts));
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
@@ -43,9 +44,9 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
                                                    metadata => $bam_meta);
                 
                 my $temp_dir = $options->{tmp_dir} || $cram_file->dir;
-                my $jvm_args = $cramtools->jvm_args($memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($memory, $temp_dir);
                 
-                my $this_cmd = $cramtools->java_exe." $jvm_args -jar $cramtools_jar cram --input-bam-file ".$bam->path." --output-cram-file ".$cram_file->path." --reference-fasta-file $ref $opts";
+                my $this_cmd = $self->java_exe." $jvm_args -jar ".$self->jar." cram --input-bam-file ".$bam->path." --output-cram-file ".$cram_file->path." --reference-fasta-file $ref $opts";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_to_cram', 'cram_and_check', [$this_cmd, $req, {output_files => [$cram_file]}]); 
             }
         };
@@ -63,9 +64,10 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
         return 0; # meaning unlimited
     }
     method cram_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($in_path, $out_path) = $cmd_line =~ /--input-bam-file (\S+) --output-cram-file (\S+)/;
+        my ($in_path, $out_path, $ref) = $cmd_line =~ /--input-bam-file (\S+) --output-cram-file (\S+) --reference-fasta-file (\S+)/;
         $in_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $ref || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
         my $in_file = VRPipe::File->get(path => $in_path);
         my $out_file = VRPipe::File->get(path => $out_path);
@@ -75,7 +77,8 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
         
         $out_file->update_stats_from_disc(retries => 3);
         my $expected_reads = $in_file->metadata->{reads} || $in_file->num_records;
-        my $actual_reads = $out_file->num_records;
+        my $cram = VRPipe::FileType->create($out_file->type, {file => $out_file->path});
+        my $actual_reads = $cram->num_records(reference_fasta => $ref);
         
         if ($actual_reads == $expected_reads) {
             return 1;

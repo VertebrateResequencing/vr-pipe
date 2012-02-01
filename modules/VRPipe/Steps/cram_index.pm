@@ -3,7 +3,6 @@ use VRPipe::Base;
 class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
     around options_definition {
         return { %{$self->$orig},
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference fasta file'),
                  cramtools_index_options => VRPipe::StepOption->get(description => 'Options for cramtools index command to index a cram file', optional => 1),
                };
     }
@@ -14,8 +13,8 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
         return sub {
             my $self = shift;
             my $options = $self->options;
-            my $cramtools = VRPipe::Utils::cramtools->new(cramtools_path => $options->{cramtools_path}, java_exe => $options->{java_exe});
-            my $cramtools_jar = Path::Class::File->new($cramtools->cramtools_path, 'cramtools.jar');
+            $self->handle_standard_options($options);
+            
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
@@ -25,7 +24,7 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
             }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cramtools', 
-                                   version => $cramtools->determine_cramtools_version(),
+                                   version => $self->cramtools_version(),
                                    summary => 'java $jvm_args -jar cramtools.jar index --input-cram-file $cram_file --reference-fasta-file $reference_fasta '.$opts));
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
@@ -34,14 +33,14 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
             foreach my $cram (@{$self->inputs->{cram_files}}) {
                 my $cram_index_file = $self->output_file(output_key => 'cram_index_files',
                                                    output_dir => $cram->dir,
-                                                   basename => $cram->basename.'crai',
-                                                   type => 'cram',
+                                                   basename => $cram->basename.'.crai',
+                                                   type => 'bin',
                                                    metadata => $cram->metadata);
                 
                 my $temp_dir = $options->{tmp_dir} || $cram_index_file->dir;
-                my $jvm_args = $cramtools->jvm_args($memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($memory, $temp_dir);
                 
-                my $this_cmd = $cramtools->java_exe." $jvm_args -jar $cramtools_jar index --input-cram-file ".$cram->path." --reference-fasta-file $ref $opts";
+                my $this_cmd = $self->java_exe." $jvm_args -jar ".$self->jar." index --input-cram-file ".$cram->path." --reference-fasta-file $ref $opts";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::cram_index', 'cram_index_and_check', [$this_cmd, $req, {output_files => [$cram_index_file]}]); 
             }
         };
@@ -59,9 +58,10 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
         return 0; # meaning unlimited
     }
     method cram_index_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($cram_path) = $cmd_line =~ /--input-bam-file (\S+)/;
+        my ($cram_path, $ref) = $cmd_line =~ /--input-cram-file (\S+) --reference-fasta-file (\S+)/;
         $cram_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        my $crai_path = $cram_path.'crai';
+        $ref || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        my $crai_path = $cram_path.'.crai';
         
         my $cram_file = VRPipe::File->get(path => $cram_path);
         my $crai_file = VRPipe::File->get(path => $crai_path);
