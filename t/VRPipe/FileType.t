@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 19;
+    use Test::Most tests => 22;
     use VRPipeTest (required_exe => [qw(samtools)]);
     
     use_ok('VRPipe::FileType');
@@ -40,5 +40,11 @@ ok $ft = VRPipe::FileType->create('vcf', {file => file(qw(t data file.vcf.gz))->
 is $ft->type, 'vcf', 'type is correct';
 is $ft->check_type(), 1, 'a vcf file passes the check';
 is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [24, 19, 5], 'num_lines, num_header_lines and num_records work for a vcf, file';
+
+# cram
+my $ref = file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify;
+ok $ft = VRPipe::FileType->create('cram', {file => file(qw(t data hs_chr20.a.cram))->absolute}), 'could create a cram filetype';
+is $ft->type, 'cram', 'type is correct';
+is $ft->check_type(), 1, 'a cram file passes the check';
 
 exit;

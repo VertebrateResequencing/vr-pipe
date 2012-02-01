@@ -317,7 +317,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
                 elsif ($cname eq 'FileType') {
                     $cname = 'varchar';
-                    $size = 3;
+                    $size = 4;
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
