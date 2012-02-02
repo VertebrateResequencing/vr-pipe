@@ -6,11 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
+    use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES',
+		    required_exe => 'glf');
     use TestPipelines;
 }
-
-#./Build test --test_files t/VRPipe/Pipelines/genotype_checking_wgs.t --verbose
 
 my $checking_output_dir = get_output_dir('genotype_checking_wgs_pipeline');
 
@@ -39,7 +38,6 @@ $gc_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'human_g1k_v37.chr20.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
-my $glf_exe = '/software/vertres/bin-external/glf';
 my $mpileup_opts = '-ugDI -d 1000';
 
 my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
@@ -50,16 +48,16 @@ my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
                                                   pipeline => $gc_pipeline,
                                                   options => {reference_fasta => $ref_fa,
                                                               snp_binary_file => $snp_bin,
-                                                              glf_exe => $glf_exe,
                                                               samtools_mpileup_options => $mpileup_opts});
 
 my (@output_files,@final_files);
 my $element_id=0;
 foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
-	$element_id++;
-    push(@output_files, file($checking_output_dir, output_subdirs($element_id), '2_mpileup_bcf_hapmap', "${in}.bam.bcf"));
-    push(@final_files, file($checking_output_dir, output_subdirs($element_id), '3_glf_check_genotype', "${in}.bam.bcf.gtypex"));
-    push(@final_files, file($checking_output_dir, output_subdirs($element_id), '4_gtypex_genotype_analysis', "${in}.bam.gtype"));
+    $element_id++;
+    my @output_subdirs = output_subdirs($element_id);
+    push(@output_files, file(@output_subdirs, '2_mpileup_bcf_hapmap', "${in}.bam.bcf"));
+    push(@final_files, file(@output_subdirs, '3_glf_check_genotype', "${in}.bam.bcf.gtypex"));
+    push(@final_files, file(@output_subdirs, '4_gtypex_genotype_analysis', "${in}.bam.gtype"));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

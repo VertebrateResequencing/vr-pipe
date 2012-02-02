@@ -42,10 +42,11 @@ my @files = ('hs_chr20.a.bam','hs_chr20.c.bam');
 my $element_id = 0;
 foreach (@files) {
   $element_id++;
+  my @output_subdirs = output_subdirs($element_id);
   my $file = 'mpileup.bcf';
-  push(@output_files, file($output_dir, output_subdirs($element_id), '1_mpileup_bcf', $file));
+  push(@output_files, file(@output_subdirs, '1_mpileup_bcf', $file));
   $file =~ s/bcf$/vcf.gz/;
-  push(@output_files, file($output_dir, output_subdirs($element_id), '2_bcf_to_vcf', $file));
+  push(@output_files, file(@output_subdirs, '2_bcf_to_vcf', $file));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

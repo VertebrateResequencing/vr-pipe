@@ -128,6 +128,7 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
           'cmd summaries for the major steps were as expected';
 
 # test start_from_scratch with this more complicated pipeline
+my $bam = file(output_subdirs(1), '17_bam_reheader', '2822_6.se.realign.recal.calmd.bam');
 my $des_to_restart = VRPipe::DataElementState->get(pipelinesetup => $mapping_pipelinesetup, dataelement => VRPipe::DataElement->get(id => 1));
 is_deeply [$des_to_restart->our_step_numbers], [3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18], 'our_step_numbers gave steps that are safe to restart';
 
@@ -137,7 +138,6 @@ copy(file(qw(t data 2822_6.fastq.altered)), $changed_fq_file);
 
 my $vr_cff = VRPipe::File->get(path => $changed_fq_file);
 is $vr_cff->metadata->{expected_md5}, 'e6083e0173d78db081ddfe8f2aca955d', 'prior to changed datasource, expected_md5 of 2822_6.fastq is original';
-my $bam = file($mapping_output_dir, output_subdirs(1), '17_bam_reheader', '2822_6.se.realign.recal.calmd.bam');
 ok check_bam($bam, 'IL3_2822:6:1:26:1603'), 'prior to changed datasource, the bam output has an original read';
 ok handle_pipeline(), 'pipeline ran ok again, after changing the datasource';
 is $vr_cff->metadata->{expected_md5}, '7812540da740d59eedf03894d9b33783', 'after changing datasource, expected_md5 of 2822_6.fastq is new';

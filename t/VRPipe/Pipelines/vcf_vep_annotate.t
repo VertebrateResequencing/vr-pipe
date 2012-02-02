@@ -36,9 +36,10 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_vep_annotate
 my (@output_files,@final_files);
 my $element_id=0;
 foreach my $in ('test1', 'test2') {
-	$element_id++;
-    push(@final_files, file($output_dir, output_subdirs($element_id), '2_vcf_vep_consequences', "${in}.conseq.vcf.gz"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), '2_vcf_vep_consequences', "${in}.conseq.vcf.gz.tbi"));
+    $element_id++;
+    my @output_dirs = output_subdirs($element_id);
+    push(@final_files, file(@output_dirs, '2_vcf_vep_consequences', "${in}.conseq.vcf.gz"));
+    push(@final_files, file(@output_dirs, '2_vcf_vep_consequences', "${in}.conseq.vcf.gz.tbi"));
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 

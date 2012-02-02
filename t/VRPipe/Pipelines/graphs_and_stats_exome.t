@@ -10,8 +10,6 @@ BEGIN {
     use TestPipelines;
 }
 
-#./Build test --test_files t/VRPipe/Pipelines/graphs_and_stats_exome.t --verbose
-
 my $stats_output_dir = get_output_dir('graphs_and_stats_exome_pipeline');
 
 ok my $stats_pipeline = VRPipe::Pipeline->get(name => 'graphs_and_stats_exome'), 'able to get a pre-written pipeline';
@@ -40,35 +38,37 @@ my $element_id=0;
 my $sample = "NA20526";
 
 foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
-	$element_id++;
-    push(@output_files, file($stats_output_dir, output_subdirs($element_id), '1_qc_stats_exome', "${in}.bam.stats.dump"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.scaled.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.scaled.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.coverage_per_base.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.coverage_per_base.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.cumulative_coverage.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.cumulative_coverage.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.gc_mapped.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.gc_mapped.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.gc_unmapped.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.gc_unmapped.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.insert_size.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.insert_size.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.mean_coverage.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.mean_coverage.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.normalised_coverage.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.normalised_coverage.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.quality_scores_1.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.quality_scores_1.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.quality_scores_2.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.quality_scores_2.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.target_gc_vs_cvg.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.target_gc_vs_cvg.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.target_gc_vs_cvg.scaled.png"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "$sample.target_gc_vs_cvg.scaled.png.R"));
-	push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_plots_exome', "Rplots.pdf"));	
+    $element_id++;
+    my @output_subdirs = output_subdirs($element_id);
+    
+    push(@output_files, file(@output_subdirs, '1_qc_stats_exome', "${in}.bam.stats.dump"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.scaled.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.bait_gc_vs_cvg.scaled.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.coverage_per_base.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.coverage_per_base.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.cumulative_coverage.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.cumulative_coverage.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.gc_mapped.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.gc_mapped.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.gc_unmapped.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.gc_unmapped.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.insert_size.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.insert_size.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.mean_coverage.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.mean_coverage.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.normalised_coverage.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.normalised_coverage.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.quality_scores_1.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.quality_scores_1.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.quality_scores_2.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.quality_scores_2.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.target_gc_vs_cvg.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.target_gc_vs_cvg.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.target_gc_vs_cvg.scaled.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "$sample.target_gc_vs_cvg.scaled.png.R"));
+    push(@final_files, file(@output_subdirs, '2_qc_plots_exome', "Rplots.pdf"));	
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
