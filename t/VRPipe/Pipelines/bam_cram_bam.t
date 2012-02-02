@@ -40,13 +40,14 @@ my @files = ('hs_chr20.a.bam', 'hs_chr20.b.bam', 'hs_chr20.c.bam', 'hs_chr20.d.b
 my $element_id = 0;
 foreach my $file (@files) {
     $element_id++;
-    push @output_files, file($output_dir, output_subdirs($element_id), '1_test_import_bams', $file);
-    push @output_files, file($output_dir, output_subdirs($element_id), '1_test_import_bams', "$file.bai");
+    my @output_subdirs = output_subdirs($element_id);
+    push @output_files, file(@output_subdirs, '1_test_import_bams', $file);
+    push @output_files, file(@output_subdirs, '1_test_import_bams', "$file.bai");
     $file =~ s/bam$/cram/;
-    push @output_files, file($output_dir, output_subdirs($element_id), '5_bam_to_cram', $file);
-    push @output_files, file($output_dir, output_subdirs($element_id), '5_bam_to_cram', "$file.crai");
+    push @output_files, file(@output_subdirs, '5_bam_to_cram', $file);
+    push @output_files, file(@output_subdirs, '5_bam_to_cram', "$file.crai");
     $file =~ s/cram$/bam/;
-    push @output_files, file($output_dir, output_subdirs($element_id), '7_cram_to_bam', $file);
+    push @output_files, file(@output_subdirs, '7_cram_to_bam', $file);
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 
