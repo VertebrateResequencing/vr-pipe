@@ -10,8 +10,6 @@ BEGIN {
     use TestPipelines;
 }
 
-#./Build test --test_files t/VRPipe/Pipelines/graphs_and_stats_wgs.t --verbose
-
 my $stats_output_dir = get_output_dir('graphs_and_stats_wgs_pipeline');
 
 ok my $stats_pipeline = VRPipe::Pipeline->get(name => 'graphs_and_stats_wgs'), 'able to get a pre-written pipeline';
@@ -53,24 +51,25 @@ my $element_id=0;
 my $sample = "NA20526";
 
 foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
-	$element_id++;
-    push(@output_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "${in}.bam.bamcheck"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-coverage.gp"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-content.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-insert-size.gp"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals3.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals-hm.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-acgt-cycles.gp"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-coverage.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-depth.gp"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-insert-size.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals.gp"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-acgt-cycles.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-content.gp"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-depth.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals2.png"));
-    push(@final_files, file($stats_output_dir, output_subdirs($element_id), '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals-hm.gp"));
+    $element_id++;
+    my @output_subdirs = output_subdirs($element_id);
+    push(@output_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "${in}.bam.bamcheck"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-coverage.gp"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-content.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-insert-size.gp"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals3.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals-hm.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-acgt-cycles.gp"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-coverage.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-depth.gp"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-insert-size.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals.gp"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-acgt-cycles.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-content.gp"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-gc-depth.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals2.png"));
+    push(@final_files, file(@output_subdirs, '2_qc_stats_bamcheck_rmdup_wgs', "$sample-quals-hm.gp"));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

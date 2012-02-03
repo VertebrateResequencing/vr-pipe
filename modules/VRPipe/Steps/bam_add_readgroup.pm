@@ -22,17 +22,15 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::picard;
-            
             my $self = shift;
             my $options = $self->options;
-            my $picard = VRPipe::Utils::picard->new(picard_path => $options->{picard_path}, java_exe => $options->{java_exe});
-            my $picard_jar = Path::Class::File->new($picard->picard_path, 'AddOrReplaceReadGroups.jar');
+            $self->handle_standard_options($options);
+            my $picard_jar = $self->jar('AddOrReplaceReadGroups.jar');
             
             my $opts = $options->{picard_add_readgroups_options};
             my $rginfo = 'RGID=$lane RGLB=$library RGPL=$platform RGPU=$platform_unit RGSM=$sample RGCN=$centre RGDS=$study';
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
-                                   version => $picard->determine_picard_version(),
+                                   version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar AddOrReplaceReadGroups.jar INPUT=$bam_file OUTPUT=$rg_added_bam_file'." $rginfo $opts"));
             
             my $req = $self->new_requirements(memory => 500, time => 1);
@@ -61,9 +59,9 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                                                   metadata => $meta);
                 
                 my $temp_dir = $options->{tmp_dir} || $rg_added_bam_file->dir;
-                my $jvm_args = $picard->jvm_args($memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($memory, $temp_dir);
                 
-                my $this_cmd = $picard->java_exe." $jvm_args -jar $picard_jar INPUT=".$bam->path." OUTPUT=".$rg_added_bam_file->path." $rginfo_cmd $opts";
+                my $this_cmd = $self->java_exe." $jvm_args -jar $picard_jar INPUT=".$bam->path." OUTPUT=".$rg_added_bam_file->path." $rginfo_cmd $opts";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_add_readgroup', 'add_rg_and_check', [$this_cmd, $req, {output_files => [$rg_added_bam_file]}]); 
             }
         };

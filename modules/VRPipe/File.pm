@@ -7,6 +7,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use IO::Uncompress::AnyUncompress;
     use VRPipe::FileType;
     use File::Copy;
+    use Cwd qw(abs_path);
     
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
@@ -329,6 +330,18 @@ class VRPipe::File extends VRPipe::Persistent {
         my $sp = $self->path;
         my $dp = $dest->path;
         my $success = symlink($sp, $dp);
+        
+        # allow failures due to the symlink already existing
+        unless ($success) {
+            if (-e $dp && -l $dp && abs_path($dp) eq $sp) {
+                my $parent = $dest->parent;
+                if ($parent && $parent->id == $self->id) {
+                    return;
+                }
+                $success = 1;
+            }
+        }
+        
         unless ($success) {
             $self->throw("symlink of $sp => $dp failed: $!");
         }

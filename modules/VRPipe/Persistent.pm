@@ -119,6 +119,30 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     has '-result_source' => (is => 'rw',
                              isa => 'DBIx::Class::ResultSource::Table');
     
+    has '_from_non_persistent' => (is => 'rw',
+                                   isa => 'Maybe[Object]',
+                                   lazy => 1,
+                                   builder => '_determine_if_from_non_persistent');
+    
+    # for when this instance was not retrieved via get()
+    method _determine_if_from_non_persistent {
+        if ($self->can('name')) {
+            my $name = $self->name;
+            my $class = ref($self);
+            if (exists $factory_modules{$class} && exists $factory_modules{$class}->{$name}) {
+                my $factory_class = "${class}NonPersistentFactory";
+                if (exists $factory_modules{factories}->{$factory_class}) {
+                    eval "require $factory_class;";
+                    unless ($@) {
+                        return $factory_class->create($name, {});
+                    }
+                }
+            }
+        }
+        
+        return;
+    }
+    
     method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$many_to_many?) {
         # decide on the name of the table and initialise
         unless (defined $table_name) {
@@ -293,7 +317,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
                 elsif ($cname eq 'FileType') {
                     $cname = 'varchar';
-                    $size = 3;
+                    $size = 4;
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
@@ -453,6 +477,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             
             # first see if there is a corresponding $class::$name class
+            my $from_non_persistent;
             if (defined $args{name} && keys %args == 1) {
                 my $dir = $class.'s';
                 unless (exists $factory_modules{$class}) {
@@ -469,6 +494,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         eval "require $factory_class;";
                         die "$@\n" if $@;
                         my $obj = $factory_class->create($args{name}, {});
+                        $from_non_persistent = $obj;
                         
                         # now setup %args based on $obj; doing things this way means
                         # we return a real Persistent object, but it is based on the
@@ -603,6 +629,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 last;
             }
             
+            $row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
             return $row;
         });
         

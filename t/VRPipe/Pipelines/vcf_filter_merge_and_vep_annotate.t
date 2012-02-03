@@ -37,7 +37,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge
                                                     output_root => $output_dir,
                                                     pipeline => $pipeline,
                                                     options => {'vcf-annotate_options' => "-a $annot_file -d $annot_desc_file -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ",
-																'vcf-annotate_2_options' => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
+								'vcf-annotate_2_options' => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
                                                                 'vcf-filter_files' => "$filter_opt_file_1#$filter_opt_file_2",
                                                                 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
                                                                 'vcf2consequences_options' => "-grantham --gerp $gerp_cache",
@@ -47,13 +47,14 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge
 my (@output_files,@final_files);
 my $element_id=0;
 foreach my $in ('test1', 'test2') {
-	$element_id++;
-    push(@output_files, file($output_dir, output_subdirs($element_id), '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz"));
-    push(@output_files, file($output_dir, output_subdirs($element_id), '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
-    push(@output_files, file($output_dir, output_subdirs($element_id), '3_vcf_annotate', "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
-    push(@final_files, file($output_dir, output_subdirs($element_id), '6_vcf_stats', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.stats"));
+    $element_id++;
+    my @output_subdirs = output_subdirs($element_id);
+    push(@output_files, file(@output_subdirs, '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz"));
+    push(@output_files, file(@output_subdirs, '2_vcf_merge', "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
+    push(@output_files, file(@output_subdirs, '3_vcf_annotate', "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
+    push(@final_files, file(@output_subdirs, '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
+    push(@final_files, file(@output_subdirs, '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
+    push(@final_files, file(@output_subdirs, '6_vcf_stats', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.stats"));
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 

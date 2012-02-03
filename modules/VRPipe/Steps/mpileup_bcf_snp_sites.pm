@@ -13,7 +13,6 @@ class VRPipe::Steps::mpileup_bcf_snp_sites extends VRPipe::Steps::mpileup_bcf {
     method body_sub {
         return sub {
             my $self = shift;
-            use VRPipe::Steps::mpileup_bcf;
             my $options = $self->options;
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;

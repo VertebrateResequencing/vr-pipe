@@ -32,11 +32,9 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 
     method body_sub {
         return sub {
-            use VRPipe::Utils::gatk;
-            
             my $self = shift;
             my $options = $self->options;
-            my $gatk = VRPipe::Utils::gatk->new(gatk_path => $options->{gatk_path}, java_exe => $options->{java_exe});
+	    $self->handle_standard_options($options);
             
             my $reference_fasta = $options->{reference_fasta};
             my $dbsnp_ref = $options->{dbsnp_ref};
@@ -47,7 +45,7 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 			$genotyper_opts .= " --dbsnp $dbsnp_ref " if $dbsnp_ref;
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $jvm_args = $gatk->jvm_args($req->memory);
+            my $jvm_args = $self->jvm_args($req->memory);
 
 			if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
 				$self->warn("[todo] Generate a bam fofn");
@@ -81,7 +79,7 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 					my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}_${chr}_${from}_${to}.vcf.gz", type => 'bin');
 					my $vcf_path = $vcf_file->path;
 
-					my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $chunk_opts $bam_list -o $vcf_path ];
+					my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $chunk_opts $bam_list -o $vcf_path ];
 					$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
 				}
 			}
@@ -91,11 +89,10 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 				my $vcf_path = $vcf_file->path;
 
 				$self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-					version => $gatk->determine_gatk_version(),
+					version => $self->gatk_version(),
 					summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta $genotyper_opts -I $bam_path -o $vcf_path'));
 
-				my $cmd = $gatk->java_exe.qq[ $jvm_args -jar ].$gatk->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $genotyper_opts $bam_list -o $vcf_path ];
-#				$self->warn($cmd);
+				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $genotyper_opts $bam_list -o $vcf_path ];
 				$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
 			}
         };

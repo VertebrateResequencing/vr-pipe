@@ -12,7 +12,6 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
     method body_sub {
         return sub {
             my $self = shift;
-            use VRPipe::Steps::mpileup_bcf;
             
             my $options = $self->options;
             my $ref = Path::Class::File->new($options->{reference_fasta});

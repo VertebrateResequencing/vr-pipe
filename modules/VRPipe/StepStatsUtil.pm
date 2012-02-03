@@ -62,7 +62,7 @@ class VRPipe::StepStatsUtil {
         return;
     }
     method recommended_memory (VRPipe::PipelineSetup :$pipelinesetup?) {
-        my $mem = $self->_recommended('memory', $pipelinesetup ? ($pipelinesetup) : ());
+        my $mem = $self->_recommended('memory', $pipelinesetup ? ($pipelinesetup) : ()) || return;
         
         # recommend at least 100MB though
         if ($mem < 100) {

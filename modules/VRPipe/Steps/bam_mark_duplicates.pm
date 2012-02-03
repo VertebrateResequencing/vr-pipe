@@ -11,17 +11,15 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::picard;
-            
             my $self = shift;
             my $options = $self->options;
-            my $picard = VRPipe::Utils::picard->new(picard_path => $options->{picard_path}, java_exe => $options->{java_exe});
-            my $markdup_jar = Path::Class::File->new($picard->picard_path, 'MarkDuplicates.jar');
+            $self->handle_standard_options($options);
+            my $markdup_jar = $self->jar('MarkDuplicates.jar');
             
             my $markdup_opts = $options->{markdup_options};
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
-                                   version => $picard->determine_picard_version(),
+                                   version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file '.$markdup_opts));
             
             my $req = $self->new_requirements(memory => 5800, time => 2);
@@ -36,9 +34,9 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
                                                   metadata => $bam_meta);
                 
                 my $temp_dir = $options->{tmp_dir} || $markdup_bam_file->dir;
-                my $jvm_args = $picard->jvm_args($req->memory, $temp_dir);
+                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $picard->java_exe." $jvm_args -jar $markdup_jar INPUT=".$bam->path." OUTPUT=".$markdup_bam_file->path." $markdup_opts";
+                my $this_cmd = $self->java_exe." $jvm_args -jar $markdup_jar INPUT=".$bam->path." OUTPUT=".$markdup_bam_file->path." $markdup_opts";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_mark_duplicates', 'markdup_and_check', [$this_cmd, $req, {output_files => [$markdup_bam_file]}]); 
             }
         };

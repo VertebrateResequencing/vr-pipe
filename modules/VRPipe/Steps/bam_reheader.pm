@@ -123,32 +123,36 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         }
         
         my %lanes;
+        my %rg_lines;
         foreach my $file (@files) {
             my $this_meta = $file->metadata;
             # we may have merged multiple bams from the same lane - eg single and paired 
             # end bams, so only print readgroup once
             next if (exists $lanes{$this_meta->{lane}});
             $lanes{$this_meta->{lane}} = 1;
-            print $hfh "\@RG\tID:", $this_meta->{lane};
+            my $rg_line = "\@RG\tID:".$this_meta->{lane};
             if (defined $this_meta->{library}) {
-                print $hfh "\tLB:", $this_meta->{library};
+                $rg_line .= "\tLB:".$this_meta->{library};
             }
             if (defined $this_meta->{sample}) {
-                print $hfh "\tSM:", $this_meta->{sample};
+                $rg_line .= "\tSM:".$this_meta->{sample};
             }
             if (defined $this_meta->{insert_size}) {
-                print $hfh "\tPI:", $this_meta->{insert_size};
+                $rg_line .= "\tPI:".$this_meta->{insert_size};
             }
             if (defined $this_meta->{center_name}) {
-                print $hfh "\tCN:", $this_meta->{center_name};
+                $rg_line .= "\tCN:".$this_meta->{center_name};
             }
             if (defined $this_meta->{platform}) {
-                print $hfh "\tPL:", $this_meta->{platform};
+                $rg_line .= "\tPL:".$this_meta->{platform};
             }
             if (defined $this_meta->{study}) {
-                print $hfh "\tDS:", $this_meta->{study};
+                $rg_line .= "\tDS:".$this_meta->{study};
             }
-            print $hfh "\n";
+            $rg_lines{$this_meta->{lane}} = $rg_line;
+        }
+        foreach my $rg (sort keys %rg_lines) {
+            print $hfh $rg_lines{$rg}, "\n";
             $header_lines++;
         }
         

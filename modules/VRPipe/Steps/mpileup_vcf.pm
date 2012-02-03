@@ -9,7 +9,6 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
     method body_sub {
         return sub {
             my $self = shift;
-            use VRPipe::Steps::mpileup_bcf;
             my $options = $self->options;
             my $samtools = $options->{samtools_exe};
             my $reference_fasta = $options->{reference_fasta};
