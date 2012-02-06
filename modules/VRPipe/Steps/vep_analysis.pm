@@ -3,6 +3,7 @@ use VRPipe::Base;
 class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
     method options_definition {
         return { 'vep_options' => VRPipe::StepOption->get(description => 'options to vep, excluding -i or -o'),
+                 'tmp_exe' => VRPipe::StepOption->get(description => 'path to script to sort on chr, temp fix for VEP sort order bug'),
                  'vep_exe' => VRPipe::StepOption->get(description => 'path to your vep executable',
                                                                optional => 1,
                                                                default_value => 'variant_effect_predictor.pl') };
@@ -19,6 +20,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 			my $options = $self->options;
 			my $vep_exe = $options->{'vep_exe'};
 			my $vep_opts = $options->{'vep_options'};
+			my $tmp_exe = $options->{'tmp_exe'};
 			my $cat_exe;
 
 			if ($vep_opts =~ /-[i,o]/) {
@@ -42,7 +44,6 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 				my $input_path = $vcf_file->path;
 				my $output_path = $vep_txt->path;
 				my $tmp_path = "$output_path.tmp";	# fix to vep 2.2 sort order
-				my $tmp_exe = "/lustre/scratch106/user/cj5/vep2.2/vep_resort.sh";
 
 				my $this_cmd = "$cat_exe $input_path | $vep_exe $vep_opts -o $tmp_path; $tmp_exe $tmp_path > $output_path";
 

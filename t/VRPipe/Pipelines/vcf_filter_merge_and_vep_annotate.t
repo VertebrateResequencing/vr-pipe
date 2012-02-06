@@ -40,6 +40,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge
 																'vcf-annotate_2_options' => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
                                                                 'vcf-filter_files' => "$filter_opt_file_1#$filter_opt_file_2",
                                                                 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+																'tmp_exe' => "/lustre/scratch106/user/cj5/vep2.2/vep_resort.sh",
                                                                 'vcf2consequences_options' => "-grantham --gerp $gerp_cache",
                                                                 'vcf-stats_options' => "-f FILTER",
                                                                 cleanup => 0});
