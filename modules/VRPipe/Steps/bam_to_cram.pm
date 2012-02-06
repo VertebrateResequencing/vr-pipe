@@ -12,8 +12,6 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
     }
     method body_sub {
         return sub {
-            use VRPipe::Utils::cramtools; 
-            
             my $self = shift;
             my $options = $self->options;
             $self->handle_standard_options($options);
