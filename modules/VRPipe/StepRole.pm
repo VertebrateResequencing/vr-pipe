@@ -493,10 +493,10 @@ role VRPipe::StepRole {
         # if we have recommendations, override the settings passed in from the
         # step body_sub
         my $allow_override = $self->allow_smaller_recommended_requirements_override;
-        if ($rec_mem && ($allow_override ? $rec_mem > $memory : 1)) {
+        if ($rec_mem && ($allow_override ? 1 : $rec_mem > $memory)) {
             $memory = $rec_mem;
         }
-        if ($rec_time && ($allow_override ? $rec_time > $time : 1)) {
+        if ($rec_time && ($allow_override ? 1 : $rec_time > $time )) {
             $time = $rec_time;
         }
         

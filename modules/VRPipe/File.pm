@@ -297,8 +297,12 @@ class VRPipe::File extends VRPipe::Persistent {
     method move (VRPipe::File $dest) {
         my $sp = $self->path;
         my $dp = $dest->path;
+        my $d_existed = $dest->e;
         my $success = File::Copy::move($sp, $dp);
         unless ($success) {
+            unless ($d_existed) {
+                $dp->remove;
+            }
             $self->throw("move of $sp => $dp failed: $!");
         }
         else {

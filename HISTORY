@@ -1,3 +1,4 @@
+0.28    Really fix java-using steps so they get the memory they need
 0.27    Outputs of near-identical PipelineSetups will now never risk
         overwriting themselves. Java-using steps get better recommended
         memory. New IMPORTANT_NOTES file - you must read this!
