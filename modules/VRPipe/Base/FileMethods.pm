@@ -301,7 +301,7 @@ role VRPipe::Base::FileMethods {
     }
     
     method file_md5 (VRPipe::File $vrfile) {
-        my $fh = $vrfile->openr;
+        my $fh = $vrfile->open('<', backwards => 0);
         binmode($fh);
         return Digest::MD5->new->addfile($fh)->hexdigest;
     }
