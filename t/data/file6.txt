@@ -1,0 +1,2 @@
+6: a text file
+6: with two lines
