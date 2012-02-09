@@ -289,16 +289,32 @@ class VRPipe::File extends VRPipe::Persistent {
 
  Title   : move (alias mv)
  Usage   : $obj->move($dest);
- Function: Move this file to another path. Actually does a copy, md5 check and
-           then delete of source, to be sure the move is OK. $dest receives
-           $obj's metadata, and $obj knows it was moved_to $dest. $dest only
-           inherits $obj's parent if $obj had one
+ Function: Move this file to another path. dest receives $obj's metadata, and
+           $obj knows it was moved_to $dest. $dest only inherits $obj's parent
+           if $obj had one
  Returns : n/a
  Args    : VRPipe::File destination file
+           optionally, check_md5s => 1 to make sure the move was perfect by
+           doing a copy, md5 check and then deletion of source
 
 =cut
-    method move (VRPipe::File $dest) {
-        my $success = $self->copy($dest);
+    method move (VRPipe::File $dest, Bool :$check_md5s = 0) {
+        my $success;
+        if ($check_md5s) {
+            $success = $self->copy($dest);
+        }
+        else {
+            my $sp = $self->path;
+            my $dp = $dest->path;
+            $success = File::Copy::move($sp, $dp);
+            
+            $dest->update_stats_from_disc;
+            unless ($success) {
+                $self->update_stats_from_disc;
+                $self->throw("move of $sp => $dp failed: $!");
+            }
+            $dest->add_metadata($self->metadata);
+        }
         
         if ($success) {
             my $parent = $self->parent;

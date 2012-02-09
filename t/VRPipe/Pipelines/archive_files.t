@@ -5,7 +5,7 @@ use Path::Class;
 use Digest::MD5;
 
 BEGIN {
-    use Test::Most tests => 5;
+    use Test::Most tests => 6;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
     use TestPipelines;
 }
@@ -99,6 +99,10 @@ foreach my $tfile (@archive_files) {
     $robin_index %= @pools;
 }
 ok handle_pipeline(@new_archive_files), 'archiving with an altered pool also worked';
+
+my $file = VRPipe::File->get(path => $new_archive_files[0]);
+my $moved_from = VRPipe::File->get(path => $archive_files[0]);
+is_deeply [$moved_from->moved_to->id, $file->md5], [$file->id, 'eb8fa3ffb310ce9a18617210572168ec'], 'moved file has appropriate properties';
 
 finish;
 exit;

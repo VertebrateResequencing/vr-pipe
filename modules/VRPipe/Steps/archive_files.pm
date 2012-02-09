@@ -65,7 +65,7 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
                 # VRPipe::File->move will do a copy, check md5s, and only then
                 # delete the source, so it is nice and safe
                 my $ifile = $file->path;
-                $self->dispatch_vrpipecode("VRPipe::File->get(path => q[$ifile])->move(VRPipe::File->get(path => q[$ofile]));", $req);
+                $self->dispatch_vrpipecode("VRPipe::File->get(path => q[$ifile])->move(VRPipe::File->get(path => q[$ofile]), check_md5s => 1);", $req);
             }
         };
     }
