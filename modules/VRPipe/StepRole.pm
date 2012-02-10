@@ -99,7 +99,8 @@ role VRPipe::StepRole {
         my $pipeline_root = $step_state->pipelinesetup->output_root;
         
         my $de_id = $step_state->dataelement->id;
-        my $hashing_string = 'VRPipe::DataElement::'.$de_id;
+        my $des_id = VRPipe::DataElementState->get(dataelement => $de_id, pipelinesetup => $step_state->pipelinesetup)->id;
+        my $hashing_string = 'VRPipe::DataElementState::'.$des_id;
         my @subdirs = $self->hashed_dirs($hashing_string);
         
         return dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number.'_'.$self->name);
@@ -265,8 +266,6 @@ role VRPipe::StepRole {
                 $self->throw("invalid class ".ref($val)." supplied for input '$key' value definition");
             }
         }
-        
-        
         
         return \%return;
     }
@@ -494,10 +493,10 @@ role VRPipe::StepRole {
         # if we have recommendations, override the settings passed in from the
         # step body_sub
         my $allow_override = $self->allow_smaller_recommended_requirements_override;
-        if ($rec_mem && ($allow_override ? $rec_mem > $memory : 1)) {
+        if ($rec_mem && ($allow_override ? 1 : $rec_mem > $memory)) {
             $memory = $rec_mem;
         }
-        if ($rec_time && ($allow_override ? $rec_time > $time : 1)) {
+        if ($rec_time && ($allow_override ? 1 : $rec_time > $time )) {
             $time = $rec_time;
         }
         

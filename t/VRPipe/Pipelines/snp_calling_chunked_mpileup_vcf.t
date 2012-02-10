@@ -45,8 +45,8 @@ my @files = ('hs_chr20.a.bam','hs_chr20.c.bam');
 my $element_id = 0;
 foreach (@files) {
   $element_id++;
-  my $file = 'merged.vcf.gz';
-  push(@output_files, file($output_dir, output_subdirs($element_id), '3_vcf_concat', $file));
+  my @output_dirs = output_subdirs($element_id);
+  push(@output_files, file(@output_dirs, '3_vcf_concat', 'merged.vcf.gz'));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

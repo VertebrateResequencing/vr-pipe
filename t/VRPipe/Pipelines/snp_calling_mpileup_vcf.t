@@ -34,7 +34,6 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpil
 			#samtools_mpileup_options => '-C50 -aug -r 20:1-70000',
 			samtools_mpileup_options => '-C50 -aug',
 			reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
-			#reference_fasta => "/lustre/scratch105/projects/g1k/ref/main_project/human_g1k_v37.fasta",
 		}
 );
 
@@ -44,8 +43,7 @@ my @files = ('hs_chr20.a.bam','hs_chr20.c.bam');
 my $element_id = 0;
 foreach (@files) {
   $element_id++;
-  my $file = 'mpileup.vcf.gz';
-  push(@output_files, file($output_dir, output_subdirs($element_id), '1_mpileup_vcf', $file));
+  push(@output_files, file(output_subdirs($element_id), '1_mpileup_vcf', 'mpileup.vcf.gz'));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

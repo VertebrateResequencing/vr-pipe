@@ -1,3 +1,6 @@
+[You should read IMPORTANT_NOTES which notes version-specific issues]
+
+
 VRPipe is a generic pipeline system designed for use by the Vertebrate
 Resequencing team at the Sanger Instititue, but also for broad use for anyone.
 
@@ -92,12 +95,12 @@ $ vrpipe-db_upgrade
 
 To use:
 The daemons to run the system have not yet been written. In the mean time you
-can run scripts based on the examples vrpipe-trigger_pipelines and
-vrpipe-dispatch_pipelines. Set up a pipeline using vrpipe-setup and then it will
-run if you have the other two scripts running in the background.
+can run the scripts vrpipe-trigger_pipelines and vrpipe-dispatch_pipelines.
+Set up a pipeline using vrpipe-setup and then it will execute if you have the
+trigger and dispatch scripts running in the background.
 
 As a general point, any perl script you write that wants to use some VRPipe
-code should generally "use VRPipe::Persistent::Schema;". After that most things
+code should typically "use VRPipe::Persistent::Schema;". After that most things
 should work without further "use" statements.
 
 

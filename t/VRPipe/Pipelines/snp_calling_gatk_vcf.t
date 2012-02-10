@@ -25,10 +25,6 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 my $recal_opts = "--mode 'BOTH' --ignore_filter 'HARD_TO_VALIDATE' --percentBadVariants 0.07 --maxGaussians 1 --minNumBadVariants 10"; # test with small no of variants
 $recal_opts .= " -an QD -an HaplotypeScore"; # in SNPS.pm $gatk->set_annotations('HaplotypeScore', 'MQRankSum', 'ReadPosRankSum', 'HRun');
 
-#$recal_opts .= " -resource:dbsnp,known=true,training=false,truth=false,prior=8.0 /lustre/scratch105/projects/g1k/ref/broad_resources_b37/dbsnp_132.b37.vcf.gz"; # prod
-#$recal_opts .= " -resource:omni,known=false,training=true,truth=false,prior=12.0 /lustre/scratch105/projects/g1k/ref/broad_resources_b37/1000G_omni2.5.b37.sites.vcf.gz"; #prod
-#$recal_opts .= " -resource:hapmap,known=false,training=true,truth=true,prior=15.0 /lustre/scratch105/projects/g1k/ref/broad_resources_b37/hapmap_3.3.b37.sites.vcf.gz"; #prod
-
 $recal_opts .= " -resource:dbsnp,known=true,training=true,truth=false,prior=8.0 " .  file(qw(t data dbsnp_132.b37.chr20_reduced.vcf.gz))->absolute->stringify;
 $recal_opts .= " -resource:omni,known=false,training=true,truth=false,prior=12.0 " .  file(qw(t data 1000G_omni2.5.b37.sites.chr20_reduced.vcf.gz))->absolute->stringify;
 $recal_opts .= " -resource:hapmap,known=false,training=true,truth=true,prior=15.0 " .  file(qw(t data hapmap_3.3.b37.sites.chr20_reduced.vcf.gz))->absolute->stringify;
@@ -44,11 +40,9 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_gatk
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { cleanup => 0, 
-			dbsnp_ref => "/lustre/scratch105/projects/g1k/ref/broad_resources_b37/dbsnp_132.b37.vcf.gz",
+			dbsnp_ref => file(qw(t data dbsnp_132.b37.chr20_reduced.vcf.gz))->absolute->stringify,
 			reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,	# contig size tailored for test bams
-			#reference_fasta => "/lustre/scratch105/projects/g1k/ref/main_project/human_g1k_v37.fasta",
 			#interval_list => file(qw(t data hs_chr20.invervals.list))->absolute->stringify,
-			#interval_list => "/lustre/scratch106/user/cj5/snp_call_test/exome_B_GRCh37.intervals.window100.intervals",
 			#interval_list => file(qw(t data exome_B_GRCh37.intervals.window100_chr20.intervals))->absolute->stringify,
 			genotyper_opts => "--genotype_likelihoods_model BOTH -stand_call_conf 10.0 --phone_home NO_ET", # -stand_call_conf 10.0 hardcoded into "GATK.pm"
 			#genotyper_opts => '-stand_call_conf 50.0 -stand_emit_conf 10.0 -L 20:1-70000', 
@@ -63,12 +57,13 @@ my @files = ('hs_chr20.a.bam','hs_chr20.c.bam');
 my $element_id = 0;
 foreach (@files) {
   $element_id++;
+  my @output_subdirs = output_subdirs($element_id);
   my $file = 'gatk_var.vcf.gz';
-  push(@output_files, file($output_dir, output_subdirs($element_id), '1_gatk_genotype', $file));
-  push(@output_files, file($output_dir, output_subdirs($element_id), '1_gatk_genotype', "$file.tbi"));
+  push(@output_files, file(@output_subdirs, '1_gatk_genotype', $file));
+  push(@output_files, file(@output_subdirs, '1_gatk_genotype', "$file.tbi"));
   $file = 'gatk_var.filt.vcf.gz';
-  push(@output_files, file($output_dir, output_subdirs($element_id), '3_gatk_variant_filter', $file));
-  push(@output_files, file($output_dir, output_subdirs($element_id), '3_gatk_variant_filter', "$file.tbi"));
+  push(@output_files, file(@output_subdirs, '3_gatk_variant_filter', $file));
+  push(@output_files, file(@output_subdirs, '3_gatk_variant_filter', "$file.tbi"));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';

@@ -9,6 +9,7 @@ our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_ste
 
 our $manager = VRPipe::Manager->get();
 our $scheduler;
+our %setups;
 
 BEGIN {
     $scheduler = VRPipe::Scheduler->get();
@@ -62,8 +63,21 @@ sub handle_pipeline {
 }
 
 sub output_subdirs {
-    my $element_id = shift;
-    return ($manager->hashed_dirs('VRPipe::DataElement::'.$element_id), $element_id);
+    my $de_id = shift;
+    my $setup_id = shift || 1;
+    my $setup = $setups{$setup_id};
+    unless ($setup) {
+        $setup = VRPipe::PipelineSetup->get(id => $setup_id);
+        $setup->datasource->incomplete_element_states($setup); # create all dataelements et al.
+        $setups{$setup_id} = $setup;
+    }
+    my $pipeline_root = $setup->output_root;
+    
+    my $des_id = VRPipe::DataElementState->get(dataelement => $de_id, pipelinesetup => $setup)->id;
+    my $hashing_string = 'VRPipe::DataElementState::'.$des_id;
+    my @subdirs = $manager->hashed_dirs($hashing_string);
+    
+    return ($pipeline_root, @subdirs, $de_id);
 }
 
 sub create_single_step_pipeline {

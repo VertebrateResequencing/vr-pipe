@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 34;
+    use Test::Most tests => 35;
     use VRPipeTest;
 }
 
@@ -73,12 +73,17 @@ $vrofile->close;
 is_deeply \@lines, ["foo\n", "bar\n", "baz\n"], 'the compressed file could be read with openr';
 is $vrofile->lines, 3, 'raw_lines works correctly on a compressed file';
 
-# test moving and symlinking files
+# test copying, moving and symlinking files
 my $source_path = file($tmp_dir, 'source.txt');
 my $vrsource = VRPipe::File->get(path => $source_path, type => 'txt', metadata => { test => 'meta' });
 $ofh = $vrsource->openw;
 print $ofh "foo\n";
 $vrsource->close;
+
+my $vrcopy = VRPipe::File->get(path => file($tmp_dir, 'copy.txt'));
+$vrsource->copy($vrcopy);
+is_deeply [$vrsource->e, $vrcopy->e, $vrsource->md5, $vrcopy->md5], [1, 1, 'd3b07384d113edec49eaa6238ad5ff00', 'd3b07384d113edec49eaa6238ad5ff00'], 'copy of a file worked, and it updated the md5s';
+
 my $vrdest1 = VRPipe::File->get(path => file($tmp_dir, 'dest.txt'));
 my $vrdest2 = VRPipe::File->get(path => file($tmp_dir, 'dest2.txt'));
 my $vrdest3 = VRPipe::File->get(path => file($tmp_dir, 'dest3.txt'));

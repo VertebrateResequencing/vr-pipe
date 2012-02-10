@@ -7,6 +7,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use IO::Uncompress::AnyUncompress;
     use VRPipe::FileType;
     use File::Copy;
+    use Cwd qw(abs_path);
     
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
@@ -288,30 +289,44 @@ class VRPipe::File extends VRPipe::Persistent {
 
  Title   : move (alias mv)
  Usage   : $obj->move($dest);
- Function: Move this file to another path.
+ Function: Move this file to another path. dest receives $obj's metadata, and
+           $obj knows it was moved_to $dest. $dest only inherits $obj's parent
+           if $obj had one
  Returns : n/a
  Args    : VRPipe::File destination file
+           optionally, check_md5s => 1 to make sure the move was perfect by
+           doing a copy, md5 check and then deletion of source
 
 =cut
-    method move (VRPipe::File $dest) {
-        my $sp = $self->path;
-        my $dp = $dest->path;
-        my $success = File::Copy::move($sp, $dp);
-        unless ($success) {
-            $self->throw("move of $sp => $dp failed: $!");
+    method move (VRPipe::File $dest, Bool :$check_md5s = 0) {
+        my $success;
+        if ($check_md5s) {
+            $success = $self->copy($dest);
         }
         else {
+            my $sp = $self->path;
+            my $dp = $dest->path;
+            $success = File::Copy::move($sp, $dp);
+            
             $dest->update_stats_from_disc;
+            unless ($success) {
+                $self->update_stats_from_disc;
+                $self->throw("move of $sp => $dp failed: $!");
+            }
             $dest->add_metadata($self->metadata);
+        }
+        
+        if ($success) {
             my $parent = $self->parent;
             if ($parent) {
-                $dest->parent($parent) if $self->parent;
+                $dest->parent($parent);
                 $dest->update;
             }
             
-            $self->remove; # to update stats and _lines
+            $self->remove; # to update stats and _lines and actually delete us
             $self->moved_to($dest);
             $self->update;
+            return 1;
         }
     }
     alias mv => 'move';
@@ -329,6 +344,18 @@ class VRPipe::File extends VRPipe::Persistent {
         my $sp = $self->path;
         my $dp = $dest->path;
         my $success = symlink($sp, $dp);
+        
+        # allow failures due to the symlink already existing
+        unless ($success) {
+            if (-e $dp && -l $dp && abs_path($dp) eq $sp) {
+                my $parent = $dest->parent;
+                if ($parent && $parent->id == $self->id) {
+                    return;
+                }
+                $success = 1;
+            }
+        }
+        
         unless ($success) {
             $self->throw("symlink of $sp => $dp failed: $!");
         }
@@ -378,7 +405,8 @@ class VRPipe::File extends VRPipe::Persistent {
 
  Title   : copy (alias cp)
  Usage   : $obj->copy($dest);
- Function: Copy this file to another path.
+ Function: Copy this file to another path, checking md5s to make sure the copy
+           was perfect. $dest receives $obk's metadata
  Returns : n/a
  Args    : VRPipe::File source file, VRPipe::File destination file
 
@@ -386,13 +414,33 @@ class VRPipe::File extends VRPipe::Persistent {
     method copy (VRPipe::File $dest) {
         my $sp = $self->path;
         my $dp = $dest->path;
+        my $d_existed = $dest->e;
+        
         my $success = File::Copy::copy($sp, $dp);
+        
+        $dest->update_stats_from_disc;
         unless ($success) {
+            unless ($d_existed) {
+                $dest->remove;
+            }
             $self->throw("copy of $sp => $dp failed: $!");
         }
         else {
-            $dest->update_stats_from_disc;
+            # check md5s match
+            my $smd5 = $self->md5;
+            unless ($smd5) {
+                $self->update_md5;
+                $smd5 = $self->md5;
+            }
+            $dest->update_md5;
+            my $dmd5 = $dest->md5;
+            unless ($dmd5 eq $smd5) {
+                $dest->remove;
+                $self->throw("copied $sp => $dp, but the md5s didn't match!");
+            }
+            
             $dest->add_metadata($self->metadata);
+            return 1;
         }
     }
     alias cp => 'copy';

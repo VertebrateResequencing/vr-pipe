@@ -1,0 +1,19 @@
+#version 0.27:
+The schema has changed in this version. Be sure to run vrpipe-db_upgrade if you
+have used a previous version of VRPipe.
+
+# versions 0.01-current:
+a) Only MySQL is fully supported so far, though it may work with other dbs.
+b) There is currently an issue with indexing certain columns that are too large
+   to be specified as varchars. After running vrpipe-db_deploy you will have
+   to manually connect to your production database and issue the following SQL:
+   create index path_index on file path(255);
+   create index output_root_index on scheduler (output_root(255));
+   create index cmd_dir_index on job (cmd(255), dir(255));
+   create index requirements_index on requirements (custom(255));
+   create index result_index on dataelement (result(255));
+   create index source_options_index on datasource (source(255), options(255));
+   create index outputroot_options_index on pipelinesetup (output_root(255), options(255));
+   create index allowed_values_index on stepoption (allowed_values(255));
+   create index metadata_index on stepiodefinition (metadata(255));
+   create index summary_index on stepcmdsummary (summary(255));

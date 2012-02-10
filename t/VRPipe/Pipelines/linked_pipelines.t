@@ -80,23 +80,32 @@ my (@base_files, @link_files, @link_merge_files);
 my $element_id = 0;
 foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
     $element_id++;
+    my @output_subdirs = output_subdirs($element_id);
     my $step_index = 0;
     foreach my $suffix ('step_one', 'step_one.step_two', 'step_one.step_two.step_three', 'step_one.step_two.step_three.step_four') {
-        push(@base_files, file($output_dir, output_subdirs($element_id), ($step_index+1).'_'.$expected_base_step_names[$step_index], "$in.$suffix"));
+        push(@base_files, file(@output_subdirs, ($step_index+1).'_'.$expected_base_step_names[$step_index], "$in.$suffix"));
         $step_index++;
     }
 }
+
+handle_pipeline(@base_files);
+
+# linked pipelines only create their dataelements after the previous pipeline
+# has finished, so only now can we figure out remaining expected output file
+# paths
 $element_id++;
+my @output_subdirs = output_subdirs($element_id, 3);
 my $step_index = 0;
 foreach my $suffix ('txt', 'txt.step_one') {
-    push(@link_merge_files, file($output_dir_3, output_subdirs($element_id), ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
+    push(@link_merge_files, file(@output_subdirs, ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
     $step_index++;
 }
 foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
     $element_id++;
+    my @output_subdirs = output_subdirs($element_id, 2);
     my $step_index = 0;
     foreach my $suffix ('txt', 'txt.step_one') {
-        push(@link_files, file($output_dir_2, output_subdirs($element_id), ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
+        push(@link_files, file(@output_subdirs, ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
         $step_index++;
     }
 }
@@ -115,5 +124,6 @@ move($tmp_file, $ds);
 
 # check the three pipelines reset properly and produced modified files
 ok handle_pipeline(), 'pipelines with changed datasource ran ok';
+#*** well where's the test that anything happened as expected?
 
 finish;

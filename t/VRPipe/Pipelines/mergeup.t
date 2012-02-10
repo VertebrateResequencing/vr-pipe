@@ -10,10 +10,10 @@ BEGIN {
                     required_exe => [qw(samtools bwa)]);
     use TestPipelines;
     
-    use_ok('VRPipe::Utils::picard');
+    use_ok('VRPipe::Steps::picard');
 }
 
-my $picard = VRPipe::Utils::picard->new();
+my $picard = VRPipe::Steps::picard->new(picard_path => $ENV{PICARD});
 my $picard_version = $picard->determine_picard_version();
 my $bwa_version = VRPipe::StepCmdSummary->determine_version('bwa', '^Version: (.+)$');
 my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^Version: (.+)$');
@@ -109,26 +109,35 @@ my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release'
 my @mapping_files;
 my %bams = ('2822_6.pe.bam' => 1, '2822_6.se.bam' => 1, '2822_7.pe.bam' => 2, '2823_4.pe.bam' => 3, '8324_8.pe.bam' => 4);
 while (my ($bam, $element_id) = each %bams) {
-    push(@mapping_files, file($mapping_dir, output_subdirs($element_id), '9_bam_merge_lane_splits', $bam));
-    push(@mapping_files, file($mapping_dir, output_subdirs($element_id), '10_bam_stats', $bam.'.bas'));
+    my @output_subdirs = output_subdirs($element_id);
+    push(@mapping_files, file(@output_subdirs, '9_bam_merge_lane_splits', $bam));
+    push(@mapping_files, file(@output_subdirs, '10_bam_stats', $bam.'.bas'));
 }
+
+
+handle_pipeline(@mapping_files);
+# linked pipelines only create their dataelements after the previous pipeline
+# has finished, so only now can we figure out remaining expected output file
+# paths
 
 my @split_files;
 foreach my $element_id (8, 9) {
+    my @output_subdirs = output_subdirs($element_id, 3);
     foreach my $file ('fake_chr1.pe.bam', 'fake_chr2.pe.bam', 'unmapped.pe.bam') {
-        push(@split_files, file($build_dir, output_subdirs($element_id), '4_bam_split_by_sequence', $file));
+        push(@split_files, file(@output_subdirs, '4_bam_split_by_sequence', $file));
     }
 }
 
 my @release_files;
 foreach my $element_id (10, 11) {
+    my @output_subdirs = output_subdirs($element_id, 4);
     foreach my $file ('fake_chr2.pe.bam', 'unmapped.pe.bam') {
-        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '1_dcc_metadata', $file.'.bai'));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '3_bam_stats', $file.'.bas'));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '4_md5_file_production', $file.'.md5'));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '5_md5_file_production', $file.'.bai.md5'));
-        push(@release_files, file($build_dir, output_subdirs($element_id), '6_md5_file_production', $file.'.bas.md5'));
+        push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file));
+        push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file.'.bai'));
+        push(@release_files, file(@output_subdirs, '3_bam_stats', $file.'.bas'));
+        push(@release_files, file(@output_subdirs, '4_md5_file_production', $file.'.md5'));
+        push(@release_files, file(@output_subdirs, '5_md5_file_production', $file.'.bai.md5'));
+        push(@release_files, file(@output_subdirs, '6_md5_file_production', $file.'.bas.md5'));
     }
 }
 
@@ -153,9 +162,9 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
 my @expected_header_lines = ("\@HD\tVN:1.0\tSO:coordinate",
                              "\@SQ\tSN:fake_chr1\tLN:290640\tM5:55f9584cf1f4194f13bbdc0167e0a05f\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
                              "\@SQ\tSN:fake_chr2\tLN:1716851\tM5:6dd2836053e5c4bd14ad49b5b2f2eb88\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis",
-                             "\@RG\tID:2823_4\tLB:LIB02\tSM:SAMPLE01\tPI:195\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@RG\tID:2822_6\tLB:LIB01\tSM:SAMPLE01\tPI:200\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@RG\tID:2822_7\tLB:LIB01\tSM:SAMPLE01\tPI:205\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
+                             "\@RG\tID:2823_4\tLB:LIB02\tSM:SAMPLE01\tPI:195\tCN:SC\tPL:ILLUMINA\tDS:STUDY01",
                              "\@PG\tID:bwa_index\tPN:bwa\tVN:$bwa_version\tCL:bwa index -a is \$reference_fasta",
                              "\@PG\tID:bwa_aln_fastq\tPN:bwa\tPP:bwa_index\tVN:$bwa_version\tCL:bwa aln -q 15 -f \$sai_file \$reference_fasta \$fastq_file",
                              "\@PG\tID:bwa_sam\tPN:bwa\tPP:bwa_aln_fastq\tVN:$bwa_version\tCL:bwa sampe -a 600 -r \$rg_line -f \$sam_file \$reference_fasta \$sai_file(s) \$fastq_file(s)",

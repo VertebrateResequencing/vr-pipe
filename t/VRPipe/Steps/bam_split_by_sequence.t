@@ -77,7 +77,7 @@ my $element_id=0;
 foreach my $bam (qw(2822_7.pe.bam 2822_6.pe.bam 2822_6.se.bam 2823_4.pe.bam 8324_8.pe.bam)) {
    $element_id++;
    foreach my $prefix (qw(autosome mapped unmapped)) {
-       push(@output_files, file($output_dir, output_subdirs($element_id), '1_bam_split_by_sequence', "$prefix.$bam"));
+       push(@output_files, file(output_subdirs($element_id), '1_bam_split_by_sequence', "$prefix.$bam"));
    }
 }
 ok handle_pipeline(@output_files), 'single step bam_split_by_sequence pipeline ran and created all expected output files';
@@ -91,7 +91,7 @@ is_deeply \@file_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0], 'correct files were re
 ok handle_pipeline(@output_files), 'all file recreated after an element was started from scratch';
 
 # run a longer test
-VRPipe::PipelineSetup->get(name => 'split_setup',
+VRPipe::PipelineSetup->get(name => 'split_setup2',
                            datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data split_bam_datasource.fofn))->absolute),
                            output_root => $output_dir,
                            pipeline => $pipeline,
@@ -102,10 +102,10 @@ VRPipe::PipelineSetup->get(name => 'split_setup',
 @output_files = ();
 $element_id++;
 foreach my $chrom (1..22,qw(X Y MT)) {
-    push(@output_files, file($output_dir, output_subdirs($element_id), '1_bam_split_by_sequence', "chrom$chrom.g1k_small.bam"));
+    push(@output_files, file(output_subdirs($element_id, 2), '1_bam_split_by_sequence', "chrom$chrom.g1k_small.bam"));
 }
 foreach my $chrom (qw(mapped unmapped)) {
-    push(@output_files, file($output_dir, output_subdirs($element_id), '1_bam_split_by_sequence', "$chrom.g1k_small.bam"));
+    push(@output_files, file(output_subdirs($element_id, 2), '1_bam_split_by_sequence', "$chrom.g1k_small.bam"));
 }
 ok handle_pipeline(@output_files), 'single step bam_split_by_sequence pipeline ran and created all expected output files for longer g1k test';
 
