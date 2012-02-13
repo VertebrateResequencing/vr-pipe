@@ -5,8 +5,7 @@ class VRPipe::Pipelines::graphs_and_stats_wgs with VRPipe::PipelineRole {
         return 'graphs_and_stats_wgs';
     }
     method _num_steps {
-        return 3;
-        #return 2;
+        return 4;
     }
     method description {
         return 'Performs stats and graph analysis for whole genome study sample bam files.';
@@ -16,19 +15,19 @@ class VRPipe::Pipelines::graphs_and_stats_wgs with VRPipe::PipelineRole {
     }
     
     method _step_list {
-        return ([ VRPipe::Step->get(name => 'qc_stats_bamcheck_wgs'),#1
-                  VRPipe::Step->get(name => 'qc_stats_bamcheck_rmdup_wgs'),#2
-                  VRPipe::Step->get(name => 'qc_plots_wgs'),#3
+        return ([ VRPipe::Step->get(name => 'bamcheck'),#1
+                  VRPipe::Step->get(name => 'plot_bamcheck'),#2
+                  VRPipe::Step->get(name => 'bamcheck_rmdup'),#3
+                  VRPipe::Step->get(name => 'bamcheck_stats_output'),#4
                   ],
 
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'bam_files_with_metadata', to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'bamcheck_files', to_key => 'bamcheck_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'bamcheck_files', to_key => 'bamcheck_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'bam_files_with_metadata', to_key => 'bam_files'),
                    ],
 
-                 [ 
-                  VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup', default_regulation => 0),
-                 ]
+                 [ ]
                  );
     }
 }

@@ -18,11 +18,11 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-            
+
             my $options = $self->options;
             my $bamcheck_exe = $options->{bamcheck_exe};
             my $opts = VRPipe::Steps::bamcheck->get_bamcheck_options($options);
-            
+
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam_file (@{$self->inputs->{bam_files}}) {
                 my $ifile = $bam_file->path;
@@ -68,7 +68,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             my $ref = $options->{reference_fasta};
             if ($opts =~ /-r/ && $ref) {
                 unless ($opts =~ /-r $ref/) {
-                    $opts =~ s/-r /-r $ref /;
+                    $opts =~ s/-r/-r $ref/;
                 }
             }
         }

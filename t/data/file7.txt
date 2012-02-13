@@ -1,0 +1,2 @@
+7: a text file
+7: with two lines

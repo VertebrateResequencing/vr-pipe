@@ -1,0 +1,2 @@
+4: a text file
+4: with two lines

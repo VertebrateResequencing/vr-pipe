@@ -40,6 +40,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         foreach my $source (@sources)
         {
             my ($pipeline_setup, $steps) = $source =~ m/^(.+)\[(.+)\]$/;
+            $pipeline_setup ||= $source;
             my $setup;
             if ($pipeline_setup =~ /^\d+$/)
             {
@@ -59,25 +60,32 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             my $setup_id = $setup->id;
             
             # select desired step members
+            my @step_members = $setup->pipeline->step_members;
             my %desired_steps;
-            my @steps = split /,/, $steps;
-            foreach my $step_name (@steps)
-            {
-                my ($name, $kind) = split /\:/, $step_name;
-                $kind ||= 'all';
-                if ($name =~ /^\d+$/)
+            if ($steps) {
+                my @steps = split /,/, $steps;
+                foreach my $step_name (@steps)
                 {
-                    $desired_steps{numbers}->{$name}->{$kind} = 1;
+                    my ($name, $kind) = split /\:/, $step_name;
+                    $kind ||= 'all';
+                    if ($name =~ /^\d+$/)
+                    {
+                        $desired_steps{numbers}->{$name}->{$kind} = 1;
+                    }
+                    else
+                    {
+                        $desired_steps{names}->{$name}->{$kind} = 1;
+                    }
                 }
-                else
-                {
-                    $desired_steps{names}->{$name}->{$kind} = 1;
+            }
+            else {
+                foreach my $stepm (@step_members) {
+                    $desired_steps{names}->{$stepm->step->name}->{all} = 1;
                 }
             }
             
             my $max_step = 0;
             my $final_smid;
-            my @step_members = $setup->pipeline->step_members;
             foreach my $stepm (@step_members)
             {
                 my $smid = $stepm->id;
