@@ -110,7 +110,12 @@ role VRPipe::StepRole {
     }
     method _build_outputs {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
-        return $step_state->output_files;
+        my $outs = $step_state->output_files;
+        my $temps = $step_state->temp_files;
+        foreach my $temp (@$temps) {
+            push(@{$outs->{temp}}, $temp);
+        }
+        return $outs;
     }
     method _build_temps {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
@@ -234,24 +239,16 @@ role VRPipe::StepRole {
                     }
                     
                     my $wanted_type = $val->type;
-                    if ($result->s) {
-                        my $type = VRPipe::FileType->create($val->type, {file => $result->path});
-                        unless ($type->check_type) {
-                            if ($type->type eq 'any') {
-                                $result->type($wanted_type);
-                            }
-                            else {
+                    unless ($wanted_type eq 'any') {
+                        if ($result->s) {
+                            my $type = VRPipe::FileType->create($wanted_type, {file => $result->path});
+                            unless ($type->check_type) {
                                 $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type ".$type->type);
                             }
                         }
-                    }
-                    else {
-                        my $db_type = $result->type;
-                        if ($db_type && $wanted_type ne $db_type) {
-                            if ($db_type eq 'any') {
-                                $result->type($wanted_type);
-                            }
-                            else {
+                        else {
+                            my $db_type = $result->type;
+                            if ($db_type && $wanted_type ne $db_type) {
                                 $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
                             }
                         }
@@ -289,8 +286,16 @@ role VRPipe::StepRole {
             }
             
             foreach my $file (@$val) {
-                if ($check_s && ! $file->resolve->s) {
-                    push(@missing, $file->path);
+                my $resolved = $file->resolve;
+                if ($check_s && ! $resolved->s) {
+                    # double-check incase the step did not update_stats_from_disc
+                    $resolved->update_stats_from_disc(retries => 3);
+                    unless ($resolved->s) {
+                        push(@missing, $file->path);
+                    }
+                    elsif ($file->id != $resolved->id) {
+                        $file->update_stats_from_disc;
+                    }
                 }
                 else {
                     my $bad = 0;
@@ -339,7 +344,14 @@ role VRPipe::StepRole {
         return &$ref($self);
     }
     
-    method output_file (Str :$output_key!, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
+    method output_file (Str :$output_key?, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
+        if (! $temporary && ! $output_key) {
+            $self->throw("output_key is required");
+        }
+        if (! $temporary && $output_key eq 'temp') {
+            $self->throw("'temp' is a reserved output_key");
+        }
+        
         $output_dir ||= $self->output_root;
         $output_dir = dir($output_dir);
         if ($sub_dir) {
@@ -352,15 +364,16 @@ role VRPipe::StepRole {
         my $vrfile = VRPipe::File->get(path => file($output_dir, $basename), type => $type);
         $vrfile->add_metadata($metadata) if $metadata;
         
-        my $hash = $self->_output_files;
-        my $files = $hash->{$output_key} || [];
-        push(@$files, $vrfile);
-        $self->_remember_output_files($output_key => $files);
-        
         if ($temporary) {
             my $root = $self->output_root;
             $self->throw("temporary files must be placed within the output_root") unless $output_dir =~ /^$root/;
             $self->_remember_temp_file($vrfile);
+        }
+        else {
+            my $hash = $self->_output_files;
+            my $files = $hash->{$output_key} || [];
+            push(@$files, $vrfile);
+            $self->_remember_output_files($output_key => $files);
         }
         
         return $vrfile;
