@@ -21,7 +21,7 @@ class VRPipe::Steps::bamcheck_rmdup extends VRPipe::Steps::bamcheck {
             foreach my $bam_file (@{$self->inputs->{bam_files}}) {
                 my $ifile = $bam_file->path;
                 $self->output_file(output_key => 'bam_files_with_metadata', output_dir => $ifile->dir, basename => $ifile->basename, type => 'bam');
-                my $check_file = $self->output_file(output_key => 'bamcheck_files', basename => $ifile->basename.'.rmdup.bamcheck', type => 'txt', temporary => 1);
+                my $check_file = $self->output_file(basename => $ifile->basename.'.rmdup.bamcheck', type => 'txt', temporary => 1);
                 my $ofile = $check_file->path;
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bamcheck', 'stats_from_bamcheck', ["$bamcheck_exe $bc_rmdup_opts $ifile > $ofile", $req, {output_files => [$check_file]}]);
             }

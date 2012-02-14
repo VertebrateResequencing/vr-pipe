@@ -19,7 +19,7 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             my $options = $self->options;
             my $vcf_concat_exe = $options->{vcf_concat_exe};
 
-			my $merge_list = $self->output_file(output_key => 'merge_list', basename => "merge_list.txt", type => 'txt', temporary => 1);
+			my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
 			my $ofh = $merge_list->openw;
 
             foreach my $vcf (@{$self->inputs->{vcf_files}}) {
