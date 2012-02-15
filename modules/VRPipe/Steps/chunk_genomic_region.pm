@@ -29,7 +29,7 @@ class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
 			my $chunked_regions_file = $self->output_file(output_key => 'chunked_regions_file', basename => 'regions.txt', type => 'txt');
 			my $chunked_regions_file_path = $chunked_regions_file->path;
 
-            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $req = $self->new_requirements(memory => 50, time => 1);
 			my $cmd = "use VRPipe::Steps::chunk_genomic_region; VRPipe::Steps::chunk_genomic_region->write_chunked_regions_file('$chunking_regions_file', '$chunked_regions_file_path', '$chrom_list', '$chunk_size', '$chunks_overlap', '$pseudo_autosomal_definition');";
 
 			$self->dispatch_vrpipecode($cmd, $req, {output_files => [$chunked_regions_file]});
