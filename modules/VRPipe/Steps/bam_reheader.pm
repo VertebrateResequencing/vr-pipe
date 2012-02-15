@@ -51,10 +51,9 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 
                 my $headed_bam_path = $headed_bam_file->path;
                 
-                $self->output_file(output_key => 'temp_header_file',
-                                     basename => $basename.'.header',
-                                     type => 'txt',
-                                     temporary => 1);
+                $self->output_file(basename => $basename.'.header',
+                                   type => 'txt',
+                                   temporary => 1);
 
                 my $this_cmd = "use VRPipe::Steps::bam_reheader; VRPipe::Steps::bam_reheader->reheader_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$headed_bam_path], step_state => $step_state, bam => q[$bam_path]$comment);";
                 $self->dispatch_vrpipecode($this_cmd, $req); # deliberately do not include {output_files => [$headed_bam_file]} so that any temp files we made will get their stats updated prior to auto-deletion

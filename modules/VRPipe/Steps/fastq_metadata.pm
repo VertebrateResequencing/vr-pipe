@@ -23,7 +23,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
                     # run fastqcheck to generate stats
                     # record the fact that we (probably) made the fastqcheck
                     # file, even though it isn't in our outputs_definition *** or should we be able to have optional outputs?
-                    my $fqc_file = $self->output_file(output_key => 'fastqcheck_files', basename => $ifile->basename.'.fastqcheck', type => 'txt', temporary => 1);
+                    my $fqc_file = $self->output_file(basename => $ifile->basename.'.fastqcheck', type => 'txt', temporary => 1);
                     my $ofile = $fqc_file->path;
                     unless ($fqc_file->s) {
                         my $req = $self->new_requirements(memory => 500, time => 1);

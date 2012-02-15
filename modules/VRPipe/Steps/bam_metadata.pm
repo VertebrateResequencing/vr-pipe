@@ -26,7 +26,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
                     $meta_count++ if $meta->{$type};
                 }
                 unless ($meta_count == @meta_to_check) {
-                    my $check_file = $self->output_file(output_key => 'bamcheck_files', basename => $ifile->basename.'.bamcheck', type => 'txt', temporary => 1);
+                    my $check_file = $self->output_file(basename => $ifile->basename.'.bamcheck', type => 'txt', temporary => 1);
                     my $ofile = $check_file->path;
                     $self->dispatch_wrapped_cmd('VRPipe::Steps::bamcheck', 'stats_from_bamcheck', ["$bamcheck_exe $opts $ifile > $ofile", $req, {output_files => [$check_file]}]);
                 }
