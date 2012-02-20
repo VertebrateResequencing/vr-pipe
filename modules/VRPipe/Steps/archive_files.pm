@@ -40,7 +40,7 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             }
             my $max_robin = @robin;
             
-            my $req = $self->new_requirements(memory => 100, time => 1);
+            my $req = $self->new_requirements(memory => 500, time => 1); # md5sum can be memory intensive??
             foreach my $file (@{$self->inputs->{files}}) {
                 # pick a pool directory based on round-robin
                 my $root_dir;
