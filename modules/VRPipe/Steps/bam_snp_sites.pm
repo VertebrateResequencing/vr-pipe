@@ -60,7 +60,7 @@ class VRPipe::Steps::bam_snp_sites with VRPipe::StepRole {
                                               type => 'bin',
                                               metadata => {sample => $sample});
                 my $bam_snp_path = $bam_snp_file->path;
-                my $tmp_bam = $self->output_file(output_key => 'tmp_files', basename => $bam_basename.'.snp', type => 'bin', temporary => 1);
+                my $tmp_bam = $self->output_file(basename => $bam_basename.'.snp', type => 'bin', temporary => 1);
             	my $tmp_file = $tmp_bam->path;
             	my $cmd = qq[$samtools view $samtools_view_opts $bam_path $snp_sites_string > $tmp_file && $samtools sort $tmp_file $tmp_file && $samtools index $bam_snp_path];
 				$self->dispatch([$cmd, $req, {output_files => [$bam_snp_file, $tmp_bam]}]);
@@ -73,11 +73,7 @@ class VRPipe::Steps::bam_snp_sites with VRPipe::StepRole {
                                                                   max_files => -1,
                                                                   description => 'bam file filtered using snp sites file with sample name metadata',
                                                                   metadata => {sample => 'sample name'}
-                                                                  ),
-                 tmp_files => VRPipe::StepIODefinition->get(type => 'bin',
-                                                                  max_files => -1,
-                                                                  description => 'tmp files used for samtools and mpileup ',
-                                                                  )		
+                                                                  )	
          };
     }
     method post_process_sub {

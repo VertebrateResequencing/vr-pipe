@@ -70,7 +70,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 
         my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* (\S[^;]+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
-        my $input_lines = $input_file->lines;
+        my $input_recs = $input_file->num_records;
         
         $input_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
@@ -79,10 +79,10 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
         $output_file->update_stats_from_disc;
         my $output_lines = $output_file->lines;
         
-	# Should be more than one output line per vcf record
-        unless ($output_lines > $input_lines) {
+		# Should at least be more than one output line per vcf record
+        unless ($output_lines > $input_recs) {
             $output_file->unlink;
-            $self->throw("VEP output has $output_lines lines, less than input vcf $input_lines");
+            $self->throw("VEP output has $output_lines lines, less than input vcf records $input_recs");
         }
         else {
             return 1;

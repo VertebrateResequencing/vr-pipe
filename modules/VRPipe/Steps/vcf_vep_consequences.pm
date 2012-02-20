@@ -55,6 +55,9 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
 					$basename =~ s/\.vcf$/.conseq.vcf/;
 				}
 				my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename, type => 'vcf');
+				if ($vcf_file->metadata) {
+					$conseq_vcf->add_metadata($vcf_file->metadata);
+				}
 				my $tbi = $self->output_file(output_key => 'tbi_file', basename => $basename.'.tbi', type => 'bin');
 
 				my $output_path = $conseq_vcf->path;
@@ -87,19 +90,18 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
         my ($input_path, $output_path) = $cmd_line =~ /\S+ -v (\S+) .* vcf (\S[^;]+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         
-        my $input_lines = $input_file->lines;
+        my $input_recs = $input_file->num_records;
         
         $input_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
-        my $output_lines = $output_file->lines;
+        my $output_recs = $output_file->num_records;
         
-	# Should have an extra header line, but possible that duplicate header lines were removed
-        unless ($output_lines >= $input_lines) {
+        unless ($output_recs == $input_recs) {
             $output_file->unlink;
-            $self->warn("Output VCF has $output_lines lines, less than input $input_lines");
+			$self->throw("Output VCF has different number of data lines from input (input $input_recs, output $output_recs)");
         }
         else {
             return 1;
