@@ -327,7 +327,7 @@ foreach my $element (@$elements) {
             }
             
             # create symlink
-            $source->symlink($dest);
+            $output_file->symlink(VRPipe::File->get(path => $dest));
             if ($print) {
                 if ($md5 && $output_file->md5) {
                     $frontend->output($output_file->md5, "\t", $dest);
