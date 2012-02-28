@@ -4,6 +4,10 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
     use Digest::MD5 qw(md5_hex);
     use VRPipe::Parser;
     
+    method _build_smaller_recommended_requirements_override {
+        return 0;
+    }
+    
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to fasta file'),
                  reference_assembly_name => VRPipe::StepOption->get(description => 'public name of the assembly, eg. NCBI37; defaults to being excluded', optional => 1),
