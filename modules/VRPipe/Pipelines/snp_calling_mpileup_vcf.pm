@@ -15,14 +15,9 @@ class VRPipe::Pipelines::snp_calling_mpileup_vcf with VRPipe::PipelineRole {
     }
     
     method _step_list {
-        return ([
-					VRPipe::Step->get(name => 'mpileup_vcf'),
-				],
-   	            [ 
-					VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'),
-				],
-                 [ VRPipe::StepBehaviourDefiner->new(after_step => 1, behaviour => 'delete_outputs', act_on_steps => [], regulated_by => 'cleanup', default_regulation => 1) ]	
-				);
+        return ([ VRPipe::Step->get(name => 'mpileup_vcf') ],
+   	        [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files') ],
+                [ ]);
     }
 }
 
