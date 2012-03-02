@@ -12,6 +12,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
             my $interval_list = $options->{interval_list};
             my $bcftools = $options->{bcftools_exe};
             my $bcf_view_opts = $options->{bcftools_view_options};
+        	my $min_recs = $self->options->{mimimum_calls};
 
 			my $max_cmdline_bams = $options->{max_cmdline_bams};
 			if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
@@ -39,8 +40,11 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
 				$vcf_file->add_metadata($bam_metadata);
 			}
 
-			my $cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list | $bcftools view $bcf_view_opts - | bgzip -c > $vcf_path];
-			$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
+			my $mpileup_cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list | $bcftools view $bcf_view_opts - | bgzip -c > $vcf_path];
+
+			my $cmd = "use VRPipe::Steps::mpileup_vcf; VRPipe::Steps::mpileup_vcf->run_mpileup('$mpileup_cmd','$min_recs');";
+			$self->dispatch_vrpipecode($cmd, $req, {output_files => [$vcf_file]});
+
 	    };
     }
     method description {
@@ -49,6 +53,24 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
 
     method outputs_definition {
         return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'a vcf file for each set of one or more input bams') };
+    }
+
+    method run_mpileup (ClassName|Object $self: Str $cmd_line, Int $min_recs) {
+        
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        my ($output_path) = $cmd_line =~ /> (\S+)$/;
+        my $output_file = VRPipe::File->get(path => $output_path);
+        $output_file->update_stats_from_disc;
+        my $output_recs = $output_file->num_records;
+
+        if ($output_recs < $min_recs) {
+            $output_file->unlink;
+			$self->throw("Output VCF has $output_recs data lines, fewer than expected minimum $min_recs");
+        }
+        else {
+            return 1;
+        }
     }
 
 }

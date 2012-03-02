@@ -34,6 +34,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpil
 			#samtools_mpileup_options => '-C50 -aug -r 20:1-70000',
 			samtools_mpileup_options => '-C50 -aug',
 			reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
+			mimimum_calls => 100,
 		}
 );
 
