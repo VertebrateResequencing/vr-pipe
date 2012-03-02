@@ -11,7 +11,7 @@ my $frontend = VRPipe::FrontEnd->new(description => "Setup a new pipeline, or al
                                                    [],
                                                    [ q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:] ],
                                                    [ 'list|l', 'Just list out the setup names and ids, so you can subsequently rerun using --setup' ],
-                                                   [ 'user=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => getlogin || getpwuid($<) } ],
+                                                   [ 'user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => getlogin || getpwuid($<) } ],
                                                    [],
                                                    [ q[To alter an existing PipelineSetup:] ],
                                                    [ 'setup=s', 'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' } ],
