@@ -253,7 +253,7 @@ SKIP: {
                        'study' => 'SRP000542',
                        'lane' => 'ERR003199',
                        'study_name' => 'SRP000542',
-                       'insert_size' => 0,
+                       'insert_size' => 175,
                        'sample_id' => '',
                        'mate' => ''}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
 }
