@@ -285,11 +285,14 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             $self->throw("local_root_dir is required");
         }
         
+        my $vrtrack = $args{handle};
+        
         my @elements;
         my $lane_changed_hash;
         my $hu = VertRes::Utils::Hierarchy->new();
         foreach my $lane ($self->_filtered_lanes(%args)) {
-            my %lane_info = $hu->lane_info($lane->name);
+            my %lane_info = $hu->lane_info($lane->name, vrtrack => $vrtrack);
+            
             my @files;
             foreach my $file (@{$lane->files}) {
                 next unless $file->type =~ /^($file_type)$/;
@@ -307,10 +310,10 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     platform => $lane_info{'seq_tech'},
                     individual => $lane_info{'individual'},
                     library => $lane_info{ 'library' }, 
-                    withdrawn => $lane_info{ 'withdrawn' },
-                    insert_size => $lane_info{'insert_size'},
-                    reads => $file->raw_reads, 
-                    bases => $file->raw_bases, 
+                    withdrawn => $lane_info{ 'withdrawn' } || 0, #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
+                    insert_size => $lane_info{'insert_size'} || 0,
+                    reads => $file->raw_reads || 0, 
+                    bases => $file->raw_bases || 0, 
                     paired => $lane_info{'vrlane'}->is_paired,
                     mate  => '',
                     lane_id => $file->lane_id,
@@ -332,7 +335,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     }
                 }
                 
-                # if there was no metadata this will add metadata to the file.             
+                # if there was no metadata this will add metadata to the file.
                 $vrfile->add_metadata($new_metadata, replace_data => 0); 
                 
                 # if there was a change in VRPipe::File metadata store it in a hash and 
