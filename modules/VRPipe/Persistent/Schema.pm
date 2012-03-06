@@ -41,7 +41,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
 
-    our $VERSION = 19;
+    our $VERSION = 18;
     __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
                                                DataSource DataElement Pipeline
                                                StepCmdSummary StepMember File
@@ -87,23 +87,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
 
-##      my $idx_cmds = $converter->index_statements($self, $mode);	# Does not work, self is just a string 'VRPipe::Persistent::Schema'
-
-		my $idx_cmds;
-        foreach my $class (keys %{$self->class_mappings}) { # self is a hashref with class_mappings and meta data !!
-            my $table_name = $class;
-            $table_name =~ s/.*:://;
-            $table_name = lc($table_name);
-            my $meta = $class->meta;
-            my $for_indexing = $meta->get_attribute('idx_keys')->get_value($meta);
-
-            if (keys %{$for_indexing}) {
-				push(@{$idx_cmds}, @{$converter->get_index_statements($table_name, $for_indexing, $mode)});
-            }
-        }
-		return $idx_cmds;
+        return $converter->index_statements($self, $mode);
     }
-
 }
 
 1;
