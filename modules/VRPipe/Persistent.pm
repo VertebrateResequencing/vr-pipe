@@ -102,6 +102,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     use B::Deparse;
     use Storable qw(nfreeze thaw);
     use Module::Find;
+    use VRPipe::Persistent::SchemaBase;
+    use VRPipe::Persistent::ConverterFactory;
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
@@ -153,10 +155,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my (@psuedo_keys, @non_persistent, %for_indexing, %for_text_indexing, %key_defaults);
+        my (@psuedo_keys, @non_persistent, %for_indexing, %key_defaults);
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my %flations;
         my $meta = $class->meta;
+
+        my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype); # eg mysql
+        my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
+
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
             unless ($attr->does('VRPipe::Persistent::Attributes')) {
@@ -197,7 +203,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             elsif ($attr->is_key) {
                 push(@psuedo_keys, $name);
-                $for_indexing{$name} = 1;
                 if ($attr->allow_key_to_default) {
                     my $default = $attr->_key_default;
                     $key_defaults{$name} = ref $default ? &{$default}($class) : $default;
@@ -223,40 +228,22 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 my $cname = $t_c->name;
                 $cname =~ s/^VRPipe::.+:://;
                 
-                # $cname needs to be converted to something the database can
-                # use when creating the tables, so the following cannot remain
-                # hard-coded as it is now for MySQL
+                # $cname needs to be converted to something the database can use when creating the tables
                 my $size = 0;
                 my $is_numeric = 0;
                 if ($cname =~ /IntSQL\[(\d+)\]/) {
                     $size = $1;
-                    if ($size < 3) {
-                        $cname = 'tinyint';
-                    }
-                    elsif ($size < 5) {
-                        $cname = 'smallint';
-                    }
-                    elsif ($size < 7) {
-                        $cname = 'mediumint';
-                    }
-                    elsif ($size < 10) {
-                        $cname = 'int';
-                    }
-                    else {
-                        $cname = 'bigint';
-                    }
-                    
-                    $is_numeric = 1;
+                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
                 }
                 elsif ($cname =~ /Varchar\[(\d+)\]/) {
-                    $cname = 'varchar';
                     $size = $1;
+                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
                 }
                 elsif ($cname eq 'Text') {
-                    $cname = 'text';
+                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'Bool') {
-                    $cname = 'bool';
+                	$cname = $converter->get_boolean_type();
                 }
                 elsif ($cname =~ /Ref/) {
                     if ($cname eq 'CodeRef') {
@@ -301,46 +288,25 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     else {
                         die "unsupported constraint '$cname' for attribute $name in $class\n";
                     }
+                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                     
-                    $cname = 'text';
                 }
                 elsif ($cname eq 'Datetime') {
-                    $cname = 'datetime';
+                	$cname = $converter->get_datetime_type();
                 }
                 elsif ($cname eq 'Persistent') {
-                    $cname = 'int';
-                    $size = 16;
-                    $is_numeric = 1;
+                    $size = 9;
+                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
                 }
                 elsif ($cname eq 'File' || $cname eq 'AbsoluteFile' || $cname eq 'Dir') {
-                    $cname = 'text';
+                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'FileType') {
-                    $cname = 'varchar';
                     $size = 4;
+                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
-                }
-                
-                # mysql has a supposed limit on varchars of 255, and an index
-                # size limit of 996, with some tools autoconverting large
-                # varchars to text...
-                if ($size && $size > 255) {
-                    $cname = 'text';
-                    $size = undef;
-                    $is_numeric = 0;
-                }
-                
-                # in mysql, when indexing text field we need to supply the index
-                # size
-                if ($cname eq 'text') {
-                    delete $column_info->{default_value};
-                    
-                    if (exists $for_indexing{$name}) {
-                        delete $for_indexing{$name};
-                        $for_text_indexing{$name} = 1;
-                    }
                 }
                 
                 $column_info->{data_type} = $cname;
@@ -349,6 +315,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             else {
                 die "attr $name has no constraint in $class\n";
+            }
+
+            if ($attr->is_key) {
+                $for_indexing{$name} = $column_info->{data_type};
             }
             
             # add the column in DBIx::Class, altering the name of the
@@ -647,34 +617,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->get(%args);
         });
         
-        # add indexes for the psuedo key columns
-        $meta->add_method('sqlt_deploy_hook' => sub {
-            my ($self, $sqlt_table) = @_;
-            $sqlt_table->add_index(name => 'psuedo_keys', fields => [keys %for_indexing]);
-            
-            #*** SQL::Translator::Schema::Index does not support setting
-            #    key lengths, and using type => 'full_text' doesn't work.
-            #    Perhaps we can store our desire to index somehwere, and then
-            #    the deploy script can do like:
-            
-            #if (keys %for_text_indexing) {
-            #    $sqlt_table->add_index(name => 'text_keys', fields => [keys %for_text_indexing]);
-            #}
-        });
-        
-        #*** for these, need to get them manually indexed post-deploy, like:
-        #    create index path_index on file path(255); (varying depending on dbtype)
-        #    create index output_root_index on scheduler (output_root(255));
-        #    create index cmd_dir_index on job (cmd(255), dir(255));
-        #    create index requirements_index on requirements (custom(255));
-        #    create index result_index on dataelement (result(255));
-        #    create index source_options_index on datasource (source(255), options(255));
-        #    create index outputroot_options_index on pipelinesetup (output_root(255), options(255));
-        #    create index allowed_values_index on stepoption (allowed_values(255));
-        #    create index metadata_index on stepiodefinition (metadata(255));
-        #    create index summary_index on stepcmdsummary (summary(255));
-        #use Data::Dumper;
-        #warn "$class needs text indexing:\n", Dumper(\%for_text_indexing), "\n" if keys %for_text_indexing;
+        # set up meta data to add indexes for the key columns after schema deploy
+		$meta->add_attribute( 'idx_keys' => ( is => 'rw', isa  => 'HashRef') );
+		$meta->get_attribute('idx_keys')->set_value($meta,\%for_indexing);
     }
     
     # like discard_changes, except we don't clumsily wipe out the whole $self
