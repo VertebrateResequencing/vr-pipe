@@ -8,8 +8,9 @@ role VRPipe::Persistent::ConverterRole {
     requires 'get_datetime_type';
     requires 'get_boolean_type';
     requires 'get_index_statements';
+    requires 'get_index_cols';
 
-    method index_statements (VRPipe::Persistent::Schema $schema) {
+    method index_statements (VRPipe::Persistent::Schema $schema, Str $mode) {
 
 		my @idx_cmds;
 
@@ -22,7 +23,7 @@ role VRPipe::Persistent::ConverterRole {
             my $for_indexing = $meta->get_attribute('idx_keys')->get_value($meta);
 
             if (keys %{$for_indexing}) {
-				push(@idx_cmds, @{$self->get_index_statements($table_name, $for_indexing)});
+				push(@idx_cmds, @{$self->get_index_statements($table_name, $for_indexing, $mode)});
             }
         }
         return \@idx_cmds;

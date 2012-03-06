@@ -57,7 +57,7 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 		return 'bool';
 	}
 
-    method get_index_statements (Str $table_name, HashRef $for_indexing ) {
+    method get_index_statements (Str $table_name, HashRef $for_indexing, Str $mode) {
 
 		my @idx_cmds;
         my ($cols,$txt_cols);
@@ -71,16 +71,62 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 			}
 		}
 		if ($cols) {
-		   chop($cols);
-		   push(@idx_cmds,"create index psuedo_idx on $table_name ($cols)");
+           if ($mode eq 'create') {
+		       chop($cols);
+		       push(@idx_cmds,"create index psuedo_idx on $table_name ($cols)");
+           }
+           else {
+		       push(@idx_cmds,"drop index psuedo_idx on $table_name");
+           }
 		}
 		if ($txt_cols) {
-		   chop($txt_cols);
-		   push(@idx_cmds,"create index txt_idx on $table_name ($txt_cols)");
+           if ($mode eq 'create') {
+		       chop($txt_cols);
+		       push(@idx_cmds,"create index txt_idx on $table_name ($txt_cols)");
+           }
+           else {
+		       push(@idx_cmds,"drop index txt_idx on $table_name");
+           }
 		}
         return \@idx_cmds;
 	}
 
+	method get_index_cols (VRPipe::Persistent::Schema $schema, Str $table_name) {
+
+		# Put columns in psuedo_idx or txt_idx into a hash
+
+		use VRPipe::Config;
+		my $vrp_config = VRPipe::Config->new();
+		my $db_name = $vrp_config->production_dbname;
+
+		my %idx_cols;
+		my $rc  = $schema->storage->dbh_do(
+			sub {
+				my ($storage, $dbh, $table_name) = @_;
+				my $res = $dbh->selectall_arrayref("show index from $table_name");
+				foreach( @$res ) {
+					if ($_->[2] eq 'txt_idx' or $_->[2] eq 'psuedo_idx') {
+						my $col_name = $_->[4];
+						my $res2 = $dbh->selectrow_hashref("select data_type from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = '$db_name' and TABLE_NAME = '$table_name' and COLUMN_NAME = '$col_name'");
+						$idx_cols{$col_name} = $res2->{data_type};
+					}
+				}
+			},
+			$table_name
+		);
+		return \%idx_cols;
+	}
+
+	method retype_index_cols (HashRef $idx_cols) {
+
+		# Bools are implemented as tinyint; retype when checking if a table has changed during db upgrade
+
+		foreach my $k (keys %{$idx_cols}) {
+			if ($idx_cols->{$k} eq 'bool') {
+				$idx_cols->{$k} = 'tinyint';
+			}
+		}
+	}
 }
 
 1;

@@ -2,6 +2,8 @@ use VRPipe::Base;
 
 class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
 {
+    use Digest::MD5 qw(md5_hex);
+
     method description {
         return "Use files created by VRPipe pipelines as a datasource.";
     }
@@ -20,7 +22,8 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         elsif ($method eq 'group_by_metadata') {
             return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata \
             keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and \
-            library into one dataelement.";
+            library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a \
+            metadata key which matches the regex.";
         }
         
         return '';
@@ -84,6 +87,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                 }
             }
             
+            
             my $max_step = 0;
             my $final_smid;
             foreach my $stepm (@step_members)
@@ -130,28 +134,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
 
     method all (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?)
     {
-        my ($key, $regex);
+        my %args = (handle => $handle, maintain_element_grouping => $maintain_element_grouping);
         if ($filter) {
-            ($key, $regex) = split('#', $filter);
-            $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless ($key && $regex);
+            $args{filter} = $filter;
         }
         my @elements;
-        foreach my $result (@{$self->_all_results(handle => $handle, maintain_element_grouping => $maintain_element_grouping)})
+        foreach my $result (@{$self->_all_results(%args)})
         {
-            my $paths = $result->{paths};
-            my @filtered_paths;
-            foreach my $path (@$paths) {
-                if ($filter) {
-                    my $file = VRPipe::File->get(path => file($path));;
-                    next unless $file->metadata->{$key} =~ m/$regex/;
-                    push @filtered_paths, $path;
-                }
-                else {
-                    push @filtered_paths, $path;
-                }
-            }
-            next unless @filtered_paths;
-            my $res = { paths => \@filtered_paths };
+            my $res = { paths => $result->{paths} };
             if ($maintain_element_grouping) {
                 $res->{lane} = $result->{result}->{lane} if (exists $result->{result}->{lane});
                 $res->{group} = $result->{result}->{group} if (exists $result->{result}->{group});
@@ -162,8 +152,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return \@elements;
     }
 
-    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1)
+    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?)
     {
+        my ($key, $regex);
+        if ($filter) {
+            ($key, $regex) = split('#', $filter);
+            $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless ($key && $regex);
+        }
+        
         my @output_files;
         my $vrpipe_sources = $self->vrpipe_sources;
         foreach my $setup_id (keys %{$vrpipe_sources})
@@ -179,10 +175,19 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                 foreach my $smid (keys %{$stepmembers})
                 {
                     my $stepm = $handle->resultset("StepMember")->find({ id => $smid });
-                    my $pending = $element_state->completed_steps < $stepm->step_number ? 1 : 0; # is this data element pending?
-                    return [] if $pending;
                     my $force = exists $stepmembers->{$smid}->{all};
+                    
                     my $stepstate = $handle->resultset("StepState")->find({stepmember => $stepm, dataelement => $element, pipelinesetup => $setup});
+                    unless ($stepstate && $stepstate->complete)
+                    {
+                        # When regrouping, we don't have have a good way to know that all
+                        # the elements that will make up the group are known about at this
+                        # point. Return empty list unless we are maintaining this current
+                        # element grouping
+                        return([]) unless $maintain_element_grouping;
+                        next;
+                    }
+                    
                     my $step_outs = $stepstate->output_files;
                     while (my ($kind, $files) = each %{$step_outs})
                     {
@@ -193,10 +198,13 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                         
                         foreach my $file (@$files)
                         {
+                            if ($filter) {
+                                next unless $file->metadata->{$key} =~ m/$regex/;
+                            }
+                            
                             if ($maintain_element_grouping)
                             {
                                 push @{$element_hash{paths}}, $file->path->stringify;
-                                $element_hash{pending} ||= $pending;
                             }
                             else
                             {
@@ -204,7 +212,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                                 $hash{paths} = [ $file->path->stringify ];
                                 my $meta = $file->metadata;
                                 $hash{metadata} = $meta if (keys %{$meta});
-                                $hash{pending} = $pending;
                                 $hash{parent} = { element_id => $element->id, setup_id => $setup_id };
                                 push(@output_files, \%hash);
                             }
@@ -217,11 +224,16 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return \@output_files;
     }
 
-    method group_by_metadata (Defined :$handle!, Str :$metadata_keys!)
+    method group_by_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$filter?)
     {
+        my %args = (handle => $handle, maintain_element_grouping => 0);
+        if ($filter) {
+            $args{filter} = $filter;
+        }
+        
         my $group_hash;
         my @meta_keys = split /\|/, $metadata_keys;
-        foreach my $hash_ref (@{$self->_all_results(handle => $handle, maintain_element_grouping => 0)})
+        foreach my $hash_ref (@{$self->_all_results(%args)})
         {
             my @group_keys;
             foreach my $key (@meta_keys)
@@ -232,7 +244,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             my $group_key = join '|', @group_keys;
             push(@{$group_hash->{$group_key}->{paths}}, @{$hash_ref->{paths}});
             push(@{$group_hash->{$group_key}->{parents}}, $hash_ref->{parent});
-            $group_hash->{$group_key}->{pending} ||= $hash_ref->{pending};
         }
         
         my @elements;
@@ -252,7 +263,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
     # The changed marker for vrpipe datasources will be a comma separated list of the number 
     # of elements in each of the pipelinesetups that have completed and the number that have 
     # been withdrawn. Any change in these numbers will lead to the dataelements being revised. 
-    method _element_state_status
+    method _element_state_status_checksum
     {
         my $schema = $self->_handle;
         my $sources = $self->vrpipe_sources;
@@ -264,19 +275,67 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             my $num_withdrawn = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 1}, { join => 'dataelement' });
             push @complete_list, ($num_complete, $num_withdrawn);
         }
-        return join ',', @complete_list;
+        my $digest = md5_hex join(',', @complete_list);
+        return $digest;
     }
 
+    method _all_datasource_files
+    {
+        my $schema = $self->_handle;
+        my $sources = $self->vrpipe_sources;
+        my @all_files;
+        foreach my $setup_id (sort keys %{$sources})
+        {
+            # select s,mtime from file join stepoutputfile on stepoutputfile.file=file.id
+            # join stepstate on stepstate.id=stepoutputfile.stepstate
+            # join dataelement on stepstate.dataelement=dataelement.id
+            # where dataelement.withdrawn=0 and
+            # stepoutputfile.output_key != "temp" and
+            # stepstate.stepmember=$stepm and stepstate.pipelinesetup=$setup_id and 
+            # stepstate.complete=1;
+            my $stepm = $sources->{$setup_id}->{final_smid};
+            my $rs = $schema->resultset('StepOutputFile')->search({ 'stepstate.complete' => 1, 
+                                                                    'stepstate.pipelinesetup' => $setup_id, 
+                                                                    'dataelement.withdrawn' => 0, 
+                                                                    'stepstate.stepmember' => $stepm, 
+                                                                    'output_key' => { '!=', 'temp' } }, 
+                                                                  { join => {'stepstate' => 'dataelement'} });
+            while (my $output = $rs->next)
+            {
+                push @all_files, $output->file->resolve;
+            }
+        }
+        return \@all_files;
+    }
+
+    # The changed marker updates when file sizes or mtimes for 
+    # source files change. Since mtime is updated when metadata
+    # on a file is changed, 
+    method _element_state_file_checksum
+    {
+        my $files  = $self->_all_datasource_files;
+        my @sizes  = map { $_->s } @$files;
+        my @mtimes = map { $_->mtime } @$files;
+        my $digest = md5_hex join( map { defined $_ ? $_ : 'NULL' } (@sizes, @mtimes) );
+        return $digest;
+    }
+    
+    # ************************************
+    # We use _element_state_status_checksum for the time being. 
+    # Need to find a way to detect when files in the vrpipe
+    # datasource have changed - including when metadata changes.
     method _has_changed
     {
         my $old_complete = $self->_changed_marker || return 1;
-        my $new_complete = $self->_element_state_status;
+        my $new_complete = $self->_element_state_status_checksum;
+        # my $new_complete = $self->_element_state_file_checksum;
         return ($new_complete ne $old_complete) ? 1 : 0;
     }
 
     method _update_changed_marker
     {
-        my $complete = $self->_element_state_status;
+        my $complete = $self->_element_state_status_checksum;
+        # my $complete = $self->_element_state_file_checksum;
         $self->_changed_marker($complete);
     }
 }

@@ -29,8 +29,18 @@ sub handle_pipeline {
     my $max_retries = VRPipeTest::max_retries();
     my $debug = VRPipeTest::debug();
     $manager->set_verbose_global(1) if $debug;
+    my $run = 0;
     while (1) {
-        last if ($manager->trigger && all_pipelines_started());
+        if ($manager->trigger && all_pipelines_started()) {
+            # with linked pipelines, elements may not be created until an
+            # earlier pipeline has finished, so run trigger a few times 
+            # to ensure new elements are created and start running
+            last if ($run > 3);
+            $run++;
+            sleep(1);
+            next;
+        }
+        $run = 0;
         last if $give_up-- <= 0;
         $manager->handle_submissions(max_retries => $max_retries);
         

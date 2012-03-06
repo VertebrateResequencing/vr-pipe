@@ -40,7 +40,6 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_chunked_vep_
 			'vcf-annotate_options' => "-a $annot_file -d $annot_desc_file -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ",
 			'vcf-annotate_2_options' => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
 			'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
-			'tmp_exe' => "/lustre/scratch106/user/cj5/vep2.2/vep_resort.sh",	# If bams split by chr, no re-sort required so this can just be 'cat'
 			'vcf2consequences_options' => "-grantham --gerp $gerp_cache",
 		}
 );
