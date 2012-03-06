@@ -5,6 +5,10 @@ use warnings;
 use Getopt::Long;
 use aliased 'VRPipe::Persistent::Schema' => 'PS';
 use aliased 'DBIx::Class::DeploymentHandler' => 'DH';
+  
+use VRPipe::Persistent::SchemaBase;
+use VRPipe::Persistent::ConverterFactory;
+use Data::Compare;
 
 my $to = PS->VERSION;
 my $from = $to - 1;
@@ -20,13 +24,53 @@ if ($help) {
 
 my $s = PS->connect;
 
+my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
+my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
+
+#Check table index equivalence
+my @idx_cmds;
+my (%for_indexing_pre_upgrade, %for_indexing_post_upgrade);
+
+foreach my $class (keys %{$s->class_mappings}) {
+	my $table_name = $class;
+	$table_name =~ s/.*:://;
+	$table_name = lc($table_name);
+	my $meta = $class->meta;
+
+    $for_indexing_pre_upgrade{$table_name} = $converter->get_index_cols($s, $table_name);
+	$for_indexing_post_upgrade{$table_name} = $meta->get_attribute('idx_keys')->get_value($meta);
+	$converter->retype_index_cols($for_indexing_post_upgrade{$table_name});
+}
+foreach my $tbl (keys %for_indexing_pre_upgrade) {
+	unless ( Compare ($for_indexing_pre_upgrade{$tbl}, $for_indexing_post_upgrade{$tbl})) {
+        push(@idx_cmds, @{$converter->get_index_statements($tbl, $for_indexing_pre_upgrade{$tbl}, 'drop')} );
+        push(@idx_cmds, @{$converter->get_index_statements($tbl, $for_indexing_post_upgrade{$tbl}, 'create')} );
+	}
+}
+
 my $dh = DH->new({ schema => $s,
                    databases => PS->get_dbtype,
                    sql_translator_args => { add_drop_table => 0 },
+                   force_overwrite => 0,
                    script_directory => PS->get_schema_dir });
 
 $dh->prepare_deploy;
 $dh->prepare_upgrade({ from_version => $from, to_version => $to});
 $dh->upgrade;
+
+# Apply any table index increments
+if (@idx_cmds) {
+    print "Rebuilding indexes...\n";
+	$s->storage->dbh_do(
+		sub {
+			my ($storage, $dbh, $idx_cmds) = @_;
+			foreach my $cmd (@{$idx_cmds}) {
+			   print "   $cmd\n";
+			   $dbh->do($cmd);
+			}
+		},
+		\@idx_cmds
+	);
+}
 
 exit;
