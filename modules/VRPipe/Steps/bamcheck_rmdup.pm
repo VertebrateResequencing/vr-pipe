@@ -21,9 +21,9 @@ class VRPipe::Steps::bamcheck_rmdup extends VRPipe::Steps::bamcheck {
             foreach my $bam_file (@{$self->inputs->{bam_files}}) {
                 my $ifile = $bam_file->path;
                 $self->output_file(output_key => 'bam_files_with_metadata', output_dir => $ifile->dir, basename => $ifile->basename, type => 'bam');
-                my $check_file = $self->output_file(output_key => 'bamcheck_files', basename => $ifile->basename.'.rmdup.bamcheck', type => 'txt', temporary => 1);
+                my $check_file = $self->output_file(basename => $ifile->basename.'.rmdup.bamcheck', type => 'txt', temporary => 1);
                 my $ofile = $check_file->path;
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bamcheck', 'stats_from_bamcheck', ["$bamcheck_exe $bc_rmdup_opts $ifile > $ofile", $req, {output_files => [$check_file]}]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bamcheck', 'stats_from_bamcheck', ["$bamcheck_exe $bc_rmdup_opts $ifile > $ofile", $req]);
             }
         };
     }
@@ -45,8 +45,7 @@ class VRPipe::Steps::bamcheck_rmdup extends VRPipe::Steps::bamcheck {
                                                                                        center_name => 'center name',
                                                                                        platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                                        study => 'name of the study, put in the DS field of the RG header line',
-                                                                                       optional => ['library', 'sample', 'center_name', 'platform', 'study', 'insert_size']}),
-                   bamcheck_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'bamcheck output files', max_files => -1) 
+                                                                                       optional => ['library', 'sample', 'center_name', 'platform', 'study', 'insert_size']})
                }; 
     }
     method description {

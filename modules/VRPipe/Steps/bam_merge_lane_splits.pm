@@ -101,16 +101,14 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                                                     metadata => $metas{$paired});
                 my $merge_path = $merge_file->path;
                 
-                $self->output_file(output_key => 'temp_header_file',
-                                   basename => $basename.'.header',
+                $self->output_file(basename => $basename.'.header',
                                    type => 'txt',
                                    temporary => 1);
                 
                 if (@$in_bams == 1) {
                     my $sam_file = $basename;
                     $sam_file =~ s/\.bam$/.sam/;
-                    $self->output_file(output_key => 'temp_sam_file',
-                                       basename => $sam_file,
+                    $self->output_file(basename => $sam_file,
                                        type => 'txt',
                                        temporary => 1);
                 }

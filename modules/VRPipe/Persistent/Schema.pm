@@ -37,7 +37,11 @@ Sendu Bala: sb10 at sanger ac uk
 use VRPipe::Base;
 
 class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
-    our $VERSION = 18;
+
+    use VRPipe::Persistent::SchemaBase;
+    use VRPipe::Persistent::ConverterFactory;
+
+    our $VERSION = 19;
     __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
                                                DataSource DataElement Pipeline
                                                StepCmdSummary StepMember File
@@ -50,6 +54,56 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                                                LocalSchedulerJob
                                                LocalSchedulerJobState
                                                StepStats/]});
+
+    # deploy method overridden in order to add indexes in a db-dependent manner
+    sub deploy {
+        my ($self, $sqltargs, $dir) = @_;
+
+        $self->throw_exception("Can't deploy without storage") unless $self->storage;
+        $self->storage->deploy($self, undef, $sqltargs, $dir);
+
+        my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
+        my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
+
+        my $idx_cmds = $converter->index_statements($self,'create');
+
+        if ($idx_cmds) {
+            $self->storage->dbh_do(
+                sub {
+                    my ($storage, $dbh, $idx_cmds) = @_;
+                    foreach my $cmd (@{$idx_cmds}) {
+                       $dbh->do($cmd);
+                    }
+                },
+                $idx_cmds
+            );
+        }
+    }
+
+    sub get_idx_sql {
+        my ($self,$mode) = @_;
+		$mode = 'create' unless $mode;
+
+        my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
+        my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
+
+##      my $idx_cmds = $converter->index_statements($self, $mode);	# Does not work, self is just a string 'VRPipe::Persistent::Schema'
+
+		my $idx_cmds;
+        foreach my $class (keys %{$self->class_mappings}) { # self is a hashref with class_mappings and meta data !!
+            my $table_name = $class;
+            $table_name =~ s/.*:://;
+            $table_name = lc($table_name);
+            my $meta = $class->meta;
+            my $for_indexing = $meta->get_attribute('idx_keys')->get_value($meta);
+
+            if (keys %{$for_indexing}) {
+				push(@{$idx_cmds}, @{$converter->get_index_statements($table_name, $for_indexing, $mode)});
+            }
+        }
+		return $idx_cmds;
+    }
+
 }
 
 1;

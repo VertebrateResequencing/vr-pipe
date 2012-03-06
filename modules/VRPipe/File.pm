@@ -300,6 +300,11 @@ class VRPipe::File extends VRPipe::Persistent {
 
 =cut
     method move (VRPipe::File $dest, Bool :$check_md5s = 0) {
+        # have we already been moved there?
+        if (! $self->e && $dest->e && $self->moved_to->id == $dest->id) {
+            return 1;
+        }
+        
         my $success;
         if ($check_md5s) {
             $success = $self->copy($dest);
@@ -416,6 +421,11 @@ class VRPipe::File extends VRPipe::Persistent {
         my $sp = $self->path;
         my $dp = $dest->path;
         my $d_existed = $dest->e;
+        
+        # has it already been copied successfully?
+        if ($d_existed && $dest->md5 && $self->md5 && $self->md5 eq $dest->md5) {
+            return 1;
+        }
         
         my $success = File::Copy::copy($sp, $dp);
         

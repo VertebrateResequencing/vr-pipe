@@ -31,7 +31,7 @@ class VRPipe::Steps::qc_stats_exome with VRPipe::StepRole {
                     $extra_args .= ", $extra => q[$options->{$extra}]";
                 }
             }
-            my $req = $self->new_requirements(memory => 25000, time => 15, cpus => 4);
+            my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_path = $bam->path;
                 my $sample;

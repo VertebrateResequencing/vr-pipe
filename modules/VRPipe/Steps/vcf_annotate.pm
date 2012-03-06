@@ -35,6 +35,9 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
 					$cat_exe = 'cat';
                 }
                 my $annotated_vcf = $self->output_file(output_key => 'annotated_vcf', basename => $basename, type => 'vcf');
+				if ($vcf_file->metadata) {
+					$annotated_vcf->add_metadata($vcf_file->metadata);
+				}
                 
                 my $input_path = $vcf_file->path;
                 my $output_path = $annotated_vcf->path;
@@ -66,18 +69,18 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
         my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* (\S[^;]+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         
-        my $input_lines = $input_file->lines;
+        my $input_recs = $input_file->num_records;
         
         $input_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
-        my $output_lines = $output_file->lines;
+        my $output_recs = $output_file->num_records;
         
-        unless ($output_lines >= $input_lines) {
+        unless ($output_recs == $input_recs) {
             $output_file->unlink;
-			$self->throw("Output VCF has fewer lines than input (input $input_lines, output $output_lines)");
+			$self->throw("Output VCF has different number of data lines from input (input $input_recs, output $output_recs)");
         }
         else {
             return 1;
