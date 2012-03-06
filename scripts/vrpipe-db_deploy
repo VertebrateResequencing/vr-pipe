@@ -16,7 +16,7 @@ $dh->prepare_install;
 $dh->install;
 
 # Add table indexes from Persistent metadata
-my $idx_cmds = PS->get_idx_sql('create');
+my $idx_cmds = PS->new->get_idx_sql('create');
 if ($idx_cmds) {
 	$s->storage->dbh_do(
 		sub {
