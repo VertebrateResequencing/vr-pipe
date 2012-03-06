@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 8;
     use VRPipeTest (required_exe => [qw(cat)]);
     use TestPipelines;
 }
@@ -67,7 +67,8 @@ my $test_pipelinesetup_3 = VRPipe::PipelineSetup->get(name => 'vrpipe datasource
                                                       datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                                             method => 'group_by_metadata',
                                                                                             source => '1[2]',
-                                                                                            options => { metadata_keys => 'one_meta' }),
+                                                                                            options => { metadata_keys => 'one_meta',
+                                                                                                         filter => 'one_meta#50' }),
                                                       output_root => $output_dir_3,
                                                       pipeline => $link_pipeline,
                                                       options => {all_option => 'foo',
@@ -111,7 +112,6 @@ foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
 }
 ok handle_pipeline(@base_files, @link_files, @link_merge_files), 'pipelines ran and created all expected output files';
 
-
 # change fofn datasource
 my $fh = $ds->openr;
 my $tmp_file = file($tmp_dir, 'tmp');
@@ -122,8 +122,42 @@ while(<$fh>) {
 }
 move($tmp_file, $ds);
 
-# check the three pipelines reset properly and produced modified files
-ok handle_pipeline(), 'pipelines with changed datasource ran ok';
-#*** well where's the test that anything happened as expected?
+# check the three pipelines reset properly and produced new files
+ok handle_pipeline(@base_files, @link_files, @link_merge_files), 'pipelines with changed datasource ran ok - original and withdrawn files all exist';
+my @new_files;
+$element_id++;
+@output_subdirs = output_subdirs($element_id, 3);
+$step_index = 0;
+foreach my $suffix ('txt', 'txt.step_one') {
+    push(@new_files, file(@output_subdirs, ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
+    $step_index++;
+}
+ok handle_pipeline(@new_files), 'new merge files all exist after changing datasource';
+
+my $element1 = VRPipe::DataElement->get(datasource => 2, result => { paths => [ $base_files[2]->stringify ] });
+my $element2 = VRPipe::DataElement->get(datasource => 3, result => { paths => [ map { $_->stringify } @base_files[1,5,9] ], group => '50' });
+is_deeply [$element1->withdrawn, $element2->withdrawn], [1,1], 'elements correctly withdrawn after changing datasource';
+
+# # change metadata and detect changes
+# VRPipe::File->get(path => $base_files[5]->stringify)->add_metadata({one_meta => '20'}, replace_data => 1);
+# ok handle_pipeline(@base_files, @link_files, @link_merge_files, @new_files), 'pipelines ran ok after file metadata changed - original and withdrawn files all exist';
+# 
+# my @newer_files;
+# $element_id++;
+# @output_subdirs = output_subdirs($element_id, 3);
+# $step_index = 0;
+# foreach my $suffix ('txt', 'txt.step_one') {
+#     push(@newer_files, file(@output_subdirs, ($step_index+1).'_'.$expected_link_step_names[$step_index], "merged.$suffix"));
+#     $step_index++;
+# }
+# ok handle_pipeline(@newer_files), 'new merge files all exist after metadata change';
+# 
+# my $element3 = VRPipe::DataElement->get(datasource => 3, result => { paths => [ map { $_->stringify } @base_files[5,9] ], group => '50' });
+# is $element3->withdrawn, 1, 'elements correctly withdrawn after metadata change';
+# 
+# # if filter option one_meta#50 had not been set, a further data element 
+# # would have been created. check that we have the expected number of elements
+# my $elements = $test_pipelinesetup_3->datasource->elements;
+# is scalar(@$elements), 1, 'group_by_metadata/filter option worked correctly - element not created';
 
 finish;
