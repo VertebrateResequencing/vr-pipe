@@ -550,12 +550,13 @@ role VRPipe::StepRole {
         if ($deployment eq 'testing') {
             use lib;
             my %orig_inc = map { $_ => 1 } @lib::ORIG_INC;
-            my @new_lib;
+            my %new_lib;
             foreach my $inc (@INC) {
                 unless (exists $orig_inc{$inc}) {
-                    push(@new_lib, file($inc)->absolute);
+                    $new_lib{file($inc)->absolute} = 1;
                 }
             }
+            my @new_lib = keys %new_lib;
             if (@new_lib) {
                 $use_lib = "use lib(qw(@new_lib)); ";
             }
