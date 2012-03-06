@@ -301,10 +301,12 @@ role VRPipe::StepRole {
                     my $bad = 0;
                     
                     # check the filetype is correct
-                    my $type = VRPipe::FileType->create($file->type, {file => $file->path});
-                    unless ($type->check_type) {
-                        $self->warn($file->path." exists, but is the wrong type!");
-                        $bad = 1;
+                    if ($check_s) {
+                        my $type = VRPipe::FileType->create($file->type, {file => $file->path});
+                        unless ($type->check_type) {
+                            $self->warn($file->path." exists, but is the wrong type!");
+                            $bad = 1;
+                        }
                     }
                     
                     # check the expected metadata keys exist

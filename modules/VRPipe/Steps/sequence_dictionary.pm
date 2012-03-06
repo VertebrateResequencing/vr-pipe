@@ -25,9 +25,6 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $dict_file = $self->output_file(output_key => 'reference_dict', output_dir => $ref->dir->stringify, basename => $ref->basename.'.dict', type => 'txt')->path;
-            if (-s $dict_file) {
-                $self->throw("a dict file already exists at '$dict_file'; was it made by a different pipeline with different settings?");
-            }
             my $ur = $options->{reference_public_url} || 'file:'.$ref;
             my $as = $options->{reference_assembly_name};
             my $sp = $options->{reference_species};
@@ -59,6 +56,9 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
         my $pars = VRPipe::Parser->create('fasta', {file => $ref});
         
         my $dict_file = VRPipe::File->get(path => $dict);
+        if (-s $dict_file->path) {
+            $self->throw("a dict file already exists at '".$dict_file->path."'; was it made by a different pipeline with different settings?");
+        }
         my $ofh = $dict_file->openw;
         $dict_file->disconnect;
         

@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 use Path::Class;
-use Cwd;
 
 BEGIN {
     use Test::Most tests => 25;
@@ -44,8 +43,7 @@ ok $ds = VRPipe::DataSource->get(type => 'fofn',
 foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
-my $cwd = cwd();
-is_deeply \@results, [{paths => [file($cwd, 't', 'data', 'file.bam')]}, {paths => [file($cwd, 't', 'data', 'file.cat')]}, {paths => [file($cwd, 't', 'data', 'file.txt')]}], 'got correct results for fofn all';
+is_deeply \@results, [{paths => [file('t', 'data', 'file.bam')->absolute]}, {paths => [file('t', 'data', 'file.cat')->absolute]}, {paths => [file('t', 'data', 'file.txt')->absolute]}], 'got correct results for fofn all';
 
 # delimited
 ok $ds = VRPipe::DataSource->get(type => 'delimited',
@@ -59,10 +57,10 @@ ok $ds = VRPipe::DataSource->get(type => 'delimited',
 foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
-is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], group => '2822_6'},
-                      {paths => [file($cwd, 't/data/2822_7_1.fastq'), file($cwd, 't/data/2822_7_2.fastq')], group => '2822_7'},
-                      {paths => [file($cwd, 't/data/2823_4_1.fastq'), file($cwd, 't/data/2823_4_2.fastq')], group => '2823_4'},
-                      {paths => [file($cwd, 't/data/8324_8_1.fastq'), file($cwd, 't/data/8324_8_2.fastq')], group => '8324_8'}], 'got correct results for delimited grouped_single_column';
+is_deeply \@results, [{paths => [file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute], group => '2822_6'},
+                      {paths => [file(qw(t data 2822_7_1.fastq))->absolute, file(qw(t data 2822_7_2.fastq))->absolute], group => '2822_7'},
+                      {paths => [file(qw(t data 2823_4_1.fastq))->absolute, file(qw(t data 2823_4_2.fastq))->absolute], group => '2823_4'},
+                      {paths => [file(qw(t data 8324_8_1.fastq))->absolute, file(qw(t data 8324_8_2.fastq))->absolute], group => '8324_8'}], 'got correct results for delimited grouped_single_column';
 
 # delimited all columns
 ok $ds = VRPipe::DataSource->get(type => 'delimited',
@@ -74,8 +72,8 @@ ok $ds = VRPipe::DataSource->get(type => 'delimited',
 foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
-is_deeply \@results, [{paths => [file($cwd, 't/data/file.txt'), file($cwd, 't/data/file2.txt')]},
-                      {paths => [file($cwd, 't/data/file3.txt'), file($cwd, 't/data/file.cat')]}], 'got correct results for delimited all_columns';
+is_deeply \@results, [{paths => [file(qw(t data file.txt))->absolute, file(qw(t data file2.txt))->absolute]},
+                      {paths => [file(qw(t data file3.txt))->absolute, file(qw(t data file.cat))->absolute]}], 'got correct results for delimited all_columns';
 
 # test get_methods and method_options
 $ds = $ds->_source_instance;
@@ -88,17 +86,17 @@ is_deeply [$ds->method_options('single_column')], [['named', 'delimiter', 1, und
 ok $ds = VRPipe::DataSource->get(type => 'sequence_index',
                                  method => 'lane_fastqs',
                                  source => file(qw(t data datasource.sequence_index))->absolute->stringify,
-                                 options => { local_root_dir => $cwd }), 'could create a sequence_index datasource';
+                                 options => { local_root_dir => dir('./')->absolute->stringify }), 'could create a sequence_index datasource';
 
 @results = ();
 foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
-is_deeply \@results, [{paths => [file($cwd, 't/data/2822_6.fastq'), file($cwd, 't/data/2822_6_1.fastq'), file($cwd, 't/data/2822_6_2.fastq')], lane => '2822_6'},
-                      {paths => [file($cwd, 't/data/2822_7_1.fastq'), file($cwd, 't/data/2822_7_2.fastq')], lane => '2822_7'},
-                      {paths => [file($cwd, 't/data/2823_4_1.fastq'), file($cwd, 't/data/2823_4_2.fastq')], lane => '2823_4'},
-                      {paths => [file($cwd, 't/data/8324_8_1.fastq'), file($cwd, 't/data/8324_8_2.fastq')], lane => '8324_8'}], 'got correct results for sequence_index lane_fastqs';
-my $vrfile = VRPipe::File->get(path => file($cwd, 't/data/2822_6_1.fastq'));
+is_deeply \@results, [{paths => [file(qw(t data 2822_6.fastq))->absolute, file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute], lane => '2822_6'},
+                      {paths => [file(qw(t data 2822_7_1.fastq))->absolute, file(qw(t data 2822_7_2.fastq))->absolute], lane => '2822_7'},
+                      {paths => [file(qw(t data 2823_4_1.fastq))->absolute, file(qw(t data 2823_4_2.fastq))->absolute], lane => '2823_4'},
+                      {paths => [file(qw(t data 8324_8_1.fastq))->absolute, file(qw(t data 8324_8_2.fastq))->absolute], lane => '8324_8'}], 'got correct results for sequence_index lane_fastqs';
+my $vrfile = VRPipe::File->get(path => file(qw(t data 2822_6_1.fastq))->absolute);
 my $meta = $vrfile->metadata;
 is_deeply $meta, { expected_md5 => 'f1826489facca0d0bdf02d9586b493f6',
                    lane => '2822_6',
@@ -116,7 +114,7 @@ is_deeply $meta, { expected_md5 => 'f1826489facca0d0bdf02d9586b493f6',
                    bases => 12200,
                    analysis_group => 'low coverage',
                    paired => 1,
-                   mate => file($cwd, 't/data/2822_6_2.fastq')->stringify }, 'a VRPipe::File created by source has the correct metadata';
+                   mate => file(qw(t data 2822_6_2.fastq))->absolute->stringify }, 'a VRPipe::File created by source has the correct metadata';
 
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VertRes:: and VRTrack::
@@ -128,56 +126,54 @@ SKIP: {
     skip "VertRes::Utils::VRTrackFactory/VRTrack::VRTrack not loading", $num_tests if $@;
     
     # create the vrtrack db
-    unless ($ENV{VRPIPE_VRTRACK_TESTDB_READY}) {
-        my %cd = VertRes::Utils::VRTrackFactory->connection_details('rw');
-        my @sql = VRTrack::VRTrack->schema();
-        open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
-        print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-        print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-        print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-        foreach my $sql (@sql) {
-            print $mysqlfh $sql;
-        }
-        close($mysqlfh);
+    my %cd = VertRes::Utils::VRTrackFactory->connection_details('rw');
+    my @sql = VRTrack::VRTrack->schema();
+    open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
+    print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+    print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+    print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+    foreach my $sql (@sql) {
+        print $mysqlfh $sql;
+    }
+    close($mysqlfh);
+    
+    # populate it
+    system("update_vrmeta.pl --samples t/data/vrtrack.samples --index t/data/vrtrack.sequence.index --database $ENV{VRPIPE_VRTRACK_TESTDB} > /dev/null 2> /dev/null");
+    
+    # alter processed on the lanes to enable useful tests
+    my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    my $lanes = $vrtrack->processed_lane_hnames();
+    my %expectations;
+    for my $i (1..60) {
+        my $lane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $lanes->[$i - 1]);
+        my $name = $lane->hierarchy_name;
         
-        # populate it
-        system("update_vrmeta.pl --samples t/data/vrtrack.samples --index t/data/vrtrack.sequence.index --database $ENV{VRPIPE_VRTRACK_TESTDB} > /dev/null 2> /dev/null");
-        
-        # alter processed on the lanes to enable useful tests
-        my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
-        my $lanes = $vrtrack->processed_lane_hnames();
-        my %expectations;
-        for my $i (1..60) {
-            my $lane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $lanes->[$i - 1]);
-            my $name = $lane->hierarchy_name;
-            
-            if ($i <= 50) {
-                $lane->is_processed('import' => 1);
-                push(@{$expectations{import}}, $name);
-                if ($i > 10) {
-                    $lane->is_processed('qc' => 1);
-                    push(@{$expectations{qc}}, $name);
-                }
-                if ($i > 20) {
-                    $lane->is_processed('mapped' => 1);
-                    push(@{$expectations{mapped}}, $name);
-                }
-                if ($i > 30) {
-                    $lane->is_processed('improved' => 1);
-                    push(@{$expectations{improved}}, $name);
-                }
-                if ($i > 40) {
-                    $lane->is_processed('stored' => 1);
-                    push(@{$expectations{stored}}, $name);
-                }
+        if ($i <= 50) {
+            $lane->is_processed('import' => 1);
+            push(@{$expectations{import}}, $name);
+            if ($i > 10) {
+                $lane->is_processed('qc' => 1);
+                push(@{$expectations{qc}}, $name);
             }
-            elsif ($i > 55) {
-                $lane->is_withdrawn(1);
-                push(@{$expectations{withdrawn}}, $name);
+            if ($i > 20) {
+                $lane->is_processed('mapped' => 1);
+                push(@{$expectations{mapped}}, $name);
             }
-            
-            $lane->update;
+            if ($i > 30) {
+                $lane->is_processed('improved' => 1);
+                push(@{$expectations{improved}}, $name);
+            }
+            if ($i > 40) {
+                $lane->is_processed('stored' => 1);
+                push(@{$expectations{stored}}, $name);
+            }
         }
+        elsif ($i > 55) {
+            $lane->is_withdrawn(1);
+            push(@{$expectations{withdrawn}}, $name);
+        }
+        
+        $lane->update;
     }
     
     ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
@@ -195,7 +191,7 @@ SKIP: {
     ok( ! $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change' );
     
     # create a new row that has a later time stamp
-    my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my $name = 'new_lane';
     sleep(2); # wait two seconds to create new lane so we have a later time stamp.
     my $new_lane = VRTrack::Lane->create($vrtrack, $name);
@@ -225,46 +221,40 @@ SKIP: {
     $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
     $file->update;
     
-   ### lane_fastqs tests    
-   ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
-                                 method => 'lanes_fastqs',
-                                 source => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                 options => {import => 1, mapped => 0, local_root_dir => file($cwd,'t')->absolute->stringify, library => [  'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190'] } ), 'could create a vrtrack datasource';
-
+    ### lane_fastqs tests    
+    ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                  method => 'lane_fastqs',
+                                  source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                  options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library => [  'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190'] } ), 'could create a vrtrack datasource';
+    
     @results = ();
     foreach my $element (@{$ds->elements}) {
-      push(@results, $element->result);
+        push(@results, $element->result);
     }
-
-   is_deeply $results[0], {
-				paths => [
-						file($cwd, 't/data/NA19190/sequence_read/ERR003199.filt.fastq.gz'), 
-						file($cwd, 't/data/NA19190/sequence_read/ERR003199_1.filt.fastq.gz'), 
-						file($cwd, 't/data/NA19190/sequence_read/ERR003199_2.filt.fastq.gz') 
-                                         ],
-				lane  => 'ERR003199' 
-                           }, 'got correct results for vrtrack lane_fastqs';
-  my $vrfile = VRPipe::File->get(path => file($cwd, 't/data/NA19190/sequence_read/ERR003199.filt.fastq.gz'));
-  my $meta = $vrfile->metadata;
-  is_deeply $meta, { 'bases' => '1696783',
-          	     'withdrawn' => 0,
-          	     'population' => 'YRI',
-	             'paired' => 1,
-                     'reads' => '45859',
-                     'library' => 'g1k_sc_NA19190_YRI_1',
-                     'lane_id' => '101',
-                     'individual' => 'NA19190',
-                     'center_name' => 'SC',
-                     'sample' => 'NA19190',
-                     'platform' => 'SLX',
-                     'expected_md5' => 'dfa4364855815d7433c451a87f0520d0',
-                     'study' => 'SRP000542',
-                     'lane' => 'ERR003199',
-                     'study_name' => 'SRP000542',
-                     'insert_size' => 0,
-                     'sample_id' => '',
-                     'mate' => ''
-        }, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
-
+    
+    is_deeply $results[0], {paths => [file(qw(t data NA19190 sequence_read ERR003199.filt.fastq.gz))->absolute, 
+                                      file(qw(t data NA19190 sequence_read ERR003199_1.filt.fastq.gz))->absolute, 
+                                      file(qw(t data NA19190 sequence_read ERR003199_2.filt.fastq.gz))->absolute],
+                            lane  => 'ERR003199' }, 'got correct results for vrtrack lane_fastqs';
+    my $vrfile = VRPipe::File->get(path => file(qw(t data NA19190 sequence_read ERR003199.filt.fastq.gz))->absolute);
+    my $meta = $vrfile->metadata;
+    is_deeply $meta, { 'bases' => '1696783',
+                       'withdrawn' => 0,
+                       'population' => 'YRI',
+                       'paired' => 1,
+                       'reads' => '45859',
+                       'library' => 'g1k_sc_NA19190_YRI_1',
+                       'lane_id' => '101',
+                       'individual' => 'NA19190',
+                       'center_name' => 'SC',
+                       'sample' => 'NA19190',
+                       'platform' => 'SLX',
+                       'expected_md5' => 'dfa4364855815d7433c451a87f0520d0',
+                       'study' => 'SRP000542',
+                       'lane' => 'ERR003199',
+                       'study_name' => 'SRP000542',
+                       'insert_size' => 175,
+                       'sample_id' => '',
+                       'mate' => ''}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
 }
 exit;
