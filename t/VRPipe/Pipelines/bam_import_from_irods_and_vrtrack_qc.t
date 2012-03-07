@@ -44,13 +44,17 @@ my @s_names;
 foreach my $stepmember ($import_qc_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(irods_get_files_by_basename )], 'the pipeline has the correct steps'; #bamcheck plot_bamcheck bamcheck_rmdup bamcheck_stats_output vrtrack_update_mapstats
+is_deeply \@s_names, [qw(irods_get_files_by_basename bamcheck plot_bamcheck bamcheck_rmdup bamcheck_stats_output vrtrack_update_mapstats)], 'the pipeline has the correct steps';
 
 my $ref_fa_source = file(qw(t data pombe_ref.fa));
 my $ref_dir = dir($output_dir, 'ref');
 $import_qc_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'pombe_ref.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
+
+my $stats_fa_source = $ref_fa_source.'.stats';
+my $ref_fa_stats = $ref_fa.'.stats';
+copy($stats_fa_source, $ref_fa_stats);
 
 VRPipe::PipelineSetup->get(name => 'pombe import and qc',
                            datasource => $ds,
@@ -60,7 +64,9 @@ VRPipe::PipelineSetup->get(name => 'pombe import and qc',
                                        reference_assembly_name => 'SPombe1',
                                        reference_public_url => 'ftp://s.pombe.com/ref.fa',
                                        reference_species => 'S.Pombe',
-                                       bwa_index_options => '-a is',
+                                       reference_fasta_stats => $ref_fa_stats,
+                                       bamcheck_options => '-q 20 -r', # -q20 -d for bamcheck_rmdup_options?
+                                       vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB},
                                        cleanup => 0});
 
 my @irods_files;
