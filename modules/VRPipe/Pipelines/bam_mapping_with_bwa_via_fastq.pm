@@ -5,7 +5,7 @@ class VRPipe::Pipelines::bam_mapping_with_bwa_via_fastq with VRPipe::PipelineRol
         return 'bam_mapping_with_bwa_via_fastq';
     }
     method _num_steps {
-        return 9;
+        return 10;
     }
     method description {
         return 'Map reads in bam files to a reference genome with bwa fastq alignment';
@@ -37,7 +37,8 @@ class VRPipe::Pipelines::bam_mapping_with_bwa_via_fastq with VRPipe::PipelineRol
                    VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 9, from_key => 'reference_dict', to_key => 'dict_file'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 9, to_step => 10, from_key => 'merged_lane_bams', to_key => 'bam_files'),
                  ],
-                 [ VRPipe::StepBehaviourDefiner->new(after_step => 10, behaviour => 'delete_outputs', act_on_steps => [1, 2, 3, 4, 5, 6, 7, 8], regulated_by => 'cleanup', default_regulation => 1) ]);
+                 [ VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [4, 5, 6], regulated_by => 'cleanup', default_regulation => 1),
+                   VRPipe::StepBehaviourDefiner->new(after_step => 10, behaviour => 'delete_outputs', act_on_steps => [7, 8], regulated_by => 'cleanup', default_regulation => 1) ]);
     }
 }
 
