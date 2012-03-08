@@ -1,0 +1,13 @@
+@HD	VN:1.0	SO:coordinate
+@SQ	SN:fake_chr1	LN:290640	M5:55f9584cf1f4194f13bbdc0167e0a05f	UR:ftp://s.suis.com/ref.fa	AS:SSuis1	SP:S.Suis
+@SQ	SN:fake_chr2	LN:1716851	M5:6dd2836053e5c4bd14ad49b5b2f2eb88	UR:ftp://s.suis.com/ref.fa	AS:SSuis1	SP:S.Suis
+@RG	ID:8324_8	LB:LIB03	SM:SAMPLE02	PI:282.8	CN:SC	PL:ILLUMINA	DS:STUDY01
+@PG	ID:bwa_index	PN:bwa	VN:0.5.9-r16	CL:bwa index -a is $reference_fasta
+@PG	ID:bwa_aln_fastq	PN:bwa	PP:bwa_index	VN:0.5.9-r16	CL:bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file
+@PG	ID:bwa_sam	PN:bwa	PP:bwa_aln_fastq	VN:0.5.9-r16	CL:bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)
+@PG	ID:sam_to_fixed_bam	PN:samtools	PP:bwa_sam	VN:0.1.17 (r973:277)	CL:samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file
+@PG	ID:gatk_target_interval_creator	PN:GenomeAnalysisTK	PP:sam_to_fixed_bam	VN:1.3-21-gcb284ee	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) 
+@PG	ID:bam_realignment_around_known_indels	PN:GenomeAnalysisTK	PP:gatk_target_interval_creator	VN:1.3-21-gcb284ee	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file -known $known_indels_file(s) -LOD 0.4 -model KNOWNS_ONLY -compress 0 --disable_bam_indexing
+@PG	ID:bam_count_covariates	PN:GenomeAnalysisTK	PP:bam_realignment_around_known_indels	VN:1.3-21-gcb284ee	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T CountCovariates -R $reference_fasta -I $bam_file -recalFile $bam_file.recal_data.csv -knownSites $known_sites_file(s) -l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate
+@PG	ID:bam_recalibrate_quality_scores	PN:GenomeAnalysisTK	PP:bam_count_covariates	VN:1.3-21-gcb284ee	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file -l INFO --disable_bam_indexing
+@PG	ID:bam_calculate_bq	PN:samtools	PP:bam_recalibrate_quality_scores	VN:0.1.17 (r973:277)	CL:samtools calmd -Erb $bam_file $reference_fasta > $bq_bam_file
