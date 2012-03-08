@@ -24,6 +24,7 @@ You will need the source version of samtools compiled with -fPIC and -m64 in the
 CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
 (which should now contain bam.h and libbam.a). Samtools can be downloaded from
 here: http://sourceforge.net/projects/samtools/files/samtools/
+Furthermore, it is required that a samtools executable be in your PATH.
 
 It is also recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and
 create that directory.
