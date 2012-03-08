@@ -57,7 +57,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis remapping
                                                                    sam_to_fixed_bam_time => 1,
                                                                    bam_merge_lane_splits_memory => 150,
                                                                    bam_merge_lane_splits_time => 1,
-                                                                   cleanup => 0});
+                                                                   cleanup => 1});
 ok handle_pipeline(), 'pipeline ran ok';
 
 #*** needs proper tests...
