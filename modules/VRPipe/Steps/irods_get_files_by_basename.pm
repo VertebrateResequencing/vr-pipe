@@ -29,7 +29,7 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
             my $iquest = $opts->{iquest_exe};
             my $ichksum = $opts->{ichksum_exe};
             
-            my $req = $self->new_requirements(memory => 250, time => 1);
+            my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $file (@{$self->inputs->{basenames}}) {
                 if (! $file->s) {
                     # download to the path of our input file, which doesn't

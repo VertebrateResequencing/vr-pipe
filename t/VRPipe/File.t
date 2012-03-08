@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 35;
+    use Test::Most tests => 36;
     use VRPipeTest;
 }
 
@@ -31,6 +31,12 @@ is $orig_mtime, $new_mtime, 'mtime unchanged in db';
 $vrfile->update_stats_from_disc;
 $new_mtime = $vrfile->mtime;
 isnt $orig_mtime, $new_mtime, 'mtime updated in db';
+
+# check add_metadata updates the mtime
+sleep(2);
+$vrfile->add_metadata({felix => 'the cat'});
+my $meta_mtime = $vrfile->mtime;
+isnt $new_mtime, $meta_mtime, 'mtime updated in db after add_metadata call';
 
 is $vrfile->lines, 2, 'lines() worked';
 
