@@ -1,13 +1,6 @@
 use VRPipe::Base;
 
-class VRPipe::Steps::vrtrack_update_mapstats with VRPipe::StepRole {
-    # eval these so that test suite can pass syntax check on this module when
-    # VertRes is not installed
-    eval "use VertRes::Utils::VRTrackFactory;";
-    
-    method options_definition {
-        return { vrtrack_db => VRPipe::StepOption->get(description => 'the name of your VRTrack database (other connection settings are taken from the standard VRTrack environment variables)') };
-    }
+class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_update {
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
                                                             description => 'bam file with associated bamcheck statistics in the metadata', 
@@ -15,7 +8,7 @@ class VRPipe::Steps::vrtrack_update_mapstats with VRPipe::StepRole {
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
 									 bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
-                                                                         insert_size => 'average insert size (0 if unpaired)',
+                                                                         mean_insert_size => 'mean insert size (0 if unpaired)',
                                                                          reads_mapped => 'number of reads mapped',
                                                                          reads_paired => 'number of reads paired',
                                                                          bases_trimmed => 'number of bases trimmed',
@@ -57,17 +50,8 @@ class VRPipe::Steps::vrtrack_update_mapstats with VRPipe::StepRole {
             }
         };
     }
-    method outputs_definition {
-    	return { };
-    }
-    method post_process_sub {
-        return sub { return 1; };
-    }
     method description {
         return "Add the bamcheck QC statistics and graphs to the VRTrack database, so that they're accessible with QCGrind etc.";
-    }
-    method max_simultaneous {
-        return 15;
     }
 
     method update_mapstats (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str :$lane!, Str|Dir :$plot_dir!, ArrayRef :$plots!) {
@@ -84,7 +68,7 @@ class VRPipe::Steps::vrtrack_update_mapstats with VRPipe::StepRole {
 	# header?
 	
 	# get the lane and mapstats object from VRTrack
-	my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $db, mode => 'rw') || $self->throw("Could not connect to the database '$db'");
+	my $vrtrack = $self->get_vrtrack(db => $db);
 	my $vrlane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $lane) || $self->throw("No lane named '$lane' in database '$db'");
 	my $mapstats = $vrlane->latest_mapping;
 	$vrtrack->transaction_start();
@@ -103,12 +87,8 @@ class VRPipe::Steps::vrtrack_update_mapstats with VRPipe::StepRole {
 	$mapstats->rmdup_reads_mapped($meta->{rmdup_reads_mapped});
 	$mapstats->rmdup_bases_mapped($meta->{rmdup_bases_mapped_c});
 	$mapstats->clip_bases($meta->{bases} - $meta->{bases_trimmed});
-	$mapstats->mean_insert($meta->{insert_size});
+	$mapstats->mean_insert($meta->{mean_insert_size});
 	$mapstats->sd_insert($meta->{sd_insert_size});
-	
-	#*** where do the nadaptor and transposon files come from??
-	# $mapstats->adapter_reads($nadapters);
-	# $mapstats->percentage_reads_with_transposon($percentage_reads_with_transposon);
 	
 	# add the images
 	while (my ($path, $caption) = each %plot_files) {
@@ -119,12 +99,24 @@ class VRPipe::Steps::vrtrack_update_mapstats with VRPipe::StepRole {
 	
 	$mapstats->update;
 	
+	# say that the file is imported
+	my $vrfile = $vrlane->get_file_by_name($bam_file->basename);
+	if ($vrfile) {
+	    $vrfile->is_processed(import => 1);
+	    $vrfile->md5($bam_file->md5);
+	    $vrfile->update;
+	    $vrfile->is_processed(mapped => 1);
+	    $vrfile->update;
+	}
+	
 	# also update the lane
 	$vrlane->is_processed(import => 1); # we must be imported, but we haven't yet done auto-qc (no genotype), so NOT qc => 1
 	$vrlane->raw_bases($meta->{bases});
 	$vrlane->raw_reads($meta->{reads});
 	$vrlane->is_paired($meta->{paired} ? 1 : 0);
 	$vrlane->read_len(int($meta->{avg_read_length}));
+	$vrlane->update;
+	$vrlane->is_processed(mapped => 1);
 	$vrlane->update;
 	$vrtrack->transaction_commit();
     }
