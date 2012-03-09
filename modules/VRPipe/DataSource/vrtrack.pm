@@ -8,6 +8,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     use Digest::MD5 qw(md5_hex);
     use File::Spec::Functions;
     
+    our %file_type_to_type = (0 => 'fq', 1 => 'fq', 2 => 'fq', 3 => 'fq', 4 => 'bam', 5 => 'bam', 6 => 'cram');
+    
     method description {
         return "Use a VRTrack database to extract information from";
     }
@@ -319,16 +321,18 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     lane_id => $file->lane_id,
                 };
                 
-                my $vrfile = VRPipe::File->get(path => $file_abs_path, type => "$file_type" eq "4" ? 'bam' : 'fq');
+                ($file_type) = split('|', $file_type);
+                my $vrfile = VRPipe::File->get(path => $file_abs_path, type => $file_type_to_type{$file_type});
                 
                 # add metadata to file but ensure that we update any fields in
                 # the new metadata
                 my $current_metadata = $vrfile->metadata;
                 my $changed = 0;
                 if ($current_metadata && keys %$current_metadata) {
-                    foreach my $meta (qw(expected_md5 reads bases lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
+                    foreach my $meta (qw(expected_md5 lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
                         next unless $new_metadata->{$meta};
                         if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
+                            $self->debug("metadata '$meta' changed from $current_metadata->{$meta} to $new_metadata->{$meta} for file $file_abs_path, so will mark lane ".$lane->name." as changed");
                             $changed = 1;
                             last;
                         }
@@ -342,7 +346,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 # change the metadata in the VRPipe::File later when more appropriate, 
                 # having made sure the DataElement element states have been reset (see below)                            
                 if ($changed) {
-                    push (@{$lane_changed_hash->{$lane}}, [$vrfile,$new_metadata]);
+                    push (@{$lane_changed_hash->{$lane->id}}, [$vrfile,$new_metadata]);
                 }   
                 
                 push @files, $file_abs_path;             
@@ -350,7 +354,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             
             push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result=>{ paths => \@files, lane=> $lane->name }, withdrawn => 0));
             
-            if ($lane_changed_hash->{$lane}) {
+            if ($lane_changed_hash->{$lane->id}) {
                 # reset element states first
                 foreach my $estate ($elements[-1]->element_states) {
                     $estate->start_from_scratch;
