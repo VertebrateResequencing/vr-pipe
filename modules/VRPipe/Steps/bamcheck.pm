@@ -44,13 +44,13 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                                                                               reverse_reads => 'number of reverse reads',
                                                                               avg_read_length => 'the average length of reads',
                                                                               paired => '0=single ended reads only; 1=paired end reads present',
-                                                                              insert_size => 'average insert size (0 if unpaired)',
+                                                                              mean_insert_size => 'mean insert size (0 if unpaired)',
                                                                               library => 'library name',
                                                                               sample => 'sample name',
                                                                               center_name => 'center name',
                                                                               platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                               study => 'name of the study, put in the DS field of the RG header line',
-                                                                              optional => ['library', 'sample', 'center_name', 'platform', 'study', 'insert_size']}) };
+                                                                              optional => ['library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -114,7 +114,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 $new_meta->{forward_reads} = $parser->first_fragments;
                 $new_meta->{reverse_reads} = $parser->last_fragments;
                 $new_meta->{avg_read_length} = $parser->average_length;
-                $new_meta->{insert_size} = $parser->insert_size_average;
+                $new_meta->{mean_insert_size} = $parser->insert_size_average;
                 $new_meta->{sd_insert_size} = $parser->insert_size_standard_deviation;
             }
             
