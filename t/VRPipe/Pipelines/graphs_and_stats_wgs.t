@@ -53,34 +53,24 @@ my $stats_pipelinesetup = VRPipe::PipelineSetup->get(name => 'graphs_and_stats',
 
 my (@output_files,@final_files);
 my $element_id=0;
-my $sample = "NA20526";
+my $rg = "ERR012999";
 
 foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@output_files, file(@output_subdirs, '1_bamcheck', "${in}.bam.bamcheck"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-acgt-cycles.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-acgt-cycles.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-coverage.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-coverage.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-gc-content.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-gc-content.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-gc-depth.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-gc-depth.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-indel-cycles.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-indel-cycles.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-indel-dist.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-indel-dist.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-insert-size.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-insert-size.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-mism-per-cycle.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-mism-per-cycle.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-quals2.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-quals3.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-quals-hm.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-quals-hm.png"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-quals.gp"));
-    push(@final_files, file(@output_subdirs, '1_bamcheck', "$sample-quals.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-acgt-cycles.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-coverage.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-gc-content.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-gc-depth.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-indel-cycles.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-indel-dist.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-insert-size.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-mism-per-cycle.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-quals2.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-quals3.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-quals-hm.png"));
+    push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-quals.png"));
     push(@final_files, file(@output_subdirs, '4_bamcheck_stats_output', "${in}.bam.detailed_stats"));
 }
 

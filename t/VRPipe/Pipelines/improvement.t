@@ -11,24 +11,24 @@ BEGIN {
     use TestPipelines;
 }
 
-my $improvement_output_dir = get_output_dir('improvement_test');
+my $improvement_output_dir = get_output_dir('bam_improvement');
 
-ok my $improvement_pipeline = VRPipe::Pipeline->get(name => 'improvement_test_pipeline'), 'able to get the improvement_test_pipeline pipeline';
+ok my $improvement_pipeline = VRPipe::Pipeline->get(name => 'bam_improvement'), 'able to get the bam_improvement pipeline';
 
 my @s_names;
 foreach my $stepmember ($improvement_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(test_import_bams
-                             sequence_dictionary
+my @expected_step_names = qw(sequence_dictionary
+                             bam_metadata
                              bam_index
                              gatk_target_interval_creator
                              bam_realignment_around_known_indels
-                             bam_fix_mates
                              bam_index
                              bam_count_covariates
                              bam_recalibrate_quality_scores
-                             bam_calculate_bq);
+                             bam_calculate_bq
+                             bam_reheader);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 my $ref_fa_source = file(qw(t data S_suis_P17.fa));
@@ -50,26 +50,39 @@ my $known_sites = file($res_dir, 'known_sites.vcf.gz')->stringify;
 copy($known_sites_source, $known_sites);
 copy($known_sites_source.'.tbi', $known_sites.'.tbi');
 
+# copy input bams to the output dir, since we will create .bai files and don't
+# want them in the t/data directory
+my $orig_fofn_file = VRPipe::File->get(path => file(qw(t data improvement_datasource.fofn))->absolute);
+my $fofn_file = VRPipe::File->get(path => file($improvement_output_dir, 'improvement_datasource.fofn'));
+my $ifh = $orig_fofn_file->openr;
+my $ofh = $fofn_file->openw;
+while (<$ifh>) {
+    chomp;
+    my $source = file($_);
+    my $dest = file($improvement_output_dir, $source->basename);
+    copy($source, $dest);
+    print $ofh $dest, "\n";
+}
+$orig_fofn_file->close;
+$fofn_file->close;
+
 ok my $ds = VRPipe::DataSource->get(type => 'fofn',
                                  method => 'all',
-                                 source => file(qw(t data improvement_datasource.fofn))->absolute->stringify,
+                                 source => $fofn_file->path->stringify,
                                  options => {}), 'could create a fofn datasource';
 
 my @results = ();
 foreach my $element (@{$ds->elements}) {
     push(@results, $element->result);
 }
-is_deeply \@results, [{paths => [file('t', 'data', '2822_7.pe.bam')->absolute]}, 
-                      {paths => [file('t', 'data', '2822_6.pe.bam')->absolute]}, 
-                      {paths => [file('t', 'data', '2822_6.se.bam')->absolute]}, 
-                      {paths => [file('t', 'data', '2823_4.pe.bam')->absolute]}, 
-                      {paths => [file('t', 'data', '8324_8.pe.bam')->absolute]}], 'got correct results for fofn all';
+is_deeply \@results, [{paths => [file($improvement_output_dir, '2822_7.pe.bam')->absolute]}, 
+                      {paths => [file($improvement_output_dir, '2822_6.pe.bam')->absolute]}, 
+                      {paths => [file($improvement_output_dir, '2822_6.se.bam')->absolute]}, 
+                      {paths => [file($improvement_output_dir, '2823_4.pe.bam')->absolute]}, 
+                      {paths => [file($improvement_output_dir, '8324_8.pe.bam')->absolute]}], 'got correct results for fofn all';
 
 my $improvement_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis improvement',
-                                                       datasource => VRPipe::DataSource->get(type => 'fofn',
-                                                                                             method => 'all',
-                                                                                             source => file(qw(t data improvement_datasource.fofn))->absolute->stringify,
-                                                                                             options => {} ),
+                                                       datasource => $ds,
                                                        output_root => $improvement_output_dir,
                                                        pipeline => $improvement_pipeline,
                                                        options => {reference_fasta => $ref_fa,
@@ -94,34 +107,49 @@ foreach my $file (@files) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     
-    push @output_files, file(@output_subdirs, '1_test_import_bams', $file);
-    push @output_files, file(@output_subdirs, '1_test_import_bams', "$file.bai");
+    push @output_files, file($improvement_output_dir, $file);
+    push @output_files, file($improvement_output_dir, "$file.bai");
     $file =~ s/bam$/realign.bam/;
     push @output_files, file(@output_subdirs, '5_bam_realignment_around_known_indels', $file);
-    $file =~ s/bam$/sort.bam/;
-    push @output_files, file(@output_subdirs, '6_bam_fix_mates', $file);
-    push @output_files, file(@output_subdirs, '6_bam_fix_mates', "$file.bai");
     $file =~ s/bam$/recal_data.csv/;
-    push @output_files, file(@output_subdirs, '8_bam_count_covariates', $file);
+    push @output_files, file(@output_subdirs, '7_bam_count_covariates', $file);
     $file =~ s/recal\_data\.csv$/recal.bam/;
-    push @output_files, file(@output_subdirs, '9_bam_recalibrate_quality_scores', $file);
+    push @output_files, file(@output_subdirs, '8_bam_recalibrate_quality_scores', $file);
     $file =~ s/bam$/calmd.bam/;
-    push @output_files, file(@output_subdirs, '10_bam_calculate_bq', $file);
+    push @output_files, file(@output_subdirs, '9_bam_calculate_bq', $file);
+    push @output_files, file(@output_subdirs, '10_bam_reheader', $file);
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 9, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 10, dataelement => 1)->cmd_summary->summary],
-          ['java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) ',
-           'java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file -known $known_indels_file(s) -LOD 0.4 -model KNOWNS_ONLY -compress 0 --disable_bam_indexing',
-           'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0',
-           'java $jvm_args -jar GenomeAnalysisTK.jar -T CountCovariates -R $reference_fasta -I $bam_file -recalFile $bam_file.recal_data.csv -knownSites $known_sites_file(s) -l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
-           'java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file -l INFO --disable_bam_indexing',
-           'samtools calmd -Erb $bam_file $reference_fasta > $bq_bam_file'],
-          'cmd summaries for the major steps were as expected';
+verify_bam_header($output_files[-1], VRPipe::File->get(path => file(qw(t data 8324_8.pe.realign.recal.calmd.bam.reheader))->absolute));
 
 finish;
+
+sub verify_bam_header {
+    my ($bam_path, $reheader_file) = @_;
+    my %expected_lines;
+    parse_header_lines($reheader_file->openr, \%expected_lines);
+    
+    open(my $sfh, "samtools view -H $bam_path |") || die "Could not view $bam_path with samtools\n";
+    my %actual_lines;
+    parse_header_lines($sfh, \%actual_lines);
+    
+    is_deeply \%actual_lines, \%expected_lines, 'header of bam matched expectation';
+}
+
+sub parse_header_lines {
+    my ($fh, $hash) = @_;
+    
+    while (<$fh>) {
+        chomp;
+        next unless /\S/;
+        my ($type, $content) = /^\@(\w\w)\t(.+)/;
+        
+        if ($type eq 'PG') {
+            $content =~ s/VN:[^\t]+/VN:version/;
+        }
+        
+        push(@{$hash->{$type}}, $content);
+    }
+    close($fh);
+}

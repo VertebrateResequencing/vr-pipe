@@ -301,10 +301,12 @@ role VRPipe::StepRole {
                     my $bad = 0;
                     
                     # check the filetype is correct
-                    my $type = VRPipe::FileType->create($file->type, {file => $file->path});
-                    unless ($type->check_type) {
-                        $self->warn($file->path." exists, but is the wrong type!");
-                        $bad = 1;
+                    if ($check_s) {
+                        my $type = VRPipe::FileType->create($file->type, {file => $file->path});
+                        unless ($type->check_type) {
+                            $self->warn($file->path." exists, but is the wrong type!");
+                            $bad = 1;
+                        }
                     }
                     
                     # check the expected metadata keys exist
@@ -548,12 +550,13 @@ role VRPipe::StepRole {
         if ($deployment eq 'testing') {
             use lib;
             my %orig_inc = map { $_ => 1 } @lib::ORIG_INC;
-            my @new_lib;
+            my %new_lib;
             foreach my $inc (@INC) {
                 unless (exists $orig_inc{$inc}) {
-                    push(@new_lib, file($inc)->absolute);
+                    $new_lib{file($inc)->absolute} = 1;
                 }
             }
+            my @new_lib = keys %new_lib;
             if (@new_lib) {
                 $use_lib = "use lib(qw(@new_lib)); ";
             }

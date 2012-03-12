@@ -1,8 +1,13 @@
-#version 0.27:
+# version 0.31:
+This version introduces proper database independence, and also automatic
+indexing of appropriate columns. The only converter written so far, however,
+is for MySQL.
+
+# version 0.27:
 The schema has changed in this version. Be sure to run vrpipe-db_upgrade if you
 have used a previous version of VRPipe.
 
-# versions 0.01-current:
+# versions 0.01-0.30:
 a) Only MySQL is fully supported so far, though it may work with other dbs.
 b) There is currently an issue with indexing certain columns that are too large
    to be specified as varchars. After running vrpipe-db_deploy you will have
