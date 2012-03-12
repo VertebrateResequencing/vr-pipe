@@ -281,6 +281,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         unless (defined $file_type) {
             $self->throw("file_type is required");
         }
+        my ($file_type_key) = split('|', $file_type);
+        my $vrpipe_filetype = $file_type_to_type{$file_type_key};
         
         my $local_root_dir = delete $args{local_root_dir};
         unless (defined $local_root_dir) {
@@ -321,8 +323,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     lane_id => $file->lane_id,
                 };
                 
-                ($file_type) = split('|', $file_type);
-                my $vrfile = VRPipe::File->get(path => $file_abs_path, type => $file_type_to_type{$file_type});
+                my $vrfile = VRPipe::File->get(path => $file_abs_path, type => $vrpipe_filetype);
                 
                 # add metadata to file but ensure that we update any fields in
                 # the new metadata

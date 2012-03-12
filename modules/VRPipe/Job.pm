@@ -137,46 +137,43 @@ class VRPipe::Job extends VRPipe::Persistent {
         # While running we update heartbeat() in the db every min so that other
         # processes can query and see if we're still alive.
         
-        #my $cmd = VRPipe::Cmd->new(job_id => 2445);
-        #$cmd->run;
-        
-        # check we're allowed to run
-        unless ($self->pending) {
-            if ($self->block_and_skip_if_ok) {
-                # wait until the job has finished running, run it again if it
-                # failed, otherwise do nothing so that $job->ok will be true
-                while (1) {
-                    $self->disconnect;
-                    sleep(60);
-                    if ($self->finished) {
-                        if ($self->ok) {
-                            return;
-                        }
-                        else {
-                            # *** do some kind of reset on failure?
-                            $self->throw("blocking and skipping if ok, but finished and failed... don't know what to do!");
+        # check we're allowed to run, in a transaction to avoid race condition
+        my $schema = $self->result_source->schema;
+        $schema->txn_do(sub {
+            unless ($self->pending) {
+                if ($self->block_and_skip_if_ok) {
+                    # wait until the job has finished running, run it again if it
+                    # failed, otherwise do nothing so that $job->ok will be true
+                    while (1) {
+                        $self->disconnect;
+                        sleep(60);
+                        if ($self->finished) {
+                            if ($self->ok) {
+                                return;
+                            }
+                            else {
+                                # *** do some kind of reset on failure?
+                                $self->throw("blocking and skipping if ok, but finished and failed... don't know what to do!");
+                            }
                         }
                     }
                 }
+                elsif ($self->ok) {
+                    return;
+                }
+                else {
+                    $self->throw("Job ".$self->id." could not be run because it was not in the pending state");
+                }
             }
-            elsif ($self->ok) {
-                return;
-            }
-            else {
-                $self->throw("Job ".$self->id." could not be run because it was not in the pending state");
-            }
-        }
-        
-        #*** race condition between the pending check and claiming this to start
-        #    running...
-        
-        # go ahead and run the cmd, also forking to run a heartbeat process
-        # at the same time
-        $self->running(1);
-        $self->start_time(DateTime->now());
-        $self->finished(0);
-        $self->exit_code(undef);
-        $self->update;
+            
+            # go ahead and run the cmd, also forking to run a heartbeat process
+            # at the same time
+            $self->running(1);
+            $self->start_time(DateTime->now());
+            $self->finished(0);
+            $self->exit_code(undef);
+            $self->update;
+        });
         
         $self->disconnect;
         my $cmd_pid = fork();
