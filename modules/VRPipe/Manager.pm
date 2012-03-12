@@ -383,6 +383,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         #*** not yet fully implemented...
         
         my $fails = 0;
+        my $schema = $self->result_source->schema;
         foreach my $sub (@$submissions) {
             next unless $sub->failed;
             
@@ -398,13 +399,27 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     #    scheduler outputs, and how can we make the return
                     #    values generic?
                     if ($status) {
-                        if ($status eq 'MEMLIMIT') {
-                            $sub->extra_memory;
-                        }
-                        elsif ($status eq 'RUNLIMIT') {
-                            my $hrs = ceil($parser->time / 60 / 60) + 1;
-                            my $current_hrs = $sub->time;
-                            $sub->extra_time($hrs - $current_hrs);
+                        if ($status eq 'MEMLIMIT' || $status eq 'RUNLIMIT') {
+                            # we want to add extra memory/time for all
+                            # submissions that are for this sub's job, incase
+                            # it is not this sub in an array of block_and_skip
+                            # jobs that gets retried
+                            my $rs = $schema->resultset('Submission')->search({ 'job' => $sub->job->id });
+                            my @subs_to_extra;
+                            while (my $sub = $rs->next) {
+                                push(@subs_to_extra, $sub);
+                            }
+                            
+                            foreach my $to_extra (@subs_to_extra) {
+                                if ($status eq 'MEMLIMIT') {
+                                    $to_extra->extra_memory;
+                                }
+                                elsif ($status eq 'RUNLIMIT') {
+                                    my $hrs = ceil($parser->time / 60 / 60) + 1;
+                                    my $current_hrs = $sub->time;
+                                    $to_extra->extra_time($hrs - $current_hrs);
+                                }
+                            }
                         }
                     }
                 }
