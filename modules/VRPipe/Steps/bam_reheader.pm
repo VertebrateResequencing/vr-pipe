@@ -17,11 +17,12 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                          center_name => 'center name',
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study',
-                                                                         insert_size => 'expected (mean) insert size if paired',,
+                                                                         insert_size => 'expected library insert size if paired',
+                                                                         mean_insert_size => 'calculated mean insert size if paired',
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                         optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}),
+                                                                         optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
                  dict_file => VRPipe::StepIODefinition->get(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
@@ -70,12 +71,13 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                        center_name => 'center name',
                                                                        platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                        study => 'name of the study, put in the DS field of the RG header line',
-                                                                       insert_size => 'expected (mean) insert size if paired',,
+                                                                       insert_size => 'expected library insert size if paired',
+                                                                       mean_insert_size => 'calculated mean insert size if paired',
                                                                        bases => 'total number of base pairs',
                                                                        reads => 'total number of reads (sequences)',
                                                                        paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
                                                                        merged_bams => 'comma separated list of merged bam paths',
-                                                                       optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
+                                                                       optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -138,6 +140,9 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             }
             if (defined $this_meta->{insert_size}) {
                 $rg_line .= "\tPI:".$this_meta->{insert_size};
+            }
+            elsif (defined $this_meta->{mean_insert_size}) {
+                $rg_line .= "\tPI:".$this_meta->{mean_insert_size};
             }
             if (defined $this_meta->{center_name}) {
                 $rg_line .= "\tCN:".$this_meta->{center_name};
