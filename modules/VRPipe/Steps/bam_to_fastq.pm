@@ -46,7 +46,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
                                    version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar SamToFastq.jar INPUT=$bam_file(s) FASTQ=$lane.1.fastq SECOND_END_FASTQ=$lane.2.fastq'.$opts));
-            my $req = $self->new_requirements(memory => 1000, time => 1);
+            my $req = $self->new_requirements(memory => 2850, time => 1);
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $meta = $bam->metadata;
