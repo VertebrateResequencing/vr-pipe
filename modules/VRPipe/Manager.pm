@@ -623,7 +623,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
             # we're good to batch this one
             push(@{$batches{$sub->requirements->id}}, $sub);
         }
-        return;
         
         my $scheduler = VRPipe::Scheduler->get;
         while (my ($req_id, $subs) = each %batches) {
