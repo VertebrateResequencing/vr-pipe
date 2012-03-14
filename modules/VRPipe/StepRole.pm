@@ -302,9 +302,9 @@ role VRPipe::StepRole {
                     
                     # check the filetype is correct
                     if ($check_s) {
-                        my $type = VRPipe::FileType->create($file->type, {file => $file->path});
+                        my $type = VRPipe::FileType->create($resolved->type, {file => $resolved->path});
                         unless ($type->check_type) {
-                            $self->warn($file->path." exists, but is the wrong type!");
+                            $self->warn($resolved->path." exists, but is the wrong type!");
                             $bad = 1;
                         }
                     }
