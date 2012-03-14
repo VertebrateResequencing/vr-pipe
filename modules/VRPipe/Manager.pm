@@ -6,6 +6,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
     use POSIX qw(ceil);
     
     our $DEFAULT_MAX_PROCESSES = Sys::CPU::cpu_count();
+    our %step_limits;
+    our %setups_with_step_limits;
+    our %setups_checked_for_step_limits;
+    our %step_limit_instigators;
+    our $do_step_limits = 0;
     
     has '_running' => (is => 'rw',
                        isa => 'Bool',
@@ -56,11 +61,66 @@ class VRPipe::Manager extends VRPipe::Persistent {
             # the steps method. *** steps() currently gives a memory leak, so
             # that's the other reason we are careful to only call it once per
             # pipeline
+            my $ps_id = $ps->id;
             my $created = $self->_created_pipelines;
             unless (exists $created->{$p->id}) {
                 $p->steps;
                 $created->{$p->id} = 1;
                 $self->_created_pipelines($created);
+            }
+            
+            # we can have step-specific limits on how many subs to run at
+            # once; see if any are in place and set them globally for all
+            # setups
+            if ($ps->active && ! exists $setups_checked_for_step_limits{$ps_id}) {
+                my $user_opts = $ps->options;
+                
+                my @stepms = $ps->pipeline->step_members;
+                foreach my $stepm (@stepms) {
+                    my $step = $stepm->step;
+                    my $step_name = $step->name;
+                    
+                    my $limit = $user_opts->{$step_name.'_max_simultaneous'};
+                    unless ($limit) {
+                        $limit = $step->max_simultaneous;
+                    }
+                    
+                    if ($limit) {
+                        if (! defined $step_limits{$step_name} || $limit <= $step_limits{$step_name}) {
+                            $step_limits{$step_name} = $limit;
+                            $setups_with_step_limits{$ps_id}->{$step_name} = $limit;
+                            $step_limit_instigators{$step_name}->{$limit}->{$ps_id} = 1;
+                            $do_step_limits = 1;
+                        }
+                    }
+                }
+                
+                $setups_checked_for_step_limits{$ps_id} = 1;
+            }
+            elsif (! $ps->active && exists $setups_with_step_limits{$ps_id}) {
+                my @limited_steps = keys %{$setups_with_step_limits{$ps_id}};
+                while (my ($step_name, $limit) = each %{$setups_with_step_limits{$ps_id}}) {
+                    delete $step_limit_instigators{$step_name}->{$limit}->{$ps_id};
+                    my $current_limit = $step_limits{$step_name};
+                    unless (keys %{$step_limit_instigators{$step_name}->{$current_limit}}) {
+                        delete $step_limit_instigators{$step_name}->{$current_limit};
+                        my @other_limits = sort { $a <=> $b } keys %{$step_limit_instigators{$step_name}};
+                        if (@other_limits) {
+                            $step_limits{$step_name} = $other_limits[0];
+                        }
+                        else {
+                            delete $step_limits{$step_name};
+                            delete $step_limit_instigators{$step_name};
+                        }
+                    }
+                }
+                
+                delete $setups_with_step_limits{$ps_id};
+                delete $setups_checked_for_step_limits{$ps_id};
+                
+                unless (keys %setups_with_step_limits) {
+                    $do_step_limits = 0;
+                }
             }
             
             push(@setups, $ps);
@@ -168,6 +228,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $all_done = 1;
         my $incomplete_elements = 0;
         my $limit = $self->global_limit;
+        my %step_counts;
         
         # We don't pass a limit to incomplete_element_states since that could
         # return all estates where all their submissions have failed 3 times.
@@ -212,6 +273,16 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     next;
                 }
                 
+                my $step_name = $step->name;
+                my $inc_step_count = 0;
+                if (exists $step_limits{$step_name}) {
+                    $inc_step_count = 1;
+                    if ($step_counts{$step_name} && $step_counts{$step_name} > $step_limits{$step_name}) {
+                        $all_done = 0;
+                        last;
+                    }
+                }
+                
                 # have we previously done the dispatch dance and are currently
                 # waiting on submissions to complete?
                 my @submissions = $state->submissions;
@@ -246,6 +317,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         if ($fails == @submissions) {
                             $incomplete_elements--;
                         }
+                        else {
+                            $step_counts{$step_name}++ if $inc_step_count;
+                        }
                     }
                 }
                 else {
@@ -276,6 +350,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                                 my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
                                 $self->debug(" parsing the step made new submission ".$sub->id." with job ".$sub->job->id);
                             }
+                            $step_counts{$step_name}++ if $inc_step_count;
                         }
                         else {
                             $self->debug("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
@@ -356,6 +431,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
     }
     
     method handle_submissions (Int :$max_retries = 3) {
+        # call setups to find step limits
+        $self->setups;
+        
         my $submissions = $self->unfinished_submissions();
         if ($submissions) {
             $submissions = $self->check_running($submissions);
@@ -507,34 +585,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # group consists of only 1 Submission, then it won't bother with the creating
         # a PersistentArray step.
         
-        # we can have step-specific limits on how many subs to run at once; see
-        # if any are in place and set them globally for all setups
-        my %step_limits;
-        my $do_step_limits = 0;
-        foreach my $setup ($self->setups) {
-            if ($setup->active) {
-                my $user_opts = $setup->options;
-                
-                my @stepms = $setup->pipeline->step_members;
-                foreach my $stepm (@stepms) {
-                    my $step = $stepm->step;
-                    my $step_name = $step->name;
-                    
-                    my $limit = $user_opts->{$step_name.'_max_simultaneous'};
-                    unless ($limit) {
-                        $limit = $step->max_simultaneous;
-                    }
-                    
-                    if ($limit) {
-                        if (! defined $step_limits{$step_name} || $limit < $step_limits{$step_name}) {
-                            $step_limits{$step_name} = $limit;
-                        }
-                        $do_step_limits = 1;
-                    }
-                }
-            }
-        }
-        
         # if any step limits are in place we first have to see how many of each
         # step are currently in the scheduler
         my %step_counts;
@@ -573,6 +623,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             # we're good to batch this one
             push(@{$batches{$sub->requirements->id}}, $sub);
         }
+        return;
         
         my $scheduler = VRPipe::Scheduler->get;
         while (my ($req_id, $subs) = each %batches) {
