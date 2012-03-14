@@ -1,3 +1,5 @@
+0.32    Fixes for bam_mapping_with_bwa_via_fastq and bam_reheader step.
+        Efficiency improvement in how step max_simultaneous is handled.
 0.31    Database independence now properly implemented. New separate
         bam improvement pipeline, remapping bams via fastq pipeline,
         and some Sanger-specific pipelines added.
