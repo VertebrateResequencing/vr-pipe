@@ -77,7 +77,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
         my $output_lines = $output_file->lines;
         
 		# Should at least be more than one output line per vcf record
-        unless ($output_lines > $input_recs) {
+        unless ($input_recs == 0 || $output_lines > $input_recs) {
             $output_file->unlink;
             $self->throw("VEP output has $output_lines lines, less than input vcf records $input_recs");
         }

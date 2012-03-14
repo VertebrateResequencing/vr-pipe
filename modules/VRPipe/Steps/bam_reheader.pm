@@ -139,10 +139,10 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 $rg_line .= "\tSM:".$this_meta->{sample};
             }
             if (defined $this_meta->{insert_size}) {
-                $rg_line .= "\tPI:".$this_meta->{insert_size};
+                $rg_line .= "\tPI:".sprintf("%0.0f", $this_meta->{insert_size});
             }
             elsif (defined $this_meta->{mean_insert_size}) {
-                $rg_line .= "\tPI:".$this_meta->{mean_insert_size};
+                $rg_line .= "\tPI:".sprintf("%0.0f", $this_meta->{mean_insert_size});
             }
             if (defined $this_meta->{center_name}) {
                 $rg_line .= "\tCN:".$this_meta->{center_name};
