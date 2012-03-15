@@ -17,11 +17,12 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                          center_name => 'center name',
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study',
-                                                                         insert_size => 'expected (mean) insert size if paired',,
+                                                                         insert_size => 'expected library insert size if paired',
+                                                                         mean_insert_size => 'calculated mean insert size if paired',
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                         optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study']}),
+                                                                         optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
                  dict_file => VRPipe::StepIODefinition->get(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
@@ -70,12 +71,13 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                        center_name => 'center name',
                                                                        platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                        study => 'name of the study, put in the DS field of the RG header line',
-                                                                       insert_size => 'expected (mean) insert size if paired',,
+                                                                       insert_size => 'expected library insert size if paired',
+                                                                       mean_insert_size => 'calculated mean insert size if paired',
                                                                        bases => 'total number of base pairs',
                                                                        reads => 'total number of reads (sequences)',
                                                                        paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
                                                                        merged_bams => 'comma separated list of merged bam paths',
-                                                                       optional => ['library', 'insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
+                                                                       optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -137,7 +139,10 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 $rg_line .= "\tSM:".$this_meta->{sample};
             }
             if (defined $this_meta->{insert_size}) {
-                $rg_line .= "\tPI:".$this_meta->{insert_size};
+                $rg_line .= "\tPI:".sprintf("%0.0f", $this_meta->{insert_size});
+            }
+            elsif (defined $this_meta->{mean_insert_size}) {
+                $rg_line .= "\tPI:".sprintf("%0.0f", $this_meta->{mean_insert_size});
             }
             if (defined $this_meta->{center_name}) {
                 $rg_line .= "\tCN:".$this_meta->{center_name};
@@ -158,13 +163,44 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         # Construct a chain of PG lines for the header by looking at previous
         # steps in our pipeline. If this the bam was produced from a vrpipe 
         # datasource, find it's parent elements and include in the program chain
+        # If this bam wasn't produced by vrpipe, include any original PG lines
+        # that were intitially already present
         my $this_step_state = VRPipe::StepState->get(id => $step_state);
         my $pipelinesetup = $this_step_state->pipelinesetup;
         my $dataelement = $this_step_state->dataelement;
         my $stepmember = $this_step_state->stepmember;
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
-        foreach my $pg_line ($self->program_chain(pipelinesetup => $pipelinesetup, stepmember => $stepmember, dataelement => $dataelement))
+        my $bam_file = VRPipe::File->get(path => $bam);
+        my $existing_meta = $bam_file->metadata;
+        my @program_chain = $self->program_chain(pipelinesetup => $pipelinesetup, stepmember => $stepmember, dataelement => $dataelement);
+        if (defined $existing_meta->{original_pg_chain}) {
+            my %pg_lines;
+            foreach my $link (@program_chain) {
+                $pg_lines{$link->{program_id}}->{$link->{previous_program}}->{$link->{program_name}}->{$link->{program_version}}->{$link->{command_line}} = 1;
+            }
+            
+            my @orig_chain;
+            foreach my $pg (split("\n", $existing_meta->{original_pg_chain})) {
+                my ($pid) = $pg =~ /\tID:([^\t]+)/;
+                my ($pn) = $pg =~ /\tPN:([^\t]+)/;
+                my ($pv) = $pg =~ /\tPN:([^\t]+)/;
+                my ($cl) = $pg =~ /\tCL:([^\t]+)/;
+                my ($pp) = $pg =~ /\tPP:([^\t]+)/;
+                $pp ||= 'null';
+                push(@orig_chain, { program_id => $pid, program_name => $pn, program_version => $pv, command_line => $cl, previous_program => $pp }) unless exists $pg_lines{$pid}->{$pp}->{$pn}->{$pv}->{$cl};
+                $pg_lines{$pid}->{$pp}->{$pn}->{$pv}->{$cl} = 1;
+            }
+            
+            if (@orig_chain) {
+                if (@program_chain) {
+                    $program_chain[0]->{previous_program} = $orig_chain[-1]->{program_id};
+                }
+                
+                @program_chain = (@orig_chain, @program_chain);
+            }
+        }
+        foreach my $pg_line (@program_chain)
         {
             print $hfh "\@PG\tID:", $pg_line->{program_id}, "\tPN:", $pg_line->{program_name}, "\t";
             if ($pg_line->{previous_program} ne 'null') {

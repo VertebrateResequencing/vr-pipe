@@ -76,6 +76,7 @@ subtype RelationshipArg,
     where { ClassName->check($_) || ArrayRef->check($_) },
     message { "$_ is neither a class name nor an array ref" };
 
+class_type('VRPipe::Persistent::Schema');
 class_type('VRPipe::Submission');
 class_type('VRPipe::Requirements');
 class_type('VRPipe::PersistentArrayMember');

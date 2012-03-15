@@ -18,13 +18,13 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                                                                          forward_reads => 'number of forward reads',
                                                                          reverse_reads => 'number of reverse reads',
                                                                          paired => '0=single ended reads only; 1=paired end reads present',
-                                                                         insert_size => 'average insert size (0 if unpaired)',
+                                                                         mean_insert_size => 'mean insert size (0 if unpaired)',
                                                                          library => 'library name',
                                                                          sample => 'sample name',
                                                                          center_name => 'center name',
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study, put in the DS field of the RG header line',
-                                                                         optional => ['library', 'sample', 'center_name', 'platform', 'study', 'insert_size']}
+                                                                         optional => ['library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size']}
                                                             ),
                 };
     }
@@ -46,7 +46,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
                                    version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar SamToFastq.jar INPUT=$bam_file(s) FASTQ=$lane.1.fastq SECOND_END_FASTQ=$lane.2.fastq'.$opts));
-            my $req = $self->new_requirements(memory => 1000, time => 1);
+            my $req = $self->new_requirements(memory => 2850, time => 1);
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $meta = $bam->metadata;
@@ -54,7 +54,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                 
                 my $source_bam = $bam->path->stringify;
                 my $fastq_meta = { source_bam => $source_bam };
-                foreach my $key (qw(lane insert_size library sample center_name platform study)) {
+                foreach my $key (qw(lane insert_size mean_insert_size library sample center_name platform study)) {
                     if (defined $meta->{$key}) {
                         $fastq_meta->{$key} = $meta->{$key};
                     }
@@ -115,13 +115,14 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                                                                            paired => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
                                                                            mate => 'if paired, the path to the fastq that is our mate',
                                                                            source_bam => 'path of the bam file this fastq file was made from',
-                                                                           insert_size => 'average insert size (0 if unpaired)',
+                                                                           insert_size => 'expected library insert size (0 if unpaired)',
+                                                                           mean_insert_size => 'calculated mean insert size (0 if unpaired)',
                                                                            library => 'library name',
                                                                            sample => 'sample name',
                                                                            center_name => 'center name',
                                                                            platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                            study => 'name of the study',
-                                                                           optional => ['mate', 'library', 'sample', 'center_name', 'platform', 'study']}),
+                                                                           optional => ['mate', 'library', 'sample', 'center_name', 'platform', 'study', 'insert_size', 'mean_insert_size']}),
                };
     }
     method post_process_sub {

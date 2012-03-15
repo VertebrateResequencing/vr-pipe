@@ -31,7 +31,6 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_vep_annotate
 		pipeline => $pipeline,
 		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
 		'vcf2consequences_options' => "-grantham --gerp $gerp_cache",
-		'tmp_exe' => "/lustre/scratch106/user/cj5/vep2.2/vep_resort.sh",
 		cleanup => 0});
 
 my (@output_files,@final_files);

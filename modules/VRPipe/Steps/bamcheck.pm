@@ -44,13 +44,13 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                                                                               reverse_reads => 'number of reverse reads',
                                                                               avg_read_length => 'the average length of reads',
                                                                               paired => '0=single ended reads only; 1=paired end reads present',
-                                                                              insert_size => 'average insert size (0 if unpaired)',
+                                                                              mean_insert_size => 'mean insert size (0 if unpaired)',
                                                                               library => 'library name',
                                                                               sample => 'sample name',
                                                                               center_name => 'center name',
                                                                               platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                               study => 'name of the study, put in the DS field of the RG header line',
-                                                                              optional => ['library', 'sample', 'center_name', 'platform', 'study', 'insert_size']}) };
+                                                                              optional => ['library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -114,7 +114,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 $new_meta->{forward_reads} = $parser->first_fragments;
                 $new_meta->{reverse_reads} = $parser->last_fragments;
                 $new_meta->{avg_read_length} = $parser->average_length;
-                $new_meta->{insert_size} = $parser->insert_size_average;
+                $new_meta->{mean_insert_size} = $parser->insert_size_average;
                 $new_meta->{sd_insert_size} = $parser->insert_size_standard_deviation;
             }
             
@@ -123,18 +123,20 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             }
             
             
-            # and get other metadata from bam header
+            # and get other metadata from bam header, but don't overwrite
+            # existing info
             $parser = VRPipe::Parser->create('bam', {file => $bam_file});
             my %rg_info = $parser->readgroup_info();
             my @rgs = keys %rg_info;
+            my $existing_meta = $bam_file->metadata;
             if (@rgs == 1) {
                 my $info = $rg_info{$rgs[0]};
-                $new_meta->{lane} = $info->{PU} ? $info->{PU} : $rgs[0];
-                $new_meta->{library} = $info->{LB} if $info->{LB};
-                $new_meta->{sample} = $info->{SM} if $info->{SM};
-                $new_meta->{center_name} = $info->{CN} if $info->{CN};
-                $new_meta->{platform} = $info->{PL} if $info->{PL};
-                $new_meta->{study} = $info->{DS} if $info->{DS};
+                unless (defined $existing_meta->{lane}) { $new_meta->{lane} = $info->{PU} ? $info->{PU} : $rgs[0]; } else { $new_meta->{lane} = $existing_meta->{lane} }
+                unless (defined $existing_meta->{library}) { $new_meta->{library} = $info->{LB} if $info->{LB}; } else { $new_meta->{library} = $existing_meta->{library} }
+                unless (defined $existing_meta->{sample}) { $new_meta->{sample} = $info->{SM} if $info->{SM}; } else { $new_meta->{sample} = $existing_meta->{sample} }
+                unless (defined $existing_meta->{center_name}) { $new_meta->{center_name} = $info->{CN} if $info->{CN}; } else { $new_meta->{center_name} = $existing_meta->{center_name} }
+                unless (defined $existing_meta->{platform}) { $new_meta->{platform} = $info->{PL} if $info->{PL}; } else { $new_meta->{platform} = $existing_meta->{platform} }
+                unless (defined $existing_meta->{study}) { $new_meta->{study} = $info->{DS} if $info->{DS}; } else { $new_meta->{study} = $existing_meta->{study} }
             }
             if (@rgs != 1 || "$new_meta->{lane}" eq "1") {
                 # call the name something we can be most sure is maximally

@@ -12,7 +12,7 @@ class VRPipe::Steps::bamcheck_stats_output with VRPipe::StepRole {
                                                             max_files => -1,
                                                             metadata => {bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
-                                                                         insert_size => 'average insert size (0 if unpaired)',
+                                                                         mean_insert_size => 'mean insert size (0 if unpaired)',
                                                                          reads_mapped => 'number of reads mapped',
                                                                          reads_paired => 'number of reads paired',
                                                                          bases_trimmed => 'number of bases trimmed',
@@ -79,7 +79,7 @@ class VRPipe::Steps::bamcheck_stats_output with VRPipe::StepRole {
 		 printf $ofh "duplication .. %f\n", 1-$meta->{rmdup_reads_mapped}/$meta->{reads_mapped};
 		 printf $ofh "\n";
 		 printf $ofh "insert size        \n";
-		 printf $ofh "    average .. %.1f\n", $meta->{insert_size};
+		 printf $ofh "    average .. %.1f\n", $meta->{mean_insert_size};
 		 printf $ofh "    std dev .. %.1f\n", $meta->{sd_insert_size};
 		 printf $ofh "\n";
          $stats_out->close;

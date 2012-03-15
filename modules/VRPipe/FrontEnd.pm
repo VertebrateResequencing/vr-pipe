@@ -302,12 +302,12 @@ class VRPipe::FrontEnd {
             my $num = $i + 1;
             my $key = $thing_keys[$i];
             $num_to_key{$num} = $key;
-            $self->output("$num. $key");
+            my $output = "$num. $key";
             my $obj = $things{$key};
             if ($obj->can('description')) {
-                $self->output(' [', $obj->description, ']');
+                $output .= ' ['.$obj->description.']';
             }
-            $self->output("\n");
+            $self->output($output);
         }
         my $chosen_num = $self->pick_number(question => $question, max => scalar(@thing_keys));
         return $things{$num_to_key{$chosen_num}};
@@ -323,6 +323,9 @@ class VRPipe::FrontEnd {
     
     method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?) {
         undef $possibles unless $possibles && @$possibles;
+        if (defined $default && length($default) == 0) {
+            undef $default;
+        }
         
         print STDERR "$question";
         my %allowed;

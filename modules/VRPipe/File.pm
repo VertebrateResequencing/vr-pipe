@@ -155,6 +155,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         $self->metadata($new_meta);
         $self->update;
+        $self->touch if ($self->e);
         
         my $resolve = $self->resolve;
         if ($resolve ne $self) {

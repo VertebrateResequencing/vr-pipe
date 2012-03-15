@@ -266,6 +266,9 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         if ($job->pending) {
             $job->run(stepstate => $submission->stepstate);
         }
+        #*** $job->block_and_skip_if_ok does not come into play because we don't
+        # call ->run more than once per job unless there was a race condition
+        # on the pending check
     }
     
     method wait_for_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {
