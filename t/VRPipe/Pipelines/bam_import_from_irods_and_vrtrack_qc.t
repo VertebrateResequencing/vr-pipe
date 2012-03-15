@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 7;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
                     required_exe => [qw(iget iquest)]);
@@ -67,40 +67,37 @@ VRPipe::PipelineSetup->get(name => 'pombe import and qc',
                                        reference_fasta_stats => $ref_fa_stats,
                                        bamcheck_options => '-q 20 -r', # -q20 -d for bamcheck_rmdup_options?
                                        vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                       cleanup => 0});
+                                       cleanup => 1});
 
 my @irods_files;
+my @qc_files;
+my $element_id = 29;
 foreach my $num (qw(1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 20 21 22 23 24 25 26 27 28 29 30 31)) {
-    push(@irods_files, file($irods_dir, '7369_5#'.$num.'.bam'));
+    my @output_subdirs = output_subdirs($element_id--);
+    my $basename = '7369_5#'.$num;
+    
+    push(@irods_files, file($irods_dir, $basename.'.bam'));
+    
+    push(@qc_files, file(@output_subdirs, '2_bamcheck', $basename.'.bam.bamcheck'));
+    foreach my $kind (qw(quals-hm quals quals2 quals3 insert-size gc-content gc-depth acgt-cycles coverage mism-per-cycle indel-dist indel-cycles)) {
+        push(@qc_files, file(@output_subdirs, '3_plot_bamcheck', $basename.'-'.$kind.'.png'));
+    }
+    push(@qc_files, file(@output_subdirs, '5_bamcheck_stats_output', $basename.'.bam.detailed_stats'));
 }
-ok handle_pipeline(@irods_files), 'pipeline ran ok';
-
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/2_bamcheck/7369_5#1.bam.bamcheck
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-quals-hm.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-quals.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-quals2.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-quals3.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-insert-size.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-gc-content.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-gc-depth.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-acgt-cycles.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-coverage.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-mism-per-cycle.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-indel-dist.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/3_plot_bamcheck/7369_5#1-indel-cycles.png
-#pipelines_test_output/bam_import_from_irods_and_vrtrack_qc_wgs/2/f/9/d/29/5_bamcheck_stats_output/7369_5#1.bam.detailed_stats
+ok handle_pipeline(@irods_files, @qc_files), 'irods import and qc graphs pipeline ran ok';
 
 # we'll also test the whole chain of pipelines we typically run in
 # VertebrateResequencing at the Sanger: improvement followed by genotype check
 # & auto_qc followed by merge up to the sample level
 
 my $res_dir = dir($output_dir, 'resources');
-my $known_indels_source = file(qw(t data known_indels.vcf.gz));
+$import_qc_pipeline->make_path($res_dir);
+my $known_indels_source = file(qw(t data known_indels_pombe.vcf.gz));
 my $known_indels = file($res_dir, 'known_indels.vcf.gz')->stringify;
 copy($known_indels_source, $known_indels);
 copy($known_indels_source.'.tbi', $known_indels.'.tbi');
 
-my $known_sites_source = file(qw(t data known_sites.vcf.gz));
+my $known_sites_source = file(qw(t data known_sites_pombe.vcf.gz));
 my $known_sites = file($res_dir, 'known_sites.vcf.gz')->stringify;
 copy($known_sites_source, $known_sites);
 copy($known_sites_source.'.tbi', $known_sites.'.tbi');
@@ -119,8 +116,8 @@ VRPipe::PipelineSetup->get(name => 'pombe improvement',
                                                 gatk_path => $ENV{GATK},
                                                 picard_path => $ENV{PICARD},
                                                 cleanup => 1,
-                                                sequence_dictionary_memory => 150,
-                                                sequence_dictionary_time => 1,
                                                 vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB}});
+
+ok handle_pipeline, 'chained improvement pipeline ran ok';
 
 finish;
