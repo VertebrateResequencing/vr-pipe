@@ -18,7 +18,7 @@ foreach my $setup (@setups) {
     unless ($active) {
         $note = 'currently DEACTIVATED ';
     }
-    $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, ") $note---");
+    $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
     next if $list;
     
     my $pipeline = $setup->pipeline;
