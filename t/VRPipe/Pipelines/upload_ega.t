@@ -5,11 +5,14 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)]);
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES EGA_UPLOAD_JAR EGA_DROPBOX EGA_DROPBOX_PW)]);
     use TestPipelines;
 }
 
 my $output_dir = get_output_dir('upload_ega_pipeline');
+my $ega_jar = $ENV{EGA_UPLOAD_JAR};
+my $ega_dropbox = $ENV{EGA_DROPBOX};
+my $ega_dropbox_passwd = $ENV{EGA_DROPBOX_PW};
 
 my $testdir = file(qw(t data))->absolute->stringify;
 system("rm $testdir/upload_log*");
@@ -31,10 +34,9 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my upload_ega pipel
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { cleanup => 0,
-                 'ega_upload_jar' => '/software/vertres/bin-external/ega_upload/ena-ega-UploadClientApp.jar',
-                 'ega_dropbox' => 'ega-box-100',
-                 'ega_dropbox_passwd' => 'PydBQHQ3',
-                 'max_simultaneous' => 5,
+                 'ega_upload_jar' => "$ega_jar",
+                 'ega_dropbox' => "$ega_dropbox",
+                 'ega_dropbox_passwd' => "$ega_dropbox_passwd",
                  'allow_dups' => 1,
 		}
 );
