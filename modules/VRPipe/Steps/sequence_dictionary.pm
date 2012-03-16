@@ -56,13 +56,9 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
         my $pars = VRPipe::Parser->create('fasta', {file => $ref});
         
         my $dict_file = VRPipe::File->get(path => $dict);
-        if (-s $dict_file->path) {
-            $self->throw("a dict file already exists at '".$dict_file->path."'; was it made by a different pipeline with different settings?");
-        }
-        my $ofh = $dict_file->openw;
         $dict_file->disconnect;
         
-        print $ofh "\@HD\tVN:1.0\tSO:unsorted\n";
+        my $dict_content = "\@HD\tVN:1.0\tSO:unsorted\n";
         
         my $pr = $pars->parsed_record();
         while ($pars->next_record()) {
@@ -76,10 +72,34 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
             my @fields = ('@SQ', $sn, $ln, $m5);
             push(@fields, $constants) if ($constants && $constants =~ /\S/);
             
-            print $ofh join("\t", @fields), "\n";
+            $dict_content .= join("\t", @fields)."\n";
         }
         
-        $dict_file->close;
+        my $write = 1;
+        if (-s $dict_file->path) {
+            # There is an obscure issue possibly related to race conditions
+            # where the dict file can have size already, even though it never
+            # existing before this pipelinesetup wanted to create it.
+            # Presumably another submission for this same job called a run
+            # a few miliseconds before us. We don't want to throw here, however,
+            # or we'll end up with a complete .dict file but a job status of
+            # failed, then subsequent retries will all fail.
+            # Instead we'll compare to what the existing .dict file contains and
+            # fail/succeed accordingly
+            sleep(5);
+            my $ifh = $dict_file->openr;
+            my $current_content = $dict_file->slurp;
+            unless ($current_content eq $dict_content) {
+                $self->warn("A dict file with different content already exists at '".$dict_file->path."'; was it made by a different pipeline with different settings? I will not overwrite it");
+                $write = 0;
+            }
+        }
+        
+        if ($write) {
+            my $ofh = $dict_file->openw;
+            print $ofh $dict_content;
+            $dict_file->close;
+        }
     }
 }
 
