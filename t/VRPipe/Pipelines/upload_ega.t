@@ -1,0 +1,45 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Path::Class;
+
+BEGIN {
+    use Test::Most tests => 3;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)]);
+    use TestPipelines;
+}
+
+my $output_dir = get_output_dir('upload_ega_pipeline');
+
+my $testdir = file(qw(t data))->absolute->stringify;
+system("rm $testdir/upload_log*");
+
+ok my $pipeline = VRPipe::Pipeline->get(name => 'upload_ega'), 'able to get the upload_ega pipeline';
+my @s_names;
+
+foreach my $stepmember ($pipeline->steps) {
+    push(@s_names, $stepmember->step->name);
+}
+
+my @expected_step_names = qw(ega_upload);
+is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
+
+my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my upload_ega pipeline setup',
+		datasource => VRPipe::DataSource->get(type => 'fofn',
+			method => 'all',
+			source => file(qw(t data hs_chr20.bam.fofn))),
+		output_root => $output_dir,
+		pipeline => $pipeline,
+		options => { cleanup => 0,
+                 'ega_upload_jar' => '/software/vertres/bin-external/ega_upload/ena-ega-UploadClientApp.jar',
+                 'ega_dropbox' => 'ega-box-100',
+                 'ega_dropbox_passwd' => 'PydBQHQ3',
+                 'max_simultaneous' => 5,
+                 'allow_dups' => 1,
+		}
+);
+ok handle_pipeline(), 'pipeline ran ok';
+
+#*** needs proper tests...
+
+done_testing;
