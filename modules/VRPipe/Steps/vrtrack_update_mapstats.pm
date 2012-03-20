@@ -15,11 +15,8 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                                                                          bases_mapped => 'number of bases mapped',
                                                                          bases_mapped_c => 'number of bases mapped (cigar)',
                                                                          error_rate => 'error rate from bamcheck',
-                                                                         rmdup_bases => 'total number of bases with duplicate reads removed',
-                                                                         rmdup_reads => 'total number of reads with duplicates removed',
-                                                                         rmdup_reads_mapped => 'number of reads mapped with duplicates removed',
-                                                                         rmdup_bases_mapped_c => '??',
-                                                                         rmdup_bases_trimmed => 'trimmed duplicated bases',
+                                                                         rmdup_bases_mapped => 'total number of bases mapped after removing duplicates',
+                                                                         rmdup_reads_mapped => 'number of reads mapped after removing duplicates',
                                                                          sd_insert_size => 'standard deviation of the insert size'}),
 		 bamcheck_plots => VRPipe::StepIODefinition->get(type => 'bin',
                                                                  description => 'png files produced by plot-bamcheck, with a caption in the metadata',
@@ -85,7 +82,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
 	$mapstats->bases_mapped($meta->{bases_mapped_c});
 	$mapstats->error_rate($meta->{error_rate});
 	$mapstats->rmdup_reads_mapped($meta->{rmdup_reads_mapped});
-	$mapstats->rmdup_bases_mapped($meta->{rmdup_bases_mapped_c});
+	$mapstats->rmdup_bases_mapped($meta->{rmdup_bases_mapped}); # ideally this would be rmdup_bases_mapped_c, but we no longer calculate this with bamcheck -d
 	$mapstats->clip_bases($meta->{bases} - $meta->{bases_trimmed});
 	$mapstats->mean_insert($meta->{mean_insert_size});
 	$mapstats->sd_insert($meta->{sd_insert_size});

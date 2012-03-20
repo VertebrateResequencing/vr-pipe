@@ -68,8 +68,9 @@ class VRPipe::FrontEnd {
                     if ($name eq 'setup') {
                         if ($type eq 's@') {
                             unless ($self->no_user_option) {
-                                $default->[2] = $default->[1];
+                                $default->[3] = $default->[1];
                                 $default->[1] = [ 'user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ];
+                                $default->[2] = [ 'deactivated', 'Also show deactiavted PipelineSetups', { default => 0 } ];
                             }
                             $self->_multiple_setups(1);
                         }
@@ -219,15 +220,18 @@ class VRPipe::FrontEnd {
         $self->die_with_error($self->usage);
     }
     
-    method get_pipelinesetups (Bool :$inactive = 0) {
+    method get_pipelinesetups (Bool :$inactive?) {
         my @requested_setups = $self->option_was_set('setup') ? ($self->_multiple_setups ? @{$self->opts('setup')} : ($self->opts('setup'))) : ();
-        my $user = $self->opts('user') if $self->_multiple_setups;
         
         my @setups;
         if (@requested_setups) {
             @setups = @requested_setups;
         }
         elsif ($self->_multiple_setups) {
+            my $user = $self->opts('user');
+            unless (defined $inactive) {
+                $inactive = $self->opts('deactivated');
+            }
             my $rs = $self->schema->resultset("PipelineSetup")->search( { $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) } );
             while (my $setup = $rs->next) {
                 push(@setups, $setup);
