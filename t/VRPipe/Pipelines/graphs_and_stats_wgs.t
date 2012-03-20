@@ -20,7 +20,6 @@ foreach my $stepmember ($stats_pipeline->steps) {
 }
 my @expected_step_names = qw(bamcheck
                              plot_bamcheck
-                             bamcheck_rmdup
                              bamcheck_stats_output);
 
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
@@ -71,7 +70,7 @@ foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
     push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-quals3.png"));
     push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-quals-hm.png"));
     push(@final_files, file(@output_subdirs, '2_plot_bamcheck', "$rg-quals.png"));
-    push(@final_files, file(@output_subdirs, '4_bamcheck_stats_output', "${in}.bam.detailed_stats"));
+    push(@final_files, file(@output_subdirs, '3_bamcheck_stats_output', "${in}.bam.detailed_stats"));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
