@@ -15,7 +15,7 @@ class VRPipe::Pipelines::vcf_filter_merge_and_vep_annotate with VRPipe::Pipeline
     }
     
     method _step_list {
-        return ([ VRPipe::Step->get(name => 'vcf_filter'), #1
+        return ([ VRPipe::Step->get(name => 'vcf_multi_filter'), #1
                   VRPipe::Step->get(name => 'vcf_merge'), #2
                   VRPipe::Step->get(name => 'vcf_annotate'), #3
                   VRPipe::Step->get(name => 'vep_analysis'), #4
