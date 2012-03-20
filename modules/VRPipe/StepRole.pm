@@ -425,7 +425,8 @@ role VRPipe::StepRole {
                 return 0;
             }
             else {
-                $self->throw("Required input files are missing: (@missing)");
+                my $step_state = $self->step_state;
+                $self->throw("Required input files are missing for step ".$self->name." (for data element ".$self->data_element->id.", pipelinesetup ".$step_state->pipelinesetup->id.", stepstate ".$step_state->id."): [@missing]");
             }
         }
         
