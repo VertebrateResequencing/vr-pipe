@@ -34,13 +34,13 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpil
 			#samtools_mpileup_options => '-C50 -aug -r 20:1-70000',
 			samtools_mpileup_options => '-C50 -aug',
 			reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
-			mimimum_calls => 100,
+			mimimum_calls => 0,
 		}
 );
 
 
 my (@output_files,@final_files);
-my @files = ('hs_chr20.b.bam','hs_chr20.d.bam');	# output file name and metadat based on last column of delimited data source
+my @files = ('hs_chr20.a.bam','hs_chr20.b.bam');	# output file name and metadat based on last column of delimited data source
 my $element_id = 0;
 foreach my $f (@files) {
   $f =~ s/\.bam/.mpileup.vcf.gz/;
