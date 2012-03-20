@@ -1,3 +1,6 @@
+0.33    Optimised bam_import_from_irods_and_vrtrack_qc_wgs pipeline.
+        Memory and time reserved for jobs is now less likely to be
+        insufficient.
 0.32    Fixes for bam_mapping_with_bwa_via_fastq and bam_reheader step.
         Efficiency improvement in how step max_simultaneous is handled.
 0.31    Database independence now properly implemented. New separate
