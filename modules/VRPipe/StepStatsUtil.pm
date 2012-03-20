@@ -4,10 +4,40 @@ class VRPipe::StepStatsUtil {
     use POSIX;
     
     our %means;
+    our %percentiles;
     
     has 'step' => (is => 'rw',
                    isa => 'VRPipe::Step',
                    required => 1);
+    
+    method _percentile (Str $column! where { $_ eq 'memory' || $_ eq 'time' }, Int $percent! where { $_ > 0 && $_ < 100 }, VRPipe::PipelineSetup $pipelinesetup?) {
+        # did we already work this out in the past hour?
+        my $step = $self->step;
+        my $time = time();
+        my $store_key = $step->id.$column.$percent. ($pipelinesetup ? $pipelinesetup->id : 0);
+        my $p_data = $percentiles{$store_key};
+        if ($p_data && $p_data->[0] + 3600 > $time) {
+            return ($p_data->[1], $p_data->[2]);
+        }
+        
+        my $schema = $step->result_source->schema;
+        my @search_args = (step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : ());
+        my ($count, $percentile) = (0, 0);
+        $count = $schema->resultset('StepStats')->search({ @search_args })->count;
+        if ($count) {
+            my $rs = $schema->resultset('StepStats')->search({ @search_args }, { order_by => { -desc => [$column] }, rows => 1, offset => sprintf("%0.0f", ($count / 100) * (100 - $percent)) });
+            $percentile = $rs->get_column($column)->next;
+        }
+        
+        $percentiles{$store_key} = [$time, $count, $percentile] if $count > 500;
+        return ($count, $percentile);
+    }
+    method percentile_seconds (Int :$percent!, VRPipe::PipelineSetup :$pipelinesetup?) {
+        return $self->_percentile('time', $percent, $pipelinesetup ? ($pipelinesetup) : ());
+    }
+    method percentile_memory (Int :$percent!, VRPipe::PipelineSetup :$pipelinesetup?) {
+        return $self->_percentile('memory', $percent, $pipelinesetup ? ($pipelinesetup) : ());
+    }
     
     method _mean (Str $column! where { $_ eq 'memory' || $_ eq 'time' }, VRPipe::PipelineSetup $pipelinesetup?) {
         # did we already work this out in the past hour?
@@ -53,11 +83,16 @@ class VRPipe::StepStatsUtil {
     }
     
     method _recommended (Str $method! where { $_ eq 'memory' || $_ eq 'time' }, VRPipe::PipelineSetup $pipelinesetup?) {
-        my ($count, $mean, $sd) = $self->_mean($method, $pipelinesetup ? ($pipelinesetup) : ());
-        
-        # if we've seen enough completed submissions, recommend mean + 2sd
+        # if we've seen enough previous results, recommend 95th percentile
+        # rounded up to nearest 100
+        my ($count, $percentile) = $self->_percentile($method, 95, $pipelinesetup ? ($pipelinesetup) : ());
         if ($count >= 3) {
-            return $mean + 2 * $sd;
+            if ($percentile % 100) {
+                return (1 + int($percentile/100)) * 100;
+            }
+            else {
+                return $percentile;
+            }
         }
         return;
     }

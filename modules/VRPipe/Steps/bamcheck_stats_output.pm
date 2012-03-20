@@ -19,12 +19,13 @@ class VRPipe::Steps::bamcheck_stats_output with VRPipe::StepRole {
                                                                          bases_mapped => 'number of bases mapped',
                                                                          bases_mapped_c => 'number of bases mapped (cigar)',
                                                                          error_rate => 'error rate from bamcheck',
-                                                                         rmdup_bases => '',
-                                                                         rmdup_reads => 'total number of reads with duplicates removed',
-                                                                         rmdup_reads_mapped => 'number of reads mapped with duplicates removed',
-                                                                         rmdup_bases_mapped_c => '',
-                                                                         rmdup_bases_trimmed => '',
-                                                                         sd_insert_size => ''})
+                                                                         rmdup_bases => 'number of bases after removing duplicates',
+                                                                         rmdup_reads => 'total number of reads after removing duplicates',
+                                                                         rmdup_reads_mapped => 'number of reads mapped after removing duplicates',
+                                                                         rmdup_bases_mapped_c => 'number of bases mapped after removing duplicates according to the cigar',
+                                                                         rmdup_bases_trimmed => 'number of bases trimmed after removing duplicates',
+                                                                         sd_insert_size => 'the standard deviation of insert size',
+									 optional => ['rmdup_bases_mapped_c', 'rmdup_bases_trimmed']})
                }; 
     }
     
@@ -56,34 +57,35 @@ class VRPipe::Steps::bamcheck_stats_output with VRPipe::StepRole {
         return 0; # meaning unlimited
     }
 
-    method write_stats_file (
-     ClassName|Object $self: Str|File :$bam, Str|File :$stats) {
-	   	 my $check_file = VRPipe::File->get(path => $bam);
-    	 my $stats_out = VRPipe::File->get(path => $stats);    	 
-    	 my $meta = $check_file->metadata;
-         my $ofh = $stats_out->openw;
-         $stats_out->disconnect;
-
-         printf $ofh "reads total .. %d\n", $meta->{reads};
-         printf $ofh "     mapped .. %d (%.1f%%)\n", $meta->{reads_mapped}, $meta->{reads_mapped}*100./$meta->{reads};
-         printf $ofh "     paired .. %d (%.1f%%)\n", $meta->{reads_paired}, $meta->{reads_paired}*100./$meta->{reads};
-         printf $ofh "bases total .. %d\n", $meta->{bases};
-         printf $ofh "    clip bases     .. %d (%.1f%%)\n", ($meta->{bases}-$meta->{bases_trimmed}),($meta->{bases}-$meta->{bases_trimmed})*100./$meta->{bases};
-		 printf $ofh "    mapped (read)  .. %d (%.1f%%)\n", $meta->{bases_mapped}, $meta->{bases_mapped}*100./$meta->{bases};
-		 printf $ofh "    mapped (cigar) .. %d (%.1f%%)\n", $meta->{bases_mapped_c}, $meta->{bases_mapped_c}*100./($meta->{bases}-$meta->{bases_trimmed});
-		 printf $ofh "error rate  .. %f\n", $meta->{error_rate};
-		 printf $ofh "rmdup\n";
-		 printf $ofh "     reads total  .. %d (%.1f%%)\n", $meta->{rmdup_reads}, $meta->{rmdup_reads}*100./$meta->{reads};
-		 printf $ofh "     reads mapped .. %d (%.1f%%)\n", $meta->{rmdup_reads_mapped}, $meta->{rmdup_reads_mapped}*100./$meta->{rmdup_reads};
-		 printf $ofh "     bases mapped (cigar) .. %d (%.1f%%)\n",  $meta->{rmdup_bases_mapped_c},  $meta->{rmdup_bases_mapped_c}*100./($meta->{rmdup_bases}-$meta->{rmdup_bases_trimmed});
-		 printf $ofh "duplication .. %f\n", 1-$meta->{rmdup_reads_mapped}/$meta->{reads_mapped};
-		 printf $ofh "\n";
-		 printf $ofh "insert size        \n";
-		 printf $ofh "    average .. %.1f\n", $meta->{mean_insert_size};
-		 printf $ofh "    std dev .. %.1f\n", $meta->{sd_insert_size};
-		 printf $ofh "\n";
-         $stats_out->close;
+    method write_stats_file (ClassName|Object $self: Str|File :$bam, Str|File :$stats) {
+	my $check_file = VRPipe::File->get(path => $bam);
+	my $stats_out = VRPipe::File->get(path => $stats);    	 
+	my $meta = $check_file->metadata;
+	my $ofh = $stats_out->openw;
+	$stats_out->disconnect;
+	
+	printf $ofh "reads total .. %d\n", $meta->{reads};
+	printf $ofh "     mapped .. %d (%.1f%%)\n", $meta->{reads_mapped}, $meta->{reads_mapped}*100./$meta->{reads};
+	printf $ofh "     paired .. %d (%.1f%%)\n", $meta->{reads_paired}, $meta->{reads_paired}*100./$meta->{reads};
+	printf $ofh "bases total .. %d\n", $meta->{bases};
+	printf $ofh "    clip bases     .. %d (%.1f%%)\n", ($meta->{bases}-$meta->{bases_trimmed}),($meta->{bases}-$meta->{bases_trimmed})*100./$meta->{bases};
+	printf $ofh "    mapped (read)  .. %d (%.1f%%)\n", $meta->{bases_mapped}, $meta->{bases_mapped}*100./$meta->{bases};
+	printf $ofh "    mapped (cigar) .. %d (%.1f%%)\n", $meta->{bases_mapped_c}, $meta->{bases_mapped_c}*100./($meta->{bases}-$meta->{bases_trimmed});
+	printf $ofh "error rate  .. %f\n", $meta->{error_rate};
+	printf $ofh "rmdup\n";
+	printf $ofh "     reads total  .. %d (%.1f%%)\n", $meta->{rmdup_reads}, $meta->{rmdup_reads}*100./$meta->{reads};
+	printf $ofh "     reads mapped .. %d (%.1f%%)\n", $meta->{rmdup_reads_mapped}, $meta->{rmdup_reads_mapped}*100./$meta->{rmdup_reads};
+	if ($meta->{rmdup_bases_mapped_c} && $meta->{rmdup_bases_trimmed}) {
+	   printf $ofh "     bases mapped (cigar) .. %d (%.1f%%)\n",  $meta->{rmdup_bases_mapped_c},  $meta->{rmdup_bases_mapped_c}*100./($meta->{rmdup_bases}-$meta->{rmdup_bases_trimmed});
 	}
+	printf $ofh "duplication .. %f\n", 1-$meta->{rmdup_reads_mapped}/$meta->{reads_mapped};
+	printf $ofh "\n";
+	printf $ofh "insert size        \n";
+	printf $ofh "    average .. %.1f\n", $meta->{mean_insert_size};
+	printf $ofh "    std dev .. %.1f\n", $meta->{sd_insert_size};
+	printf $ofh "\n";
+        $stats_out->close;
+    }
 }
 
 1;

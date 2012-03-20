@@ -40,11 +40,20 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                                                                               lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
                                                                               bases => 'total number of base pairs',
                                                                               reads => 'total number of reads (sequences)',
+                                                                              reads_mapped => 'number of reads mapped',
+                                                                              bases_mapped => 'number of bases mapped',
+                                                                              bases_trimmed => 'number of bases trimmed',
                                                                               forward_reads => 'number of forward reads',
                                                                               reverse_reads => 'number of reverse reads',
+                                                                              reads_paired => 'number of reads paired',
+                                                                              rmdup_reads => 'number of reads after duplicate removal',
+                                                                              rmdup_reads_mapped => 'number of reads mapped after duplicate removal',
+                                                                              rmdup_bases => 'number of bases after duplicate removal',
+                                                                              rmdup_bases_mapped => 'number of bases mapped after duplicate removal',
                                                                               avg_read_length => 'the average length of reads',
                                                                               paired => '0=single ended reads only; 1=paired end reads present',
                                                                               mean_insert_size => 'mean insert size (0 if unpaired)',
+                                                                              error_rate => 'the error rate',
                                                                               library => 'library name',
                                                                               sample => 'sample name',
                                                                               center_name => 'center name',
@@ -116,12 +125,14 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 $new_meta->{avg_read_length} = $parser->average_length;
                 $new_meta->{mean_insert_size} = $parser->insert_size_average;
                 $new_meta->{sd_insert_size} = $parser->insert_size_standard_deviation;
+                
+                my $reads_duplicated = $parser->reads_duplicated;
+                $new_meta->{rmdup_reads} = $new_meta->{reads} - $reads_duplicated;
+                $new_meta->{rmdup_reads_mapped} = $new_meta->{reads_mapped} - $reads_duplicated;
+                my $bases_duplicated = $parser->bases_duplicated;
+                $new_meta->{rmdup_bases} = $new_meta->{bases} - $bases_duplicated;
+                $new_meta->{rmdup_bases_mapped} = $new_meta->{bases_mapped} - $bases_duplicated;
             }
-            
-            if ($cmd_line =~ /-r/) {
-                # gc-stats?
-            }
-            
             
             # and get other metadata from bam header, but don't overwrite
             # existing info
