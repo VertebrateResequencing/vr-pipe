@@ -2,7 +2,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
 	method options_definition {
-		return { 'vcf-filter_files' => VRPipe::StepOption->get(description => 'vcf-filter files delimited by #'),
+		return { 'vcf-filter_file' => VRPipe::StepOption->get(description => 'vcf-filter parameters file'),
 			'vcf-filter_exe' => VRPipe::StepOption->get(description => 'path to vcf-filter executable',
 					optional => 1,
 					default_value => 'vcf-filter'),
@@ -22,10 +22,9 @@ class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
 			my $options = $self->options;
 			my $tabix_exe = $options->{tabix_exe};
 			my $filter_exe = $options->{'vcf-filter_exe'};
-			my @filter_files = split ('#',$options->{'vcf-filter_files'});
+			my $filter_file = $options->{'vcf-filter_file'};
 			my $cat_exe;
 
-			my $idx=0;
 			my $req = $self->new_requirements(memory => 500, time => 1);
 			foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
 				my $basename = $vcf_file->basename;
@@ -37,8 +36,6 @@ class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
 					$basename =~ s/\.vcf$/.filt.vcf/;
 					$cat_exe = 'cat';
 				}
-				my $filter_file = $filter_files[$idx];
-				$idx++;
 
 				my $filtered_vcf = $self->output_file(output_key => 'filtered_vcf', basename => $basename, type => 'vcf');
 				my $tbi = $self->output_file(output_key => 'tbi_file', basename => $basename.'.tbi', type => 'bin');
