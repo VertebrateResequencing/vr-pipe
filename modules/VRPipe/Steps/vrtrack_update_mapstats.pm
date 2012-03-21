@@ -115,6 +115,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
 	$vrlane->update;
 	$vrlane->is_processed(mapped => 1);
 	$vrlane->update;
+	$vrlane->qc_status('pending');
 	$vrtrack->transaction_commit();
     }
 }
