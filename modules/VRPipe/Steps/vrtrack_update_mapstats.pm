@@ -112,10 +112,10 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
 	$vrlane->raw_reads($meta->{reads});
 	$vrlane->is_paired($meta->{paired} ? 1 : 0);
 	$vrlane->read_len(int($meta->{avg_read_length}));
+	$vrlane->qc_status('pending');
 	$vrlane->update;
 	$vrlane->is_processed(mapped => 1);
 	$vrlane->update;
-	$vrlane->qc_status('pending');
 	$vrtrack->transaction_commit();
     }
 }
