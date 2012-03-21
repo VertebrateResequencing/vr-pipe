@@ -23,6 +23,7 @@ class VRPipe::Pipelines::gatk_genotype with VRPipe::PipelineRole {
 					VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'),
 					VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vcf_files', to_key => 'vcf_files'),
 				],
+   	            [ ],
 				);
     }
 }
