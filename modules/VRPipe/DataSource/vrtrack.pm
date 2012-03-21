@@ -46,9 +46,31 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
 
     method _vrtrack_lane_file_checksum {
         my $vrtrack_source = $self->_open_source();
-        my $lane_change = VRTrack::Lane->_all_values_by_field($vrtrack_source, 'changed');
-        my $file_md5    = VRTrack::File->_all_values_by_field($vrtrack_source, 'md5');
-        my $digest      = md5_hex join( @$lane_change, map { defined $_ ? $_ : 'NULL' } @$file_md5); 
+        
+        # concatenating the 'changed' column of all lanes would let us know if
+        # anything at all changed in the lanes, but means that if we're running
+        # a pipeline that changes something in the lane table we'll have to
+        # rebuild our dataelemnts constantly, which is prohibitvely too slow.
+        # Instead we look at the lane-related options the user will be filtering
+        # by and only check to see if those related columns have changed. To
+        # detect overall changes to lanes (gain/loss) we always also check
+        # lane_id and withdrawn. Things like raw_reads changing are irrelvant;
+        # important changes to the actual file data will be caught by the file
+        # md5s changing
+        my $lane_changes = VRTrack::Lane->_all_values_by_field($vrtrack_source, 'lane_id', 'hierarchy_name');
+        push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'withdrawn', 'hierarchy_name')});
+        my $options = $self->options;
+        foreach my $opt (qw(import qc mapped stored deleted swapped altered_fastq improved snp_called)) {
+            if (defined $options->{$opt}) {
+                push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'processed', 'hierarchy_name')});
+                last;
+            }
+        }
+        push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'qc_status', 'hierarchy_name')}) if defined $options->{qc_status};
+        push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'gt_status', 'hierarchy_name')}) if defined $options->{gt_status};
+        
+        push(@$lane_changes, @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name')});
+        my $digest = md5_hex join('', map { defined $_ ? $_ : 'NULL' } @$lane_changes);
         return $digest;
     }
     
@@ -63,6 +85,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                             Str :$project_regex?,
                             Str :$sample_regex?,
                             Str :$library_regex?,
+                            Str :$qc_status?,
+                            Str :$gt_status?,
                             Bool :$import?,
                             Bool :$qc?,
                             Bool :$mapped?,
@@ -123,6 +147,14 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $processed = $lane->is_processed('snp_called');
                 next if $processed != $snp_called;
             }
+            if (defined $qc_status) {
+                my $this_status = $lane->qc_status;
+                next if $this_status !~ /$qc_status/;
+            }
+            if (defined $gt_status) {
+                my $this_status = $lane->gt_status;
+                next if $this_status !~ /$gt_status/;
+            }
             
             push(@filtered, $lane);
         }
@@ -141,6 +173,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                   Str :$project_regex?,
                   Str :$sample_regex?,
                   Str :$library_regex?,
+                  Str :$qc_status?,
+                  Str :$gt_status?,
                   Bool :$import?,
                   Bool :$qc?,
                   Bool :$mapped?,
@@ -170,6 +204,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
         $args{improved} = $improved if defined($improved);
         $args{snp_called} = $snp_called if defined($snp_called);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{gt_status} = $gt_status if defined($gt_status);
         
         my @elements;
         foreach my $lane ($self->_filtered_lanes(%args)) {
@@ -191,6 +227,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                       Str :$project_regex?,
                       Str :$sample_regex?,
                       Str :$library_regex?,
+                      Str :$qc_status?,
+                      Str :$gt_status?,
                       Bool :$import?,
                       Bool :$qc?,
                       Bool :$mapped?,
@@ -221,6 +259,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
         $args{improved} = $improved if defined($improved);
         $args{snp_called} = $snp_called if defined($snp_called);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{gt_status} = $gt_status if defined($gt_status);
         
         # add to the argument list to filter on bam files
         $args{'file_type'} = 4;
@@ -239,6 +279,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                        Str :$project_regex?,
                        Str :$sample_regex?,
                        Str :$library_regex?,
+                       Str :$qc_status?,
+                       Str :$gt_status?,
                        Bool :$import?,
                        Bool :$qc?,
                        Bool :$mapped?,
@@ -269,6 +311,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
         $args{improved} = $improved if defined($improved);
         $args{snp_called} = $snp_called if defined($snp_called);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{gt_status} = $gt_status if defined($gt_status);
         
         # add to the argument list to filter on fastq files
         $args{'file_type'} = '0|1|2';
