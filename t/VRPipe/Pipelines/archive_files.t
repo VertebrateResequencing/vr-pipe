@@ -5,7 +5,7 @@ use Path::Class;
 use Digest::MD5;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 8;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
     use TestPipelines;
 }
@@ -50,6 +50,7 @@ foreach my $pool (qw(pool1 pool2 pool3)) {
     push(@pools, $dir);
 }
 $dpf->close;
+my $pool_regex = join('|', @pools);
 
 VRPipe::PipelineSetup->get(name => 'my archive pipeline setup',
                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
@@ -60,13 +61,16 @@ VRPipe::PipelineSetup->get(name => 'my archive pipeline setup',
                            pipeline => $pipeline,
                            options => {disc_pool_file => $dpf->path->stringify});
 
+ok handle_pipeline(), 'archive pipeline ran';
 my @archive_files;
-my $robin_index = 0;
 foreach my $tfile (@test_files) {
-    push(@archive_files, file($pools[$robin_index++], archive_file_location($tfile)));
-    $robin_index %= @pools;
+    my $moved_to = VRPipe::File->get(path => $tfile)->resolve->path;
+    next unless $moved_to =~ /^$pool_regex/;
+    my $expected = file(archive_file_location($tfile))->stringify;
+    next unless $moved_to =~ /$expected$/;
+    push(@archive_files, $moved_to);
 }
-ok handle_pipeline(@archive_files), 'archive pipeline ran and moved the files as expected';
+is scalar(@archive_files), scalar(@test_files), 'all the files were archived to expected locations';
 
 # now let's check we can use an altered pool file and it still works
 $dpfh = $dpf->openw;
@@ -78,6 +82,7 @@ foreach my $pool (qw(pool1 pool2 pool4)) {
     push(@pools, $dir);
 }
 $dpf->close;
+$pool_regex = join('|', @pools);
 
 VRPipe::PipelineSetup->get(name => 'my second archive pipeline setup',
                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
@@ -88,17 +93,16 @@ VRPipe::PipelineSetup->get(name => 'my second archive pipeline setup',
                            pipeline => $pipeline,
                            options => {disc_pool_file => $dpf->path->stringify});
 
+ok handle_pipeline(), 'archiving with an altered pool also worked';
 my @new_archive_files;
-$robin_index = 0; # Manager is loading VRPipe::Steps::archive_files in a forked
-                  # child, so robin_index doesn't carry across calls to
-                  # handle_pipeline ***... which actually makes this second
-                  # test pointless, since it doesn't test the behaviour of the
-                  # class variables properly...
 foreach my $tfile (@archive_files) {
-    push(@new_archive_files, file($pools[$robin_index++], archive_file_location($tfile)));
-    $robin_index %= @pools;
+    my $moved_to = VRPipe::File->get(path => $tfile)->resolve->path;
+    next unless $moved_to =~ /^$pool_regex/;
+    my $expected = file(archive_file_location($tfile))->stringify;
+    next unless $moved_to =~ /$expected$/;
+    push(@new_archive_files, $moved_to);
 }
-ok handle_pipeline(@new_archive_files), 'archiving with an altered pool also worked';
+is scalar(@new_archive_files), scalar(@archive_files), 'all the round-2 files were archived to expected locations';
 
 my $file = VRPipe::File->get(path => $new_archive_files[0]);
 my $moved_from = VRPipe::File->get(path => $archive_files[0]);

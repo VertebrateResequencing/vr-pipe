@@ -3,8 +3,6 @@ use VRPipe::Base;
 class VRPipe::Steps::archive_files with VRPipe::StepRole {
     use Digest::MD5;
     
-    use vars qw(%pool_dirs @robin $robin_index); # we can't use 'our' because of issues when we eval body_sub
-    
     method options_definition {
         return { disc_pool_file => VRPipe::StepOption->get(description => 'path to a file with an absolute path of a storage root directory on each line')};
     }
@@ -21,33 +19,21 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             
             # parse the disc_pool_file; we don't cache these results in a class
             # variable because disc_pool_file could be updated at any time.
-            # we do keep track of all dirs on the class so we maintain a global
-            # pool of output locations we can round-robin
             my $fh = $disc_pool_file->openr;
-            my %dirs;
+            my @dirs;
             while (<$fh>) {
                 chomp;
+                next if /^#/;
                 my $dir = $_;
                 next unless dir($dir)->is_absolute;
-                $dirs{$dir} = 1;
-                $pool_dirs{$dir} = 1;
+                push(@dirs, $dir);
             }
-            
-            # update robin
-            my %current = map { $_ => 1 } @robin;
-            foreach my $dir (sort keys %pool_dirs) {
-                push(@robin, $dir) unless exists $current{$dir};
-            }
-            my $max_robin = @robin;
+            my $max = @dirs;
             
             my $req = $self->new_requirements(memory => 500, time => 1); # md5sum can be memory intensive??
             foreach my $file (@{$self->inputs->{files}}) {
-                # pick a pool directory based on round-robin
-                my $root_dir;
-                do {
-                    $root_dir = $robin[$robin_index++];
-                    $robin_index %= $max_robin;
-                } while (! exists $dirs{$root_dir});
+                # pick a random directory from the pool
+                my $root_dir = $dirs[int(rand($max))];
                 
                 # pick subdirs based on md5sum of $file's id
                 my $dmd5 = Digest::MD5->new();
