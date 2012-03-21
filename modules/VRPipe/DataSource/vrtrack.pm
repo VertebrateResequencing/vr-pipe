@@ -69,8 +69,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'qc_status', 'hierarchy_name')}) if defined $options->{qc_status};
         push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'gt_status', 'hierarchy_name')}) if defined $options->{gt_status};
         
-        push(@$lane_changes, map { defined $_ ? $_ : 'NULL' } @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name')});
-        my $digest = md5_hex join('', @$lane_changes);
+        push(@$lane_changes, @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name')});
+        my $digest = md5_hex join('', map { defined $_ ? $_ : 'NULL' } @$lane_changes);
         return $digest;
     }
     
