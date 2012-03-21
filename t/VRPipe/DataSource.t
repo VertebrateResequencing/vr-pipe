@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 25;
+    use Test::Most tests => 35;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -190,11 +190,9 @@ SKIP: {
     ### tests for  _has_changed ###
     ok( ! $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change' );
     
-    # create a new row that has a later time stamp
+    # create a new lane
     $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
-    my $name = 'new_lane';
-    sleep(2); # wait two seconds to create new lane so we have a later time stamp.
-    my $new_lane = VRTrack::Lane->create($vrtrack, $name);
+    my $new_lane = VRTrack::Lane->create($vrtrack, 'new_lane');
     $new_lane->is_withdrawn(0);
     $new_lane->library_id(16);
     $new_lane->update;
@@ -213,13 +211,72 @@ SKIP: {
     # change some md5 sums in the files
     my $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
     # check for changes
-    $file->md5('34c009157187c5d9a7e976563ec1bad9');
+    $file->md5('34c009157187c5d9a7e976563ec1bad8');
     $file->update;
     ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
     
     # return db to original state so running this test again will work
     $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
     $file->update;
+    is $ds->_source_instance->_has_changed, 0, 'reverting file md5 back gives no change';
+    
+    # if we change something that doesn't indicate a real change as far as our
+    # options are concerned, it shouldn't come up as _has_changed
+    $lane_to_add_file_for->qc_status('pending');
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 0, 'changing qc_status when it was not an option is ignored';
+    $lane_to_add_file_for->is_processed('mapped', 1);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing is_processed when it was an option is detected';
+    $lane_to_add_file_for->is_processed('mapped', 0);
+    $lane_to_add_file_for->qc_status('no_qc');
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 0, 'reverting lane back gives no change';
+    $lane_to_add_file_for->is_withdrawn(1);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing withdrawn is always detected';
+    $lane_to_add_file_for->is_withdrawn(0);
+    $lane_to_add_file_for->update;
+    
+    $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                  method => 'lanes',
+                                  source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                  options => {qc_status => 'pending'});
+    $results = 0;
+    foreach my $element (@{$ds->elements}) {
+        $results++;
+    }
+    is $results, 0, 'initially got no results for vrtrack lanes qc_status => pending';
+    $lane_to_add_file_for->qc_status('pending');
+    $lane_to_add_file_for->update;
+    $results = 0;
+    foreach my $element (@{$ds->elements}) {
+        $results++;
+    }
+    is $results, 1, 'after changing a lane to qc pending, got 1 dataelement';
+    
+    $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                  method => 'lanes',
+                                  source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                  options => {});
+    $results = 0;
+    foreach my $element (@{$ds->elements}) {
+        $results++;
+    }
+    is $results, 55, 'with no options we get all the active lanes in the db';
+    $lane_to_add_file_for->qc_status('pending');
+    $lane_to_add_file_for->is_processed('mapped', 1);
+    $lane_to_add_file_for->raw_bases(50);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 0, 'we can change lots of things without being detected';
+    $lane_to_add_file_for->is_withdrawn(1);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 1, 'but withdrawn is still detected';
+    $lane_to_add_file_for->qc_status('no_qc');
+    $lane_to_add_file_for->is_processed('mapped', 0);
+    $lane_to_add_file_for->raw_bases(1473337566);
+    $lane_to_add_file_for->is_withdrawn(0);
+    $lane_to_add_file_for->update;
     
     ### lane_fastqs tests    
     ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
