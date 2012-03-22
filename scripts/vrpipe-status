@@ -6,9 +6,13 @@ use VRPipe::FrontEnd;
 
 my $frontend = VRPipe::FrontEnd->new(description => "See the overall state of active pipeline setups.",
                                      opt_spec => [ [ 'setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' } ],
+                                                   [ 'incomplete|i', 'Only show details of PipelineSetups that are incomplete (does not affect --list mode)' ],
+                                                   [ 'brief|b', 'Do not show full config details of each PipelineSetup, just the completion state summary' ],
                                                    [ 'list|l', 'Just list out the setup names and ids without details' ] ]);
 
 my $list = $frontend->opts('list');
+my $incomplete_only = $frontend->opts('incomplete');
+my $brief = $frontend->opts('brief');
 
 my @setups = $frontend->get_pipelinesetups();
 
@@ -18,35 +22,44 @@ foreach my $setup (@setups) {
     unless ($active) {
         $note = 'currently DEACTIVATED ';
     }
-    $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
-    next if $list;
-    
-    my $pipeline = $setup->pipeline;
-    my $step_members = $pipeline->steps;
-    $frontend->output('Pipeline: ', $pipeline->name, ' | ', $step_members, ' steps | ', $pipeline->description);
-    my $ps_opts = $setup->options;
-    if (keys %$ps_opts) {
-        $frontend->display_hash('PipelineSetup options', $ps_opts);
+    if ($list) {
+        $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
+        next;
     }
-    else {
-        $frontend->output("(used with default/no options)");
-    }
-    $frontend->output('PipelineSetup outout root: ', $setup->output_root);
     
     my $datasource = $setup->datasource;
-    $frontend->output('Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source);
-    my $ds_opts = $datasource->options;
-    if (keys %$ds_opts) {
-        $frontend->display_hash('Datasource options', $ds_opts);
-    }
-    else {
-        $frontend->output("(used with default/no options)");
-    }
-    
     my $num_elements = scalar(@{$datasource->elements});
     my @incomplete = @{$datasource->incomplete_element_states($setup)};
     my $num_incomplete = @incomplete;
-    $frontend->output("\nThere are a total of $num_elements Data Elements in the datasource to work on, and $num_incomplete elements are incomplete");
+    next if $incomplete_only && ! $num_incomplete;
+    $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
+    
+    my $pipeline = $setup->pipeline;
+    my $step_members = $pipeline->steps;
+    unless ($brief) {
+        $frontend->output('Pipeline: ', $pipeline->name, ' | ', $step_members, ' steps | ', $pipeline->description);
+        my $ps_opts = $setup->options;
+        if (keys %$ps_opts) {
+            $frontend->display_hash('PipelineSetup options', $ps_opts);
+        }
+        else {
+            $frontend->output("(used with default/no options)");
+        }
+        $frontend->output('PipelineSetup outout root: ', $setup->output_root);
+        
+        $frontend->output('Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source);
+        my $ds_opts = $datasource->options;
+        if (keys %$ds_opts) {
+            $frontend->display_hash('Datasource options', $ds_opts);
+        }
+        else {
+            $frontend->output("(used with default/no options)");
+        }
+        
+        $frontend->output("\n");
+    }
+    
+    $frontend->output("There are a total of $num_elements Data Elements in the datasource to work on, and $num_incomplete elements are incomplete");
     if (@incomplete) {
         my %status_hash;
         my $fully_complete = $num_elements - $num_incomplete;
