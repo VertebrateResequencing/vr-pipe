@@ -1,17 +1,15 @@
 use VRPipe::Base;
 
-class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
+class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
     use VRPipe::Parser;
     
-    around options_definition {
-        return { %{$self->$orig},
-                 samtofastq_options => VRPipe::StepOption->get(description => 'options for picard SamToFastq, excluding input and output specifiers', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT')
-                };
+    method options_definition {
+        return { };
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
                                                             max_files => -1, 
-                                                            description => '1 or more bam files',
+                                                            description => '1 or more name sorted bam files',
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
@@ -31,21 +29,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
     method body_sub {
         return sub {
             my $self = shift;
-            my $options = $self->options;
-            $self->handle_standard_options($options);
-            my $stf_jar = $self->jar('SamToFastq.jar');
             
-            my $opts = $options->{samtofastq_options};
-            if ($opts =~ /SamToFastq|INPUT|FASTQ|OUTPUT_DIR/i) {
-                $self->throw("bam_to_fastq_options should not include the SamToFastq task command, or input/output specifiers");
-            }
-            if ($opts =~ /OUTPUT_PER_RG/i) {
-                $self->throw("OUTPUT_PER_RG is not supported here; you must use lane (single RG) bams");
-            }
-            
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
-                                   version => $self->picard_version(),
-                                   summary => 'java $jvm_args -jar SamToFastq.jar INPUT=$bam_file(s) FASTQ=$lane.1.fastq SECOND_END_FASTQ=$lane.2.fastq'.$opts));
             my $req = $self->new_requirements(memory => 2850, time => 1);
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
@@ -80,7 +64,7 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                     $fastq->add_metadata({mate => $reverse->path->stringify});
                     $reverse->add_metadata({mate => $fastq->path->stringify});
                     
-                    $out_spec = 'FASTQ='.$fastq->path.' SECOND_END_FASTQ='.$reverse->path;
+                    $out_spec = 'forward => q['.$fastq->path.'], reverse => q['.$reverse->path.']';
                 }
                 else {
                     my $fastq = $self->output_file(output_key => 'fastq_files',
@@ -93,14 +77,11 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
                                                                 paired => 0});
                     @fastqs = ($fastq);
                     
-                    $out_spec = 'FASTQ='.$fastq->path;
+                    $out_spec = 'single => q['.$fastq->path.']';
                 }
                 
-                my $temp_dir = $options->{tmp_dir} || $fastqs[0]->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
-                
-                my $this_cmd = $self->java_exe.qq[ $jvm_args -jar $stf_jar INPUT=$source_bam $out_spec $opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_to_fastq', 'bam_to_fastq_and_check', [$this_cmd, $req, {output_files => \@fastqs}]); 
+                my $this_cmd = "use VRPipe::Steps::bam_to_fastq; VRPipe::Steps::bam_to_fastq->bam_to_fastq(bam => q[$source_bam], $out_spec);";
+                $self->dispatch_vrpipecode($this_cmd, $req, {output_files => \@fastqs});
             }
         };
     }
@@ -129,26 +110,71 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
         return sub { return 1; };
     }
     method description {
-        return "Converts bam files to fastq files using Picard";
+        return "Converts bam files to fastq files";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
     }
     
-    method bam_to_fastq_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($bam_path, $fastq_path) = $cmd_line =~ /INPUT=(\S+) FASTQ=(\S+)/;
-        my ($reverse_path) = $cmd_line =~ /SECOND_END_FASTQ=(\S+)/;
-        $fastq_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        
-        my $in_file = VRPipe::File->get(path => $bam_path);
-        my @out_files;
-        foreach my $fq_path ($fastq_path, $reverse_path) {
-            next unless $fq_path;
-            push(@out_files, VRPipe::File->get(path => $fq_path));
+    method bam_to_fastq (ClassName|Object $self: Str|File :$bam!, Str|File :$forward?, Str|File :$reverse?, Str|File :$single?) {
+        if ((defined $forward ? 1 : 0) + (defined $reverse ? 1 : 0) == 1) {
+            $self->throw("When forward is used, reverse is required, and vice versa");
+        }
+        if (! $forward && ! $single) {
+            $self->throw("At least one of single or forward+reverse are required");
         }
         
+        my $in_file = VRPipe::File->get(path => $bam);
+        my @out_files;
+        my @out_fhs;
+        my $i = -1;
+        foreach my $fq_path ($forward, $reverse, $single) {
+            $i++;
+            next unless $fq_path;
+            push(@out_files, VRPipe::File->get(path => $fq_path));
+            $out_fhs[$i] = $out_files[-1]->openw;
+        }
+        
+        # parse bam file, convert to fastq, using OQ values if present
+        my $pars = VRPipe::Parser->create('bam', {file => $in_file});
         $in_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        my $pr = $pars->parsed_record();
+        $pars->get_fields('QNAME', 'FLAG', 'SEQ', 'QUAL', 'OQ');
+        my %pair_data;
+        while ($pars->next_record()) {
+            my $qname = $pr->{QNAME};
+            my $flag = $pr->{FLAG};
+            
+            my $seq = $pr->{SEQ};
+            my $oq = $pr->{OQ};
+            my $qual = $oq eq '*' ? $pr->{QUAL} : $oq;
+            if ($pars->is_reverse_strand($flag)) {
+                $seq = reverse($seq);
+                $seq =~ tr/ACGTacgt/TGCAtgca/;
+                $qual = reverse($qual);
+            }
+            
+            if ($forward && $pars->is_sequencing_paired($flag)) {
+                my $key = $pars->is_first($flag) ? 'forward' : 'reverse';
+                $pair_data{$key} = [$qname, $seq, $qual];
+                my $f = $pair_data{forward} || [''];
+                my $r = $pair_data{reverse} || [''];
+                if ($f->[0] eq $r->[0]) {
+                    my $fh = $out_fhs[0];
+                    print $fh '@', $f->[0], "/1\n", $f->[1], "\n+\n", $f->[2], "\n";
+                    $fh = $out_fhs[1];
+                    print $fh '@', $r->[0], "/2\n", $r->[1], "\n+\n", $r->[2], "\n";
+                }
+            }
+            elsif ($single) {
+                my $fh = $out_fhs[2];
+                print $fh '@', $qname, "\n", $seq, "\n+\n", $qual, "\n";
+            }
+        }
+        
+        foreach my $of (@out_files) {
+            $of->close;
+        }
         
         # check the fastq files are as expected
         my ($actual_reads, $actual_bases) = (0, 0);
@@ -158,13 +184,14 @@ class VRPipe::Steps::bam_to_fastq extends VRPipe::Steps::picard {
             
             my ($these_reads, $these_bases) = (0, 0);
             my $pars = VRPipe::Parser->create('fastq', {file => $out_file});
+            $in_file->disconnect;
             my $pr = $pars->parsed_record;
             while ($pars->next_record()) {
                 my $id = $pr->[0];
                 my $seq_len = length($pr->[1]);
                 my $qual_len = length($pr->[2]);
                 unless ($seq_len == $qual_len) {
-                    $out_file->unlink;
+                    $out_file->move(VRPipe::File->get(path => $out_file->path.'.bad'));
                     $self->throw("Made fastq file ".$out_file->path." but sequence $id had mismatching sequence and quality lengths ($seq_len vs $qual_len)");
                 }
                 $these_reads++;
