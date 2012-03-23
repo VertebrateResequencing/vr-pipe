@@ -191,7 +191,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 my $seq_len = length($pr->[1]);
                 my $qual_len = length($pr->[2]);
                 unless ($seq_len == $qual_len) {
-                    $out_file->move(VRPipe::File->get(path => $out_file->path.'.bad'));
+                    $out_file->unlink;
                     $self->throw("Made fastq file ".$out_file->path." but sequence $id had mismatching sequence and quality lengths ($seq_len vs $qual_len)");
                 }
                 $these_reads++;
