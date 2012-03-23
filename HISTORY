@@ -1,3 +1,7 @@
+0.35    vrpipe-status script improved to give a better overview of
+        what the pipeline is doing, with warnings about pipeline
+        stalls. bam_to_fastq step reimplemented, should now be much
+        better.
 0.34    Critical speed fix for the VRTrack datasource. Fixes for the
         archive_files pipeline and the vrtrack_update_mapstats step.
 0.33    Optimised bam_import_from_irods_and_vrtrack_qc_wgs pipeline.

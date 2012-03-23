@@ -265,6 +265,7 @@ class VRPipe::FrontEnd {
         my ($extra_tabs) = $name =~ /^(\t+)/;
         $extra_tabs ||= '';
         foreach my $key (@$key_order) {
+            next unless defined $hash->{$key};
             $self->output("$extra_tabs\t", $key, ' => ', $hash->{$key});
         }
     }
