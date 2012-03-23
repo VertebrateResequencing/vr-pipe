@@ -94,7 +94,7 @@ foreach my $setup (@setups) {
             if (keys %sub_stats == 1 && exists $sub_stats{failed}) {
                 my $failed = $sub_stats{failed};
                 if ($failed >= $num_incomplete) {
-                    $frontend->output("WARNING! It looks like this setup may be STALLED due to repeated failures. Investigate using: vrpipe-submissions --setup ".$setup->id." --failed");
+                    $frontend->output("WARNING! It looks like this setup may be STALLED due to repeated failures.\nInvestigate using: vrpipe-submissions --setup ".$setup->id." --failed");
                 }
             }
         }
