@@ -142,6 +142,9 @@ class VRPipe::Job extends VRPipe::Persistent {
         $schema->txn_do(sub {
             unless ($self->pending) {
                 if ($self->block_and_skip_if_ok) {
+                    # Scheduler->run_on_node implementation should actually mean
+                    # this never happens:
+                    
                     # wait until the job has finished running, run it again if it
                     # failed, otherwise do nothing so that $job->ok will be true
                     while (1) {
