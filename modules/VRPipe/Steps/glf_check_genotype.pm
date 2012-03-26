@@ -3,13 +3,10 @@ use VRPipe::Base;
 class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
 
 	method options_definition {
-        return { snp_binary_file => VRPipe::StepOption->get(description => 'absolute path to binary file used for genotyping'),
+        return { sample_genotype_snps_file => VRPipe::StepOption->get(description => 'absolute path to binary file of snps in sample genotypes, produced by hapmap2bin'),
         		 glf_exe => VRPipe::StepOption->get(description => 'path to the glf executable',
                                                     optional => 1,
                                                     default_value => 'glf'),
-                 glf_options => VRPipe::StepOption->get(description => 'options for glf executable',
-                                                    optional => 1,
-                                                    default_value => 'checkGenotype -s -')
                };
     }
     
@@ -18,7 +15,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         		 bcf_files => VRPipe::StepIODefinition->get(type => 'bin',
                                                             max_files => -1,
                                                             description => 'bcf files for genotyping',
-                                                            metadata => {sample => 'sample name'}
+                                                            metadata => {sample => 'sample name',  source_bam => 'name of bam file used to produce bcf file'}
                                                             )
         		 };
 	}
@@ -27,8 +24,8 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         return sub {
             my $self = shift;
             my $options = $self->options;
-            my $snp_bin = Path::Class::File->new($options->{snp_binary_file});
-            $self->throw("snp_binary_file must be an absolute path") unless $snp_bin->is_absolute;
+            my $gtype_snps_bin = Path::Class::File->new($options->{sample_genotype_snps_file});
+            $self->throw("snp_binary_file must be an absolute path") unless $gtype_snps_bin->is_absolute;
             my $glf_exe = $options->{glf_exe};
             my $glf_options = $options->{glf_options};
             my $req = $self->new_requirements(memory => 3900, time => 1);
@@ -37,12 +34,13 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
                 my $bcf_basename = $bcf->basename;
                 my $meta = $bcf->metadata;
                 my $sample = $meta->{sample};
+                my $source_bam = $meta->{source_bam};
                 my $gtypex_file = $self->output_file(output_key => 'gtypex_files_with_metadata',
                                               basename => $bcf_basename.'.gtypex',
                                               type => 'txt',
-                                              metadata => {sample => $sample});
+                                              metadata => {sample => $sample, source_bam => $source_bam});
                 my $gtypex_path = $gtypex_file->path;
-            	my $cmd = qq[$glf_exe $glf_options $snp_bin $bcf_path > $gtypex_path];
+            	my $cmd = qq[$glf_exe checkGenotype -s - $gtype_snps_bin $bcf_path > $gtypex_path];
                 $self->dispatch([$cmd, $req, {output_files => [$gtypex_file]}]);	
             }
        };
@@ -52,7 +50,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         return { gtypex_files_with_metadata => VRPipe::StepIODefinition->get(type => 'txt',
                                                                   max_files => -1,
                                                                   description => 'file of likelihood scores calculated by glf',
-                                                                  metadata => {sample => 'sample name'}
+                                                                  metadata => {sample => 'sample name',  source_bam => 'name of bam file used to produce bcf file'}
                                                                   )	
          };
     }
