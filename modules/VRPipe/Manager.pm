@@ -590,7 +590,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my %step_counts;
         my $schema = $self->result_source->schema;
         if ($do_step_limits) {
-            my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_sid' => { '!=', undef } });
+            my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_failed' => 0, '_sid' => { '!=', undef } });
             while (my $sub = $rs->next) {
                 $step_counts{$sub->stepstate->stepmember->step->name}++;
             }
