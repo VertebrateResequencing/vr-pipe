@@ -1,3 +1,8 @@
+0.36    Critical fixes to the underlying system to ensure job
+        submission doesn't stall out forever, to handle limits on
+        steps better, and to avoid issues when there are multiple
+        submissions for the same job. Also a fix for java to increase
+        likelyhood of jvm starting up.
 0.35    vrpipe-status script improved to give a better overview of
         what the pipeline is doing, with warnings about pipeline
         stalls. bam_to_fastq step reimplemented, should now be much
