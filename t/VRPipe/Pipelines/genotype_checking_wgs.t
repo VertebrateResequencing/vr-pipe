@@ -47,7 +47,7 @@ my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
                                                   output_root => $checking_output_dir,
                                                   pipeline => $gc_pipeline,
                                                   options => {reference_fasta => $ref_fa,
-                                                              snp_binary_file => $snp_bin,
+                                                              sample_genotype_snps_file => $snp_bin,
                                                               samtools_mpileup_options => $mpileup_opts});
 
 my (@output_files,@final_files);

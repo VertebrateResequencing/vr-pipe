@@ -28,19 +28,12 @@ class VRPipe::Steps::java with VRPipe::StepRole {
         if ($java_mem < 50) {
             $java_mem = 50;
         }
-        my $xss = 280;
-        if ($java_mem > 1000) {
-            $xss = " -Xss${xss}m";
-        }
-        else {
-            $xss = ''; # login node with small memory limit doesn't like Xss option at all
-        }
         
         my $temp_dir = '';
         if ($dir) {
             $temp_dir = ' -Djava.io.tmpdir='.$self->tempdir(DIR => $dir);
         }
-        return qq[-Xmx${java_mem}m -Xms${java_mem}m$xss$temp_dir -server -XX:+UseSerialGC];
+        return qq[-Xmx${java_mem}m -Xms${java_mem}m$temp_dir -server -XX:+UseSerialGC];
     }
     
     method handle_standard_options (HashRef $options) {

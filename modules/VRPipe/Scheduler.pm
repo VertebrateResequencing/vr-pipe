@@ -264,11 +264,21 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $job->heartbeat_interval($heartbeat_interval);
         }
         if ($job->pending) {
+            if ($job->block_and_skip_if_ok) {
+                # Manager->batch_and_submit does something similar, so this
+                # should be unecessary:
+                
+                # we don't actually block because of race condition issues, and
+                # because of fail and restart issues. Instead we always only
+                # actually call $job->run if this submission is the first
+                # submission created for this $job
+                my $schema = $self->result_source->schema;
+                my $rs = $schema->resultset('Submission')->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
+                my $first_sub = $rs->next;
+                return unless $first_sub->id == $submission->id;
+            }
             $job->run(stepstate => $submission->stepstate);
         }
-        #*** $job->block_and_skip_if_ok does not come into play because we don't
-        # call ->run more than once per job unless there was a race condition
-        # on the pending check
     }
     
     method wait_for_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {

@@ -36,8 +36,8 @@ my $snp_sites_source = file(qw(t data exome_genotype.snp_sites));
 
 my $snp_dir = dir($checking_output_dir, 'snp');
 $gc_pipeline->make_path($snp_dir);
-my $snp_sites = file($snp_dir, 'exome_genotype.snp_sites')->stringify;
-copy($snp_sites_source, $snp_sites);
+my $snp_coordinates = file($snp_dir, 'exome_genotype.snp_sites')->stringify;
+copy($snp_sites_source, $snp_coordinates);
 
 my $snp_bin_source = file(qw(t data exome_genotype_snp.bin));
 my $snp_bin = file($snp_dir, 'exome_genotype_snp.bin')->stringify;
@@ -53,8 +53,8 @@ my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
                                                        output_root => $checking_output_dir,
                                                        pipeline => $gc_pipeline,
                                                        options => {reference_fasta => $ref_fa,
-                                                                   snp_sites_file => $snp_sites,
-                                                                   snp_binary_file => $snp_bin,
+                                                                   snp_coordinates_file => $snp_coordinates,
+                                                                   sample_genotype_snps_file => $snp_bin,
                                                                    samtools_mpileup_options => $mpileup_opts});
 
 my (@output_files,@final_files);

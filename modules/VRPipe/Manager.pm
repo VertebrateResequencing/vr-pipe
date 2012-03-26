@@ -590,7 +590,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my %step_counts;
         my $schema = $self->result_source->schema;
         if ($do_step_limits) {
-            my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_sid' => { '!=', undef } });
+            my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_failed' => 0, '_sid' => { '!=', undef } });
             while (my $sub = $rs->next) {
                 $step_counts{$sub->stepstate->stepmember->step->name}++;
             }
@@ -606,6 +606,19 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my %batches;
         foreach my $sub (@$submissions) {
             next if ($sub->sid || $sub->done || $sub->failed);
+            
+            # if the job is a block_and_skip_if_ok job, we don't actually block
+            # because of race condition issues, and because of fail and restart
+            # issues. Instead we always only actually submit if this submission
+            # is the first submission created for this $job. This also saves us
+            # creating lots of submissions for a single job, which is confusing
+            # and wasteful.
+            my $job = $sub->job;
+            if ($job->block_and_skip_if_ok) {
+                my $rs = $schema->resultset('Submission')->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
+                my $first_sub = $rs->next;
+                next unless $first_sub->id == $sub->id;
+            }
             
             # step limit handling
             if ($do_step_limits) {

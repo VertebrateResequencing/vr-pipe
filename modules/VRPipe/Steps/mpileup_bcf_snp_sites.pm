@@ -17,8 +17,8 @@ class VRPipe::Steps::mpileup_bcf_snp_sites extends VRPipe::Steps::mpileup_bcf {
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             my $samtools = $options->{samtools_exe};
-            my $snp_file = Path::Class::File->new($options->{snp_sites_file});
-            $self->throw("snp_sites_file must be an absolute path") unless $snp_file->is_absolute;
+            my $snp_file = Path::Class::File->new($options->{snp_coordinates_file});
+            $self->throw("snp_coordinates_file must be an absolute path") unless $snp_file->is_absolute;
             my $mpileup_opts = $options->{samtools_mpileup_options};
             my $req = $self->new_requirements(memory => 3900, time => 1);
             foreach my $bam (@{$self->inputs->{bam_files}}) {
@@ -30,7 +30,7 @@ class VRPipe::Steps::mpileup_bcf_snp_sites extends VRPipe::Steps::mpileup_bcf {
                 my $bcf_file = $self->output_file(output_key => 'bcf_files_with_metadata',
                                               basename => $bam_basename.'.bcf',
                                               type => 'bin',
-                                              metadata => {sample => $sample});
+                                              metadata => {sample => $sample, source_bam => $bam_basename});
                 my $bcf_path = $bcf_file->path;
             	my $cmd = qq[$samtools mpileup -$mpileup_opts $snp_file -f $ref $bam_path > $bcf_path];
 				$self->dispatch([$cmd, $req, {output_files => [$bcf_file]}]);#, $tmp_index]}]);
@@ -43,7 +43,7 @@ class VRPipe::Steps::mpileup_bcf_snp_sites extends VRPipe::Steps::mpileup_bcf {
         return { bcf_files_with_metadata => VRPipe::StepIODefinition->get(type => 'bin',
                                                                   max_files => -1,
                                                                   description => 'bcf file produced for bam file using samtools',
-                                                                  metadata => {sample => 'sample name'}
+                                                                  metadata => {sample => 'sample name',  source_bam => 'name of bam file used to produce bcf file'}
                                                                   ),
          };
     }
