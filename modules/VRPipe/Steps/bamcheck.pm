@@ -7,10 +7,11 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
         return { bamcheck_exe => VRPipe::StepOption->get(description => 'path to your bamcheck executable',
                                                          optional => 1,
                                                          default_value => 'bamcheck'),
-                 bamcheck_options => VRPipe::StepOption->get(description => 'options to bamcheck, excluding the value to -r which will come from reference_fasta option',
+                 bamcheck_options => VRPipe::StepOption->get(description => 'options to bamcheck, excluding -r and -t (which are set by reference_fasta and exome_targets_file options)',
                                                              optional => 1),
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file (for GC-depth calculation, only used if bamcheck_options contains -r)',
-                                                            optional => 1)};
+                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
+		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited chr,start,end, 1-based, inclusive)',
+							       optional => 1)};
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1) };
@@ -18,11 +19,11 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
-
+            
             my $options = $self->options;
             my $bamcheck_exe = $options->{bamcheck_exe};
             my $opts = VRPipe::Steps::bamcheck->get_bamcheck_options($options);
-
+            
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam_file (@{$self->inputs->{bam_files}}) {
                 my $ifile = $bam_file->path;
@@ -72,15 +73,26 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
     }
     
     method get_bamcheck_options (ClassName|Object $self: HashRef $options!) {
-        my $opts = $options->{bamcheck_options};
-        if ($opts) {
-            my $ref = $options->{reference_fasta};
-            if ($opts =~ /-r/ && $ref) {
-                unless ($opts =~ /-r $ref/) {
-                    $opts =~ s/-r/-r $ref/;
-                }
-            }
+        my $ref = file($options->{reference_fasta});
+        $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
+        my $opts = '-r '.$ref;
+        
+        my $targets = $options->{exome_targets_file};
+        if ($targets) {
+            $targets = file($targets);
+            $self->throw("exome_targets_file must be an absolute path") unless $targets->is_absolute;
+            $opts .= ' -t '.$targets;
         }
+        
+        my $user_opts = $options->{bamcheck_options};
+        if ($user_opts) {
+            if ($user_opts =~ /-r|-t/) {
+                $self->throw("neither -r nor -t should be supplied as bamcheck options");
+            }
+            
+            $opts .= ' '.$user_opts;
+        }
+        
         return $opts;
     }
     
