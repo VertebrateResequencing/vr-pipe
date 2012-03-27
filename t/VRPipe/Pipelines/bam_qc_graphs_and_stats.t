@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
+    use Test::Most tests => 5;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
     use TestPipelines;
 }
@@ -68,20 +68,20 @@ foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
     my @output_subdirs = output_subdirs($element_id, 1);
     my @target_subdirs = output_subdirs($element_id, 2);
     foreach my $aref ([\@output_files, \@output_subdirs], [\@target_files, \@target_subdirs]) {
-        push(@$aref->[0], file(@$aref->[1], '2_bamcheck', "${in}.bam.bamcheck"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-acgt-cycles.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-coverage.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-gc-content.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-gc-depth.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-indel-cycles.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-indel-dist.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-insert-size.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-mism-per-cycle.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-quals2.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-quals3.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-quals-hm.png"));
-        push(@$aref->[0], file(@$aref->[1], '3_plot_bamcheck', "$rg-quals.png"));
-        push(@$aref->[0], file(@$aref->[1], '4_bamcheck_stats_output', "${in}.bam.detailed_stats"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '2_bamcheck', "$in.bam.bamcheck"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-acgt-cycles.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-coverage.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-gc-content.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-gc-depth.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-indel-cycles.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-indel-dist.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-insert-size.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-mism-per-cycle.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-quals2.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-quals3.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-quals-hm.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-quals.png"));
+        push(@{$aref->[0]}, file(@{$aref->[1]}, '4_bamcheck_stats_output', "$in.bam.detailed_stats"));
     }
 }
 
@@ -92,17 +92,15 @@ my $wgs_bamcheck_meta = VRPipe::File->get(path => $output_files[0])->metadata;
 my $wes_bamcheck_meta = VRPipe::File->get(path => $target_files[0])->metadata;
 is_deeply [$wgs_bamcheck_meta->{reads}, $wes_bamcheck_meta->{reads}], [912, 862], 'bamcheck results are as expected and different comparing with and without use of targets file';
 
-# bam should have target coverage stats
-my $abam_meta = VRPipe::File->get(path => file(qw(t data hs_chr20.a.bam))->absolute);
-is_deeply [$abam_meta->{target_bases_1X},
-           $abam_meta->{target_bases_2X},
-           $abam_meta->{target_bases_5X},
-           $abam_meta->{target_bases_10X},
-           $abam_meta->{target_bases_20X},
-           $abam_meta->{target_bases_50X},
-           $abam_meta->{target_bases_100X},
-           $abam_meta->{mean_target_coverage},
-           $abam_meta->{target_bases_mapped}], [], 'one of the bams has the expected arget coverage metadata';
+# they should also have coverage stats
+is_deeply [$wes_bamcheck_meta->{bases_of_1X_coverage},
+           $wes_bamcheck_meta->{bases_of_2X_coverage},
+           $wes_bamcheck_meta->{bases_of_5X_coverage},
+           $wes_bamcheck_meta->{bases_of_10X_coverage},
+           $wes_bamcheck_meta->{bases_of_20X_coverage},
+           $wes_bamcheck_meta->{bases_of_50X_coverage},
+           $wes_bamcheck_meta->{bases_of_100X_coverage},
+           $wes_bamcheck_meta->{mean_coverage}], [36019, 8126, 98, 0, 0, 0, 0, 1.29], 'bamcheck file also has coverage metadata';
 
 done_testing;
 

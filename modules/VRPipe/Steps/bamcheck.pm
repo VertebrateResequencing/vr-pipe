@@ -55,6 +55,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                                                                               paired => '0=single ended reads only; 1=paired end reads present',
                                                                               mean_insert_size => 'mean insert size (0 if unpaired)',
                                                                               error_rate => 'the error rate',
+                                                                              mean_coverage => 'the mean coverage',
                                                                               library => 'library name',
                                                                               sample => 'sample name',
                                                                               center_name => 'center name',
@@ -111,7 +112,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             
             # parse the bamcheck file
             my $parser = VRPipe::Parser->create('bamcheck', {file => $check_file});
-            open(my $ifh, $check_path) || die "could not open $check_path\n";
+            $check_file->disconnect;
             
             if ($cmd_line =~ /-d/) {
                 $new_meta->{rmdup_reads} = $parser->sequences;
@@ -144,6 +145,11 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 my $bases_duplicated = $parser->bases_duplicated;
                 $new_meta->{rmdup_bases} = $new_meta->{bases} - $bases_duplicated;
                 $new_meta->{rmdup_bases_mapped} = $new_meta->{bases_mapped} - $bases_duplicated;
+                
+                $new_meta->{mean_coverage} = $parser->mean_coverage;
+                foreach my $cov (1, 2, 5, 10, 20, 50, 100) {
+                    $new_meta->{"bases_of_${cov}X_coverage"} = $parser->cumulative_coverage($cov);
+                }
             }
             
             # and get other metadata from bam header, but don't overwrite
