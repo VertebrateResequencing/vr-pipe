@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 76;
+    use Test::Most tests => 79;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -121,6 +121,11 @@ is $p->insert_size_standard_deviation, 70.9, 'bamcheck insert_size_standard_devi
 $p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_mq0))});
 is $p->reads_mq0, 1859041, 'reads_mq0 worked';
 is $p->pairs_with_other_orientation, 5857, 'pairs_with_other_orientation worked';
+# use a bamcheck with a simple COV section to test coverage methods
+$p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_simplecov))});
+is_deeply [$p->coverage(0), $p->coverage(1), $p->coverage(2), $p->coverage(3), $p->coverage(4), $p->coverage(5), $p->coverage(6), $p->coverage(7)], [0, 27893, 6485, 1188, 355, 49, 49, 0], 'coverage worked';
+is_deeply [$p->cumulative_coverage(1), $p->cumulative_coverage(2), $p->cumulative_coverage(3), $p->cumulative_coverage(4), $p->cumulative_coverage(5), $p->cumulative_coverage(6), $p->cumulative_coverage(7)], [36019, 8126, 1641, 453, 98, 49, 0], 'cumulative_coverage worked';
+is $p->mean_coverage, 1.29, 'mean_coverage worked';
 
 # bas
 $p = VRPipe::Parser->create('bas', {file => file(qw(t data example2.bas))});
