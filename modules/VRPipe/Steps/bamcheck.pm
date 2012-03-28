@@ -38,30 +38,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                                                                  description => 'the output of bamcheck on a bam',
                                                                  max_files => -1,
                                                                  metadata => {source_bam => 'path to the bam file this bamcheck file was created from',
-                                                                              lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                              bases => 'total number of base pairs',
-                                                                              reads => 'total number of reads (sequences)',
-                                                                              reads_mapped => 'number of reads mapped',
-                                                                              bases_mapped => 'number of bases mapped',
-                                                                              bases_trimmed => 'number of bases trimmed',
-                                                                              forward_reads => 'number of forward reads',
-                                                                              reverse_reads => 'number of reverse reads',
-                                                                              reads_paired => 'number of reads paired',
-                                                                              rmdup_reads => 'number of reads after duplicate removal',
-                                                                              rmdup_reads_mapped => 'number of reads mapped after duplicate removal',
-                                                                              rmdup_bases => 'number of bases after duplicate removal',
-                                                                              rmdup_bases_mapped => 'number of bases mapped after duplicate removal',
-                                                                              avg_read_length => 'the average length of reads',
-                                                                              paired => '0=single ended reads only; 1=paired end reads present',
-                                                                              mean_insert_size => 'mean insert size (0 if unpaired)',
-                                                                              error_rate => 'the error rate',
-                                                                              mean_coverage => 'the mean coverage',
-                                                                              library => 'library name',
-                                                                              sample => 'sample name',
-                                                                              center_name => 'center name',
-                                                                              platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                              study => 'name of the study, put in the DS field of the RG header line',
-                                                                              optional => ['library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size']}) };
+                                                                              lane => 'lane name (a unique identifer for this sequencing run, aka read group)'}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -114,41 +91,46 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             my $parser = VRPipe::Parser->create('bamcheck', {file => $check_file});
             $check_file->disconnect;
             
+            my $hash_key_prefix = '';
             if ($cmd_line =~ /-d/) {
-                $new_meta->{rmdup_reads} = $parser->sequences;
-                $new_meta->{rmdup_reads_mapped} = $parser->reads_mapped;
-                $new_meta->{rmdup_bases} = $parser->total_length;
-                $new_meta->{rmdup_bases_mapped} = $parser->bases_mapped;
-                $new_meta->{rmdup_bases_mapped_c} = $parser->bases_mapped_cigar;
-                $new_meta->{rmdup_bases_trimmed} = $parser->bases_trimmed;
+                $hash_key_prefix = 'rmdup_';
             }
-            else {
-                $new_meta->{reads} = $parser->sequences;
-                $new_meta->{reads_mapped} = $parser->reads_mapped;
-                $new_meta->{bases} = $parser->total_length;
-                $new_meta->{bases_mapped} = $parser->bases_mapped;
-                $new_meta->{bases_mapped_c} = $parser->bases_mapped_cigar;
-                $new_meta->{bases_trimmed} = $parser->bases_trimmed;
-                
-                $new_meta->{reads_paired} = $parser->reads_paired;
-                $new_meta->{paired} = $parser->is_paired;
-                $new_meta->{error_rate} = $parser->error_rate;
-                $new_meta->{forward_reads} = $parser->first_fragments;
-                $new_meta->{reverse_reads} = $parser->last_fragments;
-                $new_meta->{avg_read_length} = $parser->average_length;
-                $new_meta->{mean_insert_size} = $parser->insert_size_average;
-                $new_meta->{sd_insert_size} = $parser->insert_size_standard_deviation;
-                
+            elsif ($cmd_line =~ /-t/) {
+                $hash_key_prefix = 'targeted_';
+            }
+            
+            # basic stats are stored under different prefixes, because we can't
+            # do something like have 'reads' metadata be only for targeted
+            # regions, since that is used when processing bams to ensure no
+            # truncation
+            $new_meta->{$hash_key_prefix.'reads'} = $parser->sequences;
+            $new_meta->{$hash_key_prefix.'reads_mapped'} = $parser->reads_mapped;
+            $new_meta->{$hash_key_prefix.'bases'} = $parser->total_length;
+            $new_meta->{$hash_key_prefix.'bases_mapped'} = $parser->bases_mapped;
+            $new_meta->{$hash_key_prefix.'bases_mapped_c'} = $parser->bases_mapped_cigar;
+            $new_meta->{$hash_key_prefix.'bases_trimmed'} = $parser->bases_trimmed;
+            $new_meta->{$hash_key_prefix.'reads_paired'} = $parser->reads_paired;
+            $new_meta->{$hash_key_prefix.'paired'} = $parser->is_paired;
+            $new_meta->{$hash_key_prefix.'error_rate'} = $parser->error_rate;
+            $new_meta->{$hash_key_prefix.'forward_reads'} = $parser->first_fragments;
+            $new_meta->{$hash_key_prefix.'reverse_reads'} = $parser->last_fragments;
+            $new_meta->{$hash_key_prefix.'avg_read_length'} = $parser->average_length;
+            $new_meta->{$hash_key_prefix.'mean_insert_size'} = $parser->insert_size_average;
+            $new_meta->{$hash_key_prefix.'sd_insert_size'} = $parser->insert_size_standard_deviation;
+            
+            unless ($hash_key_prefix eq 'rmdup_') {
+                # when not using -d we can still add some rmdup stats
                 my $reads_duplicated = $parser->reads_duplicated;
-                $new_meta->{rmdup_reads} = $new_meta->{reads} - $reads_duplicated;
-                $new_meta->{rmdup_reads_mapped} = $new_meta->{reads_mapped} - $reads_duplicated;
+                $new_meta->{$hash_key_prefix.'rmdup_reads'} = $new_meta->{$hash_key_prefix.'reads'} - $reads_duplicated;
+                $new_meta->{$hash_key_prefix.'rmdup_reads_mapped'} = $new_meta->{$hash_key_prefix.'reads_mapped'} - $reads_duplicated;
                 my $bases_duplicated = $parser->bases_duplicated;
-                $new_meta->{rmdup_bases} = $new_meta->{bases} - $bases_duplicated;
-                $new_meta->{rmdup_bases_mapped} = $new_meta->{bases_mapped} - $bases_duplicated;
+                $new_meta->{$hash_key_prefix.'rmdup_bases'} = $new_meta->{$hash_key_prefix.'bases'} - $bases_duplicated;
+                $new_meta->{$hash_key_prefix.'rmdup_bases_mapped'} = $new_meta->{$hash_key_prefix.'bases_mapped'} - $bases_duplicated;
                 
-                $new_meta->{mean_coverage} = $parser->mean_coverage;
+                # coverage stats we just don't bother having if in -d mode
+                $new_meta->{$hash_key_prefix.'mean_coverage'} = $parser->mean_coverage;
                 foreach my $cov (1, 2, 5, 10, 20, 50, 100) {
-                    $new_meta->{"bases_of_${cov}X_coverage"} = $parser->cumulative_coverage($cov);
+                    $new_meta->{$hash_key_prefix."bases_of_${cov}X_coverage"} = $parser->cumulative_coverage($cov);
                 }
             }
             
@@ -177,8 +159,8 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             }
             
             $bam_file->add_metadata($new_meta);
-            my %check_meta = (%{$bam_file->metadata}, source_bam => $bam_file->path->stringify);
-            $check_file->add_metadata(\%check_meta);
+            $check_file->add_metadata({source_bam => $bam_file->path->stringify,
+                                       lane => $bam_file->metadata->{lane}});
         }
         else {
            $self->throw("$check_path failed to be made");
