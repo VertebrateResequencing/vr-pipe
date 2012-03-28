@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 79;
+    use Test::Most tests => 68;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -152,34 +152,15 @@ is $p->duplicate_bases, 366, 'duplicate_bases worked';
     $fqp->next_record;
     is_deeply $pr, ['SRR001629.5', 'GGGGGCAATGCTGGGGTCGTCCTCCTCAACTCGCTCCAGGGGCCAGGGGATACCGCTCATATCACTAAGGGCGGTGCCCAGGTAGAGGAGCTCGCGATAGTCCCATTCAATGGACGTGTACCGGATGTTTAGGAGAGGCAGGGAGGCGATGATCTGGCATGTGTGCCGCAGGTGTGTCAGGAGGTCGTCAA', '88888>>BBBB>A@@@@BBBBBBBBBAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB@@@BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB@@@ABBBBBBBB'], 'parsed data for first sequence';
     
-    # get info on the 4th sequence
-    is $fqp->seq('SRR001629.14'), 'AAAAAAGTAGCCAAATCAACAGATCACATTTAGCATT', 'seq test when not yet reached';
-    is $pr->[0], 'SRR001629.5', 'using seq doesn\'t change our result holder';
-    $fqp->next_record;
-    is $pr->[0], 'SRR001629.9', 'using seq doesn\'t mess with next_result';
-    
-    # get info on the 3rd sequence
-    is $fqp->quality('SRR001629.13'), '@@@@@@@@@@@@@>>>>@@>>>>>>>>>><BB>@@>@@@>>@@@@@>AAA>@>>>>>>BBB999B>><<<@@@@B@>>99888889888>>>>>;;;999B<<BBBB<<<>>>', 'quality test when allready seen';
-    
-    # test sequence_ids
-    my @ids = $fqp->sequence_ids();
-    my %ids = map { $_ => 1 } @ids;
-    is $ids{'SRR001629.5'}, 1, 'sequence_ids gave first sequence id';
-    is $ids{'SRR001629.2599'}, 1, 'sequence_ids gave last sequence id';
-    is @ids, 1000, 'sequence_ids gave all ids';
-    
     # parse the last line
     while ($fqp->next_record) { next; };
     is_deeply $pr, ['SRR001629.2599', 'CACGTGTCCTCAACCTTGGCAAAATAAACTTTCAAAATTAACTGAGACCTATCTCAGATTTTCGGGGTTCACAGTAGCAAGGAAGTGGGGTCTGAGAGACGCCCC', 'BBBBBBBBBBBBBBBBBBAAAAAA?BBB?AAA?>>>>@@@@?B??BBBBBBBBBBBBB@@@@AAB@@@@AABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'], 'parsed data for last sequence';
     
-    ok $fqp->exists('SRR001629.13'), 'exists found an existing sequence';
-    ok ! $fqp->exists('fake'), 'exists didn\'t find a fake sequence';
-    
     # needs to work on .gz files as well
     $fqp = VRPipe::Parser->create('fastq', {file => $gz_file});
-    is $fqp->seq('SRR001629.2598'), 'AATGTCTCCTTGTGAACAGACTTTTGAGTATTTGGCTTTGTTATCCCCCAGAGAATACAAATGTCTCTATGGACACCAAGGTCATAATAACTCCACTTCTCCCATCCCCCTCACACCCTTTGGCAGCCTCATATAT', 'seq test on gz compressed fastq - penultimate read';
-    is $fqp->seq('SRR001629.1683'), 'CAACAAGTTATTTTAATTGAAAATAAATTTTCCTGACCAACTATTCTGTCAAAACCACATTAAATGAAGATAGCTCAGCAGTGACCAAATCACTATAAAAAGCATTACATGTTATGGGAGAAATGAGTGGGA', 'seq test on gz compressed fastq - read in the middle';
-    is $fqp->seq('SRR001629.2599'), 'CACGTGTCCTCAACCTTGGCAAAATAAACTTTCAAAATTAACTGAGACCTATCTCAGATTTTCGGGGTTCACAGTAGCAAGGAAGTGGGGTCTGAGAGACGCCCC', 'seq test on gz compressed fastq - last read';
+    $pr = $fqp->parsed_record;
+    while ($fqp->next_record) { next; };
+    is $pr->[1], 'CACGTGTCCTCAACCTTGGCAAAATAAACTTTCAAAATTAACTGAGACCTATCTCAGATTTTCGGGGTTCACAGTAGCAAGGAAGTGGGGTCTGAGAGACGCCCC', 'seq correct for last read of gz compressed fastq ';
     
     # qual to ints
     is_deeply [$fqp->qual_to_ints('!"#$%&\'()*+,5?DIS]~')], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20, 30, 35, 40, 50, 60, 93], 'qual_to_ints test worked';
