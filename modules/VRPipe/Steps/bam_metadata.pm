@@ -8,9 +8,10 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
             my $options = $self->options;
             my $bamcheck_exe = $options->{bamcheck_exe};
             my $opts = $self->get_bamcheck_options($options);
-            my @meta_to_check = (qw(bases reads avg_read_length));
+            $opts =~ s/-t \S+//;
+            my @meta_to_check = (qw(bases reads avg_read_length forward_reads reverse_reads rmdup_reads));
             if ($opts && $opts =~ /-d/) {
-                push(@meta_to_check, qw(rmdup_reads rmdup_reads_mapped rmdup_bases_mapped_c rmdup_bases rmdup_bases_trimmed));
+                push(@meta_to_check, qw(rmdup_bases_mapped_c));
             }
             
             my $req = $self->new_requirements(memory => 500, time => 1);

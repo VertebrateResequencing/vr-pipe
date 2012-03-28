@@ -30,7 +30,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         return sub {
             my $self = shift;
             
-            my $req = $self->new_requirements(memory => 2850, time => 1);
+            my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $meta = $bam->metadata;
@@ -141,6 +141,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         my $pr = $pars->parsed_record();
         $pars->get_fields('QNAME', 'FLAG', 'SEQ', 'QUAL', 'OQ');
         my %pair_data;
+        my ($pair_count, $single_count, $total_reads_parsed) = (0, 0, 0);
         while ($pars->next_record()) {
             my $qname = $pr->{QNAME};
             my $flag = $pr->{FLAG};
@@ -164,24 +165,37 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     print $fh '@', $f->[0], "/1\n", $f->[1], "\n+\n", $f->[2], "\n";
                     $fh = $out_fhs[1];
                     print $fh '@', $r->[0], "/2\n", $r->[1], "\n+\n", $r->[2], "\n";
+                    $pair_count++;
                 }
             }
             elsif ($single) {
                 my $fh = $out_fhs[2];
                 print $fh '@', $qname, "\n", $seq, "\n+\n", $qual, "\n";
+                $single_count++;
             }
+            
+            $total_reads_parsed++;
         }
         
         foreach my $of (@out_files) {
             $of->close;
         }
         
+        my $bam_meta = $in_file->metadata;
+        unless ($total_reads_parsed == $bam_meta->{reads}) {
+            foreach my $out_file (@out_files) {
+                $out_file->unlink;
+            }
+            $self->throw("When parsing the bam file we parsed $total_reads_parsed instead of $bam_meta->{reads} reads");
+        }
+        
         # check the fastq files are as expected
-        my ($actual_reads, $actual_bases) = (0, 0);
         my %extra_meta;
         foreach my $out_file (@out_files) {
             $out_file->update_stats_from_disc(retries => 3);
             
+            # check that sequence lengths match quality string lengths, and
+            # get read and base counts
             my ($these_reads, $these_bases) = (0, 0);
             my $pars = VRPipe::Parser->create('fastq', {file => $out_file});
             $in_file->disconnect;
@@ -199,45 +213,31 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             }
             
             my $fq_meta = $out_file->metadata;
-            my $expected_reads = $fq_meta->{reads};
+            # for expected_reads we do not use the 'reads' metadata since that
+            # is based on bamcheck forward/reverse reads, which is based on
+            # flags, so if flags are wrong, or reads have been removed from
+            # input bam, either way resulting in mismatch of forward and reverse
+            # reads, we will have discarded some reads.
+            # Instead we just confirm that the number of reads we wanted to
+            # write out could actually be read back again
+            my $expected_reads = $fq_meta->{paired} ? $pair_count : $single_count;
             unless ($expected_reads == $these_reads) {
                 $self->throw("Made fastq file ".$out_file->path." but there were only $these_reads reads instead of $expected_reads");
             }
-            $actual_reads += $these_reads;
+            $extra_meta{$out_file->id}->{reads} = $these_reads;
             
-            my $expected_bases = $fq_meta->{bases};
-            if ($expected_bases) {
-                unless ($expected_bases == $these_bases) {
-                    $out_file->unlink;
-                    $self->throw("Made fastq file ".$out_file->path." but there were only $these_bases bases instead of $expected_bases");
-                }
-            }
-            else {
-                $extra_meta{$out_file->id}->{bases} = $these_bases;
-            }
-            $actual_bases += $these_bases;
+            # we can't really do much checking for base counts, so will assume
+            # that if the above is fine, bases must be fine
+            $extra_meta{$out_file->id}->{bases} = $these_bases;
         }
         
-        my $bam_meta = $in_file->metadata;
-        unless ($actual_reads == $bam_meta->{reads}) {
-            foreach my $out_file (@out_files) {
-                $out_file->unlink;
-            }
-            $self->throw("The total reads in output fastqs was only $actual_reads instead of $bam_meta->{reads}");
-        }
-        unless ($actual_bases == $bam_meta->{bases}) {
-            foreach my $out_file (@out_files) {
-                $out_file->unlink;
-            }
-            $self->throw("The total bases in output fastqs was only $actual_bases instead of $bam_meta->{bases}");
-        }
-        
-        # add extra metadata we didn't know before for paired fastqs
+        # add/correct metadata
         foreach my $out_file (@out_files) {
             my $extra = $extra_meta{$out_file->id} || next;
-            my $current_meta = $out_file->metadata;
             $out_file->add_metadata({bases => $extra->{bases},
-                                    avg_read_length => sprintf("%0.2f", $current_meta->{reads} / $extra->{bases})});
+                                     reads => $extra->{reads},
+                                     avg_read_length => sprintf("%0.2f", $extra->{reads} / $extra->{bases})},
+                                    replace_data => 1);
         }
     }
 }

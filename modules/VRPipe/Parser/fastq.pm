@@ -19,28 +19,12 @@ while ($pars->next_record()) {
     my $qual_string = $parsed_record->[2];
 }
 
-# get a list of all the sequence ids
-my @ids = $pars->sequence_ids();
-
-# get data for a specific sequence:
-my $seq_string = $pars->seq($ids[0]);
-my $qual_string = $pars->quality($ids[0]);
-
-# ask if a given id is present in the fastq file:
-if ($pars->exists('xyz')) {
-    # ...
-}
-
 # convert a Sanger quality string to a list of quality integers
 my @qualities = $pars->qual_to_ints($qual_string);
 
 =head1 DESCRIPTION
 
-An indexing parser for fastq files.
-
-If you are only doing basic parsing (only wish to call next_record and none of
-the other methods), you can supply true to next_record(1) to disable indexing
-and reduce memory usage and increase speed.
+A basic parser for fastq files.
 
 =head1 AUTHOR
 
@@ -53,20 +37,9 @@ use VRPipe::Base;
 class VRPipe::Parser::fastq with VRPipe::ParserRole {
     use Inline C => Config => FILTERS => 'Strip_POD';
     
-    our %type_to_index = (sequence => 1, quality => 2);
-    
     has '_saw_last_line' => (is => 'rw',
                              isa => 'Bool',
                              default => 0);
-    
-    has '_seq_tells' => (is => 'rw',
-                         isa => 'HashRef',
-                         default => sub { {} },
-                         traits => ['Hash'],
-                         handles => { '_set_seq_tell' => 'set',
-                                      '_get_seq_tell' => 'get',
-                                      '_list_seqs' => 'keys',
-                                      '_seq_exists' => 'exists'});
     
 =head2 parsed_record
 
@@ -89,11 +62,10 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
  Function: Parse the next record from the fastq file.
  Returns : boolean (false at end of output; check the parsed_record for the
            actual result information)
- Args    : none for normal usage, true to disable indexing (saves memory, but
-           breaks most other methods)
+ Args    : n/a
 
 =cut
-    method next_record (Bool $no_index = 0) {
+    method next_record () {
         # just return if no file set
         my $fh = $self->fh() || return;
         
@@ -142,125 +114,12 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
         $qual || $self->throw("fastq file '$filename' was truncated - no quality line for $seq_name");
         chomp($qual);
         
-        # we assume that seqnames are unique in our fastqs...
-        unless ($no_index) {
-            $self->_set_seq_tell($seq_name => $tell);
-        }
-        
         my $pr = $self->parsed_record;
         $pr->[0] = $seq_name;
         $pr->[1] = $seq;
         $pr->[2] = $qual;
         
         return 1;
-    }
-
-=head2 sequence_ids
-
- Title   : sequence_ids
- Usage   : my @ids = $obj->sequence_ids();
- Function: Get all the sequence ids in the fastq file. NB: only works on
-           seekable input.
- Returns : list of ids
- Args    : n/a
-
-=cut
-    method sequence_ids {
-        my $fh = $self->fh() || return;
-        $self->_save_position || return;
-        
-        unless ($self->_saw_last_line) {
-            while ($self->next_record) {
-                next;
-            }
-        }
-        
-        $self->_restore_position;
-        
-        return $self->_list_seqs;
-    }
-
-=head2 seq
-
- Title   : seq
- Usage   : my $seq = $obj->seq($id);
- Function: Get the sequence string of a particular sequence.
- Returns : string
- Args    : string (id)
-
-=cut
-    method seq (Str $id) {
-        return $self->_get_seq_data($id, 'sequence');
-    }
-
-=head2 quality
-
- Title   : quality
- Usage   : my $quality = $obj->quality($id);
- Function: Get the quality string of a particular sequence.
- Returns : string
- Args    : string (id)
-
-=cut
-    method quality (Str $id) {
-        return $self->_get_seq_data($id, 'quality');
-    }
-    
-    method _get_seq_data (Str $seq_name, Str $type) {
-        my $fh = $self->fh() || return;
-        
-        $self->_parse_to_seqname($seq_name) || return;
-        
-        $self->_save_position || return;
-        
-        my $tell = $self->_get_seq_tell($seq_name);
-        $self->seek($tell, 0);
-        $self->next_record;
-        my $index = $type_to_index{$type};
-        my $result = $self->parsed_record->[$index];
-        
-        $self->_restore_position;
-        
-        return $result;
-    }
-    
-    method _parse_to_seqname (Str $seq_name, Bool $no_warning = 0) {
-        my $fh = $self->fh() || return;
-        $self->_save_position || return;
-        
-        if (! $self->_seq_exists($seq_name)) {
-            if (! $self->_saw_last_line) {
-                while (! $self->_seq_exists($seq_name)) {
-                    $self->next_record;
-                    last if $self->_saw_last_line;
-                }
-            }
-        }
-        if (! $self->_seq_exists($seq_name)) {
-            $self->warn("'$seq_name' wasn't found in this fastq file") unless $no_warning;
-            return;
-        }
-        
-        $self->_restore_position;
-        
-        return 1;
-    }
-    
-=head2 exists
-
- Title   : exists
- Usage   : if ($obj->exists($id)) { ... }
- Function: Find out if a particular sequence name is in this fastq.
- Returns : boolean
- Args    : string (id)
-
-=cut
-    method exists (Str $seq_name) {
-        my $fh = $self->fh() || return;
-        
-        $self->_parse_to_seqname($seq_name, 1);
-        
-        return $self->_seq_exists($seq_name);
     }
     
     use Inline C => <<'END_C';
