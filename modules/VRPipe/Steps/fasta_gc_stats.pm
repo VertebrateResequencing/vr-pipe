@@ -55,7 +55,7 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
     }
     
     method description {
-        return "Uses plot-bamcheck to generate a file of gc stats for a fata file";
+        return "Uses plot-bamcheck to generate a file of gc stats for a fasta file";
     }
 }
 
