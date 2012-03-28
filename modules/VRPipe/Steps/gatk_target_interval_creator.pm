@@ -48,7 +48,7 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
                                               type => 'txt',
                                               metadata => { known_files => join(',', @knowns) });
             
-            my $req = $self->new_requirements(memory => 1200, time => 1);
+            my $req = $self->new_requirements(memory => 4500, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
             
             my $this_cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T RealignerTargetCreator -R $ref -o ].$intervals_file->path.qq[ $known_indels $intervals_opts];
