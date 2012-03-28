@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 5;
+    use Test::Most tests => 4;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
     use TestPipelines;
 }
@@ -21,8 +21,7 @@ foreach my $stepmember ($stats_pipeline->steps) {
 }
 my @expected_step_names = qw(fasta_gc_stats
                              bamcheck
-                             plot_bamcheck
-                             bamcheck_stats_output);
+                             plot_bamcheck);
 
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
@@ -81,26 +80,25 @@ foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
         push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-quals3.png"));
         push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-quals-hm.png"));
         push(@{$aref->[0]}, file(@{$aref->[1]}, '3_plot_bamcheck', "$rg-quals.png"));
-        push(@{$aref->[0]}, file(@{$aref->[1]}, '4_bamcheck_stats_output', "$in.bam.detailed_stats"));
     }
 }
 
 ok handle_pipeline(@other_files, @output_files, @target_files), 'pipeline ran and created all expected output files';
 
-# check that the results for wgs vs exome are actually different
-my $wgs_bamcheck_meta = VRPipe::File->get(path => $output_files[0])->metadata;
-my $wes_bamcheck_meta = VRPipe::File->get(path => $target_files[0])->metadata;
-is_deeply [$wgs_bamcheck_meta->{reads}, $wes_bamcheck_meta->{reads}], [912, 862], 'bamcheck results are as expected and different comparing with and without use of targets file';
-
-# they should also have coverage stats
-is_deeply [$wes_bamcheck_meta->{bases_of_1X_coverage},
-           $wes_bamcheck_meta->{bases_of_2X_coverage},
-           $wes_bamcheck_meta->{bases_of_5X_coverage},
-           $wes_bamcheck_meta->{bases_of_10X_coverage},
-           $wes_bamcheck_meta->{bases_of_20X_coverage},
-           $wes_bamcheck_meta->{bases_of_50X_coverage},
-           $wes_bamcheck_meta->{bases_of_100X_coverage},
-           $wes_bamcheck_meta->{mean_coverage}], [36019, 8126, 98, 0, 0, 0, 0, 1.29], 'bamcheck file also has coverage metadata';
+# check that the results for wgs vs exome are actually different; since the
+# same bam file was used in both piplines, it will have the metadata of both
+# mixed together
+my $meta = VRPipe::File->get(path => file(qw(t data hs_chr20.a.bam))->absolute)->metadata;
+is_deeply [$meta->{reads},
+           $meta->{targeted_reads},
+           $meta->{targeted_bases_of_1X_coverage},
+           $meta->{targeted_bases_of_2X_coverage},
+           $meta->{targeted_bases_of_5X_coverage},
+           $meta->{targeted_bases_of_10X_coverage},
+           $meta->{targeted_bases_of_20X_coverage},
+           $meta->{targeted_bases_of_50X_coverage},
+           $meta->{targeted_bases_of_100X_coverage},
+           $meta->{targeted_mean_coverage}], [912, 862, 36019, 8126, 98, 0, 0, 0, 0, 1.29], 'bamcheck results are as expected and different comparing with and without use of targets file';
 
 done_testing;
 
