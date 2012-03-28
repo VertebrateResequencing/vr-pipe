@@ -1,3 +1,8 @@
+0.37    Overhaul of qc graphs & stats-related steps and pipelines
+        so that now wgs and exome projects all use the same
+        pipeline, with a single bamcheck call. bam_to_fastq step
+        fixed so that it runs in constant <500MB and copes with
+        bams that miss reads.
 0.36    Critical fixes to the underlying system to ensure job
         submission doesn't stall out forever, to handle limits on
         steps better, and to avoid issues when there are multiple
