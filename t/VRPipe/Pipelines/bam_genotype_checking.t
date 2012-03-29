@@ -11,18 +11,18 @@ BEGIN {
     use TestPipelines;
 }
 
-my $checking_output_dir = get_output_dir('genotype_checking_wgs_pipeline');
+my $checking_output_dir = get_output_dir('bam_genotype_checking');
 
-ok my $gc_pipeline = VRPipe::Pipeline->get(name => 'genotype_checking_wgs'), 'able to get a pre-written pipeline';
+ok my $gc_pipeline = VRPipe::Pipeline->get(name => 'bam_genotype_checking'), 'able to get a pre-written pipeline';
 
 my @s_names;
 foreach my $stepmember ($gc_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(snp_bin_hapmap_sites
+my @expected_step_names = qw(bin2hapmap_sites
                              mpileup_bcf_hapmap
-							 glf_check_genotype
-							 gtypex_genotype_analysis);
+			     glf_check_genotype
+			     gtypex_genotype_analysis);
 
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
@@ -38,8 +38,6 @@ $gc_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'human_g1k_v37.chr20.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
-my $mpileup_opts = '-ugDI -d 1000';
-
 my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
                                                   datasource => VRPipe::DataSource->get(type => 'fofn',
                                                                                         method => 'all',
@@ -47,8 +45,7 @@ my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
                                                   output_root => $checking_output_dir,
                                                   pipeline => $gc_pipeline,
                                                   options => {reference_fasta => $ref_fa,
-                                                              sample_genotype_snps_file => $snp_bin,
-                                                              samtools_mpileup_options => $mpileup_opts});
+                                                              hapmap2bin_sample_genotypes_file => $snp_bin});
 
 my (@output_files,@final_files);
 my $element_id=0;
