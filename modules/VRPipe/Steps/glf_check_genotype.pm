@@ -11,7 +11,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         return { bcf_files => VRPipe::StepIODefinition->get(type => 'bin',
                                                             max_files => -1,
                                                             description => 'bcf files for genotyping',
-                                                            metadata => {sample => 'name of expected sample',  source_bam => 'name of bam file used to produce bcf file'}) };
+                                                            metadata => {sample => 'name of expected sample', source_bam => 'input bam path'}) };
     }
     method body_sub {
         return sub {
@@ -41,7 +41,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         return { gtypex_files_with_metadata => VRPipe::StepIODefinition->get(type => 'txt',
 									     max_files => -1,
 									     description => 'file of likelihood scores calculated by glf',
-									     metadata => {sample => 'name of expected sample',  source_bam => 'name of bam file used to produce bcf file'}) };
+									     metadata => {sample => 'name of expected sample', source_bam => 'input bam path'}) };
     }
     method post_process_sub {
         return sub { return 1; };
