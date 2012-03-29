@@ -1,32 +1,26 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
-	method options_definition {
-		return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', 
-					optional => 1, 
-					default_value => 'samtools'),
-			   samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options excluding -f', 
-					optional => 1, 
-					default_value => '-C50 -aug'),
-			   reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-			   bcftools_exe => VRPipe::StepOption->get(description => 'path to bcftools executable',
-					   optional => 1,
-					   default_value => 'bcftools'),
-			   bcftools_view_options => VRPipe::StepOption->get(description => 'bcftools view options',
-					   optional => 1,
-					   default_value => '-gcv'),
-			   max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line',
-					optional => 1,
-					default_value => 10),
-			   interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -l option', 
-					optional => 1,),
-        		snp_coordinates_file => VRPipe::StepOption->get(description => 'absolute path to file containing the coordinates of snp locations',
-        		optional => 1,),					
-        		mimimum_calls => VRPipe::StepOption->get(description => 'minumum expected number of variant calls',
-					optional => 1,
-					default_value => 0),
-		};
-	}
+    method options_definition {
+	return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', 
+							 optional => 1, 
+							 default_value => 'samtools'),
+		 samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options excluding -f', 
+								     optional => 1, 
+								     default_value => '-C50 -aug'),
+		 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
+		 max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line',
+							     optional => 1,
+							     default_value => 10),
+		 interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -l option', 
+							  optional => 1),
+		 snp_coordinates_file => VRPipe::StepOption->get(description => 'absolute path to file containing the coordinates of snp locations',
+		                                                 optional => 1),					
+		 mimimum_calls => VRPipe::StepOption->get(description => 'minumum expected number of variant calls',
+							  optional => 1,
+							  default_value => 0),
+	};
+    }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to call variants') };
     }
@@ -38,26 +32,26 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             my $samtools = $options->{samtools_exe};
             my $mpileup_opts = $options->{samtools_mpileup_options};
             my $reference_fasta = $options->{reference_fasta};
-
+	    
             my $interval_list = $options->{interval_list};
-			$mpileup_opts .= " -l $interval_list " if $interval_list;
-
-			my $max_cmdline_bams = $options->{max_cmdline_bams};
-			if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
-				$self->warn("[todo] Generate a bam fofn");
-			}
-
-			my $bam_list;
+	    $mpileup_opts .= " -l $interval_list " if $interval_list;
+	    
+	    my $max_cmdline_bams = $options->{max_cmdline_bams};
+	    if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
+		$self->warn("[todo] Generate a bam fofn");
+	    }
+	    
+	    my $bam_list;
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_path = $bam->path;
-				$bam_list .= "$bam_path ";
+		$bam_list .= "$bam_path ";
             }
-			my $bcf_file = $self->output_file(output_key => 'bcf_files', basename => "mpileup.bcf", type => 'bin');
-			my $bcf_path = $bcf_file->path;
-
+	    my $bcf_file = $self->output_file(output_key => 'bcf_files', basename => "mpileup.bcf", type => 'bin');
+	    my $bcf_path = $bcf_file->path;
+	    
             my $req = $self->new_requirements(memory => 500, time => 1);
-			my $cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list > $bcf_path];
-			$self->dispatch([$cmd, $req, {output_files => [$bcf_file]}]); 
+	    my $cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list > $bcf_path];
+	    $self->dispatch([$cmd, $req, {output_files => [$bcf_file]}]); 
         };
     }
     method outputs_definition {
