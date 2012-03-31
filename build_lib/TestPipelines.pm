@@ -29,19 +29,10 @@ sub handle_pipeline {
     my $max_retries = VRPipeTest::max_retries();
     my $debug = VRPipeTest::debug();
     $manager->set_verbose_global(1) if $debug;
-    my $run = 0;
+    my $gave_up = 0;
+    my $retriggers = 0;
     while (1) {
-        if ($manager->trigger && all_pipelines_started()) {
-            # with linked pipelines, elements may not be created until an
-            # earlier pipeline has finished, so run trigger a few times 
-            # to ensure new elements are created and start running
-            last if ($run > 3);
-            $run++;
-            sleep(1);
-            next;
-        }
-        $run = 0;
-        last if $give_up-- <= 0;
+        $manager->trigger;
         $manager->handle_submissions(max_retries => $max_retries);
         
         # check for repeated failures
@@ -57,6 +48,19 @@ sub handle_pipeline {
             }
         }
         
+        if (all_pipelines_finished()) {
+            # make sure linked pipelines have a chance to get all their data
+            # elements once their parent piplines have completed
+            $retriggers++;
+            last if $retriggers >= 3;
+        }
+        
+        if ($give_up-- <= 0) {
+            $gave_up = 1;
+            warn "not all pipelinesetups finished yet, but giving up after 1000 cycles\n";
+            last;
+        }
+        
         sleep(1);
     }
     
@@ -69,7 +73,7 @@ sub handle_pipeline {
     }
     
     $manager->set_verbose_global(0) if $debug;
-    return $all_created;
+    return $gave_up ? 0 : $all_created;
 }
 
 sub output_subdirs {
@@ -110,6 +114,31 @@ sub all_pipelines_started {
     foreach my $setup (@setups) {
         my $rs = $schema->resultset('DataElement')->search({ datasource => $setup->datasource->id, withdrawn => 0 });
         return 0 unless $rs->next;
+    }
+    return 1;
+}
+
+sub all_pipelines_finished {
+    return 0 unless all_pipelines_started();
+    
+    my @setups = $manager->setups;
+    my $schema = $manager->result_source->schema;
+    foreach my $setup (@setups) {
+        my $setup_id = $setup->id;
+        my $pipeline = $setup->pipeline;
+        my @step_members = $pipeline->step_members;
+        my $num_steps = scalar(@step_members);
+        
+        my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
+        my $all_done = 1;
+        while (my $des = $rs->next) {
+            if ($des->completed_steps != $num_steps) {
+                $all_done = 0;
+                last;
+            }
+        } 
+        
+        return 0 unless $all_done;
     }
     return 1;
 }
