@@ -9,7 +9,7 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
     method inputs_definition {
         return { gtypex_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1,
         		                                       description => 'gtypex files containing likelihood scores for genotyping',
-                                                               metadata => {sample => 'name of expected sample', source_bam => 'input bam path'}}) };
+                                                               metadata => {sample => 'name of expected sample', source_bam => 'input bam path'}) };
     }
     method body_sub {
         return sub {
