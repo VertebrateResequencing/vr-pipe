@@ -21,20 +21,21 @@ my $setup = VRPipe::PipelineSetup->get(name => 'bm_setup',
                                        datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
-                                       options => {});
+                                       options => { reference_fasta => file(qw(t data S_suis_P17.fa))->absolute->stringify });
 ok handle_pipeline(), 'pipeline ran ok with no options';
 
 my $bam = VRPipe::File->get(path => file(qw(t data remapping_bams 8324_8.pe.bam))->absolute);
 my $meta = $bam->metadata;
-is_deeply [$meta->{reads}, $meta->{paired}, $meta->{forward_reads}, $meta->{reads_mapped}, $meta->{sd_insert_size}, $meta->{rmdup_reads}], [500, 1, 250, 233, 66.8, undef], 'metadata was correctly applied to a bam file';
+is_deeply [$meta->{reads}, $meta->{paired}, $meta->{forward_reads}, $meta->{reads_mapped}, $meta->{sd_insert_size}, $meta->{rmdup_reads}], [500, 1, 250, 233, 66.8, 500], 'metadata was correctly applied to a bam file';
 
 $setup = VRPipe::PipelineSetup->get(name => 'bm_setup_with_d',
                                     datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
                                     output_root => $output_dir,
                                     pipeline => $pipeline,
-                                    options => {bamcheck_options => '-d'});
+                                    options => { reference_fasta => file(qw(t data S_suis_P17.fa))->absolute->stringify,
+                                                 bamcheck_options => '-d' });
 ok handle_pipeline(), 'pipeline ran ok with bamcheck_options';
 
-is $bam->metadata->{rmdup_reads}, 500, 'rerunning with bamcheck_options => -d added the rmdup_reads metadata';
+is $bam->metadata->{rmdup_bases_mapped_c}, 12289, 'rerunning with bamcheck_options => -d added the rmdup_bases_mapped_c metadata';
 
 finish;

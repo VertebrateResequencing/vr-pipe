@@ -241,7 +241,7 @@ targeted_rmdup_bases_mapped => "770636900",
 targeted_rmdup_reads => "7726122",
 targeted_rmdup_reads_mapped => "7706369",
 targeted_sd_insert_size => "80.8",
-withdrawn => "0"}, 'metadata correct for one of the improved bam files: '.VRPipe::File->get(path => $improved_bams[0])->path;
+withdrawn => "0"}, 'metadata correct for one of the improved bam files';
 $meta->{original_pg_chain} = $opc;
 
 

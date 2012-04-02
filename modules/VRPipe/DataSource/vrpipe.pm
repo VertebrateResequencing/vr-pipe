@@ -120,6 +120,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                     }
                 }
             }
+            $vrpipe_sources{$setup_id}->{total_steps} = scalar @step_members;
             $vrpipe_sources{$setup_id}->{num_steps} = $max_step;
             $vrpipe_sources{$setup_id}->{final_smid} = $final_smid;
         }
@@ -139,7 +140,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
             $args{filter} = $filter;
         }
         my @elements;
-        foreach my $result (@{$self->_all_results(%args)})
+        foreach my $result (@{$self->_all_results(%args, complete_elements => 1)})
         {
             my $res = { paths => $result->{paths} };
             if ($maintain_element_grouping) {
@@ -152,7 +153,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return \@elements;
     }
 
-    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?)
+    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0)
     {
         my ($key, $regex);
         if ($filter) {
@@ -162,30 +163,39 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         
         my @output_files;
         my $vrpipe_sources = $self->vrpipe_sources;
-        foreach my $setup_id (keys %{$vrpipe_sources})
-        {
+        foreach my $setup_id (keys %{$vrpipe_sources}) {
             my $stepmembers = $vrpipe_sources->{$setup_id}->{stepmembers};
-            my $setup = $handle->resultset("PipelineSetup")->find({ id => $setup_id });
+            my $setup = VRPipe::PipelineSetup->get(id => $setup_id);
             my $elements = $setup->datasource->elements;
+            my $total_steps = $vrpipe_sources->{$setup_id}->{total_steps};
             
-            foreach my $element (@$elements)
-            {
+            my @per_element_output_files;
+            ELEMENT: foreach my $element (@$elements) {
                 my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-                my %element_hash = ( parent => { element_id => $element->id, setup_id => $setup_id }, result => $element->{result} );
-                foreach my $smid (keys %{$stepmembers})
-                {
-                    my $stepm = $handle->resultset("StepMember")->find({ id => $smid });
+                
+                # complete_elements means we do not consider a dataelement until
+                # it has completed its pipeline, even if the output file we want
+                # comes from an earlier step. This is because our pipeline might
+                # delete this file, whilst the parent pipeline is still running
+                # and needs it to complete
+                unless ($element_state->completed_steps == $total_steps) {
+                    return([]) if $complete_all;
+                    next if $complete_elements;
+                }
+                
+                my $element_id = $element->id;
+                my %element_hash = ( parent => { element_id => $element_id, setup_id => $setup_id }, result => $element->result );
+                foreach my $smid (keys %{$stepmembers}) {
+                    my $stepm = VRPipe::StepMember->get(id => $smid);
                     my $force = exists $stepmembers->{$smid}->{all};
                     
-                    my $stepstate = $handle->resultset("StepState")->find({stepmember => $stepm, dataelement => $element, pipelinesetup => $setup});
-                    unless ($stepstate && $stepstate->complete)
-                    {
-                        # When regrouping, we don't have have a good way to know that all
-                        # the elements that will make up the group are known about at this
-                        # point. Return empty list unless we are maintaining this current
-                        # element grouping
-                        return([]) unless $maintain_element_grouping;
-                        next;
+                    my $stepstate = $handle->resultset("StepState")->find({stepmember => $smid, dataelement => $element_id, pipelinesetup => $setup_id});
+                    unless ($stepstate && $stepstate->complete) {
+                        # this shouldn't happen since we did the completed_steps
+                        # check above, but just incase we have an
+                        # inconsistency...
+                        return([]) if $complete_all;
+                        next ELEMENT if $complete_elements;
                     }
                     
                     my $step_outs = $stepstate->output_files;
@@ -212,14 +222,15 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
                                 $hash{paths} = [ $file->path->stringify ];
                                 my $meta = $file->metadata;
                                 $hash{metadata} = $meta if (keys %{$meta});
-                                $hash{parent} = { element_id => $element->id, setup_id => $setup_id };
-                                push(@output_files, \%hash);
+                                $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
+                                push(@per_element_output_files, \%hash);
                             }
                         }
                     }
                 }
-                push(@output_files, \%element_hash) if ($maintain_element_grouping && exists $element_hash{paths});
+                push(@per_element_output_files, \%element_hash) if ($maintain_element_grouping && exists $element_hash{paths});
             }
+            push(@output_files, @per_element_output_files);
         }
         return \@output_files;
     }
@@ -233,7 +244,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         
         my $group_hash;
         my @meta_keys = split /\|/, $metadata_keys;
-        foreach my $hash_ref (@{$self->_all_results(%args)})
+        foreach my $hash_ref (@{$self->_all_results(%args, complete_all => 1)})
         {
             my @group_keys;
             foreach my $key (@meta_keys)
@@ -270,7 +281,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         my @complete_list;
         foreach my $setup_id (sort keys %{$sources})
         {
-            my $num_steps = $sources->{$setup_id}->{num_steps};
+            my $num_steps = $sources->{$setup_id}->{total_steps};
             my $num_complete = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 0}, { join => 'dataelement' });
             my $num_withdrawn = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 1}, { join => 'dataelement' });
             push @complete_list, ($num_complete, $num_withdrawn);

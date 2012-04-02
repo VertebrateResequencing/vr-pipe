@@ -139,6 +139,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         
         # check we're allowed to run, in a transaction to avoid race condition
         my $schema = $self->result_source->schema;
+        my $do_return = 0;
         $schema->txn_do(sub {
             unless ($self->pending) {
                 if ($self->block_and_skip_if_ok) {
@@ -152,7 +153,8 @@ class VRPipe::Job extends VRPipe::Persistent {
                         sleep(60);
                         if ($self->finished) {
                             if ($self->ok) {
-                                return;
+                                $do_return = 1;
+                                return; # out of the txn_do
                             }
                             else {
                                 # *** do some kind of reset on failure?
@@ -162,7 +164,8 @@ class VRPipe::Job extends VRPipe::Persistent {
                     }
                 }
                 elsif ($self->ok) {
-                    return;
+                    $do_return = 1;
+                    return; # out of the txn_do
                 }
                 else {
                     $self->throw("Job ".$self->id." could not be run because it was not in the pending state");
@@ -177,6 +180,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             $self->exit_code(undef);
             $self->update;
         });
+        return if $do_return;
         
         $self->disconnect;
         my $cmd_pid = fork();

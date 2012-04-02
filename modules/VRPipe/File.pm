@@ -153,6 +153,9 @@ class VRPipe::File extends VRPipe::Persistent {
             $new_meta->{$key} = $val;
         }
         
+        # *** there is an issue where if add_metadata is called more than once
+        # on the same file at the same time, only the last one might get its
+        # metadata stored...
         $self->metadata($new_meta);
         $self->update;
         $self->touch if ($self->e);

@@ -45,7 +45,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
     method description {
         return "Add the bamcheck QC statistics and graphs to the VRTrack database, so that they're accessible with QCGrind etc.";
     }
-
+    
     method update_mapstats (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str :$lane!, Str|Dir :$plot_dir!, ArrayRef :$plots!, Bool :$targets_mode?) {
 	my $bam_file = VRPipe::File->get(path => $bam);  	 
 	my $meta = $bam_file->metadata;

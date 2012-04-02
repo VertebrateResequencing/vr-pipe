@@ -1,21 +1,21 @@
 use VRPipe::Base;
 
-class VRPipe::Pipelines::genotype_checking_wgs with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_genotype_checking with VRPipe::PipelineRole {
     method name {
-        return 'genotype_checking_wgs';
+        return 'bam_genotype_checking';
     }
     method _num_steps {
         return 4;
     }
     method description {
-        return 'Performs genotype checking for bam files of whole genome study samples.';
+        return 'Check that the genotype of bam files matches the genotype of the samples they claim to be of.';
     }
     method steps {
         $self->throw("steps cannot be called on this non-persistent object");
     }
     
     method _step_list {
-        return ([ VRPipe::Step->get(name => 'snp_bin_hapmap_sites'),#1
+        return ([ VRPipe::Step->get(name => 'bin2hapmap_sites'),#1
                   VRPipe::Step->get(name => 'mpileup_bcf_hapmap'),#2
                   VRPipe::Step->get(name => 'glf_check_genotype'),#3
                   VRPipe::Step->get(name => 'gtypex_genotype_analysis'),#4
