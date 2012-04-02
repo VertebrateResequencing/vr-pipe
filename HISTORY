@@ -1,3 +1,7 @@
+0.39    vrpipe DataSource behaviour changed, so that a child pipeline
+        that deletes inputs won't mess up a parent that still needs
+        those files. Overhauled the genotype checking pipeline and
+        steps.
 0.38	Fix for gatk_target_interval_creator step, increasing its
         default memory reservation.
 0.37    Overhaul of qc graphs & stats-related steps and pipelines
