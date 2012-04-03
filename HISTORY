@@ -1,3 +1,5 @@
+0.40    Critical fix for vrtrack_update_mapstats step, letting it
+        work without exome_targets_file.
 0.39    vrpipe DataSource behaviour changed, so that a child pipeline
         that deletes inputs won't mess up a parent that still needs
         those files. Overhauled the genotype checking pipeline and

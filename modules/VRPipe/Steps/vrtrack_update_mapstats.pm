@@ -20,10 +20,10 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
     }
     method body_sub {
         return sub { 
-            my $self = shift;
+	    my $self = shift;
 	    my $opts = $self->options;
 	    my $db = $opts->{vrtrack_db};
-            my $targeted_mode = defined $opts->{exome_targets_file} ? 1 : 0;
+	    my $targeted_mode = $opts->{exome_targets_file} ? 1 : 0;
 	    my $req = $self->new_requirements(memory => 500, time => 1);
 	    
 	    my %bam_plots;
