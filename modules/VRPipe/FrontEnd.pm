@@ -1,7 +1,7 @@
 use VRPipe::Base;
 
 class VRPipe::FrontEnd {
-    use Getopt::Long;
+    use Getopt::Long qw(GetOptions GetOptionsFromString);
     use Perl6::Form;
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
@@ -42,6 +42,7 @@ class VRPipe::FrontEnd {
     
     method _default_opt_spec {
         return [ [ 'deployment=s', 'Use the production or testing database', { default => 'production' } ],
+                 [ 'env|e=s', 'Use options stored in an environment variable' ],
                  [ 'help|h', 'Print this usage message and exit' ] ];
     }
     
@@ -58,7 +59,7 @@ class VRPipe::FrontEnd {
         # interface, but do not use the actual GLD code.
         
         my $opt_spec = $self->opt_spec;
-        unless (@$opt_spec <= 3 && @$opt_spec >= 2 && $opt_spec->[-1]->[0] eq 'help|h') {
+        unless (@$opt_spec <= 4 && @$opt_spec >= 3 && $opt_spec->[-1]->[0] eq 'help|h') {
             my $default = $self->_default_opt_spec;
             
             foreach my $opt_spec (@$opt_spec) {
@@ -68,9 +69,9 @@ class VRPipe::FrontEnd {
                     if ($name eq 'setup') {
                         if ($type eq 's@') {
                             unless ($self->no_user_option) {
-                                $default->[3] = $default->[1];
-                                $default->[1] = [ 'user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ];
-                                $default->[2] = [ 'deactivated', 'Also show deactiavted PipelineSetups', { default => 0 } ];
+                                $default->[4] = $default->[2];
+                                $default->[2] = [ 'user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ];
+                                $default->[3] = [ 'deactivated', 'Also show deactiavted PipelineSetups', { default => 0 } ];
                             }
                             $self->_multiple_setups(1);
                         }
@@ -163,6 +164,12 @@ class VRPipe::FrontEnd {
         Getopt::Long::Configure("bundling");
         $self->help unless GetOptions(\%opts, @opts);
         $self->_set_opts(\%opts);
+        
+        my $from_env = $self->opts('env');
+        if ($from_env) {
+            $self->help unless GetOptionsFromString($ENV{$from_env}, \%opts, @opts);
+            $self->_set_opts(\%opts);
+        }
         
         while (my ($opt, $val) = each %defaults) {
             next if $self->option_was_set($opt);
