@@ -50,7 +50,13 @@ class VRPipe::Steps::vrtrack_update_improved extends VRPipe::Steps::vrtrack_upda
 	$vrfile->is_processed(improved => 1);
 	$vrfile->update;
 	
-	# also update the lane
+	# also update the lane; in case previously we didn't fill out reads and
+	# bases (eg. we ran bam import and QC in exome intervals only), we'll do
+	# that now as well
+	$vrlane->raw_bases($meta->{bases}) if $meta->{bases};
+	$vrlane->raw_reads($meta->{reads}) if $meta->{reads};
+	$vrlane->is_paired($meta->{paired} ? 1 : 0) if exists $meta->{paired};
+	$vrlane->read_len(int($meta->{avg_read_length})) if $meta->{avg_read_length};
 	$vrlane->is_processed(mapped => 1);
 	$vrlane->update;
 	$vrlane->is_processed(improved => 1);
