@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 10;
+    use Test::Most tests => 12;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
                     required_exe => [qw(iget iquest)]);
@@ -128,6 +128,11 @@ targeted_rmdup_reads_mapped => "7706369",
 targeted_sd_insert_size => "80.8",
 withdrawn => "0"}, 'metadata correct for one of the bam files';
 
+my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+my $lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#1');
+my $mapstats = $lane->latest_mapping;
+is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $mapstats->raw_reads], [1, 1, 1, 7806144], 'VRTrack database was updated correctly';
+
 
 # we'll also test the whole chain of pipelines we typically run in
 # VertebrateResequencing at the Sanger: improvement followed by genotype check
@@ -243,6 +248,11 @@ targeted_rmdup_reads_mapped => "7706369",
 targeted_sd_insert_size => "80.8",
 withdrawn => "0"}, 'metadata correct for one of the improved bam files';
 $meta->{original_pg_chain} = $opc;
+
+$vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+$lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#1');
+$mapstats = $lane->latest_mapping;
+is_deeply [$lane->processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 10002980, 7806144], 'VRTrack database was updated correctly after improvement';
 
 
 #*** genotype check that writes results to vrtrack pipeline...

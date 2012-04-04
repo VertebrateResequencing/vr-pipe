@@ -1,3 +1,4 @@
+0.41    vrtrack_update_improved step now sets lane reads and bases.
 0.40    Critical fix for vrtrack_update_mapstats step, letting it
         work without exome_targets_file.
 0.39    vrpipe DataSource behaviour changed, so that a child pipeline
