@@ -405,7 +405,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     $estate->start_from_scratch;
                 }
                 # then change metadata in files
-                foreach my $fm (@{$lane_changed_hash->{$lane}}) {
+                foreach my $fm (@{$lane_changed_hash->{$lane->id}}) {
                     my ($vrfile, $new_metadata) = @$fm;
                     $vrfile->add_metadata($new_metadata, replace_data => 1);
                 }
