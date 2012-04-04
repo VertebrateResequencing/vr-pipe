@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 35;
+    use Test::Most tests => 36;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -282,7 +282,7 @@ SKIP: {
     ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
                                   method => 'lane_fastqs',
                                   source => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                  options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library => [  'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190'] } ), 'could create a vrtrack datasource';
+                                  options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library => ['g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190'] } ), 'could create a vrtrack datasource';
     
     @results = ();
     foreach my $element (@{$ds->elements}) {
@@ -313,5 +313,19 @@ SKIP: {
                        'insert_size' => 175,
                        'sample_id' => '',
                        'mate' => ''}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
+    
+    # if we change the insert_size in vrtrack, this should cause the datasource
+    # to reset the elements. Critically, the vrfile metadata should get updated,
+    # or else we'd be stuck in an infinite loop of always detecting the
+    # insert_size change and reseting
+    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    my $lib = VRTrack::Library->new_by_name($vrtrack, 'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190');
+    $lib->fragment_size_from(200);
+    $lib->fragment_size_to(200);
+    $lib->update;
+    # (we also add a lane to force datasource to notice a change)
+    VRTrack::Lane->create($vrtrack, 'new_lane2');
+    $ds->elements;
+    is $vrfile->metadata->{insert_size}, '200', 'changing insert_size in vrtrack changes insert_size metadata on vrpipe files';
 }
 exit;
