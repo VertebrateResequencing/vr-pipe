@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 36;
+    use Test::Most tests => 39;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -186,8 +186,8 @@ SKIP: {
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
    
- 
-    ### tests for  _has_changed ###
+    
+    ## tests for _has_changed
     ok( ! $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change' );
     
     # create a new lane
@@ -197,28 +197,25 @@ SKIP: {
     $new_lane->library_id(16);
     $new_lane->update;
     ok( $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after new lane insertion in test vrtrack db');
-
+    
     # Go back to unchanged state by deleting this lane. Check we don't have any changes
     $new_lane->delete;
     ok( !$ds->_source_instance->_has_changed, 'vrtrack datasource _has_change gives no change after inserted lane deleted in test vrtrack db');
-
+    
     # add a file to another lane and check for changes
     my $lane_to_add_file_for = VRTrack::Lane->new_by_name($vrtrack, 'ERR003040');
     my $newfile = $lane_to_add_file_for->add_file('new.fastq');
-    ok($ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after adding a file in test vrtrack db');
-    $newfile->delete; # return to original state so that _has_changed can be tested again
-
+    is $ds->_source_instance->_has_changed, 0, 'vrtrack datasource _has_changed gives no change after adding a file in test vrtrack db, with method lanes';
+    $newfile->delete;
+    
     # change some md5 sums in the files
     my $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
     # check for changes
     $file->md5('34c009157187c5d9a7e976563ec1bad8');
     $file->update;
-    ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
-    
-    # return db to original state so running this test again will work
+    is $ds->_source_instance->_has_changed, 0, 'datasource _has_changed got no change after md5 change in file table in test vrtrack db, with method lanes';
     $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
     $file->update;
-    is $ds->_source_instance->_has_changed, 0, 'reverting file md5 back gives no change';
     
     # if we change something that doesn't indicate a real change as far as our
     # options are concerned, it shouldn't come up as _has_changed
@@ -272,13 +269,15 @@ SKIP: {
     $lane_to_add_file_for->is_withdrawn(1);
     $lane_to_add_file_for->update;
     is $ds->_source_instance->_has_changed, 1, 'but withdrawn is still detected';
+    
     $lane_to_add_file_for->qc_status('no_qc');
     $lane_to_add_file_for->is_processed('mapped', 0);
     $lane_to_add_file_for->raw_bases(1473337566);
     $lane_to_add_file_for->is_withdrawn(0);
     $lane_to_add_file_for->update;
     
-    ### lane_fastqs tests    
+    
+    # lane_fastqs tests    
     ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
                                   method => 'lane_fastqs',
                                   source => $ENV{VRPIPE_VRTRACK_TESTDB},
@@ -313,6 +312,28 @@ SKIP: {
                        'insert_size' => 175,
                        'sample_id' => '',
                        'mate' => ''}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
+    
+    $newfile = $lane_to_add_file_for->add_file('new.fastq');
+    $newfile->type(0);
+    $newfile->update;
+    is $ds->_source_instance->_has_changed, 1, 'vrtrack datasource _has_changed gives change after adding a fastq file in test vrtrack db, with method lane_fastqs';
+    $newfile->delete;
+    
+    $newfile = $lane_to_add_file_for->add_file('new.bam');
+    $newfile->type(5);
+    $newfile->update;
+    is $ds->_source_instance->_has_changed, 0, 'vrtrack datasource _has_changed gives no change after adding a bam file in test vrtrack db, with method lane_fastqs';
+    $newfile->delete;
+    
+    # change some md5 sums in the files
+    $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
+    # check for changes
+    $file->md5('34c009157187c5d9a7e976563ec1bad8');
+    $file->update;
+    is $ds->_source_instance->_has_changed, 1, 'datasource _has_changed got change after md5 change in file table in test vrtrack db, with method lane_fastqs';
+    $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
+    $file->update;
+    is $ds->_source_instance->_has_changed, 0, 'reverting file md5 back gives no change';
     
     # if we change the insert_size in vrtrack, this should cause the datasource
     # to reset the elements. Critically, the vrfile metadata should get updated,
