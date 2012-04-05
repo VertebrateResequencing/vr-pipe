@@ -12,6 +12,10 @@ class VRPipe::File extends VRPipe::Persistent {
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
     
+    # *** a lot of stuff depends on getting/creating files based on the path
+    #     alone. However, with MySQL at least, the search on path is case
+    #     insensitive, so we can't store two different files that only differ
+    #     by case!
     has 'path' => (is => 'rw',
                    isa => AbsoluteFile, # we can't be nice and auto convert relative to absolute because alterations made by moose during construction do not affect what gets put in the db
                    coerce => 1,
