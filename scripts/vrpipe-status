@@ -100,7 +100,12 @@ foreach my $setup (@setups) {
         }
     }
     else {
-        $frontend->output("Pipeline currently 100\% complete!");
+        if ($num_elements == 0) {
+            $frontend->output("Pipeline has no inputs to work on (yet?), so has done nothing.");
+        }
+        else {
+            $frontend->output("Pipeline currently 100\% complete!");
+        }
     }
     
     $frontend->output("------\n\n");
