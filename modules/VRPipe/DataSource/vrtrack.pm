@@ -57,8 +57,12 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         # lane_id and withdrawn. Things like raw_reads changing are irrelvant;
         # important changes to the actual file data will be caught by the file
         # md5s changing
+        
+        # we always care about lane ids changing
         my $lane_changes = VRTrack::Lane->_all_values_by_field($vrtrack_source, 'lane_id', 'hierarchy_name');
         push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'withdrawn', 'hierarchy_name')});
+        
+        # we care about options if supplied
         my $options = $self->options;
         foreach my $opt (qw(import qc mapped stored deleted swapped altered_fastq improved snp_called)) {
             if (defined $options->{$opt}) {
@@ -69,7 +73,15 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'qc_status', 'hierarchy_name')}) if defined $options->{qc_status};
         push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'gt_status', 'hierarchy_name')}) if defined $options->{gt_status};
         
-        push(@$lane_changes, @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name')});
+        # we care about certain types of files depending on method
+        my $method = $self->method;
+        if ($method eq 'lane_fastqs') {
+            push(@$lane_changes, @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', '(type=0 or type=1 or type=2) and latest=true')});
+        }
+        elsif ($method eq 'lane_bams') {
+            push(@$lane_changes, @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=4 and latest=true')});
+        }
+        
         my $digest = md5_hex join('', map { defined $_ ? $_ : 'NULL' } @$lane_changes);
         return $digest;
     }

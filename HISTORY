@@ -1,3 +1,4 @@
+0.43    Efficiency fix for vrtrack datasource.
 0.42    Critical fix for vrtrack datasource, so that it now updates
         file metadata when vrtrack metadata changes.
 0.41    vrtrack_update_improved step now sets lane reads and bases.
