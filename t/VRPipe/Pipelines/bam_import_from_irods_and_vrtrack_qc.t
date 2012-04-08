@@ -252,7 +252,7 @@ $meta->{original_pg_chain} = $opc;
 $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
 $lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#1');
 $mapstats = $lane->latest_mapping;
-is_deeply [$lane->processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 10002980, 7806144], 'VRTrack database was updated correctly after improvement';
+is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 10002980, 7806144], 'VRTrack database was updated correctly after improvement';
 
 
 #*** genotype check that writes results to vrtrack pipeline...
@@ -291,7 +291,7 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 'pombe me
 
 handle_pipeline();
 my @merged_bams;
-foreach my $element_id (89..117) {
+foreach my $element_id (88..116) {
     my @output_subdirs = output_subdirs($element_id, 4);
     foreach my $chrom (qw(chromIII chromI chromII chromAB325691 chromMT unmapped)) {
         push(@merged_bams, file(@output_subdirs, '4_bam_split_by_sequence', $chrom.'.pe.bam'));

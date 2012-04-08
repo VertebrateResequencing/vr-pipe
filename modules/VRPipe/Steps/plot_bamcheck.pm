@@ -31,6 +31,7 @@ class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
                 my $meta = $bc_file->metadata;
 		my $prefix = $meta->{lane} || $bc_file->basename;
 		my $source_bam = $meta->{source_bam};
+                my $sb_meta = VRPipe::File->get(path => $source_bam)->metadata;
 		
 		$self->output_file(temporary => 1, basename => $prefix.'-quals.gp', type => 'txt');
 		$self->output_file(output_key => 'bamcheck_plots', basename => $prefix.'-quals.png', type => 'bin', metadata => {caption => 'Qualities', source_bam => $source_bam});
@@ -38,8 +39,10 @@ class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
 		$self->output_file(output_key => 'bamcheck_plots', basename => $prefix.'-quals3.png', type => 'bin', metadata => {caption => 'Qualities', source_bam => $source_bam});
 		$self->output_file(temporary => 1, basename => $prefix.'-quals-hm.gp', type => 'txt');
 		$self->output_file(output_key => 'bamcheck_plots', basename => $prefix.'-quals-hm.png', type => 'bin', metadata => {caption => 'Qualities', source_bam => $source_bam});
-		$self->output_file(temporary => 1, basename => $prefix.'-insert-size.gp', type => 'txt');
-		$self->output_file(output_key => 'bamcheck_plots', basename => $prefix.'-insert-size.png', type => 'bin', metadata => {caption => 'Insert Size', source_bam => $source_bam});
+                if ((exists $sb_meta->{mean_insert_size} && $sb_meta->{mean_insert_size} > 0) || (exists $sb_meta->{targeted_mean_insert_size} && $sb_meta->{targeted_mean_insert_size} > 0)) {
+                    $self->output_file(temporary => 1, basename => $prefix.'-insert-size.gp', type => 'txt');
+                    $self->output_file(output_key => 'bamcheck_plots', basename => $prefix.'-insert-size.png', type => 'bin', metadata => {caption => 'Insert Size', source_bam => $source_bam});
+                }
 		$self->output_file(temporary => 1, basename => $prefix.'-gc-content.gp', type => 'txt');
 		$self->output_file(output_key => 'bamcheck_plots', basename => $prefix.'-gc-content.png', type => 'bin', metadata => {caption => 'GC Content', source_bam => $source_bam});
 		$self->output_file(temporary => 1, basename => $prefix.'-gc-depth.gp', type => 'txt');
