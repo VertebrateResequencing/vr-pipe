@@ -1,3 +1,5 @@
+0.45    Critical speed fix for vrtrack datasource. Library merge
+        pipelines now index the resulting bams.
 0.44    Fix for plot_bamcheck step, letting it work when then is
         no insert size.
 0.43    Efficiency fix for vrtrack datasource.

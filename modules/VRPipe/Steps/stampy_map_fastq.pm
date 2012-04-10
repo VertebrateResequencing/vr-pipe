@@ -7,6 +7,9 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                                                                optional => 1),
                  stampy_bwa_options => VRPipe::StepOption->get(description => 'to use bwa for premapping, supply the string you would give to --bwaoptions, excluding the reference',
                                                                optional => 1),
+                 stampy_substitution_rate_from_metadata => VRPipe::StepOption->get(description => q[set stampy's --substitutionrate option based on the value of the substitution_rate metadata key on the input fastqs, if present],
+                                                                                   optional => 1,
+                                                                                   default_value => 1),
                  stampy_exe => VRPipe::StepOption->get(description => 'path to your stampy.py executable',
                                                        optional => 1,
                                                        default_value => 'stampy.py'),
@@ -32,7 +35,8 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                                                                            paired => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
                                                                            mate => 'if paired, the path to the fastq that is our mate',
                                                                            chunk => 'if the fastq file was produced by fastq_split Step, the chunk number',
-                                                                           optional => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}) };
+                                                                           substitution_rate => 'the substitution rate of this sample data compared to the reference',
+                                                                           optional => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study', 'substitution_rate']}) };
     }
     method body_sub {
         return sub {
@@ -55,8 +59,6 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                 $stampy_opts .= ' --bwa='.$options->{bwa_exe}.' --bwaoptions={'.$bwa_opts.' '.$ref.'}'; # {} instead of "" because of quoting in shell issues
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy.py', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
-            
             my $req = $self->new_requirements(memory => 5900, time => 2);
             my $cmd = $stampy_exe.' '.$stampy_opts." -g $ref -h $ref ";
             
@@ -76,6 +78,7 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                 $fqs_by_lane{$lane}->{$chunk}->{$paired} = $path;
             }
             
+            my %srates;
             while (my ($lane, $chunks) = each %fqs_by_lane) {
                 while (my ($chunk, $ends) = each %$chunks) {
                     while (my ($paired, $path) = each %$ends) {
@@ -98,6 +101,13 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                             
                             $reads += $fqs_by_path{$fqs[1]}->[3]->{reads};
                             $bases += $fqs_by_path{$fqs[1]}->[3]->{bases};
+                        }
+                        
+                        my $srate = $fq_meta->{substitution_rate};
+                        if ($options->{stampy_substitution_rate_from_metadata} && $srate) {
+                            $this_cmd =~ s/--substitutionrate[= ]+\S+//;
+                            $this_cmd .= ' --substitutionrate='.$srate;
+                            $srates{$srate} = 1;
                         }
                         
                         # add metadata and construct readgroup info
@@ -156,6 +166,13 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                     }
                 }
             }
+            
+            my @srates = keys %srates;
+            if (@srates == 1) {
+                $stampy_opts =~ s/--substitutionrate[= ]+\S+//;
+                $stampy_opts .= ' --substitutionrate '.$srates[0];
+            }
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy.py', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
         };
     }
     method outputs_definition {
