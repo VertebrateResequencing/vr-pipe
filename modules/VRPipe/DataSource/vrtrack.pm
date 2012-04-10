@@ -351,7 +351,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         my $lane_changed_hash;
         my $hu = VertRes::Utils::Hierarchy->new();
         foreach my $lane ($self->_filtered_lanes(%args)) {
-            my %lane_info = $hu->lane_info($lane->name, vrtrack => $vrtrack);
+            my %lane_info = $hu->lane_info($lane->name, vrtrack => $vrtrack, no_coverage => 1);
             
             my @files;
             foreach my $file (@{$lane->files}) {
