@@ -27,7 +27,7 @@ class VRPipe::Pipelines::bam_mapping_with_bwa with VRPipe::PipelineRole {
                  ],
                  
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'bam_files_with_metadata', to_key => 'bam_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'name_sorted_bam_files', to_key => 'bam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 5, to_step => 6, from_key => 'bwa_sai_files', to_key => 'sai_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 6, from_key => 'name_sorted_bam_files', to_key => 'bam_files'),
