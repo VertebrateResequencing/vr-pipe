@@ -104,7 +104,25 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         }
                         
                         my $srate = $fq_meta->{substitution_rate};
-                        if ($options->{stampy_substitution_rate_from_metadata} && $srate) {
+                        unless (defined $srate) {
+                            # also check the source fastq or bam, in case this
+                            # is a fastq split or was made from a bam
+                            SOURCE: foreach my $key (qw(source_bam source_fastq)) {
+                                my @source_paths = split(',', $fq_meta->{$key} || next);
+                                foreach my $path (@source_paths) {
+                                    my $parent_srate = VRPipe::File->get(path => $path)->metadata->{substitution_rate};
+                                    if (defined $parent_srate) {
+                                        $srate = $parent_srate;
+                                        last SOURCE;
+                                    }
+                                }
+                            }
+                        }
+                        if ($options->{stampy_substitution_rate_from_metadata} && defined $srate) {
+                            if ($srate == 0) {
+                                # stampy doesn't like 0, and the default is 0.001
+                                $srate = '0.00001';
+                            }
                             $this_cmd =~ s/--substitutionrate[= ]+\S+//;
                             $this_cmd .= ' --substitutionrate='.$srate;
                             $srates{$srate} = 1;
@@ -170,8 +188,10 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
             my @srates = keys %srates;
             if (@srates == 1) {
                 $stampy_opts =~ s/--substitutionrate[= ]+\S+//;
-                $stampy_opts .= ' --substitutionrate '.$srates[0];
+                $stampy_opts .= ' ' if $stampy_opts;
+                $stampy_opts .= '--substitutionrate='.$srates[0];
             }
+            $stampy_opts =~ s/$ref/\$ref/g;
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy.py', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
         };
     }

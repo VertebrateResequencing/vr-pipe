@@ -1,3 +1,5 @@
+0.46    New versions of merge lanes and stampy mapping pipelines
+        with extra features.
 0.45    Critical speed fix for vrtrack datasource. Library merge
         pipelines now index the resulting bams.
 0.44    Fix for plot_bamcheck step, letting it work when then is

@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
+    use VRPipe::Parser;
+    
     around options_definition {
         return { %{$self->$orig},
                  picard_add_readgroups_options => VRPipe::StepOption->get(description => 'options for picard AddOrReplaceReadGroups', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
@@ -44,7 +46,7 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                 $rginfo_cmd .= " RGLB=$library";
                 my $platform = $meta->{platform} || 'unknown_platform';
                 $rginfo_cmd .= " RGPL=$platform";
-                my $platform_unit = $meta->{platform_unit} || 'unknown_platform_unit';
+                my $platform_unit = $meta->{platform_unit} || $meta->{lane};
                 $rginfo_cmd .= " RGPU=$platform_unit";
                 my $sample = $meta->{sample} || 'unknown_sample';
                 $rginfo_cmd .= " RGSM=$sample";
@@ -90,7 +92,32 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
         my $in_file = VRPipe::File->get(path => $in_path);
         my $out_file = VRPipe::File->get(path => $out_path);
         
+        # first check that it is necessary to do anything
+        my $pars = VRPipe::Parser->create('bam', {file => $in_path});
+        my %readgroup_info = $pars->readgroup_info();
         $in_file->disconnect;
+        if (keys %readgroup_info == 1) {
+            $pars->get_fields('RG');
+            $pars->next_record();
+            $pars->close;
+            my $record_rg = $pars->parsed_record()->{RG};
+            if ($record_rg && defined $readgroup_info{$record_rg}) {
+                my $actual_data = $readgroup_info{$record_rg};
+                my $all_match = 1;
+                foreach my $tag (qw(LB PL PU SM CN DS)) {
+                    my ($desired_val) = $cmd_line =~ / RG$tag=(\S+)/; # *** do we have to worry about values with spaces in them?
+                    next if $desired_val eq $actual_data->{$tag};
+                    $all_match = 0;
+                    last;
+                }
+                
+                if ($all_match) {
+                    $in_file->move($out_file);
+                    return;
+                }
+            }
+        }
+        
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $out_file->update_stats_from_disc(retries => 3);

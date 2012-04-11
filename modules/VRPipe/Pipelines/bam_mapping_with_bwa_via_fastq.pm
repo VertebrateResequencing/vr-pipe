@@ -29,7 +29,7 @@ class VRPipe::Pipelines::bam_mapping_with_bwa_via_fastq with VRPipe::PipelineRol
                   VRPipe::Step->get(name => 'bam_stats'),#12
                  ],
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'bam_files_with_metadata', to_key => 'bam_files'),
+                   VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'name_sorted_bam_files', to_key => 'bam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 5, to_step => 6, from_key => 'fastq_files', to_key => 'fastq_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 6, to_step => 7, from_key => 'split_fastq_files', to_key => 'fastq_files'),
