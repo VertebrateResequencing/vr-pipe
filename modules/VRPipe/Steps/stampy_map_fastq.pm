@@ -139,12 +139,12 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         if (defined $fq_meta->{library}) {
                             my $lb = $fq_meta->{library};
                             $sam_meta->{library} = $lb;
-                            $rg_arg .= ',LB:'.$lb;
+                            $rg_arg .= ',LB:'.$self->command_line_safe_string($lb);
                         }
                         if (defined $fq_meta->{sample}) {
                             my $sm = $fq_meta->{sample};
                             $sam_meta->{sample} = $sm;
-                            $rg_arg .= ',SM:'.$sm;
+                            $rg_arg .= ',SM:'.$self->command_line_safe_string($sm);
                         }
                         if (defined $fq_meta->{insert_size}) {
                             my $pi = $fq_meta->{insert_size};
@@ -154,17 +154,17 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         if (defined $fq_meta->{center_name}) {
                             my $cn = $fq_meta->{center_name};
                             $sam_meta->{center_name} = $cn;
-                            $rg_arg .= ',CN:'.$cn;
+                            $rg_arg .= ',CN:'.$self->command_line_safe_string($cn);
                         }
                         if (defined $fq_meta->{platform}) {
                             my $pl = $fq_meta->{platform};
                             $sam_meta->{platform} = $pl;
-                            $rg_arg .= ',PL:'.$pl;
+                            $rg_arg .= ',PL:'.$self->command_line_safe_string($pl);
                         }
                         if (defined $fq_meta->{study}) {
                             my $ds = $fq_meta->{study};
                             $sam_meta->{study} = $ds;
-                            $rg_arg .= ',DS:'.$ds;
+                            $rg_arg .= ',DS:'.$self->command_line_safe_string($ds);
                         }
                         if (defined $fq_meta->{analysis_group}) {
                             $sam_meta->{analysis_group} = $fq_meta->{analysis_group};
@@ -247,6 +247,13 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
             $sam_file->unlink;
             $self->throw("cmd [$cmd_line] failed because $lines lines were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
         }
+    }
+    
+    method command_line_safe_string (Str $str) {
+        # truncate at the first space, convert non-word chars to underscores
+        $str =~ s/^(\S+)\s.*/$1/;
+        $str =~  s/[^\w\-]/_/g;
+        return $str;
     }
 }
 
