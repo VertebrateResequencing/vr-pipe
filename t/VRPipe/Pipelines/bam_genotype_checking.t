@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 3;
+    use Test::Most tests => 4;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES',
 		    required_exe => 'glf');
     use TestPipelines;
@@ -54,10 +54,19 @@ foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
     my @output_subdirs = output_subdirs($element_id);
     push(@output_files, file(@output_subdirs, '2_mpileup_bcf_hapmap', "${in}.bam.bcf"));
     push(@final_files, file(@output_subdirs, '3_glf_check_genotype', "${in}.bam.bcf.gtypex"));
-    push(@final_files, file(@output_subdirs, '4_gtypex_genotype_analysis', "${in}.bam.gtype"));
 }
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
+
+my @gtype_results;
+foreach (qw(a b c d)) {
+    my $bam_meta = VRPipe::File->get(path => file('t', 'data', "hs_chr20.$_.bam")->absolute)->metadata;
+    push(@gtype_results, $bam_meta->{gtype_analysis});
+}
+is_deeply \@gtype_results, ['status=unconfirmed expected=NA20526 found=NA20586 ratio=1.016',
+			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000',
+			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000',
+			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000'], 'gtype_analysis results were stored correctly as metadata on the input bams';
 
 done_testing;
 
