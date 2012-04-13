@@ -18,6 +18,7 @@ my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of
                                                    [],
                                                    [ q[Choose which output files you want symlinks for:] ],
                                                    [ 'step=s@', q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated] ],
+                                                   [ 'filter=s', q[Select files based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions] ],
                                                    [],
                                                    [ q[Choose where the symlinks should go:] ],
                                                    [ 'output_dir=s', 'The output (root) directory for files' ],
@@ -35,9 +36,11 @@ my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of
                                                    [ 'basename_regex=s@', q[Supply a regex and replacement string to alter the basename, eg. --basename_regex 'foo#bar' will turn basename thefoo.file into thebar.file. Multiple replacement may be made by supplying the --basename_regex option multiple times] ],
                                                    [],
                                                    [ 'Other options:' ],
+                                                   [ 'pretend', q[Print the file source and destination paths to stdout of the symlinks that would be created, without actually creating them] ],
                                                    [ 'print', q[Print symlinks to stdout. Good for creating a fofn of the output files] ],
                                                    [ 'md5', q[Also print the md5 of the file to stdout if it has been recorded in the vrpipe database (--print is automatically turned on)] ] ]);
 
+my $pretend = $frontend->opts('pretend');
 my $print = $frontend->opts('print');
 my $md5 = $frontend->opts('md5');
 my $list = $frontend->opts('list');
@@ -50,6 +53,17 @@ my $basename_from_metadata = $frontend->opts('basename_from_metadata');
 my @basename_regex = $frontend->option_was_set('basename_regex') ? @{$frontend->opts('basename_regex')} : ();
 my $setup = $frontend->get_pipelinesetups();
 my @steps = $frontend->option_was_set('step') ? @{$frontend->opts('step')} : ();
+
+my %filters;
+my $filter = $frontend->opts('filter');
+if ($filter) {
+    foreach my $keyval (split(',', $filter)) {
+        $keyval =~ s/^\s+//;
+        $keyval =~ s/\s+$//;
+        my ($key, $val) = $keyval =~ /^([^=]+)=(.+)/;
+        $filters{$key} = $val;
+    }
+}
 
 unless ($setup) {
     $frontend->die_with_error("--setup is required");
@@ -178,6 +192,8 @@ foreach my $element (@$elements) {
     # get output file details
     my %output_files;
     my @output_files;
+    my $filtered_files = 0;
+    my $total_files = 0;
     foreach my $stepm (@allowed_step_members) {
         my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
         my $step_outs = $stepstate->output_files;
@@ -194,17 +210,29 @@ foreach my $element (@$elements) {
             next unless @files;
             
             my @file_data;
-            foreach my $file (@files) {
+            FILE: foreach my $file (@files) {
+                my $meta = $file->metadata;
+                if ($filter) {
+                    foreach my $key (keys %filters) {
+                        my $val = $meta->{$key} || next FILE;
+                        my $regex = $filters{$key};
+                        next FILE unless $val =~ /$regex/;
+                    }
+                }
+                
                 my %hash;
                 $hash{path} = $file->path->stringify;
-                my $meta = $file->metadata;
                 $hash{metadata} = $meta if keys %$meta;
                 push(@file_data, \%hash);
+                push(@output_files, $file);
             }
+            $filtered_files += @files - @file_data;
+            $total_files += @files;
+            next unless @file_data;
             $output_files{$step_desc}->{$kind} = \@file_data;
-            push(@output_files, @files);
         }
     }
+    next if $filtered_files == $total_files;
     
     if (defined $list) {
         # print out useful info about the input
@@ -327,11 +355,17 @@ foreach my $element (@$elements) {
             }
             
             # create symlink
-            $output_file->symlink(VRPipe::File->get(path => $dest));
+            if ($pretend) {
+                $frontend->output($output_file->path.' => '.$dest);
+            }
+            else {
+                $output_file->symlink(VRPipe::File->get(path => $dest));
+            }
             if ($print) {
                 if ($md5 && $output_file->md5) {
                     $frontend->output($output_file->md5, "\t", $dest);
-                } else {
+                }
+                else {
                     $frontend->output($dest);
                 }
             }
