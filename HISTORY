@@ -1,3 +1,5 @@
+0.48    Tweaks and fixes to finalise new bam_genotype_checking
+        pipeline.
 0.47    Minor tweaks to finalise yet-unused pipelines.
 0.46    New versions of merge lanes and stampy mapping pipelines
         with extra features.

@@ -5,9 +5,9 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
+    use Test::Most tests => 6;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES',
-		    required_exe => 'glf');
+		    required_exe => [qw(glf samtools bin2hapmap)]);
     use TestPipelines;
 }
 
@@ -38,18 +38,27 @@ $gc_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'human_g1k_v37.chr20.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
-my $gc_pipelinesetup = VRPipe::PipelineSetup->get(name => 'genotype_checking',
-                                                  datasource => VRPipe::DataSource->get(type => 'fofn',
-                                                                                        method => 'all',
-                                                                                        source => file(qw(t data hs_chr20.qc.bam.fofn))->absolute),
-                                                  output_root => $checking_output_dir,
-                                                  pipeline => $gc_pipeline,
-                                                  options => {reference_fasta => $ref_fa,
-                                                              hapmap2bin_sample_genotypes_file => $snp_bin});
+my $ds = VRPipe::DataSource->get(type => 'fofn',
+			         method => 'all',
+				 source => file(qw(t data hs_chr20.qc.bam.fofn))->absolute);
+
+VRPipe::PipelineSetup->get(name => 'genotype_checking',
+			   datasource => $ds,
+			   output_root => $checking_output_dir,
+			   pipeline => $gc_pipeline,
+			   options => {reference_fasta => $ref_fa,
+			               hapmap2bin_sample_genotypes_file => $snp_bin,
+				       expected_sample_metadata_key => 'sample'});
 
 my (@output_files,@final_files);
 my $element_id=0;
 foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
+    # mpileup_bcf_hapmap step will add sample metadata by figuring it out from
+    # bam; we'll add individual metadata to test glf_check_gentotype's
+    # expected_sample_metadata_key option, and to test we get confirmed results
+    # sometimes
+    VRPipe::File->get(path => file('t', 'data', $in.'.bam')->absolute)->add_metadata({individual => 'NA20586'});
+    
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@output_files, file(@output_subdirs, '2_mpileup_bcf_hapmap', "${in}.bam.bcf"));
@@ -67,6 +76,26 @@ is_deeply \@gtype_results, ['status=unconfirmed expected=NA20526 found=NA20586 r
 			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000',
 			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000',
 			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000'], 'gtype_analysis results were stored correctly as metadata on the input bams';
+
+VRPipe::PipelineSetup->get(name => 'genotype_checking',
+			   datasource => $ds,
+			   output_root => $checking_output_dir,
+			   pipeline => $gc_pipeline,
+			   options => {reference_fasta => $ref_fa,
+			               hapmap2bin_sample_genotypes_file => $snp_bin,
+				       gtype_confidence => 1.01}); # expected_sample_metadata_key defaults to individual
+
+ok handle_pipeline(), 'pipeline ran again';
+
+@gtype_results = ();
+foreach (qw(a b c d)) {
+    my $bam_meta = VRPipe::File->get(path => file('t', 'data', "hs_chr20.$_.bam")->absolute)->metadata;
+    push(@gtype_results, $bam_meta->{gtype_analysis});
+}
+is_deeply \@gtype_results, ['status=confirmed expected=NA20586 found=NA20586 ratio=1.016',
+			    'status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000',
+			    'status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000',
+			    'status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000'], 'gtype_analysis results were updated correctly when we reran using individual as the expected';
 
 done_testing;
 

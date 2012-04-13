@@ -9,7 +9,7 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
     method inputs_definition {
         return { gtypex_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1,
         		                                       description => 'gtypex files containing likelihood scores for genotyping',
-                                                               metadata => {sample => 'name of expected sample', source_bam => 'input bam path'}) };
+                                                               metadata => {expected_sample => 'name of expected sample', source_bam => 'input bam path'}) };
     }
     method body_sub {
         return sub {
@@ -19,9 +19,7 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 3900, time => 1);
 	    
             foreach my $gtypex (@{$self->inputs->{gtypex_files}}) {
-		my $meta = $gtypex->metadata;
-		my $expected = $meta->{sample};
-		my $source_bam = $meta->{source_bam};
+		my $source_bam = $gtypex->metadata->{source_bam};
                 my $gtypex_path = $gtypex->path;
                 my $cmd = "use VRPipe::Steps::gtypex_genotype_analysis; VRPipe::Steps::gtypex_genotype_analysis->analyse_gtypex_output(gtypex => q[$gtypex_path], confidence => q[$min_ratio], source_bam => q[$source_bam]);";
                 $self->dispatch_vrpipecode($cmd, $req);
@@ -44,7 +42,7 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
     method analyse_gtypex_output (ClassName|Object $self: Str|File :$gtypex, Str|File :$source_bam, Num :$confidence) {
         my $gtypex_file = VRPipe::File->get(path => $gtypex);
         my $meta = $gtypex_file->metadata;
-        my $expected = $meta->{sample};
+        my $expected = $meta->{expected_sample};
         my $bam_file = VRPipe::File->get(path => $source_bam);
         my $fh = $gtypex_file->openr;
         $bam_file->disconnect;

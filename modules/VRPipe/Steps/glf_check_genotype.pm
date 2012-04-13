@@ -3,6 +3,10 @@ use VRPipe::Base;
 class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
     method options_definition {
         return { hapmap2bin_sample_genotypes_file => VRPipe::StepOption->get(description => 'absolute path to binary file of sample genotypes, produced by hapmap2bin'),
+		 expected_sample_metadata_key => VRPipe::StepOption->get(description => 'The key of the metadata on the bam/bcf file that holds the expected sample name to compare against in the hapmap2bin_sample_genotypes_file file',
+									 optional => 1,
+									 default_value => 'individual',
+									 allowed_values => ['individual', 'sample']),
         	 glf_exe => VRPipe::StepOption->get(description => 'path to the glf executable',
                                                     optional => 1,
                                                     default_value => 'glf') };
@@ -11,7 +15,9 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         return { bcf_files => VRPipe::StepIODefinition->get(type => 'bin',
                                                             max_files => -1,
                                                             description => 'bcf files for genotyping',
-                                                            metadata => {sample => 'name of expected sample', source_bam => 'input bam path'}) };
+                                                            metadata => {source_bam => 'input bam path',
+									 individual => 'expected individual name',
+									 sample => 'expected sample name'}) };
     }
     method body_sub {
         return sub {
@@ -20,17 +26,18 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
             my $gtype_snps_bin = Path::Class::File->new($options->{hapmap2bin_sample_genotypes_file});
             $self->throw("hapmap2bin_sample_genotypes_file must be an absolute path") unless $gtype_snps_bin->is_absolute;
             my $glf_exe = $options->{glf_exe};
+	    my $expected_key = $options->{expected_sample_metadata_key};
 	    
             my $req = $self->new_requirements(memory => 3900, time => 1);
             foreach my $bcf (@{$self->inputs->{bcf_files}}) {
 		my $bcf_path = $bcf->path;
 		my $meta = $bcf->metadata;
-		my $sample = $meta->{sample};
+		my $sample = $meta->{$expected_key};
 		my $source_bam = $meta->{source_bam};
 		my $gtypex_file = $self->output_file(output_key => 'gtypex_files_with_metadata',
 						     basename => $bcf->basename.'.gtypex',
 						     type => 'txt',
-						     metadata => {sample => $sample, source_bam => $source_bam});
+						     metadata => {expected_sample => $sample, source_bam => $source_bam});
 		my $gtypex_path = $gtypex_file->path;
 		my $cmd = qq[$glf_exe checkGenotype -s - $gtype_snps_bin $bcf_path > $gtypex_path];
 		$self->dispatch([$cmd, $req, {output_files => [$gtypex_file]}]);	
@@ -41,7 +48,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         return { gtypex_files_with_metadata => VRPipe::StepIODefinition->get(type => 'txt',
 									     max_files => -1,
 									     description => 'file of likelihood scores calculated by glf',
-									     metadata => {sample => 'name of expected sample', source_bam => 'input bam path'}) };
+									     metadata => {expected_sample => 'name of expected sample', source_bam => 'input bam path'}) };
     }
     method post_process_sub {
         return sub { return 1; };
