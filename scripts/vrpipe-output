@@ -165,7 +165,7 @@ foreach my $element (@$elements) {
             if ($basename_as_input) {
                 if (@$input_paths == 1) {
                     $input_basename = file($input_paths->[0])->basename;
-                    $input_basename =~ s/\.[^\.]+$//;
+                    $input_basename =~ s/\.[^\.]+$/.$basename_as_input/;
                 }
                 else {
                     $frontend->error("$eident doesn't have exactly one input path associated with it, so --basename_as_input won't work; skipping");
