@@ -34,12 +34,9 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
                foreach my $bam (@{$self->inputs->{bam_files}}) {
                     # work out the expected sample
                     my $bam_path = $bam->path;
-                    my $sample;
                     my $meta = $bam->metadata;
-                    if ($meta->{sample}) {
-                         $sample = $meta->{sample};
-                    }
-                    else {
+                    my $sample = $meta->{sample};
+                    unless ($sample) {
                          my $parser = VRPipe::Parser->create('bam', {file => $bam_path});
                          my %rg_info = $parser->readgroup_info();
                          my %samples;
@@ -50,15 +47,16 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
                          my @samples = keys %samples;
                          if (@samples == 1) {
                               $sample = $samples[0];
-                              $bam->add_metadata({samples => $sample});
+                              $bam->add_metadata({sample => $sample});
                          }
                     }
                     $self->throw("Unable to obtain sample name for bam file $bam_path") unless $sample;
+                    my $individual = $meta->{individual} || $sample;
                     
                     my $bcf_file = $self->output_file(output_key => 'bcf_files_with_metadata',
                                                       basename => $bam_path->basename.'.bcf',
                                                       type => 'bin',
-                                                      metadata => { sample => $sample, source_bam => $bam_path->stringify });
+                                                      metadata => { sample => $sample, individual => $individual, source_bam => $bam_path->stringify });
                     my $bcf_path = $bcf_file->path;
                     my $cmd = qq[$samtools mpileup $mpileup_opts -f $ref $bam_path > $bcf_path];
                     $self->dispatch([$cmd, $req, {output_files => [$bcf_file]}]);
@@ -69,7 +67,9 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
           return { bcf_files_with_metadata => VRPipe::StepIODefinition->get(type => 'bin',
                                                                             max_files => -1,
                                                                             description => 'bcf file produced for bam file using samtools',
-                                                                            metadata => {sample => 'name of expected sample',  source_bam => 'name of bam file used to produce bcf file'}) };
+                                                                            metadata => {sample => 'name of expected sample',
+                                                                                         individual => 'name of expected individual',
+                                                                                         source_bam => 'name of bam file used to produce bcf file'}) };
      }
      method description {
           return "Run samtools mpileup for each bam using the hapmap sites file provided to generate one bcf file with associated sample name metadata per bam";
