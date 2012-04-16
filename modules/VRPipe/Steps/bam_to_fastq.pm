@@ -236,7 +236,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             my $extra = $extra_meta{$out_file->id} || next;
             $out_file->add_metadata({bases => $extra->{bases},
                                      reads => $extra->{reads},
-                                     avg_read_length => sprintf("%0.2f", $extra->{reads} / $extra->{bases})},
+                                     avg_read_length => sprintf("%0.2f", $extra->{bases} / $extra->{reads})},
                                     replace_data => 1);
         }
     }

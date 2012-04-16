@@ -50,7 +50,7 @@ is_deeply read_fastq(file(qw(t data 2822_6_1.fastq))->absolute), read_fastq($fas
 is_deeply read_fastq(file(qw(t data 2822_6_2.fastq))->absolute), read_fastq($fastqs[3]), 'reverse fastq from improved bam had same data as original reverse fastq the input bam was mapped from';
 
 my $fmeta = VRPipe::File->get(path => $fastqs[0])->metadata;
-is_deeply [$fmeta->{reads}, $fmeta->{bases}], [200, 12200], 'basic metadata is correct for the forward fastq';
+is_deeply [$fmeta->{reads}, $fmeta->{bases}, $fmeta->{avg_read_length}], [200, 12200, '61.00'], 'basic metadata is correct for the forward fastq';
 
 finish;
 
