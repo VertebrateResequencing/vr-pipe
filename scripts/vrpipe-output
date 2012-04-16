@@ -344,11 +344,12 @@ foreach my $element (@$elements) {
             }
             
             my $dest = file($this_output_dir, $this_basename);
+            my $resolved_output = $output_file->resolve;
             
             # make sure it doesn't already exist
-            my $source = $output_file->path;
+            my $source = $resolved_output->path;
             if (-e $dest) {
-                unless (-l $dest && $dest->resolve->absolute eq $source) {
+                unless (-l $dest && ($dest->resolve->absolute eq $source || $dest->resolve->absolute eq $output_file->path)) {
                     $frontend->error("Can't create symlink $source => $dest since the destination already exists and isn't a symlink pointing to the source; skipping");
                 }
                 next;
@@ -356,14 +357,14 @@ foreach my $element (@$elements) {
             
             # create symlink
             if ($pretend) {
-                $frontend->output($output_file->path.' => '.$dest);
+                $frontend->output($resolved_output->path.' => '.$dest);
             }
             else {
-                $output_file->symlink(VRPipe::File->get(path => $dest));
+                $resolved_output->symlink(VRPipe::File->get(path => $dest));
             }
             if ($print) {
-                if ($md5 && $output_file->md5) {
-                    $frontend->output($output_file->md5, "\t", $dest);
+                if ($md5) {
+                    $frontend->output($resolved_output->md5 || 'unknownmd5', "\t", $dest);
                 }
                 else {
                     $frontend->output($dest);
