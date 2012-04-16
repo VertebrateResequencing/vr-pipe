@@ -29,11 +29,20 @@ foreach my $setup (@setups) {
     }
     
     my $datasource = $setup->datasource;
-    my $num_elements = scalar(@{$datasource->elements});
-    my @incomplete = @{$datasource->incomplete_element_states($setup)};
+    my $num_elements;
+    my @incomplete;
+    eval {
+        $num_elements = scalar(@{$datasource->elements});
+        @incomplete = @{$datasource->incomplete_element_states($setup)};
+    };
+    my $ds_error = $@;
     my $num_incomplete = @incomplete;
     next if $incomplete_only && ! $num_incomplete;
     $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
+    if ($ds_error) {
+        $frontend->output("There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n");
+        next;
+    }
     
     my $pipeline = $setup->pipeline;
     my $step_members = $pipeline->steps;
