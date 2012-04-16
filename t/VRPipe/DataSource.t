@@ -296,6 +296,8 @@ SKIP: {
     my $meta = $vrfile->metadata;
     is_deeply $meta, { 'bases' => '1696783',
                        'withdrawn' => 0,
+                       'project' => 'SRP000542',
+                       'species' => 'Homo sapiens',
                        'population' => 'YRI',
                        'paired' => 1,
                        'reads' => '45859',
@@ -308,10 +310,7 @@ SKIP: {
                        'expected_md5' => 'dfa4364855815d7433c451a87f0520d0',
                        'study' => 'SRP000542',
                        'lane' => 'ERR003199',
-                       'study_name' => 'SRP000542',
-                       'insert_size' => 175,
-                       'sample_id' => '',
-                       'mate' => ''}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
+                       'insert_size' => 175}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
     
     $newfile = $lane_to_add_file_for->add_file('new.fastq');
     $newfile->type(0);

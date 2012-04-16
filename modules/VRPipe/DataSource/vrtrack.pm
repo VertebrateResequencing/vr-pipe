@@ -360,23 +360,22 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $file_abs_path = file($local_root_dir, $file->name)->stringify; 
                 my $new_metadata = {
                     expected_md5 => $file->md5,
-                    lane => $lane_info{'lane'},
-                    study => $lane_info{'study'},
-                    study_name => $lane_info{'study'},
                     center_name => $lane_info{'centre'},
-                    sample_id => '',
-                    sample => $lane_info{'sample'},
+                    project => $lane_info{'project'},
+                    study => $lane_info{'study'},
+                    $lane_info{'species'} ? (species => $lane_info{'species'}) : (),
                     population => $lane_info{ 'population'},
-                    platform => $lane_info{'seq_tech'},
                     individual => $lane_info{'individual'},
-                    library => $lane_info{ 'library' }, 
+                    sample => $lane_info{'sample'},
+                    platform => $lane_info{'seq_tech'},
+                    library => $lane_info{ 'library' },
+                    lane => $lane_info{'lane'},
                     withdrawn => $lane_info{ 'withdrawn' } || 0, #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
                     insert_size => $lane_info{'insert_size'} || 0,
                     reads => $file->raw_reads || 0, 
                     bases => $file->raw_bases || 0, 
                     paired => $lane_info{'vrlane'}->is_paired,
-                    mate  => '',
-                    lane_id => $file->lane_id,
+                    lane_id => $file->lane_id
                 };
                 
                 my $vrfile = VRPipe::File->get(path => $file_abs_path, type => $vrpipe_filetype);
@@ -386,7 +385,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $current_metadata = $vrfile->metadata;
                 my $changed = 0;
                 if ($current_metadata && keys %$current_metadata) {
-                    foreach my $meta (qw(expected_md5 lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
+                    foreach my $meta (qw(expected_md5 lane project study center_name sample population platform library insert_size)) {
                         next unless $new_metadata->{$meta};
                         if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
                             $self->debug("metadata '$meta' changed from $current_metadata->{$meta} to $new_metadata->{$meta} for file $file_abs_path, so will mark lane ".$lane->name." as changed");
