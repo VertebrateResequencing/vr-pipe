@@ -42,17 +42,17 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                 my $meta = $bam->metadata;
                 my $rginfo_cmd;
                 $rginfo_cmd = "RGID=".$meta->{lane};
-                my $library = $meta->{library} || 'unknown_library';
+                my $library = $self->command_line_safe_string($meta->{library} || 'unknown_library');
                 $rginfo_cmd .= " RGLB=$library";
-                my $platform = $meta->{platform} || 'unknown_platform';
+                my $platform = $self->command_line_safe_string($meta->{platform} || 'unknown_platform');
                 $rginfo_cmd .= " RGPL=$platform";
-                my $platform_unit = $meta->{platform_unit} || $meta->{lane};
+                my $platform_unit = $self->command_line_safe_string($meta->{platform_unit} || $meta->{lane});
                 $rginfo_cmd .= " RGPU=$platform_unit";
-                my $sample = $meta->{sample} || 'unknown_sample';
+                my $sample = $self->command_line_safe_string($meta->{sample} || 'unknown_sample');
                 $rginfo_cmd .= " RGSM=$sample";
-                my $centre = $meta->{centre_name} || 'unknown_centre';
+                my $centre = $self->command_line_safe_string($meta->{centre_name} || 'unknown_centre');
                 $rginfo_cmd .= " RGCN=$centre";
-                my $study = $meta->{study} || 'unknown_study';
+                my $study = $self->command_line_safe_string($meta->{study} || 'unknown_study');
                 $rginfo_cmd .= " RGDS=$study";
                 
                 my $rg_added_bam_file = $self->output_file(output_key => 'rg_added_bam_files',
@@ -105,7 +105,13 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                 my $actual_data = $readgroup_info{$record_rg};
                 my $all_match = 1;
                 foreach my $tag (qw(LB PL PU SM CN DS)) {
-                    my ($desired_val) = $cmd_line =~ / RG$tag=(\S+)/; # *** do we have to worry about values with spaces in them?
+                    my $desired_val;
+                    if ($cmd_line =~ /RG$tag='([^']+)'/) {
+                        $desired_val = $1;
+                    }
+                    else {
+                        ($desired_val) = $cmd_line =~ / RG$tag=(\S+)/;
+                    }
                     next if $desired_val eq $actual_data->{$tag};
                     $all_match = 0;
                     last;
@@ -131,6 +137,14 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
             $out_file->unlink;
             $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
         }
+    }
+    
+    method command_line_safe_string (Str $str) {
+        # add single quotes around the string if it contains spaces
+        if ($str =~ /\s/) {
+            $str = qq['$str'];
+        }
+        return $str;
     }
 }
 
