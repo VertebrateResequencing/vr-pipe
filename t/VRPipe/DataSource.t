@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 39;
+    use Test::Most tests => 40;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -154,6 +154,10 @@ SKIP: {
             if ($i > 10) {
                 $lane->is_processed('qc' => 1);
                 push(@{$expectations{qc}}, $name);
+                if ($i > 45) {
+                    $lane->qc_status('passed');
+                    push(@{$expectations{qc_status_passed}}, $name);
+                }
             }
             if ($i > 20) {
                 $lane->is_processed('mapped' => 1);
@@ -347,5 +351,38 @@ SKIP: {
     VRTrack::Lane->create($vrtrack, 'new_lane2');
     $ds->elements;
     is $vrfile->metadata->{insert_size}, '200', 'changing insert_size in vrtrack changes insert_size metadata on vrpipe files';
+    
+    # test getting improved bams that passed qc
+    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    my %expected_qc_passed_improved_bams;
+    my %passed_hnames = map { $_ => 1 } @{$expectations{qc_status_passed}};
+    foreach my $hname (@{$expectations{qc}}) {
+        my $vrlane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $hname);
+        my $improved_bam = VRPipe::File->get(path => file($hname.'.improved.bam')->absolute);
+        my $vrfile_name = 'VRPipe::File::'.$improved_bam->id;
+        my $md5 = '';
+	$vrfile = $vrlane->add_file($vrfile_name);
+	$vrfile->type(5);
+	$vrfile->md5($md5);
+	$vrfile->update;
+        $improved_bam->md5($md5);
+        $improved_bam->update;
+        if (exists $passed_hnames{$hname}) {
+            $expected_qc_passed_improved_bams{$improved_bam->path->stringify} = 1;
+        }
+    }
+    $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                  method => 'lane_improved_bams',
+                                  source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                  options => {qc => 1,
+                                              qc_status => 'passed'});
+    my %actual_qc_passed_improved_bams;
+    foreach my $element (@{$ds->elements}) {
+        foreach my $path (@{$element->result->{paths}}) {
+            $actual_qc_passed_improved_bams{$path} = 1;
+            warn "got path $path\n";
+        }
+    }
+    is_deeply \%actual_qc_passed_improved_bams, \%expected_qc_passed_improved_bams, 'an improved bam qc passed datasource gave the expected files';
 }
 exit;

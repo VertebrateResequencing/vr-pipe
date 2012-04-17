@@ -70,8 +70,9 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 last;
             }
         }
-        push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'qc_status', 'hierarchy_name')}) if defined $options->{qc_status};
-        push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, 'gt_status', 'hierarchy_name')}) if defined $options->{gt_status};
+        foreach my $status (qw(auto_qc_status npg_qc_status qc_status gt_status)) {
+            push(@$lane_changes, @{VRTrack::Lane->_all_values_by_field($vrtrack_source, $status, 'hierarchy_name')}) if defined $options->{$status};
+        }
         
         # we care about certain types of files depending on method
         my $method = $self->method;
@@ -80,6 +81,9 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         }
         elsif ($method eq 'lane_bams') {
             push(@$lane_changes, @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=4 and latest=true')});
+        }
+        elsif ($method eq 'lane_improved_bams') {
+            push(@$lane_changes, @{VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=5 and latest=true')});
         }
         
         my $digest = md5_hex join('', map { defined $_ ? $_ : 'NULL' } @$lane_changes);
@@ -97,6 +101,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                             Str :$project_regex?,
                             Str :$sample_regex?,
                             Str :$library_regex?,
+                            Str :$npg_qc_status?,
+                            Str :$auto_qc_status?,
                             Str :$qc_status?,
                             Str :$gt_status?,
                             Bool :$import?,
@@ -163,6 +169,14 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $this_status = $lane->qc_status;
                 next if $this_status !~ /$qc_status/;
             }
+            if (defined $auto_qc_status) {
+                my $this_status = $lane->auto_qc_status;
+                next if $this_status !~ /$auto_qc_status/;
+            }
+            if (defined $npg_qc_status) {
+                my $this_status = $lane->npg_qc_status;
+                next if $this_status !~ /$npg_qc_status/;
+            }
             if (defined $gt_status) {
                 my $this_status = $lane->gt_status;
                 next if $this_status !~ /$gt_status/;
@@ -185,6 +199,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                   Str :$project_regex?,
                   Str :$sample_regex?,
                   Str :$library_regex?,
+                  Str :$npg_qc_status?,
+                  Str :$auto_qc_status?,
                   Str :$qc_status?,
                   Str :$gt_status?,
                   Bool :$import?,
@@ -217,6 +233,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{improved} = $improved if defined($improved);
         $args{snp_called} = $snp_called if defined($snp_called);
         $args{qc_status} = $qc_status if defined($qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
         $args{gt_status} = $gt_status if defined($gt_status);
         
         my @elements;
@@ -239,6 +257,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                       Str :$project_regex?,
                       Str :$sample_regex?,
                       Str :$library_regex?,
+                      Str :$npg_qc_status?,
+                      Str :$auto_qc_status?,
                       Str :$qc_status?,
                       Str :$gt_status?,
                       Bool :$import?,
@@ -272,10 +292,66 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{improved} = $improved if defined($improved);
         $args{snp_called} = $snp_called if defined($snp_called);
         $args{qc_status} = $qc_status if defined($qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
         $args{gt_status} = $gt_status if defined($gt_status);
         
         # add to the argument list to filter on bam files
         $args{'file_type'} = 4;
+        return $self->_lane_files(%args);
+    }
+    
+    method lane_improved_bams (Defined :$handle!,
+                               ArrayRef :$project?,
+                               ArrayRef :$sample?,
+                               ArrayRef :$individual?,
+                               ArrayRef :$population?,
+                               ArrayRef :$platform?,
+                               ArrayRef :$centre?,
+                               ArrayRef :$library?,
+                               Str :$project_regex?,
+                               Str :$sample_regex?,
+                               Str :$library_regex?,
+                               Str :$npg_qc_status?,
+                               Str :$auto_qc_status?,
+                               Str :$qc_status?,
+                               Str :$gt_status?,
+                               Bool :$import?,
+                               Bool :$qc?,
+                               Bool :$mapped?,
+                               Bool :$stored?,
+                               Bool :$deleted?,
+                               Bool :$swapped?,
+                               Bool :$altered_fastq?,
+                               Bool :$improved?,
+                               Bool :$snp_called?) {
+        my %args;
+        $args{handle} = $handle if defined($handle);
+        $args{project} = $project if defined($project);
+        $args{sample} = $sample if defined($sample);
+        $args{individual} = $population if defined($population);
+        $args{platform} = $platform if defined($platform);
+        $args{centre} = $centre if defined($centre);
+        $args{library} = $library if defined($library);
+        $args{project_regex} = $project_regex if defined($project_regex);
+        $args{sample_regex} = $sample_regex if defined($sample_regex);
+        $args{library_regex} = $library_regex if defined($library_regex);
+        $args{import} = $import if defined($import);
+        $args{qc} = $qc if defined($qc);
+        $args{mapped} = $mapped if defined($mapped);
+        $args{stored} = $stored if defined($stored);
+        $args{deleted} = $deleted if defined($deleted);
+        $args{swapped} = $swapped if defined($swapped);
+        $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
+        $args{improved} = $improved if defined($improved);
+        $args{snp_called} = $snp_called if defined($snp_called);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
+        $args{gt_status} = $gt_status if defined($gt_status);
+        
+        # add to the argument list to filter on improved bam files
+        $args{'file_type'} = 5;
         return $self->_lane_files(%args);
     }
     
@@ -291,6 +367,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                        Str :$project_regex?,
                        Str :$sample_regex?,
                        Str :$library_regex?,
+                       Str :$npg_qc_status?,
+                       Str :$auto_qc_status?,
                        Str :$qc_status?,
                        Str :$gt_status?,
                        Bool :$import?,
@@ -324,6 +402,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{improved} = $improved if defined($improved);
         $args{snp_called} = $snp_called if defined($snp_called);
         $args{qc_status} = $qc_status if defined($qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
         $args{gt_status} = $gt_status if defined($gt_status);
         
         # add to the argument list to filter on fastq files
@@ -339,12 +419,10 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         }
         my ($file_type_key) = split('|', $file_type);
         my $vrpipe_filetype = $file_type_to_type{$file_type_key};
-        
         my $local_root_dir = delete $args{local_root_dir};
-        unless (defined $local_root_dir) {
-            $self->throw("local_root_dir is required");
+        unless ($file_type eq "5") {
+            $self->throw("local_root_dir is required") unless $local_root_dir;
         }
-        
         my $vrtrack = $args{handle};
         
         my @elements;
@@ -357,7 +435,19 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             foreach my $file (@{$lane->files}) {
                 next unless $file->type =~ /^($file_type)$/;
                 
-                my $file_abs_path = file($local_root_dir, $file->name)->stringify; 
+                my ($file_abs_path, $vrfile);
+                if ($file_type eq "5") {
+                    my $file_name = $file->name;
+                    my ($fid) = $file_name =~ /VRPipe::File::(\d+)/;
+                    $fid || $self->throw("file ".$file->id." was type 5, but did not have a VRPipe::File name (was '$file_name')");
+                    $vrfile = VRPipe::File->get(id => $fid);
+                    $file_abs_path = $vrfile->path->stringify;
+                }
+                else {
+                    $file_abs_path = file($local_root_dir, $file->name)->stringify;
+                    $vrfile = VRPipe::File->get(path => $file_abs_path, type => $vrpipe_filetype);
+                }
+                
                 my $new_metadata = {
                     expected_md5 => $file->md5,
                     center_name => $lane_info{'centre'},
@@ -377,8 +467,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     paired => $lane_info{'vrlane'}->is_paired,
                     lane_id => $file->lane_id
                 };
-                
-                my $vrfile = VRPipe::File->get(path => $file_abs_path, type => $vrpipe_filetype);
                 
                 # add metadata to file but ensure that we update any fields in
                 # the new metadata
