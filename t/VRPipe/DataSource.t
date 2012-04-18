@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 40;
+    use Test::Most tests => 41;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -285,7 +285,7 @@ SKIP: {
     ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
                                   method => 'lane_fastqs',
                                   source => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                  options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library => ['g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190'] } ), 'could create a vrtrack datasource';
+                                  options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library_regex => 'g1k-sc-NA19190-YRI-1\|SC\|SRP000542\|NA19190' } ), 'could create a vrtrack datasource';
     
     @results = ();
     foreach my $element (@{$ds->elements}) {
@@ -360,7 +360,7 @@ SKIP: {
         my $vrlane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $hname);
         my $improved_bam = VRPipe::File->get(path => file($hname.'.improved.bam')->absolute);
         my $vrfile_name = 'VRPipe::File::'.$improved_bam->id;
-        my $md5 = '';
+        my $md5 = 'an_md5_'.$improved_bam->id;
 	$vrfile = $vrlane->add_file($vrfile_name);
 	$vrfile->type(5);
 	$vrfile->md5($md5);
@@ -370,19 +370,32 @@ SKIP: {
         if (exists $passed_hnames{$hname}) {
             $expected_qc_passed_improved_bams{$improved_bam->path->stringify} = 1;
         }
+        
+        # to give us more than 1 group to test, change the library of one of the
+        # lanes
+        if ($hname eq 'ERR008838') {
+            $vrlane->library_id(1);
+            $vrlane->update;
+        }
     }
+    my %expected_groups = ('SRP000546|SRP000546|NA18633|HUMsgR3AIDCAASE' => 1,
+                           'SRP000547|SRP000547|NA07056|g1k_sc_NA07056_CEU_1' => 1);
     $ds = VRPipe::DataSource->get(type => 'vrtrack',
                                   method => 'lane_improved_bams',
                                   source => $ENV{VRPIPE_VRTRACK_TESTDB},
                                   options => {qc => 1,
-                                              qc_status => 'passed'});
+                                              qc_status => 'passed',
+                                              group_by_metadata => 'project|study|sample|library'});
     my %actual_qc_passed_improved_bams;
+    my %actual_groups;
     foreach my $element (@{$ds->elements}) {
-        foreach my $path (@{$element->result->{paths}}) {
+        my $result = $element->result;
+        $actual_groups{$result->{group} || 'no_group'} = 1;
+        foreach my $path (@{$result->{paths}}) {
             $actual_qc_passed_improved_bams{$path} = 1;
-            warn "got path $path\n";
         }
     }
     is_deeply \%actual_qc_passed_improved_bams, \%expected_qc_passed_improved_bams, 'an improved bam qc passed datasource gave the expected files';
+    is_deeply \%actual_groups, \%expected_groups, 'a group_by_metadata datasource gave the expected groups';
 }
 exit;

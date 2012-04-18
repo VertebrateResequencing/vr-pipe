@@ -21,10 +21,19 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             return "An element will comprise the name of a lane (only).";
         }
         elsif ($method eq 'lane_bams') {
-            return "An element will comprise all the bams for a single lane, and the bam files will have all relevant available metadata associated with them.";
+            return "An element will comprise all the bams for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata \
+            keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and \
+            library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
+        }
+        elsif ($method eq 'lane_improved_bams') {
+            return "An element will comprise all the bams output by the VRPipe improvement pipeline for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata \
+            keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and \
+            library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
         elsif ($method eq 'lane_fastqs') {
-            return "An element will comprise all the fastqs for a single lane, and the fastq files will have all relevant available metadata associated with them.";
+            return "An element will comprise all the fastqs for a single lane, and the fastq files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata \
+            keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and \
+            library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
         
         return '';
@@ -91,38 +100,19 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method _filtered_lanes (Defined :$handle!,
-                            ArrayRef :$project?,
-                            ArrayRef :$sample?,
-                            ArrayRef :$individual?,
-                            ArrayRef :$population?,
-                            ArrayRef :$platform?,
-                            ArrayRef :$centre?,
-                            ArrayRef :$library?,
                             Str :$project_regex?,
                             Str :$sample_regex?,
                             Str :$library_regex?,
-                            Str :$npg_qc_status?,
-                            Str :$auto_qc_status?,
-                            Str :$qc_status?,
                             Str :$gt_status?,
+                            Str :$qc_status?,
+                            Str :$auto_qc_status?,
+                            Str :$npg_qc_status?,
                             Bool :$import?,
                             Bool :$qc?,
                             Bool :$mapped?,
-                            Bool :$stored?,
-                            Bool :$deleted?,
-                            Bool :$swapped?,
-                            Bool :$altered_fastq?,
-                            Bool :$improved?,
-                            Bool :$snp_called?) {
+                            Bool :$improved?) {
         my $hu = VertRes::Utils::Hierarchy->new();
         my @lanes = $hu->get_lanes(vrtrack => $handle,
-                                   $project ? (project => $project) : (),
-                                   $sample ? (sample => $sample) : (),
-                                   $individual ? (individual => $individual) : (),
-                                   $population ? (population => $population) : (),
-                                   $platform ? (platform => $platform) : (),
-                                   $centre ? (centre => $centre) : (),
-                                   $library ? (library => $library) : (),
                                    $project_regex ? (project_regex => $project_regex) : (),
                                    $sample_regex ? (sample_regex => $sample_regex) : (),
                                    $library_regex ? (library_regex => $library_regex) : ());
@@ -141,29 +131,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $processed = $lane->is_processed('mapped');
                 next if $processed != $mapped;
             }
-            if (defined $stored) {
-                my $processed = $lane->is_processed('stored');
-                next if $processed != $stored;
-            }
-            if (defined $deleted) {
-                my $processed = $lane->is_processed('deleted');
-                next if $processed != $deleted;
-            }
-            if (defined $swapped) {
-                my $processed = $lane->is_processed('swapped');
-                next if $processed != $swapped;
-            }
-            if (defined $altered_fastq) {
-                my $processed = $lane->is_processed('altered_fastq');
-                next if $processed != $altered_fastq;
-            }
             if (defined $improved) {
                 my $processed = $lane->is_processed('improved');
                 next if $processed != $improved;
             }
-            if (defined $snp_called) {
-                my $processed = $lane->is_processed('snp_called');
-                next if $processed != $snp_called;
+            if (defined $gt_status) {
+                my $this_status = $lane->gt_status;
+                next if $this_status !~ /$gt_status/;
             }
             if (defined $qc_status) {
                 my $this_status = $lane->qc_status;
@@ -177,10 +151,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $this_status = $lane->npg_qc_status;
                 next if $this_status !~ /$npg_qc_status/;
             }
-            if (defined $gt_status) {
-                my $this_status = $lane->gt_status;
-                next if $this_status !~ /$gt_status/;
-            }
             
             push(@filtered, $lane);
         }
@@ -189,53 +159,30 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method lanes (Defined :$handle!,
-                  ArrayRef :$project?,
-                  ArrayRef :$sample?,
-                  ArrayRef :$individual?,
-                  ArrayRef :$population?,
-                  ArrayRef :$platform?,
-                  ArrayRef :$centre?,
-                  ArrayRef :$library?,
                   Str :$project_regex?,
                   Str :$sample_regex?,
                   Str :$library_regex?,
-                  Str :$npg_qc_status?,
-                  Str :$auto_qc_status?,
-                  Str :$qc_status?,
                   Str :$gt_status?,
+                  Str :$qc_status?,
+                  Str :$auto_qc_status?,
+                  Str :$npg_qc_status?,
                   Bool :$import?,
                   Bool :$qc?,
                   Bool :$mapped?,
-                  Bool :$stored?,
-                  Bool :$deleted?,
-                  Bool :$swapped?,
-                  Bool :$altered_fastq?,
-                  Bool :$improved?,
-                  Bool :$snp_called?) {
+                  Bool :$improved?) {
         my %args;
         $args{handle} = $handle if defined($handle);
-        $args{project} = $project if defined($project);
-        $args{sample} = $sample if defined($sample);
-        $args{individual} = $population if defined($population);
-        $args{platform} = $platform if defined($platform);
-        $args{centre} = $centre if defined($centre);
-        $args{library} = $library if defined($library);
         $args{project_regex} = $project_regex if defined($project_regex);
         $args{sample_regex} = $sample_regex if defined($sample_regex);
         $args{library_regex} = $library_regex if defined($library_regex);
+        $args{gt_status} = $gt_status if defined($gt_status);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
         $args{import} = $import if defined($import);
         $args{qc} = $qc if defined($qc);
         $args{mapped} = $mapped if defined($mapped);
-        $args{stored} = $stored if defined($stored);
-        $args{deleted} = $deleted if defined($deleted);
-        $args{swapped} = $swapped if defined($swapped);
-        $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
         $args{improved} = $improved if defined($improved);
-        $args{snp_called} = $snp_called if defined($snp_called);
-        $args{qc_status} = $qc_status if defined($qc_status);
-        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
-        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
-        $args{gt_status} = $gt_status if defined($gt_status);
         
         my @elements;
         foreach my $lane ($self->_filtered_lanes(%args)) {
@@ -244,57 +191,36 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $self->_update_changed_marker; 
         return \@elements;
     }
-
+    
     method lane_bams (Defined :$handle!,
                       Str|Dir :$local_root_dir!,
-                      ArrayRef :$project?,
-                      ArrayRef :$sample?,
-                      ArrayRef :$individual?,
-                      ArrayRef :$population?,
-                      ArrayRef :$platform?,
-                      ArrayRef :$centre?,
-                      ArrayRef :$library?,
                       Str :$project_regex?,
                       Str :$sample_regex?,
                       Str :$library_regex?,
-                      Str :$npg_qc_status?,
-                      Str :$auto_qc_status?,
-                      Str :$qc_status?,
                       Str :$gt_status?,
+                      Str :$qc_status?,
+                      Str :$auto_qc_status?,
+                      Str :$npg_qc_status?,
                       Bool :$import?,
                       Bool :$qc?,
                       Bool :$mapped?,
-                      Bool :$stored?,
-                      Bool :$deleted?,
-                      Bool :$swapped?,
-                      Bool :$altered_fastq?,
                       Bool :$improved?,
-                      Bool :$snp_called?) {
+                      Str :$group_by_metadata?) {
         my %args;
         $args{handle} = $handle if defined($handle);
         $args{local_root_dir} = $local_root_dir if defined($local_root_dir);
-        $args{project} = $project if defined($project);
-        $args{sample} = $sample if defined($sample);
-        $args{individual} = $population if defined($population);
-        $args{platform} = $platform if defined($platform);
-        $args{centre} = $centre if defined($centre);
-        $args{library} = $library if defined($library);
         $args{project_regex} = $project_regex if defined($project_regex);
         $args{sample_regex} = $sample_regex if defined($sample_regex);
         $args{library_regex} = $library_regex if defined($library_regex);
+        $args{gt_status} = $gt_status if defined($gt_status);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
         $args{import} = $import if defined($import);
         $args{qc} = $qc if defined($qc);
         $args{mapped} = $mapped if defined($mapped);
-        $args{stored} = $stored if defined($stored);
-        $args{deleted} = $deleted if defined($deleted);
-        $args{swapped} = $swapped if defined($swapped);
-        $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
         $args{improved} = $improved if defined($improved);
-        $args{snp_called} = $snp_called if defined($snp_called);
-        $args{qc_status} = $qc_status if defined($qc_status);
-        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
-        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
-        $args{gt_status} = $gt_status if defined($gt_status);
+        $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on bam files
         $args{'file_type'} = 4;
@@ -302,53 +228,32 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method lane_improved_bams (Defined :$handle!,
-                               ArrayRef :$project?,
-                               ArrayRef :$sample?,
-                               ArrayRef :$individual?,
-                               ArrayRef :$population?,
-                               ArrayRef :$platform?,
-                               ArrayRef :$centre?,
-                               ArrayRef :$library?,
                                Str :$project_regex?,
                                Str :$sample_regex?,
                                Str :$library_regex?,
-                               Str :$npg_qc_status?,
-                               Str :$auto_qc_status?,
-                               Str :$qc_status?,
                                Str :$gt_status?,
+                               Str :$qc_status?,
+                               Str :$auto_qc_status?,
+                               Str :$npg_qc_status?,
                                Bool :$import?,
                                Bool :$qc?,
                                Bool :$mapped?,
-                               Bool :$stored?,
-                               Bool :$deleted?,
-                               Bool :$swapped?,
-                               Bool :$altered_fastq?,
                                Bool :$improved?,
-                               Bool :$snp_called?) {
+                               Str :$group_by_metadata?) {
         my %args;
         $args{handle} = $handle if defined($handle);
-        $args{project} = $project if defined($project);
-        $args{sample} = $sample if defined($sample);
-        $args{individual} = $population if defined($population);
-        $args{platform} = $platform if defined($platform);
-        $args{centre} = $centre if defined($centre);
-        $args{library} = $library if defined($library);
         $args{project_regex} = $project_regex if defined($project_regex);
         $args{sample_regex} = $sample_regex if defined($sample_regex);
         $args{library_regex} = $library_regex if defined($library_regex);
+        $args{gt_status} = $gt_status if defined($gt_status);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
         $args{import} = $import if defined($import);
         $args{qc} = $qc if defined($qc);
         $args{mapped} = $mapped if defined($mapped);
-        $args{stored} = $stored if defined($stored);
-        $args{deleted} = $deleted if defined($deleted);
-        $args{swapped} = $swapped if defined($swapped);
-        $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
         $args{improved} = $improved if defined($improved);
-        $args{snp_called} = $snp_called if defined($snp_called);
-        $args{qc_status} = $qc_status if defined($qc_status);
-        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
-        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
-        $args{gt_status} = $gt_status if defined($gt_status);
+        $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on improved bam files
         $args{'file_type'} = 5;
@@ -357,54 +262,33 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     
     method lane_fastqs(Defined :$handle!,
                        Str|Dir :$local_root_dir!,
-                       ArrayRef :$project?,
-                       ArrayRef :$sample?,
-                       ArrayRef :$individual?,
-                       ArrayRef :$population?,
-                       ArrayRef :$platform?,
-                       ArrayRef :$centre?,
-                       ArrayRef :$library?,
                        Str :$project_regex?,
                        Str :$sample_regex?,
                        Str :$library_regex?,
-                       Str :$npg_qc_status?,
-                       Str :$auto_qc_status?,
-                       Str :$qc_status?,
                        Str :$gt_status?,
+                       Str :$qc_status?,
+                       Str :$auto_qc_status?,
+                       Str :$npg_qc_status?,
                        Bool :$import?,
                        Bool :$qc?,
                        Bool :$mapped?,
-                       Bool :$stored?,
-                       Bool :$deleted?,
-                       Bool :$swapped?,
-                       Bool :$altered_fastq?,
                        Bool :$improved?,
-                       Bool :$snp_called?) {
+                       Str :$group_by_metadata?) {
         my %args;
         $args{handle} = $handle if defined($handle);
         $args{local_root_dir} = $local_root_dir if defined($local_root_dir);
-        $args{project} = $project if defined($project);
-        $args{sample} = $sample if defined($sample);
-        $args{individual} = $population if defined($population);
-        $args{platform} = $platform if defined($platform);
-        $args{centre} = $centre if defined($centre);
-        $args{library} = $library if defined($library);
         $args{project_regex} = $project_regex if defined($project_regex);
         $args{sample_regex} = $sample_regex if defined($sample_regex);
         $args{library_regex} = $library_regex if defined($library_regex);
+        $args{gt_status} = $gt_status if defined($gt_status);
+        $args{qc_status} = $qc_status if defined($qc_status);
+        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
+        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
         $args{import} = $import if defined($import);
         $args{qc} = $qc if defined($qc);
         $args{mapped} = $mapped if defined($mapped);
-        $args{stored} = $stored if defined($stored);
-        $args{deleted} = $deleted if defined($deleted);
-        $args{swapped} = $swapped if defined($swapped);
-        $args{altered_fastq} = $altered_fastq if defined($altered_fastq);
         $args{improved} = $improved if defined($improved);
-        $args{snp_called} = $snp_called if defined($snp_called);
-        $args{qc_status} = $qc_status if defined($qc_status);
-        $args{npg_qc_status} = $npg_qc_status if defined($npg_qc_status);
-        $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
-        $args{gt_status} = $gt_status if defined($gt_status);
+        $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on fastq files
         $args{'file_type'} = '0|1|2';
@@ -424,12 +308,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             $self->throw("local_root_dir is required") unless $local_root_dir;
         }
         my $vrtrack = $args{handle};
+        my $group_by_metadata = delete $args{group_by_metadata};
         
-        my @elements;
-        my $lane_changed_hash;
+        my @single_results;
         my $hu = VertRes::Utils::Hierarchy->new();
         foreach my $lane ($self->_filtered_lanes(%args)) {
             my %lane_info = $hu->lane_info($lane->name, vrtrack => $vrtrack, no_coverage => 1);
+            my @lane_changed_details;
             
             my @files;
             foreach my $file (@{$lane->files}) {
@@ -450,21 +335,21 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 
                 my $new_metadata = {
                     expected_md5 => $file->md5,
-                    center_name => $lane_info{'centre'},
-                    project => $lane_info{'project'},
-                    study => $lane_info{'study'},
-                    $lane_info{'species'} ? (species => $lane_info{'species'}) : (),
-                    population => $lane_info{ 'population'},
-                    individual => $lane_info{'individual'},
-                    sample => $lane_info{'sample'},
-                    platform => $lane_info{'seq_tech'},
-                    library => $lane_info{ 'library' },
-                    lane => $lane_info{'lane'},
-                    withdrawn => $lane_info{ 'withdrawn' } || 0, #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
-                    insert_size => $lane_info{'insert_size'} || 0,
+                    center_name => $lane_info{centre},
+                    project => $lane_info{project},
+                    study => $lane_info{study},
+                    $lane_info{species} ? (species => $lane_info{species}) : (),
+                    population => $lane_info{population},
+                    individual => $lane_info{individual},
+                    sample => $lane_info{sample},
+                    platform => $lane_info{seq_tech},
+                    library => $lane_info{library},
+                    lane => $lane_info{lane},
+                    withdrawn => $lane_info{withdrawn} || 0, #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
+                    insert_size => $lane_info{insert_size} || 0,
                     reads => $file->raw_reads || 0, 
                     bases => $file->raw_bases || 0, 
-                    paired => $lane_info{'vrlane'}->is_paired,
+                    paired => $lane_info{vrlane}->is_paired,
                     lane_id => $file->lane_id
                 };
                 
@@ -486,30 +371,77 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 # if there was no metadata this will add metadata to the file.
                 $vrfile->add_metadata($new_metadata, replace_data => 0); 
                 
-                # if there was a change in VRPipe::File metadata store it in a hash and 
-                # change the metadata in the VRPipe::File later when more appropriate, 
-                # having made sure the DataElement element states have been reset (see below)                            
+                # if there was a change in VRPipe::File metadata store it in a
+                # hash and change the metadata in the VRPipe::File later when
+                # more appropriate, having made sure the DataElement element
+                # states have been reset (see below) 
                 if ($changed) {
-                    push (@{$lane_changed_hash->{$lane->id}}, [$vrfile,$new_metadata]);
+                    push(@lane_changed_details, [$vrfile, $new_metadata]);
                 }   
                 
                 push @files, $file_abs_path;             
             }
             
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result=>{ paths => \@files, lane=> $lane->name }, withdrawn => 0));
+            push(@single_results, { paths => \@files,
+                                    lane => $lane->name,
+                                    groupable_lane_meta => { project => $lane_info{project},
+                                                             study => $lane_info{study},
+                                                             $lane_info{species} ? (species => $lane_info{species}) : (),
+                                                             population => $lane_info{population},
+                                                             individual => $lane_info{individual},
+                                                             sample => $lane_info{sample},
+                                                             platform => $lane_info{seq_tech},
+                                                             library => $lane_info{library} },
+                                    scalar(@lane_changed_details) ? (changed => \@lane_changed_details) : () });
+        }
+        
+        my $results;
+        my $group_name;
+        if ($group_by_metadata) {
+            my @meta_keys = split /\|/, $group_by_metadata;
             
-            if ($lane_changed_hash->{$lane->id}) {
+            my $group_hash;
+            foreach my $result (@single_results) {
+                my @group_keys;
+                foreach my $key (@meta_keys) {
+                    $self->throw("Metadata key $key not present for lane ".$result->{lane}) unless (exists $result->{groupable_lane_meta}->{$key});
+                    push @group_keys, $result->{groupable_lane_meta}->{$key};
+                }
+                
+                my $group_key = join '|', @group_keys;
+                push(@{$group_hash->{$group_key}->{paths}}, @{$result->{paths}});
+                push(@{$group_hash->{$group_key}->{changed}}, @{$result->{changed}}) if $result->{changed};
+            }
+            
+            while (my ($group, $data) = each %$group_hash) {
+                push(@$results, { paths => $data->{paths}, group => $group, $data->{changed} ? (changed => $data->{changed}) : () });
+            }
+            
+            $group_name = 'group';
+        }
+        else {
+            $results = \@single_results;
+            $group_name = 'lane';
+        }
+        
+        my $did = $self->_datasource_id;
+        my @elements;
+        foreach my $result (@$results) {
+            push(@elements, VRPipe::DataElement->get(datasource => $did, result => { paths => $result->{paths}, $group_name => $result->{$group_name} }, withdrawn => 0));
+            
+            if ($result->{changed}) {
                 # reset element states first
                 foreach my $estate ($elements[-1]->element_states) {
                     $estate->start_from_scratch;
                 }
                 # then change metadata in files
-                foreach my $fm (@{$lane_changed_hash->{$lane->id}}) {
+                foreach my $fm (@{$result->{changed}}) {
                     my ($vrfile, $new_metadata) = @$fm;
                     $vrfile->add_metadata($new_metadata, replace_data => 1);
                 }
-            }    
-        } 
+            }
+        }
+        
         return \@elements;
     }
 }
