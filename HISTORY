@@ -1,3 +1,4 @@
+0.51    VRTrack DataSource now has an option to group_by_metadata.
 0.50    New merge_bams pipelines, to do "merge across". VRTrack
         datasource now allows filtering on more status types, and
         can get VRPipe improved bams.
