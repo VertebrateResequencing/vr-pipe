@@ -21,19 +21,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             return "An element will comprise the name of a lane (only).";
         }
         elsif ($method eq 'lane_bams') {
-            return "An element will comprise all the bams for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata \
-            keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and \
-            library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
+            return "An element will comprise all the bams for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
         elsif ($method eq 'lane_improved_bams') {
-            return "An element will comprise all the bams output by the VRPipe improvement pipeline for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata \
-            keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and \
-            library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
+            return "An element will comprise all the bams output by the VRPipe improvement pipeline for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
         elsif ($method eq 'lane_fastqs') {
-            return "An element will comprise all the fastqs for a single lane, and the fastq files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata \
-            keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and \
-            library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
+            return "An element will comprise all the fastqs for a single lane, and the fastq files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
         
         return '';

@@ -8,22 +8,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole
         return "Use files created by VRPipe pipelines as a datasource.";
     }
     method source_description {
-        return "List of pipelinesetup names or ids separated by a pipe character '|'. Each pipeline setup or id may be followed in square brackets by the step number \
-        or step name which produced the output files to be used. Optionally, if a step produced multiple types of output files, the step name or number may be \
-        followed by the output file key to identify the correct files to be used. Multiple steps from the same pipeline setup may be specified. \
-        e.g. pipeline_setup_id[step_name:output_file_key]|pipeline_setup_name[step_number1,step_number2]'";
+        return "List of pipelinesetup names or ids separated by a pipe character '|'. Each pipeline setup or id may be followed in square brackets by the step number or step name which produced the output files to be used. Optionally, if a step produced multiple types of output files, the step name or number may be followed by the output file key to identify the correct files to be used. Multiple steps from the same pipeline setup may be specified. e.g. pipeline_setup_id[step_name:output_file_key]|pipeline_setup_name[step_number1,step_number2]'";
     }
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all \
-            files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option \
-            is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a metadata key which matches the regex.";
+            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a metadata key which matches the regex.";
         }
         elsif ($method eq 'group_by_metadata') {
-            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata \
-            keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and \
-            library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a \
-            metadata key which matches the regex.";
+            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a metadata key which matches the regex.";
         }
         
         return '';
