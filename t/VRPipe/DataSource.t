@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 41;
+    use Test::Most tests => 44;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -81,6 +81,47 @@ is_deeply [sort $ds->get_methods], [qw(all all_columns grouped_single_column sin
 is_deeply [$ds->method_options('single_column')], [['named', 'delimiter', 1, undef, 'Str'],
                                                    ['named', 'column', 1, undef, 'PositiveInt'],
                                                    ['named', 'column_is_path', 0, 1, 'Bool']], 'method_options showed us what options the single_column method takes';
+
+# fofn_with_metadata
+#path    center_name     study   sample  platform        library lane
+#/a/path/7816_3#95.bam   SC      ERP000979       JB953   ILLUMINA        4858080 7816_3#95
+#/a/path/7413_5#95.bam   SC      ERP000979       JB953   ILLUMINA        4074406 7413_5#95
+#/a/path/8312_5#95.bam   SC      ERP000979       JB951   ILLUMINA        4074399 8312_5#95
+my @fwm_paths = ('/a/path/7816_3#95.bam', '/a/path/7413_5#95.bam', '/a/path/8312_5#95.bam');
+my %fwm_common_meta = (center_name => 'SC', study => 'ERP000979', platform => 'ILLUMINA');
+VRPipe::File->get(path => $fwm_paths[0])->add_metadata({library => 'foo'});
+ok $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
+                                 method => 'all',
+                                 source => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+                                 options => {}), 'could create a fofn_with_metadata datasource';
+
+@results = ();
+foreach my $element (@{$ds->elements}) {
+    push(@results, $element->result);
+}
+is_deeply [@results,
+           VRPipe::File->get(path => $fwm_paths[0])->metadata,
+           VRPipe::File->get(path => $fwm_paths[1])->metadata,
+           VRPipe::File->get(path => $fwm_paths[2])->metadata],
+          [{paths => [$fwm_paths[0]]},
+           {paths => [$fwm_paths[1]]},
+           {paths => [$fwm_paths[2]]},
+           { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' },
+           { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' },
+           { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata all, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
+                                 method => 'grouped_by_metadata',
+                                 source => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+                                 options => { metadata_keys => 'study|sample' }), 'could create a fofn_with_metadata grouped_by_metadata datasource';
+
+@results = ();
+foreach my $element (@{$ds->elements}) {
+    push(@results, $element->result);
+}
+is_deeply [sort { $a->{group} cmp $b->{group} } @results],
+          [{paths => [$fwm_paths[2]], group => 'ERP000979|JB951'},
+           {paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953'}], 'got correct results for fofn_with_metadata grouped_by_metadata';
 
 # sequence_index
 ok $ds = VRPipe::DataSource->get(type => 'sequence_index',

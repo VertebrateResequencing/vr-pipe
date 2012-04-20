@@ -5,7 +5,7 @@ class VRPipe::Pipelines::fastq_mapping_with_smalt with VRPipe::PipelineRole {
         return 'fastq_mapping_with_smalt';
     }
     method _num_steps {
-        return 11;
+        return 10;
     }
     method description {
         return 'Map reads in fastq files to a reference genome with smalt';
@@ -25,7 +25,6 @@ class VRPipe::Pipelines::fastq_mapping_with_smalt with VRPipe::PipelineRole {
                   VRPipe::Step->get(name => 'sam_to_fixed_bam'),#8
                   VRPipe::Step->get(name => 'bam_add_readgroup'),#9
                   VRPipe::Step->get(name => 'bam_merge_lane_splits'),#10
-                  VRPipe::Step->get(name => 'bam_stats')#11
                  ],
                  
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'fastq_files'),
@@ -38,8 +37,7 @@ class VRPipe::Pipelines::fastq_mapping_with_smalt with VRPipe::PipelineRole {
                    VRPipe::StepAdaptorDefiner->new(from_step => 7, to_step => 8, from_key => 'smalt_sam_files', to_key => 'sam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 8, to_step => 9, from_key => 'fixed_bam_files', to_key => 'bam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 9, to_step => 10, from_key => 'rg_added_bam_files', to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 10, from_key => 'reference_dict', to_key => 'dict_file'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 10, to_step => 11, from_key => 'merged_lane_bams', to_key => 'bam_files') ],
+                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 10, from_key => 'reference_dict', to_key => 'dict_file') ],
                  
                  [ VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [3, 5, 6], regulated_by => 'cleanup', default_regulation => 1),
                    VRPipe::StepBehaviourDefiner->new(after_step => 8, behaviour => 'delete_outputs', act_on_steps => [7], regulated_by => 'cleanup', default_regulation => 1),
