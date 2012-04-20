@@ -1,3 +1,6 @@
+0.52    New fofn_with_metadata DataSource - useful for inputting
+        external bams into pipelines. VRTrack-releated steps now
+        have deadlock-failure-avoidance.
 0.51    VRTrack DataSource now has an option to group_by_metadata.
 0.50    New merge_bams pipelines, to do "merge across". VRTrack
         datasource now allows filtering on more status types, and
