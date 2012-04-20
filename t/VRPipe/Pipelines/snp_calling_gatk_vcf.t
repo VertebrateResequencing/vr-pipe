@@ -36,7 +36,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_gatk
 		datasource => VRPipe::DataSource->get(type => 'delimited',
 			method => 'all_columns',
 			options => { delimiter => "\t" },
-			source => file(qw(t data hs_chr20.bam.fofn))),
+			source => file(qw(t data hs_chr20.bam.datasource))),
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { cleanup => 0, 
