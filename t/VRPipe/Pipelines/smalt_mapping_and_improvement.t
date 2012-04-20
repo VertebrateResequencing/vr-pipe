@@ -36,8 +36,7 @@ my @expected_step_names = qw(sequence_dictionary
                              bam_count_covariates
                              bam_recalibrate_quality_scores
                              bam_calculate_bq
-                             bam_reheader
-                             bam_stats);
+                             bam_reheader);
 
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 

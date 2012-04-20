@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 16;
+    use Test::Most tests => 15;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
                     required_exe => [qw(samtools bwa)]);
     use TestPipelines;
@@ -18,7 +18,7 @@ my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(sequence_dictionary bwa_index fastq_import fastq_metadata fastq_split bwa_aln_fastq bwa_sam sam_to_fixed_bam bam_merge_lane_splits bam_stats)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(sequence_dictionary bwa_index fastq_import fastq_metadata fastq_split bwa_aln_fastq bwa_sam sam_to_fixed_bam bam_merge_lane_splits)], 'the pipeline has the correct steps';
 
 my $ref_fa_source = file(qw(t data S_suis_P17.fa));
 my $ref_dir = dir($mapping_output_dir, 'ref');
@@ -254,7 +254,6 @@ my $existing_sai_outs = 0;
 my $existing_sam_outs = 0;
 my $existing_split_bam_outs = 0;
 my $existing_final_bam_outs = 0;
-my $existing_bas_outs = 0;
 my @final_bams;
 my $element_num = 0;
 foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
@@ -289,9 +288,6 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
             my $bam = file(@output_subdirs, '9_bam_merge_lane_splits', "$lane.$ended.bam");
             $existing_final_bam_outs += -s $bam ? 1 : 0;
             push(@final_bams, VRPipe::File->get(path => $bam));
-            
-            my $bas = file(@output_subdirs, '10_bam_stats', "$lane.$ended.bam.bas");
-            $existing_bas_outs += -s $bas ? 1 : 0;
         }
     }
     else {
@@ -311,9 +307,6 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
         my $bam = file(@output_subdirs, '9_bam_merge_lane_splits', "$lane.pe.bam");
         $existing_final_bam_outs += -s $bam ? 1 : 0;
         push(@final_bams, VRPipe::File->get(path => $bam));
-        
-        my $bas = file(@output_subdirs, '10_bam_stats', "$lane.pe.bam.bas");
-        $existing_bas_outs += -s $bas ? 1 : 0;
     }
 }
 
@@ -450,8 +443,6 @@ is_deeply [@final_bam_metas],
              population => 'POP',
              analysis_group => 'low coverage',
              mapped_fastqs => join(',', file(qw(t data 8324_8_1.fastq))->absolute->stringify, file(qw(t data 8324_8_2.fastq))->absolute->stringify) }], 'final bam files have the correct metadata';
-
-is $existing_bas_outs, scalar(@final_bams), 'made a bas file for each final bam file';
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,

@@ -5,7 +5,7 @@ class VRPipe::Pipelines::1000genomes_454_mapping_with_improvement with VRPipe::P
         return '1000genomes_454_mapping_with_improvement';
     }
     method _num_steps {
-        return 19;
+        return 18;
     }
     method description {
         return 'Map (with improvement) LS454 reads in fastq files on the DCC ftp site to a reference genome with smalt';
@@ -33,7 +33,6 @@ class VRPipe::Pipelines::1000genomes_454_mapping_with_improvement with VRPipe::P
                   VRPipe::Step->get(name => 'bam_recalibrate_quality_scores'),#16
                   VRPipe::Step->get(name => 'bam_calculate_bq'),#17
                   VRPipe::Step->get(name => 'bam_reheader'),#18
-                  VRPipe::Step->get(name => 'bam_stats')#19
                   ],
                  
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'fastq_files'),
@@ -55,8 +54,7 @@ class VRPipe::Pipelines::1000genomes_454_mapping_with_improvement with VRPipe::P
                    VRPipe::StepAdaptorDefiner->new(from_step => 13, to_step => 16, from_key => 'realigned_bam_files', to_key => 'bam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 16, to_step => 17, from_key => 'recalibrated_bam_files', to_key => 'bam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 17, to_step => 18, from_key => 'bq_bam_files', to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 18, from_key => 'reference_dict', to_key => 'dict_file'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 18, to_step => 19, from_key => 'headed_bam_files', to_key => 'bam_files') 
+                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 18, from_key => 'reference_dict', to_key => 'dict_file')
                   ],
                  
                  [ VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [3, 5, 6], regulated_by => 'cleanup', default_regulation => 1),

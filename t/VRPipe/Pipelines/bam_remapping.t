@@ -19,7 +19,7 @@ my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(sequence_dictionary bwa_index bam_metadata bam_name_sort bwa_aln_bam bwa_sam_using_bam sam_to_fixed_bam bam_reheader bam_stats)], 'the pipeline has the correct steps'; # bam_stats
+is_deeply \@s_names, [qw(sequence_dictionary bwa_index bam_metadata bam_name_sort bwa_aln_bam bwa_sam_using_bam sam_to_fixed_bam bam_reheader)], 'the pipeline has the correct steps';
 
 my $ref_fa_source = file(qw(t data S_suis_P17.fa));
 my $ref_dir = dir($mapping_output_dir, 'ref');
