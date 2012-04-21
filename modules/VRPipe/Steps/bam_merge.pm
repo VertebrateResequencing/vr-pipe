@@ -23,7 +23,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                          merged_bams => 'comma separated list of merged bam paths',
-                                                                         optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}
+                                                                         optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'merged_bams', 'bases']}
                                                             ),
                 };
     }
@@ -95,7 +95,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                                                 reads => 'total number of reads (sequences)',
                                                                                 paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                                 merged_bams => 'comma separated list of merged bam paths',
-                                                                                optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study']}
+                                                                                optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases']}
                                                                     ),
                };
     }
@@ -136,7 +136,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         foreach my $in_file (@in_files) {
             my $meta = $in_file->metadata;
             $reads += $meta->{reads};
-            $bases += $meta->{bases};
+            $bases += $meta->{bases} if $meta->{bases};
             $paired ||= $meta->{paired};
             foreach my $key (keys %$meta) {
                 next if (grep /^$key$/, (qw(reads bases paired merged_bams)));
@@ -150,7 +150,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         if ($actual_reads == $reads) {
             my %new_meta;
             $new_meta{reads} = $actual_reads;
-            $new_meta{bases} = $bases;
+            $new_meta{bases} = $bases if $bases;
             $new_meta{paired} = $paired;
             foreach my $key (keys %merge_groups) {
                 $new_meta{$key} = join(',', sort keys %{$merge_groups{$key}});
