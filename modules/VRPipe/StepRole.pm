@@ -398,6 +398,7 @@ role VRPipe::StepRole {
             my $schema = $self->result_source->schema;
             foreach my $path (@missing) {
                 my $file = VRPipe::File->get(path => $path);
+                next if $file->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
                 my $rs = $schema->resultset('StepOutputFile')->search({ file => $file->id });
                 my $count = 0;
                 my $state;
@@ -414,7 +415,7 @@ role VRPipe::StepRole {
             
             if ($with_recourse == @missing) {
                 while (my ($state_id, $files) = each %states_to_restart) {
-                    #*** would have make inactive pipeline active as well...
+                    #*** would have to make inactive pipeline active as well...
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {

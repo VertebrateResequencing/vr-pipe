@@ -53,6 +53,7 @@ sub required_modules {
              'Net::SSH' => 0,
              'Parallel::ForkManager' => 0,
              'Path::Class' => 0,
+             'Perl6::Form' => 0,
              'POSIX' => 0,
 	     'Storable' => 0,
              'Sys::CPU' => 0,

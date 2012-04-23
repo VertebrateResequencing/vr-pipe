@@ -19,8 +19,8 @@ my $bwa_version = VRPipe::StepCmdSummary->determine_version('bwa', '^Version: (.
 my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^Version: (.+)$');
 
 ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get the fastq_mapping_with_bwa pipeline';
-ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'merge_lanes'), 'able to get the merge_lanes pipeline';
-ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries_and_split'), 'able to get the merge_libraries_and_split pipeline';
+ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_lanes'), 'able to get the bam_merge_lanes pipeline';
+ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_1000_genomes_libraries_with_split'), 'able to get the bam_merge_1000_genomes_libraries_with_split pipeline';
 ok my $release_pipeline = VRPipe::Pipeline->get(name => '1000genomes_release'), 'able to get the 1000genomes_release pipeline';
 
 my $mapping_dir = get_output_dir('mapping_mergeup_test');

@@ -1,8 +1,8 @@
 use VRPipe::Base;
 
-class VRPipe::Pipelines::merge_libraries_and_split with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_merge_1000_genomes_libraries_with_split with VRPipe::PipelineRole {
     method name {
-        return 'merge_libraries_and_split';
+        return 'bam_merge_1000_genomes_libraries_with_split';
     }
     method _num_steps {
         return 4;
@@ -18,15 +18,13 @@ class VRPipe::Pipelines::merge_libraries_and_split with VRPipe::PipelineRole {
             return ([ VRPipe::Step->get(name => 'bam_merge'),#1
                       VRPipe::Step->get(name => 'sequence_dictionary'),#2
                       VRPipe::Step->get(name => 'bam_reheader'),#3
-                      VRPipe::Step->get(name => 'bam_split_by_sequence'),#4
-                      VRPipe::Step->get(name => 'bam_index'),#5
+                      VRPipe::Step->get(name => 'bam_split_by_sequence')#4
                       ],
 
                      [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'),
                        VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 3, from_key => 'merged_bam_files', to_key => 'bam_files'),
                        VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'reference_dict', to_key => 'dict_file'),
-                       VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'headed_bam_files', to_key => 'bam_files'),
-                       VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'split_bam_files', to_key => 'bam_files'),
+                       VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'headed_bam_files', to_key => 'bam_files')
                       ],
 
                      [ 
