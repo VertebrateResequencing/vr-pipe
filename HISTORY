@@ -1,3 +1,4 @@
+0.54    Further fix for new merge pipeline.
 0.53    Fixed issues with bam merging pipelines, and renamed tham
         all.
 0.52    New fofn_with_metadata DataSource - useful for inputting
