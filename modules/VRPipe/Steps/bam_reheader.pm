@@ -109,7 +109,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         $dict_file->close;
         
         # construct the RG lines from the bam metadata
-        # bam may be a merge of mupltiple bams, so we construct the RG lines
+        # bam may be a merge of multiple bams, so we construct the RG lines
         # from the metadata of each of the merged bams
         my $headed_bam_file = VRPipe::File->get(path => $output);
         my $meta = $headed_bam_file->metadata;
@@ -117,7 +117,12 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         if (defined $meta->{merged_bams}) {
             my @paths = split /,/, $meta->{merged_bams};
             foreach my $path (@paths) {
-                push @files, VRPipe::File->get(path => $path);
+                if ($path =~ /^VF:(\d+)$/) {
+                    push @files, VRPipe::File->get(id => $1);
+                }
+                else {
+                    push @files, VRPipe::File->get(path => $path);
+                }
             }
         } else {
             push @files, $headed_bam_file;
