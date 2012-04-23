@@ -24,7 +24,7 @@ class VRPipe::Pipelines::bam_merge_and_split with VRPipe::PipelineRole {
                   ],
 
                  [ VRPipe::StepBehaviourDefiner->new(after_step => 1, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0),
-                   VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'remove_merged_bams', default_regulation => 0 ]);
+                   VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'remove_merged_bams', default_regulation => 0) ]);
     }
 }
 
