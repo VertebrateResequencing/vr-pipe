@@ -17,8 +17,8 @@ my $picard = VRPipe::Steps::picard->new(picard_path => $ENV{PICARD});
 my $picard_version = $picard->determine_picard_version();
 my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^Version: (.+)$');
 
-ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'merge_lanes_and_fix_rgs'), 'able to get the merge_lanes_and_fix_rgs pipeline';
-ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries'), 'able to get the merge_libraries pipeline';
+ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_lanes_and_fix_rgs'), 'able to get the bam_merge_lanes_and_fix_rgs pipeline';
+ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'bam_merge'), 'able to get the bam_merge pipeline';
 my $output_dir = get_output_dir('merge_lanes_and_fix_rgs');
 
 # The bams in this test are outputs of the improvement pipeline given sanger

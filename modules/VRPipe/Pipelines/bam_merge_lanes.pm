@@ -1,8 +1,8 @@
 use VRPipe::Base;
 
-class VRPipe::Pipelines::merge_lanes with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_merge_lanes with VRPipe::PipelineRole {
     method name {
-        return 'merge_lanes';
+        return 'bam_merge_lanes';
     }
     method _num_steps {
         return 3;

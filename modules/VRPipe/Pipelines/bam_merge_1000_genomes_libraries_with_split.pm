@@ -1,8 +1,8 @@
 use VRPipe::Base;
 
-class VRPipe::Pipelines::merge_libraries_and_split with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_merge_1000_genomes_libraries_with_split with VRPipe::PipelineRole {
     method name {
-        return 'merge_libraries_and_split';
+        return 'bam_merge_1000_genomes_libraries_with_split';
     }
     method _num_steps {
         return 4;
