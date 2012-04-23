@@ -111,7 +111,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                                                 reads => 'total number of reads (sequences)',
                                                                                 paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                                 merged_bams => 'comma separated list of merged bam paths',
-                                                                                optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases']}
+                                                                                optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases', 'merged_bams']}
                                                                     ),
                };
     }
@@ -137,8 +137,10 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         }
         
         if (scalar @in_paths == 1) {
-            symlink($in_files[0]->path, $out_file->path); # don't use $in_files[0]->symlink because $out_file->metadata will be different
-        } else {
+            $in_files[0]->copy($out_file);
+            return;
+        }
+        else {
             $out_file->disconnect;
             system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         }
