@@ -5,10 +5,10 @@ class VRPipe::Pipelines::merge_bams with VRPipe::PipelineRole {
         return 'merge_bams';
     }
     method _num_steps {
-        return 4;
+        return 2;
     }
     method description {
-        return 'Merge bam files together and index the results (suitable for "merge-across")';
+        return 'Merge bam files together and index the results (suitable for merging library bams to the sample level, and "merge-across")';
     }
     method steps {
         $self->throw("steps cannot be called on this non-persistent object");
@@ -23,7 +23,7 @@ class VRPipe::Pipelines::merge_bams with VRPipe::PipelineRole {
                    VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'merged_bam_files', to_key => 'bam_files'),
                   ],
 
-                 [ VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0) ]);
+                 [ VRPipe::StepBehaviourDefiner->new(after_step => 1, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0) ]);
     }
 }
 
