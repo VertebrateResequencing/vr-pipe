@@ -1,3 +1,5 @@
+0.55    Further merge pipeline fixes. New bam realignment around
+        discovered indels pipeline.
 0.54    Further fix for new merge pipeline.
 0.53    Fixed issues with bam merging pipelines, and renamed tham
         all.

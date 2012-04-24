@@ -38,7 +38,9 @@ $ perl Build.PL
 
 If this says you have "ERRORS/WARNINGS FOUND IN PREREQUISITES" try:
 $ ./Build installdeps
-to install missing prerequisites from CPAN.
+to install missing prerequisites from CPAN. You may find that you have to
+unset your LANG environment variable temporarily to install all CPAN
+prerequisites.
 
 It will also ask you a number of setup questions such as the details of your
 production and testing databases. It is recommended to use a stand-alone

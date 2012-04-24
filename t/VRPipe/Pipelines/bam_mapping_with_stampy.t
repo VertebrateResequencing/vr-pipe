@@ -5,10 +5,12 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 8;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES',
                     required_exe => [qw(bwa stampy.py samtools)]);
     use TestPipelines;
+    
+    use_ok('VRPipe::Parser');
 }
 
 my $mapping_output_dir = get_output_dir('bam_mapping_with_stampy');
@@ -113,5 +115,16 @@ while (my $scs = $rs->next) {
 is_deeply \%scsss, {'stampy.py --substitutionrate=0.002 --bwa=bwa --bwaoptions={-q 15 $ref} -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)' => 1,
                     'stampy.py --substitutionrate=0.002 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)' => 1,
                     'stampy.py --substitutionrate=0.00001 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)' => 1}, 'the step command summarys for the stampy step were correct';
+
+# the bam header must no have duplicate PG IDs even though this pipeline runs
+# the same steps twice
+my $pars = VRPipe::Parser->create('bam', {file => $bams[-1]});
+my %program_info = $pars->program_info();
+is_deeply \%program_info, { 'stampy_buildgenome' => {PN => 'stampy', VN => '1.0.16', CL => 'stampy.py -G $ref.fa $ref.fa'},
+                            'stampy_buildhash' => {PP => 'stampy_buildgenome', PN => 'stampy', VN => '1.0.16', CL => 'stampy.py -g $ref.fa -H $ref.fa'},
+                            'stampy_map_fastq' => {PP => 'stampy_buildhash', PN => 'stampy.py', VN => '1.0.16', CL => 'stampy.py --substitutionrate=0.002 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'},
+                            'sam_to_fixed_bam' => {PP => 'stampy_map_fastq', PN => 'samtools', VN => '0.1.17 (r973:277)', CL => 'samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file'},
+                            'stampy_map_fastq.2' => {PP => 'sam_to_fixed_bam', PN => 'stampy.py', VN => '1.0.16', CL => 'stampy.py --substitutionrate=0.00001 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'},
+                            'sam_to_fixed_bam.2' => {PP => 'stampy_map_fastq.2', PN => 'samtools', VN => '0.1.17 (r973:277)', CL => 'samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file'} }, 'bam header was as expected, with no duplicate PG IDs';
 
 finish;
