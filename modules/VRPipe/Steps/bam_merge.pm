@@ -171,7 +171,9 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
             $new_meta{bases} = $bases if $bases;
             $new_meta{paired} = $paired;
             foreach my $key (keys %merge_groups) {
-                $new_meta{$key} = join(',', sort keys %{$merge_groups{$key}});
+                my @vals = keys %{$merge_groups{$key}};
+                next unless @vals == 1; # we used to store comma-separated values, but that could get too big to store in db
+                $new_meta{$key} = $vals[0];
             }
             $out_file->add_metadata(\%new_meta);
             return 1;
