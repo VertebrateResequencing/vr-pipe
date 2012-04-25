@@ -86,12 +86,21 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
         
         my $dbtype = $details{dbtype};
         if ($dbtype =~ /mysql/i) {
+            unless (defined $details{dbname} && defined $details{dbhost} && defined $details{dbport}) {
+                die "SiteConfig did not have all the necessary database details specified; did modules/VRPipe/SiteConfig.pm get created and installed properly?\n";
+            }
             return "dbi:mysql:database=$details{dbname};host=$details{dbhost};port=$details{dbport}";
         }
         elsif ($dbtype =~ /pg|postgres/i) {
+            unless (defined $details{dbname} && defined $details{dbhost} && defined $details{dbport}) {
+                die "SiteConfig did not have all the necessary database details specified; did modules/VRPipe/SiteConfig.pm get created and installed properly?\n";
+            }
             return "dbi:Pg:dbname=$details{dbname};host=$details{dbhost};port=$details{dbport}";
         }
         elsif ($dbtype =~ /sqlite/i) {
+            unless (defined $details{dbname}) {
+                die "SiteConfig did not have all the necessary database details specified; did modules/VRPipe/SiteConfig.pm get created and installed properly?\n";
+            }
             my $name = $details{dbname};
             if ($name =~ /^~/) {
                 my $home;
