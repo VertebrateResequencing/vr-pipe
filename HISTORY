@@ -1,3 +1,4 @@
+0.56    New gatk_variant_calling_and_filter_vcf pipeline.
 0.55    Further merge pipeline fixes. New bam realignment around
         discovered indels pipeline.
 0.54    Further fix for new merge pipeline.
