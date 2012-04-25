@@ -28,7 +28,7 @@ my $frontend = VRPipe::FrontEnd->new(description => "Get information on files cr
                                                    [ 'md5', 'Show the md5 checksum for the file (if it has been previously calculated)' ],
                                                    [],
                                                    [ q[Choose how to display the information (these are mutually exclusive):] ],
-                                                   [ 'display=s', q[report=present a multi-line report for each file; tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], {default => 'report'} ],
+                                                   [ 'display=s', q[report=present a multi-line report for each file (forced on when setup_info, cmd_summary or cmd_lines are in use); tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], {default => 'report'} ],
                                                    [ 'tab_columns=s', q[For --display tab mode, supply a list of comma-separated display option names to choose the order of columns (path is always first), eg. --tab_columns size,md5,metadata --metadata length,height,depth would give output with columns: path size md5 length height depth] ],
                                                  ],
                                      no_user_option => 1);
@@ -70,10 +70,20 @@ if ($frontend->option_was_set('tab_columns')) {
     }
 }
 else {
-    foreach my $col (qw(size lines md5 time metadata)) {
+    foreach my $col (qw(cmd_summary cmd_lines size lines md5 time metadata)) {
         if (exists $output_types{$col}) {
             push(@tab_cols, $col);
         }
+    }
+}
+
+# force do_tab off if certain info requested
+my $file_setup_needed = 0;
+foreach my $col (@tab_cols) {
+    if ($col eq 'setup_info' || $col eq 'cmd_summary' || $col eq 'cmd_lines') {
+        $do_tab = 0;
+        $file_setup_needed = 1;
+        last;
     }
 }
 
@@ -220,19 +230,50 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
         print "\n$path:\n";
     }
     
+    my $stepstate;
+    if ($file_setup_needed) {
+        $stepstate = file_to_stepstate($file->resolve);
+    }
+    
     foreach my $col (@tab_cols) {
         my $result;
         if ($col eq 'setup_info') {
-            #...
+            if ($stepstate) {
+                my $setup = $stepstate->pipelinesetup;
+                # ...
+            }
+            else {
+                $result = 'file was not made by a (single) VRPipe pipeline';
+            }
         }
         elsif ($col eq 'cmd_summary') {
-            #...
+            if ($stepstate) {
+                my @chain = stepstate_chain($stepstate);
+                my @results = stepstates_to_summaries(@chain);
+                $result = "\n".join("\n", map { "\t\t".$_ } @results);
+            }
+            else {
+                $result = 'file was not made by a (single) VRPipe pipeline';
+            }
         }
         elsif ($col eq 'cmd_lines') {
-            #...
+            if ($stepstate) {
+                my @chain = stepstate_chain($stepstate);
+                my @results = stepstates_to_cmds(@chain);
+                $result = "\n".join("\n\n", map { "\t\t".$_ } @results);
+            }
+            else {
+                $result = 'file was not made by a (single) VRPipe pipeline';
+            }
         }
         elsif ($col eq 'time') {
-            #...
+            if ($stepstate) {
+                my @chain = stepstate_chain($stepstate);
+                # ...
+            }
+            else {
+                $result = 'file was not made by a (single) VRPipe pipeline';
+            }
         }
         elsif ($col eq 'lines') {
             $result = $file->_lines || 'unknown';
@@ -286,3 +327,75 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
 }
 
 exit;
+
+sub file_to_stepstate {
+    my $file = shift;
+    my $rs = $schema->resultset('StepOutputFile')->search({ file => $file->id });
+    my @sofs;
+    while (my $sof = $rs->next) {
+        push @sofs, $sof;
+    }
+    return unless @sofs == 1;
+    return $sofs[0]->stepstate;
+}
+
+sub stepstate_chain {
+    my $child_stepstate = shift;
+    # stepmember dataelement pipelinesetup cmd_summary complete submissions
+    
+    my $pipelinesetup = $child_stepstate->pipelinesetup;
+    my $dataelement = $child_stepstate->dataelement;
+    my $stepmember = $child_stepstate->stepmember;
+    my $this_stepm_id = $stepmember->id;
+    my $pipeline = $stepmember->pipeline;
+    
+    my @chain;
+    if ($pipelinesetup->datasource->type eq 'vrpipe') {
+        my $vrpipe_sources = $pipelinesetup->datasource->_source_instance->vrpipe_sources;
+        my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
+        while (my $link = $rs->next) {
+            my $setup_id = $link->pipelinesetup->id;
+            next unless exists $vrpipe_sources->{$setup_id};
+            my $this_pipelinesetup = VRPipe::PipelineSetup->get(id => $setup_id);
+            my $this_stepmember = VRPipe::StepMember->get(id => $vrpipe_sources->{$setup_id}->{final_smid});
+            push @chain, stepstate_chain(VRPipe::StepState->get(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember));
+        }
+    }
+    
+    foreach my $stepm ($pipeline->step_members) {
+        push @chain, VRPipe::StepState->get(pipelinesetup => $pipelinesetup, dataelement => $dataelement, stepmember => $stepm);
+        last if $stepm->id == $this_stepm_id;
+    }
+    
+    return @chain;
+}
+
+sub stepstates_to_summaries {
+    my @step_states = @_;
+    my @summaries;
+    my %seen;
+    foreach my $ss (@step_states) {
+        my $cmd_summary = $ss->cmd_summary;
+        my $summary = $ss->stepmember->step->name. ($cmd_summary ? ' ['.$cmd_summary->exe.' (v'.$cmd_summary->version.')]: '.$cmd_summary->summary : '');
+        next if exists $seen{$summary};
+        push(@summaries, $summary);
+        $seen{$summary} = 1;
+    }
+    return @summaries;
+}
+
+sub stepstates_to_cmds {
+    my @step_states = @_;
+    my @cmds;
+    my %seen;
+    foreach my $ss (@step_states) {
+        my $step_name = $ss->stepmember->step->name;
+        foreach my $sub ($ss->submissions) {
+            my $cmd = $step_name.': '.$sub->job->cmd;
+            next if exists $seen{$cmd};
+            push(@cmds, $cmd);
+            $seen{$cmd} = 1;
+        }
+    }
+    return @cmds;
+}

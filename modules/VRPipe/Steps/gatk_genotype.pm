@@ -18,7 +18,7 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 			dbsnp_ref => VRPipe::StepOption->get(description => 'absolute path to dbsnp reference vcf', optional => 1),
 			max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', 
 				optional => 1, 
-				default_value => 10),
+				default_value => 30),
 			interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -L option', 
 				optional => 1,),
 	};
@@ -41,60 +41,75 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
             my $genotyper_opts = $options->{genotyper_opts};
             my $max_cmdline_bams = $options->{max_cmdline_bams};
             my $interval_list = $options->{interval_list};
-
-			$genotyper_opts .= " --dbsnp $dbsnp_ref " if $dbsnp_ref;
+	    
+	    $genotyper_opts .= " --dbsnp $dbsnp_ref " if $dbsnp_ref;
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
-
-			if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
-				$self->warn("[todo] Generate a bam fofn");
-			}
+	    
+	    if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
+		$self->warn("[todo] Generate a bam fofn");
+	    }
             
-			my $bam_list;
+	    my $bam_list;
+	    my %meta;
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $bam_path = $bam->path;
-				$bam_list .= "-I $bam_path ";
+		$bam_list .= "-I $bam_path ";
+		
+		my $bam_meta = $bam->metadata;
+		while (my ($key, $val) = each %$bam_meta) {
+		    $meta{$key}->{$val} = 1;
+		}
             }
-
-			# if only one input file, use it to define the output file prefix
-			my $file_prefix;
-			if (scalar (@{$self->inputs->{bam_files}}) == 1) {
-				$file_prefix = $self->inputs->{bam_files}[0]->basename;
-				$file_prefix =~ s/\.bam//;
-			}
-			else {
-				$file_prefix = "gatk_var";
-			}
-			
-			# perform concurrent analyses if optional chunk file is present
-			if  ($self->inputs->{chunked_regions_file}) {
-				$self->warn("ignoring interval list $interval_list, not supported with chunking") if $interval_list;
-				my $chunk_file = $self->inputs->{chunked_regions_file}[0];
-				my $cfh = $chunk_file->openr;
-				while (<$cfh>) {
-					my ($chr,$from,$to) = split;
-					my $chunk_opts = "$genotyper_opts -L ${chr}:${from}-${to}";
-
-					my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}_${chr}_${from}_${to}.vcf.gz", type => 'bin');
-					my $vcf_path = $vcf_file->path;
-
-					my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $chunk_opts $bam_list -o $vcf_path ];
-					$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
-				}
-			}
-			else {
-				$genotyper_opts .= " -L $interval_list " if $interval_list;
-				my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}.vcf.gz", type => 'bin');
-				my $vcf_path = $vcf_file->path;
-
-				$self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-					version => $self->gatk_version(),
-					summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta $genotyper_opts -I $bam_path -o $vcf_path'));
-
-				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $genotyper_opts $bam_list -o $vcf_path ];
-				$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
-			}
+	    
+	    # our VCF can have all the bam metadata that is shared amongst all
+	    # inputs
+	    my $vcf_meta = {};
+	    while (my ($key, $hash) = each %meta) {
+		my @vals = keys %$hash;
+		next if @vals > 1;
+		$vcf_meta->{$key} = $vals[0];
+	    }
+	    
+	    # if only one input file, use it to define the output file prefix
+	    my $file_prefix;
+	    if (scalar (@{$self->inputs->{bam_files}}) == 1) {
+		$file_prefix = $self->inputs->{bam_files}[0]->basename;
+		$file_prefix =~ s/\.bam//;
+	    }
+	    else {
+		$file_prefix = "gatk_var";
+	    }
+	    
+	    # perform concurrent analyses if optional chunk file is present
+	    if ($self->inputs->{chunked_regions_file}) {
+		$self->warn("ignoring interval list $interval_list, not supported with chunking") if $interval_list;
+		my $chunk_file = $self->inputs->{chunked_regions_file}[0];
+		my $cfh = $chunk_file->openr;
+		while (<$cfh>) {
+		    my ($chr,$from,$to) = split;
+		    my $chunk_opts = "$genotyper_opts -L ${chr}:${from}-${to}";
+		    
+		    my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}_${chr}_${from}_${to}.vcf.gz", type => 'bin', metadata => $vcf_meta);
+		    my $vcf_path = $vcf_file->path;
+		    
+		    my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $chunk_opts $bam_list -o $vcf_path ];
+		    $self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
+		}
+	    }
+	    else {
+		$genotyper_opts .= " -L $interval_list " if $interval_list;
+		my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}.vcf.gz", type => 'bin', metadata => $vcf_meta);
+		my $vcf_path = $vcf_file->path;
+		
+		$self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+		version => $self->gatk_version(),
+		summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta $genotyper_opts -I $bam_path -o $vcf_path'));
+		
+		my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $genotyper_opts $bam_list -o $vcf_path ];
+		$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
+	    }
         };
     }
     method outputs_definition {
