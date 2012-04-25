@@ -31,27 +31,27 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
 	    $self->handle_standard_options($options);
             
             my $var_filter_opts = $options->{var_filter_opts};
-			my $reference_fasta = $options->{reference_fasta};
-
+	    my $reference_fasta = $options->{reference_fasta};
+	    
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
-
+	    
             foreach my $vcf (@{$self->inputs->{vcf_files}}) {
-                my $vcf_path = $vcf->path;
-				my $basename = $vcf->basename;
-				if ($basename =~ /\.vcf.gz$/) {
-					$basename =~ s/\.vcf.gz$/.filt.vcf.gz/;
-				}
-				else {
-					$basename =~ s/\.vcf$/.filt.vcf/;
-				}
-
-				my $vcf_filt_file = $self->output_file(output_key => 'filtered_vcf_files', basename => $basename, type => 'vcf');
-				my $vcf_filt_path = $vcf_filt_file->path;
-
-				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path $var_filter_opts ];
-				$self->dispatch([$cmd, $req, {output_files => [$vcf_filt_file]}]); 
-			}
+                my $vcf_path = $vcf->path->stringify;
+		my $basename = $vcf->basename;
+		if ($basename =~ /\.vcf.gz$/) {
+		    $basename =~ s/\.vcf.gz$/.filt.vcf.gz/;
+		}
+		else {
+		    $basename =~ s/\.vcf$/.filt.vcf/;
+		}
+		
+		my $vcf_filt_file = $self->output_file(output_key => 'filtered_vcf_files', basename => $basename, type => 'vcf', metadata => {%{$vcf->metadata}, source_vcf => $vcf_path});
+		my $vcf_filt_path = $vcf_filt_file->path;
+		
+		my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path $var_filter_opts ];
+		$self->dispatch([$cmd, $req, {output_files => [$vcf_filt_file]}]); 
+	    }
         };
     }
     method outputs_definition {
