@@ -34,6 +34,13 @@ my $build = VRPipeBuild->new(
     requires             => required_modules );
 
 $build->create_site_config;
+
+# *** we need _build/build_params to contain the SiteConfig.pm file we just
+# created in our modules directory, but I can't figure out how to update that
+# file. Without the following hack, our SiteConfig.pm won't get installed with
+# ./Build install unless 'perl Build.PL' is run once again
+$build->{properties}->{pm_files} = get_pm_files;
+
 $build->create_build_script;
 
 exit;
