@@ -33,6 +33,10 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
             my $var_filter_opts = $options->{var_filter_opts};
 	    my $reference_fasta = $options->{reference_fasta};
 	    
+	    $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+							       version => $self->gatk_version(),
+							       summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path '.$var_filter_opts));
+	    
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
 	    
