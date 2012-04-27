@@ -22,7 +22,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                         optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
+                                                                         optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
                  dict_file => VRPipe::StepIODefinition->get(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
@@ -77,7 +77,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                        reads => 'total number of reads (sequences)',
                                                                        paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
                                                                        merged_bams => 'comma separated list of merged bam paths',
-                                                                       optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
+                                                                       optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -331,6 +331,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         foreach my $path (@$paths) {
             my $bam = VRPipe::File->get(path => file($path)->absolute);
             my $metadata = $bam->metadata;
+            next unless defined $metadata->{lane};
             foreach my $lane (split ',', $metadata->{lane}) {
                 $readgroups{$lane} = 1;
             }
