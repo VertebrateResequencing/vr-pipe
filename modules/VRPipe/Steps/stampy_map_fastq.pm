@@ -192,7 +192,7 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                 $stampy_opts .= '--substitutionrate='.$srates[0];
             }
             $stampy_opts =~ s/$ref/\$ref/g;
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy.py', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
         };
     }
     method outputs_definition {

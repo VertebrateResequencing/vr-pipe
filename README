@@ -24,13 +24,16 @@ You will need the source version of samtools compiled with -fPIC and -m64 in the
 CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
 (which should now contain bam.h and libbam.a). Samtools can be downloaded from
 here: http://sourceforge.net/projects/samtools/files/samtools/
-Furthermore, it is required that a samtools executable be in your PATH.
+Furthermore, it is required that a samtools executable be in your PATH. (Note
+that tests use the samtools in your PATH, not samtools in your SAMTOOlS dir;
+production pipelines will use the samtools at the absolute path you configure
+them with during setup - the default will be the first one in your PATH.)
 
 It is also recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and
 create that directory.
 
 You require Module::Build in order for the Build.PL script to work. It is
-recommended you install Bundle::CPAN using cpan prior to attempting setup.
+recommended you 'install Bundle::CPAN' using 'cpan' prior to attempting setup.
 
 
 First, do the initial setup and dependency installation:
@@ -40,13 +43,19 @@ If this says you have "ERRORS/WARNINGS FOUND IN PREREQUISITES" try:
 $ ./Build installdeps
 to install missing prerequisites from CPAN. You may find that you have to
 unset your LANG environment variable temporarily to install all CPAN
-prerequisites.
+prerequisites. You will likely find that Inline::Filters fails its preprocess.t
+test; this is ok and you can manually use 'cpan' to:
+'force install Inline::Filters'. You may also find that
+MooseX::Types::Parameterizable fails its tests. In that case you can manually
+use 'cpan' to install an earlier version that should work:
+'install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz'.
 
-It will also ask you a number of setup questions such as the details of your
-production and testing databases. It is recommended to use a stand-alone
-relational database such as MySQL. The pipeline functionality requires such a
-database, but if you're only using code such as a parser or the bas function
-you can use sqlite, supplying a path for the database name.
+Once the prerequisites are installed you will be asked a number of setup
+questions such as the details of your production and testing databases. It is
+recommended to use a stand-alone relational database such as MySQL. The pipeline
+functionality requires such a database, but if you're only using code such as a
+parser or the bas function you can use sqlite, supplying a file path for the
+database name.
 
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
@@ -77,8 +86,6 @@ VRPIPE_VRTRACK_TESTDB will enable testing of the VRTrack DataSource, using the
                       value supplied as the database name (other database
                       details will come from the standard VRTrack environment
                       variables)
-VRPIPE_VRTRACK_TESTDB_READY, when true, will disable re-creation of the VRTrack
-                             database to increase the speed of the test
 Additionally, tests that require certain executables will not run unless you
 have those executables in your PATH.
 
@@ -120,7 +127,7 @@ samtools,SAMTOOLS,/path/to/samtools/source_directory
 GATK,GATK,/path/to/gatk_jar_files
 picard,PICARD,/path/to/picard_jar_files
 
-eg. to have GATK work properly in our pipelines you might do:
+eg. to have GATK work properly in the pipelines you might do:
 setenv GATK /path/to/gatk_jar_files
 or
 export GATK=/path/to/gatk_jar_files

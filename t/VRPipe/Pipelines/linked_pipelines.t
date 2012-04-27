@@ -160,7 +160,7 @@ VRPipe::StepAdaptor->get(pipeline => $parent_pipeline, to_step => 1, adaptor_has
 VRPipe::StepAdaptor->get(pipeline => $parent_pipeline, to_step => 2, adaptor_hash => { delay_input => { one_output => 1 } });
 my $delay_step = VRPipe::Step->get(name => 'delay_step',
                                    inputs_definition => { delay_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step two input file') },
-                                   body_sub => sub { my $self = shift; $self->dispatch_vrpipecode('sleep(60);', $self->new_requirements(memory => 50, time => 1)); },
+                                   body_sub => sub { my $self = shift; $self->dispatch_vrpipecode('sleep(60);', $self->new_requirements(memory => 500, time => 1)); },
                                    outputs_definition => { },
                                    post_process_sub => sub { return 1 },
                                    description => 'the delay step');

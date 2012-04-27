@@ -64,7 +64,7 @@ if ($frontend->option_was_set('tab_columns')) {
     my @desired_cols = split(',', $frontend->opts('tab_columns'));
     foreach my $col (@desired_cols) {
         unless (exists $output_types{$col}) {
-            $frontend->die_with_error("You included '$col' in yout --tab_columns specification, but that isn't a requested or known information type");
+            $frontend->die_with_error("You included '$col' in your --tab_columns specification, but that isn't a requested or known information type (did you mean to say 'metadata'?)");
         }
         push(@tab_cols, $col);
     }

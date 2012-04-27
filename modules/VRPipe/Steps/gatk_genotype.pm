@@ -103,13 +103,13 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 		my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => "${file_prefix}.vcf.gz", type => 'bin', metadata => $vcf_meta);
 		my $vcf_path = $vcf_file->path;
 		
-		$self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
-		version => $self->gatk_version(),
-		summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta $genotyper_opts -I $bam_path -o $vcf_path'));
-		
 		my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T UnifiedGenotyper -R $reference_fasta $genotyper_opts $bam_list -o $vcf_path ];
 		$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
 	    }
+	    
+	    $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+							       version => $self->gatk_version(),
+							       summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bam_path -o $vcf_path '.$genotyper_opts));
         };
     }
     method outputs_definition {
