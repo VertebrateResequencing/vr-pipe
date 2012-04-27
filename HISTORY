@@ -1,3 +1,5 @@
+0.58    Various fixes to enable initial install and testing for
+        new users using latest CPAN modules.
 0.57    vrpipe-fileinfo can now tell you how a file was generated.
 0.56    New gatk_variant_calling_and_filter_vcf pipeline.
 0.55    Further merge pipeline fixes. New bam realignment around
