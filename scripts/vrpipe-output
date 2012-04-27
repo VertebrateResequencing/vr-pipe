@@ -31,7 +31,7 @@ my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of
                                                    [ 'OR' ],
                                                    [ 'basename_as_input=s', q[Basename is the same as that of the input file with its extension replaced with the supplied string plus the output extension] ],
                                                    [ 'OR' ],
-                                                   [ 'basename_from_metadata=s', q[Basename is the based on the metadata associated with the output file. The string you must supply should be of the form "string.\%key1%.\%key2%.base"] ],
+                                                   [ 'basename_from_metadata=s', q[Basename is the based on the metadata associated with the output file. The string you must supply should be of the form "string.%key1%.%key2%.base"] ],
                                                    [ q[The resulting basename of any of these options can then be optionally modified with:] ],
                                                    [ 'basename_regex=s@', q[Supply a regex and replacement string to alter the basename, eg. --basename_regex 'foo#bar' will turn basename thefoo.file into thebar.file. Multiple replacement may be made by supplying the --basename_regex option multiple times] ],
                                                    [],
@@ -436,6 +436,9 @@ sub file_suffix {
     my $suffix;
     if ($basename =~ /\.gz(?:\.|$)/) {
         ($suffix) = $basename =~ /\.([^\.]+\.gz.*)$/;
+    }
+    elsif ($basename =~ /\.bam\.bai$/) {
+        $suffix = 'bam.bai';
     }
     else {
         ($suffix) = $basename =~ /\.([^\.]+)$/;
