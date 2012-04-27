@@ -3,7 +3,11 @@
 use strict;
 use warnings;
 
-use Test::Strict;
+BEGIN {
+    use Test::Most 'no_plan';
+    use Test::Strict;
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_SYNTAX)]);
+}
 
 all_perl_files_ok('scripts');
 
