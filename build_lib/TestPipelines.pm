@@ -25,7 +25,7 @@ sub get_output_dir {
 }
 
 sub handle_pipeline {
-    my $give_up = 1000;
+    my $give_up = 1500;
     my $max_retries = VRPipeTest::max_retries();
     my $debug = VRPipeTest::debug();
     $manager->set_verbose_global(1) if $debug;
@@ -57,7 +57,7 @@ sub handle_pipeline {
         
         if ($give_up-- <= 0) {
             $gave_up = 1;
-            warn "not all pipelinesetups finished yet, but giving up after 1000 cycles\n";
+            warn "not all pipelinesetups finished yet, but giving up after 1500 cycles\n";
             last;
         }
         
