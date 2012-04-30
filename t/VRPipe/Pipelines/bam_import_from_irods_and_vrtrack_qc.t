@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 12;
+    use Test::Most tests => 13;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
                     required_exe => [qw(iget iquest)]);
@@ -102,7 +102,7 @@ study => "ERP001017",
 targeted_avg_read_length => "100",
 targeted_bases => "780614400",
 targeted_bases_mapped => "778639100",
-targeted_bases_mapped_c => "777515960",
+targeted_bases_mapped_c => "777477155",
 targeted_bases_of_100X_coverage => "170588",
 targeted_bases_of_10X_coverage => "11381918",
 targeted_bases_of_1X_coverage => "11420817",
@@ -150,6 +150,7 @@ my $known_sites = file($res_dir, 'known_sites.vcf.gz')->stringify;
 copy($known_sites_source, $known_sites);
 copy($known_sites_source.'.tbi', $known_sites.'.tbi');
 
+$output_dir = get_output_dir('bam_improvement');
 VRPipe::PipelineSetup->get(name => 'pombe improvement',
                                     datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                           method => 'all',
@@ -223,7 +224,7 @@ project => "SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA
 targeted_avg_read_length => "100",
 targeted_bases => "780614400",
 targeted_bases_mapped => "778639100",
-targeted_bases_mapped_c => "777515960",
+targeted_bases_mapped_c => "777477155",
 targeted_bases_of_100X_coverage => "170588",
 targeted_bases_of_10X_coverage => "11381918",
 targeted_bases_of_1X_coverage => "11420817",
@@ -255,27 +256,45 @@ $mapstats = $lane->latest_mapping;
 is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 10002980, 7806144], 'VRTrack database was updated correctly after improvement';
 
 
-#*** genotype check
+# genotype check
+#my $snp_bin_source = file(qw(t data pombe_snps.bin));
+#my $snp_bin = file($res_dir, 'pombe_snps.bin')->stringify;
+#copy($snp_bin_source, $snp_bin);
+#
+#my $improved_bams_ds = datasource => VRPipe::DataSource->get(type => 'vrpipe',
+#                                                             method => 'all',
+#                                                             source => 'pombe improvement[10]',
+#                                                             options => { } );
+#$output_dir = get_output_dir('genotype_check');
+#VRPipe::PipelineSetup->get(name => 'genotype_checking',
+#			   datasource => $improved_bams_ds,
+#			   output_root => $output_dir,
+#			   pipeline => VRPipe::Pipeline->get(name => 'bam_genotype_checking'),
+#			   options => {reference_fasta => $ref_fa,
+#			               hapmap2bin_sample_genotypes_file => $snp_bin,
+#				       expected_sample_metadata_key => 'sample'});
 
-#*** autocq that writes results to vrtrack...
+#*** autoqc that writes results to vrtrack...
 
 
 # mergeup
+$output_dir = get_output_dir('lane_merge');
 VRPipe::PipelineSetup->get(name => 'pombe merge lanes',
                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                  method => 'group_by_metadata',
                                                                  source => 'pombe improvement[10]',
                                                                  options => { metadata_keys => 'population|sample|platform|library' } ),
                            output_root => $output_dir,
-                           pipeline => VRPipe::Pipeline->get(name => 'bam_merge_lanes'),
+                           pipeline => VRPipe::Pipeline->get(name => 'bam_merge_lanes_and_fix_rgs'),
                            options => { bam_tags_to_strip => 'OQ XM XG XO',
                                         bam_merge_keep_single_paired_separate => 1,
                                         cleanup => 1 });
 
+$output_dir = get_output_dir('library_merge');
 VRPipe::PipelineSetup->get(name => 'pombe merge libraries',
                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                  method => 'group_by_metadata',
-                                                                 source => 'pombe merge lanes[3:markdup_bam_files]',
+                                                                 source => 'pombe merge lanes[4]',
                                                                  options => { metadata_keys => 'population|sample|platform' } ),
                            output_root => $output_dir,
                            pipeline => VRPipe::Pipeline->get(name => 'bam_merge_and_split'),
@@ -285,24 +304,31 @@ VRPipe::PipelineSetup->get(name => 'pombe merge libraries',
                                         remove_merged_bams => 1 });
 
 # mergeacross
-VRPipe::PipelineSetup->get(name => 'pombe mergeacross',
-                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
-                                                                 method => 'group_by_metadata',
-                                                                 source => 'pombe merge libraries[1]',
-                                                                 options => { metadata_keys => 'split_sequence' } ),
-                           output_root => $output_dir,
-                           pipeline => VRPipe::Pipeline->get(name => 'bam_merge'),
-                           options => { bam_merge_keep_single_paired_separate => 0,
-                                        delete_input_bams => 1 });
+$output_dir = get_output_dir('merge_across');
+my $mergeacross_ps = VRPipe::PipelineSetup->get(name => 'pombe mergeacross',
+                                                datasource => VRPipe::DataSource->get(type => 'vrpipe',
+                                                                                      method => 'group_by_metadata',
+                                                                                      source => 'pombe merge libraries[2]',
+                                                                                      options => { metadata_keys => 'split_sequence' } ),
+                                                output_root => $output_dir,
+                                                pipeline => VRPipe::Pipeline->get(name => 'bam_merge'),
+                                                options => { bam_merge_keep_single_paired_separate => 0,
+                                                             delete_input_bams => 1 });
 
 handle_pipeline();
 my @merged_bams;
-foreach my $element_id (88..116) {
-    my @output_subdirs = output_subdirs($element_id, 4);
-    foreach my $chrom (qw(chromIII chromI chromII chromAB325691 chromMT)) {
-        push(@merged_bams, file(@output_subdirs, '4_bam_split_by_sequence', $chrom.'.pe.bam'));
-    }
+foreach my $element (@{$mergeacross_ps->datasource->elements}) {
+    my @output_subdirs = output_subdirs($element->id, $mergeacross_ps->id);
+    push(@merged_bams, file(@output_subdirs, '1_bam_merge', 'pe.bam'));
 }
 ok handle_pipeline(@merged_bams), 'chained mergeup -> mergeacross pipelines ran ok';
+
+my %seen_splits;
+foreach my $mbam (@merged_bams) {
+    my $meta = $mbam->metadata;
+    my $split = $meta->{split_sequence} || next;
+    $seen_splits{$split}++;
+}
+is_deeply \%seen_splits, {chromMT => 1, chromIII => 1, chromII => 1, chromI => 1, chromAB325691 => 1 }, 'there was a mergeacross bam for each chromosome, and the metadata was correct';
 
 finish;
