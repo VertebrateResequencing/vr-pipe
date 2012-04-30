@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 44;
+    use Test::Most tests => 45;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -161,7 +161,7 @@ is_deeply $meta, { expected_md5 => 'f1826489facca0d0bdf02d9586b493f6',
 # only, but will also work for anyone with a working VertRes:: and VRTrack::
 # setup
 SKIP: {
-    my $num_tests = 25;
+    my $num_tests = 26;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
     eval "require VertRes::Utils::VRTrackFactory; require VRTrack::VRTrack; require VRTrack::Lane;";
     skip "VertRes::Utils::VRTrackFactory/VRTrack::VRTrack not loading", $num_tests if $@;
