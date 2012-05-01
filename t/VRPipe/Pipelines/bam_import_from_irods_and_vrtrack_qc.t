@@ -325,7 +325,7 @@ ok handle_pipeline(@merged_bams), 'chained mergeup -> mergeacross pipelines ran 
 
 my %seen_splits;
 foreach my $mbam (@merged_bams) {
-    my $meta = $mbam->metadata;
+    my $meta = VRPipe::File->get(path => $mbam)->metadata;
     my $split = $meta->{split_sequence} || next;
     $seen_splits{$split}++;
 }
