@@ -11,11 +11,11 @@ BEGIN {
                     required_exe => [qw(iget iquest)]);
     use TestPipelines;
     
-    use_ok('VertRes::Utils::VRTrackFactory');
+    use_ok('VRTrack::Factory');
 }
 
 # setup a little VRTrack db that has its files in irods
-my %cd = VertRes::Utils::VRTrackFactory->connection_details('rw');
+my %cd = VRTrack::Factory->connection_details('rw');
 open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
 print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
 print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
@@ -127,7 +127,7 @@ targeted_rmdup_reads_mapped => "7706369",
 targeted_sd_insert_size => "80.8",
 withdrawn => "0"}, 'metadata correct for one of the bam files';
 
-my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
 my $lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#1');
 my $mapstats = $lane->latest_mapping;
 is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $mapstats->raw_reads], [1, 1, 1, 7806144], 'VRTrack database was updated correctly';
@@ -250,7 +250,7 @@ targeted_sd_insert_size => "80.8",
 withdrawn => "0"}, 'metadata correct for one of the improved bam files';
 $meta->{original_pg_chain} = $opc;
 
-$vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+$vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
 $lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#1');
 $mapstats = $lane->latest_mapping;
 is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 10002980, 7806144], 'VRTrack database was updated correctly after improvement';
