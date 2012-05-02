@@ -29,7 +29,7 @@ class VRPipe::Pipelines::bam_merge_1000_genomes_libraries_with_split with VRPipe
 
                      [ 
                        VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1),
-                       VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'cleanup_inputs', default_regulation => 0),
+                       VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0),
                        VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'remove_merged_bams', default_regulation => 0),
                      ]);
     }
