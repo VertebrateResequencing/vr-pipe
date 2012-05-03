@@ -93,6 +93,7 @@ my $schema = $frontend->schema;
 my %files;
 my $limit_count = 0;
 foreach my $path (@paths) {
+    $path = file($path)->absolute;
     my $file = $schema->resultset('File')->find({ path => $path });
     unless ($file) {
         $frontend->error("VRPipe does not know about $path; ignoring");

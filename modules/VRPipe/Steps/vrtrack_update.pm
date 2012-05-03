@@ -2,8 +2,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vrtrack_update with VRPipe::StepRole {
     # eval these so that test suite can pass syntax check on this module when
-    # VertRes is not installed
-    eval "use VertRes::Utils::VRTrackFactory;";
+    # VRTrack is not installed
+    eval "use VRTrack::Factory;";
     
     method options_definition {
         return { vrtrack_db => VRPipe::StepOption->get(description => 'the name of your VRTrack database (other connection settings are taken from the standard VRTrack environment variables)') };
@@ -28,7 +28,7 @@ class VRPipe::Steps::vrtrack_update with VRPipe::StepRole {
     }
     
     method get_vrtrack (ClassName|Object $self: Str :$db!, Str :$mode = 'rw') {
-	return VertRes::Utils::VRTrackFactory->instantiate(database => $db, mode => $mode) || $self->throw("Could not connect to the database '$db'");
+	return VRTrack::Factory->instantiate(database => $db, mode => $mode) || $self->throw("Could not connect to the database '$db'");
     }
 }
 
