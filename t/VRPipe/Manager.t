@@ -13,8 +13,8 @@ BEGIN {
 
 
 # we'll set up 2 simple pipelines: the first has a single step but multiple
-# data elements; the second has multiple elements but a single data element.
-# all of the following set up stuff should have been tested in PersistentReal.t
+# data elements; the second has multiple steps but a single data element.
+# all of the following set up stuff should have been tested in Persistent.t
 # so we don't bother with tests unless we actually get to the manager
 my $scheduler = VRPipe::Scheduler->get();
 my $output_root = get_output_dir('manager_test_output');
