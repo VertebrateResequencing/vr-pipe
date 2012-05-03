@@ -30,8 +30,8 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_vep_annotate
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
-		'vcf2consequences_options' => "-grantham --gerp $gerp_cache",
-		cleanup => 0});
+		'vcf2consequences_options' => "--gerp $gerp_cache",
+		cleanup => 1});
 
 my (@output_files,@final_files);
 my $element_id=0;
