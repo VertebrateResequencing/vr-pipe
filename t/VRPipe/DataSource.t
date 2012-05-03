@@ -83,10 +83,6 @@ is_deeply [$ds->method_options('single_column')], [['named', 'delimiter', 1, und
                                                    ['named', 'column_is_path', 0, 1, 'Bool']], 'method_options showed us what options the single_column method takes';
 
 # fofn_with_metadata
-#path    center_name     study   sample  platform        library lane
-#/a/path/7816_3#95.bam   SC      ERP000979       JB953   ILLUMINA        4858080 7816_3#95
-#/a/path/7413_5#95.bam   SC      ERP000979       JB953   ILLUMINA        4074406 7413_5#95
-#/a/path/8312_5#95.bam   SC      ERP000979       JB951   ILLUMINA        4074399 8312_5#95
 my @fwm_paths = ('/a/path/7816_3#95.bam', '/a/path/7413_5#95.bam', '/a/path/8312_5#95.bam');
 my %fwm_common_meta = (center_name => 'SC', study => 'ERP000979', platform => 'ILLUMINA');
 VRPipe::File->get(path => $fwm_paths[0])->add_metadata({library => 'foo'});
