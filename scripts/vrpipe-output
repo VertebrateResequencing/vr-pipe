@@ -31,7 +31,7 @@ my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of
                                                    [ 'OR' ],
                                                    [ 'basename_as_input=s', q[Basename is the same as that of the input file with its extension replaced with the supplied string plus the output extension] ],
                                                    [ 'OR' ],
-                                                   [ 'basename_from_metadata=s', q[Basename is the based on the metadata associated with the output file. The string you must supply should be of the form "string.\%key1%.\%key2%.base"] ],
+                                                   [ 'basename_from_metadata=s', q[Basename is the based on the metadata associated with the output file. The string you must supply should be of the form "string.%key1%.%key2%.base"] ],
                                                    [ q[The resulting basename of any of these options can then be optionally modified with:] ],
                                                    [ 'basename_regex=s@', q[Supply a regex and replacement string to alter the basename, eg. --basename_regex 'foo#bar' will turn basename thefoo.file into thebar.file. Multiple replacement may be made by supplying the --basename_regex option multiple times] ],
                                                    [],
@@ -305,6 +305,34 @@ foreach my $element (@$elements) {
             $this_output_dir->mkpath;
         }
         
+        # figure out basename_from_metadata
+        my $metadata_basename;
+        if ($basename_from_metadata) {
+            my @basename_keys = $basename_from_metadata =~ m/%([^%]+)%/g;
+            
+            # find the first output file metadata that has all these keys
+            OFILE: foreach my $file (@output_files) {
+                my $metadata = $file->metadata;
+                my $this_basename = $basename_from_metadata;
+                foreach my $key (@basename_keys) {
+                    if (defined $metadata->{$key}) {
+                        my $val = $metadata->{$key};
+                        $val =~ s/\W/_/g;
+                        $this_basename =~ s/%$key%/$val/;
+                    }
+                    else {
+                        next OFILE;
+                    }
+                }
+                $metadata_basename = $this_basename;
+            }
+            
+            unless ($metadata_basename) {
+                $frontend->error("$eident resulted in output files, none of which had metadata keys @basename_keys; skipping");
+                next;
+            }
+        }
+        
         # create a symlink for each output file
         foreach my $output_file (@output_files) {
             # work out the basename
@@ -314,21 +342,12 @@ foreach my $element (@$elements) {
                 $this_basename = $obase;
             }
             elsif ($basename_as_input) {
-                my ($suffix) = $obase =~ /\.([^\.]+)$/;
+                my $suffix = file_suffix($obase);
                 $this_basename = $input_basename.'.'.$suffix;
             }
             elsif ($basename_from_metadata) {
-                my ($suffix) = $obase =~ /\.([^\.]+)$/;
-                $this_basename = $basename_from_metadata.'.'.$suffix;
-                my @basename_keys = $basename_from_metadata =~ m/%([^%]+)%/g;
-                my $metadata = $output_file->metadata;
-                foreach my $key (@basename_keys) {
-                    if (defined $metadata->{$key}) {
-                        my $val = $metadata->{$key};
-                        $val =~ s/\W/_/g;
-                        $this_basename =~ s/%$key%/$val/;
-                    }
-                }
+                my $suffix = file_suffix($obase);
+                $this_basename = $metadata_basename.'.'.$suffix;
             }
             
             if (@basename_regex) {
@@ -410,4 +429,19 @@ sub common_parent_dir {
     
     return unless $deepest_common;
     return dir((@{$dir_lists[0]})[0..$deepest_common]);
+}
+
+sub file_suffix {
+    my $basename = shift;
+    my $suffix;
+    if ($basename =~ /\.gz(?:\.|$)/) {
+        ($suffix) = $basename =~ /\.([^\.]+\.gz.*)$/;
+    }
+    elsif ($basename =~ /\.bam\.bai$/) {
+        $suffix = 'bam.bai';
+    }
+    else {
+        ($suffix) = $basename =~ /\.([^\.]+)$/;
+    }
+    return $suffix;
 }
