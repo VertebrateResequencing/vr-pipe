@@ -46,7 +46,7 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
                 $metadata->{$key} = $result->{$col};
             }
             
-            my $path = $result->{paths}->[0];
+            my $path = file($result->{paths}->[0])->absolute->stringify;
             my $file = VRPipe::File->get(path => $path);
             $file->add_metadata($metadata, replace_data => 1);
             
