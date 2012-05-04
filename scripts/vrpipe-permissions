@@ -43,23 +43,31 @@ foreach my $step_name (@steps) {
 my @step_members = $setup->pipeline->steps;
 my @allowed_step_members;
 my %allowed_kinds;
-foreach my $stepm (@step_members) {
-    my $smid = $stepm->id;
-    my $step_name = $stepm->step->name;
-    if (exists $desired_steps{names}->{$step_name}) {
-        foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
-            $allowed_kinds{$smid}->{$kind} = 1;
+if (@steps) {
+    foreach my $stepm (@step_members) {
+        my $smid = $stepm->id;
+        my $step_name = $stepm->step->name;
+        if (exists $desired_steps{names}->{$step_name}) {
+            foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
         }
-    }
-    my $step_num = $stepm->step_number;
-    if (exists $desired_steps{numbers}->{$step_num}) {
-        foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
-            $allowed_kinds{$smid}->{$kind} = 1;
+        my $step_num = $stepm->step_number;
+        if (exists $desired_steps{numbers}->{$step_num}) {
+            foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
+                $allowed_kinds{$smid}->{$kind} = 1;
+            }
         }
+        next unless keys %{$allowed_kinds{$smid}};
+        
+        push(@allowed_step_members, $stepm);
     }
-    next unless keys %{$allowed_kinds{$smid}};
-    
-    push(@allowed_step_members, $stepm);
+}
+else {
+    foreach my $stepm (@step_members) {
+        $allowed_kinds{$stepm->id}->{all} = 1;
+        push(@allowed_step_members, $stepm);
+    }
 }
 
 # loop through completed elements, getting the list of file paths to work with
@@ -110,6 +118,24 @@ if (@paths) {
         }
         close($pipe);
     }
+    
+    # make sure that all the parent dirs of the files we just changed are world
+    # readable and executable
+    my %dirs;
+    foreach my $path (@paths) {
+        my $dir = file($path)->dir;
+        $dirs{$dir} = 1;
+        my $num_parents = $dir->dir_list;
+        for (1..$num_parents) {
+            $dir = $dir->parent;
+            $dirs{$dir} = 1;
+        }
+    }
+    open(my $pipe, "| xargs chmod o+rX");
+    foreach my $dir (keys %dirs) {
+        print $pipe $dir, "\n";
+    }
+    close($pipe);
 }
 
 $frontend->output("Permissions changed (where possible).");
