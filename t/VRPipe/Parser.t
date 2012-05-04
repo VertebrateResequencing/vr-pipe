@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 70;
+    use Test::Most tests => 73;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -122,7 +122,7 @@ while ($p->next_record) {
 }
 is $num_records, 3, 'correct number of records found in bam file';
 
-# bamcheck (only parses the header so far...)
+# bamcheck
 $p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck))});
 is $p->sequences, 2000, 'bamcheck sequences method worked';
 is $p->is_paired, 1, 'bamcheck is_paired worked';
@@ -138,6 +138,14 @@ $p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_
 is_deeply [$p->coverage(0), $p->coverage(1), $p->coverage(2), $p->coverage(3), $p->coverage(4), $p->coverage(5), $p->coverage(6), $p->coverage(7)], [0, 27893, 6485, 1188, 355, 49, 49, 0], 'coverage worked';
 is_deeply [$p->cumulative_coverage(1), $p->cumulative_coverage(2), $p->cumulative_coverage(3), $p->cumulative_coverage(4), $p->cumulative_coverage(5), $p->cumulative_coverage(6), $p->cumulative_coverage(7)], [36019, 8126, 1641, 453, 98, 49, 0], 'cumulative_coverage worked';
 is $p->mean_coverage, 1.29, 'mean_coverage worked';
+# and check that some of the other section methods work
+is_deeply $p->gc_depth(), [[qw(0.0	28.571	0.000	0.000	0.000	0.000	0.000)],
+                           [qw(0.4	42.857	0.238	0.238	0.238	0.238	0.238)],
+                           [qw(37.0	71.429	0.381	0.381	0.381	0.383	0.383)],
+                           [qw(38.0	85.714	0.402	0.402	0.402	0.402	0.402)],
+                           [qw(39.0	100.000	0.419	0.419	0.419	0.419	0.419)]], 'gc_depth worked';
+is_deeply $p->read_lengths(), [[54, 862]], 'read_lengths worked';
+is_deeply $p->indel_dist(), [[1, 5, 6], [3, 0, 1]], 'indel_dist worked';
 
 # bas
 $p = VRPipe::Parser->create('bas', {file => file(qw(t data example2.bas))});
