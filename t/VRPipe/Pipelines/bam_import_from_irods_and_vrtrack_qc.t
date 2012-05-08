@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 13;
+    use Test::Most tests => 17;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
                     required_exe => [qw(iget iquest)]);
@@ -69,7 +69,8 @@ VRPipe::PipelineSetup->get(name => 'pombe import and qc',
 my @irods_files;
 my @qc_files;
 my $element_id = 5;
-foreach my $num (qw(27 28 29 30 31)) {
+my @lane_nums = qw(27 28 29 30 31);
+foreach my $num (@lane_nums) {
     my @output_subdirs = output_subdirs($element_id--);
     my $basename = '7369_5#'.$num;
     
@@ -150,130 +151,128 @@ my $known_sites = file($res_dir, 'known_sites.vcf.gz')->stringify;
 copy($known_sites_source, $known_sites);
 copy($known_sites_source.'.tbi', $known_sites.'.tbi');
 
-#$output_dir = get_output_dir('bam_improvement');
-#VRPipe::PipelineSetup->get(name => 'pombe improvement',
-#                                    datasource => VRPipe::DataSource->get(type => 'vrpipe',
-#                                                                          method => 'all',
-#                                                                          source => 'pombe import and qc[1]',
-#                                                                          options => { }),
-#                                    output_root => $output_dir,
-#                                    pipeline => VRPipe::Pipeline->get(name => 'bam_improvement_and_update_vrtrack'),
-#                                    options => {reference_fasta => $ref_fa,
-#                                                reference_assembly_name => 'SPombe1',
-#                                                reference_public_url => 'ftp://s.pombe.com/ref.fa',
-#                                                reference_species => 'S.Pombe',
-#                                                known_indels_for_realignment => "-known $known_indels",
-#                                                known_sites_for_recalibration => "-knownSites $known_sites",
-#                                                gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
-#                                                gatk_path => $ENV{GATK},
-#                                                picard_path => $ENV{PICARD},
-#                                                cleanup => 1,
-#                                                delete_input_bams => 1,
-#                                                vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB}});
-#
-#handle_pipeline();
-#
-#my @improved_bams;
-#$element_id = 10;
-#foreach my $num (qw(27 28 29 30 31)) {
-#    my @output_subdirs = output_subdirs($element_id--, 2);
-#    push(@improved_bams, file(@output_subdirs, '10_bam_reheader', '7369_5#'.$num.'.realign.recal.calmd.bam'));
-#}
-#ok handle_pipeline(@improved_bams), 'chained improvement pipeline ran ok';
-#
-#$meta = VRPipe::File->get(path => $improved_bams[0])->metadata;
-#while (my ($key, $val) = each %$meta) {
-#    warn qq[$key => "$val",\n];
-#}
-#my $opc = delete $meta->{original_pg_chain};
-#is_deeply $meta, {avg_read_length => "100",
-#bases => "1000298000",
-#bases_mapped => "990021900",
-#bases_mapped_c => "988611944",
-#bases_of_100X_coverage => "241872",
-#bases_of_10X_coverage => "12566325",
-#bases_of_1X_coverage => "12608642",
-#bases_of_20X_coverage => "12402778",
-#bases_of_2X_coverage => "12607594",
-#bases_of_50X_coverage => "10417019",
-#bases_of_5X_coverage => "12600810",
-#bases_trimmed => "0",
-#center_name => "SC",
-#error_rate => "3.613777e-03",
-#expected_md5 => "8194f6c33299784d78e8d16fb05eb1c6",
-#forward_reads => "5001490",
-#individual => "SC_MFY5249218",
-#insert_size => "317",
-#lane => "7369_5#1",
-#lane_id => "85",
-#library => "4103711",
-#mean_coverage => "65.99",
-#mean_insert_size => "311.8",
-#paired => "1",
-#platform => "SLX",
-#population => "Population",
-#reads => "10002980",
-#reads_mapped => "9900219",
-#reads_paired => "9867534",
-#reverse_reads => "5001490",
-#rmdup_bases => "982264700",
-#rmdup_bases_mapped => "971988600",
-#rmdup_reads => "9822647",
-#rmdup_reads_mapped => "9719886",
-#sample => "SC_MFY5249218",
-#sd_insert_size => "81.0",
-#study => "ERP001017",
-#species => 'Pombe',
-#project => "SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants",
-#targeted_avg_read_length => "100",
-#targeted_bases => "780614400",
-#targeted_bases_mapped => "778639100",
-#targeted_bases_mapped_c => "777477155",
-#targeted_bases_of_100X_coverage => "170588",
-#targeted_bases_of_10X_coverage => "11381918",
-#targeted_bases_of_1X_coverage => "11420817",
-#targeted_bases_of_20X_coverage => "11232925",
-#targeted_bases_of_2X_coverage => "11419827",
-#targeted_bases_of_50X_coverage => "9423004",
-#targeted_bases_of_5X_coverage => "11413494",
-#targeted_bases_trimmed => "1743015",
-#targeted_error_rate => "3.556041e-03",
-#targeted_forward_reads => "3903092",
-#targeted_mean_coverage => "65.47",
-#targeted_mean_insert_size => "313.3",
-#targeted_paired => "1",
-#targeted_reads => "7806144",
-#targeted_reads_mapped => "7786391",
-#targeted_reads_paired => "7763595",
-#targeted_reverse_reads => "3903052",
-#targeted_rmdup_bases => "772612200",
-#targeted_rmdup_bases_mapped => "770636900",
-#targeted_rmdup_reads => "7726122",
-#targeted_rmdup_reads_mapped => "7706369",
-#targeted_sd_insert_size => "80.8",
-#withdrawn => "0"}, 'metadata correct for one of the improved bam files';
-#$meta->{original_pg_chain} = $opc;
-#
-#$vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
-#$lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#27');
-#$mapstats = $lane->latest_mapping;
-#is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 10002980, 7861907], 'VRTrack database was updated correctly after improvement';
+$output_dir = get_output_dir('bam_improvement');
+VRPipe::PipelineSetup->get(name => 'pombe improvement',
+                                    datasource => VRPipe::DataSource->get(type => 'vrpipe',
+                                                                          method => 'all',
+                                                                          source => 'pombe import and qc[1]',
+                                                                          options => { }),
+                                    output_root => $output_dir,
+                                    pipeline => VRPipe::Pipeline->get(name => 'bam_improvement_and_update_vrtrack'),
+                                    options => {reference_fasta => $ref_fa,
+                                                reference_assembly_name => 'SPombe1',
+                                                reference_public_url => 'ftp://s.pombe.com/ref.fa',
+                                                reference_species => 'S.Pombe',
+                                                known_indels_for_realignment => "-known $known_indels",
+                                                known_sites_for_recalibration => "-knownSites $known_sites",
+                                                gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
+                                                gatk_path => $ENV{GATK},
+                                                picard_path => $ENV{PICARD},
+                                                cleanup => 1,
+                                                delete_input_bams => 1,
+                                                vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB}});
 
+handle_pipeline();
+
+my @improved_bams;
+$element_id = 10;
+foreach my $num (qw(27 28 29 30 31)) {
+    my @output_subdirs = output_subdirs($element_id--, 2);
+    push(@improved_bams, file(@output_subdirs, '10_bam_reheader', '7369_5#'.$num.'.realign.recal.calmd.bam'));
+}
+ok handle_pipeline(@improved_bams), 'chained improvement pipeline ran ok';
+
+$meta = VRPipe::File->get(path => $improved_bams[0])->metadata;
+my $opc = delete $meta->{original_pg_chain};
+is_deeply $meta, {bases => "1155792800",
+withdrawn => "0",
+targeted_bases_of_20X_coverage => "11209858",
+targeted_paired => "1",
+individual => "SC_MFY5249244",
+study => "ERP001017",
+lane => "7369_5#27",
+targeted_reads => "7861907",
+targeted_rmdup_bases_mapped => "776426400",
+targeted_sd_insert_size => "80.9",
+bases_trimmed => "0",
+targeted_error_rate => "3.597674e-03",
+reads_mapped => "11460868",
+insert_size => "320",
+bases_of_50X_coverage => "10404533",
+targeted_rmdup_reads => "7783736",
+targeted_bases_of_2X_coverage => "11417382",
+paired => "1",
+reads => "11557928",
+bases_mapped_c => "1144432834",
+reverse_reads => "5778964",
+targeted_bases_mapped => "784243500",
+targeted_bases_of_10X_coverage => "11374735",
+targeted_bases_mapped_c => "783066516",
+rmdup_bases => "1108554300",
+targeted_reads_mapped => "7842435",
+targeted_bases_of_5X_coverage => "11410160",
+center_name => "SC",
+platform => "SLX",
+expected_md5 => "76ee5f08e761fa5baf637a6ad383ad19",
+species => "Pombe",
+targeted_bases_of_100X_coverage => "240676",
+targeted_rmdup_bases => "778373600",
+targeted_forward_reads => "3930964",
+population => "Population",
+targeted_reads_paired => "7819448",
+sd_insert_size => "81.3",
+targeted_bases_trimmed => "1766592",
+mean_insert_size => "314.4",
+mean_coverage => "66.94",
+bases_of_5X_coverage => "12597313",
+bases_of_100X_coverage => "334539",
+targeted_reverse_reads => "3930943",
+reads_paired => "11424028",
+targeted_bases_of_50X_coverage => "9399756",
+sample => "SC_MFY5249244",
+rmdup_reads => "11085543",
+bases_of_2X_coverage => "12605219",
+rmdup_bases_mapped => "1098848300",
+bases_of_10X_coverage => "12559368",
+bases_of_20X_coverage => "12379834",
+bases_of_1X_coverage => "12606379",
+project => "SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants",
+targeted_mean_insert_size => "317.3",
+library => "4103684",
+avg_read_length => "100",
+lane_id => "13",
+targeted_bases => "786190700",
+bases_mapped => "1146086800",
+rmdup_reads_mapped => "10988483",
+error_rate => "3.720504e-03",
+targeted_mean_coverage => "66.18",
+targeted_avg_read_length => "100",
+targeted_bases_of_1X_coverage => "11418447",
+forward_reads => "5778964",
+targeted_rmdup_reads_mapped => "7764264",}, 'metadata correct for one of the improved bam files';
+$meta->{original_pg_chain} = $opc;
+
+$vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+$lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#27');
+$mapstats = $lane->latest_mapping;
+is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 11557928, 7861907], 'VRTrack database was updated correctly after improvement';
 
 # genotype check
-my $snp_bin_source = file(qw(t data qc_chr20_snps.bin));#pombe_snps.bin
+# (the pombe_snps.bin was made by:
+# samtools mpileup -q 20 -uf $ref *.bam | bcftools view -cgvI - | grep -v "^#" > vcf # (working on the import bams that have individual accessions in the headers)
+# perl -Mstrict -we 'my %ofhs; my @s = qw(ERS074387 ERS074388 ERS074389 ERS074390 ERS074391); my %c = (ERS074387 => "SC_MFY5249244", ERS074388 => "SC_MFY5249245", ERS074389 => "SC_MFY5249246", ERS074390 => "SC_MFY5249247", ERS074391 => "SC_MFY5249248"); open(my $fh, "vcf"); while (<$fh>) { my ($chr, $pos, undef, $ref, $alt, undef, undef, undef, undef, @results) = split; next if $alt =~ /,/; foreach my $i (0..4) { my $s = $s[$i]; my $r = $results[$i]; ($r) = split(":", $r); my $al; if ($r eq "1/1") { $al = "$alt$alt"; } elsif ($r eq "0/1") { $al = "$ref$alt"; } elsif ($r eq "0/0") { $al = "$ref$ref"; } else { die "bad r $r at pos $pos\n"; } my $ind = $c{$s}; unless (defined $ofhs{$ind}) { open(my $ofh, ">$ind"); $ofhs{$ind} = $ofh; } my $ofh = $ofhs{$ind}; print $ofh "$chr $pos $al\n"; } }'
+# ls SC_* > SC.fofn
+# hapmap2bin -f SC.fofn > pombe_snps.bin
+# )
+my $snp_bin_source = file(qw(t data pombe_snps.bin));
 my $snp_bin = file($res_dir, 'pombe_snps.bin')->stringify;
 copy($snp_bin_source, $snp_bin);
 
-my $improved_bams_ds = datasource => VRPipe::DataSource->get(type => 'vrpipe',
-                                                             method => 'all',
-                                                             source => 'pombe improvement[10]',
-                                                             options => { } );
 $output_dir = get_output_dir('genotype_check');
 VRPipe::PipelineSetup->get(name => 'genotype_checking',
 			   datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                  method => 'all',
-                                                                 source => 'pombe import and qc[1]',
+                                                                 source => 'pombe improvement[10]',
                                                                  options => { }),
 			   output_root => $output_dir,
 			   pipeline => VRPipe::Pipeline->get(name => 'bam_genotype_checking'),
@@ -281,11 +280,60 @@ VRPipe::PipelineSetup->get(name => 'genotype_checking',
 			               hapmap2bin_sample_genotypes_file => $snp_bin,
 				       expected_sample_metadata_key => 'sample'});
 
-handle_pipeline();
+ok handle_pipeline(), 'bam_genotype_checking pipeline ran';
+my $gtype_analysis_correct = 0;
+foreach my $bam (@improved_bams) {
+    my $meta = VRPipe::File->get(path => $bam)->metadata;
+    my $ind = $meta->{individual} || next;
+    my $ga = $meta->{gtype_analysis} || next;
+    if ($ga =~ /^status=confirmed expected=$ind found=$ind/) {
+        $gtype_analysis_correct++;
+    }
+}
+is $gtype_analysis_correct, 5, 'all the bams had the expected gtype_analysis metadata added to them by the bam_genotype_checking pipeline';
 
-#*** autoqc that writes results to vrtrack...
 
-exit;
+# autoqc that writes results to vrtrack
+$output_dir = get_output_dir('auto_qc');
+my $auto_qc_ps = VRPipe::PipelineSetup->get(name => 'auto_qc',
+                                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
+                                                                                  method => 'group_by_metadata',
+                                                                                  source => 'pombe import and qc[3]|pombe improvement[10]',
+                                                                                  options => { metadata_keys => 'lane' }),
+                                            output_root => $output_dir,
+                                            pipeline => VRPipe::Pipeline->get(name => 'vrtrack_auto_qc'),
+                                            options => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} });
+
+ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
+
+my %actual_auto_qc_files;
+my $lni = 0;
+foreach my $de (@{$auto_qc_ps->datasource->elements}) {
+    my @output_subdirs = output_subdirs($de->id, $auto_qc_ps->id);
+    my $basename = '7369_5_'.$lane_nums[$lni++];
+    my $aqcfile = VRPipe::File->get(path => file(@output_subdirs, '1_vrtrack_auto_qc', $basename.'.auto_qc.txt'));
+    if ($aqcfile->s) {
+        $actual_auto_qc_files{$basename} = [$aqcfile->slurp];
+    }
+}
+my %expected_auto_qc_files;
+foreach my $num (@lane_nums) {
+    my $basename = '7369_5_'.$num;
+    my $aqcfile = VRPipe::File->get(path => file('t', 'data', $basename.'.auto_qc.txt')->absolute);
+    $expected_auto_qc_files{$basename} = [$aqcfile->slurp];
+}
+is_deeply \%actual_auto_qc_files, \%expected_auto_qc_files, 'auto qc pipeline generated the expected report txt files showing why the lanes passed';
+
+my $passed_auto_qc_lanes = 0;
+my $failed_auto_qc_libs = 0;
+$vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+foreach my $num (@lane_nums) {
+    my $lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#'.$num);
+    $passed_auto_qc_lanes++ if $lane->auto_qc_status eq 'passed';
+    my $lib = VRTrack::Library->new($vrtrack, $lane->library_id);
+    $failed_auto_qc_libs++ if $lib->auto_qc_status eq 'failed';
+}
+is_deeply [$passed_auto_qc_lanes, $failed_auto_qc_libs], [5, 5], 'auto qc pipeline set all the lanes in VRTrack to passed, and their libraries to failed';
 
 # mergeup
 $output_dir = get_output_dir('lane_merge');
