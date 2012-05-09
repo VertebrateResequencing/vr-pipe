@@ -1,3 +1,5 @@
+0.59    New vrtrack_auto_qc pipeline. New (alternate) SNP pipeline.
+        New vrpipe-permissions script.
 0.58    Various fixes to enable initial install and testing for
         new users using latest CPAN modules.
 0.57    vrpipe-fileinfo can now tell you how a file was generated.
