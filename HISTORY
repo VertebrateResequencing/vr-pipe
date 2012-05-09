@@ -1,3 +1,5 @@
+0.60    Fix for vrpipe-setup to make it compatible with the new
+        vrtrack_auto_qc pipeline.
 0.59    New vrtrack_auto_qc pipeline. New (alternate) SNP pipeline.
         New vrpipe-permissions script.
 0.58    Various fixes to enable initial install and testing for
