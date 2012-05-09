@@ -198,7 +198,7 @@ sub skip_protected_dirs {
 }
 
 sub rm_path {
-    my $path = $_ || shift;
+    my $path = $_ || shift || $frontend->throw("rm_path got no path?!");
     if (-d $path) {
         return if exists $protected_dirs{$path};
         unless ($force) {

@@ -2,14 +2,11 @@ use VRPipe::Base;
 use VRPipe::Parser;
 
 class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
-     method options_definition {
-          return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', 
-                                                           optional => 1, 
-                                                           default_value => 'samtools'),
+     around options_definition {
+          return { %{$self->$orig},
                    samtools_mpileup_options => VRPipe::StepOption->get(description => 'options for samtools mpileup, excluding -l and -f (-g is required)',
                                                                        optional => 1, 
-                                                                       default_value => '-ugDI -d 1000 -C50'),
-                   reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta') };
+                                                                       default_value => '-ugDI -d 1000 -C50') };
      }
      method inputs_definition {
           return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'bam files for bcf production'),

@@ -27,7 +27,8 @@ class VRPipe::Pipelines::bam_merge_lanes_and_fix_rgs with VRPipe::PipelineRole {
                        VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'merged_bam_files', to_key => 'bam_files'),
                       ],
 
-                     [ VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1),
+                     [ VRPipe::StepBehaviourDefiner->new(after_step => 1, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0),
+                       VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1),
                        VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2, 3], regulated_by => 'cleanup', default_regulation => 1)
                      ]);
     }

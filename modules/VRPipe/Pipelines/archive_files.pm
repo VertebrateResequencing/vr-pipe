@@ -16,7 +16,7 @@ class VRPipe::Pipelines::archive_files with VRPipe::PipelineRole {
     
     method _step_list {
         return ([ VRPipe::Step->get(name => 'archive_files') ],
-                [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'files') ],
+                [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'file') ],
                 [ ]);
     }
 }

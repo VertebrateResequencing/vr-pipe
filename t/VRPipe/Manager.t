@@ -6,15 +6,14 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 10;
     use VRPipeTest;
     use TestPipelines;
 }
 
-
 # we'll set up 2 simple pipelines: the first has a single step but multiple
-# data elements; the second has multiple elements but a single data element.
-# all of the following set up stuff should have been tested in PersistentReal.t
+# data elements; the second has multiple steps but a single data element.
+# all of the following set up stuff should have been tested in Persistent.t
 # so we don't bother with tests unless we actually get to the manager
 my $scheduler = VRPipe::Scheduler->get();
 my $output_root = get_output_dir('manager_test_output');
@@ -188,6 +187,43 @@ $md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4',
 
 is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manager, using a previously completed datasource';
 
-#*** want to test a datasource that is the outputs of a step of a given (different) pipelinesetup
+# we can have the input step to a pipeline take 2 different types of file from
+# the datasource
+{
+    my $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
+                                     method => 'grouped_by_metadata',
+                                     source => file(qw(t data datasource.fofnwm_mixed_types)),
+                                     options => { metadata_keys => 'lane' });
+    
+    # make a single-step pipeline that takes 2 different types as input
+    my $single_step = VRPipe::Step->get(name => 'two_type_step',
+                                        inputs_definition => { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1, metadata => {lane => 'lane name'}),
+                                                               fastq_files => VRPipe::StepIODefinition->get(type => 'fq', description => 'fastq files', max_files => -1, metadata => {lane => 'lane name'}) },
+                                        body_sub => sub { my $self = shift;
+                                                          my @bams = grep { $_->path =~ /\.bam$/ } @{$self->inputs->{bam_files}};
+                                                          my @fqs = grep { $_->path =~ /\.fastq$/ } @{$self->inputs->{fastq_files}};
+                                                          if (@bams == 1 && @fqs == 2) {
+                                                              foreach my $file (@bams, @fqs) {
+                                                                  $file->add_metadata({ ok => 1 });
+                                                              }
+                                                          } },
+                                        outputs_definition => { },
+                                        post_process_sub => sub { return 1 },
+                                        description => 'a step that takes 2 different file types');
+    my $two_type_pipeline = VRPipe::Pipeline->get(name => 'two_type_step_pipeline', description => 'two_type_step pipeline');
+    VRPipe::StepAdaptor->get(pipeline => $two_type_pipeline, to_step => 1, adaptor_hash => { bam_files => { data_element => 0 }, fastq_files => { data_element => 0 } });
+    $two_type_pipeline->add_step($single_step);
+    
+    my $output_root = get_output_dir('manager_null_output');
+    VRPipe::PipelineSetup->get(name => 'two_type_one_step_ps', datasource => $ds, output_root => $output_root, pipeline => $two_type_pipeline);
+    handle_pipeline();
+    
+    my $oks = 0;
+    foreach my $basename (qw(2822_6_1.fastq 2822_6_2.fastq 2822_6.pe.bam 2822_7_1.fastq 2822_7_2.fastq 2822_7.pe.bam)) {
+        my $file = VRPipe::File->get(path => file('t', 'data', $basename)->absolute);
+        $oks++ if $file->metadata->{ok};
+    }
+    is $oks, 6, 'we were able to run a pipeline where a step took files of 2 different types from the datasource';
+}
 
 finish;

@@ -122,9 +122,9 @@ my $pars = VRPipe::Parser->create('bam', {file => $bams[-1]});
 my %program_info = $pars->program_info();
 is_deeply \%program_info, { 'stampy_buildgenome' => {PN => 'stampy', VN => '1.0.16', CL => 'stampy.py -G $ref.fa $ref.fa'},
                             'stampy_buildhash' => {PP => 'stampy_buildgenome', PN => 'stampy', VN => '1.0.16', CL => 'stampy.py -g $ref.fa -H $ref.fa'},
-                            'stampy_map_fastq' => {PP => 'stampy_buildhash', PN => 'stampy.py', VN => '1.0.16', CL => 'stampy.py --substitutionrate=0.002 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'},
+                            'stampy_map_fastq' => {PP => 'stampy_buildhash', PN => 'stampy', VN => '1.0.16', CL => 'stampy.py --substitutionrate=0.002 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'},
                             'sam_to_fixed_bam' => {PP => 'stampy_map_fastq', PN => 'samtools', VN => '0.1.17 (r973:277)', CL => 'samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file'},
-                            'stampy_map_fastq.2' => {PP => 'sam_to_fixed_bam', PN => 'stampy.py', VN => '1.0.16', CL => 'stampy.py --substitutionrate=0.00001 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'},
+                            'stampy_map_fastq.2' => {PP => 'sam_to_fixed_bam', PN => 'stampy', VN => '1.0.16', CL => 'stampy.py --substitutionrate=0.00001 -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'},
                             'sam_to_fixed_bam.2' => {PP => 'stampy_map_fastq.2', PN => 'samtools', VN => '0.1.17 (r973:277)', CL => 'samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file'} }, 'bam header was as expected, with no duplicate PG IDs';
 
 finish;

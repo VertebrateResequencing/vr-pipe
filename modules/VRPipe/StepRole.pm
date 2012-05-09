@@ -233,6 +233,7 @@ role VRPipe::StepRole {
                 }
                 
                 my @vrfiles;
+                my @skip_reasons;
                 foreach my $result (@$results) {
                     unless (ref($result) && ref($result) eq 'VRPipe::File') {
                         $result = VRPipe::File->get(path => file($result)->absolute);
@@ -243,18 +244,23 @@ role VRPipe::StepRole {
                         if ($result->s) {
                             my $type = VRPipe::FileType->create($wanted_type, {file => $result->path});
                             unless ($type->check_type) {
-                                $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type ".$type->type);
+                                push(@skip_reasons, "file ".$result->path." was not the correct type, expected type $wanted_type and got type ".$type->type);
+                                next;
                             }
                         }
                         else {
                             my $db_type = $result->type;
                             if ($db_type && $wanted_type ne $db_type) {
-                                $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
+                                push(@skip_reasons, "file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
+                                next;
                             }
                         }
                     }
                     
                     push(@vrfiles, $result);
+                }
+                if (! @vrfiles && @skip_reasons) {
+                    $self->throw("none of the input files had a suitable type:\n".join("\n", @skip_reasons));
                 }
                 
                 $return{$key} = [map { $_->e ? $_ : $_->resolve } @vrfiles];

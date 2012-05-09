@@ -1,0 +1,19 @@
+{
+    default=>2, 
+    X =>
+    [
+        # The pseudoautosomal regions 60,001-2,699,520 and 154,931,044-155,270,560 with the ploidy 2
+        { from=>1, to=>60_000, M=>1 },
+        { from=>2_699_521, to=>154_931_043, M=>1 },
+    ],
+    Y =>
+    [
+        # No chrY in females and one copy in males
+        { from=>1, to=>59_373_566, M=>1, F=>0 },
+    ],
+    MT =>
+    [
+        # Haploid MT in males and females
+        { from=>1, to => 16_569, M=>1, F=>1 },
+    ],
+}

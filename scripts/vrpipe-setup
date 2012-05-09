@@ -213,6 +213,12 @@ else {
     }
     my $chosen_ds_num = $frontend->pick_number(question => "Pick a DataSource type from the above list", max => $ds_num, $based_on_ds ? (default => $based_on_ds_type_num) : ());
     my $chosen_ds_type = $ds_types[$chosen_ds_num];
+    if (defined $based_on_ds_type && $based_on_ds_type ne $chosen_ds_type) {
+        undef $based_on_ds;
+        undef $based_on_ds_type;
+        undef $based_on_ds_method;
+        undef $based_on_ds_options;
+    }
     
     # get the source
     my $ds_module = "VRPipe::DataSource::$chosen_ds_type";
