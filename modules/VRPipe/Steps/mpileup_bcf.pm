@@ -10,7 +10,6 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to call variants') };
     }
-
     method body_sub {
         return sub {
             my $self = shift;
