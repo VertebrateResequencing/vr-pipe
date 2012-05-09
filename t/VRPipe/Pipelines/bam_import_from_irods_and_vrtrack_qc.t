@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 17;
+    use Test::Most tests => 19;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
                     required_exe => [qw(iget iquest)]);
@@ -292,7 +292,6 @@ foreach my $bam (@improved_bams) {
 }
 is $gtype_analysis_correct, 5, 'all the bams had the expected gtype_analysis metadata added to them by the bam_genotype_checking pipeline';
 
-
 # autoqc that writes results to vrtrack
 $output_dir = get_output_dir('auto_qc');
 my $auto_qc_ps = VRPipe::PipelineSetup->get(name => 'auto_qc',
@@ -334,6 +333,21 @@ foreach my $num (@lane_nums) {
     $failed_auto_qc_libs++ if $lib->auto_qc_status eq 'failed';
 }
 is_deeply [$passed_auto_qc_lanes, $failed_auto_qc_libs], [5, 5], 'auto qc pipeline set all the lanes in VRTrack to passed, and their libraries to failed';
+
+my $lane_gtype_correct = 0;
+$passed_auto_qc_lanes = 0;
+foreach my $bam (@improved_bams) {
+    my $meta = VRPipe::File->get(path => $bam)->metadata;
+    $passed_auto_qc_lanes++ if $meta->{auto_qc_status} eq 'passed';
+    my $lane = $meta->{lane} || next;
+    my $ind = $meta->{individual};
+    my $vrlane = VRTrack::Lane->new_by_name($vrtrack, $lane) || next;
+    my $mapstats = $vrlane->latest_mapping || next;
+    if ($mapstats->genotype_expected eq $ind && $mapstats->genotype_found eq $ind && $vrlane->genotype_status eq 'confirmed') {
+        $lane_gtype_correct++;
+    }
+}
+is_deeply [$lane_gtype_correct, $passed_auto_qc_lanes], [5, 5], 'auto qc also set bam metadata auto_qc_status to passed and updated VRTrack gt_status and mapstats gt_* for all lanes';
 
 # mergeup
 $output_dir = get_output_dir('lane_merge');

@@ -102,12 +102,14 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 	}
 	
 	# genotype check results
+	my @gtype_results;
 	if (defined $auto_qc_gtype_regex) {
 	    # use gtype info from bam_genotype_checking pipeline, if present
 	    my $gstatus;
 	    my $gtype_analysis = $meta->{gtype_analysis};
 	    if ($gtype_analysis) {
-		($gstatus) = $gtype_analysis =~ /status=(\S+)/;
+		($gstatus) = $gtype_analysis =~ /status=(\S+) expected=(\S+) found=(\S+) ratio=(\S+)/;
+		@gtype_results = ($gstatus, $2, $3, $4);
 	    }
 	    else {
 		# look to see if there's a gtype status in VRTrack database for
@@ -282,11 +284,27 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 		}
 	    }
 	    $vrlane->auto_qc_status($status ? 'passed' : 'failed');
+	    
+	    # also, if we did our own genotype check, write those results back
+	    # to VRTrack now
+	    if (@gtype_results) {
+		my $mapstats = $vrlane->latest_mapping;
+		$mapstats->genotype_expected($gtype_results[1]);
+		$mapstats->genotype_found($gtype_results[2]);
+		$mapstats->genotype_ratio($gtype_results[3]);
+		$mapstats->update();
+		
+		$vrlane->genotype_status($gtype_results[0]);
+	    }
+	    
 	    $vrlane->update();
-	    $vrtrack->transaction_commit();
 	});
 	
-	unless ($worked) {
+	if ($worked) {
+	    # also add the result as metadata on the bam file
+	    $bam_file->add_metadata({auto_qc_status => $status ? 'passed' : 'failed'}, replace_data => 1);
+	}
+	else {
 	    $self->throw($vrtrack->{transaction_error});
 	}
     }
