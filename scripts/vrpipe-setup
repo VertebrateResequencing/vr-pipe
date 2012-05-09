@@ -162,28 +162,38 @@ else {
     my @sms = $pipeline->steps;
     my @steps = map { $_->step } @sms;
     
-    # find the step whoes input is the data element
+    # find the steps whoes input is the data element
     my @adaptors = $schema->resultset('StepAdaptor')->search({ pipeline => $pipeline->id });
-    my ($source_input_step_num, $source_input_step_kind);
-    ADAP: foreach my $adaptor (@adaptors) {
+    my %source_input_step_num_to_kind;
+    foreach my $adaptor (@adaptors) {
         my $hash = $adaptor->adaptor_hash;
         while (my ($kind, $ins_hash) = each %$hash) {
             if (exists $ins_hash->{data_element}) {
-                $source_input_step_num = $adaptor->to_step;
-                $source_input_step_kind = $kind;
-                last ADAP;
+                push(@{$source_input_step_num_to_kind{$adaptor->to_step}}, $kind);
             }
         }
     }
-    unless ($source_input_step_num) {
+    unless (keys %source_input_step_num_to_kind) {
         $frontend->die_with_error("Your chosen pipeline doesn't seem to accept any user input!");
     }
     
     # figure out what sort of input data is expected
-    my ($source_input_step) = map { $_->step; } grep { $_->step_number == $source_input_step_num } @sms;
-    my $source_input_io_def = $source_input_step->inputs_definition->{$source_input_step_kind};
-    $frontend->output("Your chosen pipeline takes DataSource input during step $source_input_step_num (", $source_input_step->name, " - ", $source_input_step->description, "), which expects:");
-    describe_io_def($source_input_io_def);
+    my %source_input_steps;
+    foreach my $sm (@sms) {
+        my $step_number = $sm->step_number;
+        my @kinds = @{$source_input_step_num_to_kind{$step_number} || next};
+        foreach my $kind (@kinds) {
+            $source_input_steps{$step_number.'#'.$kind} = $sm->step;
+        }
+    }
+    $frontend->output("Your chosen pipeline takes DataSource input during step(s):");
+    foreach my $snk (sort { my ($n1, $s1) = split('#', $a); my ($n2, $s2) = split('#', $b); $n1 <=> $n2  || $s1 cmp $s2 } keys %source_input_steps) {
+        my $source_input_step = $source_input_steps{$snk};
+        my ($source_input_step_num, $source_input_step_kind) = split('#', $snk);
+        my $source_input_io_def = $source_input_step->inputs_definition->{$source_input_step_kind};
+        $frontend->output("\t$source_input_step_num (", $source_input_step->name, " - ", $source_input_step->description, "), which expects:");
+        describe_io_def($source_input_io_def);
+    }
     
     # ask the user for the DataSource details
     my @ds_types;
@@ -380,21 +390,21 @@ exit;
 sub describe_io_def {
     my $io_def = shift;
     
-    $frontend->output("\tFile type = ", $io_def->type, " (", $io_def->description, ")");
+    $frontend->output("\t\tFile type = ", $io_def->type, " (", $io_def->description, ")");
     my $files_comment = $io_def->check_existence ? 'and they must exist' : "and they don't have to exist yet";
     my $max = $io_def->max_files;
     if ($max == -1) {
         $max = 'unlimited';
     }
-    $frontend->output("\tNumber of files = ", $io_def->min_files, '..', $max, " ($files_comment)");
+    $frontend->output("\t\tNumber of files = ", $io_def->min_files, '..', $max, " ($files_comment)");
     my $metadata = $io_def->metadata;
     if (keys %$metadata) {
-        $frontend->output("\tFiles must also have the following metadata associated with them (so be sure to pick a DataSource capable of adding this metadata):");
-        my %optional = map { $_ => 1 } @{delete $metadata->{optional}};
+        $frontend->output("\t\tFiles must also have the following metadata associated with them (so be sure to pick a DataSource capable of adding this metadata):");
+        my %optional = map { $_ => 1 } @{delete $metadata->{optional} || []};
         foreach my $key (sort keys %$metadata) {
             my $val = $metadata->{$key};
             my $comment = exists $optional{$key} ? 'optional' : 'REQUIRED';
-            $frontend->output("\t\t$key => $val ($comment)");
+            $frontend->output("\t\t\t$key => $val ($comment)");
         }
     }
 }
