@@ -280,6 +280,12 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
+    method close_to_time_limit (Int $minutes = 30) {
+        my $seconds = $minutes * 60;
+        my $job = $self->job;
+        return $job->wall_time > (($self->requirements->time * 60 * 60) - $seconds);
+    }
+    
     # where have our scheduler and job stdout/err files gone?
     method std_dir {
         my ($for) = $self->_for;
