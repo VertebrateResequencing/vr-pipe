@@ -477,27 +477,13 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     #    scheduler outputs, and how can we make the return
                     #    values generic?
                     if ($status) {
-                        if ($status eq 'MEMLIMIT' || $status eq 'RUNLIMIT') {
-                            # we want to add extra memory/time for all
-                            # submissions that are for this sub's job, incase
-                            # it is not this sub in an array of block_and_skip
-                            # jobs that gets retried
-                            my $rs = $schema->resultset('Submission')->search({ 'job' => $sub->job->id });
-                            my @subs_to_extra;
-                            while (my $sub = $rs->next) {
-                                push(@subs_to_extra, $sub);
-                            }
-                            
-                            foreach my $to_extra (@subs_to_extra) {
-                                if ($status eq 'MEMLIMIT') {
-                                    $to_extra->extra_memory;
-                                }
-                                elsif ($status eq 'RUNLIMIT') {
-                                    my $hrs = ceil($parser->time / 60 / 60) + 1;
-                                    my $current_hrs = $sub->time;
-                                    $to_extra->extra_time($hrs - $current_hrs);
-                                }
-                            }
+                        if ($status eq 'MEMLIMIT') {
+                            $sub->extra_memory;
+                        }
+                        elsif ($status eq 'RUNLIMIT') {
+                            my $hrs = ceil($parser->time / 60 / 60) + 1;
+                            my $current_hrs = $sub->time;
+                            $sub->extra_time($hrs - $current_hrs);
                         }
                     }
                 }
@@ -528,18 +514,15 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $c++;
             $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
             if ($job->running) {
-                # user's scheduler might kill the submission if it runs too long in the
-                # queue it was initially submitted to; user could do something like this
-                # every 15mins:
-                #if ($sub->close_to_time_limit(30)) {
-                #    # where close_to_time_limit returns true if $sub->job->wall_time >
-                #    # $job->requirements->time - 30.
-                #    $sub->extra_time(2);
-                #    # now make your scheduler recalculate the appropriate queue of a job
-                #    # that takes 2 extra hours, and if the queue changes, switch the
-                #    # queue:
-                #    $sub->scheduler->switch_queues($sub);
-                #}
+                # user's scheduler might kill the submission if it runs too long
+                # in the queue it was initially submitted to; avoid this by
+                # changing queue as necessary
+                if ($sub->close_to_time_limit(30)) {
+                    $sub->extra_time(2);
+                    # (extra_time will automatically check with the scheduler
+                    #  and switch queues if possible and necessary, based ont
+                    #  the new time required)
+                }
                 
                 # check we've had a recent heartbeat
                 $self->debug(" -- running...");

@@ -229,8 +229,19 @@ class VRPipe::Submission extends VRPipe::Persistent {
     # requirement passthroughs and extra_* methods
     method _add_extra (Str $type, Int $extra) {
         my $new_req = $self->requirements->clone($type => $self->$type() + $extra);
-        $self->requirements($new_req);
-        $self->update;
+        
+        # we need to check with the scheduler if the new requirements would put
+        # us in a different queue, and if so do something like:
+        # $sub->scheduler->switch_queues($sub);
+        
+        # we want to add extra * for all submissions that are for this sub's
+        # job, incase it is not this sub in an array of block_and_skip jobs that
+        # gets retried
+        my $rs = $self->result_source->schema->resultset('Submission')->search({ 'job' => $self->job->id });
+        while (my $to_extra = $rs->next) {
+            $to_extra->requirements($new_req);
+            $to_extra->update;
+        }
     }
     
     method memory {
