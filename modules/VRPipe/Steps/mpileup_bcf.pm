@@ -25,11 +25,11 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             }
             my $bcf_file = $self->output_file(output_key => 'bcf_files', basename => "mpileup.bcf", type => 'bin');
             my $bcf_path = $bcf_file->path;
-
+            
             my $req = $self->new_requirements(memory => 500, time => 1);
             my $cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list > $bcf_path];
             $self->dispatch_wrapped_cmd('VRPipe::Steps::mpileup_bcf', 'mpileup_bcf_and_check', [$cmd, $req, {output_files => [$bcf_file]}]); 
-
+            
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools', 
                                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), 
                                    summary => "samtools mpileup $mpileup_opts -f \$reference_fasta \$bam_files > \$bcf_file"));
