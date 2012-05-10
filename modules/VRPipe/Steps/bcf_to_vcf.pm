@@ -34,7 +34,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $bcf_meta);
                 my $vcf_path = $vcf_file->path;
                 
-                my $sample_opts;
+                my $sample_opts = '';
                 if (exists $samples{$bcf_path}) {
                     $sample_opts = " -s $samples{$bcf_path}";
                 }
