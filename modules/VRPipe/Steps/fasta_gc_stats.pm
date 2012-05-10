@@ -5,7 +5,7 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
     around options_definition {
         return { %{$self->$orig},
                  reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
-		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited chr,start,end, 1-based, inclusive)',
+		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
 							       optional => 1)
                };
     }
