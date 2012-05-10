@@ -121,6 +121,19 @@ class VRPipe::Job extends VRPipe::Persistent {
         return ! ($self->running || $self->finished);
     }
     
+    method wall_time {
+        my $start_time = $self->start_time;
+        return 0 unless $start_time;
+        my $end_time = $self->end_time;
+        if ($end_time) {
+            $end_time = $end_time->epoch;
+        }
+        else {
+            $end_time = time();
+        }
+        return $end_time - $start_time->epoch;
+    }
+    
     method run (VRPipe::StepState :$stepstate?) {
         # This sets the running state in db, then chdir to ->dir, then forks to run
         # run the ->cmd (updating ->pid, ->host, ->user and ->start_time), then when
