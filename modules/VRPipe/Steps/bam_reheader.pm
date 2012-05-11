@@ -76,8 +76,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                        bases => 'total number of base pairs',
                                                                        reads => 'total number of reads (sequences)',
                                                                        paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
-                                                                       merged_bams => 'comma separated list of merged bam paths',
-                                                                       optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
+                                                                       optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -114,7 +113,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my $headed_bam_file = VRPipe::File->get(path => $output);
         my $meta = $headed_bam_file->metadata;
         my @files;
-        if (defined $meta->{merged_bams}) {
+        if (defined $meta->{merged_bams}) { # *** this will now never be true; a new solution is needed to figure out the RG lines
             my @paths = split /,/, $meta->{merged_bams};
             foreach my $path (@paths) {
                 if ($path =~ /^VF:(\d+)$/) {
