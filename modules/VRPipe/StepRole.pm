@@ -212,7 +212,7 @@ role VRPipe::StepRole {
                 
                 if (! $results) {
                     if ($val->min_files == 0) {
-                        return \%return;
+                        next;
                     }
                     else {
                         $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");

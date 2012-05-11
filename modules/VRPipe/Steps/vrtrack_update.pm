@@ -24,7 +24,7 @@ class VRPipe::Steps::vrtrack_update with VRPipe::StepRole {
         return "Empty shell step for basing other vrtrack-related steps on";
     }
     method max_simultaneous {
-        return 15;
+        return 75;
     }
     
     method get_vrtrack (ClassName|Object $self: Str :$db!, Str :$mode = 'rw') {

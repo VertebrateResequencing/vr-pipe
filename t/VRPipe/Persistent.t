@@ -15,8 +15,8 @@ BEGIN {
 
 # some quick basic tests for all the core domain classes
 my @schedulers;
-ok $schedulers[0] = VRPipe::Scheduler->get(type => 'LSF'), 'created a Scheduler using get()';
-is_deeply [$schedulers[0]->id, $schedulers[0]->type], [1, 'LSF'], 'scheduler1 has the expected fields';
+ok $schedulers[0] = VRPipe::Scheduler->get(type => 'lsf'), 'created a Scheduler using get()';
+is_deeply [$schedulers[0]->id, $schedulers[0]->type], [1, 'lsf'], 'scheduler1 has the expected fields';
 ok $schedulers[1] = VRPipe::Scheduler->get(type => 'local'), 'created another Scheduler using get()';
 is_deeply [$schedulers[1]->id, $schedulers[1]->type], [2, 'local'], 'scheduler2 has the expected fields';
 ok my $default_type = VRPipe::Scheduler->default_type, 'could get a default type';

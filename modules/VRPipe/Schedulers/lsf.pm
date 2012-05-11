@@ -1,6 +1,8 @@
 use VRPipe::Base;
 
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
+    our %queues;
+    
     method start_command {
         return 'bjobs'; #*** actually, I've no idea how to start lsf
     }
@@ -47,10 +49,130 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
-        #*** sanger specific, need a way of having this module ask its queue
-        #    related questions during siteconfig setup, so we can avoid hard
-        #    coding here
-        return $requirements->time > 12 ? 'long' : 'normal';
+        unless (keys %queues) {
+            # parse bqueues -l to figure out what usable queues we have
+            open(my $bqlfh, 'bqueues -l |') || $self->throw("Could not open a pipe to bqueues -l");
+            my $queue;
+            my $next_is_prio = 0;
+            my $looking_at_defaults = 0;
+            my $next_is_memlimit = 0;
+            my $next_is_runlimit = 0;
+            while (<$bqlfh>) {
+                if (/^QUEUE: (\S+)/) {
+                    $queue = $1;
+                    next;
+                }
+                next unless $queue;
+                
+                if (/^PRIO\s+NICE\s+STATUS\s+MAX\s+JL\/U/) {
+                    $next_is_prio = 1;
+                }
+                elsif ($next_is_prio) {
+                    my ($prio, undef, undef, $max, $max_user) = split;
+                    $queues{$queue}->{prio} = $prio;
+                    $queues{$queue}->{max} = $max eq '-' ? 1000000 : $max;
+                    $queues{$queue}->{max_user} = $max_user eq '-' ? 1000000 : $max;
+                    
+                    $next_is_prio = 0;
+                }
+                
+                elsif (/^DEFAULT LIMITS:/) {
+                    $looking_at_defaults = 1;
+                }
+                elsif (/^MAXIMUM LIMITS:|^SCHEDULING PARAMETERS/) {
+                    $looking_at_defaults = 0;
+                }
+                elsif (! $looking_at_defaults) {
+                    if (/MEMLIMIT/) {
+                        my $field = 0;
+                        foreach my $word (split(/\s+/, $_)) {
+                            next unless $word;
+                            $field++;
+                            last if $word eq 'MEMLIMIT';
+                        }
+                        $next_is_memlimit = $field;
+                    }
+                    elsif ($next_is_memlimit) {
+                        my $field = 0;
+                        foreach (/(\d+) K/g) {
+                            $field++;
+                            if ($field == $next_is_memlimit) {
+                                $queues{$queue}->{memlimit} = $1 / 1000;
+                                last;
+                            }
+                        }
+                        $next_is_memlimit = 0;
+                    }
+                    elsif (/RUNLIMIT/) {
+                        $next_is_runlimit = 1;
+                    }
+                    elsif ($next_is_runlimit && /^\s*(\d+)(?:\.0)? min/) {
+                        $queues{$queue}->{runlimit} = $1 * 60;
+                        $next_is_runlimit = 0;
+                    }
+                }
+                
+                if (/^(USERS|HOSTS):\s+(.+?)\s*$/) {
+                    my $type = lc($1);
+                    my $vals = $2;
+                    my @vals = split(/\s+/, $vals);
+                    if ($type eq 'users') {
+                        my %users = map { $_ => 1 } @vals;
+                        my $me = getlogin || getpwuid($<);
+                        unless (exists $users{all} || exists $users{$me}) {
+                            delete $queues{$queue};
+                            undef $queue;
+                        }
+                    }
+                    else {
+                        $queues{$queue}->{$type} = $vals eq 'all' ? 1000000 : scalar(@vals);
+                    }
+                }
+            }
+            close($bqlfh) || $self->throw("Could not close a pipe to bqueues -l");
+            
+            foreach my $queue (keys %queues) {
+                my $queue_hash = $queues{$queue};
+                unless (defined $queue_hash->{runlimit}) {
+                    $queue_hash->{runlimit} = 31536000;
+                }
+                unless (defined $queue_hash->{memlimit}) {
+                    $queue_hash->{memlimit} = 1000000;
+                }
+            }
+        }
+        
+        # pick a queue, preferring ones that are more likely to run our job
+        # the soonest
+        my $seconds = ($requirements->time * 60 * 60); #*** there's an issue here that VRPipe::Requirements->time is in hrs, so we will never choose a queue with a runlimit less than 1 hr...
+        my $megabytes = $requirements->memory;
+        my $chosen_queue;
+        foreach my $queue (sort { $queues{$b}->{hosts} <=> $queues{$a}->{hosts}
+                                   ||
+                                  $queues{$b}->{max_user} <=> $queues{$a}->{max_user}
+                                   ||
+                                  $queues{$b}->{max} <=> $queues{$a}->{max}
+                                   ||
+                                  $queues{$b}->{prio} <=> $queues{$a}->{prio}
+                                   ||
+                                  $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit} # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
+                                   ||
+                                  $queues{$a}->{memlimit} <=> $queues{$b}->{memlimit} } keys %queues) {
+            my $mem_limit = $queues{$queue}->{memlimit};
+            next if $mem_limit && $mem_limit < $megabytes;
+            my $time_limit = $queues{$queue}->{runlimit};
+            next if $time_limit && $time_limit < $seconds;
+            
+            $chosen_queue = $queue;
+            last;
+        }
+        
+        return $chosen_queue;
+    }
+    
+    method switch_queue (PositiveInt $sid, Str $new_queue) {
+        $self->debug("will call bswitch $new_queue $sid");
+        system("bswitch $new_queue $sid > /dev/null 2> /dev/null");
     }
     
     method get_1based_index (Maybe[PositiveInt] $index?) {

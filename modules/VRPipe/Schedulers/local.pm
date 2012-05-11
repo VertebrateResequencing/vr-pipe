@@ -30,6 +30,9 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     method determine_queue (VRPipe::Requirements $requirements) {
         return 'local';
     }
+    method switch_queue (PositiveInt $sid, Str $new_queue) {
+        return;
+    }
     
     method get_1based_index (Maybe[PositiveInt] $index?) {
         $index ? return $index : return $ENV{VRPIPE_LOCAL_JOBINDEX};
