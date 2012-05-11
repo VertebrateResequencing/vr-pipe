@@ -518,10 +518,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 # in the queue it was initially submitted to; avoid this by
                 # changing queue as necessary
                 if ($sub->close_to_time_limit(30)) {
+                    $self->debug(" -- within 30mins of time limit, will increase by 2hrs...");
                     $sub->extra_time(2);
-                    # (extra_time will automatically check with the scheduler
-                    #  and switch queues if possible and necessary, based ont
-                    #  the new time required)
                 }
                 
                 # check we've had a recent heartbeat
