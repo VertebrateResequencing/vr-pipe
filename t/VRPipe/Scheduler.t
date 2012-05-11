@@ -33,9 +33,9 @@ SKIP: {
     $requirements = VRPipe::Requirements->get(memory => 37000, time => 1);
     is $scheduler->determine_queue($requirements), 'test', 'determine_queue() gave test queue for 37GB and 1hr';
     $requirements = VRPipe::Requirements->get(memory => 1, time => 13);
-    is $scheduler->determine_queue($requirements), 'long', 'determine_queue() gave test queue for 10MB and 13hr';
+    is $scheduler->determine_queue($requirements), 'long', 'determine_queue() gave long queue for 10MB and 13hr';
     $requirements = VRPipe::Requirements->get(memory => 1, time => 49);
-    is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave test queue for 10MB and 49hr';
+    is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave basement queue for 10MB and 49hr';
 }
 
 
