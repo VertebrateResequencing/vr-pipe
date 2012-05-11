@@ -253,8 +253,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         while (my $to_extra = $rs->next) {
             if ($first && $switch_queue && $to_extra->sid) {
                 $self->debug("calling switch_queues(".$to_extra->sid.", $switch_queue)");
-                warn "calling switch_queues(", $to_extra->sid, ", $switch_queue)";
-                $scheduler->switch_queues($to_extra->sid, $switch_queue);
+                $scheduler->switch_queue($to_extra->sid, $switch_queue);
             }
             $first = 0;
             
