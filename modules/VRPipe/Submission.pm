@@ -231,17 +231,38 @@ class VRPipe::Submission extends VRPipe::Persistent {
         my $new_req = $self->requirements->clone($type => $self->$type() + $extra);
         
         # we need to check with the scheduler if the new requirements would put
-        # us in a different queue, and if so do something like:
-        # $sub->scheduler->switch_queues($sub);
+        # us in a different queue, and if so switch queues on any submission
+        # that is currently running the job
+        my ($switch_queue, $scheduler);
+        my $job = $self->job;
+        if ($job->running) {
+            $scheduler = $self->scheduler;
+            my $current_queue = $scheduler->determine_queue($self->requirements);
+            my $new_queue = $scheduler->determine_queue($new_req);
+            if ($new_queue ne $current_queue) {
+                $switch_queue = $new_queue;
+            }
+        }
         
         # we want to add extra * for all submissions that are for this sub's
         # job, incase it is not this sub in an array of block_and_skip jobs that
-        # gets retried
-        my $rs = $self->result_source->schema->resultset('Submission')->search({ 'job' => $self->job->id });
+        # gets retried; also, if we're switching queues, it will be the first
+        # sub that is actually running the job
+        my $rs = $self->result_source->schema->resultset('Submission')->search({ 'job' => $job->id }, { order_by => { -asc => 'id' } });
+        my $first = 1;
         while (my $to_extra = $rs->next) {
+            if ($first && $switch_queue && $to_extra->sid) {
+                $self->debug("calling switch_queues(", $to_extra->sid, ", $switch_queue)");
+                warn "calling switch_queues(", $to_extra->sid, ", $switch_queue)";
+                $scheduler->switch_queues($to_extra->sid, $switch_queue);
+            }
+            $first = 0;
+            
             $to_extra->requirements($new_req);
             $to_extra->update;
         }
+        
+        return 1;
     }
     
     method memory {
