@@ -499,12 +499,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
     #method check_running (ArrayRef[VRPipe::Submission] $submissions) {
     sub check_running { 
         my ($self, $submissions) = @_;
-        # this does the dance of checking if any of the currently running ->submissions
-        # are approaching their time limit, and switching queues as appropriate. It
-        # also checks that all running Jobs have had a recent heartbeat, and if not
-        # will do the kill dance and resubmit.
-        
-        #*** not yet fully implemented...
         
         # update the status of each submission in case any of them finished
         my @still_not_done;
@@ -514,20 +508,19 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $c++;
             $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
             if ($job->running) {
-                # user's scheduler might kill the submission if it runs too long
-                # in the queue it was initially submitted to; avoid this by
-                # changing queue as necessary
-                if ($sub->close_to_time_limit(30)) {
-                    $self->debug(" -- within 30mins of time limit, will increase by 2hrs...");
-                    $sub->extra_time(2);
-                }
-                
                 # check we've had a recent heartbeat
                 $self->debug(" -- running...");
                 if ($job->unresponsive) {
                     $self->debug(" -- unresponsive");
                     $job->kill_job;
                     $sub->update_status();
+                }
+                elsif ($sub->close_to_time_limit(30)) {
+                    # user's scheduler might kill the submission if it runs too
+                    # long in the queue it was initially submitted to; avoid
+                    # this by changing queue as necessary
+                    $self->debug(" -- within 30mins of time limit, will increase by 2hrs...");
+                    $sub->extra_time(2);
                 }
             }
             elsif ($job->finished) {
