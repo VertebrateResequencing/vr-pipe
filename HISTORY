@@ -1,3 +1,4 @@
+0.62    Critical fix for new queue switching code.
 0.61    Now, if a job is running in a time-limited queue, and the
         limit is approaching, the job will be switched to a queue
         with a longer time limit.
