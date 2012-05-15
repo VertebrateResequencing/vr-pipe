@@ -122,7 +122,7 @@ handle_pipeline(@mapping_files);
 my @split_files;
 foreach my $element_id (8, 9) {
     my @output_subdirs = output_subdirs($element_id, 3);
-    foreach my $file ('fake_chr1.pe.bam', 'fake_chr2.pe.bam', 'unmapped.pe.bam') {
+    foreach my $file ('fake_chr1.pe.1.bam', 'fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@split_files, file(@output_subdirs, '4_bam_split_by_sequence', $file));
     }
 }
@@ -130,7 +130,7 @@ foreach my $element_id (8, 9) {
 my @release_files;
 foreach my $element_id (10, 11) {
     my @output_subdirs = output_subdirs($element_id, 4);
-    foreach my $file ('fake_chr2.pe.bam', 'unmapped.pe.bam') {
+    foreach my $file ('fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file));
         push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file.'.bai'));
         push(@release_files, file(@output_subdirs, '3_bam_stats', $file.'.bas'));
