@@ -22,7 +22,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     method default_type (ClassName|Object $self:) {
         my $method_name = VRPipe::Persistent::SchemaBase->database_deployment.'_scheduler';
         my $type = $vrp_config->$method_name();
-        return "$type"; # stringify what could be a VRPipe::Base::Configuration::Env
+        return lc($type);
     }
     
     method default_output_root (ClassName|Object $self:) {

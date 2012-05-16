@@ -386,13 +386,16 @@ my $mergeacross_ps = VRPipe::PipelineSetup->get(name => 'pombe mergeacross',
                                                 output_root => $output_dir,
                                                 pipeline => VRPipe::Pipeline->get(name => 'bam_merge'),
                                                 options => { bam_merge_keep_single_paired_separate => 0,
+                                                             bam_merge_maximum_files => 2,
                                                              delete_input_bams => 1 });
 
 handle_pipeline();
 my @merged_bams;
 foreach my $element (@{$mergeacross_ps->datasource->elements}) {
     my @output_subdirs = output_subdirs($element->id, $mergeacross_ps->id);
-    push(@merged_bams, file(@output_subdirs, '1_bam_merge', 'pe.bam'));
+    for my $chunk (1..3) {
+        push(@merged_bams, file(@output_subdirs, '1_bam_merge', "pe.$chunk.bam"));
+    }
 }
 ok handle_pipeline(@merged_bams), 'chained mergeup -> mergeacross pipelines ran ok';
 
@@ -402,6 +405,6 @@ foreach my $mbam (@merged_bams) {
     my $split = $meta->{split_sequence} || next;
     $seen_splits{$split}++;
 }
-is_deeply \%seen_splits, {chromMT => 1, chromIII => 1, chromII => 1, chromI => 1, chromAB325691 => 1 }, 'there was a mergeacross bam for each chromosome, and the metadata was correct';
+is_deeply \%seen_splits, {chromMT => 3, chromIII => 3, chromII => 3, chromI => 3, chromAB325691 => 3 }, 'there were 3 mergeacross bams for each chromosome, and the metadata was correct';
 
 finish;

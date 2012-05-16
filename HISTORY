@@ -1,3 +1,10 @@
+0.64    Fix for bam_reheader, affecting 1000 genomes pipelines.
+0.63    Fix for rare bug in fastq_split which prevented it from
+        working with certain input.
+0.62    Critical fix for new queue switching code.
+0.61    Now, if a job is running in a time-limited queue, and the
+        limit is approaching, the job will be switched to a queue
+        with a longer time limit.
 0.60    Fix for vrpipe-setup to make it compatible with the new
         vrtrack_auto_qc pipeline.
 0.59    New vrtrack_auto_qc pipeline. New (alternate) SNP pipeline.

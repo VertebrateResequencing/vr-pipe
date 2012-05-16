@@ -354,7 +354,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             $read_lengths += $vrfile_meta->{avg_read_length};
             $seqs = $vrfile_meta->{reads};
         }
-        my $seqs_per_split = floor($chunk_size / ceil($read_lengths));
+        my $seqs_per_split = floor($chunk_size / $read_lengths);
         my $splits = ceil($seqs / $seqs_per_split);
         
         return $splits;

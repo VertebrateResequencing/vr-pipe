@@ -10,7 +10,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                  bamcheck_options => VRPipe::StepOption->get(description => 'options to bamcheck, excluding -r and -t (which are set by reference_fasta and exome_targets_file options)',
                                                              optional => 1),
                  reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
-		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited chr,start,end, 1-based, inclusive)',
+		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
 							       optional => 1)};
     }
     method inputs_definition {

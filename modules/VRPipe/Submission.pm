@@ -229,8 +229,39 @@ class VRPipe::Submission extends VRPipe::Persistent {
     # requirement passthroughs and extra_* methods
     method _add_extra (Str $type, Int $extra) {
         my $new_req = $self->requirements->clone($type => $self->$type() + $extra);
-        $self->requirements($new_req);
-        $self->update;
+        
+        # we need to check with the scheduler if the new requirements would put
+        # us in a different queue, and if so switch queues on any submission
+        # that is currently running the job
+        my ($switch_queue, $scheduler);
+        my $job = $self->job;
+        if ($job->running) {
+            $scheduler = $self->scheduler;
+            my $current_queue = $scheduler->determine_queue($self->requirements);
+            my $new_queue = $scheduler->determine_queue($new_req);
+            if ($new_queue ne $current_queue) {
+                $switch_queue = $new_queue;
+            }
+        }
+        
+        # we want to add extra * for all submissions that are for this sub's
+        # job, incase it is not this sub in an array of block_and_skip jobs that
+        # gets retried; also, if we're switching queues, it will be the first
+        # sub that is actually running the job
+        my $rs = $self->result_source->schema->resultset('Submission')->search({ 'job' => $job->id }, { order_by => { -asc => 'id' } });
+        my $first = 1;
+        while (my $to_extra = $rs->next) {
+            if ($first && $switch_queue && $to_extra->sid) {
+                $self->debug("calling switch_queues(".$to_extra->sid.", $switch_queue)");
+                $scheduler->switch_queue($to_extra->sid, $switch_queue);
+            }
+            $first = 0;
+            
+            $to_extra->requirements($new_req);
+            $to_extra->update;
+        }
+        
+        return 1;
     }
     
     method memory {
@@ -279,6 +310,12 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     __PACKAGE__->make_persistent();
+    
+    method close_to_time_limit (Int $minutes = 30) {
+        my $seconds = $minutes * 60;
+        my $job = $self->job;
+        return $job->wall_time > (($self->requirements->time * 60 * 60) - $seconds);
+    }
     
     # where have our scheduler and job stdout/err files gone?
     method std_dir {
