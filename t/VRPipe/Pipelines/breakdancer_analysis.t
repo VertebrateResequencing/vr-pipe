@@ -27,10 +27,10 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my breakdancer_anal
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { 
-            'bam2cfg_exe' => '/nfs/users/nfs_k/kw10/src/breakdancer-1.1_2011_02_21/perl/bam2cfg.pl',
 		    'bam2cfg_options' => '-q 20 -c 3 -n 100000',
-            'breakdancer_max_exe' => '/nfs/users/nfs_k/kw10/src/breakdancer-1.1_2011_02_21/cpp/breakdancer_max',
 		    'breakdancer_max_options' => '-m 10000000 -q 25 -y 20',
+			'whole_genome_mode' => 0,
+			'chrom_list' => '20',
 		    cleanup => 0,
         });
 
@@ -40,9 +40,9 @@ foreach my $in ('hs_chr20.a', 'hs_chr20.b') {
     $element_id++;
     my @output_dirs = output_subdirs($element_id);
     push(@output_files, file(@output_dirs, '1_breakdancer_bam2cfg', "${in}.cfg"));
-    push(@final_files, file(@output_dirs, '2_breakdancer_sv_detection', "${in}.max"));
+    push(@final_files, file(@output_dirs, '2_breakdancer_sv_detection', "${in}.20.max"));
 }
-ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
+ok handle_pipeline(@output_files,@final_files), 'pipeline ran and created all expected output files';
 
 done_testing;
 exit;
