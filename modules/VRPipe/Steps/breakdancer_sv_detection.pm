@@ -3,8 +3,10 @@ use VRPipe::Base;
 class VRPipe::Steps::breakdancer_sv_detection with VRPipe::StepRole {
     method options_definition {
         return { 
-            'breakdancer_max_options' => VRPipe::StepOption->get(description => 'breakdancer_max options excluding bam config file name'),
-            'breakdancer_max_exe' => VRPipe::StepOption->get(description => 'full path to breakdancer_max executable', optional => 1, default_value => 'breakdancer_max'),
+            breakdancer_max_options => VRPipe::StepOption->get(description => 'breakdancer_max options excluding bam config file name'),
+            breakdancer_max_exe => VRPipe::StepOption->get(description => 'full path to breakdancer_max executable', optional => 1, default_value => 'breakdancer_max'),
+			whole_genome_mode => VRPipe::StepOption->get(description => "Indicates process should be split into seperate jobs by chromosome",optional => 1,default_value => 1),
+			chrom_list =>  VRPipe::StepOption->get(description => 'Names of chromosomes if running seperate jobs per chromosome', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y' ),
         };
     }
     method inputs_definition {
@@ -19,19 +21,34 @@ class VRPipe::Steps::breakdancer_sv_detection with VRPipe::StepRole {
             my $options = $self->options;
             my $breakdancer_max_exe = $options->{breakdancer_max_exe};
             my $breakdancer_max_options = $options->{'breakdancer_max_options'};
+			my $whole_genome_mode = $options->{whole_genome_mode};
+			my $chrom_list = $options->{chrom_list};
+
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $bam_cfg (@{$self->inputs->{bam_cfg}}) {
+
+				my $input_path = $bam_cfg->path;
                 my $basename = $bam_cfg->basename;
-                $basename =~ s/\.cfg$/.max/;
-                my $breakdancer_max = $self->output_file(output_key => 'breakdancer_max', basename => $basename, type => 'txt');
-                
-                my $input_path = $bam_cfg->path;
-                my $output_path = $breakdancer_max->path;
-                
-                my $cmd = "$breakdancer_max_exe $breakdancer_max_options $input_path > $output_path";
-		
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::breakdancer_sv_detection', 'run_breakdancer_max', [$cmd, $req, {output_files => [$breakdancer_max]}]);
+                $basename =~ s/\.cfg$//;
+
+				if ($whole_genome_mode) {
+					my $breakdancer_max = $self->output_file(output_key => 'breakdancer_max', basename => "${basename}.max", type => 'txt');
+					my $output_path = $breakdancer_max->path;
+					
+					my $cmd = "$breakdancer_max_exe $breakdancer_max_options $input_path > $output_path";
+					$self->dispatch_wrapped_cmd('VRPipe::Steps::breakdancer_sv_detection', 'run_breakdancer_max', [$cmd, $req, {output_files => [$breakdancer_max]}]);
+            	}
+				else {
+					for my $chr ( split(' ',$chrom_list) ) {
+
+						my $breakdancer_max = $self->output_file(output_key => 'breakdancer_max', basename => "${basename}.${chr}.max", type => 'txt');
+						my $output_path = $breakdancer_max->path;
+						
+						my $cmd = "$breakdancer_max_exe $breakdancer_max_options -o $chr $input_path > $output_path";
+						$self->dispatch_wrapped_cmd('VRPipe::Steps::breakdancer_sv_detection', 'run_breakdancer_max', [$cmd, $req, {output_files => [$breakdancer_max]}]);
+					}
+				}
             }
         };
     }
