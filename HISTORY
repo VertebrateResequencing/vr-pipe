@@ -1,3 +1,7 @@
+0.65    New breakdancer pipeline, single-step bam splitting
+        pipeline, and the vrpipe datasource now applies the
+        filter after grouping, requiring only 1 file in the
+        group to match the filter.
 0.64    Fix for bam_reheader, affecting 1000 genomes pipelines.
 0.63    Fix for rare bug in fastq_split which prevented it from
         working with certain input.
