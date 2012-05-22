@@ -69,7 +69,8 @@ if ($setup) {
         my %option_names;
         my $option_num = 0;
         my @options;
-        foreach my $stepm ($setup->pipeline->step_members) {
+        my $pipeline = $setup->pipeline;
+        foreach my $stepm ($pipeline->step_members) {
             my $step = $stepm->step;
             my $option_defs = $step->options_definition;
             foreach my $key (sort keys %$option_defs) {
@@ -93,6 +94,27 @@ if ($setup) {
                     $options[$option_num] = [$key, "Override the $resource requirement for the step '$step_name'", 1, '', []];
                 }
             }
+        }
+        
+        # also include behaviour options
+        my $reg = behaviours_to_regulators(get_pipeline_behaviours($pipeline));
+        foreach my $regulator (keys %$reg) {
+            my (@methods, %steps);
+            my $methods = $reg->{$regulator}->{methods};
+            while (my ($method, $steps) = each %$methods) {
+                push(@methods, $method);
+                foreach my $step (%$steps) {
+                    $steps{$step} = 1;
+                }
+            }
+            my @steps = sort { $a <=> $b } keys %steps;
+            
+            my @defaults = keys %{$reg->{$regulator}->{defaults}};
+            my $default = @defaults == 1 ? $defaults[0] : 'mixed';
+            
+            $option_num++;
+            $option_names{$regulator} = $option_num;
+            $options[$option_num] = [$regulator, "Turn the behaviours (".join(', ', @methods).") of steps (".join(', ', @steps).") on (1) of off (0)", 1, "$default" ne 'mixed' ? $default : '', [0, 1]];
         }
         
         # Show the user the list, along with currently set options, allow them to
