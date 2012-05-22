@@ -115,6 +115,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         }
         my @elements;
         foreach my $result (@{$self->_all_results(%args, complete_elements => 1)}) {
+            if ($filter) {
+                next unless $result->{pass_filter};
+            }
             my $res = { paths => $result->{paths} };
             if ($maintain_element_grouping) {
                 $res->{lane} = $result->{result}->{lane} if (exists $result->{result}->{lane});
@@ -177,12 +180,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                         }
                         
                         foreach my $file (@$files) {
+                            my $pass_filter = 0;
                             if ($filter) {
-                                next unless $file->metadata->{$key} =~ m/$regex/;
+                                $pass_filter = $file->metadata->{$key} =~ m/$regex/;
                             }
                             
                             if ($maintain_element_grouping) {
                                 push @{$element_hash{paths}}, $file->path->stringify;
+                                $element_hash{pass_filter} ||= $pass_filter;
                             }
                             else {
                                 my %hash;
@@ -190,6 +195,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                                 my $meta = $file->metadata;
                                 $hash{metadata} = $meta if (keys %{$meta});
                                 $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
+                                $hash{pass_filter} ||= $pass_filter;
                                 push(@per_element_output_files, \%hash);
                             }
                         }
@@ -219,11 +225,15 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             my $group_key = join '|', @group_keys;
             push(@{$group_hash->{$group_key}->{paths}}, @{$hash_ref->{paths}});
             push(@{$group_hash->{$group_key}->{parents}}, $hash_ref->{parent});
+            $group_hash->{$group_key}->{pass_filter} ||= $hash_ref->{pass_filter};
         }
         
         my @elements;
         foreach my $group (sort keys %{$group_hash}) {
             my $hash_ref = $group_hash->{$group};
+            if ($filter) {
+                next unless $hash_ref->{pass_filter};
+            }
             push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths}, group => $group }, withdrawn => 0);
             foreach my $parent (@{$hash_ref->{parents}}) {
                 VRPipe::DataElementLink->get(pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $elements[-1]->id);

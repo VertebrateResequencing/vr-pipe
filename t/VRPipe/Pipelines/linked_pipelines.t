@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 15;
+    use Test::Most tests => 17;
     use VRPipeTest (required_exe => [qw(cat)]);
     use TestPipelines;
 }
@@ -77,14 +77,16 @@ my $test_pipelinesetup_3 = VRPipe::PipelineSetup->get(name => 'vrpipe datasource
 
 
 # check the three pipelines ran as expected
-my (@base_files, @link_files, @link_merge_files);
+my (@base_files, @link_files, @link_merge_files, @step_four_base_files);
 my $element_id = 0;
 foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     my $step_index = 0;
     foreach my $suffix ('step_one', 'step_one.step_two', 'step_one.step_two.step_three', 'step_one.step_two.step_three.step_four') {
-        push(@base_files, file(@output_subdirs, ($step_index+1).'_'.$expected_base_step_names[$step_index], "$in.$suffix"));
+        my $file = file(@output_subdirs, ($step_index+1).'_'.$expected_base_step_names[$step_index], "$in.$suffix");
+        push(@base_files, $file);
+        push(@step_four_base_files, $file) if ($suffix eq 'step_one.step_two.step_three.step_four');
         $step_index++;
     }
 }
@@ -117,6 +119,30 @@ foreach my $eid (map { $_->id } @{$test_pipelinesetup_3->datasource->elements}) 
 }
 is $element_count, 1, 'the "group_by_metadata" linked pipeline had just 1 element for all the input elements';
 ok handle_pipeline(@base_files, @link_files, @link_merge_files), 'pipelines ran and created all expected output files';
+
+# Check that metadata filter is applied after grouping.
+# Only one file has the metadata three_meta => StepOption_default_decided_three_option - 
+# only this one file should be required to pass the filter. 
+my $ds_test = VRPipe::DataSource->get(type => 'vrpipe',
+                                        method => 'group_by_metadata',
+                                        source => '1[4]',
+                                        options => { metadata_keys => 'four_meta',
+                                                     filter => 'three_meta#StepOption_default_decided_three_option' });
+my @results = ();
+foreach my $element (@{$ds_test->elements}) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{paths => \@step_four_base_files, group => 'bar'}], 'metadata filtering for group_by_metadata vrpipe datasource method worked as expected';
+
+$ds_test = VRPipe::DataSource->get(type => 'vrpipe',
+                                   method => 'all',
+                                   source => '1[4]',
+                                   options => { filter => 'three_meta#StepOption_default_decided_three_option' });
+@results = ();
+foreach my $element (@{$ds_test->elements}) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for all vrpipe datasource method worked as expected';
 
 # change fofn datasource
 my $fh = $ds->openr;
