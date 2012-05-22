@@ -31,7 +31,7 @@ class VRPipe::Steps::test_step_four with VRPipe::StepRole {
                                              type => 'txt',
                                              metadata => {one_meta => $in->metadata->{one_meta},
                                                           two_meta => $in->metadata->{two_meta},
-                                                          three_meta => $in->metadata->{three_meta} || 'no_three_meta',
+                                                          defined $in->metadata->{three_meta} ? (three_meta => $in->metadata->{three_meta}) : (),
                                                           four_meta => $four_opt});
                 
                 my ($in_path, $out_path) = ($in->path, $out->path);
@@ -46,8 +46,9 @@ class VRPipe::Steps::test_step_four with VRPipe::StepRole {
                                                               description => 'step four output file',
                                                               metadata => {one_meta => 'metadata from step one',
                                                                            two_meta => 'metadata from step two',
-                                                                           three_meta => 'metadata maybe from step three, otherwise from step four',
-                                                                           four_meta => 'metadata applied to step four output file'}) };
+                                                                           three_meta => 'metadata maybe from step three, if it was present',
+                                                                           four_meta => 'metadata applied to step four output file',
+                                                                           optional => ['three_meta']}) };
     }
     method post_process_sub {
         return sub { return 1; };
