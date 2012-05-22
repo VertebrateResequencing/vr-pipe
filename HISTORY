@@ -1,3 +1,5 @@
+0.66    vrpipe-setup can now be used to change pipeline
+        behaviours.
 0.65    New breakdancer pipeline, single-step bam splitting
         pipeline, and the vrpipe datasource now applies the
         filter after grouping, requiring only 1 file in the
