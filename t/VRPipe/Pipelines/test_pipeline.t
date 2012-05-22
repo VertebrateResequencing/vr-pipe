@@ -87,7 +87,7 @@ ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all e
 my $ofile = VRPipe::File->get(path => file(output_subdirs(3), '4_test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'));
 my $ometa = $ofile->metadata;
 my $o2meta = VRPipe::File->get(path => file(output_subdirs(2), '4_test_step_four', 'file2.txt.step_one.step_two.step_three.step_four'))->metadata;
-is_deeply [$ometa->{one_meta}, $ometa->{two_meta}, $ometa->{three_meta}, $o2meta->{three_meta}, $ometa->{four_meta}], [50, 'body_decided_two_option', 'no_three_meta', 'StepOption_default_decided_three_option', 'bar'], 'metadata of one of the final output files was as expected';
+is_deeply [$ometa->{one_meta}, $ometa->{two_meta}, $ometa->{three_meta}, $o2meta->{three_meta}, $ometa->{four_meta}], [50, 'body_decided_two_option', undef, 'StepOption_default_decided_three_option', 'bar'], 'metadata of one of the final output files was as expected';
 
 my $existing_files = 0;
 foreach my $file (@deleted_files) {

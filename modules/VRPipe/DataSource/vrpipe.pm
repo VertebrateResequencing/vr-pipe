@@ -181,8 +181,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                         
                         foreach my $file (@$files) {
                             my $pass_filter = 0;
-                            if ($filter) {
-                                $pass_filter = $file->metadata->{$key} =~ m/$regex/;
+                            my $meta = $file->metadata;
+                            if ($filter && defined $meta->{$key}) {
+                                $pass_filter = $meta->{$key} =~ m/$regex/;
                             }
                             
                             if ($maintain_element_grouping) {
@@ -192,7 +193,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                             else {
                                 my %hash;
                                 $hash{paths} = [ $file->path->stringify ];
-                                my $meta = $file->metadata;
                                 $hash{metadata} = $meta if (keys %{$meta});
                                 $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
                                 $hash{pass_filter} ||= $pass_filter;
