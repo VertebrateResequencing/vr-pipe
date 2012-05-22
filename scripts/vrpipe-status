@@ -55,7 +55,7 @@ foreach my $setup (@setups) {
         else {
             $frontend->output("(used with default/no options)");
         }
-        $frontend->output('PipelineSetup outout root: ', $setup->output_root);
+        $frontend->output('PipelineSetup output root: ', $setup->output_root);
         
         $frontend->output('Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source);
         my $ds_opts = $datasource->options;
