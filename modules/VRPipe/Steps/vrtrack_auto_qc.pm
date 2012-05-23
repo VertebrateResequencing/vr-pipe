@@ -101,6 +101,12 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 	    push @qc_status, { test => 'Empty bam file check', status => 0, reason => 'The bam file provided for this lane contains no sequences.' };
 	}
 	
+	# we'll always fail if the npg status is failed
+	my $npg_status = $vrlane->npg_qc_status;
+	if ($npg_status && $npg_status eq 'fail') {
+	    push @qc_status, { test => 'NPG QC status check', status => 0, reason => 'The lane failed the NPG QC check, so we auto-fail as well since this data will not be auto-submitted to EGA/ENA.' };
+	}
+	
 	# genotype check results
 	my @gtype_results;
 	if (defined $auto_qc_gtype_regex) {
