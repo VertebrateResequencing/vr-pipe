@@ -5,7 +5,7 @@ class VRPipe::Steps::breakdancer_sv_detection with VRPipe::StepRole {
         return { 
             breakdancer_max_options => VRPipe::StepOption->get(description => 'breakdancer_max options excluding bam config file name'),
             breakdancer_max_exe => VRPipe::StepOption->get(description => 'full path to breakdancer_max executable', optional => 1, default_value => 'breakdancer_max'),
-			whole_genome_mode => VRPipe::StepOption->get(description => "Indicates process should be split into seperate jobs by chromosome",optional => 1,default_value => 1),
+			whole_genome_mode => VRPipe::StepOption->get(description => "Indicates process run in one job, set to 0 to split into seperate jobs by chromosome",optional => 1,default_value => 1),
 			chrom_list =>  VRPipe::StepOption->get(description => 'Names of chromosomes if running seperate jobs per chromosome', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y' ),
         };
     }
