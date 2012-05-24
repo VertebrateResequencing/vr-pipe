@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 10;
+    use Test::Most tests => 13;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -224,6 +224,55 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
         $oks++ if $file->metadata->{ok};
     }
     is $oks, 6, 'we were able to run a pipeline where a step took files of 2 different types from the datasource';
+}
+
+# when a job fails and is retried, test that we can get access to previous
+# scheduler and job stdout/err
+{
+    my ($output_root, $pipeline) = create_single_step_pipeline('test_step_fail', 'file');
+    my $fail_ps = VRPipe::PipelineSetup->get(name => 'fail_ps', datasource => $fofn_datasource, output_root => $output_root, pipeline => $pipeline);
+    my $ps_id = $fail_ps->id;
+    my @ofiles = (file(output_subdirs(7, $ps_id), '1_test_step_fail', 'file.bam'),
+                  file(output_subdirs(8, $ps_id), '1_test_step_fail', 'file.cat'),
+                  file(output_subdirs(9, $ps_id), '1_test_step_fail', 'file.txt'));
+    
+    ok handle_pipeline(@ofiles), 'pipeline with a step that fails twice before working ran successfully';
+    
+    my $rs = Schema->resultset("Submission")->search({ 'stepstate.pipelinesetup' => $ps_id },
+                                                     { order_by => { -asc => 'id' }, join => ['stepstate'] });
+    my $sched_oks = 0;
+    my %job_std;
+    while (my $sub = $rs->next) {
+        my $pars = $sub->scheduler_stdout;
+        my @times;
+        while ($pars->next_record) {
+            push(@times, $pars->time);
+        }
+        $sched_oks++ if @times == 3;
+        
+        undef $pars;
+        $pars = $sub->job_stdout;
+        my $pr = $pars->parsed_record;
+        my $line_num = 0;
+        while ($pars->next_record) {
+            $line_num++;
+            my $line = $pr->[0] || 'undef';
+            $job_std{out}->{$line_num.' - '.$line}++;
+        }
+        
+        undef $pars;
+        $pars = $sub->job_stderr;
+        $pr = $pars->parsed_record;
+        $line_num = 0;
+        while ($pars->next_record) {
+            $line_num++;
+            my $line = $pr->[0] || 'undef';
+            $job_std{err}->{$line_num.' - '.$line}++;
+        }
+    }
+    is $sched_oks, 3, 'The scheduler stdout of all 3 attempts on all 3 elements could be retrieved';
+    is_deeply \%job_std, {out => {"1 - undef" => 3, "2 - stdout message: failing on purpose since this is try 2" => 3, "3 - stdout message: failing on purpose since this is try 1" => 3},
+                          err => {"1 - undef" => 3, "2 - stderr message: failing on purpose since this is try 2" => 3, "3 - stderr message: failing on purpose since this is try 1" => 3}}, 'The job stdout and stderr of all 3 attempts on all 3 elements could be retrieved';
 }
 
 finish;

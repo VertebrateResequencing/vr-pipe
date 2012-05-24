@@ -103,37 +103,44 @@ foreach my $sub (@subs) {
         $scheduler_ofile ||= 'unknown path';
         if ($pars) {
             my $so = $sub->scheduler_stdout_file->path;
-            my $mem = $pars->memory;
-            my $sec = $pars->time;
-            my $days = int($sec/(24*60*60));
-            my $hrs = ($sec/(60*60))%24;
-            my $mins = ($sec/60)%60;
-            my $remaining_secs = $sec%60;
-            my $extra = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
-            $frontend->output("The $scheduler output ($scheduler_ofile) says that actual memory used was ${mem}MB and it took $sec secs$extra");
+            my @details;
+            while ($pars->next_record) {
+                my $mem = $pars->memory;
+                my $sec = $pars->time;
+                my $days = int($sec/(24*60*60));
+                my $hrs = ($sec/(60*60))%24;
+                my $mins = ($sec/60)%60;
+                my $remaining_secs = $sec%60;
+                my $extra = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
+                push(@details, [$mem, $sec, $extra]);
+            }
+            my $d = shift @details;
+            $frontend->output("The $scheduler output ($scheduler_ofile) says that actual memory used was $d->[0]MB and it took $d->[1] secs$d->[2]");
+            if (@details) {
+                foreach my $d (@details) {
+                    $frontend->output(" on the attempt before it says that actual memory used was $d->[0]MB and it took $d->[1] secs$d->[2]");
+                }
+            }
         }
         else {
             $frontend->output("The $scheduler output ($scheduler_ofile) was missing, so actual memory and time used is unknown");
         }
         
-        my $se = $sub->scheduler_stderr;
-        if ($se) {
-            $frontend->output("The scheduler had some stderr:");
-            show_output($se, $sub->scheduler_stderr_file->path);
+        $pars = $sub->scheduler_stderr;
+        if ($pars) {
+            show_output("The scheduler had some stderr:", $pars);
         }
     }
     
     unless ($job_state eq 'pending') {
-        my $jo = $sub->job_stdout;
-        if ($jo) {
-            $frontend->output("The job itself produced some stdout:");
-            show_output($jo, $sub->job_stdout_file->path);
+        my $pars = $sub->job_stdout;
+        if ($pars) {
+            show_output("The job itself produced some stdout:", $pars);
         }
         
-        my $je = $sub->job_stderr;
-        if ($je) {
-            $frontend->output("The job itself produced some stderr:");
-            show_output($je, $sub->job_stderr_file->path);
+        my $pars2 = $sub->job_stderr;
+        if ($pars2) {
+            show_output("The job itself produced some stderr:", $pars2);
         }
     }
     
@@ -183,24 +190,59 @@ exit;
 
 
 sub show_output {
-    my ($output, $file) = @_;
-    $frontend->output("\n");
+    my ($message, $pars) = @_;
+    my $file = $pars->file;
     
-    my @lines = split("\n", $output);
-    my $num_lines = @lines;
-    if (@lines > 45) {
-        for (1..10) {
-            $frontend->output($lines[$_ - 1]);
+    my @outputs;
+    my $lines = $pars->parsed_record;
+    my @orig = ();
+    my $got_output;
+    while ($pars->next_record) {
+        push(@orig, [@{$pars->parsed_record}]);
+        my $num_lines = @$lines;
+        my @selected_lines;
+        if ($num_lines > 45) {
+            for (1..10) {
+                push(@selected_lines, $lines->[$_ - 1]);
+            }
+            my $other_lines = $num_lines - 40;
+            push(@selected_lines, "\n[... $other_lines more lines in $file ...]\n\n");
+            for (($num_lines-30)..$num_lines) {
+                push(@selected_lines, $lines->[$_ - 1]);
+            }
         }
-        my $other_lines = $num_lines - 40;
-        $frontend->output("\n[... $other_lines more lines in $file ...]\n\n");
-        for (($num_lines-30)..$num_lines) {
-            $frontend->output($lines[$_ - 1]);
+        else {
+            @selected_lines = @$lines;
         }
-    }
-    else {
-        $frontend->output($output);
+        
+        unless ($got_output) {
+            foreach my $line (@selected_lines) {
+                if ($line) {
+                    $got_output = 1;
+                    last;
+                }
+            }
+        }
+        
+        push(@outputs, \@selected_lines);
     }
     
-    $frontend->output("\n");
+    if ($got_output) {
+        $frontend->output($message);
+        $frontend->output("\n");
+        my $oref = shift @outputs;
+        foreach my $line (@$oref) {
+            $frontend->output($line);
+        }
+        
+        foreach $oref (@outputs) {
+            $frontend->output("\na previous attempt gave this output:");
+            $frontend->output("\n");
+            foreach my $line (@$oref) {
+                $frontend->output($line);
+            }
+        }
+        
+        $frontend->output("\n");
+    }
 }
