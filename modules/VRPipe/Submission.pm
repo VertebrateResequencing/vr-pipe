@@ -219,7 +219,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
         foreach my $toa (@to_archive) {
             my ($source, $dest, $add_marker) = @$toa;
             next unless ($source && $dest);
-            #$source->move($dest) if $source->e;
             $self->concatenate($source, $dest,
                                unlink_source => 1,
                                add_marker => $add_marker); 
