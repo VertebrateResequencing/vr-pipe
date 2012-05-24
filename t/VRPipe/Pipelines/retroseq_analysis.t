@@ -6,7 +6,7 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-	);
+		    required_exe => [qw(retroseq.pl)]);
     use TestPipelines;
 }
 
@@ -21,12 +21,13 @@ my @expected_step_names = qw(retroseq_discover retroseq_call);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 #create refTE file, needs to contain absolute file paths
-
-my $refTE_file = file(qw(t data chr20.ref_types.tab))->absolute->stringify;
+my $refTE_file = "$output_dir/chr20.ref_types.tab";
 my $alu_file = file(qw(t data chr20.Alu.bed))->absolute->stringify;
 my $l1hs_file = file(qw(t data chr20.L1_HS.bed))->absolute->stringify;
-`echo "Alu\t${alu_file}" > $refTE_file`;
-`echo "L1HS\t${l1hs_file}" >> $refTE_file`;
+open (REF, ">", $refTE_file) or die $!;
+print REF "Alu\t${alu_file}\n";
+print REF "L1HS\t${l1hs_file}\n";
+close(REF);
 
 my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my retroseq_analysis pipeline setup',
 		datasource => VRPipe::DataSource->get(type => 'fofn',
@@ -35,7 +36,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my retroseq_analysi
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { 
-            'retroseq_exe' => '/software/vertres/bin-external/retroseq.pl',
+            'retroseq_exe' => 'retroseq.pl',
             'refTEs_param' =>  "$refTE_file",
             'retroseq_ref' => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
             'retroseq_call_options' => '-hets -reads 1 -depth 100',
