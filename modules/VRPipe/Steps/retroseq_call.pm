@@ -54,7 +54,6 @@ class VRPipe::Steps::retroseq_call with VRPipe::StepRole {
 				my $cmd = "$retroseq_exe -call -bam $bam_path -input $bed_files{$bam_path} -ref $retroseq_ref";
 				$cmd .= " -filter $retroseq_filter" if $retroseq_filter;
 				$cmd .= " $retroseq_call_options -output $output_path";
-				$self->warn($cmd);
 
 				$self->dispatch_wrapped_cmd('VRPipe::Steps::retroseq_call', 'run_rseq_call', [$cmd, $req, {output_files => [$rseq_vcf]}]);
             }
