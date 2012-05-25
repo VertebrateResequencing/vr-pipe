@@ -21,7 +21,7 @@ my @expected_step_names = qw(retroseq_discover retroseq_call);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 #create refTE file, needs to contain absolute file paths
-my $refTE_file = "$output_dir/chr20.ref_types.tab";
+my $refTE_file = file($output_dir, 'chr20.ref_types.tab');
 my $alu_file = file(qw(t data chr20.Alu.bed))->absolute->stringify;
 my $l1hs_file = file(qw(t data chr20.L1_HS.bed))->absolute->stringify;
 open (REF, ">", $refTE_file) or die $!;
