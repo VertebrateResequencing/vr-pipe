@@ -101,6 +101,14 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                      Str|File :$iget!, Str|File :$ichksum!) {
         my $dest = $dest_file->path;
         $dest_file->disconnect;
+
+        # before we go fetch a file, check the md5 matches what we're expecting
+        my $irodschksum = $self->get_file_md5(file => $source, ichksum => $ichksum);
+        my $expected_md5 = $dest_file->metadata->{expected_md5} || $irodschksum;
+        unless ($irodschksum eq $expected_md5) {
+            $dest_file->unlink;
+            $self->throw("expected md5 checksum in metadata did not match md5 of file in IRODS; aborted");
+        }
         
         # -K: checksum
         # -Q: use UDP rather than TCP
@@ -117,7 +125,6 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         chmod 0664, $dest;
         
         # double-check the md5 (iget -K doesn't always work?)
-        my $expected_md5 = $dest_file->metadata->{expected_md5} || $self->get_file_md5(file => $source, ichksum => $ichksum);
         my $ok = $dest_file->verify_md5($dest, $expected_md5);
         unless ($ok) {
             $dest_file->unlink;
