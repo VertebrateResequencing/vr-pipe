@@ -21,18 +21,16 @@ class VRPipe::Steps::breakdancer_bam2cfg with VRPipe::StepRole {
             my $bam2cfg_options = $options->{'bam2cfg_options'};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
+
+            my $bam_cfg = $self->output_file(output_key => 'bam_cfg', basename => 'bd.cfg', type => 'txt');
+            my $output_path = $bam_cfg->path;
+
+			my $input_paths;
             foreach my $bam_file (@{$self->inputs->{bam_files}}) {
-                my $basename = $bam_file->basename;
-                $basename =~ s/\.bam$/.cfg/;
-                my $bam_cfg = $self->output_file(output_key => 'bam_cfg', basename => $basename, type => 'txt');
-                
-                my $input_path = $bam_file->path;
-                my $output_path = $bam_cfg->path;
-                
-                my $cmd = "$bam2cfg_exe $bam2cfg_options $input_path > $output_path";
-		
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::breakdancer_bam2cfg', 'gen_bam_cfg', [$cmd, $req, {output_files => [$bam_cfg]}]);
+                $input_paths .= $bam_file->path . " ";
             }
+            my $cmd = "$bam2cfg_exe $bam2cfg_options $input_paths > $output_path";
+            $self->dispatch_wrapped_cmd('VRPipe::Steps::breakdancer_bam2cfg', 'gen_bam_cfg', [$cmd, $req, {output_files => [$bam_cfg]}]);
         };
     }
     method outputs_definition {
@@ -44,7 +42,7 @@ class VRPipe::Steps::breakdancer_bam2cfg with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "Generates breakdancer config file from input bam";
+        return "Generates breakdancer config file from one of more input bams";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
