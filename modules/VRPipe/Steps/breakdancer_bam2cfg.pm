@@ -42,7 +42,7 @@ class VRPipe::Steps::breakdancer_bam2cfg with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "Generates breakdancer config file from one of more input bams";
+        return "Generates breakdancer config file for one or more input bams";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
