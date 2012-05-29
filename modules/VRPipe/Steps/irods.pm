@@ -107,7 +107,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $expected_md5 = $dest_file->metadata->{expected_md5} || $irodschksum;
         unless ($irodschksum eq $expected_md5) {
             $dest_file->unlink;
-            $self->throw("expected md5 checksum in metadata did not match md5 of file in IRODS; aborted");
+            $self->throw("expected md5 checksum in metadata did not match md5 of $source in IRODS; aborted");
         }
         
         # -K: checksum
