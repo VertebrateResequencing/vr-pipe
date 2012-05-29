@@ -95,15 +95,18 @@ if ($num_gone) {
 
 # see what's completely new
 my %not_in_old;
+my %samples_not_in_old;
 while (my ($lane, $new_data) = each %new_data) {
     my $old_data = $old_data{$lane};
     unless ($old_data) {
         $not_in_old{$lane} = 1;
+        $samples_not_in_old{$new_data->{sample}} = 1;
     }
 }
 my $num_new = keys %not_in_old;
 if ($num_new) {
-    print "\n$num_new lanes are completely new in the new sequence.index file:\n";
+    my $num_new_samples = keys %samples_not_in_old;
+    print "\n$num_new lanes ($num_new_samples samples) are completely new in the new sequence.index file:\n";
     print join(' ', keys %not_in_old), "\n";
 }
 
