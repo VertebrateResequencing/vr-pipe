@@ -58,9 +58,10 @@ while (my ($lane, $old_data) = each %old_data) {
         }
         else {
             $withdrawn_stats{got_reinstated}++;
+            next;
         }
-        next;
     }
+    next if $now_withdrawn;
     
     my %diffs;
     my $old_md5s = join(',', sort keys %{$old_data->{md5s}});
