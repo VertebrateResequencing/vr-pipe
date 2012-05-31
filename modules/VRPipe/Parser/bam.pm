@@ -4,73 +4,79 @@ VRPipe::Parser::bam - parse and write bam files
 
 =head1 SYNOPSIS
 
-use VRPipe::Parser;
-
-# create object, supplying bam file
-my $pars = VRPipe::Parser->create('bam', {file => $bam_file});
-
-# get header information
-my $program = $pars->program();
-my %readgroup_info = $pars->readgroup_info();
-# etc.
-
-# get the hash reference that will hold the most recently requested result
-my $parsed_record = $pars->parsed_record();
-
-# just count the number of alignments in the whole bam file:
-my $c = 0;
-while ($pars->next_record()) {
-    $c++;
-}
-
-# unlike other parsers, if you actually want to extract results, you need to
-# specify ahead of time which fields you're interested in:
-$pars->get_fields('QNAME', 'FLAG', 'RG');
-while ($pars->next_record()) {
-    # check $parsed_record for desired info, eg:
-    my $flag = $parsed_record->{FLAG};
-
-    # get info about a flag, eg:
-    my $mapped = $pars->is_mapped($flag);
-
-    print "$parsed_record->{QNAME} belongs to readgroup $parsed_record->{RG}\n";
-}
-
-# do an efficient, fast stream through a bam, but only get results in regions of
-# interest:
-foreach my $region ('1:10000-20000', '3:400000-5000000') {
-    $pars->region($region);
+    use VRPipe::Parser;
+    
+    # create object, supplying bam file
+    my $pars = VRPipe::Parser->create('bam', {file => $bam_file});
+    
+    # get header information
+    my $program = $pars->program();
+    my %readgroup_info = $pars->readgroup_info();
+    # etc.
+    
+    # get the hash reference that will hold the most recently requested result
+    my $parsed_record = $pars->parsed_record();
+    
+    # just count the number of alignments in the whole bam file:
+    my $c = 0;
     while ($pars->next_record()) {
-        # ...
+        $c++;
     }
-}
-
-# while going through next_record, you can also write those alignments out to a
-# new bam file, optionally ignoring tags to reduce output file size (and
-# increase speed). Eg. write Q30 chr20 reads where both mates of a pair
-# mapped to a new 'chr20.mapped.bam' file, where one of the pair is mapped to
-# a 'chr20.partial.bam' file, and where both are unmapped to a
-# 'chr20.unmapped.bam', ignoring the big OQ tags:
-$pars->region('20');
-$pars->minimum_quality(30);
-$pars->get_fields('FLAG');
-$pars->ignore_tags_on_write('OQ');
-while ($pars->next_record) {
-    my $flag = $parsed_record->{FLAG};
-    if ($pars->is_mapped_paired($flag)) {
-        $pars->write_result('chr20.mapped.bam');
+    
+    # unlike other parsers, if you actually want to extract results, you need to
+    # specify ahead of time which fields you're interested in:
+    $pars->get_fields('QNAME', 'FLAG', 'RG');
+    while ($pars->next_record()) {
+        # check $parsed_record for desired info, eg:
+        my $flag = $parsed_record->{FLAG};
+    
+        # get info about a flag, eg:
+        my $mapped = $pars->is_mapped($flag);
+    
+        print "$parsed_record->{QNAME} of readgroup $parsed_record->{RG}\n";
     }
-    elsif ($pars->is_mapped($flag) || $pars->is_mate_mapped($flag)) {
-       $pars->write_result('chr20.partial.bam');
+    
+    # do an efficient, fast stream through a bam, but only get results in
+    # regions of interest:
+    foreach my $region ('1:10000-20000', '3:400000-5000000') {
+        $pars->region($region);
+        while ($pars->next_record()) {
+            # ...
+        }
     }
-    else {
-        $pars->write_result('chr20.unmapped.bam');
+    
+    # while going through next_record, you can also write those alignments out
+    # to a new bam file, optionally ignoring tags to reduce output file size
+    # (and increase speed). Eg. write Q30 chr20 reads where both mates of a pair
+    # mapped to a new 'chr20.mapped.bam' file, where one of the pair is mapped
+    # to a 'chr20.partial.bam' file, and where both are unmapped to a
+    # 'chr20.unmapped.bam', ignoring the big OQ tags:
+    $pars->region('20');
+    $pars->minimum_quality(30);
+    $pars->get_fields('FLAG');
+    $pars->ignore_tags_on_write('OQ');
+    while ($pars->next_record) {
+        my $flag = $parsed_record->{FLAG};
+        if ($pars->is_mapped_paired($flag)) {
+            $pars->write_result('chr20.mapped.bam');
+        }
+        elsif ($pars->is_mapped($flag) || $pars->is_mate_mapped($flag)) {
+           $pars->write_result('chr20.partial.bam');
+        }
+        else {
+            $pars->write_result('chr20.unmapped.bam');
+        }
     }
-}
 
 =head1 DESCRIPTION
 
-A parser for bam files (not sam files).
+bam files are the compressed binary forms of sam files:
+L<http://samtools.sourceforge.net/>
+They hold aligned biological sequence data.
+
+This parser is strictly for bam files (not sam files). Unlike other parsers,
+this can also be used to write bam files, though you can only write (slightly
+modified versions of) records that you read in, not brand new data.
 
 The environment variable SAMTOOLS must point to a directory where samtools
 source has been compiled, so containing at least bam.h and libbam.a.
@@ -80,7 +86,25 @@ gettings things to work. Specifically, you'll probably need to add -fPIC and
 
 =head1 AUTHOR
 
-Sendu Bala: bix@sendu.me.uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 

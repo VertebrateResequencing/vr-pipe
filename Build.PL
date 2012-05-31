@@ -24,10 +24,10 @@ use VRPipeBuild;
 
 my $build = VRPipeBuild->new(
     module_name          => 'VRPipe',
-    dist_version         => 0.66,
+    dist_version         => 0.67,
     dist_author          => 'Vertebrate Resequencing group at the Sanger Institute',
     dist_abstract        => 'A system for setting up, running and tracking many jobs in pipelines on a compute farm.',
-    license              => 'perl',
+    license              => 'gpl',
     recursive_test_files => 1,
     pm_files             => get_pm_files,
     script_files         => 'scripts',

@@ -1,3 +1,48 @@
+=head1 NAME
+
+VRPipe::Submission - holds state for Jobs that need to be run
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+A L<VRPipe::Job> holds a command line that needs to be executed, but to
+execute it it must be passed to the system's job scheduler, which usually would
+like to know the memory and time (etc.) requirements (L<VRPipe::Requirements>).
+
+Submission associates Job with Requirements, and tracks scheduler-related state.
+We have here the methods to retry a failed Job, and increase memory and time
+requirements (associating with the Submission a new Requirements object) if
+necessary.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Submission extends VRPipe::Persistent {
@@ -210,20 +255,19 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method archive_output {
-        my $jso = $self->job->stdout_file || $self->warn("no job stdout_file for job ".$self->job->id);
-        return unless $jso;
-        my $sso = $self->job_stdout_file;
-        $jso->move($sso) if $jso->e;
-        my $jse = $self->job->stderr_file;
-        my $sse = $self->job_stderr_file;
-        $jse->move($sse) if $jse->e;
+        my @to_archive;
+        push(@to_archive, [$self->job->stdout_file, $self->job_stdout_file, 1]);
+        push(@to_archive, [$self->job->stderr_file, $self->job_stderr_file, 1]);
+        push(@to_archive, [$self->scheduler_stdout_file(orig => 1), $self->scheduler_stdout_file, 0]);
+        push(@to_archive, [$self->scheduler_stderr_file(orig => 1), $self->scheduler_stderr_file, 1]);
         
-        my $scso = $self->scheduler_stdout_file(orig => 1);
-        my $dest = $self->scheduler_stdout_file;
-        $scso->move($dest) if $scso->e;
-        my $scse = $self->scheduler_stderr_file(orig => 1);
-        $dest = $self->scheduler_stderr_file;
-        $scse->move($dest) if $scse->e;
+        foreach my $toa (@to_archive) {
+            my ($source, $dest, $add_marker) = @$toa;
+            next unless ($source && $dest);
+            $self->concatenate($source, $dest,
+                               unlink_source => 1,
+                               add_marker => $add_marker); 
+        }
     }
     
     # requirement passthroughs and extra_* methods
@@ -318,67 +362,72 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     # where have our scheduler and job stdout/err files gone?
-    method std_dir {
-        my ($for) = $self->_for;
+    method std_dir (Bool $orig = 0) {
+        my ($for) = $self->_for($orig);
         $for || return;
         return $self->scheduler->output_dir($for);
     }
     
-    method _for {
+    method _for (Bool $orig = 0) {
         my $hid = $self->_hid || return;
-        my ($for, $index);
+        my $for = $self->job;
+        my $index;
         if ($self->_aid) {
-            $for = VRPipe::PersistentArray->get(id => $hid);
+            $for = VRPipe::PersistentArray->get(id => $hid) if $orig;
             $index = $self->_aid;
         }
         else {
-            $for = $self;
+            $for = $self if $orig;
         }
         return ($for, $index);
     }
     
     method _scheduler_std_file (Str $method where {$_ eq 'scheduler_output_file' || $_ eq 'scheduler_error_file'}, Str $type, Bool $orig = 0) {
-        my $std_dir = $self->std_dir || return;
-        my $std_io_file = $self->scheduler->$method($std_dir);
-        my (undef, $index) = $self->_for;
-        if ($index) {
-            $std_io_file .= '.'.$index;
+        my $std_dir = $self->std_dir($orig) || return;
+        my $std_io_file;
+        if ($orig) {
+            $std_io_file = $self->scheduler->$method($std_dir);
+            my (undef, $index) = $self->_for($orig);
+            if ($index) {
+                $std_io_file .= '.'.$index;
+            }
         }
-        $std_io_file .= '.r'.$self->retries unless $orig;
+        else {
+            $std_io_file = file($std_dir, $method);
+        }
+        
         return VRPipe::File->get(path => $std_io_file, type => $type);
     }
     method scheduler_stdout_file (Bool :$orig = 0) {
         return $self->_scheduler_std_file('scheduler_output_file', substr($self->scheduler->type, 0, 3), $orig);
     }
     method scheduler_stderr_file (Bool :$orig = 0) {
-        return $self->_scheduler_std_file('scheduler_error_file', 'txt', $orig);
+        return $self->_scheduler_std_file('scheduler_error_file', 'cat', $orig);
+    }
+    method _std_parser (VRPipe::File $file, Str $type) {
+        $file->s || return;
+        return VRPipe::Parser->create($type, {file => $file->path}); # in case $file is not type $type, we send the path, not the object
     }
     method scheduler_stdout {
         my $file = $self->scheduler_stdout_file || return;
         unless ($file->s) {
             $file = $self->scheduler_stdout_file(orig => 1);
-            $file->s || return;
         }
-        return VRPipe::Parser->create(lc(substr($self->scheduler->type, 0, 3)), {file => $file});
+        return $self->_std_parser($file, lc(substr($self->scheduler->type, 0, 3)));
     }
     method scheduler_stderr {
         my $file = $self->scheduler_stderr_file || return;
-        $file->s || return;
-        return $file->slurp;
+        unless ($file->s) {
+            $file = $self->scheduler_stderr_file(orig => 1);
+        }
+        return $self->_std_parser($file, 'cat');
     }
     
     method _job_std_file (Str $kind where {$_ eq 'out' || $_ eq 'err'}) {
         # this is where we want the job stdo/e to be archived to, not where the
         # job initially spits it out to
         my $std_dir = $self->std_dir || return;
-        my (undef, $index) = $self->_for;
-        if ($index) {
-            $index = '.'.$index;
-        }
-        else {
-            $index = '';
-        }
-        return VRPipe::File->get(path => file($std_dir, 'job_std'.$kind.$index.'.r'.$self->retries), type => 'txt');
+        return VRPipe::File->get(path => file($std_dir, 'job_std'.$kind), type => 'cat');
     }
     method job_stdout_file {
         return $self->_job_std_file('out');
@@ -388,13 +437,17 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     method job_stdout {
         my $file = $self->job_stdout_file || return;
-        $file->s || return;
-        return $file->slurp;
+        unless ($file->s) {
+            $file = $self->job->stdout_file;
+        }
+        return $self->_std_parser($file, 'cat');
     }
     method job_stderr {
         my $file = $self->job_stderr_file || return;
-        $file->s || return;
-        return $file->slurp;
+        unless ($file->s) {
+            $file = $self->job->stderr_file;
+        }
+        return $self->_std_parser($file, 'cat');
     }
     
     method pend_time {

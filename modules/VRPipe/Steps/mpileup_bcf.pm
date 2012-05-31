@@ -3,7 +3,7 @@ use VRPipe::Base;
 class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method options_definition {
         return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', optional => 1, default_value => 'samtools'),
-                 samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options excluding -f', optional => 1, default_value => '-EDSV -C50 -m2 -F0.0005 -d 10000 -g'),
+                 samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options excluding -f', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
                  reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
         };
     }

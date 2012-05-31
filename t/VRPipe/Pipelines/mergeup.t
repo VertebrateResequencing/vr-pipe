@@ -92,14 +92,15 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                             bam_merge_memory => 200,
                                                                             split_bam_make_unmapped => 1,
                                                                             cleanup => 1,
-                                                                            cleanup_inputs => 1,
+                                                                            delete_input_bams => 1,
                                                                             remove_merged_bams => 1 });
 
 my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release',
                                                                datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                                                      method => 'all',
                                                                                                      source => 's_suis merge libraries[4:split_bam_files]',
-                                                                                                     options => { filter => 'split_sequence#^(fake_chr2|unmapped)$' } ),
+                                                                                                     options => { filter => 'split_sequence#^(fake_chr2|unmapped)$',
+                                                                                                                  filter_after_grouping => 0 } ),
                                                                output_root => $build_dir,
                                                                pipeline => $release_pipeline,
                                                                options => { release_date => '19790320',
@@ -120,16 +121,23 @@ handle_pipeline(@mapping_files);
 # paths
 
 my @split_files;
-foreach my $element_id (8, 9) {
-    my @output_subdirs = output_subdirs($element_id, 3);
+my @split_files_removed;
+foreach my $element (@{$merge_libraries_pipelinesetup->datasource->elements}) {
+    my @output_subdirs = output_subdirs($element->id, 3);
     foreach my $file ('fake_chr1.pe.1.bam', 'fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@split_files, file(@output_subdirs, '4_bam_split_by_sequence', $file));
+    }
+    if ($element->result->{group} =~ /SAMPLE01/) {
+        push @split_files_removed, (1,1,1);
+    } else {
+        push @split_files_removed, (0,0,0);
     }
 }
 
 my @release_files;
-foreach my $element_id (10, 11) {
-    my @output_subdirs = output_subdirs($element_id, 4);
+my @release_files_removed;
+foreach my $element (@{$release_pipeline_setup->datasource->elements}) {
+    my @output_subdirs = output_subdirs($element->id, 4);
     foreach my $file ('fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file));
         push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file.'.bai'));
@@ -137,6 +145,11 @@ foreach my $element_id (10, 11) {
         push(@release_files, file(@output_subdirs, '4_md5_file_production', $file.'.md5'));
         push(@release_files, file(@output_subdirs, '5_md5_file_production', $file.'.bai.md5'));
         push(@release_files, file(@output_subdirs, '6_md5_file_production', $file.'.bas.md5'));
+    }
+    if ($element->result->{group} =~ /SAMPLE01/) {
+        push @release_files_removed, (1,1,1,1,1,1,1,1,1,1,1,1);
+    } else {
+        push @release_files_removed, (0,0,0,0,0,0,0,0,0,0,0,0);
     }
 }
 
@@ -192,10 +205,10 @@ my @mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
 is_deeply \@mapping_exists, [1,1,1,1,1], 'mapping files were not deleted after merge element was restarted';
 
 my @split_exists = map { -s $_ ? 1 : 0 } @split_files;
-is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch';
+is_deeply \@split_exists, \@split_files_removed, 'correct merge files were removed on start from scratch';
 
 my @release_exists = map { -s $_ ? 1 : 0 } @release_files;
-is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch';
+is_deeply \@release_exists, \@release_files_removed, 'correct release files were removed on start from scratch';
 
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated after a start from scratch';
 
@@ -215,10 +228,10 @@ VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_
 is_deeply \@mapping_exists, [1,1,1,1,1], 'mapping files were not deleted after merge element was restarted and after bam was moved';
 
 @split_exists = map { -s $_ ? 1 : 0 } @split_files;
-is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch after bam was moved';
+is_deeply \@split_exists, \@split_files_removed, 'correct merge files were removed on start from scratch after bam was moved';
 
 @release_exists = map { -s $_ ? 1 : 0 } @release_files;
-is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], 'correct release files were removed on start from scratch after bam was moved';
+is_deeply \@release_exists, \@release_files_removed, 'correct release files were removed on start from scratch after bam was moved';
 
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated from moved bam';
 

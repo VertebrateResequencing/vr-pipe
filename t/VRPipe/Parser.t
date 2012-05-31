@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 73;
+    use Test::Most tests => 74;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -57,12 +57,20 @@ undef $p;
 $p = VRPipe::Parser->create('cat', {file => file(qw(t data file.cat))});
 my @records;
 while ($p->next_record) {
-    push(@records, join("\n", @{$p->parsed_record}));
+    push(@records, [@{$p->parsed_record}]);
 }
-is_deeply [@records], ["first line of 4th record\nsecond line of 4th record",
-                       "",
-                       "first line of 2nd record\nsecond line of 2nd record",
-                       "first line of 1st record\nsecond line of 1st record"], 'cat file was parsed correctly';
+is_deeply [@records], [["first line of 4th record", "second line of 4th record"],
+                       [],
+                       ["first line of 2nd record", "second line of 2nd record"],
+                       ["first line of 1st record", "second line of 1st record"]], 'cat file was parsed correctly';
+$p = VRPipe::Parser->create('cat', {file => file(qw(t data parser.cat))});
+@records = ();
+while ($p->next_record) {
+    push(@records, [@{$p->parsed_record}]);
+}
+is_deeply [@records], [[],
+                       ["stdout message: failing on purpose since this is try 2"],
+                       ["stdout message: failing on purpose since this is try 1"]], 'another cat file was parsed correctly';
 
 # fqc
 $p = VRPipe::Parser->create('fqc', {file => file(qw(t data parser.fastqcheck ))});

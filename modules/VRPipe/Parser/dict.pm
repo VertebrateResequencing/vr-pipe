@@ -4,37 +4,55 @@ VRPipe::Parser::dict - parse sequence dictionary files
 
 =head1 SYNOPSIS
 
-use VRPipe::Parser;
-
-# create object, supplying equence dictionary file
-my $pars = VRPipe::Parser->create('dict', {file => $dict_file});
-
-# get the array reference that will hold the most recently requested record
-my $parsed_record = $pars->parsed_record();
-
-# loop through the dict file, getting records
-while ($pars->next_record()) {
-    # check $parsed_record for desired info, eg:
-    my $md5 = $parsed_record->{M5}
-}
-
-# get a hash of id => length
-my %seq_lengths = $pars->seq_lengths;
-
-# get a list of sequence ids
-my @ids = $pars->seq_ids;
-
-# get the total length of all sequences
-my $total_basespairs = $pars->total_length;
+    use VRPipe::Parser;
+    
+    # create object, supplying equence dictionary file
+    my $pars = VRPipe::Parser->create('dict', {file => $dict_file});
+    
+    # get the array reference that will hold the most recently requested record
+    my $parsed_record = $pars->parsed_record();
+    
+    # loop through the dict file, getting records
+    while ($pars->next_record()) {
+        # check $parsed_record for desired info, eg:
+        my $md5 = $parsed_record->{M5}
+    }
+    
+    # get a hash of id => length
+    my %seq_lengths = $pars->seq_lengths;
+    
+    # get a list of sequence ids
+    my @ids = $pars->seq_ids;
+    
+    # get the total length of all sequences
+    my $total_basespairs = $pars->total_length;
 
 =head1 DESCRIPTION
 
 A parser for .dict files, which are the descriptions of fasta sequences used in
-bam headers.
+bam headers (the @SQ lines).
 
 =head1 AUTHOR
 
-Sendu Bala: bix@sendu.me.uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 

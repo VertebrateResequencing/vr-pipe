@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 17;
+    use Test::Most tests => 18;
     use VRPipeTest (required_exe => [qw(cat)]);
     use TestPipelines;
 }
@@ -132,7 +132,19 @@ my @results = ();
 foreach my $element (@{$ds_test->elements}) {
     push(@results, $element->result);
 }
-is_deeply \@results, [{paths => \@step_four_base_files, group => 'bar'}], 'metadata filtering for group_by_metadata vrpipe datasource method worked as expected';
+is_deeply \@results, [{paths => \@step_four_base_files, group => 'bar'}], 'metadata filtering for "group_by_metadata" vrpipe datasource method worked as expected';
+
+$ds_test = VRPipe::DataSource->get(type => 'vrpipe',
+                                        method => 'group_by_metadata',
+                                        source => '1[4]',
+                                        options => { metadata_keys => 'four_meta',
+                                                     filter => 'three_meta#StepOption_default_decided_three_option',
+                                                     filter_after_grouping => 0 });
+@results = ();
+foreach my $element (@{$ds_test->elements}) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{paths => [ $step_four_base_files[1] ], group => 'bar'}], 'metadata filtering for "group_by_metadata" vrpipe datasource method with "filter_after_grouping" option off worked as expected';
 
 $ds_test = VRPipe::DataSource->get(type => 'vrpipe',
                                    method => 'all',
@@ -142,7 +154,8 @@ $ds_test = VRPipe::DataSource->get(type => 'vrpipe',
 foreach my $element (@{$ds_test->elements}) {
     push(@results, $element->result);
 }
-is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for all vrpipe datasource method worked as expected';
+is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for "all" vrpipe datasource method worked as expected';
+
 
 # change fofn datasource
 my $fh = $ds->openr;

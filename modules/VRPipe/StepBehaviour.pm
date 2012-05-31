@@ -1,3 +1,51 @@
+=head1 NAME
+
+VRPipe::StepBehaviour - specify actions to take after a Pipeline Step completes
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+It is frequently useful to trigger some behaviour after a L<VRPipe::Step> in a
+L<VRPipe::Pipeline> completes, but it wouldn't be appropriate to do this thing
+as part of the Step itself, and you also want to make it optional with the user
+deciding if it should happen. For example, Steps 2 and 3 of your Pipeline might
+create files, both of which are needed by Step 4, but once Step 4 has completed
+those files are usually no longer needed. You would want a behaviour that
+triggered after Step 4 completes that deletes the output of Steps 2 and 3.
+
+A StepBehaviour allows you to specify these kind of Pipeline-specific optional
+behaviours. Behaviours are defined as methods in this class; more behaviours
+should be added here.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::StepBehaviour extends VRPipe::Persistent {

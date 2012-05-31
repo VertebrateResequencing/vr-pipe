@@ -4,33 +4,52 @@ VRPipe::Parser::sequence_index - parse sequence.index files from the DCC
 
 =head1 SYNOPSIS
 
-use VRPipe::Parser;
-
-# create object, supplying sequence.index file or filehandle
-my $pars = VRPipe::Parser->create('sequence_index', {file => $si_file});
-
-# get the array reference that will hold the most recently requested record
-my $parsed_record = $pars->parsed_record();
-
-# loop through the file, getting records
-while ($pars->next_record()) {
-    my $fastq_file = $parsed_record->[0];
-    # etc.
-}
-
-# or get specific information on a particular run id (lane)
-my $individual = $pars->lane_info('SRR005864', 'sample_name');
-
-# get all the lanes for a particular individual
-my @lanes = $pars->get_lanes('NA11994');
+    use VRPipe::Parser;
+    
+    # create object, supplying sequence.index file or filehandle
+    my $pars = VRPipe::Parser->create('sequence_index', {file => $si_file});
+    
+    # get the array reference that will hold the most recently requested record
+    my $parsed_record = $pars->parsed_record();
+    
+    # loop through the file, getting records
+    while ($pars->next_record()) {
+        my $fastq_file = $parsed_record->[0];
+        # etc.
+    }
+    
+    # or get specific information on a particular run id (lane)
+    my $individual = $pars->lane_info('SRR005864', 'sample_name');
+    
+    # get all the lanes for a particular individual
+    my @lanes = $pars->get_lanes('NA11994');
 
 =head1 DESCRIPTION
 
-A straightforward parser for sequence.index files.
+sequence.index files contain metadata describing fastq files, used for the
+1000 genomes project and described here: L<http://www.1000genomes.org/formats>.
 
 =head1 AUTHOR
 
-Sendu Bala: bix@sendu.me.uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
