@@ -137,7 +137,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                                  lane => $pr->[2],
                                  study => $pr->[3],
                                  study_name => $pr->[4],
-                                 center_name => $pr->[5],
+                                 center_name => uc($pr->[5]),
                                  sample_id => $pr->[8],
                                  sample => $pr->[9],
                                  population => $pr->[10],
