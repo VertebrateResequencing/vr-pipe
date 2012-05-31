@@ -1,3 +1,57 @@
+=head1 NAME
+
+VRPipe::Parser::fqc - parse fastqcheck files
+
+=head1 SYNOPSIS
+
+    use VRPipe::Parser;
+    
+    # create object, supplying a fastqcheck file
+    my $pars = VRPipe::Parser->create('fqc', {file => $file});
+    
+    # get the array reference that will hold the most recently requested record
+    my $parsed_record = $pars->parsed_record();
+    
+    # loop through the file, getting records
+    while ($pars->next_record()) {
+        my $position = $parsed_record->[0];
+        # etc.
+    }
+    
+    # get the summary stats of interest:
+    my $reads = $pars->num_sequences();
+    my $bps = $pars->total_length();
+    # etc.
+
+=head1 DESCRIPTION
+
+fastqcheck files are produced by the B<fastqcheck> executable and give
+statistics about fastq files.
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Parser::fqc with VRPipe::ParserRole {

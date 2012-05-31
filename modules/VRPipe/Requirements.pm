@@ -1,3 +1,48 @@
+=head1 NAME
+
+VRPipe::Requirements - describes what system resources are needed to run a Job
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+In order to execute a command line on a compute cluster, some job scheduling
+system (like LSF) will be in place to select the node on which to run the job,
+and to choose which job gets run first. For optimal efficiency the scheduler
+should be told the likely amount of memory, time and other system resources
+the job will need.
+
+This Requirements class holds these scheduling hints. A L<VRPipe::Submission>
+then ties a Requirements to a L<VRPipe::Job>.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Requirements extends VRPipe::Persistent {

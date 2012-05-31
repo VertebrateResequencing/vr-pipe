@@ -1,3 +1,56 @@
+=head1 NAME
+
+VRPipe::Job - state tracking for a command line that must be executed
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+A Job describes the actual command line that a pipeline step wishes were
+executed. It tracks state related to the execution of its command line, along
+with methods to actually run it and get its stdout and stderr.
+
+You do not normally create Job objects yourself directly. A L<VRPipe::Step>
+uses one of the C<dispatch*()> methods, and internally this will result in a
+a Job being created along with a L<VRPipe::Submission> pointing to it. The
+Submission will be submitted to the system's job scheduler, and eventually a
+command will run on a node of the compute cluster which gets the Submission,
+from which it extracts the Job and calls C<run()> on it.
+
+While a Job executes its command line, it also has another process that emits
+a heartbeat, so that B<VRPipe> knows that a Job is running and still healthy.
+If something goes wrong on the node and somehow the command fails without the
+exit state and fact of completion being recorded normally, the lack of a
+heartbeat for a long time will cause B<VRPipe> to consider the Job failed.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Job extends VRPipe::Persistent {

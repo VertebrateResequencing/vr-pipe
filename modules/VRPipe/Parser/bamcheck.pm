@@ -4,73 +4,91 @@ VRPipe::Parser::bamcheck - parse bamcheck files
 
 =head1 SYNOPSIS
 
-use VRPipe::Parser;
-
-# create object, supplying bas file
-my $pars = VRPipe::Parser->create('bamcheck', {file => 'my.bam.bamcheck'});
-
-# unlike normal parsers, you do not use parsed_record() or next_record();
-# instead access information in the bamcheck file through the following
-# methods
-
-# methods that return simple single values corresponding to the SN lines in the
-# bamcheck file:
-my $val = $pars->sequences();
-my $val = $pars->is_paired();
-my $val = $pars->is_sorted();
-my $val = $pars->first_fragments();
-my $val = $pars->last_fragments();
-my $val = $pars->reads_mapped();
-my $val = $pars->reads_unmapped();
-my $val = $pars->reads_unpaired();
-my $val = $pars->reads_paired();
-my $val = $pars->reads_duplicated();
-my $val = $pars->reads_mq0();
-my $val = $pars->total_length();
-my $val = $pars->bases_mapped();
-my $val = $pars->bases_mapped_cigar();
-my $val = $pars->bases_trimmed();
-my $val = $pars->bases_duplicated();
-my $val = $pars->mismatches();
-my $val = $pars->error_rate();
-my $val = $pars->average_length();
-my $val = $pars->maximum_length();
-my $val = $pars->average_quality();
-my $val = $pars->insert_size_average();
-my $val = $pars->insert_size_standard_deviation();
-my $val = $pars->inward_oriented_pairs();
-my $val = $pars->outward_oriented_pairs();
-my $val = $pars->pairs_with_other_orientation();
-
-# COV lines give the coverage:
-my $cov_hash = $pars->coverage(); # keys are coverage in bp, values are counts
-my $cum_hash = $pars->cumulative_coverage; # as above, but cumulative counts
-my $mean = $pars->mean_coverage(); # a number
-
-# The remaining sections of the file can be accessed by calling one of the
-# following methods, which all return an array ref. Each element of this ref
-# corresponds to a line from that section, and the element is an array ref
-# of all the values on the line, excluding the first column.
-my $array_ref = $pars->first_fragment_qualities(); # FFQ lines
-my $array_ref = $pars->last_fragment_qualities(); # LFQ lines
-my $array_ref = $pars->first_fragment_gc(); # GCF lines
-my $array_ref = $pars->last_fragment_gc(); # GCL lines
-my $array_ref = $pars->indel_cycles(); # IC lines
-my $array_ref = $pars->indel_dist(); # ID lines
-my $array_ref = $pars->insert_size(); # IS lines
-my $array_ref = $pars->gc_depth(); # GCD lines
-my $array_ref = $pars->mismatches_per_cycle(); # MPC lines
-my $array_ref = $pars->gc_content_per_cycle(); # GCC lines
-my $array_ref = $pars->read_lengths(); # RL lines
+    use VRPipe::Parser;
+    
+    # create object, supplying bas file
+    my $pars = VRPipe::Parser->create('bamcheck', {file => 'my.bam.bamcheck'});
+    
+    # unlike normal parsers, you do not use parsed_record() or next_record();
+    # instead access information in the bamcheck file through the following
+    # methods
+    
+    # methods that return simple single values corresponding to the SN lines in
+    # the bamcheck file:
+    my $val = $pars->sequences();
+    my $val = $pars->is_paired();
+    my $val = $pars->is_sorted();
+    my $val = $pars->first_fragments();
+    my $val = $pars->last_fragments();
+    my $val = $pars->reads_mapped();
+    my $val = $pars->reads_unmapped();
+    my $val = $pars->reads_unpaired();
+    my $val = $pars->reads_paired();
+    my $val = $pars->reads_duplicated();
+    my $val = $pars->reads_mq0();
+    my $val = $pars->total_length();
+    my $val = $pars->bases_mapped();
+    my $val = $pars->bases_mapped_cigar();
+    my $val = $pars->bases_trimmed();
+    my $val = $pars->bases_duplicated();
+    my $val = $pars->mismatches();
+    my $val = $pars->error_rate();
+    my $val = $pars->average_length();
+    my $val = $pars->maximum_length();
+    my $val = $pars->average_quality();
+    my $val = $pars->insert_size_average();
+    my $val = $pars->insert_size_standard_deviation();
+    my $val = $pars->inward_oriented_pairs();
+    my $val = $pars->outward_oriented_pairs();
+    my $val = $pars->pairs_with_other_orientation();
+    
+    # COV lines give the coverage:
+    my $cov_hash = $pars->coverage(); # keys are coverage in bp, vals are counts
+    my $cum_hash = $pars->cumulative_coverage; # as above, but cumulative counts
+    my $mean = $pars->mean_coverage(); # a number
+    
+    # The remaining sections of the file can be accessed by calling one of the
+    # following methods, which all return an array ref. Each element of this ref
+    # corresponds to a line from that section, and the element is an array ref
+    # of all the values on the line, excluding the first column.
+    my $array_ref = $pars->first_fragment_qualities(); # FFQ lines
+    my $array_ref = $pars->last_fragment_qualities(); # LFQ lines
+    my $array_ref = $pars->first_fragment_gc(); # GCF lines
+    my $array_ref = $pars->last_fragment_gc(); # GCL lines
+    my $array_ref = $pars->indel_cycles(); # IC lines
+    my $array_ref = $pars->indel_dist(); # ID lines
+    my $array_ref = $pars->insert_size(); # IS lines
+    my $array_ref = $pars->gc_depth(); # GCD lines
+    my $array_ref = $pars->mismatches_per_cycle(); # MPC lines
+    my $array_ref = $pars->gc_content_per_cycle(); # GCC lines
+    my $array_ref = $pars->read_lengths(); # RL lines
 
 =head1 DESCRIPTION
 
-A parser for bamcheck files, which are bam statitisc files, as produced by
-the bamcheck executable.
+A parser for bamcheck files, which are bam statistic files, as produced by
+the B<bamcheck> executable.
 
 =head1 AUTHOR
 
-Sendu Bala: bix@sendu.me.uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
