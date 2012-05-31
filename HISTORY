@@ -1,127 +1,119 @@
-0.66    vrpipe-setup can now be used to change pipeline
-        behaviours.
-0.65    New breakdancer pipeline, single-step bam splitting
-        pipeline, and the vrpipe datasource now applies the
-        filter after grouping, requiring only 1 file in the
-        group to match the filter.
+0.67    New single-step bam indexing pipeline. New Conifer pipeline. New
+        retroseq pipeline. Improved breakdancer pipeline. The vrpipe datasource
+        now has an option to filter after grouping. The vrtrack_auto_qc pipeline
+        now always fails a lane if the NPG status was failed. When a submission
+        fails and is retried, the stdout/err of previous attempts is now
+        accessible, eg. with vrpipe-submissions.
+0.66    vrpipe-setup can now be used to change pipeline behaviours.
+0.65    New breakdancer pipeline, single-step bam splitting pipeline, and the
+        vrpipe datasource now applies the filter after grouping, requiring only
+        1 file in the group to match the filter.
 0.64    Fix for bam_reheader, affecting 1000 genomes pipelines.
-0.63    Fix for rare bug in fastq_split which prevented it from
-        working with certain input.
+0.63    Fix for rare bug in fastq_split which prevented it from working with
+        certain input.
 0.62    Critical fix for new queue switching code.
-0.61    Now, if a job is running in a time-limited queue, and the
-        limit is approaching, the job will be switched to a queue
-        with a longer time limit.
-0.60    Fix for vrpipe-setup to make it compatible with the new
-        vrtrack_auto_qc pipeline.
-0.59    New vrtrack_auto_qc pipeline. New (alternate) SNP pipeline.
-        New vrpipe-permissions script.
-0.58    Various fixes to enable initial install and testing for
-        new users using latest CPAN modules.
+0.61    Now, if a job is running in a time-limited queue, and the limit is
+        approaching, the job will be switched to a queue with a longer time
+        limit.
+0.60    Fix for vrpipe-setup to make it compatible with the new vrtrack_auto_qc
+        pipeline.
+0.59    New vrtrack_auto_qc pipeline. New (alternate) SNP pipeline. New
+        vrpipe-permissions script.
+0.58    Various fixes to enable initial install and testing for new users using
+        latest CPAN modules.
 0.57    vrpipe-fileinfo can now tell you how a file was generated.
 0.56    New gatk_variant_calling_and_filter_vcf pipeline.
-0.55    Further merge pipeline fixes. New bam realignment around
-        discovered indels pipeline.
+0.55    Further merge pipeline fixes. New bam realignment around discovered
+        indels pipeline.
 0.54    Further fix for new merge pipeline.
-0.53    Fixed issues with bam merging pipelines, and renamed tham
-        all.
-0.52    New fofn_with_metadata DataSource - useful for inputting
-        external bams into pipelines. VRTrack-releated steps now
-        have deadlock-failure-avoidance.
+0.53    Fixed issues with bam merging pipelines, and renamed tham all.
+0.52    New fofn_with_metadata DataSource - useful for inputting external bams
+        into pipelines. VRTrack-releated steps now have
+        deadlock-failure-avoidance.
 0.51    VRTrack DataSource now has an option to group_by_metadata.
-0.50    New merge_bams pipelines, to do "merge across". VRTrack
-        datasource now allows filtering on more status types, and
-        can get VRPipe improved bams.
+0.50    New merge_bams pipelines, to do "merge across". VRTrack datasource now
+        allows filtering on more status types, and can get VRPipe improved bams.
 0.49    Critical bug fix in bam_to_fastq step.
-0.48    Tweaks and fixes to finalise new bam_genotype_checking
-        pipeline.
+0.48    Tweaks and fixes to finalise new bam_genotype_checking pipeline.
 0.47    Minor tweaks to finalise yet-unused pipelines.
-0.46    New versions of merge lanes and stampy mapping pipelines
-        with extra features.
-0.45    Critical speed fix for vrtrack datasource. Library merge
-        pipelines now index the resulting bams.
-0.44    Fix for plot_bamcheck step, letting it work when then is
-        no insert size.
+0.46    New versions of merge lanes and stampy mapping pipelines with extra
+        features.
+0.45    Critical speed fix for vrtrack datasource. Library merge pipelines now
+        index the resulting bams.
+0.44    Fix for plot_bamcheck step, letting it work when then is no insert size.
 0.43    Efficiency fix for vrtrack datasource.
-0.42    Critical fix for vrtrack datasource, so that it now updates
-        file metadata when vrtrack metadata changes.
+0.42    Critical fix for vrtrack datasource, so that it now updates file
+        metadata when vrtrack metadata changes.
 0.41    vrtrack_update_improved step now sets lane reads and bases.
-0.40    Critical fix for vrtrack_update_mapstats step, letting it
-        work without exome_targets_file.
-0.39    vrpipe DataSource behaviour changed, so that a child pipeline
-        that deletes inputs won't mess up a parent that still needs
-        those files. Overhauled the genotype checking pipeline and
-        steps.
-0.38	Fix for gatk_target_interval_creator step, increasing its
-        default memory reservation.
-0.37    Overhaul of qc graphs & stats-related steps and pipelines
-        so that now wgs and exome projects all use the same
-        pipeline, with a single bamcheck call. bam_to_fastq step
-        fixed so that it runs in constant <500MB and copes with
-        bams that miss reads.
-0.36    Critical fixes to the underlying system to ensure job
-        submission doesn't stall out forever, to handle limits on
-        steps better, and to avoid issues when there are multiple
-        submissions for the same job. Also a fix for java to increase
-        likelyhood of jvm starting up.
-0.35    vrpipe-status script improved to give a better overview of
-        what the pipeline is doing, with warnings about pipeline
-        stalls. bam_to_fastq step reimplemented, should now be much
-        better.
+0.40    Critical fix for vrtrack_update_mapstats step, letting it work without
+        exome_targets_file.
+0.39    vrpipe DataSource behaviour changed, so that a child pipeline that
+        deletes inputs won't mess up a parent that still needs those files.
+        Overhauled the genotype checking pipeline and steps.
+0.38	Fix for gatk_target_interval_creator step, increasing its default memory
+        reservation.
+0.37    Overhaul of qc graphs & stats-related steps and pipelines so that now
+        wgs and exome projects all use the same pipeline, with a single bamcheck
+        call. bam_to_fastq step fixed so that it runs in constant <500MB and
+        copes with bams that miss reads.
+0.36    Critical fixes to the underlying system to ensure job submission doesn't
+        stall out forever, to handle limits on steps better, and to avoid issues
+        when there are multiple submissions for the same job. Also a fix for
+        java to increase likelyhood of jvm starting up.
+0.35    vrpipe-status script improved to give a better overview of what the
+        pipeline is doing, with warnings about pipeline stalls. bam_to_fastq
+        step reimplemented, should now be much better.
 0.34    Critical speed fix for the VRTrack datasource. Fixes for the
         archive_files pipeline and the vrtrack_update_mapstats step.
-0.33    Optimised bam_import_from_irods_and_vrtrack_qc_wgs pipeline.
-        Memory and time reserved for jobs is now less likely to be
-        insufficient.
+0.33    Optimised bam_import_from_irods_and_vrtrack_qc_wgs pipeline. Memory and
+        time reserved for jobs is now less likely to be insufficient.
 0.32    Fixes for bam_mapping_with_bwa_via_fastq and bam_reheader step.
         Efficiency improvement in how step max_simultaneous is handled.
-0.31    Database independence now properly implemented. New separate
-        bam improvement pipeline, remapping bams via fastq pipeline,
-        and some Sanger-specific pipelines added.
+0.31    Database independence now properly implemented. New separate bam
+        improvement pipeline, remapping bams via fastq pipeline, and some
+        Sanger-specific pipelines added.
 0.30    Fixes related to archive_files pipeline.
 0.29    New archive_files pipeline.
-0.28    Really fix java-using steps so they get the memory they need
-0.27    Outputs of near-identical PipelineSetups will now never risk
-        overwriting themselves. Java-using steps get better recommended
-        memory. New IMPORTANT_NOTES file - you must read this!
-0.26    Critical performance fix for StepStats
-0.25    New StepStats system for quick access to memory/time used stats
-0.24    Critical fix for mapping pipeline
-0.23    New Stampy mapping pipline. Fixes for SNP and DCC pipelines
-0.22    Critical fix for input files that are relative symlinks
-0.21    SNP discovery pipeline(s) now firming up; fixes for merging
-        pipelines
-0.20    Improved handling of limits, so that a good amount of jobs are
-        always running
-0.19    Various fixes to 1000 genomes-related pipelines
-0.18    Fix to allow sqlite to be used in production
-0.17    Install process for new external users should now work/be easy
+0.28    Really fix java-using steps so they get the memory they need.
+0.27    Outputs of near-identical PipelineSetups will now never risk overwriting
+        themselves. Java-using steps get better recommended memory. New
+        IMPORTANT_NOTES file - you must read this!
+0.26    Critical performance fix for StepStats.
+0.25    New StepStats system for quick access to memory/time used stats.
+0.24    Critical fix for mapping pipeline.
+0.23    New Stampy mapping pipline. Fixes for SNP and DCC pipelines.
+0.22    Critical fix for input files that are relative symlinks.
+0.21    SNP discovery pipeline(s) now firming up; fixes for merging pipelines
+0.20    Improved handling of limits, so that a good amount of jobs are always
+        running.
+0.19    Various fixes to 1000 genomes-related pipelines.
+0.18    Fix to allow sqlite to be used in production.
+0.17    Install process for new external users should now work/be easy.
 0.16    New merging pipelines and associated vrpipe datasource (for chaining
-        different pipelines together). Critical bug fixes that allow
-        changes in datasources to trigger restarts for the changed
-        elements.
-0.15    Front-end for creating PipelineSetups; improvements to smalt
-        mapping so we can map 454 data in 1000 genomes.
-0.14    More front-end scripts added. Sequence index datasource now
-        starts changed elements over from scratch, so we can now change
-        the source file safely.
-0.13    Various fixes for pipelines. Memory leak issues fixed. Various
-        front-end scripts added.
-0.12    Fixes for bam_mapping_with_bwa. New VCF annotation-related steps
-        and pipelines. Triggering pipelines in Manager has been optimised
-        slightly
-0.11    Fixes for bam_mapping_with_bwa. New smalt mapping pipeline for
-        handling 454 sequence data.
+        different pipelines together). Critical bug fixes that allow changes in
+        datasources to trigger restarts for the changed elements.
+0.15    Front-end for creating PipelineSetups; improvements to smalt mapping so
+        we can map 454 data in 1000 genomes.
+0.14    More front-end scripts added. Sequence index datasource now starts.
+        changed elements over from scratch, so we can now change the source file
+        safely.
+0.13    Various fixes for pipelines. Memory leak issues fixed. Various front-end
+        scripts added.
+0.12    Fixes for bam_mapping_with_bwa. New VCF annotation-related steps and
+        pipelines. Triggering pipelines in Manager has been optimised slightly.
+0.11    Fixes for bam_mapping_with_bwa. New smalt mapping pipeline for handling
+        454 sequence data.
 0.10    Bam Improvement steps now fully implemented. New bam_mapping_with_bwa
-        pipeline
-0.09    Scheduler independence: local can now be used for testing
-0.08    Submission retries now add time where necessary
-0.07    Fixed critical bug in mapping pipeline; should now work properly
+        pipeline.
+0.09    Scheduler independence: local can now be used for testing.
+0.08    Submission retries now add time where necessary.
+0.07    Fixed critical bug in mapping pipeline; should now work properly.
 0.06    Myriad performance and stability improvements necessary to get the
-        mapping pipeline running smoothly
-0.05    Critical performance fix for dealing with large datasources
-0.04    Critical performance fix for checking bam file type
+        mapping pipeline running smoothly.
+0.05    Critical performance fix for dealing with large datasources.
+0.04    Critical performance fix for checking bam file type.
 0.03    0.02 only worked on test dataset; this should be the first version to
-        work on real data, following important schema changes and Step fixes
+        work on real data, following important schema changes and Step fixes.
 0.02    Most interesting features not yet implemented, but this is the first
-        working version, needed to do the 1000genomes phase2 (re)mapping
-0.01    No real files; just starting up repository
+        working version, needed to do the 1000genomes phase2 (re)mapping.
+0.01    No real files; just starting up repository.
