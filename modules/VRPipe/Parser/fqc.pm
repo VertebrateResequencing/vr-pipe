@@ -195,7 +195,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
                 $self->_max_length($4);
                 $saw++;
             }
-            elsif (/^Standard deviations at 0.25:  total  (\d+\.\d+) %, per base  (\d+\.\d+) %/) {
+            elsif (/^Standard deviations at 0.25:\s+total\s+(\d+\.\d+) %, per base\s+(\d+\.\d+) %/) {
                 $self->_standard_deviations([$1, $2]);
                 $saw++;
             }

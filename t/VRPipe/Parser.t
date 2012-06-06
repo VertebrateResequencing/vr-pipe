@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 74;
+    use Test::Most tests => 75;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -95,6 +95,9 @@ is_deeply [$num_records, $first_record, $quals, $p->avg_qual],
                                              24.2096774193548 25.0443101711984 24.1553985872856 23.6963562753036 23.314459049545 21.7979797979798 22.3222222222222 19.2127016129032
                                              20.8827098078868 20.7700101317123 19.837044534413 18.9494438827098 18.0485829959514 17.7537993920973 16.8546922300706 17.1151515151515 17.3699596774194)],
                                          27.8919469928644], 'body of fastqcheck file was parsed correctly';
+undef($p);
+$p = VRPipe::Parser->create('fqc', {file => file(qw(t data parser.fastqcheck_unusual ))});
+is_deeply [$p->num_sequences, $p->total_length, $p->avg_length, $p->max_length, $p->standard_deviations], [24, 2424, '101.00', 101, ['1.02', 10.21]], 'header of unusual fastqcheck file was parsed correctly';
 
 # fasta
 $p = VRPipe::Parser->create('fasta', {file => file(qw(t data S_suis_P17.fa))});
