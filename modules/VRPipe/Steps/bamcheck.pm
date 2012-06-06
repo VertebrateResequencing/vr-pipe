@@ -152,10 +152,12 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             if (@rgs != 1 || "$new_meta->{lane}" eq "1") {
                 # call the name something we can be most sure is maximally
                 # unique
-                my $rg = $bam_path;
-                $rg =~ s/\.bam$//;
-                $rg =~ s/\W/_/g;
-                $new_meta->{lane} = $rg;
+                my $md5 = $bam_file->md5;
+                unless ($md5) {
+                    $bam_file->update_md5;
+                    $md5 = $bam_file->md5;
+                }
+                $new_meta->{lane} = $md5;
             }
             
             $bam_file->add_metadata($new_meta);
