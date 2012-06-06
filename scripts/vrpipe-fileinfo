@@ -2,11 +2,8 @@
 use strict;
 use warnings;
 
-use lib '/nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe/modules';
-
 use VRPipe::FrontEnd;
 use Path::Class;
-use Data::Dumper;
 
 my $frontend = VRPipe::FrontEnd->new(description => "Get information on files created by VRPipe - what pipeline created them, and what metadata they have.",
                                      opt_spec => [ [],
