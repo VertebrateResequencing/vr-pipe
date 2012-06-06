@@ -16,15 +16,15 @@ BEGIN {
 
 # setup a little VRTrack db that has its files in irods
 my %cd = VRTrack::Factory->connection_details('rw');
-#open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
-#print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-#print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-#print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-#my @sql = VRPipe::File->get(path => file(qw(t data vrtrack_cerevisiae_wgs.sql))->absolute)->slurp;
-#foreach my $sql (@sql) {
-#    print $mysqlfh $sql;
-#}
-#close($mysqlfh);
+open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
+print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+my @sql = VRPipe::File->get(path => file(qw(t data vrtrack_cerevisiae_wgs.sql))->absolute)->slurp;
+foreach my $sql (@sql) {
+    print $mysqlfh $sql;
+}
+close($mysqlfh);
 
 # setup pipeline
 my $output_dir = get_output_dir('bam_import_from_irods_and_vrtrack_qc');
