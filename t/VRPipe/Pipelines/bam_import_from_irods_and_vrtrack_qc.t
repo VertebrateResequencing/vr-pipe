@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 19;
+    use Test::Most tests => 22;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
                     required_exe => [qw(iget iquest)]);
@@ -348,6 +348,105 @@ foreach my $bam (@improved_bams) {
     }
 }
 is_deeply [$lane_gtype_correct, $passed_auto_qc_lanes], [5, 5], 'auto qc also set bam metadata auto_qc_status to passed and updated VRTrack gt_status and mapstats gt_* for all lanes';
+
+# test that we can re-run QC
+$output_dir = get_output_dir('re_qc');
+my $reqc_ps = VRPipe::PipelineSetup->get(name => 'pombe reqc',
+                                         datasource => VRPipe::DataSource->get(type => 'vrpipe',
+                                                                               method => 'all',
+                                                                               source => 'pombe improvement[10]',
+                                                                               options => { }),
+                                         output_root => $output_dir,
+                                         pipeline => VRPipe::Pipeline->get(name => 'vrtrack_qc_graphs_and_auto_qc'),
+                                         options => {reference_fasta => $ref_fa,
+                                                     reference_assembly_name => 'SPombe1',
+                                                     reference_public_url => 'ftp://s.pombe.com/ref.fa',
+                                                     reference_species => 'S.Pombe',
+                                                     bamcheck_options => '-q 30',
+                                                     exome_targets_file => file(qw(t data pombe_ref.fa.targets))->absolute->stringify,
+                                                     vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                                     auto_qc_error_rate => 0.01, # *** was trying to pick some option that makes some fail and other pass, but don't know what will do that...
+                                                     cleanup => 1});
+
+ok handle_pipeline(), 'vrtrack_qc_graphs_and_auto_qc pipeline ran';
+
+$meta = VRPipe::File->get(path => $improved_bams[0])->metadata;
+delete $meta->{original_pg_chain};
+is_deeply $meta, {bases => "1155792800",
+withdrawn => "0",
+targeted_bases_of_20X_coverage => "11209858",
+targeted_paired => "1",
+individual => "SC_MFY5249244",
+study => "ERP001017",
+lane => "7369_5#27",
+targeted_reads => "7861907",
+targeted_rmdup_bases_mapped => "776426400",
+targeted_sd_insert_size => "80.9",
+bases_trimmed => "0",
+targeted_error_rate => "3.597674e-03",
+reads_mapped => "11460868",
+insert_size => "320",
+bases_of_50X_coverage => "10404533",
+targeted_rmdup_reads => "7783736",
+targeted_bases_of_2X_coverage => "11417382",
+paired => "1",
+reads => "11557928",
+bases_mapped_c => "1144432834",
+reverse_reads => "5778964",
+targeted_bases_mapped => "784243500",
+targeted_bases_of_10X_coverage => "11374735",
+targeted_bases_mapped_c => "783066516",
+rmdup_bases => "1108554300",
+targeted_reads_mapped => "7842435",
+targeted_bases_of_5X_coverage => "11410160",
+center_name => "SC",
+platform => "SLX",
+expected_md5 => "76ee5f08e761fa5baf637a6ad383ad19",
+species => "Pombe",
+targeted_bases_of_100X_coverage => "240676",
+targeted_rmdup_bases => "778373600",
+targeted_forward_reads => "3930964",
+population => "Population",
+targeted_reads_paired => "7819448",
+sd_insert_size => "81.3",
+mean_insert_size => "314.4",
+mean_coverage => "66.94",
+bases_of_5X_coverage => "12597313",
+bases_of_100X_coverage => "334539",
+targeted_reverse_reads => "3930943",
+reads_paired => "11424028",
+targeted_bases_of_50X_coverage => "9399756",
+sample => "SC_MFY5249244",
+rmdup_reads => "11085543",
+bases_of_2X_coverage => "12605219",
+rmdup_bases_mapped => "1098848300",
+bases_of_10X_coverage => "12559368",
+bases_of_20X_coverage => "12379834",
+bases_of_1X_coverage => "12606379",
+project => "SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants",
+library => "4103684",
+avg_read_length => "100",
+lane_id => "13",
+targeted_bases => "786190700",
+bases_mapped => "1146086800",
+rmdup_reads_mapped => "10988483",
+error_rate => "3.720504e-03",
+targeted_mean_coverage => "66.18",
+targeted_avg_read_length => "100",
+targeted_bases_of_1X_coverage => "11418447",
+forward_reads => "5778964",
+targeted_rmdup_reads_mapped => "7764264",
+auto_qc_status => 'passed',
+gtype_analysis => 'status=confirmed expected=SC_MFY5249244 found=SC_MFY5249244 ratio=1.538',
+targeted_bases_trimmed => "30289444",
+targeted_mean_insert_size => "316.3", }, 'metadata got updated for one of the improved bam files after redoing QC';
+
+$passed_auto_qc_lanes = 0;
+foreach my $bam (@improved_bams) {
+    my $meta = VRPipe::File->get(path => $bam)->metadata;
+    $passed_auto_qc_lanes++ if $meta->{auto_qc_status} eq 'passed';
+}
+is $passed_auto_qc_lanes, 5, 'after redoing QC, still have 5 lanes passed';
 
 # mergeup
 $output_dir = get_output_dir('lane_merge');
