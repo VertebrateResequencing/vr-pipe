@@ -94,10 +94,8 @@ class VRPipe::StepStatsUtil {
         
         # get the mean and sd using little memory
         my ($count, $mean, $sd) = (0, 0, 0);
-        my $schema = $step->result_source->schema;
-        my $rs = $schema->resultset('StepStats')->search({ step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : () });
-        my $rs_column = $rs->get_column($column);
-        while (my $stat = $rs_column->next) { # using $rs_column instead of $rs is >60x faster with 100k+ rows
+        my $rs_column = VRPipe::StepStats->get_rscolumn($column, step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : ());
+        while (my $stat = $rs_column->next) {
             $count++;
             if ($count == 1) {
                 $mean = $stat;

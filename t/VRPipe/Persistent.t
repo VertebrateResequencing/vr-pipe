@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 111;
+    use Test::Most tests => 113;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -290,8 +290,13 @@ is_deeply \@got_stepstats, \@expected_stepstats, 'using get_rscolumns got expect
 @got_stepstats = @{VRPipe::StepStats->get_column_values(\@stepstat_cols, %search_args)};
 is_deeply \@got_stepstats, \@expected_stepstats, 'using get_column_values with multiple columns got expected stepstat values';
 
-@got_stepstats = VRPipe::StepStats->get_column_values('memory', %search_args);
-is_deeply \@got_stepstats, [5, 10], 'using get_column_values with a single column got expected stepstat values';
+@got_stepstats = VRPipe::StepStats->get_column_values('memory', step => VRPipe::Step->get(id => 1));
+is_deeply \@got_stepstats, [5, 10], 'using get_column_values with a single column and an instance in the search args got expected stepstat values';
+
+use_ok('VRPipe::StepStatsUtil');
+my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));
+my @ssumm = $ssu->mean_memory;
+is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with get_rscolumn, worked fine';
 
 # steps can be created by requesting a name corresponding to a pre-written
 # class in VRPipe::Steps::*

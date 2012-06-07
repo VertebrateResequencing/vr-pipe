@@ -496,12 +496,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             });
         }
         
-        # create a get method that expects all the psuedo keys and will get or
-        # create the corresponding row in the db
-        $meta->add_method('get' => sub {
-            my ($self, %args) = @_;
+	# below methods need a way of getting the schema
+	$meta->add_method('_schema' => sub {
+	    my ($self, $args) = @_;
             
-            my $schema = delete $args{schema};
+            my $schema = delete $args->{schema};
             unless ($schema) {
                 unless ($GLOBAL_CONNECTED_SCHEMA) {
                     eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
@@ -510,6 +509,16 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 
                 $schema = $GLOBAL_CONNECTED_SCHEMA;
             }
+	    
+	    return $schema;
+	});
+	
+        # create a get method that expects all the psuedo keys and will get or
+        # create the corresponding row in the db
+        $meta->add_method('get' => sub {
+            my ($self, %args) = @_;
+            
+            my $schema = $self->_schema(\%args);
             
             # first see if there is a corresponding $class::$name class
             my $from_non_persistent;
@@ -682,20 +691,26 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->get(%args);
         });
 	
+	# when using resultset->search, a common mistake and often silently
+	# dangerous bug is that you supply a value that is an instance instead
+	# of an id; catch and fix that here
+	$meta->add_method('_searchable_args' => sub {
+            my ($self, $args) = @_;
+            
+	    while (my ($key, $val) = each %$args) {
+		if (ref($val) && $val->isa('VRPipe::Persistent')) {
+		    $args->{$key} = $val->id;
+		}
+	    }
+	});
+	
 	$meta->add_method('get_rscolumn' => sub {
             my ($self, $column, %args) = @_;
             
-            my $schema = delete $args{schema};
-            unless ($schema) {
-                unless ($GLOBAL_CONNECTED_SCHEMA) {
-                    eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
-                    $GLOBAL_CONNECTED_SCHEMA = VRPipe::Persistent::Schema->connect;
-                }
-                
-                $schema = $GLOBAL_CONNECTED_SCHEMA;
-            }
-            
+            my $schema = $self->_schema(\%args);
 	    $self->reconnect;
+	    
+	    $self->_searchable_args(\%args);
             
             my $rs = $schema->resultset("$class")->search(\%args);
 	    return $rs->get_column($column);
@@ -704,17 +719,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	$meta->add_method('get_rscolumns' => sub {
             my ($self, $columns, %args) = @_;
             
-            my $schema = delete $args{schema};
-            unless ($schema) {
-                unless ($GLOBAL_CONNECTED_SCHEMA) {
-                    eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
-                    $GLOBAL_CONNECTED_SCHEMA = VRPipe::Persistent::Schema->connect;
-                }
-                
-                $schema = $GLOBAL_CONNECTED_SCHEMA;
-            }
-            
+            my $schema = $self->_schema(\%args);
 	    $self->reconnect;
+	    
+	    $self->_searchable_args(\%args);
             
             return $schema->resultset("$class")->search(\%args, { columns => $columns });
 	});
@@ -722,16 +730,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	$meta->add_method('get_column_values' => sub {
             my ($self, $column_spec, %args) = @_;
             
-            my $schema = delete $args{schema};
-            unless ($schema) {
-                unless ($GLOBAL_CONNECTED_SCHEMA) {
-                    eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
-                    $GLOBAL_CONNECTED_SCHEMA = VRPipe::Persistent::Schema->connect;
-                }
-                
-                $schema = $GLOBAL_CONNECTED_SCHEMA;
-            }
-	    
 	    my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
 	    
 	    if (@columns == 1) {
