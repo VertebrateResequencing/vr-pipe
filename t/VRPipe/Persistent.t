@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 113;
+    use Test::Most tests => 114;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -251,7 +251,7 @@ $subs_array = VRPipe::PersistentArray->get(id => 1);
 is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
 
 # now that we have some submissions and pipelinesetup, make some stepstats and
-# test that the *column* methods work
+# test that the search and *column* methods work
 my @expected_stepstats = ([5,1,1,1], [10,2,2,2]);
 my @stepstat_cols = qw(memory time id submission);
 my %search_args = (step => 1);
@@ -266,6 +266,13 @@ while (my $stepstat = $rs->next) {
     push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
 }
 is_deeply \@got_stepstats, \@expected_stepstats, 'using a manual resultset search got expected stepstat values';
+
+@got_stepstats = ();
+$rs = VRPipe::StepStats->search(\%search_args);
+while (my $stepstat = $rs->next) {
+    push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+}
+is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->search got expected stepstat values';
 
 @got_stepstats = ();
 my $ss_col_i = 0;

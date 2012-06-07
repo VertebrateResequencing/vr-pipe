@@ -82,15 +82,16 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # all three methods take a hash of column_name => value_to_search_for pairs
     # after the first argument which describes the desired column(s). The same
     # values as understood by DBIx::Class::ResultSet->search can be used. For
-    # more complex searches, use DBIx::Class methods directly, eg:
-    my $schema = $persistent_instance->result_source->schema;
-    my $rs = $schema->resultset('StepStats')->search({ step => $step_id }, { order_by => { -desc => [$column] } });
+    # more complex searches, use search(), which is basically an alias to that
+    # method, eg:
+    my $rs = VRPipe::StepStats->search({ step => $step_id }, { order_by => { -desc => ['memory'] } });
     while (my $stepstats_instance = $rs->next) {
+	my $memory = $stepstats_instance->memory;
 	# NB: creating all these instances is extremely slow!
     }
     # or:
-    $rscolumn = $rs->get_column($column);
-    while (my $value = $rs_column->next) {
+    $rscolumn = $rs->get_column('memory');
+    while (my $memory = $rs_column->next) {
 	# this is fast
     }
 
@@ -511,6 +512,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	# below methods need a way of getting the schema
 	$meta->add_method('_schema' => sub {
 	    my ($self, $args) = @_;
+	    $args ||= {};
             
             my $schema = delete $args->{schema};
             unless ($schema) {
@@ -703,40 +705,38 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->get(%args);
         });
 	
-	# when using resultset->search, a common mistake and often silently
-	# dangerous bug is that you supply a value that is an instance instead
-	# of an id; catch and fix that here
-	$meta->add_method('_searchable_args' => sub {
-            my ($self, $args) = @_;
+	$meta->add_method('search' => sub {
+            my ($self, $input_search_args, $options) = @_;
             
-	    while (my ($key, $val) = each %$args) {
+            my $schema = $self->_schema();
+	    
+	    # when using resultset->search, a common mistake and often silently
+	    # dangerous bug is that you supply a value that is an instance
+	    # instead of an id; catch and fix that here
+	    my $search_args;
+	    while (my ($key, $val) = each %$input_search_args) {
 		if (ref($val) && $val->isa('VRPipe::Persistent')) {
-		    $args->{$key} = $val->id;
+		    $val = $val->id;
 		}
+		$search_args->{$key} = $val;
 	    }
+            
+	    $self->reconnect;
+            return $schema->resultset("$class")->search($search_args, $options ? $options : ());
 	});
 	
 	$meta->add_method('get_rscolumn' => sub {
             my ($self, $column, %args) = @_;
             
-            my $schema = $self->_schema(\%args);
-	    $self->reconnect;
+            my $rs = $self->search(\%args);
 	    
-	    $self->_searchable_args(\%args);
-            
-            my $rs = $schema->resultset("$class")->search(\%args);
 	    return $rs->get_column($column);
 	});
 	
 	$meta->add_method('get_rscolumns' => sub {
             my ($self, $columns, %args) = @_;
             
-            my $schema = $self->_schema(\%args);
-	    $self->reconnect;
-	    
-	    $self->_searchable_args(\%args);
-            
-            return $schema->resultset("$class")->search(\%args, { columns => $columns });
+            return $self->search(\%args, { columns => $columns });
 	});
 	
 	$meta->add_method('get_column_values' => sub {
