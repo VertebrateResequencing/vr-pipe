@@ -30,10 +30,57 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     
     package main;
     
-    use VRPipe::Artist;
+    use VRPipe::Persistent::Schema; # loads VRPipe::Artist and others
     
     # get or create a new artist in the db by supplying all is_keys:
     my $bob = VRPipe::Artist->get(name => 'Bob');
+    
+    # you can also get by supplying just the id
+    my $bob = VRPipe::Artist->get(id => 1);
+    
+    # get() returns an object with all data columns and the full benefit of the
+    # object, but in speed-critical situations where you just want the value
+    # of certain columns for many rows, do not use get(). For a single column
+    # use get_rscolumn() which returns a DBIx::Class::ResultSetColumn:
+    my $rscolumn = VRPipe::Artist->get_rscolumn('name', age => 30);
+    while (my $name = $rscolumn->next) {
+	# $name is the string name of an artist aged 30
+    }
+    
+    # for multiple columns use get_rscolumns() which returns a
+    # DBIx::Class::ResultSet, where the objects retrieved have just the raw
+    # values desired, which you can get out using get_columns() or get_column():
+    my $rs = VRPipe::Artist->get_rscolumns(['name', 'agent'], age => 30);
+    while (my $row = $rs->next) {
+	my %colvals = $row->get_columns;
+	my $name = $colvals{name};
+	my $agent = $colvals{agent}; # the id of a VRPipe::Agent, not an instance
+	
+	# or:
+	$name = $row->get_column('name');
+	$agent = $row->get_column('agent');
+	
+	# if you want to pay the penalty of object instantiation, you can still
+	# do:
+	my $agent_object = $row->agent; # an instance of VRPipe::Agent
+    }
+    
+    # when you know you will not run out of memory storing all values at once,
+    # and when you can't iterate with $rs->next (eg. because with each value you
+    # want to do something that takes a long time and so must disconnect from
+    # the db, which breaks the iteration), you can use get_column_values(),
+    # which returns a list of strings if you supply a single column as the first
+    # arg:
+    my @names = VRPipe::Artist->get_column_values('name', age => 30);
+    
+    # or an array ref of array refs if you supply more than one columns:
+    my $array_ref = VRPipe::Artist->get_column_values(['name', 'agent'], age => 30);
+    foreach my $vals (@$array_ref) {
+	my ($name, $agent) = @$vals; # $agent is the id of a VRPipe::Agent
+    }
+    
+    # all three methods take a hash of column_name => value_to_search_for pairs
+    # after the first argument which describes the desired column(s).
 
 =head1 DESCRIPTION
 
@@ -634,10 +681,80 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             return $self->get(%args);
         });
+	
+	$meta->add_method('get_rscolumn' => sub {
+            my ($self, $column, %args) = @_;
+            
+            my $schema = delete $args{schema};
+            unless ($schema) {
+                unless ($GLOBAL_CONNECTED_SCHEMA) {
+                    eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
+                    $GLOBAL_CONNECTED_SCHEMA = VRPipe::Persistent::Schema->connect;
+                }
+                
+                $schema = $GLOBAL_CONNECTED_SCHEMA;
+            }
+            
+	    $self->reconnect;
+            
+            my $rs = $schema->resultset("$class")->search(\%args);
+	    return $rs->get_column($column);
+	});
+	
+	$meta->add_method('get_rscolumns' => sub {
+            my ($self, $columns, %args) = @_;
+            
+            my $schema = delete $args{schema};
+            unless ($schema) {
+                unless ($GLOBAL_CONNECTED_SCHEMA) {
+                    eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
+                    $GLOBAL_CONNECTED_SCHEMA = VRPipe::Persistent::Schema->connect;
+                }
+                
+                $schema = $GLOBAL_CONNECTED_SCHEMA;
+            }
+            
+	    $self->reconnect;
+            
+            return $schema->resultset("$class")->search(\%args, { columns => $columns });
+	});
+	
+	$meta->add_method('get_column_values' => sub {
+            my ($self, $column_spec, %args) = @_;
+            
+            my $schema = delete $args{schema};
+            unless ($schema) {
+                unless ($GLOBAL_CONNECTED_SCHEMA) {
+                    eval "use VRPipe::Persistent::Schema;"; # avoid circular usage problems
+                    $GLOBAL_CONNECTED_SCHEMA = VRPipe::Persistent::Schema->connect;
+                }
+                
+                $schema = $GLOBAL_CONNECTED_SCHEMA;
+            }
+	    
+	    my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
+	    
+	    if (@columns == 1) {
+		return $self->get_rscolumn($columns[0], %args)->all;
+	    }
+	    else {
+		my $rs = $self->get_rscolumns(\@columns, %args);
+		my @return;
+		while (my $row = $rs->next) {
+		    my %colvals = $row->get_columns;
+		    my @vals;
+		    foreach my $col (@columns) {
+			push(@vals, $colvals{$col});
+		    }
+		    push(@return, \@vals);
+		}
+		return \@return;
+	    }
+	});
         
         # set up meta data to add indexes for the key columns after schema deploy
-		$meta->add_attribute( 'idx_keys' => ( is => 'rw', isa  => 'HashRef') );
-		$meta->get_attribute('idx_keys')->set_value($meta,\%for_indexing);
+	$meta->add_attribute( 'idx_keys' => ( is => 'rw', isa  => 'HashRef') );
+	$meta->get_attribute('idx_keys')->set_value($meta,\%for_indexing);
     }
     
     # like discard_changes, except we don't clumsily wipe out the whole $self
