@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 114;
+    use Test::Most tests => 115;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -273,6 +273,9 @@ while (my $stepstat = $rs->next) {
     push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
 }
 is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->search got expected stepstat values';
+
+@got_stepstats = map { [$_->memory, $_->time, $_->id, $_->submission->id] } VRPipe::StepStats->search(\%search_args);
+is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->search in list context got expected stepstat values without an $rs->next loop';
 
 @got_stepstats = ();
 my $ss_col_i = 0;

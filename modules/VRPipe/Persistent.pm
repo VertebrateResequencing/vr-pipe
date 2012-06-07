@@ -84,7 +84,7 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # values as understood by DBIx::Class::ResultSet->search can be used. For
     # more complex searches, use search(), which is basically an alias to that
     # method, eg:
-    my $rs = VRPipe::StepStats->search({ step => $step_id }, { order_by => { -desc => ['memory'] } });
+    $rs = VRPipe::StepStats->search({ step => $step_id }, { order_by => { -desc => ['memory'] } });
     while (my $stepstats_instance = $rs->next) {
 	my $memory = $stepstats_instance->memory;
 	# NB: creating all these instances is extremely slow!
@@ -94,6 +94,12 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     while (my $memory = $rs_column->next) {
 	# this is fast
     }
+    
+    # if you have to have all the objects, can store them all in memory, and
+    # want to avoid the $rs->next loop, either call search() in list context or
+    # use $rs->all:
+    my @stepstats_instances = $rs->all;
+    @stepstats_instances = VRPipe::StepStats->search({ ... });
 
 =head1 DESCRIPTION
 
