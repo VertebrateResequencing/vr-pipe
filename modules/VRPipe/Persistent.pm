@@ -80,7 +80,19 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     }
     
     # all three methods take a hash of column_name => value_to_search_for pairs
-    # after the first argument which describes the desired column(s).
+    # after the first argument which describes the desired column(s). The same
+    # values as understood by DBIx::Class::ResultSet->search can be used. For
+    # more complex searches, use DBIx::Class methods directly, eg:
+    my $schema = $persistent_instance->result_source->schema;
+    my $rs = $schema->resultset('StepStats')->search({ step => $step_id }, { order_by => { -desc => [$column] } });
+    while (my $stepstats_instance = $rs->next) {
+	# NB: creating all these instances is extremely slow!
+    }
+    # or:
+    $rscolumn = $rs->get_column($column);
+    while (my $value = $rs_column->next) {
+	# this is fast
+    }
 
 =head1 DESCRIPTION
 
