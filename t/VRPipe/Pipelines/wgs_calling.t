@@ -99,7 +99,7 @@ ok handle_pipeline(@intermediate_files, @final_files), 'pipeline ran ok and all 
 
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary],
-          ['samtools mpileup -EDSV -C50 -m2 -F0.0005 -d 10000 -g -r $region -f $reference_fasta $bam_files > $bcf_file',
+          ['samtools mpileup -DSV -C50 -m2 -F0.0005 -d 10000 -g -r $region -f $reference_fasta $bam_files > $bcf_file',
            'bcftools view -p 0.99 -vcgN $bcf_file | bgzip -c > $vcf_file'],
           'cmd summaries for the major steps were as expected';
 
