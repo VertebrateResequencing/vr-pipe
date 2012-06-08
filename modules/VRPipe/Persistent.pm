@@ -770,23 +770,20 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	$meta->add_method('get_column_values' => sub {
             my ($self, $column_spec, $search_args, $search_attributes) = @_;
 	    $search_attributes ||= {};
-            
 	    my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
-	    my %attribs = (%$search_attributes, result_class => 'DBIx::Class::ResultClass::HashRefInflator'); 
+	    
+	    my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
+	    my $cursor = $rs->cursor;
 	    
 	    if (@columns == 1) {
-		return $self->search_rs($search_args, \%attribs)->get_column($columns[0])->all;
+		my @return;
+		foreach my $ref ($cursor->all) {
+		    push(@return, $ref->[0]);
+		}
+		return @return;
 	    }
 	    else {
-		my @return;
-		foreach my $hashref ($self->search_rs($search_args, { %attribs, columns => \@columns })->all) {
-		    my @vals;
-		    foreach my $col (@columns) {
-			push(@vals, $hashref->{$col});
-		    }
-		    push(@return, \@vals);
-		}
-		return \@return;
+		return [$cursor->all];
 	    }
 	});
         
