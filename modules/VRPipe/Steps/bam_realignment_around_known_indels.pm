@@ -48,7 +48,7 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_realignment_around_known_indels extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites'),
+                 known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites. Could be --DBSNP and -B options for older versions of GATK.'),
                  bam_realignment_options => VRPipe::StepOption->get(description => 'command line options for GATK IndelRealigner; excludes -known options which are set by another StepOption', optional => 1, default_value => '-LOD 0.4 -model KNOWNS_ONLY -compress 0 --disable_bam_indexing'),
                 };
     }

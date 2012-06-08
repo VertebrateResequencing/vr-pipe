@@ -8,7 +8,7 @@ VRPipe::Steps::bam_count_covariates - a step
 
 =head1 AUTHOR
 
-Shane Mccarthy <sm15@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -48,7 +48,7 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 known_sites_for_recalibration => VRPipe::StepOption->get(description => '-knownSites option(s) for GATK'),
+                 known_sites_for_recalibration => VRPipe::StepOption->get(description => '-knownSites option(s) for GATK. Could be --DBSNP and -B options for older versions of GATK.'),
                  gatk_count_covariates_options => VRPipe::StepOption->get(description => 'command line options for GATK CountCovariates -- must include -cov options; excludes the -knownSites option(s) which are set by another StepOption', optional => 1, default_value => '-l INFO -L 1 -L 2 -L 3 -L 4 -L 5 -L 6 -L 7 -L 8 -L 9 -L 10 -L 11 -L 12 -L 13 -L 14 -L 15 -L 16 -L 17 -L 18 -L 19 -L 20 -L 21 -L 22 -L X -L Y -L MT -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate'),
                 };
     }
@@ -65,7 +65,7 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $known_sites = $options->{known_sites_for_recalibration};
-            $self->throw('No knownSites supplied') unless ($known_sites =~ /-knownSites \S+/);
+            $self->throw('No knownSites supplied') unless ($known_sites =~ /-knownSites \S+/ || $known_sites =~ /-B\S+ \S+/);
             
             my $covariates_options = $options->{gatk_count_covariates_options};
             if ($covariates_options =~ /$ref|knownSites|CountCovariates/) {
