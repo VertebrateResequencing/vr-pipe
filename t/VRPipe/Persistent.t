@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 115;
+    use Test::Most tests => 117;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -278,12 +278,25 @@ is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->searc
 is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->search in list context got expected stepstat values without an $rs->next loop';
 
 is scalar(VRPipe::StepStats->search($search_args)), 2, 'using VRPipe::StepStats->search in scalar context gave the correct count of results';
+is_deeply [map { $_->memory } VRPipe::StepStats->search($search_args, { rows => 1 }) ], [5], 'VRPipe::StepStats->search with a rows attribute works';
+
+my $pager = VRPipe::StepStats->search_paged($search_args, {}, 1);
+@got_stepstats = ();
+my $pages = 0;
+while (my $stepstats = $pager->next) {
+    $pages++;
+    foreach my $stepstat (@$stepstats) {
+        push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+    }
+}
+is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 2], 'using VRPipe::StepStats->search_paged and an $pager->next loop got expected stepstat values';
 
 @got_stepstats = @{VRPipe::StepStats->get_column_values(\@stepstat_cols, $search_args)};
 is_deeply \@got_stepstats, \@expected_stepstats, 'using get_column_values with multiple columns got expected stepstat values';
 
 @got_stepstats = VRPipe::StepStats->get_column_values('memory', { step => VRPipe::Step->get(id => 1) });
 is_deeply \@got_stepstats, [5, 10], 'using get_column_values with a single column and an instance in the search args got expected stepstat values';
+is_deeply [VRPipe::StepStats->get_column_values('memory', { step => 1 }, { rows => 1 })], [5], 'get_column_values with a rows attribute works';
 
 use_ok('VRPipe::StepStatsUtil');
 my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));

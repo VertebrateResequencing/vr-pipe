@@ -98,6 +98,20 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     @stepstats_instances = $rs->all; # much faster than an $rs->next loop
     # or:
     my @memory_values = $rs_column->all; # fastest
+    
+    # if you're dealing with a search that could give a large number of rows
+    # and you're worried about running out of memory, but still need greater
+    # speed than is possible with an inefficent $rs->next loop, you can use
+    # search_paged() which returns a VRPipe::Persistent::Pager object, which
+    # can be used like this:
+    my $pager = VRPipe::StepStats->search_paged({ ... });
+    while (my $stepstats = $pager->next) {
+	# $stepstats is an array ref of VRPipe::StepStats instances
+    }
+    # search_paged() takes the same first two arguments as search(), but also
+    # takes an optional 3rd arguement of an integer which is the number of rows
+    # per page. This defaults to 10000 which stops you using unbounded memory
+    # but gives almost the same efficiency and speed as search().
 
 =head1 DESCRIPTION
 
@@ -186,6 +200,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
+    use VRPipe::Persistent::Pager;
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
@@ -725,7 +740,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 		$search_args->{$key} = $val;
 	    }
             
-	    $self->reconnect;
+	    $self->reconnect; # we only access db when all/count/next is called, but we reconnect here incase user of this method forgets
             return $schema->resultset("$class")->search($search_args, $search_attributes ? $search_attributes : ());
 	});
 	
@@ -742,6 +757,13 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    else {
 		return;
 	    } 
+	});
+	
+	$meta->add_method('search_paged' => sub {
+	    my ($self, $search_args, $search_attributes, $rows_per_page) = @_;
+	    $rows_per_page ||= 10000;
+            my $rs = $self->search_rs($search_args, $search_attributes);
+	    return VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => $rows_per_page);
 	});
 	
 	$meta->add_method('get_column_values' => sub {
