@@ -38,68 +38,66 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # you can also get by supplying just the id
     my $bob = VRPipe::Artist->get(id => 1);
     
-    # get() returns an object with all data columns and the full benefit of the
-    # object, but in speed-critical situations where you just want the value
-    # of certain columns for many rows, do not use get(). For a single column
-    # use get_rscolumn() which returns a DBIx::Class::ResultSetColumn:
-    my $rscolumn = VRPipe::Artist->get_rscolumn('name', age => 30);
-    while (my $name = $rscolumn->next) {
-	# $name is the string name of an artist aged 30
-    }
+    # get() returns an instance with all data columns and the full benefit of
+    # the object, but if you need to get many objects/rows from the database
+    # note that this is EXTREMELY SLOW. To speed up retrievals you need to a)
+    # select all the rows of interest at once, and b) retrieve only the
+    # columns of data you're interested in.
     
-    # for multiple columns use get_rscolumns() which returns a
-    # DBIx::Class::ResultSet, where the objects retrieved have just the raw
-    # values desired, which you can get out using get_columns() or get_column():
-    my $rs = VRPipe::Artist->get_rscolumns(['name', 'agent'], age => 30);
-    while (my $row = $rs->next) {
-	my %colvals = $row->get_columns;
-	my $name = $colvals{name};
-	my $agent = $colvals{agent}; # the id of a VRPipe::Agent, not an instance
-	
-	# or:
-	$name = $row->get_column('name');
-	$agent = $row->get_column('agent');
-	
-	# if you want to pay the penalty of object instantiation, you can still
-	# do:
-	my $agent_object = $row->agent; # an instance of VRPipe::Agent
-    }
+    # VRPipe::Persistent is based on DBIx::Class, so multi-row selects are done
+    # using DBIx::Class::ResultSet->search(). You can use it manually by
+    # extracting the schema object out of a VRPipe::Persistent object, but
+    # instead it is recommended to use one of the following convienience
+    # methods, which are all ultimately wrappers around ResultSet->search. Where
+    # you see { ... } arguements in the examples below, these are what you could
+    # supply as the first hashref first arguement to ResultSet->search ($cond)
+    # and are the search conditions, eg. { column_name => 'column_value' } to
+    # select all rows with 'column_value' in the in the 'column_name' column.
+    # \%attrs can also be supplied as the following argument, which contain
+    # more advanced things like grouping, ordering and table joining
+    # instructions.
     
-    # when you know you will not run out of memory storing all values at once,
-    # and when you can't iterate with $rs->next (eg. because with each value you
-    # want to do something that takes a long time and so must disconnect from
-    # the db, which breaks the iteration), you can use get_column_values(),
-    # which returns a list of strings if you supply a single column as the first
-    # arg:
-    my @names = VRPipe::Artist->get_column_values('name', age => 30);
+    # if memory is not a concern (you're not getting too many rows),
+    # get_column_values() combines the 2 speed ups in an easy-to-use method
+    # that gives you column values you're interested in and nothing else. This
+    # is the recommended way to do the fastest retrieval of raw data.
+    # get_column_values() returns a list of strings if you supply a single
+    # column as the first arg:
+    my @names = VRPipe::Artist->get_column_values('name', { age => 30 });
     
-    # or an array ref of array refs if you supply more than one columns:
-    my $array_ref = VRPipe::Artist->get_column_values(['name', 'agent'], age => 30);
+    # or an array ref of array refs if you supply more than one column:
+    my $array_ref = VRPipe::Artist->get_column_values(['name', 'agent'], { age => 30 });
     foreach my $vals (@$array_ref) {
-	my ($name, $agent) = @$vals; # $agent is the id of a VRPipe::Agent
+	my ($name, $agent) = @$vals; # $agent is the id of a VRPipe::Agent 
     }
     
-    # all three methods take a hash of column_name => value_to_search_for pairs
-    # after the first argument which describes the desired column(s). The same
-    # values as understood by DBIx::Class::ResultSet->search can be used. For
-    # more complex searches, use search(), which is basically an alias to that
-    # method, eg:
-    $rs = VRPipe::StepStats->search({ step => $step_id }, { order_by => { -desc => ['memory'] } });
+    # you can supply attributes (excluding the columns attribute) as the 3rd
+    # argument:
+    my ($name) = VRPipe::Artist->get_column_values('name', { age => 30 }, { rows => 1 });
+    
+    # if you need full instances as return values instead of raw column values,
+    # use search(), which takes the same arguements as
+    # DBIx::Class::ResultSet->search() and returns a list of instances in list
+    # context, but it differs by returning a count in scalar context instead of
+    # a ResultSet:
+    my $count = VRPipe::StepStats->search({ ... }); # very fast count(*) in SQL
+    my @stepstats_instances = VRPipe::StepStats->search({ ... });
+    
+    # if you want a ResultSet to work with manually, use search_rs():
+    my $rs = VRPipe::StepStats->search_rs({ ... }, { order_by => { -desc => ['memory'] } });
     while (my $stepstats_instance = $rs->next) {
 	my $memory = $stepstats_instance->memory;
-	# NB: creating all these instances is extremely slow!
+	# $rs->next loop with $stepstats_instance having all columns is slowest
     }
     # or:
     $rscolumn = $rs->get_column('memory');
     while (my $memory = $rs_column->next) {
-	# this is fast
+	# $rs->next loop when only dealing with a single column is faster
     }
-    
-    # if you have to have all the objects, can store them all in memory, and
-    # want to avoid the $rs->next loop, either call search() in list context or
-    # use $rs->all:
-    my @stepstats_instances = $rs->all;
-    @stepstats_instances = VRPipe::StepStats->search({ ... });
+    # or:
+    @stepstats_instances = $rs->all; # much faster than an $rs->next loop
+    # or:
+    my @memory_values = $rs_column->all; # fastest
 
 =head1 DESCRIPTION
 
@@ -711,8 +709,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->get(%args);
         });
 	
-	$meta->add_method('search' => sub {
-            my ($self, $input_search_args, $options) = @_;
+	$meta->add_method('search_rs' => sub {
+            my ($self, $input_search_args, $search_attributes) = @_;
             
             my $schema = $self->_schema();
 	    
@@ -728,35 +726,40 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    }
             
 	    $self->reconnect;
-            return $schema->resultset("$class")->search($search_args, $options ? $options : ());
+            return $schema->resultset("$class")->search($search_args, $search_attributes ? $search_attributes : ());
 	});
 	
-	$meta->add_method('get_rscolumn' => sub {
-            my ($self, $column, %args) = @_;
-            
-            my $rs = $self->search(\%args);
+	$meta->add_method('search' => sub {
+	    my $self = shift;
+            my $rs = $self->search_rs(@_);
 	    
-	    return $rs->get_column($column);
-	});
-	
-	$meta->add_method('get_rscolumns' => sub {
-            my ($self, $columns, %args) = @_;
-            
-            return $self->search(\%args, { columns => $columns });
+	    if (wantarray()) {
+		return $rs->all;
+	    } 
+	    elsif (defined wantarray()) {
+		return $rs->count;
+	    } 
+	    else {
+		return;
+	    } 
 	});
 	
 	$meta->add_method('get_column_values' => sub {
-            my ($self, $column_spec, %args) = @_;
+            my ($self, $column_spec, $search_args, $search_attributes) = @_;
+	    $search_attributes ||= {};
             
 	    my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
 	    
 	    if (@columns == 1) {
-		return $self->get_rscolumn($columns[0], %args)->all;
+		return $self->search_rs($search_args, $search_attributes)->get_column($columns[0])->all;
 	    }
 	    else {
-		my $rs = $self->get_rscolumns(\@columns, %args);
 		my @return;
-		while (my $row = $rs->next) {
+		my $columns_attrib = delete $search_attributes->{columns};
+		if ($columns_attrib) {
+		    $self->warn("ignoring columns attribute '$columns_attrib'");
+		}
+		foreach my $row ($self->search_rs($search_args, { %$search_attributes, columns => \@columns })->all) {
 		    my %colvals = $row->get_columns;
 		    my @vals;
 		    foreach my $col (@columns) {

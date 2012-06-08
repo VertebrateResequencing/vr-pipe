@@ -251,62 +251,45 @@ $subs_array = VRPipe::PersistentArray->get(id => 1);
 is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
 
 # now that we have some submissions and pipelinesetup, make some stepstats and
-# test that the search and *column* methods work
+# test that the multi-row get methods work
 my @expected_stepstats = ([5,1,1,1], [10,2,2,2]);
 my @stepstat_cols = qw(memory time id submission);
-my %search_args = (step => 1);
+my $search_args = { step => 1 };
 my $sub_id = 1;
 foreach my $es (@expected_stepstats) {
     VRPipe::StepStats->get(step => 1, pipelinesetup => 1, submission => $sub_id++, memory => $es->[0], time => $es->[1]);
 }
 
 my @got_stepstats = ();
-my $rs = Schema->resultset('StepStats')->search(\%search_args);
+my $rs = Schema->resultset('StepStats')->search($search_args);
 while (my $stepstat = $rs->next) {
     push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
 }
 is_deeply \@got_stepstats, \@expected_stepstats, 'using a manual resultset search got expected stepstat values';
 
 @got_stepstats = ();
-$rs = VRPipe::StepStats->search(\%search_args);
+$rs = VRPipe::StepStats->search_rs($search_args);
 while (my $stepstat = $rs->next) {
     push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
 }
-is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->search got expected stepstat values';
+is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->search_rs and an $rs->next loop got expected stepstat values';
 
-@got_stepstats = map { [$_->memory, $_->time, $_->id, $_->submission->id] } VRPipe::StepStats->search(\%search_args);
+@got_stepstats = map { [$_->memory, $_->time, $_->id, $_->submission->id] } VRPipe::StepStats->search($search_args);
 is_deeply \@got_stepstats, \@expected_stepstats, 'using VRPipe::StepStats->search in list context got expected stepstat values without an $rs->next loop';
 
-@got_stepstats = ();
-my $ss_col_i = 0;
-foreach my $column (@stepstat_cols) {
-    my $rs_column = VRPipe::StepStats->get_rscolumn($column, %search_args);
-    my $gss_i = 0;
-    while (my $val = $rs_column->next) {
-        $got_stepstats[$gss_i++]->[$ss_col_i] = $val;
-    }
-    $ss_col_i++;
-}
-is_deeply \@got_stepstats, \@expected_stepstats, 'using get_rscolumn got expected stepstat values';
+is scalar(VRPipe::StepStats->search($search_args)), 2, 'using VRPipe::StepStats->search in scalar context gave the correct count of results';
 
-@got_stepstats = ();
-$rs = VRPipe::StepStats->get_rscolumns(\@stepstat_cols, %search_args);
-while (my $stepstat = $rs->next) {
-    my %colvals = $stepstat->get_columns;
-    push(@got_stepstats, [$colvals{memory}, $colvals{time}, $colvals{id}, $colvals{submission}]);
-}
-is_deeply \@got_stepstats, \@expected_stepstats, 'using get_rscolumns got expected stepstat values';
-
-@got_stepstats = @{VRPipe::StepStats->get_column_values(\@stepstat_cols, %search_args)};
+@got_stepstats = @{VRPipe::StepStats->get_column_values(\@stepstat_cols, $search_args)};
 is_deeply \@got_stepstats, \@expected_stepstats, 'using get_column_values with multiple columns got expected stepstat values';
 
-@got_stepstats = VRPipe::StepStats->get_column_values('memory', step => VRPipe::Step->get(id => 1));
+@got_stepstats = VRPipe::StepStats->get_column_values('memory', { step => VRPipe::Step->get(id => 1) });
 is_deeply \@got_stepstats, [5, 10], 'using get_column_values with a single column and an instance in the search args got expected stepstat values';
 
 use_ok('VRPipe::StepStatsUtil');
 my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));
 my @ssumm = $ssu->mean_memory;
-is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with get_rscolumn, worked fine';
+is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with search_rs, worked fine';
+is_deeply [$ssu->percentile_memory(percent => 90, pipelinesetup => VRPipe::PipelineSetup->get(id => 1))], [2, 10], 'StepStatsUtil percentile_memory, which is implemented with get_column_values, worked fine';
 
 # steps can be created by requesting a name corresponding to a pre-written
 # class in VRPipe::Steps::*

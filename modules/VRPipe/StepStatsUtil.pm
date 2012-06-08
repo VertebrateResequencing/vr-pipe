@@ -63,13 +63,11 @@ class VRPipe::StepStatsUtil {
             return ($p_data->[1], $p_data->[2]);
         }
         
-        my $schema = $step->result_source->schema;
         my @search_args = (step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : ());
         my ($count, $percentile) = (0, 0);
-        $count = $schema->resultset('StepStats')->search({ @search_args })->count;
+        $count = VRPipe::StepStats->search({ @search_args });
         if ($count) {
-            my $rs = $schema->resultset('StepStats')->search({ @search_args }, { order_by => { -desc => [$column] }, rows => 1, offset => sprintf("%0.0f", ($count / 100) * (100 - $percent)) });
-            $percentile = $rs->get_column($column)->next;
+            ($percentile) = VRPipe::StepStats->get_column_values($column, { @search_args }, { order_by => { -desc => [$column] }, rows => 1, offset => sprintf("%0.0f", ($count / 100) * (100 - $percent)) });
         }
         
         $percentiles{$store_key} = [$time, $count, $percentile] if $count > 500;
@@ -94,7 +92,7 @@ class VRPipe::StepStatsUtil {
         
         # get the mean and sd using little memory
         my ($count, $mean, $sd) = (0, 0, 0);
-        my $rs_column = VRPipe::StepStats->get_rscolumn($column, step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : ());
+        my $rs_column = VRPipe::StepStats->search_rs({ step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : () })->get_column($column);
         while (my $stat = $rs_column->next) {
             $count++;
             if ($count == 1) {
