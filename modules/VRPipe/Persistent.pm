@@ -41,8 +41,9 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # get() returns an instance with all data columns and the full benefit of
     # the object, but if you need to get many objects/rows from the database
     # note that this is EXTREMELY SLOW. To speed up retrievals you need to a)
-    # select all the rows of interest at once, and b) retrieve only the
-    # columns of data you're interested in.
+    # select all the rows of interest at once, b) retrieve only the columns
+    # of data you're interested in, and c) avoid creation of fancy row objects
+    # and just pull out the raw data desired
     
     # VRPipe::Persistent is based on DBIx::Class, so multi-row selects are done
     # using DBIx::Class::ResultSet->search(). You can use it manually by
@@ -50,7 +51,7 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # instead it is recommended to use one of the following convienience
     # methods, which are all ultimately wrappers around ResultSet->search. Where
     # you see { ... } arguements in the examples below, these are what you could
-    # supply as the first hashref first arguement to ResultSet->search ($cond)
+    # supply as the first hashref arguement to ResultSet->search ($cond)
     # and are the search conditions, eg. { column_name => 'column_value' } to
     # select all rows with 'column_value' in the in the 'column_name' column.
     # \%attrs can also be supplied as the following argument, which contain
@@ -58,7 +59,7 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # instructions.
     
     # if memory is not a concern (you're not getting too many rows),
-    # get_column_values() combines the 2 speed ups in an easy-to-use method
+    # get_column_values() combines the 3 speed ups in an easy-to-use method
     # that gives you column values you're interested in and nothing else. This
     # is the recommended way to do the fastest retrieval of raw data.
     # get_column_values() returns a list of strings if you supply a single
@@ -71,8 +72,8 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
 	my ($name, $agent) = @$vals; # $agent is the id of a VRPipe::Agent 
     }
     
-    # you can supply attributes (excluding the columns attribute) as the 3rd
-    # argument:
+    # you can supply attributes (columns attribute will be overwritten) as the
+    # 3rd argument:
     my ($name) = VRPipe::Artist->get_column_values('name', { age => 30 }, { rows => 1 });
     
     # if you need full instances as return values instead of raw column values,
@@ -771,21 +772,17 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    $search_attributes ||= {};
             
 	    my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
+	    my %attribs = (%$search_attributes, result_class => 'DBIx::Class::ResultClass::HashRefInflator'); 
 	    
 	    if (@columns == 1) {
-		return $self->search_rs($search_args, $search_attributes)->get_column($columns[0])->all;
+		return $self->search_rs($search_args, \%attribs)->get_column($columns[0])->all;
 	    }
 	    else {
 		my @return;
-		my $columns_attrib = delete $search_attributes->{columns};
-		if ($columns_attrib) {
-		    $self->warn("ignoring columns attribute '$columns_attrib'");
-		}
-		foreach my $row ($self->search_rs($search_args, { %$search_attributes, columns => \@columns })->all) {
-		    my %colvals = $row->get_columns;
+		foreach my $hashref ($self->search_rs($search_args, { %attribs, columns => \@columns })->all) {
 		    my @vals;
 		    foreach my $col (@columns) {
-			push(@vals, $colvals{$col});
+			push(@vals, $hashref->{$col});
 		    }
 		    push(@return, \@vals);
 		}
