@@ -77,7 +77,7 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
 	    my $output_path = $self->output_file(output_key => 'fasta_gc_stats_file', output_dir => $ref->dir, basename => $output_basename, type => 'txt')->path;
 	    
 	    my $cmd = qq[$plot_bc_exe $plot_bc_opts > $output_path];
-	    $self->dispatch([$cmd, $self->new_requirements(memory => 500, time => 1)]);
+	    $self->dispatch([$cmd, $self->new_requirements(memory => 500, time => 1), {block_and_skip_if_ok => 1}]);
         };
     }
 
