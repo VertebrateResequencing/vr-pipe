@@ -8,7 +8,7 @@ VRPipe::Steps::bam_index - a step
 
 =head1 AUTHOR
 
-Shane Mccarthy <sm15@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
