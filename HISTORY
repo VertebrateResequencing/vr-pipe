@@ -1,3 +1,6 @@
+0.70    New improvement pipeline that works with older versions of GATK. When
+        QC step updates VRTrack database, now no longer overwrites manually
+        applied qc_status.
 0.69    New vrtrack_qc_graphs_and_auto_qc pipeline, suitable for rerunning QC
         on already imported or improved bams. Copyright and license information
         is now present on all source code files.
