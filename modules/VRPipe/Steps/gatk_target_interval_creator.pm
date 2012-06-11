@@ -8,7 +8,7 @@ VRPipe::Steps::gatk_target_interval_creator - a step
 
 =head1 AUTHOR
 
-Shane Mccarthy <sm15@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -42,7 +42,7 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites'),
+                 known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites. Could be --DBSNP and -B options for older versions of GATK.'),
                  target_intervals_options => VRPipe::StepOption->get(description => 'command line options for GATK RealignerTargetCreator; excludes -known options which are set by another StepOption', optional => 1)};
     }
     method inputs_definition {
@@ -64,7 +64,7 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
             
             # Determine basename for intervals file
             my $known_indels = $options->{known_indels_for_realignment};
-            my @knowns = $known_indels =~ m/-known (\S+)/g;
+            my @knowns = $known_indels =~ m/-\S+ (\S+)/g;
             @knowns || $self->throw('No known indel sites supplied');
             my @known_files = map { Path::Class::File->new($_) } @knowns;
             my $basename = join '_', map { $_->basename } @known_files;
