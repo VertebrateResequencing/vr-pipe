@@ -14,7 +14,7 @@ VRPipe::Persistent::Pager - easily work with paged search results
     
     # create your own Pager with your own ResultSet
     my $rs = VRPipe::StepStats->search_rs({...}); # you don't need row/page attributes
-    $pager = VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => 10000);
+    $pager = VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => 1000);
 
 =head1 DESCRIPTION
 
@@ -26,6 +26,9 @@ that selects out each row one at a time with each next call.
 Instead, methods like search_paged() create ResultSets that are paged and create
 an instance of this class with that ResultSet. This class then makes it easy
 to access a page's worth of the search results at a time.
+
+If memory is sufficient, you should try 10000 rows per page for good efficiency.
+The default is only 1000, which could be less than half the speed of 10000.
 
 =head1 AUTHOR
 
@@ -60,7 +63,7 @@ class VRPipe::Persistent::Pager {
 		      writer => '_modify_resultset');
     
     has rows_per_page => (is => 'ro',
-			  default => 10000);
+			  default => 1000);
     
     has _pager => (is => 'ro',
 		   isa => 'Data::Page',

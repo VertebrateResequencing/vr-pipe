@@ -744,48 +744,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    $self->reconnect; # we only access db when all/count/next is called, but we reconnect here incase user of this method forgets
             return $schema->resultset("$class")->search($search_args, $search_attributes ? $search_attributes : ());
 	});
-	
-	$meta->add_method('search' => sub {
-	    my $self = shift;
-            my $rs = $self->search_rs(@_);
-	    
-	    if (wantarray()) {
-		return $rs->all;
-	    } 
-	    elsif (defined wantarray()) {
-		return $rs->count;
-	    } 
-	    else {
-		return;
-	    } 
-	});
-	
-	$meta->add_method('search_paged' => sub {
-	    my ($self, $search_args, $search_attributes, $rows_per_page) = @_;
-	    $rows_per_page ||= 10000;
-            my $rs = $self->search_rs($search_args, $search_attributes);
-	    return VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => $rows_per_page);
-	});
-	
-	$meta->add_method('get_column_values' => sub {
-            my ($self, $column_spec, $search_args, $search_attributes) = @_;
-	    $search_attributes ||= {};
-	    my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
-	    
-	    my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
-	    my $cursor = $rs->cursor;
-	    
-	    if (@columns == 1) {
-		my @return;
-		foreach my $ref ($cursor->all) {
-		    push(@return, $ref->[0]);
-		}
-		return @return;
-	    }
-	    else {
-		return [$cursor->all];
-	    }
-	});
         
         # set up meta data to add indexes for the key columns after schema deploy
 	$meta->add_attribute( 'idx_keys' => ( is => 'rw', isa  => 'HashRef') );
@@ -806,6 +764,45 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         else {
             $self->in_storage(0);
         }
+    }
+    
+    method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {
+	my $rs = $self->search_rs($search_args, $search_attributes);
+	
+	if (wantarray()) {
+	    return $rs->all;
+	} 
+	elsif (defined wantarray()) {
+	    return $rs->count;
+	} 
+	else {
+	    return;
+	} 
+    }
+    
+    method search_paged (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?, PositiveInt $rows_per_page?) {
+	$rows_per_page ||= 5000;
+	my $rs = $self->search_rs($search_args, $search_attributes);
+	return VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => $rows_per_page);
+    }
+    
+    method get_column_values (ClassName|Object $self: Str|ArrayRef[Str] $column_spec!, HashRef $search_args!, HashRef $search_attributes?) {
+	my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
+	$search_attributes ||= {};
+	
+	my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
+	my $cursor = $rs->cursor;
+	
+	if (@columns == 1) {
+	    my @return;
+	    foreach my $ref ($cursor->all) {
+		push(@return, $ref->[0]);
+	    }
+	    return @return;
+	}
+	else {
+	    return [$cursor->all];
+	}
     }
     
     sub disconnect {
