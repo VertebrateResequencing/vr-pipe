@@ -65,6 +65,10 @@ class VRPipe::Persistent::Pager {
     has rows_per_page => (is => 'ro',
 			  default => 1000);
     
+    has result_method => (is => 'ro',
+			  isa => 'Str|CodeRef',
+			  default => 'all');
+    
     has _pager => (is => 'ro',
 		   isa => 'Data::Page',
 		   lazy => 1,
@@ -86,7 +90,21 @@ class VRPipe::Persistent::Pager {
 	my $next_page = $self->_pages_done + 1;
 	return if $next_page > $last_page;
 	
-	my $rows = [$self->resultset->page($next_page)->all];
+	my $result_method = $self->result_method;
+	my $rows;
+	my $rs = $self->resultset->page($next_page);
+	if (ref($result_method)) {
+	    my @results = &$result_method($rs);
+	    if (@results == 1 && ref($results[0]) eq 'ARRAY') {
+		$rows = $results[0];
+	    }
+	    else {
+		$rows = \@results;
+	    }
+	}
+	else {
+	    $rows = [$rs->$result_method];
+	}
 	
 	$self->_pages_done($next_page);
 	

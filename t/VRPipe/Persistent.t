@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 117;
+    use Test::Most tests => 119;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -294,14 +294,32 @@ is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 2], 'using VRPipe::S
 @got_stepstats = @{VRPipe::StepStats->get_column_values(\@stepstat_cols, $search_args)};
 is_deeply \@got_stepstats, \@expected_stepstats, 'using get_column_values with multiple columns got expected stepstat values';
 
+$pager = VRPipe::StepStats->get_column_values_paged(\@stepstat_cols, $search_args, {}, 1);
+@got_stepstats = ();
+$pages = 0;
+while (my $vals = $pager->next) {
+    $pages++;
+    push(@got_stepstats, @$vals);
+}
+is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 2], 'using VRPipe::StepStats->get_column_values_paged and an $pager->next loop got expected stepstat values';
+
 @got_stepstats = VRPipe::StepStats->get_column_values('memory', { step => VRPipe::Step->get(id => 1) });
 is_deeply \@got_stepstats, [5, 10], 'using get_column_values with a single column and an instance in the search args got expected stepstat values';
 is_deeply [VRPipe::StepStats->get_column_values('memory', { step => 1 }, { rows => 1 })], [5], 'get_column_values with a rows attribute works';
 
+$pager = VRPipe::StepStats->get_column_values_paged('memory', $search_args, {}, 1);
+@got_stepstats = ();
+$pages = 0;
+while (my $vals = $pager->next) {
+    $pages++;
+    push(@got_stepstats, $vals);
+}
+is_deeply [\@got_stepstats, $pages], [[[5], [10]], 2], 'using VRPipe::StepStats->get_column_values_paged with a single column and an $pager->next loop got expected stepstat values';
+
 use_ok('VRPipe::StepStatsUtil');
 my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));
 my @ssumm = $ssu->mean_memory;
-is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with search_rs, worked fine';
+is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with get_column_values_paged, worked fine';
 is_deeply [$ssu->percentile_memory(percent => 90, pipelinesetup => VRPipe::PipelineSetup->get(id => 1))], [2, 10], 'StepStatsUtil percentile_memory, which is implemented with get_column_values, worked fine';
 
 # steps can be created by requesting a name corresponding to a pre-written

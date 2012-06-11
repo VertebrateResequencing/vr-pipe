@@ -786,23 +786,39 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	return VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => $rows_per_page);
     }
     
-    method get_column_values (ClassName|Object $self: Str|ArrayRef[Str] $column_spec!, HashRef $search_args!, HashRef $search_attributes?) {
+    method _get_column_values (ClassName|Object $self: Str|ArrayRef[Str] $column_spec!, HashRef $search_args!, HashRef $search_attributes?) {
 	my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
 	$search_attributes ||= {};
 	
 	my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
-	my $cursor = $rs->cursor;
 	
+	my $sub;
 	if (@columns == 1) {
-	    my @return;
-	    foreach my $ref ($cursor->all) {
-		push(@return, $ref->[0]);
+	    $sub = sub {
+		my $cursor = shift->cursor;
+		my @return;
+		foreach my $ref ($cursor->all) {
+		    push(@return, $ref->[0]);
+		}
+		return @return;
 	    }
-	    return @return;
 	}
 	else {
-	    return [$cursor->all];
+	    $sub = sub { return [shift->cursor->all] };
 	}
+	
+	return ($rs, $sub);
+    }
+    
+    method get_column_values (ClassName|Object $self: Str|ArrayRef[Str] $column_spec!, HashRef $search_args!, HashRef $search_attributes?) {
+	my ($rs, $sub) = $self->_get_column_values($column_spec, $search_args, $search_attributes ? $search_attributes : ());
+	return &$sub($rs);
+    }
+    
+    method get_column_values_paged (ClassName|Object $self: Str|ArrayRef[Str] $column_spec!, HashRef $search_args!, HashRef $search_attributes?, PositiveInt $rows_per_page?) {
+	$rows_per_page ||= 10000;
+	my ($rs, $sub) = $self->_get_column_values($column_spec, $search_args, $search_attributes ? $search_attributes : ());
+	return VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => $rows_per_page, result_method => $sub);
     }
     
     sub disconnect {

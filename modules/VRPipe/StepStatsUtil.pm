@@ -92,17 +92,19 @@ class VRPipe::StepStatsUtil {
         
         # get the mean and sd using little memory
         my ($count, $mean, $sd) = (0, 0, 0);
-        my $rs_column = VRPipe::StepStats->search_rs({ step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : () })->get_column($column);
-        while (my $stat = $rs_column->next) {
-            $count++;
-            if ($count == 1) {
-                $mean = $stat;
-                $sd = 0;
-            }
-            else {
-                my $old_mean = $mean;
-                $mean += ($stat - $old_mean) / $count;
-                $sd += ($stat - $old_mean) * ($stat - $mean);
+        my $pager = VRPipe::StepStats->get_column_values_paged($column, { step => $step->id, $pipelinesetup ? (pipelinesetup => $pipelinesetup->id) : () });
+        while (my $stats = $pager->next) {
+            foreach my $stat (@$stats) {
+                $count++;
+                if ($count == 1) {
+                    $mean = $stat;
+                    $sd = 0;
+                }
+                else {
+                    my $old_mean = $mean;
+                    $mean += ($stat - $old_mean) / $count;
+                    $sd += ($stat - $old_mean) * ($stat - $mean);
+                }
             }
         }
         
