@@ -529,8 +529,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             });
         }
         
-	# below methods need a way of getting the schema
-	$meta->add_method('_schema' => sub {
+	# various methods need a way of getting the schema, rs, class and meta;
+	# we also reconnect here
+	$meta->add_method('_class_specific' => sub {
 	    my ($self, $args) = @_;
 	    $args ||= {};
             
@@ -544,172 +545,60 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 $schema = $GLOBAL_CONNECTED_SCHEMA;
             }
 	    
-	    return $schema;
+	    my $rs = $schema->resultset("$class");
+	    $self->reconnect;
+	    
+	    return ($schema, $rs, $class, $meta);
 	});
 	
-        # create a get method that expects all the psuedo keys and will get or
-        # create the corresponding row in the db
-        $meta->add_method('get' => sub {
-            my ($self, %args) = @_;
-            
-            my $schema = $self->_schema(\%args);
-            
-            # first see if there is a corresponding $class::$name class
-            my $from_non_persistent;
-            if (defined $args{name} && keys %args == 1) {
-                my $dir = $class.'s';
-                unless (exists $factory_modules{$class}) {
-                    $factory_modules{$class} = { map { s/^.+:://; $_ => 1 } findallmod($dir) };
-                }
-                
-                if (exists $factory_modules{$class}->{$args{name}}) {
-                    unless (exists $factory_modules{factories}) {
-                        $factory_modules{factories} = { map { $_ => 1 } grep { /NonPersistentFactory$/ } findallmod('VRPipe') };
-                    }
-                    
-                    my $factory_class = "${class}NonPersistentFactory";
-                    if (exists $factory_modules{factories}->{$factory_class}) {
-                        eval "require $factory_class;";
-                        die "$@\n" if $@;
-                        my $obj = $factory_class->create($args{name}, {});
-                        $from_non_persistent = $obj;
-                        
-                        # now setup %args based on $obj; doing things this way means
-                        # we return a real Persistent object, but it is based on the
-                        # very latest non-persistent code
-                        my %these_args;
-                        foreach my $attr ($meta->get_all_attributes) {
-                            next unless $attr->does('VRPipe::Persistent::Attributes');
-                            my $method = $attr->name;
-                            next if $method eq 'id';
-                            $these_args{$method} = $obj->$method(); # incase $method() causes the try to bomb out, we don't directly alter %args until we've finished the loop
-                        }
-                        while (my ($key, $val) = each %these_args) {
-                            $args{$key} = $val;
-                        }
-                    }
-                }
-            }
-            
-            my $resolve = delete $args{auto_resolve};
-            if ($resolve && $self->can('resolve')) {
-                my $obj = $self->get(%args);
-                return $obj->resolve;
-            }
-            
-            my %find_args;
-            my $id = delete $args{id};
-            if ($id) {
-                %find_args = (id => $id);
-            }
-            else {
-                foreach my $key (@psuedo_keys) {
-                    unless (defined $args{$key}) {
-                        if (defined $key_defaults{$key}) {
-                            $find_args{$key} = $key_defaults{$key};
-                        }
-                        else {
-                            $self->throw("get() must be supplied all non-auto-increment keys (@psuedo_keys); missing $key");
-                        }
-                    }
-                    else {
-                        $find_args{$key} = delete $args{$key};
-                    }
-                    
-                    # when dealing with hash|array refs, if we pass the ref
-                    # to find(), it will auto-flatten it and screw up the find
-                    # call; find based on the frozen string instead.
-                    my $val = $find_args{$key};
-                    if ($val && ref($val) && (ref($val) eq 'HASH' || ref($val) eq 'ARRAY')) {
-                        $find_args{$key} = nfreeze($val);
-                    }
-                }
-            }
-            
-            my %non_persistent_args;
-            foreach my $key (@non_persistent) {
-                exists $args{$key} || next;
-                $non_persistent_args{$key} = delete $args{$key};
-            }
-            
-            $self->reconnect;
-            
-            my $rs = $schema->resultset("$class");
-            my $row;
-            
-            my $transaction = sub {
-                # $rs->find_or_create(...) needs all required attributes
-                # supplied, but if we supply something that isn't an is_key,
-                # we can generate a new row when we shouldn't do. So we
-                # split up the find and create calls:
-                my $return = $rs->find(\%find_args, { for => 'update' }) if keys %find_args;
-                
-                if ($return) {
-                    # update the row with any non-key args supplied
-                    while (my ($method, $value) = each %args) {
-                        $return->$method($value);
-                    }
-                    $return->update;
-                }
-                else {
-                    # create the row using all db column keys
-                    $return = $rs->create({%find_args, %args});
-                }
-                
-                # update the object with any non-persistent args supplied
-                while (my ($method, $value) = each %non_persistent_args) {
-                    $return->$method($value);
-                }
-                
-                # for some reason the result_source has no schema, so
-                # reattach it or inflation will break
-                $return->result_source->schema($schema); 
-                
-                return $return;
-            };
-            
-            my $retries = 0;
-            my $max_retries = 10;
-            while ($retries <= $max_retries) {
-                try {
-                    $row = $schema->txn_do($transaction);
-                }
-                catch ($err) {
-                    $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-                    
-                    # we should attempt retries when we fail due to a create()
-                    # attempt when some other process got the update lock on
-                    # the find() first; we don't look at the $err message
-                    # because that may be driver-specific, and because we may
-                    # be nested and so $err could be unrelated
-                    if ($retries < $max_retries) {
-                        #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
-                        
-                        # actually, we will check the $err message, and if it is
-                        # definitely a restart situation, we won't increment
-                        # retries
-                        unless ($err =~ /Deadlock|try restarting transaction/) {
-                            $retries++;
-                        }
-                        sleep(1);
-                        
-                        next;
-                    }
-                    else {
-                        my @fa;
-                        while (my ($key, $val) = each %find_args) {
-                            push(@fa, "$key => $val");
-                        }
-                        my $find_args = join(', ', @fa);
-                        $self->throw("Failed to $class\->get($find_args): $err");
-                    }
-                }
-                last;
-            }
-            
-            $row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
-            return $row;
-        });
+	# get() and bulk_create_or_update() need to handle search args the
+	# same way
+	$meta->add_method('_find_args' => sub {
+	    my ($self, $args) = @_;
+	    
+	    my %find_args;
+	    my $id = delete $args->{id};
+	    if ($id) {
+		%find_args = (id => $id);
+	    }
+	    else {
+		foreach my $key (@psuedo_keys) {
+		    unless (defined $args->{$key}) {
+			if (defined $key_defaults{$key}) {
+			    $find_args{$key} = $key_defaults{$key};
+			}
+			else {
+			    $self->throw("get() must be supplied all non-auto-increment keys (@psuedo_keys); missing $key");
+			}
+		    }
+		    else {
+			$find_args{$key} = delete $args->{$key};
+		    }
+		    
+		    # when dealing with hash|array refs, if we pass the ref
+		    # to find(), it will auto-flatten it and screw up the find
+		    # call; find based on the frozen string instead. Also find
+		    # based on Peristent ids, not the object references
+		    my $val = $find_args{$key};
+		    if ($val && ref($val)) {
+			if (ref($val) eq 'HASH' || ref($val) eq 'ARRAY') {
+			    $find_args{$key} = nfreeze($val);
+			}
+			elsif ($val->isa('VRPipe::Persistent')) {
+			    $find_args{$key} = $val->id;
+			}
+		    }
+		}
+	    }
+	    
+	    my %non_persistent_args;
+	    foreach my $key (@non_persistent) {
+		exists $args->{$key} || next;
+		$non_persistent_args{$key} = delete $args->{$key};
+	    }
+	    
+	    return [\%find_args, \%non_persistent_args]; 
+	});
         
         $meta->add_method('clone' => sub {
             my ($self, %args) = @_;
@@ -728,7 +617,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	$meta->add_method('search_rs' => sub {
             my ($self, $input_search_args, $search_attributes) = @_;
             
-            my $schema = $self->_schema();
+            my (undef, $rs) = $self->_class_specific();
 	    
 	    # when using resultset->search, a common mistake and often silently
 	    # dangerous bug is that you supply a value that is an instance
@@ -741,8 +630,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 		$search_args->{$key} = $val;
 	    }
             
-	    $self->reconnect; # we only access db when all/count/next is called, but we reconnect here incase user of this method forgets
-            return $schema->resultset("$class")->search($search_args, $search_attributes ? $search_attributes : ());
+            return $rs->search($search_args, $search_attributes ? $search_attributes : ());
 	});
         
         # set up meta data to add indexes for the key columns after schema deploy
@@ -764,6 +652,207 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         else {
             $self->in_storage(0);
         }
+    }
+    
+    # get method expects all the psuedo keys and will get or create the
+    # corresponding row in the db
+    sub get {
+	my ($self, %args) = @_;
+	
+	my ($schema, $rs, $class, $meta) = $self->_class_specific(\%args);
+	
+	# first see if there is a corresponding $class::$name class
+	my $from_non_persistent;
+	if (defined $args{name} && keys %args == 1) {
+	    my $dir = $class.'s';
+	    unless (exists $factory_modules{$class}) {
+		$factory_modules{$class} = { map { s/^.+:://; $_ => 1 } findallmod($dir) };
+	    }
+	    
+	    if (exists $factory_modules{$class}->{$args{name}}) {
+		unless (exists $factory_modules{factories}) {
+		    $factory_modules{factories} = { map { $_ => 1 } grep { /NonPersistentFactory$/ } findallmod('VRPipe') };
+		}
+		
+		my $factory_class = "${class}NonPersistentFactory";
+		if (exists $factory_modules{factories}->{$factory_class}) {
+		    eval "require $factory_class;";
+		    die "$@\n" if $@;
+		    my $obj = $factory_class->create($args{name}, {});
+		    $from_non_persistent = $obj;
+		    
+		    # now setup %args based on $obj; doing things this way means
+		    # we return a real Persistent object, but it is based on the
+		    # very latest non-persistent code
+		    my %these_args;
+		    foreach my $attr ($meta->get_all_attributes) {
+			next unless $attr->does('VRPipe::Persistent::Attributes');
+			my $method = $attr->name;
+			next if $method eq 'id';
+			$these_args{$method} = $obj->$method(); # incase $method() causes the try to bomb out, we don't directly alter %args until we've finished the loop
+		    }
+		    while (my ($key, $val) = each %these_args) {
+			$args{$key} = $val;
+		    }
+		}
+	    }
+	}
+	
+	my $resolve = delete $args{auto_resolve};
+	if ($resolve && $self->can('resolve')) {
+	    my $obj = $self->get(%args);
+	    return $obj->resolve;
+	}
+	
+	my $fa = $self->_find_args(\%args);
+	my %find_args = %{$fa->[0] || {}};
+	my %non_persistent_args = %{$fa->[1] || {}};
+	
+	my $transaction = sub {
+	    # $rs->find_or_create(...) needs all required attributes
+	    # supplied, but if we supply something that isn't an is_key,
+	    # we can generate a new row when we shouldn't do. So we
+	    # split up the find and create calls. Actually, search() is
+	    # faster than find(), and not sure we need any of the fancy
+	    # munging that find() does for us.
+	    my $return = $rs->search(\%find_args, { for => 'update' })->single if keys %find_args;
+	    
+	    if ($return) {
+		# update the row with any non-key args supplied
+		while (my ($method, $value) = each %args) {
+		    $return->$method($value);
+		}
+		$return->update;
+	    }
+	    else {
+		# create the row using all db column keys
+		$return = $rs->create({%find_args, %args});
+	    }
+	    
+	    # update the object with any non-persistent args supplied
+	    while (my ($method, $value) = each %non_persistent_args) {
+		$return->$method($value);
+	    }
+	    
+	    # for some reason the result_source has no schema, so
+	    # reattach it or inflation will break
+	    $return->result_source->schema($schema); 
+	    
+	    return $return;
+	};
+	
+	my @fa;
+	while (my ($key, $val) = each %find_args) {
+	    push(@fa, "$key => $val");
+	}
+	my $error_message_prefix = "Failed to $class\->get(".join(', ', @fa).')';
+	
+	my $row = $self->_do_transaction($schema, $transaction, $error_message_prefix);
+	
+	$row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
+	return $row;
+    }
+    
+    # txn_do with auto-retries on deadlock
+    sub _do_transaction {
+	my ($self, $schema, $transaction, $error_message_prefix) = @_;
+	
+	my $retries = 0;
+	my $max_retries = 10;
+	my $row;
+	my $get_row = defined wantarray();
+	while ($retries <= $max_retries) {
+	    try {
+		if ($get_row) {
+		    $row = $schema->txn_do($transaction);
+		}
+		else {
+		    # there is a large speed increase in bulk_create_or_update
+		    # if we call txn_do in void context
+		    $schema->txn_do($transaction);
+		}
+	    }
+	    catch ($err) {
+		$self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
+		
+		# we should attempt retries when we fail due to a create()
+		# attempt when some other process got the update lock on
+		# the find() first; we don't look at the $err message
+		# because that may be driver-specific, and because we may
+		# be nested and so $err could be unrelated
+		if ($retries < $max_retries) {
+		    #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
+		    
+		    # actually, we will check the $err message, and if it is
+		    # definitely a restart situation, we won't increment
+		    # retries
+		    unless ($err =~ /Deadlock|try restarting transaction/) {
+			$retries++;
+		    }
+		    sleep(1);
+		    
+		    next;
+		}
+		else {
+		    $self->throw("$error_message_prefix: $err");
+		}
+	    }
+	    last;
+	}
+	
+	if ($get_row) {
+	    return $row;
+	}
+	return;
+    }
+    
+    # bulk inserts from populate() are fast, but we can easily end up with
+    # duplicate rows using it, so we use a more careful but sadly slower
+    # wrapper. It updates existing rows just like get().
+    sub bulk_create_or_update {
+	my $self = shift;
+	
+	my ($schema, $rs, $class) = $self->_class_specific();
+	
+	my @find_and_nonp_args;
+	foreach my $args (@_) {
+	    my $fa = $self->_find_args($args);
+	    push(@find_and_nonp_args, [$fa->[0], $args]);
+	}
+	
+	my $transaction = sub {
+	    # first go through everything and find existing rows for update
+	    my @to_create;
+	    foreach my $arg_set (@find_and_nonp_args) {
+		my ($find_args, $args) = @$arg_set;
+		
+		# for some reason find here is a zillion times slower than
+		# using find in get(), but using search is faster than either
+		# method in get()
+		my $return = $rs->search($find_args, { for => 'update' })->single if keys %$find_args;
+		
+		if ($return) {
+		    if (keys %$args) {
+			# update the row with any non-key args supplied
+			while (my ($method, $value) = each %$args) {
+			    $return->$method($value);
+			}
+			$return->update;
+		    }
+		}
+		else {
+		    push(@to_create, {%$find_args, %$args});
+		}
+	    }
+	    
+	    #*** does the for => update above effectively lock the table for
+	    #    the following insert, or could we still get duplicate rows?
+	    
+	    # now bulk create the rows that didn't exist
+	    $rs->populate(\@to_create) if @to_create;
+	};
+	
+	$self->_do_transaction($schema, $transaction, "Failed to $class\->bulk_create_or_update");
     }
     
     method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {

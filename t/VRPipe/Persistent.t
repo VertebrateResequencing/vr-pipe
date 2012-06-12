@@ -6,7 +6,7 @@ use Path::Class qw(file dir);
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 119;
+    use Test::Most tests => 122;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -321,6 +321,22 @@ my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));
 my @ssumm = $ssu->mean_memory;
 is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with get_column_values_paged, worked fine';
 is_deeply [$ssu->percentile_memory(percent => 90, pipelinesetup => VRPipe::PipelineSetup->get(id => 1))], [2, 10], 'StepStatsUtil percentile_memory, which is implemented with get_column_values, worked fine';
+
+my @job_args;
+foreach my $i (1..1000) {
+    push(@job_args, { cmd => "fake_job $i", dir => '/fake_dir' });
+}
+VRPipe::Job->bulk_create_or_update(@job_args);
+my $j_count = VRPipe::Job->search({dir => '/fake_dir', exit_code => undef });
+is $j_count, 1000, 'bulk_create_or_update worked when creating';
+@job_args = ();
+foreach my $i (1..1000) {
+    push(@job_args, { cmd => "fake_job $i", dir => '/fake_dir', exit_code => 0 });
+}
+VRPipe::Job->bulk_create_or_update(@job_args);
+$j_count = VRPipe::Job->search({dir => '/fake_dir', exit_code => undef });
+my $j_count_exited = VRPipe::Job->search({dir => '/fake_dir', exit_code => 0 });
+is_deeply [$j_count, $j_count_exited], [0, 1000], 'bulk_create_or_update worked when updating, and no duplicate rows were created';
 
 # steps can be created by requesting a name corresponding to a pre-written
 # class in VRPipe::Steps::*
