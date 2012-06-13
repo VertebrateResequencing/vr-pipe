@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::bam_count_covariates - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Shane McCarthy <sm15@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 # java -Xmx4g -jar GenomeAnalysisTK.jar \
@@ -16,7 +48,7 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 known_sites_for_recalibration => VRPipe::StepOption->get(description => '-knownSites option(s) for GATK'),
+                 known_sites_for_recalibration => VRPipe::StepOption->get(description => '-knownSites option(s) for GATK. Could be --DBSNP and -B options for older versions of GATK.'),
                  gatk_count_covariates_options => VRPipe::StepOption->get(description => 'command line options for GATK CountCovariates -- must include -cov options; excludes the -knownSites option(s) which are set by another StepOption', optional => 1, default_value => '-l INFO -L 1 -L 2 -L 3 -L 4 -L 5 -L 6 -L 7 -L 8 -L 9 -L 10 -L 11 -L 12 -L 13 -L 14 -L 15 -L 16 -L 17 -L 18 -L 19 -L 20 -L 21 -L 22 -L X -L Y -L MT -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate'),
                 };
     }
@@ -33,7 +65,7 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $known_sites = $options->{known_sites_for_recalibration};
-            $self->throw('No knownSites supplied') unless ($known_sites =~ /-knownSites \S+/);
+            $self->throw('No knownSites supplied') unless ($known_sites =~ /-knownSites \S+/ || $known_sites =~ /-B\S+ \S+/);
             
             my $covariates_options = $options->{gatk_count_covariates_options};
             if ($covariates_options =~ /$ref|knownSites|CountCovariates/) {

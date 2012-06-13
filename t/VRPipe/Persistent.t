@@ -314,11 +314,11 @@ ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit t
 my $tlimit = time() + 1800;
 wait_until_done($test_sub);
 ok $test_sub->done, 'submission ran to completion';
-is $test_sub->job_stdout, "1\n2\n3\n4\n5\n", 'the submissions job did really run correctly';
+is std_to_str($test_sub->job_stdout), "1\n2\n3\n4\n5\n", 'the submissions job did really run correctly';
 $test_sub = VRPipe::Submission->get(job => $jobs[4], stepstate => $stepstates[1], requirements => $reqs[0]);
 $schedulers[2]->submit(submission => $test_sub);
 wait_until_done($test_sub);
-is $test_sub->job_stdout, undef, 'running the same job in a different submission does not really rerun the job';
+is std_to_str($test_sub->job_stdout), "\n", 'running the same job in a different submission does not really rerun the job';
 
 # job arrays
 my @subs_array;
@@ -334,7 +334,7 @@ throws_ok { $schedulers[2]->submit(array => \@subs_array); } qr/failed to claim 
 wait_until_done(@subs_array);
 my $good_outputs = 0;
 foreach my $sub (@subs_array) {
-    $good_outputs++ if $sub->job_stdout eq join("\n", 1..9)."\n".$sub->job->pid."\n";
+    $good_outputs++ if std_to_str($sub->job_stdout) eq join("\n", 1..9)."\n".$sub->job->pid."\n";
 }
 is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
 my $good_beats = 0;
@@ -420,4 +420,10 @@ sub lap {
     warn "Going from line $l1..$l2 took ", $t2 - $t1, " seconds\n";
     $t1 = time();
     $l1 = $l2 + 1;
+}
+
+sub std_to_str {
+    my $pars = shift;
+    $pars->next_record;
+    return join("\n", @{$pars->parsed_record})."\n";
 }

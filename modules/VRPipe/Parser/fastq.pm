@@ -4,31 +4,51 @@ VRPipe::Parser::fastq - parse fastq files
 
 =head1 SYNOPSIS
 
-use VRPipe::Parser;
-
-# create object, supplying fastq file
-my $pars = VRPipe::Parser->create('fastq', {file => $fastq_file});
-
-# get the array reference that will hold the most recently requested record
-my $parsed_record = $pars->parsed_record();
-
-# loop through the fastq file, getting records
-while ($pars->next_record()) {
-    my $id = $parsed_record->[0];
-    my $seq_string = $parsed_record->[1];
-    my $qual_string = $parsed_record->[2];
-}
-
-# convert a Sanger quality string to a list of quality integers
-my @qualities = $pars->qual_to_ints($qual_string);
+    use VRPipe::Parser;
+    
+    # create object, supplying fastq file
+    my $pars = VRPipe::Parser->create('fastq', {file => $fastq_file});
+    
+    # get the array reference that will hold the most recently requested record
+    my $parsed_record = $pars->parsed_record();
+    
+    # loop through the fastq file, getting records
+    while ($pars->next_record()) {
+        my $id = $parsed_record->[0];
+        my $seq_string = $parsed_record->[1];
+        my $qual_string = $parsed_record->[2];
+    }
+    
+    # convert a Sanger quality string to a list of quality integers
+    my @qualities = $pars->qual_to_ints($qual_string);
 
 =head1 DESCRIPTION
 
-A basic parser for fastq files.
+Fastq files (often abbrievated to 'fq') hold sequence and quality information
+produced by genome sequencers. The format is described here:
+L<http://maq.sourceforge.net/fastq.shtml>
 
 =head1 AUTHOR
 
-Sendu Bala: bix@sendu.me.uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 

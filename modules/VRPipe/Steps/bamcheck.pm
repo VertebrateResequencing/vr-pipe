@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::bamcheck - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Steps::bamcheck with VRPipe::StepRole {
@@ -152,10 +184,12 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             if (@rgs != 1 || "$new_meta->{lane}" eq "1") {
                 # call the name something we can be most sure is maximally
                 # unique
-                my $rg = $bam_path;
-                $rg =~ s/\.bam$//;
-                $rg =~ s/\W/_/g;
-                $new_meta->{lane} = $rg;
+                my $md5 = $bam_file->md5;
+                unless ($md5) {
+                    $bam_file->update_md5;
+                    $md5 = $bam_file->md5;
+                }
+                $new_meta->{lane} = $md5;
             }
             
             $bam_file->add_metadata($new_meta);

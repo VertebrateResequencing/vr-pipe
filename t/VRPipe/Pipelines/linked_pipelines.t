@@ -92,6 +92,7 @@ foreach my $in ('file.txt', 'file2.txt', 'file3.txt') {
 }
 
 handle_pipeline(@base_files);
+handle_pipeline(); # *** there's some sort of bug that means the following test can fail with only 2 elements sometimes; does this somehow help?
 
 # linked pipelines only create their dataelements after the previous pipeline
 # has finished, so only now can we figure out remaining expected output file

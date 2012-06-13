@@ -1,16 +1,45 @@
-=pod
+=head1 NAME
 
-BEGIN {
-    use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-                    required_exe => [qw(samtools bwa)],
-                    debug => 0,
-                    max_retries => 3);
-    use TestPipelines;
-}
+VRPipeTest - for use by all test scripts
+
+=head1 SYNOPSIS
+
+    BEGIN {
+        use Test::Most tests => 3;
+        use VRPipeTest (required_env => [qw(RUN_AUTHOR_TESTS)],
+                        required_exe => [qw(foo bar)],
+                        debug => 0,
+                        max_retries => 3);
+    }
 
 Set debug to 1 and max_retries to 0 when you're trying to investigate really
 obscure issues with a pipeline.
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 

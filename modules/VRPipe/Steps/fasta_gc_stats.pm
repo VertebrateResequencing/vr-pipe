@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::fasta_gc_stats - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
@@ -45,7 +77,7 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
 	    my $output_path = $self->output_file(output_key => 'fasta_gc_stats_file', output_dir => $ref->dir, basename => $output_basename, type => 'txt')->path;
 	    
 	    my $cmd = qq[$plot_bc_exe $plot_bc_opts > $output_path];
-	    $self->dispatch([$cmd, $self->new_requirements(memory => 500, time => 1)]);
+	    $self->dispatch([$cmd, $self->new_requirements(memory => 500, time => 1), {block_and_skip_if_ok => 1}]);
         };
     }
 

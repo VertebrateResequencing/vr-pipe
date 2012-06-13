@@ -2,6 +2,30 @@
 use strict;
 use warnings;
 
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use Getopt::Long;
 use VRPipe::Persistent::Schema;
 use VRPipe::Parser;
@@ -58,9 +82,10 @@ while (my ($lane, $old_data) = each %old_data) {
         }
         else {
             $withdrawn_stats{got_reinstated}++;
+            next;
         }
-        next;
     }
+    next if $now_withdrawn;
     
     my %diffs;
     my $old_md5s = join(',', sort keys %{$old_data->{md5s}});
@@ -94,15 +119,18 @@ if ($num_gone) {
 
 # see what's completely new
 my %not_in_old;
+my %samples_not_in_old;
 while (my ($lane, $new_data) = each %new_data) {
     my $old_data = $old_data{$lane};
     unless ($old_data) {
         $not_in_old{$lane} = 1;
+        $samples_not_in_old{$new_data->{sample}} = 1;
     }
 }
 my $num_new = keys %not_in_old;
 if ($num_new) {
-    print "\n$num_new lanes are completely new in the new sequence.index file:\n";
+    my $num_new_samples = keys %samples_not_in_old;
+    print "\n$num_new lanes ($num_new_samples samples) are completely new in the new sequence.index file:\n";
     print join(' ', keys %not_in_old), "\n";
 }
 

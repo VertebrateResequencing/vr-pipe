@@ -1,3 +1,62 @@
+=head1 NAME
+
+VRPipe::Parser::lsf - parse LSF scheduler -o output
+
+=head1 SYNOPSIS
+
+    use VRPipe::Parser;
+    
+    # create object, supplying an lsf -o file
+    my $pars = VRPipe::Parser->create('lsf', {file => $file});
+    
+    # get the array reference that will hold the most recently requested record
+    my $parsed_record = $pars->parsed_record();
+    
+    # loop through the file, getting records; records are parsed in reverse
+    # from the end of the file, so you get the most recent information first
+    while ($pars->next_record()) {
+        my $status = $parsed_record->[1];
+        # etc.
+    }
+    
+    # and/or just get a stat of interest from the most recently looked at
+    # record (or the most recent (last) record if next_record() had not been
+    # used):
+    my $status = $pars->status();
+    my $mem = $pars->memory();
+    my $time = $pars->time();
+    # etc.
+
+=head1 DESCRIPTION
+
+The L<LSF Platform|http://www.platform.com/workload-management/high-performance-computing> is a job scheduling system.
+When it is used to schedule and run jobs, it produces messages when the job
+completes. This parser is for those report files (C<-o> files).
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Parser::lsf with VRPipe::ParserRole {

@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::vrtrack_update_mapstats - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_update {
@@ -115,12 +147,15 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
 		$vrfile->update;
 	    }
 	    
-	    # also update the lane
+	    # also update the lane, only changing qc_status if it is at the
+	    # default status of no_qc
 	    $vrlane->raw_bases($meta->{bases});
 	    $vrlane->raw_reads($meta->{reads});
 	    $vrlane->is_paired($meta->{paired} ? 1 : 0);
 	    $vrlane->read_len(int($meta->{avg_read_length}));
-	    $vrlane->qc_status('pending');
+	    if ($vrlane->qc_status eq 'no_qc') {
+		$vrlane->qc_status('pending');
+	    }
 	    $vrlane->is_processed(import => 1);
 	    $vrlane->update;
 	    $vrlane->is_processed(mapped => 1);

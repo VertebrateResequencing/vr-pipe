@@ -1,3 +1,48 @@
+=head1 NAME
+
+VRPipe::Submission - holds state for Jobs that need to be run
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+A L<VRPipe::Job> holds a command line that needs to be executed, but to
+execute it it must be passed to the system's job scheduler, which usually would
+like to know the memory and time (etc.) requirements (L<VRPipe::Requirements>).
+
+Submission associates Job with Requirements, and tracks scheduler-related state.
+We have here the methods to retry a failed Job, and increase memory and time
+requirements (associating with the Submission a new Requirements object) if
+necessary.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Submission extends VRPipe::Persistent {

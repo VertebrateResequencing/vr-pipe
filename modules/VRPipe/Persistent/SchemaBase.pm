@@ -5,24 +5,43 @@ VRPipe::Persistent::SchemaBase - the backend for connecting to the correct
 
 =head1 SYNOPSIS
 
-use VRPipe::Base;
-
-class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
-    __PACKAGE__->load_namespaces(result_namespace => ['+VRPipe::DirA', '+VRPipe::DirB']);
-}
+    use VRPipe::Base;
+    
+    class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
+        __PACKAGE__->load_namespaces(result_namespace =>
+                                        ['+VRPipe::DirA', '+VRPipe::DirB']);
+    }
 
 =head1 DESCRIPTION
 
 This is a subclass of DBIx::Class::Schema that can default connection details to
-site-wide configuration values (from VRPipe::Config).
+site-wide configuration values (from L<VRPipe::Config>).
 
 To choose between using the production or testing database that has been
-configured, call VRPipe::Persistent::SchemaBase->database_deployment('testing')
-prior to calling connect() on a subclass of this class.
+configured, call C<VRPipe::Persistent::SchemaBase->database_deployment('testing')>
+prior to calling C<connect()> on a subclass of this class.
 
 =head1 AUTHOR
 
-Sendu Bala: sb10 at sanger ac uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 

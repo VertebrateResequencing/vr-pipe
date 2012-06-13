@@ -2,6 +2,30 @@
 use strict;
 use warnings;
 
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::FrontEnd;
 use Path::Class;
 use Data::Dumper;
@@ -23,6 +47,7 @@ my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of
                                                    [ q[Choose where the symlinks should go:] ],
                                                    [ 'output_dir=s', 'The output (root) directory for files' ],
                                                    [ 'output_by_metadata=s', q[Place symlinks in a sub directory of --output_dir, based on the metadata on the output file. The string you must supply should be of the form "key1/key2" which would place the symlink for an output file with metadata {key1 => 'foo', key2 => 'bar' } in output_dir/foo/bar/. If there are multiple output files per input, and only one of them has the chosen metadata, all the other output file symlinks are placed in the same directory as the one with the metadata. Non-word characters in metadata values are converted to underscores to generate the sub directory names] ],
+                                                   [ 'path_regex=s@', q[If using output_by_metadata, optionally supply a regex and replacement string to alter the output subdirectory, eg. --path_regex 'foo#bar' will turn the path output_dir/sub/foo/path into output_dir/sub/bar/path. Multiple replacement may be made by supplying the --path_regex option multiple times] ],
                                                    [ 'OR' ],
                                                    [ 'output_with_input', q[Symlinks for output files should be placed in the same directory their input files were in ] ],
                                                    [],
@@ -47,6 +72,7 @@ my $list = $frontend->opts('list');
 my $output_dir = $frontend->opts('output_dir');
 my $output_with_input = $frontend->opts('output_with_input');
 my $output_by_metadata = $frontend->opts('output_by_metadata');
+my @path_regex = $frontend->option_was_set('path_regex') ? @{$frontend->opts('path_regex')} : ();
 my $basename_as_output = $frontend->opts('basename_as_output');
 my $basename_as_input = $frontend->opts('basename_as_input');
 my $basename_from_metadata = $frontend->opts('basename_from_metadata');
@@ -85,6 +111,10 @@ unless (defined $list) {
     unless ($basename_as_output || $basename_as_input || $basename_from_metadata) {
         $frontend->die_with_error("one of --basename_as_output and --basename_as_input --basename_from_metadata are required");
     }
+    
+    if (@path_regex && ! $output_by_metadata) {
+        $frontend->die_with_error("--path_regex needs --output_by_metadata");
+    }
 }
 if ($basename_from_metadata) {
     my @splits = $basename_from_metadata =~ m/%/g;
@@ -100,6 +130,16 @@ if (@basename_regex) {
             $frontend->die_with_error("the --basename_regex must include a '#' to separate search from replace");
         }
         push @search_and_replace, [$search, $replace];
+    }
+}
+my @path_search_and_replace;
+if (@path_regex) {
+    foreach my $regex (@path_regex) {
+        my ($search, $replace) = split('#', $regex);
+        unless ($search && $replace) {
+            $frontend->die_with_error("the --path_regex must include a '#' to separate search from replace");
+        }
+        push @path_search_and_replace, [$search, $replace];
     }
 }
 if ($md5 && !$print) {
@@ -295,6 +335,22 @@ foreach my $element (@$elements) {
                 unless (@subdirs) {
                     $frontend->error("$eident resulted in output files, none of which had metadata keys @subdir_keys; skipping");
                     next;
+                }
+                if (@path_regex) {
+                    my @final_subdirs;
+                    foreach my $subdir (@subdirs) {
+                        foreach my $regex (@path_search_and_replace) {
+                            my ($search, $replace) = @$regex;
+                            $subdir =~ s/$search/$replace/;
+                            my @captured = (undef, $1, $2, $3, $4, $5, $6, $7, $8, $9);
+                            foreach my $i (1..9) {
+                                my $capture = $captured[$i] || next;
+                                $subdir =~ s/\$$i/$capture/;
+                            }
+                        }
+                        push @final_subdirs, split('\/', $subdir);
+                    }
+                    @subdirs = @final_subdirs;
                 }
                 $this_output_dir = dir($output_dir, @subdirs);
             }

@@ -4,33 +4,51 @@ VRPipe::Parser::bas - parse bas files
 
 =head1 SYNOPSIS
 
-use VRPipe::Parser;
-
-# create object, supplying bas file
-my $pars = VRPipe::Parser->create('bas', {file => $bas_file});
-
-# get the array reference that will hold the most recently requested record
-my $parsed_record = $pars->parsed_record();
-
-# loop through the file, getting records
-while ($pars->next_record()) {
-    my $total_bases = $result_holder->[7];
-    # etc.
-}
-
-# there are a number of methods for getting stats summed for all readgroups
-# (lines) in the file, eg:
-my $total_bases = $pars->total_bases;
-my $duplicate_bases = $pars->duplicate_bases;
+    use VRPipe::Parser;
+    
+    # create object, supplying bas file
+    my $pars = VRPipe::Parser->create('bas', {file => $bas_file});
+    
+    # get the array reference that will hold the most recently requested record
+    my $parsed_record = $pars->parsed_record();
+    
+    # loop through the file, getting records
+    while ($pars->next_record()) {
+        my $total_bases = $result_holder->[7];
+        # etc.
+    }
+    
+    # there are a number of methods for getting stats summed for all readgroups
+    # (lines) in the file, eg:
+    my $total_bases = $pars->total_bases;
+    my $duplicate_bases = $pars->duplicate_bases;
 
 =head1 DESCRIPTION
 
 A parser for bas files, which are bam statatisc files, as produced by
-VRPipe::Steps::bam_stats->bas().
+C<VRPipe::Steps::bam_stats->bas()>.
 
 =head1 AUTHOR
 
-Sendu Bala: bix@sendu.me.uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
