@@ -53,7 +53,7 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # you see { ... } arguements in the examples below, these are what you could
     # supply as the first hashref arguement to ResultSet->search ($cond)
     # and are the search conditions, eg. { column_name => 'column_value' } to
-    # select all rows with 'column_value' in the in the 'column_name' column.
+    # select all rows with the value 'column_value' in the 'column_name' column.
     # \%attrs can also be supplied as the following argument, which contain
     # more advanced things like grouping, ordering and table joining
     # instructions.
@@ -113,7 +113,29 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # takes an optional 3rd arguement of an integer which is the number of rows
     # per page. This defaults to 10000 which stops you using unbounded memory
     # but gives almost the same efficiency and speed as search().
-
+    
+    # likewise, there is a paged version of get_column_values:
+    $pager = VRPipe::StepStats->get_column_values_paged('memory', { ... });
+    while (my $vals = $pager->next) {
+	# $vals is an array ref of memory values
+    }
+    
+    # get() can be used to create (insert) new objects into the database, and
+    # also to update them. However you should avoid using get() for this purpose
+    # in loop - it is VERY SLOW. When you don't care about the return value and
+    # just want to insert/update rows, use bulk_create_or_update(). Instead of
+    # this:
+    foreach my $i (1..1000) {
+	VRPipe::Job->get(cmd => "fake_job $i", dir => '/fake_dir'); # SLOW
+    }
+    # collect the arguements you would have given to get() and supply them in a
+    # list to bulk_create_or_update():
+    my @job_args;
+    foreach my $i (1..1000) {
+	push(@job_args, { cmd => "fake_job $i", dir => '/fake_dir' });
+    }
+    VRPipe::Job->bulk_create_or_update(@job_args); # fast
+    
 =head1 DESCRIPTION
 
 Moose interface to DBIx::Class.
@@ -155,13 +177,13 @@ value, or just a class name string for the default configuration.
 You can also supply table_name => $string if you don't want the table_name in
 your database to be the same as your class basename.
 
-For end users, get() is a convienience method that will call find_or_create on a
-ResultSource for your class, if supplied values for all is_key columns (with
-the optional exception of any allow_key_to_default columns) and an optional
-instance of VRPipe::Persistent::SchemaBase to the schema key (defaults to a
-production instance of VRPipe::Persistent::Schema). You can also call
-get(id => $id) if you know the real auto-increment key id() for your desired
-row.
+For end users, get() is a convienience method that will do the equivalent of
+find_or_create on a ResultSource for your class, if supplied values for all
+is_key columns (with the optional exception of any allow_key_to_default columns)
+and an optional instance of VRPipe::Persistent::SchemaBase to the schema key
+(defaults to a production instance of VRPipe::Persistent::Schema). You can also
+call get(id => $id) if you know the real auto-increment key id() for your
+desired row.
 
 clone() can be called on an instance of this class, supplying it 1 or more
 is_key columns. You'll get back a (potentially) new instance with all the same
