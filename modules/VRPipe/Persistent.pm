@@ -111,8 +111,8 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     }
     # search_paged() takes the same first two arguments as search(), but also
     # takes an optional 3rd arguement of an integer which is the number of rows
-    # per page. This defaults to 10000 which stops you using unbounded memory
-    # but gives almost the same efficiency and speed as search().
+    # per page. This defaults to 5000 which stops you using unbounded memory but
+    # gives almost the same efficiency and speed as search().
     
     # likewise, there is a paged version of get_column_values:
     $pager = VRPipe::StepStats->get_column_values_paged('memory', { ... });
