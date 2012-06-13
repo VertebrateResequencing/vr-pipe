@@ -814,45 +814,54 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	
 	my ($schema, $rs, $class) = $self->_class_specific();
 	
+	# when checking if we need to update instead of insert (slow), we don't
+	# want to lock the table for too long, so we want to group up into
+	# limited size batches
 	my @find_and_nonp_args;
+	my $max_per_batch = 499; # less than a second for inserts, less than 3 seconds for updates
+	my $batch_num = 0;
 	foreach my $args (@_) {
 	    my $fa = $self->_find_args($args);
-	    push(@find_and_nonp_args, [$fa->[0], $args]);
+	    push(@{$find_and_nonp_args[$batch_num]}, [$fa->[0], $args]);
+	    $batch_num++ if $#{$find_and_nonp_args[$batch_num]} == $max_per_batch;
 	}
 	
-	my $transaction = sub {
-	    # first go through everything and find existing rows for update
-	    my @to_create;
-	    foreach my $arg_set (@find_and_nonp_args) {
-		my ($find_args, $args) = @$arg_set;
+	foreach my $batch (@find_and_nonp_args) {
+	    my $transaction = sub {
+		# we do not need to lock the whole table at the start here;
+		# the row-level locking we do seems to be sufficient, at least
+		# for MySQL InnoDB.
 		
-		# for some reason find here is a zillion times slower than
-		# using find in get(), but using search is faster than either
-		# method in get()
-		my $return = $rs->search($find_args, { for => 'update' })->single if keys %$find_args;
-		
-		if ($return) {
-		    if (keys %$args) {
-			# update the row with any non-key args supplied
-			while (my ($method, $value) = each %$args) {
-			    $return->$method($value);
+		# first go through everything and find existing rows for update
+		my @to_create;
+		foreach my $arg_set (@$batch) {
+		    my ($find_args, $args) = @$arg_set;
+		    
+		    # for some reason find here is a zillion times slower than
+		    # using find in get(), but using search is faster than either
+		    # method in get()
+		    my $return = $rs->search($find_args, { for => 'update' })->single if keys %$find_args;
+		    
+		    if ($return) {
+			if (keys %$args) {
+			    # update the row with any non-key args supplied
+			    while (my ($method, $value) = each %$args) {
+				$return->$method($value);
+			    }
+			    $return->update;
 			}
-			$return->update;
+		    }
+		    else {
+			push(@to_create, {%$find_args, %$args});
 		    }
 		}
-		else {
-		    push(@to_create, {%$find_args, %$args});
-		}
-	    }
+		
+		# now bulk create the rows that didn't exist
+		$rs->populate(\@to_create) if @to_create;
+	    };
 	    
-	    #*** does the for => update above effectively lock the table for
-	    #    the following insert, or could we still get duplicate rows?
-	    
-	    # now bulk create the rows that didn't exist
-	    $rs->populate(\@to_create) if @to_create;
-	};
-	
-	$self->_do_transaction($schema, $transaction, "Failed to $class\->bulk_create_or_update");
+	    $self->_do_transaction($schema, $transaction, "Failed to $class\->bulk_create_or_update");
+	}
     }
     
     method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {

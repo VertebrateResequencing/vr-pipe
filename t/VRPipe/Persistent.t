@@ -4,9 +4,10 @@ use warnings;
 use Cwd;
 use Path::Class qw(file dir);
 use File::Copy;
+use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 122;
+    use Test::Most tests => 123;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -337,6 +338,22 @@ VRPipe::Job->bulk_create_or_update(@job_args);
 $j_count = VRPipe::Job->search({dir => '/fake_dir', exit_code => undef });
 my $j_count_exited = VRPipe::Job->search({dir => '/fake_dir', exit_code => 0 });
 is_deeply [$j_count, $j_count_exited], [0, 1000], 'bulk_create_or_update worked when updating, and no duplicate rows were created';
+
+my $fm = Parallel::ForkManager->new(2);
+for (1..2) {
+    $fm->start and next;
+    
+    @job_args = ();
+    foreach my $i (1001..2000) {
+        push(@job_args, { cmd => "fake_job $i", dir => '/fake_dir_parallel' });
+    }
+    VRPipe::Job->bulk_create_or_update(@job_args);
+    
+    $fm->finish(0);
+}
+$fm->wait_all_children;
+$j_count = VRPipe::Job->search({dir => '/fake_dir_parallel' });
+is $j_count, 1000, 'bulk_create_or_update worked when the same creation was requested by 2 different processes at the same time';
 
 # steps can be created by requesting a name corresponding to a pre-written
 # class in VRPipe::Steps::*
