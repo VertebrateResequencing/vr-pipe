@@ -606,7 +606,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 			if (ref($val) eq 'HASH' || ref($val) eq 'ARRAY') {
 			    $find_args{$key} = nfreeze($val);
 			}
-			elsif ($val->isa('VRPipe::Persistent')) {
+			elsif (UNIVERSAL::can($val, 'can') && $val->isa('VRPipe::Persistent')) {
 			    $find_args{$key} = $val->id;
 			}
 		    }
@@ -646,7 +646,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    # instead of an id; catch and fix that here
 	    my $search_args;
 	    while (my ($key, $val) = each %$input_search_args) {
-		if (ref($val) && $val->isa('VRPipe::Persistent')) {
+		if (ref($val) && UNIVERSAL::can($val, 'can') && $val->isa('VRPipe::Persistent')) {
 		    $val = $val->id;
 		}
 		$search_args->{$key} = $val;
