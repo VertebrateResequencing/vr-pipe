@@ -292,17 +292,19 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # job, incase it is not this sub in an array of block_and_skip jobs that
         # gets retried; also, if we're switching queues, it will be the first
         # sub that is actually running the job
-        my $rs = $self->result_source->schema->resultset('Submission')->search({ 'job' => $job->id }, { order_by => { -asc => 'id' } });
+        my $pager = VRPipe::Submission->search_paged({ 'job' => $job->id }, { order_by => { -asc => 'id' } });
         my $first = 1;
-        while (my $to_extra = $rs->next) {
-            if ($first && $switch_queue && $to_extra->sid) {
-                $self->debug("calling switch_queues(".$to_extra->sid.", $switch_queue)");
-                $scheduler->switch_queue($to_extra->sid, $switch_queue);
+        while (my $to_extras = $pager->next) {
+            foreach my $to_extra (@$to_extras) {
+                if ($first && $switch_queue && $to_extra->sid) {
+                    $self->debug("calling switch_queues(".$to_extra->sid.", $switch_queue)");
+                    $scheduler->switch_queue($to_extra->sid, $switch_queue);
+                }
+                $first = 0;
+                
+                $to_extra->requirements($new_req);
+                $to_extra->update;
             }
-            $first = 0;
-            
-            $to_extra->requirements($new_req);
-            $to_extra->update;
         }
         
         return 1;
@@ -311,7 +313,19 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method memory {
         return $self->requirements->memory;
     }
-    method extra_memory (Int $extra = 1000) {
+    method extra_memory (Int $extra?) {
+        unless ($extra) {
+            # increase by 1GB or 30%, whichever is greater
+            my $minimum_memory_increase = 1000;
+            my $memory_increase_percentage = 0.3;
+            my $current_mem = $self->memory;
+            my $updated_memory_limit = $current_mem * (1 + $memory_increase_percentage);
+            if ($updated_memory_limit < $current_mem + $minimum_memory_increase) {
+                $updated_memory_limit = $current_mem + $minimum_memory_increase;
+            }
+            $extra = $updated_memory_limit - $current_mem;
+        }
+        
         $self->_add_extra('memory', $extra);
     }
     
