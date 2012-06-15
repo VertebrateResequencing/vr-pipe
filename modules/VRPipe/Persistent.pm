@@ -576,50 +576,70 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	# get() and bulk_create_or_update() need to handle search args the
 	# same way
 	$meta->add_method('_find_args' => sub {
-	    my ($self, $args) = @_;
+	    my ($self, $args, $search_mode) = @_;
 	    
-	    my %find_args;
-	    my $id = delete $args->{id};
-	    if ($id) {
-		%find_args = (id => $id);
-	    }
-	    else {
-		foreach my $key (@psuedo_keys) {
-		    unless (defined $args->{$key}) {
-			if (defined $key_defaults{$key}) {
-			    $find_args{$key} = $key_defaults{$key};
+	    my $find_args = {};
+	    unless ($search_mode) {
+		# when doing a get(), we must supply all psuedo_keys or id
+		my $id = delete $args->{id};
+		if ($id) {
+		    $find_args->{id} = $id;
+		}
+		else {
+		    foreach my $key (@psuedo_keys) {
+			unless (defined $args->{$key}) {
+			    if (defined $key_defaults{$key}) {
+				$find_args->{$key} = $key_defaults{$key};
+			    }
+			    else {
+				$self->throw("get() must be supplied all non-auto-increment keys (@psuedo_keys); missing $key");
+			    }
 			}
 			else {
-			    $self->throw("get() must be supplied all non-auto-increment keys (@psuedo_keys); missing $key");
-			}
-		    }
-		    else {
-			$find_args{$key} = delete $args->{$key};
-		    }
-		    
-		    # when dealing with hash|array refs, if we pass the ref
-		    # to find(), it will auto-flatten it and screw up the find
-		    # call; find based on the frozen string instead. Also find
-		    # based on Peristent ids, not the object references
-		    my $val = $find_args{$key};
-		    if ($val && ref($val)) {
-			if (ref($val) eq 'HASH' || ref($val) eq 'ARRAY') {
-			    $find_args{$key} = nfreeze($val);
-			}
-			elsif (UNIVERSAL::can($val, 'can') && $val->isa('VRPipe::Persistent')) {
-			    $find_args{$key} = $val->id;
+			    $find_args->{$key} = delete $args->{$key};
 			}
 		    }
 		}
 	    }
 	    
-	    my %non_persistent_args;
-	    foreach my $key (@non_persistent) {
-		exists $args->{$key} || next;
-		$non_persistent_args{$key} = delete $args->{$key};
+	    # when dealing with refs, if we pass the ref to find(), it will
+	    # auto-flatten it and screw up the find call; search() will just try
+	    # to search for the reference and fail. find/search based on the
+	    # deflated string instead. Also find based on Peristent ids, not the
+	    # object references
+	    my %pks = map { $_ => 1 } @psuedo_keys;
+	    foreach my $hash ($search_mode ? ($args) : ($find_args, $args)) {
+		while (my ($key, $val) = each %$hash) {
+		    unless ($search_mode) {
+			next unless exists $pks{$key}; # *** not really sure why get() doesn't work on eg. steps if we don't skip non-keys
+		    }
+		    
+		    if ($val && ref($val)) {
+			if (UNIVERSAL::can($val, 'can')) {
+			    if ($val->isa('VRPipe::Persistent')) {
+				$hash->{$key} = $val->id;
+			    }
+			    elsif ($val->can('stringify')) {
+				$hash->{$key} = $val->stringify;
+			    }
+			}
+			elsif (exists $flations{$key}) {
+			    $hash->{$key} = &{$flations{$key}->{deflate}}($val);
+			}
+			else {
+			    $self->throw("got $key => $val, but $key was not a flation\n");
+			}
+		    }
+		}
 	    }
 	    
-	    return [\%find_args, \%non_persistent_args]; 
+	    my $non_persistent_args = {};
+	    foreach my $key (@non_persistent) {
+		exists $args->{$key} || next;
+		$non_persistent_args->{$key} = delete $args->{$key};
+	    }
+	    
+	    return [$find_args, $non_persistent_args]; 
 	});
         
         $meta->add_method('clone' => sub {
@@ -637,20 +657,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         });
 	
 	$meta->add_method('search_rs' => sub {
-            my ($self, $input_search_args, $search_attributes) = @_;
+            my ($self, $search_args, $search_attributes) = @_;
             
             my (undef, $rs) = $self->_class_specific();
 	    
 	    # when using resultset->search, a common mistake and often silently
 	    # dangerous bug is that you supply a value that is an instance
-	    # instead of an id; catch and fix that here
-	    my $search_args;
-	    while (my ($key, $val) = each %$input_search_args) {
-		if (ref($val) && UNIVERSAL::can($val, 'can') && $val->isa('VRPipe::Persistent')) {
-		    $val = $val->id;
-		}
-		$search_args->{$key} = $val;
-	    }
+	    # instead of an id, or you supply some other ref; _find_args will
+	    # fix up the search args for us
+	    $self->_find_args($search_args, 1);
             
             return $rs->search($search_args, $search_attributes ? $search_attributes : ());
 	});
