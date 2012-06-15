@@ -37,7 +37,6 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis remapping
                                                                    reference_public_url => 'ftp://s.suis.com/ref.fa',
                                                                    reference_species => 'S.Suis',
                                                                    bwa_index_options => '-a is',
-                                                                   samtools_sort_options => '-m 767',
                                                                    uncompressed_fixed_bam_output => 0,
                                                                    cleanup => 0,
                                                                    sequence_dictionary_memory => 150,
