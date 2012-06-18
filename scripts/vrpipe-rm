@@ -108,7 +108,7 @@ if ($setup) {
     
     # loop through completed elements
     my $pipeline_length = @step_members;
-    my $elements = $setup->datasource->elements;
+    my $elements = $setup->datasource->elements(1);
     my $deleted = 0;
     my $complete_elements = 0;
     my $incomplete = 0;

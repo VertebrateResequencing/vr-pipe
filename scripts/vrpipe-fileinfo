@@ -182,7 +182,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
         
         # loop through completed elements
         my $pipeline_length = @step_members;
-        my $elements = $setup->datasource->elements;
+        my $elements = $setup->datasource->elements(1);
         foreach my $element (@$elements) {
             my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
             unless ($element_state->completed_steps == $pipeline_length) {

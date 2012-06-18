@@ -96,7 +96,7 @@ else {
 
 # loop through completed elements, getting the list of file paths to work with
 my $pipeline_length = @step_members;
-my $elements = $setup->datasource->elements;
+my $elements = $setup->datasource->elements(1);
 my $complete_elements = 0;
 my $incomplete = 0;
 my @paths;

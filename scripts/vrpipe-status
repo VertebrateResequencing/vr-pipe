@@ -56,7 +56,7 @@ foreach my $setup (@setups) {
     my $num_elements;
     my @incomplete;
     eval {
-        $num_elements = scalar(@{$datasource->elements});
+        $num_elements = scalar(@{$datasource->elements(1)});
         @incomplete = @{$datasource->incomplete_element_states($setup)};
     };
     my $ds_error = $@;
