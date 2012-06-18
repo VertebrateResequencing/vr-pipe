@@ -56,7 +56,7 @@ class VRPipe::Steps::bin2hapmap_sites with VRPipe::StepRole {
                                                  type => 'txt');
             my $hapmap_path = $hapmap_file->path;
             my $cmd = qq[$bin2hapmap -l $gtype_snps_bin > $hapmap_path];
-            $self->dispatch([$cmd, $req, {output_files => [$hapmap_file]}]);
+            $self->dispatch([$cmd, $req, {output_files => [$hapmap_file], block_and_skip_if_ok => 1}]);
         };
     }
     method outputs_definition {

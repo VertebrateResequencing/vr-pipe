@@ -36,7 +36,8 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
     method options_definition {
         return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
                                                          optional => 1,
-                                                         default_value => 'samtools') };
+                                                         default_value => 'samtools'),
+                 samtools_sort_options => VRPipe::StepOption->get(description => 'command line options for samtools sort, excluding -n and -o', optional => 1)  };
     }
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
@@ -50,11 +51,20 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
             my $options = $self->options;
             
             my $samtools = $options->{samtools_exe};
-            my $req = $self->new_requirements(memory => 3000, time => 2);
-            my $memory = $req->memory;
             
-            # my $m = (($memory * 1000000) / 100) * 95; # we no longer use -m because in some cases samtools can use way more than the figure we specify, so safest to go with the small default
             my $opts = "sort -n";
+            my $user_opts = $options->{samtools_sort_options};
+            my $mem = 768; # the samtools sort default
+            if ($user_opts) {
+                $user_opts =~ s/-o//;
+                $opts .= ' '.$user_opts;
+                if ($user_opts =~ /-m (\d+)/) {
+                    $mem = $1;
+                }
+            }
+            
+            my $req = $self->new_requirements(memory => $mem == 768 ? 3000 : (4*$mem), time => 2); # in some cases samtools can use way more than the -m specified, and is very segfaul happy
+            my $memory = $req->memory;
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
                 my $in_base = $bam->basename;
