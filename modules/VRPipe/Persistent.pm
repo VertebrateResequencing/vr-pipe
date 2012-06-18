@@ -275,16 +275,17 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my (@psuedo_keys, @non_persistent, %for_indexing, %key_defaults);
+        my (@psuedo_keys, @non_persistent, %all_attribs, %for_indexing, %key_defaults);
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my %flations;
         my $meta = $class->meta;
-
+	
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype); # eg mysql
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
-
+	
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
+	    $all_attribs{$name} = 1;
             unless ($attr->does('VRPipe::Persistent::Attributes')) {
                 push(@non_persistent, $name);
                 next;
@@ -436,7 +437,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             else {
                 die "attr $name has no constraint in $class\n";
             }
-
+	    
             if ($attr->is_key) {
                 $for_indexing{$name} = $column_info->{data_type};
             }
@@ -610,6 +611,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    my %pks = map { $_ => 1 } @psuedo_keys;
 	    foreach my $hash ($search_mode ? ($args) : ($find_args, $args)) {
 		while (my ($key, $val) = each %$hash) {
+		    $self->throw("You cannot search for '$key' because $class does not have that column") unless exists $all_attribs{$key};
+		    
 		    unless ($search_mode) {
 			next unless exists $pks{$key}; # *** not really sure why get() doesn't work on eg. steps if we don't skip non-keys
 		    }
@@ -625,9 +628,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 			}
 			elsif (exists $flations{$key}) {
 			    $hash->{$key} = &{$flations{$key}->{deflate}}($val);
-			}
-			else {
-			    $self->throw("got $key => $val, but $key was not a flation\n");
 			}
 		    }
 		}
@@ -669,6 +669,72 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             return $rs->search($search_args, $search_attributes ? $search_attributes : ());
 	});
+	
+	$meta->add_method('_get_column_values' => sub {
+	    my ($self, $column_spec, $search_args, $search_attributes) = @_;
+	    my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
+	    $search_attributes ||= {};
+	    
+	    my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
+	    
+	    # do we have to inflate any of the columns?
+	    my @inflaters;
+	    my @is_to_inflate;
+	    foreach my $i (0..$#columns) {
+		my $col = $columns[$i];
+		if (exists $flations{$col}) {
+		    $inflaters[$i] = $flations{$col}->{inflate};
+		    push(@is_to_inflate, $i);
+		}
+	    }
+	    
+	    my $sub;
+	    if (@columns == 1) {
+		if (@is_to_inflate) {
+		    my $inflator = $inflaters[0];
+		    $sub = sub {
+			my $cursor = shift->cursor;
+			my @return;
+			foreach my $ref ($cursor->all) {
+			    push(@return, &{$inflator}($ref->[0]));
+			}
+			return @return;
+		    }
+		}
+		else {
+		    $sub = sub {
+			my $cursor = shift->cursor;
+			my @return;
+			foreach my $ref ($cursor->all) {
+			    push(@return, $ref->[0]);
+			}
+			return @return;
+		    }
+		}
+	    }
+	    else {
+		if (@is_to_inflate) {
+		    $sub = sub {
+			my $cursor = shift->cursor;
+			my @return;
+			foreach my $ref ($cursor->all) {
+			    foreach my $i (@is_to_inflate) {
+				$ref->[$i] = &{$inflaters[$i]}($ref->[$i]);
+			    }
+			    push(@return, $ref);
+			}
+			return \@return;
+		    }
+		}
+		else {
+		    $sub = sub {
+			return [shift->cursor->all]
+		    }
+		}
+	    }
+	    
+	    return ($rs, $sub);
+	});
         
         # set up meta data to add indexes for the key columns after schema deploy
 	$meta->add_attribute( 'idx_keys' => ( is => 'rw', isa  => 'HashRef') );
@@ -689,6 +755,59 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         else {
             $self->in_storage(0);
         }
+    }
+    
+    # txn_do with auto-retries on deadlock
+    sub _do_transaction {
+	my ($self, $schema, $transaction, $error_message_prefix) = @_;
+	
+	my $retries = 0;
+	my $max_retries = 10;
+	my $row;
+	my $get_row = defined wantarray();
+	while ($retries <= $max_retries) {
+	    try {
+		if ($get_row) {
+		    $row = $schema->txn_do($transaction);
+		}
+		else {
+		    # there is a large speed increase in bulk_create_or_update
+		    # if we call txn_do in void context
+		    $schema->txn_do($transaction);
+		}
+	    }
+	    catch ($err) {
+		$self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
+		
+		# we should attempt retries when we fail due to a create()
+		# attempt when some other process got the update lock on
+		# the find() first; we don't look at the $err message
+		# because that may be driver-specific, and because we may
+		# be nested and so $err could be unrelated
+		if ($retries < $max_retries) {
+		    #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
+		    
+		    # actually, we will check the $err message, and if it is
+		    # definitely a restart situation, we won't increment
+		    # retries
+		    unless ($err =~ /Deadlock|try restarting transaction/) {
+			$retries++;
+		    }
+		    sleep(1);
+		    
+		    next;
+		}
+		else {
+		    $self->throw("$error_message_prefix: $err");
+		}
+	    }
+	    last;
+	}
+	
+	if ($get_row) {
+	    return $row;
+	}
+	return;
     }
     
     # get method expects all the psuedo keys and will get or create the
@@ -790,59 +909,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	return $row;
     }
     
-    # txn_do with auto-retries on deadlock
-    sub _do_transaction {
-	my ($self, $schema, $transaction, $error_message_prefix) = @_;
-	
-	my $retries = 0;
-	my $max_retries = 10;
-	my $row;
-	my $get_row = defined wantarray();
-	while ($retries <= $max_retries) {
-	    try {
-		if ($get_row) {
-		    $row = $schema->txn_do($transaction);
-		}
-		else {
-		    # there is a large speed increase in bulk_create_or_update
-		    # if we call txn_do in void context
-		    $schema->txn_do($transaction);
-		}
-	    }
-	    catch ($err) {
-		$self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-		
-		# we should attempt retries when we fail due to a create()
-		# attempt when some other process got the update lock on
-		# the find() first; we don't look at the $err message
-		# because that may be driver-specific, and because we may
-		# be nested and so $err could be unrelated
-		if ($retries < $max_retries) {
-		    #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
-		    
-		    # actually, we will check the $err message, and if it is
-		    # definitely a restart situation, we won't increment
-		    # retries
-		    unless ($err =~ /Deadlock|try restarting transaction/) {
-			$retries++;
-		    }
-		    sleep(1);
-		    
-		    next;
-		}
-		else {
-		    $self->throw("$error_message_prefix: $err");
-		}
-	    }
-	    last;
-	}
-	
-	if ($get_row) {
-	    return $row;
-	}
-	return;
-    }
-    
     # bulk inserts from populate() are fast, but we can easily end up with
     # duplicate rows using it, so we use a more careful but sadly slower
     # wrapper. It updates existing rows just like get().
@@ -919,30 +985,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	$rows_per_page ||= 5000;
 	my $rs = $self->search_rs($search_args, $search_attributes);
 	return VRPipe::Persistent::Pager->new(resultset => $rs, rows_per_page => $rows_per_page);
-    }
-    
-    method _get_column_values (ClassName|Object $self: Str|ArrayRef[Str] $column_spec!, HashRef $search_args!, HashRef $search_attributes?) {
-	my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
-	$search_attributes ||= {};
-	
-	my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
-	
-	my $sub;
-	if (@columns == 1) {
-	    $sub = sub {
-		my $cursor = shift->cursor;
-		my @return;
-		foreach my $ref ($cursor->all) {
-		    push(@return, $ref->[0]);
-		}
-		return @return;
-	    }
-	}
-	else {
-	    $sub = sub { return [shift->cursor->all] };
-	}
-	
-	return ($rs, $sub);
     }
     
     method get_column_values (ClassName|Object $self: Str|ArrayRef[Str] $column_spec!, HashRef $search_args!, HashRef $search_attributes?) {

@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 123;
+    use Test::Most tests => 125;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -302,7 +302,7 @@ while (my $vals = $pager->next) {
     $pages++;
     push(@got_stepstats, @$vals);
 }
-is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 2], 'using VRPipe::StepStats->get_column_values_paged and an $pager->next loop got expected stepstat values';
+is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 2], 'using VRPipe::StepStats->get_column_values_paged and a $pager->next loop got expected stepstat values';
 
 @got_stepstats = VRPipe::StepStats->get_column_values('memory', { step => VRPipe::Step->get(id => 1) });
 is_deeply \@got_stepstats, [5, 10], 'using get_column_values with a single column and an instance in the search args got expected stepstat values';
@@ -315,7 +315,26 @@ while (my $vals = $pager->next) {
     $pages++;
     push(@got_stepstats, $vals);
 }
-is_deeply [\@got_stepstats, $pages], [[[5], [10]], 2], 'using VRPipe::StepStats->get_column_values_paged with a single column and an $pager->next loop got expected stepstat values';
+is_deeply [\@got_stepstats, $pages], [[[5], [10]], 2], 'using VRPipe::StepStats->get_column_values_paged with a single column and a $pager->next loop got expected stepstat values';
+
+# test that this works with something like Step, which has refs for vals
+$pager = VRPipe::Step->get_column_values_paged(['body_sub', 'id'], { id => { '<=' => 2 } }, {}, 1);
+my @got_steps = ();
+$pages = 0;
+while (my $vals = $pager->next) {
+    $pages++;
+    push(@got_steps, @$vals);
+}
+is_deeply [ref($got_steps[0]->[0]), $got_steps[0]->[1], scalar(@got_steps), $pages], ['CODE', 1, 2, 2], 'using VRPipe::Step->get_column_values_paged and a $pager->next loop got expected step values, where the refs were deflated';
+
+$pager = VRPipe::Step->get_column_values_paged('body_sub', { id => { '<=' => 2 } }, {}, 1);
+@got_steps = ();
+$pages = 0;
+while (my $vals = $pager->next) {
+    $pages++;
+    push(@got_steps, $vals);
+}
+is_deeply [ref($got_steps[0]->[0]), scalar(@got_steps), $pages], ['CODE', 2, 2], 'using VRPipe::StepStats->get_column_values_paged with a single column and a $pager->next loop got expected step values, where the refs were deflated';
 
 use_ok('VRPipe::StepStatsUtil');
 my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));
