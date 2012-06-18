@@ -86,6 +86,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::DataSource extends VRPipe::Persistent {
+    use DateTime;
     use VRPipe::DataSourceFactory;
     
     has 'type' => (is => 'rw',
@@ -111,6 +112,11 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                       allow_key_to_default => 1,
                       is_key => 1);
     
+    has '_lock' => (is => 'rw',
+                    isa => Datetime,
+                    traits => ['VRPipe::Persistent::Attributes'],
+                    is_nullable => 1);
+    
     has '_changed_marker' => (is => 'rw',
                              isa => Varchar[255],
                              traits => ['VRPipe::Persistent::Attributes'],
@@ -134,20 +140,12 @@ class VRPipe::DataSource extends VRPipe::Persistent {
     __PACKAGE__->make_persistent(has_many => [elements => 'VRPipe::DataElement']);
     
     around elements {
+        my (undef, undef, $status_messages) = @_;
         # we don't return $self->$orig because that returns all associated
         # elements; we need to first create all elements, and then only return
         # elements that are still "current" (haven't been deleted in the source)
-        $self->_prepare_elements_and_states || return;
-        
-        my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('DataElement')->search({ datasource => $self->id, withdrawn => 0 });
-        
-        my @elements;
-        while (my $element = $rs->next) {
-            push(@elements, $element);
-        }
-        
-        return \@elements;
+        $self->_prepare_elements_and_states($status_messages) || return;
+        return [VRPipe::DataElement->search({ datasource => $self->id, withdrawn => 0 })]
     }
     
     method incomplete_element_states (VRPipe::PipelineSetup $setup, Int $limit?) {
@@ -156,66 +154,135 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         my $pipeline = $setup->pipeline;
         my $num_steps = $pipeline->step_members;
         
-        my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
-                                                                { join => 'dataelement', $limit ? (rows => $limit) : () });
-        
-        my @incomplete;
-        while (my $state = $rs->next) {
-            push(@incomplete, $state);
-        }
-        
-        return \@incomplete;
+        return [VRPipe::DataElementState->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
+                                                 { join => 'dataelement', $limit ? (rows => $limit) : () })];
     }
     
-    method _prepare_elements_and_states {
+    method _prepare_elements_and_states (Bool $status_messages = 0) {
         my $source = $self->_source_instance || return;
         
-        my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('PipelineSetup')->search({ datasource => $self->id });
-        my @setups;
-        while (my $ps = $rs->next) {
-            push(@setups, $ps);
-        }
+        my @setups = VRPipe::PipelineSetup->search({ datasource => $self->id });
         
         if ($source->_has_changed) {
-            my $elements = $source->_get_elements;
-            
-            my %current_elements;
-            foreach my $element (@$elements) {
-                $current_elements{$element->id} = 1;
-                foreach my $setup (@setups) {
-                    VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-                }
-            }
-            
-            # withdrawn any elements that are no longer in the datasource
+            # we must not go through and update the dataelements more than
+            # once simultaneously, and we must not return elements in a
+            # partially updated state, so we lock/block at this point
             my $schema = $self->result_source->schema;
-            my $rs = $schema->resultset('DataElement')->search({ datasource => $self->id, withdrawn => 0 });
-            while (my $element = $rs->next) {
-                unless (exists $current_elements{$element->id}) {
-                    $element->withdrawn(1);
-                    $element->update;
+            my $block = 0;
+            my $continue = 1;
+            do {
+                $schema->txn_do(sub {
+                    my $lock_time = $self->_lock;
+                    # check that the process that got the lock is still running,
+                    # otherwise ignore the lock
+                    if ($lock_time) {
+                        my $elapsed = time() - $lock_time->epoch;
+                        if ($elapsed > 60) {
+                            undef $lock_time;
+                        }
+                    }
+                    
+                    # if some other process has a recent lock, we will block
+                    if ($lock_time) {
+                        $block = 1;
+                        warn "another process is updating dataelements, please wait...\n" if $status_messages;
+                        sleep(2);
+                        return;
+                    }
+                    
+                    # if we had been blocking and now there is no more lock,
+                    # likely that the datasource is now up to date and we don't
+                    # have to do anything
+                    if ($block) {
+                        $block = 0;
+                        $continue = $source->_has_changed;
+                    }
+                    
+                    if ($continue) {
+                        # get the lock for ourselves
+                        $self->_lock(DateTime->now());
+                        $self->update;
+                    }
+                });
+            } while ($block);
+            return unless $continue;
+            
+            # we have a lock, but can't risk our process getting killed and the
+            # lock being left open, so we have to re-claim the lock every 15s
+            # so that the above blocking code doesn't ignore the lock. We do
+            # this by spawning a lock process
+            my $my_pid = $$;
+            my $lock_pid = fork();
+            if (! defined $lock_pid) {
+                $self->throw("attempt to fork for lock failed: $!");
+            }
+            elsif ($lock_pid == 0) {
+                # child, initiate a lock that will end when the parent stops
+                # running
+                sleep(1);
+                while (1) {
+                    warn "updating dataelements, please wait...\n" if $status_messages;
+                    my $still_running = kill(0, $my_pid);
+                    $self->_lock(DateTime->now());
+                    $self->update;
+                    $self->disconnect;
+                    sleep 15;
                 }
+                exit(0);
             }
             
+            # we need to create a DataElementState for each setup using this
+            # datasource for each new dataelement. To minimise time wasted
+            # trying to create DES when they already exist, before getting new
+            # elements we find out what the most recent element id is:
+            my ($most_recent_element_id) = VRPipe::DataElement->get_column_values('id', { datasource => $self->id }, { order_by => { -desc => ['id'] }, rows => 1 });
+            
+            # now get the source to create new dataelements:
+            $source->_generate_elements;
+            
+            # now page through dataelements with a higher id than previous most
+            # recent:
+            my @des_args;
+            my $pager = VRPipe::DataElement->get_column_values_paged('id', { datasource => $self->id, $most_recent_element_id ? (id => { '>' => $most_recent_element_id }) : () });
+            while (my $eids = $pager->next) {
+                foreach my $eid (@$eids) {
+                    foreach my $setup (@setups) {
+                        push(@des_args, { pipelinesetup => $setup->id, dataelement => $eid });
+                    }
+                }
+            }
+            VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
+            
+            # we're done, so update changed marker
             $self->_changed_marker($source->_changed_marker);
+            $self->update;
+            
+            # cleanup the lock process and set _lock() to 1 minute ago (we can't
+            # undef it, but doing this gives the same result)
+            kill(9, $lock_pid);
+            waitpid($lock_pid, 0);
+            $self->_lock(DateTime->from_epoch(epoch => time() - 60));
             $self->update;
         }
         else {
             # check that a new pipelinesetup hasn't been created since the source
             # last changed
-            my $expected_count = $schema->resultset('DataElement')->count({ datasource => $self->id });
+            my $expected_count = VRPipe::DataElement->search({ datasource => $self->id });
+            
+            my @des_args;
             foreach my $setup (@setups) {
-                my $count = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup->id });
+                my $count = VRPipe::DataElementState->search({ pipelinesetup => $setup->id });
+                
                 if ($count < $expected_count) {
-                    $rs = $schema->resultset('DataElement')->search({ datasource => $self->id });
-                    my @elements;
-                    while (my $element = $rs->next) {
-                        VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+                    my $pager = VRPipe::DataElement->search_paged({ datasource => $self->id });
+                    while (my $dataelements = $pager->next) {
+                        foreach my $element (@$dataelements) {
+                            push(@des_args, { pipelinesetup => $setup->id, dataelement => $element->id });
+                        }
                     }
                 }
             }
+            VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
         }
         
         return 1;

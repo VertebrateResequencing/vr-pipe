@@ -64,13 +64,12 @@ role VRPipe::DataSourceRole {
     requires 'source_description';
     requires 'method_description';
     
-    method _get_elements {
+    method _generate_elements {
         my $handle = $self->_handle || return;
         my $method = $self->method;
         $self->can($method) || $self->throw("Invalid method '$method' for ".ref($self));
-        my $elements = $self->$method(%{$self->options}, handle => $handle);
+        $self->$method(%{$self->options}, handle => $handle);
         $self->_update_changed_marker;
-        return $elements;
     }
     
     method get_methods {
@@ -112,6 +111,17 @@ role VRPipe::DataSourceRole {
         }
         
         return @return;
+    }
+    
+    # a datasource method should call this when it wants to create/update
+    # all the current dataelements for the source. Here is where we handle
+    # withdrawing things no longer in the source as well.
+    method _create_elements (ArrayRef $e_args) {
+        # first make any existing elements withdrawn
+        VRPipe::DataElement->search_rs({ datasource => $self->_datasource_id })->update({ withdrawn => 1 });
+        
+        # now create/update, setting withdrawn => 0 if not set
+        VRPipe::DataElement->bulk_create_or_update(map { $_->{withdrawn} = 0 unless defined $_->{withdrawn}; $_; } @$e_args);
     }
 }
 

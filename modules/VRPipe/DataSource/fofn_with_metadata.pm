@@ -69,11 +69,12 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
     }
     
     method all (Defined :$handle!) {
-        my @elements;
+        my @element_args;
+        my $did = $self->_datasource_id;
         foreach my $result ($self->_all_results(handle => $handle)) {
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $result->{paths}}));
+            push(@element_args, { datasource => $did, result => {paths => $result->{paths}} });
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
     
     around _all_results (Defined :$handle!, Str :$delimiter?, ArrayRef :$path_columns?, Bool :$columns_are_paths?) {
@@ -122,11 +123,11 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
         }
         
         my $did = $self->_datasource_id;
-        my @elements;
+        my @element_args;
         while (my ($group, $data) = each %$group_hash) {
-            push(@elements, VRPipe::DataElement->get(datasource => $did, result => { paths => $data->{paths}, group => $group }, withdrawn => 0));
+            push(@element_args, { datasource => $did, result => { paths => $data->{paths}, group => $group } });
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
 }
 

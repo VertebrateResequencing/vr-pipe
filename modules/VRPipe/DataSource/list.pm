@@ -62,11 +62,11 @@ class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
     }
     
     method all (Defined :$handle!, Bool :$skip_comments = 1, Bool :$line_is_path = 0) {
-        my @elements;
+        my @element_args;
         foreach my $result ($self->_all_results(handle => $handle, skip_comments => $skip_comments, line_is_path => $line_is_path)) {
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $result, withdrawn => 0));
+            push(@element_args, { datasource => $self->_datasource_id, result => $result });
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
     
     method _all_results (Defined :$handle!, Bool :$skip_comments = 1, Bool :$line_is_path = 0) {
