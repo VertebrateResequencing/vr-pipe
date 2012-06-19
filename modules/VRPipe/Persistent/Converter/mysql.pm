@@ -88,7 +88,7 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
     }
     
     method get_boolean_type () {
-	return 'bool';
+	return 'tinyint';
     }
     
     method get_index_statements (Str $table_name, HashRef $for_indexing, Str $mode) {
@@ -148,15 +148,6 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 	);
 	
 	return \%idx_cols;
-    }
-    
-    method retype_index_cols (HashRef $idx_cols) {
-	# Bools are implemented as tinyint; retype when checking if a table has changed during db upgrade
-	foreach my $k (keys %{$idx_cols}) {
-	    if ($idx_cols->{$k} eq 'bool') {
-		$idx_cols->{$k} = 'tinyint';
-	    }
-	}
     }
 }
 
