@@ -76,15 +76,11 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     # deploy method overridden in order to add indexes in a db-dependent manner
     sub deploy {
         my ($self, $sqltargs, $dir) = @_;
-
+	
         $self->throw_exception("Can't deploy without storage") unless $self->storage;
         $self->storage->deploy($self, undef, $sqltargs, $dir);
-
-        my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
-        my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
-
-        my $idx_cmds = $converter->index_statements($self,'create');
-
+	
+        my $idx_cmds = $self->get_idx_sql('create');
         if ($idx_cmds) {
             $self->storage->dbh_do(
                 sub {
@@ -99,12 +95,12 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     }
 
     sub get_idx_sql {
-        my ($self,$mode) = @_;
-		$mode = 'create' unless $mode;
-
+        my ($self, $mode) = @_;
+	$mode = 'create' unless $mode;
+	
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
-
+	
         return $converter->index_statements($self, $mode);
     }
 }
