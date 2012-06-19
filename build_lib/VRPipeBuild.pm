@@ -103,7 +103,8 @@ sub required_modules {
 
 our %do_not_use = ('perl' => 1,
                    'DBIx::Class::DeploymentHandler' => 1,
-                   'Inline::C' => 1);
+                   'Inline::C' => 1,
+		   'MooseX::Daemonize' => 1);
 
 sub create_site_config {
     my $self = shift;

@@ -63,7 +63,6 @@ foreach my $class (keys %{$s->class_mappings}) {
 
     $for_indexing_pre_upgrade{$table_name} = $converter->get_index_cols($s, $table_name);
 	$for_indexing_post_upgrade{$table_name} = $meta->get_attribute('idx_keys')->get_value($meta);
-	$converter->retype_index_cols($for_indexing_post_upgrade{$table_name});
 }
 foreach my $tbl (keys %for_indexing_pre_upgrade) {
 	unless ( Compare ($for_indexing_pre_upgrade{$tbl}, $for_indexing_post_upgrade{$tbl})) {
@@ -96,5 +95,7 @@ if (@idx_cmds) {
 		\@idx_cmds
 	);
 }
+
+print "Upgrade complete!\n";
 
 exit;
