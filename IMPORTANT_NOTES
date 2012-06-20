@@ -1,3 +1,11 @@
+# version 0.74:
+Minor changes to the schema (size of some int columns); be sure to run
+vrpipe-db_upgrade if you have used a previous version of VRPipe.
+
+# version 0.73:
+This version adds support for sqlite, though it currently locks up the database
+whilst running pipelines; it is only really suited for parsing use.
+
 # version 0.31:
 This version introduces proper database independence, and also automatic
 indexing of appropriate columns. The only converter written so far, however,
