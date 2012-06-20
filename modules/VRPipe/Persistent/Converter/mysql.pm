@@ -92,22 +92,16 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
     }
     
     method get_index_statements (Str $table_name, HashRef $for_indexing, Str $mode) {
-	my @index_details;
+	my @idx_cmds;
 	foreach my $col (sort keys %{$for_indexing}) {
 	    my $index_name = $table_name.'_idx_'.$col;
 	    
+	    my $spec = $col;
 	    if ($for_indexing->{$col} eq 'text') {
 		# text index requires a size
-		push(@index_details, [$index_name, "$col(255)"]);
+		$spec = "$col(255)";
 	    }
-	    else {
-		push(@index_details, [$index_name, $col]);
-	    }
-	}
-	
-	my @idx_cmds;
-	foreach my $index_detail (@index_details) {
-	    my ($index_name, $spec) = @$index_detail;
+	    
 	    if ($mode eq 'create') {
 		push(@idx_cmds, "create index $index_name on $table_name ($spec)");
 	    }
@@ -115,7 +109,6 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 		push(@idx_cmds, "drop index $index_name on $table_name");
 	    }
 	}
-	
 	return \@idx_cmds;
     }
     

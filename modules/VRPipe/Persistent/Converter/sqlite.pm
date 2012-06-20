@@ -65,22 +65,17 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
     }
     
     method get_index_statements (Str $table_name, HashRef $for_indexing, Str $mode) {
-	my @index_details;
-	foreach my $col (sort keys %{$for_indexing}) {
-	    push(@index_details, [$table_name.'_idx_'.$col, $col]);
-	}
-	
 	my @idx_cmds;
-	foreach my $index_detail (@index_details) {
-	    my ($index_name, $spec) = @$index_detail;
+	foreach my $col (sort keys %{$for_indexing}) {
+	    my $index_name = $table_name.'_idx_'.$col;
+	    
 	    if ($mode eq 'create') {
-		push(@idx_cmds, "create index $index_name on $table_name ($spec)");
+		push(@idx_cmds, "create index $index_name on $table_name ($col)");
 	    }
 	    else {
 		push(@idx_cmds, "drop index $index_name");
 	    }
 	}
-	
 	return \@idx_cmds;
     }
     
