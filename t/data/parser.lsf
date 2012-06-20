@@ -1,0 +1,70 @@
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@uk10k-1-1-11>
+Subject: Job 729576[1]: <vrpipe91291[1-1]> Exited
+
+Job <vrpipe91291[1-1]> was submitted from host <uk10k-1-1-01> by user <sb10> in cluster <uk10k>.
+Job was executed on host(s) <uk10k-1-1-11>, in queue <long>, as user <sb10> in cluster <uk10k>.
+</nfs/users/nfs_s/sb10> was used as the home directory.
+</nfs/users/nfs_s/sb10> was used as the working directory.
+Started at Thu Jun  7 03:27:56 2012
+Results reported at Thu Jun  7 03:29:38 2012
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[production]); VRPipe::Scheduler->get(id => 1)->run_on_node(index => shift, array => 91291);"
+------------------------------------------------------------
+
+TERM_MEMLIMIT: job killed after reaching LSF memory usage limit.
+Exited with exit code 130.
+
+Resource usage summary:
+
+    CPU time   :    121.00 sec.
+    Max Memory :      3009 MB
+    Max Swap   :      3432 MB
+
+    Max Processes  :         9
+    Max Threads    :        17
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file </lustre/scratch105/vrpipe/4/2/4/1/VRPipe__PersistentArray__91291/scheduler_stderr.1> for stderr output of this job.
+
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@uk10k-1-1-03>
+Subject: Job 729579[1]: <vrpipe91294[1-1]> Done
+
+Job <vrpipe91294[1-1]> was submitted from host <uk10k-1-1-01> by user <sb10> in cluster <uk10k>.
+Job was executed on host(s) <uk10k-1-1-03>, in queue <basement>, as user <sb10> in cluster <uk10k>.
+</nfs/users/nfs_s/sb10> was used as the home directory.
+</nfs/users/nfs_s/sb10> was used as the working directory.
+Started at Thu Jun  7 03:33:24 2012
+Results reported at Wed Jun 20 09:09:09 2012
+Cannot open your job file: /nfs/users/nfs_s/sb10/.lsbatch/1339036400.729579.1
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time   :1125279.25 sec.
+    Max Memory :      1435 MB
+    Max Swap   :      2907 MB
+
+    Max Processes  :         9
+    Max Threads    :        17
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file </lustre/scratch105/vrpipe/e/4/a/2/VRPipe__PersistentArray__91294/scheduler_stderr.1> for stderr output of this job.
+

@@ -58,12 +58,19 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
             if ($user_opts) {
                 $user_opts =~ s/-o//;
                 $opts .= ' '.$user_opts;
-                if ($user_opts =~ /-m (\d+)/) {
+                if ($user_opts =~ /-m (\d+)([KMG])/) {
                     $mem = $1;
+                    my $m_unit = $2;
+                    if ($m_unit eq 'K') {
+                        $mem /= 1000;
+                    }
+                    elsif ($m_unit eq 'G') {
+                        $mem *= 1000;
+                    }
                 }
             }
             
-            my $req = $self->new_requirements(memory => $mem == 768 ? 3000 : (4*$mem), time => 2); # in some cases samtools can use way more than the -m specified, and is very segfaul happy
+            my $req = $self->new_requirements(memory => $mem == 768 ? 3000 : (4*$mem), time => 2); # in some cases samtools can use way more than the -m specified, and is very segfault happy
             my $memory = $req->memory;
             
             foreach my $bam (@{$self->inputs->{bam_files}}) {
