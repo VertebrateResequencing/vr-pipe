@@ -89,14 +89,15 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
 	my $rc  = $schema->storage->dbh_do(
 	    sub {
 		my ($storage, $dbh, $table_name) = @_;
-		my $res = $dbh->selectrow_hashref(qq[select sql from sqlite_master where tbl_name = '$table_name' and type = 'index' and name like '${table_name}_idx_%']);
-		my $create_index_sql = $res->{sql} || return; # not all classes have is_keys
-		my ($col_name) = $create_index_sql =~ /CREATE INDEX ${table_name}_idx_\w+ on $table_name \((.+)\)/i;
-		
-		my $res2 = $dbh->selectrow_hashref(qq[select sql from sqlite_master where name = '$table_name' and type = 'table']);
-		my $create_table_sql = $res2->{sql};
-		$create_table_sql =~ /$col_name (\w+)/;
-		$idx_cols{$col_name} = $1;
+		my $res = $dbh->selectall_arrayref(qq[select sql from sqlite_master where tbl_name = '$table_name' and type = 'index' and name like '${table_name}_idx_%']);
+		foreach (@$res) {
+		    my ($col_name) = $_->[0] =~ /CREATE INDEX ${table_name}_idx_\w+ on $table_name \((.+)\)/i;
+		    
+		    my $res2 = $dbh->selectrow_hashref(qq[select sql from sqlite_master where name = '$table_name' and type = 'table']);
+		    my $create_table_sql = $res2->{sql};
+		    $create_table_sql =~ /$col_name (\w+)/;
+		    $idx_cols{$col_name} = $1;
+		}
 	    },
 	    $table_name
 	);
