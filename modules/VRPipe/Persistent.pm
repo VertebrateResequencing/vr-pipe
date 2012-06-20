@@ -173,14 +173,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my (@psuedo_keys, @non_persistent, %for_indexing, %key_defaults);
+        my (@psuedo_keys, @non_persistent, %for_indexing, %indexed, %key_defaults);
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my %flations;
         my $meta = $class->meta;
-
+	
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype); # eg mysql
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
-
+	
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
             unless ($attr->does('VRPipe::Persistent::Attributes')) {
@@ -337,9 +337,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
 	    
 	    # note what will need indexing, except for Persistent columns which
-	    # are auto-indexed by DBIx::Class
-            if ($attr->is_key && ! $is_a_persistent) {
-                $for_indexing{$name} = $column_info->{data_type};
+	    # are auto-indexed by DBIx::Class. We also note everything that
+	    # should be indexed, for schema upgrading purposes.
+            if ($attr->is_key) {
+                $for_indexing{$name} = $column_info->{data_type} unless $is_a_persistent;
+		$indexed{$name} = $column_info->{data_type};
             }
             
             # add the column in DBIx::Class, altering the name of the
@@ -639,8 +641,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         });
         
         # set up meta data to add indexes for the key columns after schema deploy
-	$meta->add_attribute('idx_keys' => ( is => 'rw', isa  => 'HashRef'));
-	$meta->get_attribute('idx_keys')->set_value($meta,\%for_indexing);
+	$meta->add_attribute('cols_to_idx' => ( is => 'rw', isa  => 'HashRef'));
+	$meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
+	$meta->add_attribute('idxd_cols' => ( is => 'rw', isa  => 'HashRef'));
+	$meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
     }
     
     # like discard_changes, except we don't clumsily wipe out the whole $self

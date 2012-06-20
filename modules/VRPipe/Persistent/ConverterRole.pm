@@ -53,7 +53,7 @@ role VRPipe::Persistent::ConverterRole {
             $table_name = lc($table_name);
 	    
             my $meta = $class->meta;
-            my $for_indexing = $meta->get_attribute('idx_keys')->get_value($meta);
+            my $for_indexing = $meta->get_attribute('cols_to_idx')->get_value($meta);
 	    
             if (keys %{$for_indexing}) {
 		push(@idx_cmds, @{$self->get_index_statements($table_name, $for_indexing, $mode)});

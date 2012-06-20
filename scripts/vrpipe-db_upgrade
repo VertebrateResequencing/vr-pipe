@@ -62,7 +62,7 @@ foreach my $class (keys %{$s->class_mappings}) {
     my $meta = $class->meta;
     
     $for_indexing_pre_upgrade{$table_name} = $converter->get_index_cols($s, $table_name);
-    $for_indexing_post_upgrade{$table_name} = $meta->get_attribute('idx_keys')->get_value($meta);
+    $for_indexing_post_upgrade{$table_name} = $meta->get_attribute('idxd_cols')->get_value($meta);
 }
 foreach my $tbl (keys %for_indexing_pre_upgrade) {
     unless ( Compare ($for_indexing_pre_upgrade{$tbl}, $for_indexing_post_upgrade{$tbl})) {
