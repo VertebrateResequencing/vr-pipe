@@ -92,34 +92,35 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
     }
     
     method get_index_statements (Str $table_name, HashRef $for_indexing, Str $mode) {
-	my @idx_cmds;
-	my ($cols, $txt_cols);
+	my @index_details;
+	foreach my $col (sort keys %{$for_indexing}) {
+	    my $index_name = $table_name.'_idx_'.$col;
+	    
+	    if ($for_indexing->{$col} eq 'text') {
+		# text index requires a size
+		push(@index_details, [$index_name, "$col(255)"]);
+	    }
+	    else {
+		push(@index_details, [$index_name, $col]);
+	    }
+	}
 	
-	foreach my $k (keys %{$for_indexing}) {
-	    if ($for_indexing->{$k} eq 'text') { # text index requires a size
-		$txt_cols .= "$k(255),";
+	my @idx_cmds;
+	foreach my $index_detail (@index_details) {
+	    my ($index_name, $spec) = @$index_detail;
+	    if ($mode eq 'create') {
+		push(@idx_cmds, "create index $index_name on $table_name ($spec)");
 	    }
 	    else {
-		$cols .= "$k,";
+		push(@idx_cmds, "drop index $index_name on $table_name");
 	    }
 	}
-	if ($cols) {
-	    if ($mode eq 'create') {
-		chop($cols);
-		push(@idx_cmds,"create index psuedo_idx on $table_name ($cols)");
-	    }
-	    else {
-		push(@idx_cmds,"drop index psuedo_idx on $table_name");
-	    }
-	}
-	if ($txt_cols) {
-	    if ($mode eq 'create') {
-		chop($txt_cols);
-		push(@idx_cmds,"create index txt_idx on $table_name ($txt_cols)");
-	    }
-	    else {
-		push(@idx_cmds,"drop index txt_idx on $table_name");
-	    }
+	
+	# *** this release version only, drop the old (bad) indexes we made
+	#     previously
+	if ($mode eq 'drop') {
+	    push(@idx_cmds, "drop index psuedo_idx on $table_name");
+	    push(@idx_cmds, "drop index txt_idx on $table_name");
 	}
 	
 	return \@idx_cmds;
@@ -136,8 +137,8 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 	    sub {
 		my ($storage, $dbh, $table_name) = @_;
 		my $res = $dbh->selectall_arrayref("show index from $table_name");
-		foreach( @$res ) {
-		    if ($_->[2] eq 'txt_idx' or $_->[2] eq 'psuedo_idx') {
+		foreach (@$res) {
+		    if ($_->[2] =~ /${table_name}_idx_/) {
 			my $col_name = $_->[4];
 			my $res2 = $dbh->selectrow_hashref("select data_type from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = '$db_name' and TABLE_NAME = '$table_name' and COLUMN_NAME = '$col_name'");
 			$idx_cols{$col_name} = $res2->{data_type};

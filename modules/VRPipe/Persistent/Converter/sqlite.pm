@@ -65,19 +65,19 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
     }
     
     method get_index_statements (Str $table_name, HashRef $for_indexing, Str $mode) {
-	my @idx_cmds;
-	my $cols;
-	
-	foreach my $k (keys %{$for_indexing}) {
-	    $cols .= "$k,";
+	my @index_details;
+	foreach my $col (sort keys %{$for_indexing}) {
+	    push(@index_details, [$table_name.'_idx_'.$col, $col]);
 	}
-	if ($cols) {
+	
+	my @idx_cmds;
+	foreach my $index_detail (@index_details) {
+	    my ($index_name, $spec) = @$index_detail;
 	    if ($mode eq 'create') {
-		chop($cols);
-		push(@idx_cmds,"create index ${table_name}_psuedo_idx on $table_name ($cols)");
+		push(@idx_cmds, "create index $index_name on $table_name ($spec)");
 	    }
 	    else {
-		push(@idx_cmds,"drop index ${table_name}_psuedo_idx");
+		push(@idx_cmds, "drop index $index_name");
 	    }
 	}
 	
@@ -94,15 +94,14 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
 	my $rc  = $schema->storage->dbh_do(
 	    sub {
 		my ($storage, $dbh, $table_name) = @_;
-		my $res = $dbh->selectrow_hashref(qq[select sql from sqlite_master where tbl_name = '$table_name' and type = 'index' and name = '${table_name}_psuedo_idx']);
+		my $res = $dbh->selectrow_hashref(qq[select sql from sqlite_master where tbl_name = '$table_name' and type = 'index' and name like '${table_name}_idx_%']);
 		my $create_index_sql = $res->{sql} || return; # not all classes have is_keys
-		my ($cols) = $create_index_sql =~ /CREATE INDEX ${table_name}_psuedo_idx on $table_name \((.+)\)/i;
-		foreach my $col_name (split(',', $cols)) {
-		    my $res2 = $dbh->selectrow_hashref(qq[select sql from sqlite_master where name = '$table_name' and type = 'table']);
-		    my $create_table_sql = $res2->{sql};
-		    $create_table_sql =~ /$col_name (\w+)/;
-		    $idx_cols{$col_name} = $1;
-		}
+		my ($col_name) = $create_index_sql =~ /CREATE INDEX ${table_name}_idx_\w+ on $table_name \((.+)\)/i;
+		
+		my $res2 = $dbh->selectrow_hashref(qq[select sql from sqlite_master where name = '$table_name' and type = 'table']);
+		my $create_table_sql = $res2->{sql};
+		$create_table_sql =~ /$col_name (\w+)/;
+		$idx_cols{$col_name} = $1;
 	    },
 	    $table_name
 	);
