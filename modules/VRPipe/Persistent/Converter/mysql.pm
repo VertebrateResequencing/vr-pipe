@@ -116,13 +116,6 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 	    }
 	}
 	
-	# *** this release version only, drop the old (bad) indexes we made
-	#     previously
-	if ($mode eq 'drop') {
-	    push(@idx_cmds, "drop index psuedo_idx on $table_name");
-	    push(@idx_cmds, "drop index txt_idx on $table_name");
-	}
-	
 	return \@idx_cmds;
     }
     
