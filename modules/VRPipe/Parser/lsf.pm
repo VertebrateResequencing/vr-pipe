@@ -144,8 +144,8 @@ class VRPipe::Parser::lsf with VRPipe::ParserRole {
                 elsif (! $status && /^Exited with exit code/) { $status = 'exited'; }
                 elsif (/^TERM_\S+ job killed by/) { $status = 'killed'; }
                 elsif (/^TERM_([^:]+):/) { $status = $1; }
-                elsif (/^\s+CPU time\s+:\s+(\S+)/) { $cpu = $1; }
-                elsif (/^\s+Max Memory\s+:\s+(\S+)\s+(\S+)/) { 
+                elsif (/^\s+CPU time\s+:\s*(\S+)/) { $cpu = $1; }
+                elsif (/^\s+Max Memory\s+:\s*(\S+)\s+(\S+)/) {
                     $mem = $1;
                     if ($2 eq 'KB') { $mem /= 1024; }
                     elsif ($2 eq 'GB') { $mem *= 1024; }
