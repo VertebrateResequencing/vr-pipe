@@ -104,6 +104,10 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
 	
 	return \%idx_cols;
     }
+    
+    method index_creation_style {
+        return 'all';
+    }
 }
 
 1;

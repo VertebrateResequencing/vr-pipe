@@ -36,9 +36,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRole { 
+class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRole {
     method description {
-        return "MySQL implemetation of database-specific methods used by Persistent";
+        return "MySQL implementation of database-specific methods used by Persistent";
     }
 
     method capitalise_name {
@@ -135,6 +135,10 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 	);
 	
 	return \%idx_cols;
+    }
+    
+    method index_creation_style {
+        return 'single';
     }
 }
 

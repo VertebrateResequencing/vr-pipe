@@ -44,6 +44,7 @@ role VRPipe::Persistent::ConverterRole {
     requires 'get_boolean_type';
     requires 'get_index_statements';
     requires 'get_index_cols';
+    requires 'index_creation_style';
 
     method index_statements (VRPipe::Persistent::Schema $schema, Str $mode) {
 	my @idx_cmds;
