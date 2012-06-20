@@ -53,21 +53,18 @@ my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
 
 #Check table index equivalence
 my @idx_cmds;
-my (%for_indexing_pre_upgrade, %for_indexing_post_upgrade);
-
 foreach my $class (keys %{$s->class_mappings}) {
     my $table_name = $class;
     $table_name =~ s/.*:://;
     $table_name = lc($table_name);
     my $meta = $class->meta;
     
-    $for_indexing_pre_upgrade{$table_name} = $converter->get_index_cols($s, $table_name);
-    $for_indexing_post_upgrade{$table_name} = $meta->get_attribute('idxd_cols')->get_value($meta);
-}
-foreach my $tbl (keys %for_indexing_pre_upgrade) {
-    unless ( Compare ($for_indexing_pre_upgrade{$tbl}, $for_indexing_post_upgrade{$tbl})) {
-        push(@idx_cmds, @{$converter->get_index_statements($tbl, $for_indexing_pre_upgrade{$tbl}, 'drop')} );
-        push(@idx_cmds, @{$converter->get_index_statements($tbl, $for_indexing_post_upgrade{$tbl}, 'create')} );
+    my $pre = $converter->get_index_cols($s, $table_name);
+    my $post = $meta->get_attribute('idxd_cols')->get_value($meta);
+    
+    unless (Compare($pre, $post)) {
+        push(@idx_cmds, @{$converter->get_index_statements($table_name, $pre, 'drop')} );
+        push(@idx_cmds, @{$converter->get_index_statements($table_name, $meta->get_attribute('cols_to_idx')->get_value($meta), 'create')} );
     }
 }
 
