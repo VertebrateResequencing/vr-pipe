@@ -241,6 +241,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             
             # determine the type constraint that the database should use
+	    my $is_a_persistent = 0;
             if ($attr->has_type_constraint) {
                 my $t_c = $attr->type_constraint;
                 my $cname = $t_c->name;
@@ -251,17 +252,17 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 my $is_numeric = 0;
                 if ($cname =~ /IntSQL\[(\d+)\]/) {
                     $size = $1;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
                 }
                 elsif ($cname =~ /Varchar\[(\d+)\]/) {
                     $size = $1;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
                 }
                 elsif ($cname eq 'Text') {
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'Bool') {
-                	$cname = $converter->get_boolean_type();
+                    $cname = $converter->get_boolean_type();
                 }
                 elsif ($cname =~ /Ref/) {
                     if ($cname eq 'CodeRef') {
@@ -306,22 +307,22 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     else {
                         die "unsupported constraint '$cname' for attribute $name in $class\n";
                     }
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
-                    
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'Datetime') {
-                	$cname = $converter->get_datetime_type();
+                    $cname = $converter->get_datetime_type();
                 }
                 elsif ($cname eq 'Persistent') {
                     $size = 9;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
+		    $is_a_persistent = 1;
                 }
                 elsif ($cname eq 'File' || $cname eq 'AbsoluteFile' || $cname eq 'Dir') {
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'FileType') {
                     $size = 4;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
@@ -334,8 +335,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             else {
                 die "attr $name has no constraint in $class\n";
             }
-
-            if ($attr->is_key) {
+	    
+	    # note what will need indexing, except for Persistent columns which
+	    # are auto-indexed by DBIx::Class
+            if ($attr->is_key && ! $is_a_persistent) {
                 $for_indexing{$name} = $column_info->{data_type};
             }
             
@@ -636,8 +639,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         });
         
         # set up meta data to add indexes for the key columns after schema deploy
-		$meta->add_attribute( 'idx_keys' => ( is => 'rw', isa  => 'HashRef') );
-		$meta->get_attribute('idx_keys')->set_value($meta,\%for_indexing);
+	$meta->add_attribute('idx_keys' => ( is => 'rw', isa  => 'HashRef'));
+	$meta->get_attribute('idx_keys')->set_value($meta,\%for_indexing);
     }
     
     # like discard_changes, except we don't clumsily wipe out the whole $self
