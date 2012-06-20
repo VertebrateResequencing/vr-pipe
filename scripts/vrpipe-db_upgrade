@@ -32,7 +32,6 @@ use aliased 'DBIx::Class::DeploymentHandler' => 'DH';
   
 use VRPipe::Persistent::SchemaBase;
 use VRPipe::Persistent::ConverterFactory;
-use Data::Compare;
 
 my $to = PS->VERSION;
 my $from = $to - 1;
@@ -59,12 +58,29 @@ foreach my $class (keys %{$s->class_mappings}) {
     $table_name = lc($table_name);
     my $meta = $class->meta;
     
+    # drop indexes we no longer want or where the column changed type, then
+    # recreate the index in the latter case
     my $pre = $converter->get_index_cols($s, $table_name);
     my $post = $meta->get_attribute('idxd_cols')->get_value($meta);
+    my %created;
+    while (my ($col, $type) = each %$pre) {
+	unless (defined $post->{$col} && $post->{$col} eq $type) {
+	    push(@idx_cmds, @{$converter->get_index_statements($table_name, {$col => $type}, 'drop')});
+	    
+	    if (defined $post->{$col}) {
+		push(@idx_cmds, @{$converter->get_index_statements($table_name, {$col => $post->{$col}}, 'create')}) if defined $post->{$col};
+		$created{$col} = 1;
+	    }
+	}
+    }
     
-    unless (Compare($pre, $post)) {
-        push(@idx_cmds, @{$converter->get_index_statements($table_name, $pre, 'drop')} );
-        push(@idx_cmds, @{$converter->get_index_statements($table_name, $meta->get_attribute('cols_to_idx')->get_value($meta), 'create')} );
+    # create indexes new to this version
+    my $to_create = $meta->get_attribute('cols_to_idx')->get_value($meta);
+    while (my ($col, $type) = each %$to_create) {
+	next if $created{$col};
+	unless (defined $pre->{$col} && $pre->{$col} eq $type) {
+	    push(@idx_cmds, @{$converter->get_index_statements($table_name, {$col => $type}, 'create')});
+	}
     }
 }
 

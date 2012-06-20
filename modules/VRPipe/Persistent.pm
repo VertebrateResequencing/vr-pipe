@@ -336,13 +336,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 die "attr $name has no constraint in $class\n";
             }
 	    
-	    # note what will need indexing, except for Persistent columns which
-	    # are auto-indexed by DBIx::Class. We also note everything that
-	    # should be indexed, for schema upgrading purposes.
+	    # note what will need indexing by us, and seperately note everything
+	    # that gets indexed - DBIx::Class auto-indexes Persistent cols
             if ($attr->is_key) {
                 $for_indexing{$name} = $column_info->{data_type} unless $is_a_persistent;
 		$indexed{$name} = $column_info->{data_type};
             }
+	    if ($is_a_persistent) {
+		$indexed{$name} = $column_info->{data_type};
+	    }
             
             # add the column in DBIx::Class, altering the name of the
             # auto-generated accessor so that we will keep our moose generated
