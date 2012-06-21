@@ -241,7 +241,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
             
             # determine the type constraint that the database should use
-	    my $is_a_persistent = 0;
             if ($attr->has_type_constraint) {
                 my $t_c = $attr->type_constraint;
                 my $cname = $t_c->name;
@@ -315,7 +314,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 elsif ($cname eq 'Persistent') {
                     $size = 9;
                     ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
-		    $is_a_persistent = 1;
                 }
                 elsif ($cname eq 'File' || $cname eq 'AbsoluteFile' || $cname eq 'Dir') {
                     ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
