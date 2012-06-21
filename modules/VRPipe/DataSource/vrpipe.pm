@@ -166,18 +166,27 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             }
             push @element_args, { datasource => $self->_datasource_id, result => $res };
             
-            $result_to_linkargs{nfreeze($res)} = {pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id}};
+            $result_to_linkargs{_res_to_str($res)} = {pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id}};
         }
         $self->_create_elements(\@element_args);
         
         # create corresponding dataelementlinks
         my @link_args;
-        my %result_to_eid = map { nfreeze($_->[0]) => $_->[1] } @{VRPipe::DataElement->get_column_values(['result', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || []};
+        my %result_to_eid = map { _res_to_str($_->[0]) => $_->[1] } @{VRPipe::DataElement->get_column_values(['result', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || []};
         while (my ($res, $linkargs) = each %result_to_linkargs) {
             my $child = $result_to_eid{$res} || $self->throw("No DataElement was created for result $res?");
             push(@link_args, { %$linkargs, child => $child });
         }
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
+    }
+    
+    sub _res_to_str {
+        my $res = shift;
+        my $str = join('|', @{$res->{paths} || []});
+        foreach my $key ('lane', 'group') {
+            $str .= '|'.$res->{$key} if defined $res->{$key};
+        }
+        return $str;
     }
     
     method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
