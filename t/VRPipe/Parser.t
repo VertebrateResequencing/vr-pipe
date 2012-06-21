@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 75;
+    use Test::Most tests => 76;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -40,6 +40,11 @@ undef $p;
 $p = VRPipe::Parser->create('lsf', {file => file(qw(t data lsf.stdout))});
 $p->next_record;
 is $p->parsed_record->[4], 4.75, 'next_record and parsed_record work on the first (last) record';
+
+undef $p;
+$p = VRPipe::Parser->create('lsf', {file => file(qw(t data parser.lsf))});
+$p->next_record;
+is_deeply [$p->cpu_time, $p->time], [1125279.25, 1143345], 'able to get the correct cpu and wall time for an unusual test case';
 
 # loc
 undef $p;

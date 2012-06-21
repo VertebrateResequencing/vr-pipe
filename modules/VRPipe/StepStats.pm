@@ -68,7 +68,7 @@ class VRPipe::StepStats extends VRPipe::Persistent {
                      traits => ['VRPipe::Persistent::Attributes']);
     
     has 'time' => (is => 'rw',
-                   isa => IntSQL[6],
+                   isa => IntSQL[8], # this time is in seconds, and we might have something run for weeks or even months
                    traits => ['VRPipe::Persistent::Attributes']);
     
     __PACKAGE__->make_persistent();

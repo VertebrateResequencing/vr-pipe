@@ -36,9 +36,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRole { 
+class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRole {
     method description {
-        return "MySQL implemetation of database-specific methods used by Persistent";
+        return "MySQL implementation of database-specific methods used by Persistent";
     }
 
     method capitalise_name {
@@ -93,35 +93,22 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
     
     method get_index_statements (Str $table_name, HashRef $for_indexing, Str $mode) {
 	my @idx_cmds;
-	my ($cols, $txt_cols);
-	
-	foreach my $k (keys %{$for_indexing}) {
-	    if ($for_indexing->{$k} eq 'text') { # text index requires a size
-		$txt_cols .= "$k(255),";
+	foreach my $col (sort keys %{$for_indexing}) {
+	    my $index_name = $table_name.'_idx_'.$col;
+	    
+	    my $spec = $col;
+	    if ($for_indexing->{$col} eq 'text') {
+		# text index requires a size
+		$spec = "$col(255)";
 	    }
-	    else {
-		$cols .= "$k,";
-	    }
-	}
-	if ($cols) {
+	    
 	    if ($mode eq 'create') {
-		chop($cols);
-		push(@idx_cmds,"create index psuedo_idx on $table_name ($cols)");
+		push(@idx_cmds, "create index $index_name on $table_name ($spec)");
 	    }
 	    else {
-		push(@idx_cmds,"drop index psuedo_idx on $table_name");
+		push(@idx_cmds, "drop index $index_name on $table_name");
 	    }
 	}
-	if ($txt_cols) {
-	    if ($mode eq 'create') {
-		chop($txt_cols);
-		push(@idx_cmds,"create index txt_idx on $table_name ($txt_cols)");
-	    }
-	    else {
-		push(@idx_cmds,"drop index txt_idx on $table_name");
-	    }
-	}
-	
 	return \@idx_cmds;
     }
     
@@ -136,8 +123,8 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 	    sub {
 		my ($storage, $dbh, $table_name) = @_;
 		my $res = $dbh->selectall_arrayref("show index from $table_name");
-		foreach( @$res ) {
-		    if ($_->[2] eq 'txt_idx' or $_->[2] eq 'psuedo_idx') {
+		foreach (@$res) {
+		    if ($_->[2] =~ /${table_name}_idx_/) {
 			my $col_name = $_->[4];
 			my $res2 = $dbh->selectrow_hashref("select data_type from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = '$db_name' and TABLE_NAME = '$table_name' and COLUMN_NAME = '$col_name'");
 			$idx_cols{$col_name} = $res2->{data_type};
@@ -148,6 +135,10 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
 	);
 	
 	return \%idx_cols;
+    }
+    
+    method index_creation_style {
+        return 'single';
     }
 }
 

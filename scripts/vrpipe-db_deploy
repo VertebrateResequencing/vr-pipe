@@ -45,10 +45,9 @@ if ($idx_cmds) {
 	$s->storage->dbh_do(
 		sub {
 			my ($storage, $dbh, $idx_cmds) = @_;
-
 			my ($cols,$txt_cols);
 			foreach my $cmd (@{$idx_cmds}) {
-			   $dbh->do($cmd);
+				$dbh->do($cmd);
 			}
 		},
 		$idx_cmds

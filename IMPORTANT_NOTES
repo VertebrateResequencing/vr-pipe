@@ -1,3 +1,26 @@
+# version 0.76:
+Like 0.75, this version improves indexes. See the notes for 0.75 if upgrading.
+
+# version 0.75:
+This version increments the schema version, so be sure to run vrpipe-db_upgrade
+if you used a previous version of VRPipe.
+No actual changes to the schema itself were made, however the indexing of
+columns has improved and vrpipe-db_upgrade will add new additional indexes to
+necessary columns. It does not, however, remove the old defunct indexes; you are
+encouraged to remove these yourself. The new indexes which should be kept are
+all named [table_name]_idx_[column_name]. The old indexes which should be
+dropped are named psuedo_idx and txt_idx. If you have used VRPipe for a very
+long time there may be other indexes which you should delete (except for
+PRIMARY).
+
+# version 0.74:
+Minor changes to the schema (size of some int columns); be sure to run
+vrpipe-db_upgrade if you have used a previous version of VRPipe.
+
+# version 0.73:
+This version adds support for sqlite, though it currently locks up the database
+whilst running pipelines; it is only really suited for parsing use.
+
 # version 0.31:
 This version introduces proper database independence, and also automatic
 indexing of appropriate columns. The only converter written so far, however,
