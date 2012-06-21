@@ -322,9 +322,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 # because of fail and restart issues. Instead we always only
                 # actually call $job->run if this submission is the first
                 # submission created for this $job
-                my $schema = $self->result_source->schema;
-                my $rs = $schema->resultset('Submission')->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
-                my $first_sub = $rs->next;
+                my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
                 return unless $first_sub->id == $submission->id;
             }
             $job->run(stepstate => $submission->stepstate);

@@ -441,14 +441,12 @@ role VRPipe::StepRole {
         if (@missing) {
             my $with_recourse = 0;
             my %states_to_restart;
-            my $schema = $self->result_source->schema;
             foreach my $path (@missing) {
                 my $file = VRPipe::File->get(path => $path);
                 next if $file->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
-                my $rs = $schema->resultset('StepOutputFile')->search({ file => $file->id });
                 my $count = 0;
                 my $state;
-                while (my $sof = $rs->next) {
+                foreach my $sof (VRPipe::StepOutputFile->search({ file => $file->id })) {
                     $count++;
                     $state = $sof->stepstate;
                 }

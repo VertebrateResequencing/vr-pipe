@@ -94,9 +94,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
     }
     
     method setups (Str :$pipeline_name?) {
-        my $rs = $self->result_source->schema->resultset('PipelineSetup');
         my @setups;
-        while (my $ps = $rs->next) {
+        foreach my $ps (VRPipe::PipelineSetup->search({ })) {
             my $p = $ps->pipeline;
             if ($pipeline_name) {
                 next unless $p->name eq $pipeline_name;
@@ -333,7 +332,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 # waiting on submissions to complete?
                 my @submissions = $state->submissions;
                 if (@submissions) {
-                    my $unfinished = $self->unfinished_submissions(submissions => \@submissions);
+                    my $unfinished = VRPipe::Submission->search({'_done' => 0, stepstate => $state->id});
                     unless ($unfinished) {
                         my $ok = $step->post_process();
                         if ($ok) {
@@ -349,7 +348,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         }
                     }
                     else {
-                        $self->debug(" we have ".scalar(@$unfinished)." unfinished submissions from a previous parse");
+                        $self->debug(" we have $unfinished unfinished submissions from a previous parse");
                         # don't count this toward the limit if all the
                         # submissions have failed 3 times *** max_retries needs to be consistent and set between trigger and handle
                         my $fails = 0;
@@ -423,13 +422,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
         unless ($state->complete) {
             # are there a behaviours to trigger?
-            my $schema = $self->result_source->schema;
-            my $rs = $schema->resultset('StepBehaviour')->search({ pipeline => $pipeline->id, after_step => $step_number });
-            my @behaviours;
-            while (my $behaviour = $rs->next) {
-                push @behaviours, $behaviour;
-            }
-            foreach my $behaviour (@behaviours) {
+            foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
                 $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
             }
             
@@ -446,45 +439,17 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    #*** passing any large ref of refs to a 'method' causes a memory leak, so we
-    #    must forego type checking and use plain subs for the methods that
-    #    accept submission subrefs as args
-    
-    #method unfinished_submissions (ArrayRef[VRPipe::Submission] :$submissions?) {
-    sub unfinished_submissions {
-        my ($self, %args) = @_;
-        my $submissions = delete $args{submissions};
-        $self->throw("unexpected args") if keys %args;
-        
-        my @not_done;
-        
-        if ($submissions) {
-            foreach my $sub (@$submissions) {
-                push(@not_done, $sub) unless $sub->done;
-            }
-        }
-        else {
-            my $schema = $self->result_source->schema;
-            my $rs = $schema->resultset('Submission')->search({ '_done' => 0 });
-            while (my $sub = $rs->next) {
-                push(@not_done, $sub);
-            }
-        }
-        
-        $self->debug("There are ".scalar(@not_done)." unfinished submissions to work on");
-        
-        return @not_done ? \@not_done : undef;
-    }
-    
     method handle_submissions (Int :$max_retries = 3) {
         # call setups to find step limits
         $self->setups;
         
-        my $submissions = $self->unfinished_submissions();
-        if ($submissions) {
-            $submissions = $self->check_running($submissions);
-            $self->resubmit_failures(max_retries => $max_retries, submissions => $submissions);
-            $self->batch_and_submit($submissions);
+        my $unfinished = VRPipe::Submission->search({ '_done' => 0 }) || 0;
+        $self->debug("There are $unfinished unfinished submissions to work on");
+        
+        if ($unfinished) {
+            $self->check_running();
+            $self->resubmit_failures(max_retries => $max_retries);
+            $self->batch_and_submit();
             return 0;
         }
         else {
@@ -492,30 +457,67 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    #method resubmit_failures (Int :$max_retries, ArrayRef[VRPipe::Submission] :$submissions) {
-    sub resubmit_failures {
-        my ($self, %args) = @_;
-        my $max_retries = delete $args{max_retries};
-        $self->throw("max_retries is required") unless defined $max_retries;
-        my $submissions = delete $args{submissions} || $self->throw("submissions is required");
-        $self->throw("unexpected args") if keys %args;
+    method check_running  {
+        # update the status of each submission in case any of them finished
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0 });
         
-        # this checks all the ->submissions for ones that failed, and uses the standard
-        # Submission and Job methods to work out why and resubmit them as appropriate,
+        my $still_not_done = 0;
+        my $c = 0;
+        while (my $subs = $pager->next) {
+            foreach my $sub (@$subs) {
+                my $job = $sub->job;
+                $c++;
+                $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
+                if ($job->running) {
+                    # check we've had a recent heartbeat
+                    $self->debug(" -- running...");
+                    if ($job->unresponsive) {
+                        $self->debug(" -- unresponsive");
+                        $job->kill_job;
+                        $sub->update_status();
+                    }
+                    elsif ($sub->close_to_time_limit(30)) {
+                        # user's scheduler might kill the submission if it runs too
+                        # long in the queue it was initially submitted to; avoid
+                        # this by changing queue as necessary
+                        $self->debug(" -- within 30mins of time limit, will increase by 2hrs...");
+                        $sub->extra_time(2);
+                    }
+                }
+                elsif ($job->finished) {
+                    $self->debug(" -- finishing by calling sub->update_status...");
+                    $sub->update_status();
+                    $self->debug(" -- success");
+                    next if $sub->done;
+                }
+                elsif ($sub->scheduled) {
+                    # we may be pending in the scheduler, but if we've been
+                    # apparently pending for ages, check the scheduler really is
+                    # pending us and if not reset the submission
+                    my $pend_time = $sub->pend_time;
+                    $self->debug(" -- pending for $pend_time seconds...");
+                    if ($pend_time > 21600) { #*** rather than check every time check_running is called after 6hrs have passed, can we only check again once every subsequent hour?
+                        $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
+                        $sub->unschedule_if_not_pending;
+                    }
+                }
+                
+                $still_not_done++;
+            }
+        }
+        
+        $self->debug("There are $still_not_done submissions that still aren't done");
+    }
+    
+    method resubmit_failures (Int :$max_retries) {
+        # this checks all failed submissions, and uses the standard Submission
+        # and Job methods to work out why and resubmit them as appropriate,
         # potentially with updated Requirements. max_retries defaults to 3.
         
-        #*** not yet fully implemented...
+        my $pager = VRPipe::Submission->search_paged({ _failed => 1, retries => { '<' => $max_retries } });
         
-        my $fails = 0;
-        my $schema = $self->result_source->schema;
-        foreach my $sub (@$submissions) {
-            next unless $sub->failed;
-            
-            if ($sub->retries >= $max_retries) {
-                $self->debug("submission ".$sub->id." retried $max_retries times now, giving up");
-                $fails++;
-            }
-            else {
+        while (my $subs = $pager->next) {
+            foreach my $sub (@$subs) {
                 my $parser = $sub->scheduler_stdout;
                 if ($parser) {
                     my $status = $parser->status;
@@ -536,83 +538,25 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 $sub->retry;
             }
         }
-        
-        $self->debug("There were $fails permanently failed submission");
-        
-        return 1;
     }
     
-    #method check_running (ArrayRef[VRPipe::Submission] $submissions) {
-    sub check_running { 
-        my ($self, $submissions) = @_;
-        
-        # update the status of each submission in case any of them finished
-        my @still_not_done;
-        my $c = 0;
-        foreach my $sub (@$submissions) {
-            my $job = $sub->job;
-            $c++;
-            $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
-            if ($job->running) {
-                # check we've had a recent heartbeat
-                $self->debug(" -- running...");
-                if ($job->unresponsive) {
-                    $self->debug(" -- unresponsive");
-                    $job->kill_job;
-                    $sub->update_status();
-                }
-                elsif ($sub->close_to_time_limit(30)) {
-                    # user's scheduler might kill the submission if it runs too
-                    # long in the queue it was initially submitted to; avoid
-                    # this by changing queue as necessary
-                    $self->debug(" -- within 30mins of time limit, will increase by 2hrs...");
-                    $sub->extra_time(2);
-                }
-            }
-            elsif ($job->finished) {
-                $self->debug(" -- finishing by calling sub->update_status...");
-                $sub->update_status();
-                $self->debug(" -- success");
-                next if $sub->done;
-            }
-            elsif ($sub->scheduled) {
-                # we may be pending in the scheduler, but if we've been
-                # apparently pending for ages, check the scheduler really is
-                # pending us and if not reset the submission
-                my $pend_time = $sub->pend_time;
-                $self->debug(" -- pending for $pend_time seconds...");
-                if ($pend_time > 21600) { #*** rather than check every time check_running is called after 6hrs have passed, can we only check again once every subsequent hour?
-                    $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
-                    $sub->unschedule_if_not_pending;
-                }
-            }
-            
-            push(@still_not_done, $sub);
-        }
-        
-        $self->debug("There are ".scalar(@still_not_done)." submissions that still aren't done");
-        
-        return \@still_not_done;
-    }
-    
-    #method batch_and_submit (ArrayRef[VRPipe::Submission] $submissions) {
-    sub batch_and_submit {
-        my ($self, $submissions) = @_;
-        
-        # this groups all the non-permanently-failed ->submissions into lists based
-        # on shared Requirements objects, creates [PersistentArray, Requirements] for
-        # each group, and uses those to do a Scheduler->submit for each group. If a
-        # group consists of only 1 Submission, then it won't bother with the creating
-        # a PersistentArray step.
+    method batch_and_submit {
+        # this groups all the non-permanently-failed ->submissions into lists
+        # based on shared Requirements objects, creates [PersistentArray,
+        # Requirements] for each group, and uses those to do a Scheduler->submit
+        # for each group. If a group consists of only 1 Submission, then it
+        # won't bother with the creating a PersistentArray step.
         
         # if any step limits are in place we first have to see how many of each
         # step are currently in the scheduler
         my %step_counts;
-        my $schema = $self->result_source->schema;
         if ($do_step_limits) {
-            my $rs = $schema->resultset('Submission')->search({ '_done' => 0, '_failed' => 0, '_sid' => { '!=', undef } });
-            while (my $sub = $rs->next) {
-                $step_counts{$sub->stepstate->stepmember->step->name}++;
+            my $array_ref = VRPipe::Submission->get_column_values(['step.name', 'count(step.name)'],
+                                                                  { '_done' => 0, '_failed' => 0, '_sid' => { '!=', undef } },
+                                                                  { join => { stepstate => { stepmember => 'step' } },
+                                                                    group_by => ['step.name'] });
+            foreach my $vals (@$array_ref) {
+                $step_counts{$vals->[0]} = $vals->[1];
             }
         }
         
@@ -621,47 +565,48 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # end the submission loop when over the limit. We'll also start the
         # count at the number of currently running jobs.
         my $limit = $self->global_limit;
-        my $count = $schema->resultset('Job')->count({ 'running' => 1 });
+        my $count = VRPipe::Job->search({ 'running' => 1 });
         
-        my %batches;
-        foreach my $sub (@$submissions) {
-            next if ($sub->sid || $sub->done || $sub->failed);
-            
-            # if the job is a block_and_skip_if_ok job, we don't actually block
-            # because of race condition issues, and because of fail and restart
-            # issues. Instead we always only actually submit if this submission
-            # is the first submission created for this $job. This also saves us
-            # creating lots of submissions for a single job, which is confusing
-            # and wasteful.
-            my $job = $sub->job;
-            if ($job->block_and_skip_if_ok) {
-                my $rs = $schema->resultset('Submission')->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
-                my $first_sub = $rs->next;
-                next unless $first_sub->id == $sub->id;
-            }
-            
-            # step limit handling
-            if ($do_step_limits) {
-                my $step_name = $sub->stepstate->stepmember->step->name;
-                if (exists $step_limits{$step_name}) {
-                    $step_counts{$step_name}++;
-                    next if $step_counts{$step_name} > $step_limits{$step_name};
-                }
-            }
-            
-            # global limit handling
-            $count++;
-            last if $count >= $limit;
-            
-            # we're good to batch this one
-            push(@{$batches{$sub->requirements->id}}, $sub);
-        }
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef });
         
         my $scheduler = VRPipe::Scheduler->get;
-        while (my ($req_id, $subs) = each %batches) {
-            $self->debug("_~_ Batched and submitted an array of ".scalar(@$subs)." subs");
-            my $sid = $scheduler->submit(array => $subs,
-                                         requirements => VRPipe::Requirements->get(id => $req_id));
+        while (my $subs = $pager->next) {
+            my %batches;
+            foreach my $sub (@$subs) {
+                # if the job is a block_and_skip_if_ok job, we don't actually
+                # block because of race condition issues, and because of fail
+                # and restart issues. Instead we always only actually submit if
+                # this submission is the first submission created for this $job.
+                # This also saves us creating lots of submissions for a single
+                # job, which is confusing and wasteful.
+                my $job = $sub->job;
+                if ($job->block_and_skip_if_ok) {
+                    my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
+                    next unless $first_sub->id == $sub->id;
+                }
+                
+                # step limit handling
+                if ($do_step_limits) {
+                    my $step_name = $sub->stepstate->stepmember->step->name;
+                    if (exists $step_limits{$step_name}) {
+                        $step_counts{$step_name}++;
+                        next if $step_counts{$step_name} > $step_limits{$step_name};
+                    }
+                }
+                
+                # global limit handling
+                $count++;
+                last if $count >= $limit;
+                
+                # we're good to batch this one
+                push(@{$batches{$sub->requirements->id}}, $sub);
+            }
+            
+            while (my ($req_id, $subs) = each %batches) {
+                $self->debug("_~_ Batched and submitted an array of ".scalar(@$subs)." subs");
+                my $sid = $scheduler->submit(array => $subs,
+                                             requirements => VRPipe::Requirements->get(id => $req_id));
+            }
         }
     }
 }

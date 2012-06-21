@@ -83,16 +83,11 @@ sub handle_pipeline {
         $manager->handle_submissions(max_retries => $max_retries);
         
         # check for repeated failures
-        my $submissions = $manager->unfinished_submissions();
-        if ($submissions) {
-            foreach my $sub (@$submissions) {
-                next unless $sub->failed;
-                if ($sub->retries >= $max_retries) {
-                    warn "some submissions failed ", ($max_retries + 1), " times, giving up\n";
-                    $manager->set_verbose_global(0) if $debug;
-                    return 0;
-                }
-            }
+        my $num_failed = VRPipe::Submission->search({ _failed => 1, retries => { '>=' => $max_retries } });
+        if ($num_failed) {
+            warn "$num_failed submissions failed ", ($max_retries + 1), " times, giving up\n";
+            $manager->set_verbose_global(0) if $debug;
+            return 0;
         }
         
         if (all_pipelines_finished()) {
@@ -157,10 +152,9 @@ sub create_single_step_pipeline {
 
 sub all_pipelines_started {
     my @setups = $manager->setups;
-    my $schema = $manager->result_source->schema;
     foreach my $setup (@setups) {
-        my $rs = $schema->resultset('DataElement')->search({ datasource => $setup->datasource->id, withdrawn => 0 });
-        return 0 unless $rs->next;
+        my $found = VRPipe::DataElement->search({ datasource => $setup->datasource->id, withdrawn => 0 });
+        return 0 unless $found;
     }
     return 1;
 }
@@ -169,23 +163,14 @@ sub all_pipelines_finished {
     return 0 unless all_pipelines_started();
     
     my @setups = $manager->setups;
-    my $schema = $manager->result_source->schema;
     foreach my $setup (@setups) {
         my $setup_id = $setup->id;
         my $pipeline = $setup->pipeline;
-        my @step_members = $pipeline->step_members;
-        my $num_steps = scalar(@step_members);
+        my $num_steps = $pipeline->step_members;
         
-        my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
-        my $all_done = 1;
-        while (my $des = $rs->next) {
-            if ($des->completed_steps != $num_steps) {
-                $all_done = 0;
-                last;
-            }
-        } 
+        my $not_done = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0, completed_steps => { '!=' => $num_steps } }, { join => 'dataelement' });
         
-        return 0 unless $all_done;
+        return 0 if $not_done;
     }
     return 1;
 }

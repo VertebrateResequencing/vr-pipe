@@ -55,7 +55,6 @@ class VRPipe::LocalScheduler {
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::Schema;
     
-    our $schema;
     our $DEFAULT_CPUS = Sys::CPU::cpu_count();
     
     has 'deployment' => (is => 'ro',
@@ -95,7 +94,6 @@ class VRPipe::LocalScheduler {
             $self->throw("'$d' is not a valid deployment type; --deployment testing|production");
         }
         VRPipe::Persistent::SchemaBase->database_deployment($self->deployment);
-        $schema = VRPipe::Manager->get->result_source->schema;
     }
     
     method _default_pidbase {
@@ -142,8 +140,7 @@ class VRPipe::LocalScheduler {
             }
         }
         else {
-            my $rs = $schema->resultset('LocalSchedulerJob');
-            while (my $lsj = $rs->next) {
+            foreach my $lsj (VRPipe::LocalSchedulerJob->search({})) {
                 push(@lsjss, $lsj->jobstates);
             }
         }
@@ -169,8 +166,7 @@ class VRPipe::LocalScheduler {
             $self->throw("bad id format '$id'");
         }
         
-        my $rs = $schema->resultset('LocalSchedulerJob')->search({id => $sid});
-        my $lsj = $rs->next;
+        my ($lsj) = VRPipe::LocalSchedulerJob->search({id => $sid});
         
         unless ($lsj) {
             print "Job <$sid> is not found\n";
@@ -178,8 +174,7 @@ class VRPipe::LocalScheduler {
         }
         
         my @lsjss;
-        $rs = $schema->resultset('LocalSchedulerJobState')->search({localschedulerjob => $sid});
-        while (my $lsjs = $rs->next) {
+        foreach my $lsjs (VRPipe::LocalSchedulerJobState->search({localschedulerjob => $sid})) {
             if ($aid) {
                 next unless $lsjs->aid == $aid;
             }
@@ -194,12 +189,7 @@ class VRPipe::LocalScheduler {
     }
     
     method unfinished_lsjss {
-        my @lsjss;
-        my $rs = $schema->resultset('LocalSchedulerJobState')->search({start_time => undef});
-        while (my $lsjs = $rs->next) {
-            push(@lsjss, $lsjs);
-        }
-        return @lsjss;
+        return VRPipe::LocalSchedulerJobState->search({start_time => undef});
     }
     
     method process_queue {

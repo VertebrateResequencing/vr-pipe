@@ -345,14 +345,11 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method command_history (ClassName|Object $self: VRPipe::PipelineSetup :$pipelinesetup!, VRPipe::DataElement :$dataelement!, VRPipe::StepMember :$stepmember!) {
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
-        my $m = VRPipe::Manager->get;
-        my $schema = $m->result_source->schema;
         
         my @history;
         if ($pipelinesetup->datasource->type eq 'vrpipe') {
             my $vrpipe_sources = $pipelinesetup->datasource->_source_instance->vrpipe_sources;
-            my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
-            while (my $link = $rs->next) {
+            foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id })) {
                 my $setup_id = $link->pipelinesetup->id;
                 next unless exists $vrpipe_sources->{$setup_id};
                 my $this_pipelinesetup = VRPipe::PipelineSetup->get(id => $setup_id);
@@ -376,8 +373,6 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
 
     method element_readgroups (ClassName|Object $self: VRPipe::DataElement $dataelement!) {
         my %readgroups;
-        my $m = VRPipe::Manager->get;
-        my $schema = $m->result_source->schema;
         my $result = $dataelement->result;
         my $paths = $result->{paths} || $self->throw("data element ".$dataelement->id." gave a result with no paths");
         foreach my $path (@$paths) {
@@ -388,8 +383,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 $readgroups{$lane} = 1;
             }
         }
-        my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
-        while (my $link = $rs->next) {
+        foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id })) {
             foreach my $rg ($self->element_readgroups($link->parent)) {
                 $readgroups{$rg} = 1;
             }
