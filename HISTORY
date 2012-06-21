@@ -1,3 +1,9 @@
+0.76    Another schema upgrade to add a missing index. See IMPORTANT_NOTES if
+        upgrading.
+0.75    Schema upgrade to provide better database indexes. See IMPORTANT_NOTES
+        if upgrading.
+0.74    Schema upgrade to allow the stats of multi-week-long running steps to
+        be stored.
 0.73    (re-)Added support for sqlite, though it is only really suitable for
         parsing as it may lock up if used for running pipelines. Fixed bug in
         LSF stdout parser.
