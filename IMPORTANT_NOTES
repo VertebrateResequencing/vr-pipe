@@ -1,3 +1,6 @@
+# version 0.76:
+Like 0.75, this version improves indexes. See the notes for 0.75 if upgrading.
+
 # version 0.75:
 This version increments the schema version, so be sure to run vrpipe-db_upgrade
 if you used a previous version of VRPipe.
