@@ -177,7 +177,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             my $child = $result_to_eid{$res} || $self->throw("No DataElement was created for result $res?");
             push(@link_args, { %$linkargs, child => $child });
         }
-        VRPipe::DataElementLink->bulk_insert_or_update(@link_args);
+        VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
     
     method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
@@ -315,9 +315,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                 push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child });
             }
         }
-        VRPipe::DataElementLink->bulk_insert_or_update(@link_args);
-        
-        return $current_elements;
+        VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
     
     # The changed marker for vrpipe datasources will be a comma separated list of the number 
