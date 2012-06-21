@@ -14,7 +14,11 @@ BEGIN {
     use_ok('VRTrack::Factory');
 }
 
-# setup a little VRTrack db that has its files in irods
+# setup a little VRTrack db that has its files in irods. The sql used here will
+# need updating when VRTrack schema is incremented; to do that, put an exit
+# after the following block and run this test to create the db, then update
+# the db: update-vrtrack-schema -o -s ../vr-codebase/sql/VRTrack_schema_[...],
+# then mysqldump it
 my %cd = VRTrack::Factory->connection_details('rw');
 open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
 print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
