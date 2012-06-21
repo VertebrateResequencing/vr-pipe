@@ -337,14 +337,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
 	    
 	    # note what will need indexing by us, and seperately note everything
-	    # that gets indexed - DBIx::Class auto-indexes Persistent cols
+	    # that gets indexed - DBIx::Class auto-indexes belongs_to cols
+	    my $bt = $attr->belongs_to;
             if ($attr->is_key) {
-                $for_indexing{$name} = $column_info->{data_type} unless $is_a_persistent;
+                $for_indexing{$name} = $column_info->{data_type} unless $bt;
 		$indexed{$name} = $column_info->{data_type};
             }
-	    if ($is_a_persistent) {
+	    if ($bt) {
 		$indexed{$name} = $column_info->{data_type};
 	    }
+            
+            # *** potential extra indexes:
+            # DataElement - would query speed up with withdrawn indexed?
+            # DataElementState - would query speed up with completed_steps indexed?
+            # Job - do I do a blind 'running'/'finished' query?
+            # PipelineSetup - worth indexing active?
+	    # StepState - index complete?
+	    # Submission - do I ever look up subs by _[sha]id? index retries, _done and _failed?
             
             # add the column in DBIx::Class, altering the name of the
             # auto-generated accessor so that we will keep our moose generated
