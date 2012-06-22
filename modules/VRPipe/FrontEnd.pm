@@ -230,18 +230,19 @@ class VRPipe::FrontEnd {
             next unless $self->option_was_set($opt);
             my $val = $self->opts($opt);
             my @desired = ref($val) eq 'ARRAY' ? @$val : ($val);
+            my $full_class = "VRPipe::$class";
             
             my @found;
             foreach my $desired (@desired) {
                 my $found;
                 if ($desired =~ /^\d+$/) {
-                    ($found) = $class->search({ id => $desired });
+                    ($found) = $full_class->search({ id => $desired });
                     unless ($found) {
                         $self->die_with_error("$desired is not a valid $class id");
                     }
                 }
                 else {
-                    ($found) = $class->search({ name => $desired });
+                    ($found) = $full_class->search({ name => $desired });
                     unless ($found) {
                         $self->die_with_error("$desired is not a valid $class name");
                     }
