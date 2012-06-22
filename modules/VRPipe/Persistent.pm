@@ -940,7 +940,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	my @find_and_nonp_args;
 	my $max_per_batch = 499; # less than a second for inserts, less than 3 seconds for updates
 	my $batch_num = 0;
+	my %done_args;
 	foreach my $args (@_) {
+	    # we must not have duplicate args coming through here, or we will
+	    # create more than 1 row with the same values, breaking our pseudo-
+	    # key constraints
+	    my $str = _args_to_str($args);
+	    next if exists $done_args{$str};
+	    $done_args{$str} = 1;
+	    
 	    my $fa = $self->_find_args($args);
 	    push(@{$find_and_nonp_args[$batch_num]}, [$fa->[0], $args]);
 	    $batch_num++ if $#{$find_and_nonp_args[$batch_num]} == $max_per_batch;
@@ -960,7 +968,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 		    # for some reason find here is a zillion times slower than
 		    # using find in get(), but using search is faster than either
 		    # method in get()
-		    my $return = $rs->search($find_args, { for => 'update' })->single if keys %$find_args;
+		    my ($return, $other) = $rs->search($find_args, { for => 'update', rows => 2 }) if keys %$find_args;
+		    if ($other) {
+			my $find_str = join(', ', map { "$_ => $find_args->{$_}" } keys %$find_args);
+			$self->throw("during bulk_create_or_update for $class I searched for { $find_str } and got more than one row, including ids ".$return->id." and ".$other->id);
+		    }
 		    
 		    if ($return) {
 			if (keys %$args) {
@@ -982,6 +994,26 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    
 	    $self->_do_transaction($schema, $transaction, "Failed to $class\->bulk_create_or_update");
 	}
+    }
+    
+    sub _args_to_str {
+	my $args = shift;
+	my $str;
+	foreach my $key (sort keys %$args) {
+	    my $val = $args->{$key};
+	    my $ref = ref($val);
+	    if ($ref) {
+		if ($ref eq 'HASH') {
+		    $val = _args_to_str($val);
+		}
+		elsif ($ref eq 'ARRAY') {
+		    $val = join(',', sort @$val);
+		}
+	    }
+	    
+	    $str .= "$key=>$val|";
+	}
+	return $str;
     }
     
     method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {
