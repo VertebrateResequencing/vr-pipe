@@ -319,9 +319,11 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                 next unless $hash_ref->{pass_filter};
             }
             
-            my $child = $group_to_eid{$group} || $self->throw("No DataElement was created for group $group?");
-            foreach my $parent (@{$hash_ref->{parents}}) {
-                push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child });
+            my $child_id = $group_to_eid{$group} || $self->throw("No DataElement was created for group $group?");
+            my %parents = map { $_->{element_id} => $_ } @{$hash_ref->{parents}};
+            foreach my $key (sort keys %parents) {
+                my $parent = $parents{$key};
+                push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child_id });
             }
         }
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
@@ -331,13 +333,12 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     # of elements in each of the pipelinesetups that have completed and the number that have 
     # been withdrawn. Any change in these numbers will lead to the dataelements being revised. 
     method _element_state_status_checksum {
-        my $schema = $self->_handle;
         my $sources = $self->vrpipe_sources;
         my @complete_list;
         foreach my $setup_id (sort keys %{$sources}) {
             my $num_steps = $sources->{$setup_id}->{total_steps};
-            my $num_complete = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 0}, { join => 'dataelement' });
-            my $num_withdrawn = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 1}, { join => 'dataelement' });
+            my $num_complete = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 0}, { join => 'dataelement' });
+            my $num_withdrawn = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 1}, { join => 'dataelement' });
             push @complete_list, ($num_complete, $num_withdrawn);
         }
         my $digest = md5_hex join(',', @complete_list);
