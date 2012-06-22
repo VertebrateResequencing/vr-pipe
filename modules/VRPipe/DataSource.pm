@@ -219,10 +219,10 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             elsif ($lock_pid == 0) {
                 # child, initiate a lock that will end when the parent stops
                 # running
-                sleep(1);
+                sleep(2);
                 while (1) {
+                    kill(0, $my_pid) || last;
                     warn "updating dataelements, please wait...\n" if $status_messages;
-                    my $still_running = kill(0, $my_pid);
                     $self->_lock(DateTime->now());
                     $self->update;
                     $self->disconnect;
