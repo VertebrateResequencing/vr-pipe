@@ -762,6 +762,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     # hash
     method reselect_value_from_db (Str $column) {
         return unless $self->in_storage;
+        return if $column eq 'id';
         
         if (my $current_storage = $self->get_from_storage({force_pool => 'master'})) {
             $self->{_column_data}->{$column} = $current_storage->{_column_data}->{$column};
