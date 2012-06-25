@@ -90,12 +90,15 @@ sub import {
                 return sub {
                     return $schema_manager->schema;
                 }
+            },
+            get_elements => sub {
+                return \&get_elements;
             }
         ],
         into_level => 1,    
     });
     
-    $class->$exporter(qw/Schema/, @exports);
+    $class->$exporter(qw/Schema get_elements/, @exports);
 }
 
 sub _initialize_schema {
@@ -194,6 +197,16 @@ sub debug {
 }
 sub max_retries {
     return $max_retries;
+}
+
+sub get_elements {
+    my $ds = shift;
+    my $pager = $ds->elements;
+    my @elements = ();
+    while (my $elements = $pager->next) {
+        push(@elements, @$elements);
+    }
+    return \@elements;
 }
 
 1;

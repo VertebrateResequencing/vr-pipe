@@ -122,7 +122,7 @@ handle_pipeline(@mapping_files);
 
 my @split_files;
 my @split_files_removed;
-foreach my $element (@{$merge_libraries_pipelinesetup->datasource->elements}) {
+foreach my $element (@{get_elements($merge_libraries_pipelinesetup->datasource)}) {
     my @output_subdirs = output_subdirs($element->id, 3);
     foreach my $file ('fake_chr1.pe.1.bam', 'fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@split_files, file(@output_subdirs, '4_bam_split_by_sequence', $file));
@@ -136,7 +136,7 @@ foreach my $element (@{$merge_libraries_pipelinesetup->datasource->elements}) {
 
 my @release_files;
 my @release_files_removed;
-foreach my $element (@{$release_pipeline_setup->datasource->elements}) {
+foreach my $element (@{get_elements($release_pipeline_setup->datasource)}) {
     my @output_subdirs = output_subdirs($element->id, 4);
     foreach my $file ('fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file));

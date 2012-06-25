@@ -39,7 +39,7 @@ ok my $ds = VRPipe::DataSource->get(type => 'vrtrack',
                                     source => $ENV{VRPIPE_VRTRACK_TESTDB},
                                     options => {local_root_dir => $irods_dir}), 'could create a vrtrack datasource';
 my $results = 0;
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     $results++;
 }
 is $results, 5, 'got correct number of bams from the vrtrack db';
@@ -311,7 +311,7 @@ ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
 
 my %actual_auto_qc_files;
 my $lni = 0;
-foreach my $de (@{$auto_qc_ps->datasource->elements}) {
+foreach my $de (@{get_elements($auto_qc_ps->datasource)}) {
     my @output_subdirs = output_subdirs($de->id, $auto_qc_ps->id);
     my $basename = '7369_5_'.$lane_nums[$lni++];
     my $aqcfile = VRPipe::File->get(path => file(@output_subdirs, '1_vrtrack_auto_qc', $basename.'.auto_qc.txt'));
@@ -494,7 +494,7 @@ my $mergeacross_ps = VRPipe::PipelineSetup->get(name => 'pombe mergeacross',
 
 handle_pipeline();
 my @merged_bams;
-foreach my $element (@{$mergeacross_ps->datasource->elements}) {
+foreach my $element (@{get_elements($mergeacross_ps->datasource)}) {
     my @output_subdirs = output_subdirs($element->id, $mergeacross_ps->id);
     for my $chunk (1..3) {
         push(@merged_bams, file(@output_subdirs, '1_bam_merge', "pe.$chunk.bam"));

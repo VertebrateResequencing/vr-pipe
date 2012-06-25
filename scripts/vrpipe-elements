@@ -74,10 +74,15 @@ else {
             }
         }
         else {
-            my $estates = $setup->datasource->incomplete_element_states($setup);
+            my $estates_pager = $setup->datasource->incomplete_element_states($setup);
+            my @estates;
+            while (my $estates = $estates_pager->next) {
+                push(@estates, @$estates);
+            }
+            
             if ($failed) {
                 my $pipeline = $setup->pipeline;
-                foreach my $estate (@$estates) {
+                foreach my $estate (@estates) {
                     my $rs = $schema->resultset('StepMember')->search({ step_number => ($estate->completed_steps + 1), pipeline => $pipeline->id });
                     my @sms;
                     while (my $sm = $rs->next) {
@@ -107,7 +112,7 @@ else {
                 }
             }
             else {
-                push(@element_states, @$estates);
+                push(@element_states, @estates);
             }
         }
     }

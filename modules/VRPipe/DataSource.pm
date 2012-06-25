@@ -145,17 +145,17 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         # elements; we need to first create all elements, and then only return
         # elements that are still "current" (haven't been deleted in the source)
         $self->_prepare_elements_and_states($status_messages) || return;
-        return [VRPipe::DataElement->search({ datasource => $self->id, withdrawn => 0 })]
+        return VRPipe::DataElement->search_paged({ datasource => $self->id, withdrawn => 0 });
     }
     
-    method incomplete_element_states (VRPipe::PipelineSetup $setup, Int $limit?) {
+    method incomplete_element_states (VRPipe::PipelineSetup $setup) {
         $self->_prepare_elements_and_states || return;
         
         my $pipeline = $setup->pipeline;
         my $num_steps = $pipeline->step_members;
         
-        return [VRPipe::DataElementState->search({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
-                                                 { join => 'dataelement', $limit ? (rows => $limit) : () })];
+        return VRPipe::DataElementState->search_paged({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
+                                                      { join => 'dataelement' });
     }
     
     method _prepare_elements_and_states (Bool $status_messages = 0) {

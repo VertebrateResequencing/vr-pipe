@@ -279,136 +279,138 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # return all estates where all their submissions have failed 3 times.
         # To avoid doing wasted cycles of the estates loop we do make use of
         # limit though. The real limiting happens in handle_submissions()
-        my $estates = $datasource->incomplete_element_states($setup);
+        my $pager = $datasource->incomplete_element_states($setup);
         
-        $self->debug("Spool for setup ".$setup->id." got ".scalar(@$estates)." incomplete element states, given a limit of $limit");
+        $self->debug("Spool for setup ".$setup->id." got ".$pager->total_entries." incomplete element states");
         
-        foreach my $estate (@$estates) {
-            my $element = $estate->dataelement;
-            my $completed_steps = $estate->completed_steps;
-            $self->debug("setup $setup_id | incomplete element loop $incomplete_elements for element id ".$element->id." which has completed $completed_steps steps of $num_steps");
-            next if $completed_steps == $num_steps; # (rare, if ever?)
-            
-            $incomplete_elements++;
-            
-            my %previous_step_outputs;
-            my $already_completed_steps = 0;
-            foreach my $member (@step_members) {
-                my $step_number = $member->step_number;
-                my $state = VRPipe::StepState->get(stepmember => $member,
-                                                   dataelement => $element,
-                                                   pipelinesetup => $setup);
+        while (my $estates = $pager->next) {
+            foreach my $estate (@$estates) {
+                my $element = $estate->dataelement;
+                my $completed_steps = $estate->completed_steps;
+                $self->debug("setup $setup_id | incomplete element loop $incomplete_elements for element id ".$element->id." which has completed $completed_steps steps of $num_steps");
+                next if $completed_steps == $num_steps; # (rare, if ever?)
                 
-                my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
-                if ($state->complete) {
-                    $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
-                    $already_completed_steps++;
+                $incomplete_elements++;
+                
+                my %previous_step_outputs;
+                my $already_completed_steps = 0;
+                foreach my $member (@step_members) {
+                    my $step_number = $member->step_number;
+                    my $state = VRPipe::StepState->get(stepmember => $member,
+                                                       dataelement => $element,
+                                                       pipelinesetup => $setup);
                     
-                    if ($already_completed_steps > $completed_steps) {
-                        $estate->completed_steps($already_completed_steps);
-                        $completed_steps = $already_completed_steps;
-                        $estate->update;
+                    my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
+                    if ($state->complete) {
+                        $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
+                        $already_completed_steps++;
+                        
+                        if ($already_completed_steps > $completed_steps) {
+                            $estate->completed_steps($already_completed_steps);
+                            $completed_steps = $already_completed_steps;
+                            $estate->update;
+                        }
+                        
+                        if ($already_completed_steps == $num_steps) {
+                            # this element completed all steps in the pipeline
+                            $incomplete_elements--;
+                        }
+                        
+                        next;
                     }
                     
-                    if ($already_completed_steps == $num_steps) {
-                        # this element completed all steps in the pipeline
-                        $incomplete_elements--;
+                    my $step_name = $step->name;
+                    my $inc_step_count = 0;
+                    if (exists $step_limits{$step_name}) {
+                        $inc_step_count = 1;
+                        if ($step_counts{$step_name} && $step_counts{$step_name} > $step_limits{$step_name}) {
+                            $all_done = 0;
+                            last;
+                        }
                     }
                     
-                    next;
-                }
-                
-                my $step_name = $step->name;
-                my $inc_step_count = 0;
-                if (exists $step_limits{$step_name}) {
-                    $inc_step_count = 1;
-                    if ($step_counts{$step_name} && $step_counts{$step_name} > $step_limits{$step_name}) {
-                        $all_done = 0;
-                        last;
+                    # have we previously done the dispatch dance and are currently
+                    # waiting on submissions to complete?
+                    my @submissions = $state->submissions;
+                    if (@submissions) {
+                        my $unfinished = VRPipe::Submission->search({'_done' => 0, stepstate => $state->id});
+                        unless ($unfinished) {
+                            my $ok = $step->post_process();
+                            if ($ok) {
+                                $self->debug(" we just completed all the submissions from a previous parse");
+                                $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
+                                next;
+                            }
+                            else {
+                                # we warn instead of throw, because the step may
+                                # have discovered its output files are missing and
+                                # restarted itself
+                                $self->warn("submissions completed, but post_process failed");
+                            }
+                        }
+                        else {
+                            $self->debug(" we have $unfinished unfinished submissions from a previous parse");
+                            # don't count this toward the limit if all the
+                            # submissions have failed 3 times *** max_retries needs to be consistent and set between trigger and handle
+                            my $fails = 0;
+                            foreach my $sub (@submissions) {
+                                next unless $sub->failed;
+                                if ($sub->retries >= 3) {
+                                    $fails++;
+                                }
+                            }
+                            
+                            if ($fails == @submissions) {
+                                $incomplete_elements--;
+                            }
+                            else {
+                                $step_counts{$step_name}++ if $inc_step_count;
+                            }
+                        }
                     }
-                }
-                
-                # have we previously done the dispatch dance and are currently
-                # waiting on submissions to complete?
-                my @submissions = $state->submissions;
-                if (@submissions) {
-                    my $unfinished = VRPipe::Submission->search({'_done' => 0, stepstate => $state->id});
-                    unless ($unfinished) {
-                        my $ok = $step->post_process();
-                        if ($ok) {
-                            $self->debug(" we just completed all the submissions from a previous parse");
+                    else {
+                        # this is the first time we're looking at this step for
+                        # this data member for this pipelinesetup
+                        my $completed;
+                        try {
+                            $completed = $step->parse();
+                        }
+                        catch ($err) {
+                            warn $err;
+                            $all_done = 0;
+                            last;
+                        }
+                        
+                        if ($completed) {
+                            # on instant complete, parse calls post_process itself
+                            # and only returns true if that was successfull
                             $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
+                            $self->debug(" parsing the step resulted in instant completion");
                             next;
                         }
                         else {
-                            # we warn instead of throw, because the step may
-                            # have discovered its output files are missing and
-                            # restarted itself
-                            $self->warn("submissions completed, but post_process failed");
-                        }
-                    }
-                    else {
-                        $self->debug(" we have $unfinished unfinished submissions from a previous parse");
-                        # don't count this toward the limit if all the
-                        # submissions have failed 3 times *** max_retries needs to be consistent and set between trigger and handle
-                        my $fails = 0;
-                        foreach my $sub (@submissions) {
-                            next unless $sub->failed;
-                            if ($sub->retries >= 3) {
-                                $fails++;
+                            my $dispatched = $step->dispatched();
+                            if (@$dispatched) {
+                                foreach my $arrayref (@$dispatched) {
+                                    my ($cmd, $reqs, $job_args) = @$arrayref;
+                                    my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                    $self->debug(" parsing the step made new submission ".$sub->id." with job ".$sub->job->id);
+                                }
+                                $step_counts{$step_name}++ if $inc_step_count;
+                            }
+                            else {
+                                $self->debug("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
+                                # it is possible for a parse to result in a different step being started over because input files were missing
                             }
                         }
-                        
-                        if ($fails == @submissions) {
-                            $incomplete_elements--;
-                        }
-                        else {
-                            $step_counts{$step_name}++ if $inc_step_count;
-                        }
-                    }
-                }
-                else {
-                    # this is the first time we're looking at this step for
-                    # this data member for this pipelinesetup
-                    my $completed;
-                    try {
-                        $completed = $step->parse();
-                    }
-                    catch ($err) {
-                        warn $err;
-                        $all_done = 0;
-                        last;
                     }
                     
-                    if ($completed) {
-                        # on instant complete, parse calls post_process itself
-                        # and only returns true if that was successfull
-                        $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs);
-                        $self->debug(" parsing the step resulted in instant completion");
-                        next;
-                    }
-                    else {
-                        my $dispatched = $step->dispatched();
-                        if (@$dispatched) {
-                            foreach my $arrayref (@$dispatched) {
-                                my ($cmd, $reqs, $job_args) = @$arrayref;
-                                my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
-                                $self->debug(" parsing the step made new submission ".$sub->id." with job ".$sub->job->id);
-                            }
-                            $step_counts{$step_name}++ if $inc_step_count;
-                        }
-                        else {
-                            $self->debug("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
-                            # it is possible for a parse to result in a different step being started over because input files were missing
-                        }
-                    }
+                    $all_done = 0;
+                    last;
                 }
                 
-                $all_done = 0;
-                last;
+                last if $incomplete_elements > $limit;
             }
-            
-            last if $incomplete_elements > $limit;
         }
         
         # capture stop

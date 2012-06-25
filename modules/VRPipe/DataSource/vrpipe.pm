@@ -137,6 +137,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             $vrpipe_sources{$setup_id}->{total_steps} = scalar @step_members;
             $vrpipe_sources{$setup_id}->{num_steps} = $max_step;
             $vrpipe_sources{$setup_id}->{final_smid} = $final_smid;
+            $vrpipe_sources{$setup_id}->{setup_obj} = $setup;
         }
         return \%vrpipe_sources;
     }
@@ -201,77 +202,79 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         foreach my $setup_id (keys %{$vrpipe_sources}) {
             my $stepmembers = $vrpipe_sources->{$setup_id}->{stepmembers};
             my $stepmember_objs = $vrpipe_sources->{$setup_id}->{stepmember_objects};
-            my $setup = VRPipe::PipelineSetup->get(id => $setup_id);
-            my $elements = $setup->datasource->elements;
+            my $setup = $vrpipe_sources->{$setup_id}->{setup_obj};
             my $total_steps = $vrpipe_sources->{$setup_id}->{total_steps};
             
-            my %element_state_completed_steps = map { $_->[0] => $_->[1] } @{VRPipe::DataElementState->get_column_values(['dataelement', 'completed_steps'], { pipelinesetup => $setup->id }) || []};
+            my $elements_pager = $setup->datasource->elements;
+            my %element_state_completed_steps = map { $_->[0] => $_->[1] } @{VRPipe::DataElementState->get_column_values(['dataelement', 'completed_steps'], { pipelinesetup => $setup_id }) || []};
             
             my @per_element_output_files;
-            ELEMENT: foreach my $element (@$elements) {
-                # complete_elements means we do not consider a dataelement until
-                # it has completed its pipeline, even if the output file we want
-                # comes from an earlier step. This is because our pipeline might
-                # delete this file, whilst the parent pipeline is still running
-                # and needs it to complete
-                unless ($element_state_completed_steps{$element->id} == $total_steps) {
-                    return([]) if $complete_all;
-                    next if $complete_elements;
-                }
-                
-                my $element_id = $element->id;
-                my %element_hash = ( parent => { element_id => $element_id, setup_id => $setup_id }, result => $element->result );
-                foreach my $smid (keys %{$stepmembers}) {
-                    my $stepm = $stepmember_objs->{$smid};
-                    my $force = exists $stepmembers->{$smid}->{all};
-                    
-                    my ($stepstate) = VRPipe::StepState->search({stepmember => $smid, dataelement => $element_id, pipelinesetup => $setup_id}, { rows => 1 });
-                    unless ($stepstate && $stepstate->complete) {
-                        # this shouldn't happen since we did the completed_steps
-                        # check above, but just incase we have an
-                        # inconsistency...
+            ELEMENT: while (my $elements = $elements_pager->next) {
+                foreach my $element (@$elements) {
+                    # complete_elements means we do not consider a dataelement until
+                    # it has completed its pipeline, even if the output file we want
+                    # comes from an earlier step. This is because our pipeline might
+                    # delete this file, whilst the parent pipeline is still running
+                    # and needs it to complete
+                    my $element_id = $element->id;
+                    unless ($element_state_completed_steps{$element_id} == $total_steps) {
                         return([]) if $complete_all;
-                        next ELEMENT if $complete_elements;
+                        next if $complete_elements;
                     }
                     
-                    my $step_outs = $stepstate->output_files;
-                    while (my ($kind, $files) = each %{$step_outs}) {
-                        unless ($force) {
-                            next unless exists $stepmembers->{$smid}->{$kind};
+                    my %element_hash = ( parent => { element_id => $element_id, setup_id => $setup_id }, result => $element->result );
+                    foreach my $smid (keys %{$stepmembers}) {
+                        my $stepm = $stepmember_objs->{$smid};
+                        my $force = exists $stepmembers->{$smid}->{all};
+                        
+                        my ($stepstate) = VRPipe::StepState->search({stepmember => $smid, dataelement => $element_id, pipelinesetup => $setup_id}, { rows => 1 });
+                        unless ($stepstate && $stepstate->complete) {
+                            # this shouldn't happen since we did the completed_steps
+                            # check above, but just incase we have an
+                            # inconsistency...
+                            return([]) if $complete_all;
+                            next ELEMENT if $complete_elements;
                         }
                         
-                        foreach my $file (@$files) {
-                            my $pass_filter = 0;
-                            my $meta = $file->metadata;
-                            if ($filter) {
-                                # if "filter_after_grouping => 0", we filter before grouping
-                                # by skipping files which don't match the regex or don't
-                                # have the required metadata
-                                if (defined $meta->{$key}) {
-                                    $pass_filter = $meta->{$key} =~ m/$regex/;
-                                    next if (!$filter_after_grouping && !$pass_filter);
-                                }
-                                else {
-                                    next unless $filter_after_grouping;
-                                }
+                        my $step_outs = $stepstate->output_files;
+                        while (my ($kind, $files) = each %{$step_outs}) {
+                            unless ($force) {
+                                next unless exists $stepmembers->{$smid}->{$kind};
                             }
                             
-                            if ($maintain_element_grouping) {
-                                push @{$element_hash{paths}}, $file->path->stringify;
-                                $element_hash{pass_filter} ||= $pass_filter;
-                            }
-                            else {
-                                my %hash;
-                                $hash{paths} = [ $file->path->stringify ];
-                                $hash{metadata} = $meta if (keys %{$meta});
-                                $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
-                                $hash{pass_filter} ||= $pass_filter;
-                                push(@per_element_output_files, \%hash);
+                            foreach my $file (@$files) {
+                                my $pass_filter = 0;
+                                my $meta = $file->metadata;
+                                if ($filter) {
+                                    # if "filter_after_grouping => 0", we filter before grouping
+                                    # by skipping files which don't match the regex or don't
+                                    # have the required metadata
+                                    if (defined $meta->{$key}) {
+                                        $pass_filter = $meta->{$key} =~ m/$regex/;
+                                        next if (!$filter_after_grouping && !$pass_filter);
+                                    }
+                                    else {
+                                        next unless $filter_after_grouping;
+                                    }
+                                }
+                                
+                                if ($maintain_element_grouping) {
+                                    push @{$element_hash{paths}}, $file->path->stringify;
+                                    $element_hash{pass_filter} ||= $pass_filter;
+                                }
+                                else {
+                                    my %hash;
+                                    $hash{paths} = [ $file->path->stringify ];
+                                    $hash{metadata} = $meta if (keys %{$meta});
+                                    $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
+                                    $hash{pass_filter} ||= $pass_filter;
+                                    push(@per_element_output_files, \%hash);
+                                }
                             }
                         }
                     }
+                    push(@per_element_output_files, \%element_hash) if ($maintain_element_grouping && exists $element_hash{paths});
                 }
-                push(@per_element_output_files, \%element_hash) if ($maintain_element_grouping && exists $element_hash{paths});
             }
             push(@output_files, @per_element_output_files);
         }

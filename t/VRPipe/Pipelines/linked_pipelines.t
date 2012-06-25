@@ -98,7 +98,7 @@ handle_pipeline(); # *** there's some sort of bug that means the following test 
 # has finished, so only now can we figure out remaining expected output file
 # paths
 my $element_count = 0;
-foreach my $eid (map { $_->id } @{$test_pipelinesetup_2->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($test_pipelinesetup_2->datasource)}) {
     $element_count++;
     my @output_subdirs = output_subdirs($eid, 2);
     my $step_index = 0;
@@ -109,7 +109,7 @@ foreach my $eid (map { $_->id } @{$test_pipelinesetup_2->datasource->elements}) 
 }
 is $element_count, 3, 'the "all" linked pipeline had a dataelement for each parent element';
 $element_count = 0;
-foreach my $eid (map { $_->id } @{$test_pipelinesetup_3->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($test_pipelinesetup_3->datasource)}) {
     $element_count++;
     my @output_subdirs = output_subdirs($eid, 3);
     my $step_index = 0;
@@ -130,7 +130,7 @@ my $ds_test = VRPipe::DataSource->get(type => 'vrpipe',
                                         options => { metadata_keys => 'four_meta',
                                                      filter => 'three_meta#StepOption_default_decided_three_option' });
 my @results = ();
-foreach my $element (@{$ds_test->elements}) {
+foreach my $element (@{get_elements($ds_test)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => \@step_four_base_files, group => 'bar'}], 'metadata filtering for "group_by_metadata" vrpipe datasource method worked as expected';
@@ -142,7 +142,7 @@ $ds_test = VRPipe::DataSource->get(type => 'vrpipe',
                                                      filter => 'three_meta#StepOption_default_decided_three_option',
                                                      filter_after_grouping => 0 });
 @results = ();
-foreach my $element (@{$ds_test->elements}) {
+foreach my $element (@{get_elements($ds_test)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [ $step_four_base_files[1] ], group => 'bar'}], 'metadata filtering for "group_by_metadata" vrpipe datasource method with "filter_after_grouping" option off worked as expected';
@@ -152,7 +152,7 @@ $ds_test = VRPipe::DataSource->get(type => 'vrpipe',
                                    source => '1[4]',
                                    options => { filter => 'three_meta#StepOption_default_decided_three_option' });
 @results = ();
-foreach my $element (@{$ds_test->elements}) {
+foreach my $element (@{get_elements($ds_test)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for "all" vrpipe datasource method worked as expected';
@@ -172,7 +172,7 @@ move($tmp_file, $ds);
 ok handle_pipeline(@base_files, @link_files, @link_merge_files), 'pipelines with changed datasource ran ok - original and withdrawn files all exist';
 my @new_files;
 $element_count = 0;
-foreach my $eid (map { $_->id } @{$test_pipelinesetup_3->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($test_pipelinesetup_3->datasource)}) {
     $element_count++;
     my @output_subdirs = output_subdirs($eid, 3);
     my $step_index = 0;
@@ -238,7 +238,7 @@ foreach my $in ('file2.txt', 'file3.txt') {
     push(@not_expected_files, file(@output_subdirs, '1_'.$expected_base_step_names[0], "$in.step_one"));
     push(@expected_files, file(@output_subdirs, '3_'.$expected_base_step_names[1], "$in.step_one.step_two"));
 }
-foreach my $eid (map { $_->id } @{$delete_setup->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($delete_setup->datasource)}) {
     my @output_subdirs = output_subdirs($eid, 5);
     push(@not_expected_files, file(@output_subdirs, '1_'.$expected_link_step_names[0], "merged.txt"));
     push(@expected_files, file(@output_subdirs, '2_'.$expected_link_step_names[1], "merged.txt.step_one"));
@@ -278,7 +278,7 @@ is $deleted, 4, 'the files that should have gotten deleted were deleted';
 # 
 # # if filter option one_meta#50 had not been set, a further data element 
 # # would have been created. check that we have the expected number of elements
-# my $elements = $test_pipelinesetup_3->datasource->elements;
+# my $elements = get_elements($test_pipelinesetup_3->datasource);
 # is scalar(@$elements), 1, 'group_by_metadata/filter option worked correctly - element not created';
 
 finish;

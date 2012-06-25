@@ -73,7 +73,7 @@ class VRPipe::Persistent::Pager {
 		   isa => 'Data::Page',
 		   lazy => 1,
 		   builder => '_build_pager',
-		   handles => [qw(current_page last_page)]);
+		   handles => [qw(current_page last_page total_entries)]);
     
     has _pages_done => (is => 'rw',
 			default => 0);

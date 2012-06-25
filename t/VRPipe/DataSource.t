@@ -17,7 +17,7 @@ ok my $ds = VRPipe::DataSource->get(type => 'list',
                                     options => {}), 'could create a list datasource';
 
 my @results;
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => 'henry'}], 'got all results correctly';
@@ -28,7 +28,7 @@ $ds = VRPipe::DataSource->get(type => 'list',
                               options => {skip_comments => 0});
 
 @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{line => 'foo'}, {line => 'bar'}, {line => '# comment'}, {line => 'henry'}], 'got even more results with extra options';
@@ -40,7 +40,7 @@ ok $ds = VRPipe::DataSource->get(type => 'fofn',
                                  options => {}), 'could create a fofn datasource';
 
 @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file('t', 'data', 'file.bam')->absolute]}, {paths => [file('t', 'data', 'file.cat')->absolute]}, {paths => [file('t', 'data', 'file.txt')->absolute]}], 'got correct results for fofn all';
@@ -54,7 +54,7 @@ ok $ds = VRPipe::DataSource->get(type => 'delimited',
                                              column => 2}), 'could create a delimited datasource';
 
 @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute], group => '2822_6'},
@@ -69,7 +69,7 @@ ok $ds = VRPipe::DataSource->get(type => 'delimited',
                                  options => {delimiter => "\t"}), 'could create a delimited datasource';
 
 @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file(qw(t data file.txt))->absolute, file(qw(t data file2.txt))->absolute]},
@@ -92,7 +92,7 @@ ok $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
                                  options => {}), 'could create a fofn_with_metadata datasource';
 
 @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply [@results,
@@ -112,7 +112,7 @@ ok $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
                                  options => { metadata_keys => 'study|sample' }), 'could create a fofn_with_metadata grouped_by_metadata datasource';
 
 @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply [sort { $a->{group} cmp $b->{group} } @results],
@@ -126,7 +126,7 @@ ok $ds = VRPipe::DataSource->get(type => 'sequence_index',
                                  options => { local_root_dir => dir('./')->absolute->stringify }), 'could create a sequence_index datasource';
 
 @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file(qw(t data 2822_6.fastq))->absolute, file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute], lane => '2822_6'},
@@ -222,7 +222,7 @@ SKIP: {
                                      source => $ENV{VRPIPE_VRTRACK_TESTDB},
                                      options => {import => 1, mapped => 0}), 'could create a vrtrack datasource';
     my $results = 0;
-    foreach my $element (@{$ds->elements}) {
+    foreach my $element (@{get_elements($ds)}) {
         $results++;
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
@@ -281,14 +281,14 @@ SKIP: {
                                   source => $ENV{VRPIPE_VRTRACK_TESTDB},
                                   options => {qc_status => 'pending'});
     $results = 0;
-    foreach my $element (@{$ds->elements}) {
+    foreach my $element (@{get_elements($ds)}) {
         $results++;
     }
     is $results, 0, 'initially got no results for vrtrack lanes qc_status => pending';
     $lane_to_add_file_for->qc_status('pending');
     $lane_to_add_file_for->update;
     $results = 0;
-    foreach my $element (@{$ds->elements}) {
+    foreach my $element (@{get_elements($ds)}) {
         $results++;
     }
     is $results, 1, 'after changing a lane to qc pending, got 1 dataelement';
@@ -298,7 +298,7 @@ SKIP: {
                                   source => $ENV{VRPIPE_VRTRACK_TESTDB},
                                   options => {});
     $results = 0;
-    foreach my $element (@{$ds->elements}) {
+    foreach my $element (@{get_elements($ds)}) {
         $results++;
     }
     is $results, 55, 'with no options we get all the active lanes in the db';
@@ -325,7 +325,7 @@ SKIP: {
                                   options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library_regex => 'g1k-sc-NA19190-YRI-1\|SC\|SRP000542\|NA19190' } ), 'could create a vrtrack datasource';
     
     @results = ();
-    foreach my $element (@{$ds->elements}) {
+    foreach my $element (@{get_elements($ds)}) {
         push(@results, $element->result);
     }
     
@@ -386,7 +386,7 @@ SKIP: {
     $lib->update;
     # (we also add a lane to force datasource to notice a change)
     VRTrack::Lane->create($vrtrack, 'new_lane2');
-    $ds->elements;
+    get_elements($ds);
     is $vrfile->metadata->{insert_size}, '200', 'changing insert_size in vrtrack changes insert_size metadata on vrpipe files';
     
     # test getting improved bams that passed qc
@@ -425,7 +425,7 @@ SKIP: {
                                               group_by_metadata => 'project|study|sample|library'});
     my %actual_qc_passed_improved_bams;
     my %actual_groups;
-    foreach my $element (@{$ds->elements}) {
+    foreach my $element (@{get_elements($ds)}) {
         my $result = $element->result;
         $actual_groups{$result->{group} || 'no_group'} = 1;
         foreach my $path (@{$result->{paths}}) {

@@ -34,7 +34,7 @@ ok my $ds = VRPipe::DataSource->get(type => 'delimited',
                                                column => 2 }), 'could create a delimited datasource';
 
 my @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file('t', 'data', '2822_6.pe.bam')->absolute, file('t', 'data', '2822_6.se.bam')->absolute, file('t', 'data', '2822_7.pe.bam')->absolute], , group => 'LIB01'}, 

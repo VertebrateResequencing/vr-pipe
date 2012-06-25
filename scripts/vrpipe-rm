@@ -108,39 +108,41 @@ if ($setup) {
     
     # loop through completed elements
     my $pipeline_length = @step_members;
-    my $elements = $setup->datasource->elements(1);
+    my $elements_pager = $setup->datasource->elements(1);
     my $deleted = 0;
     my $complete_elements = 0;
     my $incomplete = 0;
-    foreach my $element (@$elements) {
-        my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-        unless ($element_state->completed_steps == $pipeline_length) {
-            $incomplete++;
-            next;
-        }
-        $complete_elements++;
-        
-        # delete outputs
-        foreach my $stepm (@allowed_step_members) {
-            my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
-            my $smid = $stepm->id;
-            my $force = exists $allowed_kinds{$smid}->{all};
+    while (my $elements = $elements_pager->next) {
+        foreach my $element (@$elements) {
+            my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+            unless ($element_state->completed_steps == $pipeline_length) {
+                $incomplete++;
+                next;
+            }
+            $complete_elements++;
             
-            while (my ($kind, $files) = each %$step_outs) {
-                unless ($force) {
-                    next unless exists $allowed_kinds{$smid}->{$kind};
-                }
-                my @files = grep { $_->s } @$files;
-                next unless @files;
+            # delete outputs
+            foreach my $stepm (@allowed_step_members) {
+                my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
+                my $smid = $stepm->id;
+                my $force = exists $allowed_kinds{$smid}->{all};
                 
-                my @file_data;
-                foreach my $file (@files) {
-                    if ($verbose) {
-                        my $path = $file->path->stringify;
-                        $frontend->output($path);
+                while (my ($kind, $files) = each %$step_outs) {
+                    unless ($force) {
+                        next unless exists $allowed_kinds{$smid}->{$kind};
                     }
-                    $file->unlink unless $pretend;
-                    $deleted++;
+                    my @files = grep { $_->s } @$files;
+                    next unless @files;
+                    
+                    my @file_data;
+                    foreach my $file (@files) {
+                        if ($verbose) {
+                            my $path = $file->path->stringify;
+                            $frontend->output($path);
+                        }
+                        $file->unlink unless $pretend;
+                        $deleted++;
+                    }
                 }
             }
         }
