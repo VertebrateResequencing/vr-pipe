@@ -188,7 +188,7 @@ class VRPipe::File extends VRPipe::Persistent {
         return $@ ? 'any' : $type;
     }
     
-    __PACKAGE__->make_persistent(has_many => [[filemetadata => 'VRPipe::FileMetadata']]);
+    __PACKAGE__->make_persistent();
     
     method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
         my $existing_meta = $self->metadata;
