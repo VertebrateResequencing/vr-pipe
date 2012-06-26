@@ -927,66 +927,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	return $row;
     }
     
-    sub bulk_get {
-        my $self = shift;
-	
-	my ($schema, $rs) = $self->_class_specific();
-	
-        my @get_args;
-	my $max_per_batch = 499;
-	my $batch_num = 0;
-	foreach my $args (@_) {
-	    my $fa = $self->_find_args($args);
-	    push(@{$get_args[$batch_num]}, [$fa, $args]);
-	    $batch_num++ if $#{$get_args[$batch_num]} == $max_per_batch;
-	}
-	
-        my @got;
-	foreach my $batch (@get_args) {
-            my $transaction = sub {
-		my @objs;
-		foreach my $arg_set (@$batch) {
-		    my ($fa, $args, $sub) = @$arg_set;
-                    my %find_args = %{$fa->[0] || {}};
-                    my %non_persistent_args = %{$fa->[1] || {}};
-                    
-                    my $return = $rs->search(\%find_args, { for => 'update' })->single if keys %find_args;
-                    
-                    if ($return) {
-                        # update the row with any non-key args supplied
-                        while (my ($method, $value) = each %$args) {
-                            $return->$method($value);
-                        }
-                        $return->update;
-                    }
-                    else {
-                        # create the row using all db column keys
-                        $return = $rs->create({%find_args, %$args});
-                    }
-                    
-                    # update the object with any non-persistent args supplied
-                    while (my ($method, $value) = each %non_persistent_args) {
-                        $return->$method($value);
-                    }
-                    
-                    # for some reason the result_source has no schema, so
-                    # reattach it or inflation will break
-                    $return->result_source->schema($schema); 
-                    
-                    push(@objs, $return);
-                }
-                
-                return \@objs;
-            };
-            
-            my $objs = $self->_do_transaction($schema, $transaction, 'failed to bulk_get');
-            
-            push(@got, @$objs);
-        }
-	
-	return @got;
-    }
-    
     # bulk inserts from populate() are fast, but we can easily end up with
     # duplicate rows using it, so we use a more careful but sadly slower
     # wrapper. It updates existing rows just like get().
