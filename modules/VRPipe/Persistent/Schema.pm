@@ -61,7 +61,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     our $VERSION = 22;
     __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
                                                DataSource DataElement Pipeline
-                                               StepCmdSummary StepMember File FileMetadata
+                                               StepCmdSummary StepMember File
                                                PipelineSetup StepBehaviour
                                                StepState Submission StepAdaptor
                                                PersistentArray StepOption

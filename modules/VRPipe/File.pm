@@ -217,63 +217,10 @@ class VRPipe::File extends VRPipe::Persistent {
         # metadata stored...
         $self->metadata($new_meta);
         $self->update;
-        #$self->touch if ($self->e);
         
         my $resolve = $self->resolve;
         if ($resolve ne $self) {
             $resolve->add_metadata($meta, replace_data => $replace_data);
-        }
-    }
-    
-    method metadata_new (HashRef $meta?, Bool $replace_data?, Bool $only_add?) {
-        $replace_data ||= 1; # replace values if key already exists
-        $only_add ||= 0; # delete keys if not present in $meta
-        
-        if ($meta) {
-            my $file_id = $self->id;
-            my $rs = VRPipe::FileMetadata->search_rs({});
-            my $transaction = sub {
-                my %key_to_val_obj = map { $_->metakey => [$_->value, $_] } VRPipe::FileMetadata->search({ file => $file_id }, { for => 'update' });
-                
-                my @meta_args;
-                while (my ($key, $val) = each %$meta) {
-                    my $val_obj = $key_to_val_obj{$key};
-                    if ($val_obj) {
-                        if ($replace_data && $val_obj->[0] ne $val) {
-                            $val_obj->[1]->value($val);
-                            $val_obj->[1]->update;
-                        }
-                    }
-                    else {
-                        push(@meta_args, { file => $file_id, metakey => $key, value => $val });
-                    }
-                }
-                $rs->populate(\@meta_args) if @meta_args;
-                
-                unless ($only_add) {
-                    while (my ($key, $val_obj) = each %key_to_val_obj) {
-                        unless (exists $meta->{$key}) {
-                            $val_obj->[1]->delete;
-                        }
-                    }
-                }
-            };
-            
-            return $self->_do_transaction($self->result_source->schema, $transaction, "Failed to get/update metadata for file ".$self->id);
-        }
-        else {
-            return { map { $_->[0] => $_->[1] } @{VRPipe::FileMetadata->get_column_values(['metakey', 'value'], { file => $self->id }, { for => 'update' }) || []} };
-        }
-    }
-    
-    method add_metadata_new (HashRef $meta, Bool :$replace_data = 1) {
-        $self->metadata_new($meta, $replace_data, 1);
-        
-        #$self->touch if ($self->e); # *** really needed?
-        
-        my $resolve = $self->resolve;
-        if ($resolve ne $self) {
-            $resolve->add_metadata_new($meta, replace_data => $replace_data);
         }
     }
     
