@@ -195,6 +195,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method update_status {
+        $self->reselect_values_from_db;
         $self->throw("Cannot call update_status when the job ".$self->job->id." is not finished") unless $self->job->finished;
         return if $self->done || $self->failed;
         
@@ -306,6 +307,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 $to_extra->update;
             }
         }
+        
+        $self->reselect_values_from_db;
         
         return 1;
     }
@@ -532,6 +535,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         $self->_claim(0);
         $self->_hid(undef);
         $self->update;
+        $self->reselect_values_from_db;
     }
 }
 

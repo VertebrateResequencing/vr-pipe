@@ -387,6 +387,7 @@ SKIP: {
     # (we also add a lane to force datasource to notice a change)
     VRTrack::Lane->create($vrtrack, 'new_lane2');
     get_elements($ds);
+    $vrfile->reselect_values_from_db;
     is $vrfile->metadata->{insert_size}, '200', 'changing insert_size in vrtrack changes insert_size metadata on vrpipe files';
     
     # test getting improved bams that passed qc

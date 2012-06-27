@@ -512,10 +512,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 my $self = shift;
                 my $moose_value = $self->$orig();
                 
-                # always get fresh from the db, incase another instance of this
-                # row was altered and updated
                 $self->reconnect;
-                $self->reselect_value_from_db($name);
                 
                 my $dbic_value = $self->$dbic_name();
                 unless (@_) {
@@ -531,8 +528,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     my $value = shift;
                     
                     if (defined $value) {
-                        # first try setting in our Moose accessor, so we can see if
-                        # it passes the constraint
+                        # first try setting in our Moose accessor, so we can see
+                        # if it passes the constraint
                         $self->$orig($value);
                         
                         # now set it in the DBIC accessor
@@ -760,12 +757,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     # like discard_changes, except we don't clumsily wipe out the whole $self
     # hash
-    method reselect_value_from_db (Str $column) {
+    method reselect_values_from_db {
         return unless $self->in_storage;
-        return if $column eq 'id';
         
         if (my $current_storage = $self->get_from_storage({force_pool => 'master'})) {
-            $self->{_column_data}->{$column} = $current_storage->{_column_data}->{$column};
+            $self->{_column_data} = $current_storage->{_column_data};
             delete $self->{_inflated_column};
             delete $self->{related_resultsets};
             bless $current_storage, 'Do::Not::Exist'; # avoid deep recursion on destruction

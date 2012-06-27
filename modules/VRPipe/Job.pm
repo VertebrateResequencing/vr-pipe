@@ -188,21 +188,6 @@ class VRPipe::Job extends VRPipe::Persistent {
     }
     
     method run (VRPipe::StepState :$stepstate?) {
-        # This sets the running state in db, then chdir to ->dir, then forks to run
-        # run the ->cmd (updating ->pid, ->host, ->user and ->start_time), then when
-        # finished updates ->running, ->finished and success/error-related methods as
-        # appropriate. If ->run() is called when the job is not in ->pending() state,
-        # it will by default return if ->finished && ->ok, otherwise will throw an
-        # error. Change that behaviour:
-        #$job->run(block_and_skip_if_ok => 1);
-        # this waits until the job has finished running, runs it again if it failed,
-        # otherwise does nothing so that $job->ok will be true. This is useful if you
-        # start a bunch of tasks that all need to first index a reference file before
-        # doing something on their own input files: the reference index job would be
-        # run with block_and_skip_if_ok.
-        # While running we update heartbeat() in the db every min so that other
-        # processes can query and see if we're still alive.
-        
         # check we're allowed to run, in a transaction to avoid race condition
         my $schema = $self->result_source->schema;
         my $do_return = 0;
@@ -217,6 +202,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                     while (1) {
                         $self->disconnect;
                         sleep(60);
+                        $self->reselect_values_from_db;
                         if ($self->finished) {
                             if ($self->ok) {
                                 $do_return = 1;
@@ -299,6 +285,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         
         # wait for the cmd to finish
         my $exit_code = $self->_wait_for_child($cmd_pid);
+        $self->reselect_values_from_db;
         
         # update db details for the job
         $self->end_time(DateTime->now());
@@ -318,8 +305,8 @@ class VRPipe::Job extends VRPipe::Persistent {
         $self->exit_code($exit_code);
         $self->update;
         
-        kill(9, $heartbeat_pid);
         # reap the heartbeat
+        kill(9, $heartbeat_pid);
         $self->_wait_for_child($heartbeat_pid);
     }
     

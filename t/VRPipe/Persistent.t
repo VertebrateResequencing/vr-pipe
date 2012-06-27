@@ -68,7 +68,8 @@ is $first_step->description, 'the first step', 'it has the correct description';
 is $first_step->description('the 1st step'), 'the first step', 'description does not seem like it was changed prior to an update';
 is $steps[0]->description, 'the first step', 'indeed, other instances are not affected either';
 $first_step->update;
-is $steps[0]->description, 'the 1st step', 'all instances are affected after an update';
+$steps[0]->reselect_values_from_db;
+is $steps[0]->description, 'the 1st step', 'a different instance is affected after an update and reselect';
 
 my @jobs;
 my $epoch_time = time();
@@ -203,6 +204,7 @@ is $first_setup->datasource->id, 1, 'it has the correct datasource';
 $first_setup->datasource($ds[1]); # *** though we shouldn't be able to change an is_key value
 $first_setup->update;
 is $first_setup->datasource->id, 2, 'datasource could be changed';
+$setups[0]->reselect_values_from_db;
 is $setups[0]->datasource->id, 2, 'and since we did an update, other instances are affected as well';
 $first_setup->datasource($ds[0]);
 $first_setup->update;
@@ -408,12 +410,15 @@ is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
 ok $jobs[2]->reset_job, 'could reset a job';
 is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time],
           [0, 0, 0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
+my $own_pid = $$;
 my $child_pid = fork();
 if ($child_pid) {
     sleep(1);
+    $jobs[2]->reselect_values_from_db;
     my $cmd_pid = $jobs[2]->pid;
     kill(9, $cmd_pid);
     waitpid($child_pid, 0);
+    $jobs[2]->reselect_values_from_db;
     is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 0, 9], 'test job status got updated correctly for a job that was killed externally';
     is $jobs[2]->stdout_file->slurp(chomp => 1), 'job3', 'stdout file had correct contents';
     is $jobs[2]->stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
@@ -514,6 +519,7 @@ sub wait_until_done {
     while (1) {
         $all_done = 1;
         foreach my $sub (@_) {
+            $sub->reselect_values_from_db;
             if (! $sub->job->finished) {
                 $all_done = 0;
                 my $heartbeat = $sub->job->heartbeat || next;

@@ -171,6 +171,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             my $block = 0;
             my $continue = 1;
             do {
+                $self->reselect_values_from_db;
                 $schema->txn_do(sub {
                     my $lock_time = $self->_lock;
                     # check that the process that got the lock is still running,
