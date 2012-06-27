@@ -1,15 +1,44 @@
+=head1 NAME
+
+VRPipe::Steps::mpileup_bcf_hapmap - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+John Maslen <jm23@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 use VRPipe::Parser;
 
 class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
-     method options_definition {
-          return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', 
-                                                           optional => 1, 
-                                                           default_value => 'samtools'),
+     around options_definition {
+          return { %{$self->$orig},
                    samtools_mpileup_options => VRPipe::StepOption->get(description => 'options for samtools mpileup, excluding -l and -f (-g is required)',
                                                                        optional => 1, 
-                                                                       default_value => '-ugDI -d 1000 -C50'),
-                   reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta') };
+                                                                       default_value => '-ugDI -d 1000 -C50') };
      }
      method inputs_definition {
           return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'bam files for bcf production'),

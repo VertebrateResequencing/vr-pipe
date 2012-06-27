@@ -87,7 +87,7 @@ ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all e
 my $ofile = VRPipe::File->get(path => file(output_subdirs(3), '4_test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'));
 my $ometa = $ofile->metadata;
 my $o2meta = VRPipe::File->get(path => file(output_subdirs(2), '4_test_step_four', 'file2.txt.step_one.step_two.step_three.step_four'))->metadata;
-is_deeply [$ometa->{one_meta}, $ometa->{two_meta}, $ometa->{three_meta}, $o2meta->{three_meta}, $ometa->{four_meta}], [50, 'body_decided_two_option', 'no_three_meta', 'StepOption_default_decided_three_option', 'bar'], 'metadata of one of the final output files was as expected';
+is_deeply [$ometa->{one_meta}, $ometa->{two_meta}, $ometa->{three_meta}, $o2meta->{three_meta}, $ometa->{four_meta}], [50, 'body_decided_two_option', undef, 'StepOption_default_decided_three_option', 'bar'], 'metadata of one of the final output files was as expected';
 
 my $existing_files = 0;
 foreach my $file (@deleted_files) {
@@ -118,12 +118,14 @@ ok handle_pipeline(@output_files, @final_files), 'pipeline ran and recreated fil
 # check that we can access job and scheduler std output/err files
 my $submission = VRPipe::Submission->get(id => 1);
 my $scheduler = VRPipe::Scheduler->get();
-my $subm_dir = dir($scheduler->output_root, qw(7 c 4 4 VRPipe__PersistentArray__1));
-is $submission->scheduler_stdout_file->path, file($subm_dir, 'scheduler_stdout.1.r0'), 'scheduler_stdout_file was correct';
-is $submission->scheduler_stderr_file->path, file($subm_dir, 'scheduler_stderr.1.r0'), 'scheduler_stderr_file was correct';
-is $submission->job_stdout_file->path, file($subm_dir, 'job_stdout.1.r0'), 'job_stdout_file was correct';
-is $submission->job_stderr_file->path, file($subm_dir, 'job_stderr.1.r0'), 'job_stderr_file was correct';
-is $submission->scheduler_stderr, undef, 'scheduler_stderr had no content';
+my $subm_dir = dir($scheduler->output_root, qw(b f a 2 VRPipe__Job__1));
+is $submission->scheduler_stdout_file->path, file($subm_dir, 'scheduler_output_file'), 'scheduler_stdout_file was correct';
+is $submission->scheduler_stderr_file->path, file($subm_dir, 'scheduler_error_file'), 'scheduler_stderr_file was correct';
+is $submission->job_stdout_file->path, file($subm_dir, 'job_stdout'), 'job_stdout_file was correct';
+is $submission->job_stderr_file->path, file($subm_dir, 'job_stderr'), 'job_stderr_file was correct';
+my $pars = $submission->scheduler_stderr;
+$pars->next_record;
+is_deeply [@{$pars->parsed_record}], [], 'scheduler_stderr had no content';
 my $parser = $submission->scheduler_stdout;
 ok $parser->does('VRPipe::ParserRole'), 'scheduler_stdout returns a parser';
 

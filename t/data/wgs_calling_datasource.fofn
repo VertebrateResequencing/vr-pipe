@@ -1,0 +1,7 @@
+path	chrom	analysis_group	population	continent
+t/data/chrom20.ILLUMINA.bwa.CEU.low_coverage.bam	20	low_coverage	CEU	EUR
+t/data/chrom20.ILLUMINA.bwa.JPT.low_coverage.bam	20	low_coverage	JPT	ASN
+t/data/chrom11.ILLUMINA.bwa.CEU.low_coverage.bam	11	low_coverage	CEU	EUR
+t/data/chrom11.ILLUMINA.bwa.JPT.low_coverage.bam	11	low_coverage	JPT	ASN
+t/data/chrom11.SOLID.bfast.JPT.low_coverage.bam	11	low_coverage	JPT	ASN
+t/data/chrom20.SOLID.bfast.JPT.low_coverage.bam	20	low_coverage	JPT	ASN

@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::bam_reheader - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
@@ -76,8 +108,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                        bases => 'total number of base pairs',
                                                                        reads => 'total number of reads (sequences)',
                                                                        paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
-                                                                       merged_bams => 'comma separated list of merged bam paths',
-                                                                       optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
+                                                                       optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -108,61 +139,71 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         }
         $dict_file->close;
         
-        # construct the RG lines from the bam metadata
-        # bam may be a merge of multiple bams, so we construct the RG lines
-        # from the metadata of each of the merged bams
+        my $bam_file = VRPipe::File->get(path => $bam);
         my $headed_bam_file = VRPipe::File->get(path => $output);
-        my $meta = $headed_bam_file->metadata;
-        my @files;
-        if (defined $meta->{merged_bams}) {
-            my @paths = split /,/, $meta->{merged_bams};
-            foreach my $path (@paths) {
-                if ($path =~ /^VF:(\d+)$/) {
-                    push @files, VRPipe::File->get(id => $1);
-                }
-                else {
-                    push @files, VRPipe::File->get(path => $path);
-                }
-            }
-        } else {
-            push @files, $headed_bam_file;
-        }
         
-        my %lanes;
-        my %rg_lines;
-        foreach my $file (@files) {
-            my $this_meta = $file->metadata;
-            # we may have merged multiple bams from the same lane - eg single and paired 
-            # end bams, so only print readgroup once
-            next if (exists $lanes{$this_meta->{lane}});
-            $lanes{$this_meta->{lane}} = 1;
-            my $rg_line = "\@RG\tID:".$this_meta->{lane};
-            if (defined $this_meta->{library}) {
-                $rg_line .= "\tLB:".$this_meta->{library};
+        my $existing_meta = $bam_file->metadata;
+
+        # construct the RG lines from the bam metadata if the lane metadata is present
+        # otherwise copy the RG lines from the existing header
+        if (defined $existing_meta->{lane} && !($existing_meta->{lane} =~ /,/)) {
+            print $hfh "\@RG\tID:".$existing_meta->{lane};
+            if (defined $existing_meta->{library}) {
+                print $hfh  "\tLB:".$existing_meta->{library};
             }
-            if (defined $this_meta->{sample}) {
-                $rg_line .= "\tSM:".$this_meta->{sample};
+            if (defined $existing_meta->{sample}) {
+                print $hfh  "\tSM:".$existing_meta->{sample};
             }
-            if (defined $this_meta->{insert_size}) {
-                $rg_line .= "\tPI:".sprintf("%0.0f", $this_meta->{insert_size});
+            if (defined $existing_meta->{insert_size}) {
+                print $hfh  "\tPI:".sprintf("%0.0f", $existing_meta->{insert_size});
             }
-            elsif (defined $this_meta->{mean_insert_size}) {
-                $rg_line .= "\tPI:".sprintf("%0.0f", $this_meta->{mean_insert_size});
+            elsif (defined $existing_meta->{mean_insert_size}) {
+                print $hfh  "\tPI:".sprintf("%0.0f", $existing_meta->{mean_insert_size});
             }
-            if (defined $this_meta->{center_name}) {
-                $rg_line .= "\tCN:".$this_meta->{center_name};
+            if (defined $existing_meta->{center_name}) {
+                print $hfh  "\tCN:".$existing_meta->{center_name};
             }
-            if (defined $this_meta->{platform}) {
-                $rg_line .= "\tPL:".$this_meta->{platform};
+            if (defined $existing_meta->{platform}) {
+                print $hfh  "\tPL:".$existing_meta->{platform};
             }
-            if (defined $this_meta->{study}) {
-                $rg_line .= "\tDS:".$this_meta->{study};
+            if (defined $existing_meta->{study}) {
+                print $hfh  "\tDS:".$existing_meta->{study};
             }
-            $rg_lines{$this_meta->{lane}} = $rg_line;
-        }
-        foreach my $rg (sort keys %rg_lines) {
-            print $hfh $rg_lines{$rg}, "\n";
+            print $hfh "\n";
             $header_lines++;
+        } else {
+            my $pars = VRPipe::Parser->create('bam', {file => $bam_file});
+            my %readgroup_info = $pars->readgroup_info();
+            $self->throw("No readgroup info found and no single lane metadata for bam $bam. Cannot reheader.") unless (scalar keys %readgroup_info > 0);
+            foreach my $rg (sort keys %readgroup_info) {
+                print $hfh "\@RG\tID:".$rg;
+                if (defined $readgroup_info{$rg}->{LB}) {
+                    print $hfh  "\tLB:".$readgroup_info{$rg}->{LB};
+                }
+                if (defined $readgroup_info{$rg}->{SM}) {
+                    print $hfh  "\tSM:".$readgroup_info{$rg}->{SM};
+                }
+                if (defined $readgroup_info{$rg}->{PI}) {
+                    print $hfh  "\tPI:".sprintf("%0.0f", $readgroup_info{$rg}->{PI});
+                }
+                if (defined $readgroup_info{$rg}->{CN}) {
+                    print $hfh  "\tCN:".$readgroup_info{$rg}->{CN};
+                }
+                if (defined $readgroup_info{$rg}->{PL}) {
+                    print $hfh  "\tPL:".$readgroup_info{$rg}->{PL};
+                }
+                if (defined $readgroup_info{$rg}->{DS}) {
+                    print $hfh  "\tDS:".$readgroup_info{$rg}->{DS};
+                }
+                if (defined $readgroup_info{$rg}->{PU}) {
+                    print $hfh  "\tPU:".$readgroup_info{$rg}->{PU};
+                }
+                if (defined $readgroup_info{$rg}->{DT}) {
+                    print $hfh  "\tDT:".$readgroup_info{$rg}->{DT};
+                }
+                print $hfh "\n";
+                $header_lines++;
+            } 
         }
         
         # Construct a chain of PG lines for the header by looking at previous
@@ -176,8 +217,6 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my $stepmember = $this_step_state->stepmember;
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
-        my $bam_file = VRPipe::File->get(path => $bam);
-        my $existing_meta = $bam_file->metadata;
         my @program_chain = $self->program_chain(pipelinesetup => $pipelinesetup, stepmember => $stepmember, dataelement => $dataelement);
         if (defined $existing_meta->{original_pg_chain}) {
             my %pg_lines;
@@ -207,11 +246,20 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         }
         foreach my $pg_line (@program_chain)
         {
-            print $hfh "\@PG\tID:", $pg_line->{program_id}, "\tPN:", $pg_line->{program_name}, "\t";
-            if ($pg_line->{previous_program} ne 'null') {
-                print $hfh "PP:", $pg_line->{previous_program}, "\t";
+            print $hfh "\@PG\tID:".$pg_line->{program_id};
+            if ($pg_line->{program_name}) {
+                print $hfh "\tPN:".$pg_line->{program_name};
             }
-            print $hfh "VN:", $pg_line->{program_version}, "\tCL:", $pg_line->{command_line}, "\n";
+            if ($pg_line->{previous_program} ne 'null') {
+                print $hfh "\tPP:".$pg_line->{previous_program};
+            }
+            if ($pg_line->{program_version}) {
+                print $hfh "\tVN:".$pg_line->{program_version};
+            }
+            if ($pg_line->{command_line}) {
+                print $hfh "\tCL:", $pg_line->{command_line};
+            }
+            print $hfh "\n";
             $header_lines++;
         }
         if ($comment) {
@@ -230,7 +278,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         $headed_bam_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $expected_lines = $meta->{reads} + $header_lines;
+        my $expected_lines = $existing_meta->{reads} + $header_lines;
         $headed_bam_file->update_stats_from_disc(retries => 3);
         my $actual_lines = $headed_bam_file->lines;
         
@@ -268,7 +316,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 my $cl = $program->{command_line};
                 my $pp = $pp{$readgroup} || 'null';
                 
-                if ($pp =~ /([\.\d]+)$/) {
+                if ($pp =~ /[^\.]+([\.\d]+)$/) {
                     $pid .= $1;
                 } 
                 
@@ -314,8 +362,10 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         }
         
         my @readgroups = $self->element_readgroups($dataelement);
+        return () unless @readgroups;
         foreach my $stepm ($pipeline->step_members) {
-            my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary || next;
+            my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary;
+            next unless $cmd_summary;
             my $step_name = $stepm->step->name;
             my $pg_hash = { program_id => $step_name, program_name => $cmd_summary->exe, program_version => $cmd_summary->version, command_line => $cmd_summary->summary, element_readgroups => \@readgroups };
             push @history, $pg_hash;
@@ -326,6 +376,8 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
 
     method element_readgroups (ClassName|Object $self: VRPipe::DataElement $dataelement!) {
         my %readgroups;
+        my $m = VRPipe::Manager->get;
+        my $schema = $m->result_source->schema;
         my $result = $dataelement->result;
         my $paths = $result->{paths} || $self->throw("data element ".$dataelement->id." gave a result with no paths");
         foreach my $path (@$paths) {
@@ -334,6 +386,12 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             next unless defined $metadata->{lane};
             foreach my $lane (split ',', $metadata->{lane}) {
                 $readgroups{$lane} = 1;
+            }
+        }
+        my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
+        while (my $link = $rs->next) {
+            foreach my $rg ($self->element_readgroups($link->parent)) {
+                $readgroups{$rg} = 1;
             }
         }
         return sort keys %readgroups;

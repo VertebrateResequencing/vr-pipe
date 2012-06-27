@@ -1,10 +1,45 @@
+=head1 NAME
+
+VRPipe::DataSource::vrtrack - get pipeline inputs from a VRTrack database
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     # eval these so that test suite can pass syntax check on this module when
-    # VertRes is not installed
-    eval "use VertRes::Utils::VRTrackFactory;";
-    eval "use VertRes::Utils::Hierarchy;";
+    # VRTrack is not installed
+    eval "use VRTrack::Factory;";
     use Digest::MD5 qw(md5_hex);
     use File::Spec::Functions;
     
@@ -34,7 +69,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method _open_source {
-        return VertRes::Utils::VRTrackFactory->instantiate(database => $self->source, mode => 'r');
+        return VRTrack::Factory->instantiate(database => $self->source, mode => 'r');
     }
     
     method _has_changed {
@@ -104,11 +139,9 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                             Bool :$qc?,
                             Bool :$mapped?,
                             Bool :$improved?) {
-        my $hu = VertRes::Utils::Hierarchy->new();
-        my @lanes = $hu->get_lanes(vrtrack => $handle,
-                                   $project_regex ? (project_regex => $project_regex) : (),
-                                   $sample_regex ? (sample_regex => $sample_regex) : (),
-                                   $library_regex ? (library_regex => $library_regex) : ());
+        my @lanes = $handle->get_lanes($project_regex ? (project_regex => $project_regex) : (),
+                                       $sample_regex ? (sample_regex => $sample_regex) : (),
+                                       $library_regex ? (library_regex => $library_regex) : ());
         
         my @filtered;
         foreach my $lane (@lanes) {
@@ -300,13 +333,12 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         unless ($file_type eq "5") {
             $self->throw("local_root_dir is required") unless $local_root_dir;
         }
-        my $vrtrack = $args{handle};
+        my $vrtrack = $args{handle} || $self->throw("handle is required");
         my $group_by_metadata = delete $args{group_by_metadata};
         
         my @single_results;
-        my $hu = VertRes::Utils::Hierarchy->new();
         foreach my $lane ($self->_filtered_lanes(%args)) {
-            my %lane_info = $hu->lane_info($lane->name, vrtrack => $vrtrack, no_coverage => 1);
+            my %lane_info = $vrtrack->lane_info($lane->name);
             my @lane_changed_details;
             
             my @files;

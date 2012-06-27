@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::irods - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Steps::irods with VRPipe::StepRole {
@@ -101,6 +133,14 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                      Str|File :$iget!, Str|File :$ichksum!) {
         my $dest = $dest_file->path;
         $dest_file->disconnect;
+
+        # before we go fetch a file, check the md5 matches what we're expecting
+        my $irodschksum = $self->get_file_md5(file => $source, ichksum => $ichksum);
+        my $expected_md5 = $dest_file->metadata->{expected_md5} || $irodschksum;
+        unless ($irodschksum eq $expected_md5) {
+            $dest_file->unlink;
+            $self->throw("expected md5 checksum in metadata did not match md5 of $source in IRODS; aborted");
+        }
         
         # -K: checksum
         # -Q: use UDP rather than TCP
@@ -117,7 +157,6 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         chmod 0664, $dest;
         
         # double-check the md5 (iget -K doesn't always work?)
-        my $expected_md5 = $dest_file->metadata->{expected_md5} || $self->get_file_md5(file => $source, ichksum => $ichksum);
         my $ok = $dest_file->verify_md5($dest, $expected_md5);
         unless ($ok) {
             $dest_file->unlink;

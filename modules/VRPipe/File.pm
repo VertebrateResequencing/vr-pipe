@@ -1,3 +1,58 @@
+=head1 NAME
+
+VRPipe::File - describe and work with files on a filesystem
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+B<VRPipe> must know about all the files that are input into it, that it works
+on, and that it outputs. This class stores metadata about files (both normal
+filesystem metadata like size and modify time, as well as arbitrary metadata),
+and also has some methods to work with files, like C<open()> and C<move()>.
+
+It is important to always use the methods here when doing anything with a file
+that B<VRPipe> has dealt with, especially in the case of moving files that are
+pipeline step outputs. For example, if a step output is moved without B<VRPipe>
+knowing about it, and then a subsequent step (perhaps in a different pipeline)
+needs to use that file, B<VRPipe> will be forced to rerun the pipeline and
+steps necessary to regenerate the required file. However if C<move()> in this
+class is used to do the move, B<VRPipe> will know where the required file is now
+and use it from its new location.
+
+To avoid doing stats on disc to discover if a file exists (which can be very
+slow and expensive on high-performance filesystems), this metadata is stored in
+the B<VRPipe> database, so again, C<unlink()> in this class should be used if
+you need to delete a file, not Perl's unlink(), or Unix B<rm>.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::File extends VRPipe::Persistent {

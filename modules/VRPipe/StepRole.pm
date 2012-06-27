@@ -1,3 +1,43 @@
+=head1 NAME
+
+VRPipe::StepRole - methods required of and useful for writing Steps
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+This Role must be used with all C<VRPipe::Steps::*> modules. It also provides
+a host of useful methods that Steps should take advantage of in their
+C<body_sub>s and elsewhere.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 role VRPipe::StepRole {
@@ -212,7 +252,7 @@ role VRPipe::StepRole {
                 
                 if (! $results) {
                     if ($val->min_files == 0) {
-                        return \%return;
+                        next;
                     }
                     else {
                         $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");
@@ -233,6 +273,7 @@ role VRPipe::StepRole {
                 }
                 
                 my @vrfiles;
+                my @skip_reasons;
                 foreach my $result (@$results) {
                     unless (ref($result) && ref($result) eq 'VRPipe::File') {
                         $result = VRPipe::File->get(path => file($result)->absolute);
@@ -243,18 +284,23 @@ role VRPipe::StepRole {
                         if ($result->s) {
                             my $type = VRPipe::FileType->create($wanted_type, {file => $result->path});
                             unless ($type->check_type) {
-                                $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type ".$type->type);
+                                push(@skip_reasons, "file ".$result->path." was not the correct type, expected type $wanted_type and got type ".$type->type);
+                                next;
                             }
                         }
                         else {
                             my $db_type = $result->type;
                             if ($db_type && $wanted_type ne $db_type) {
-                                $self->throw("file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
+                                push(@skip_reasons, "file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
+                                next;
                             }
                         }
                     }
                     
                     push(@vrfiles, $result);
+                }
+                if (! @vrfiles && @skip_reasons) {
+                    $self->throw("none of the input files had a suitable type:\n".join("\n", @skip_reasons));
                 }
                 
                 $return{$key} = [map { $_->e ? $_ : $_->resolve } @vrfiles];

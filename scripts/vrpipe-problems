@@ -2,6 +2,30 @@
 use strict;
 use warnings;
 
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::FrontEnd;
 
 my $frontend = VRPipe::FrontEnd->new(description => "Provide an overview of problems with pipelines that need user intervention to resolve.",
@@ -43,7 +67,9 @@ if (keys %summary) {
         foreach my $step (sort $key_sort keys %{$steps}) {
             my ($step_id, $step_name) = split('\|\[\]\|', $step);
             my $fails = $steps->{$step};
-            $frontend->output("\t", "Step $step_name has failed for $fails Data Elements; investigate by running: vrpipe-submissions --setup $setup_id --step '$step_name' --failed");
+            my $cmd = "vrpipe-submissions --setup $setup_id --step '$step_name' --failed";
+            $cmd .= ' --deployment testing' if ($frontend->opts('deployment') eq 'testing');
+            $frontend->output("\t", "Step $step_name has failed for $fails Data Elements; investigate by running: $cmd");
         }
         
         $frontend->output("---\n\n");

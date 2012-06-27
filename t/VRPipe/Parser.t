@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 70;
+    use Test::Most tests => 76;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -41,6 +41,11 @@ $p = VRPipe::Parser->create('lsf', {file => file(qw(t data lsf.stdout))});
 $p->next_record;
 is $p->parsed_record->[4], 4.75, 'next_record and parsed_record work on the first (last) record';
 
+undef $p;
+$p = VRPipe::Parser->create('lsf', {file => file(qw(t data parser.lsf))});
+$p->next_record;
+is_deeply [$p->cpu_time, $p->time], [1125279.25, 1143345], 'able to get the correct cpu and wall time for an unusual test case';
+
 # loc
 undef $p;
 $p = VRPipe::Parser->create('loc', {file => file(qw(t data parser.loc))});
@@ -57,12 +62,20 @@ undef $p;
 $p = VRPipe::Parser->create('cat', {file => file(qw(t data file.cat))});
 my @records;
 while ($p->next_record) {
-    push(@records, join("\n", @{$p->parsed_record}));
+    push(@records, [@{$p->parsed_record}]);
 }
-is_deeply [@records], ["first line of 4th record\nsecond line of 4th record",
-                       "",
-                       "first line of 2nd record\nsecond line of 2nd record",
-                       "first line of 1st record\nsecond line of 1st record"], 'cat file was parsed correctly';
+is_deeply [@records], [["first line of 4th record", "second line of 4th record"],
+                       [],
+                       ["first line of 2nd record", "second line of 2nd record"],
+                       ["first line of 1st record", "second line of 1st record"]], 'cat file was parsed correctly';
+$p = VRPipe::Parser->create('cat', {file => file(qw(t data parser.cat))});
+@records = ();
+while ($p->next_record) {
+    push(@records, [@{$p->parsed_record}]);
+}
+is_deeply [@records], [[],
+                       ["stdout message: failing on purpose since this is try 2"],
+                       ["stdout message: failing on purpose since this is try 1"]], 'another cat file was parsed correctly';
 
 # fqc
 $p = VRPipe::Parser->create('fqc', {file => file(qw(t data parser.fastqcheck ))});
@@ -87,6 +100,9 @@ is_deeply [$num_records, $first_record, $quals, $p->avg_qual],
                                              24.2096774193548 25.0443101711984 24.1553985872856 23.6963562753036 23.314459049545 21.7979797979798 22.3222222222222 19.2127016129032
                                              20.8827098078868 20.7700101317123 19.837044534413 18.9494438827098 18.0485829959514 17.7537993920973 16.8546922300706 17.1151515151515 17.3699596774194)],
                                          27.8919469928644], 'body of fastqcheck file was parsed correctly';
+undef($p);
+$p = VRPipe::Parser->create('fqc', {file => file(qw(t data parser.fastqcheck_unusual ))});
+is_deeply [$p->num_sequences, $p->total_length, $p->avg_length, $p->max_length, $p->standard_deviations], [24, 2424, '101.00', 101, ['1.02', 10.21]], 'header of unusual fastqcheck file was parsed correctly';
 
 # fasta
 $p = VRPipe::Parser->create('fasta', {file => file(qw(t data S_suis_P17.fa))});
@@ -122,7 +138,7 @@ while ($p->next_record) {
 }
 is $num_records, 3, 'correct number of records found in bam file';
 
-# bamcheck (only parses the header so far...)
+# bamcheck
 $p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck))});
 is $p->sequences, 2000, 'bamcheck sequences method worked';
 is $p->is_paired, 1, 'bamcheck is_paired worked';
@@ -138,6 +154,14 @@ $p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_
 is_deeply [$p->coverage(0), $p->coverage(1), $p->coverage(2), $p->coverage(3), $p->coverage(4), $p->coverage(5), $p->coverage(6), $p->coverage(7)], [0, 27893, 6485, 1188, 355, 49, 49, 0], 'coverage worked';
 is_deeply [$p->cumulative_coverage(1), $p->cumulative_coverage(2), $p->cumulative_coverage(3), $p->cumulative_coverage(4), $p->cumulative_coverage(5), $p->cumulative_coverage(6), $p->cumulative_coverage(7)], [36019, 8126, 1641, 453, 98, 49, 0], 'cumulative_coverage worked';
 is $p->mean_coverage, 1.29, 'mean_coverage worked';
+# and check that some of the other section methods work
+is_deeply $p->gc_depth(), [[qw(0.0	28.571	0.000	0.000	0.000	0.000	0.000)],
+                           [qw(0.4	42.857	0.238	0.238	0.238	0.238	0.238)],
+                           [qw(37.0	71.429	0.381	0.381	0.381	0.383	0.383)],
+                           [qw(38.0	85.714	0.402	0.402	0.402	0.402	0.402)],
+                           [qw(39.0	100.000	0.419	0.419	0.419	0.419	0.419)]], 'gc_depth worked';
+is_deeply $p->read_lengths(), [[54, 862]], 'read_lengths worked';
+is_deeply $p->indel_dist(), [[1, 5, 6], [3, 0, 1]], 'indel_dist worked';
 
 # bas
 $p = VRPipe::Parser->create('bas', {file => file(qw(t data example2.bas))});

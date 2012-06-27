@@ -1,3 +1,49 @@
+=head1 NAME
+
+VRPipe::Manager - methods for managing the execution of pipelines
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+This is the main module used to discover what work needs to be done ('trigger'
+each L<VRPipe::PipelineSetup>) and then to 'dispatch' that work out to the
+system's job scheduler to actually run the command lines on the compute cluster.
+
+The B<vrpipe-trigger_pipelines> and B<vrpipe-dispatch_pipelines> scripts call
+methods of this module.
+
+Note that the current implementation is slow and inefficient, with lots of
+serial looping over thousands of objects. A radical overhaul is planned.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Manager extends VRPipe::Persistent {
@@ -477,27 +523,13 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     #    scheduler outputs, and how can we make the return
                     #    values generic?
                     if ($status) {
-                        if ($status eq 'MEMLIMIT' || $status eq 'RUNLIMIT') {
-                            # we want to add extra memory/time for all
-                            # submissions that are for this sub's job, incase
-                            # it is not this sub in an array of block_and_skip
-                            # jobs that gets retried
-                            my $rs = $schema->resultset('Submission')->search({ 'job' => $sub->job->id });
-                            my @subs_to_extra;
-                            while (my $sub = $rs->next) {
-                                push(@subs_to_extra, $sub);
-                            }
-                            
-                            foreach my $to_extra (@subs_to_extra) {
-                                if ($status eq 'MEMLIMIT') {
-                                    $to_extra->extra_memory;
-                                }
-                                elsif ($status eq 'RUNLIMIT') {
-                                    my $hrs = ceil($parser->time / 60 / 60) + 1;
-                                    my $current_hrs = $sub->time;
-                                    $to_extra->extra_time($hrs - $current_hrs);
-                                }
-                            }
+                        if ($status eq 'MEMLIMIT') {
+                            $sub->extra_memory;
+                        }
+                        elsif ($status eq 'RUNLIMIT') {
+                            my $hrs = ceil($parser->time / 60 / 60) + 1;
+                            my $current_hrs = $sub->time;
+                            $sub->extra_time($hrs - $current_hrs);
                         }
                     }
                 }
@@ -513,12 +545,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
     #method check_running (ArrayRef[VRPipe::Submission] $submissions) {
     sub check_running { 
         my ($self, $submissions) = @_;
-        # this does the dance of checking if any of the currently running ->submissions
-        # are approaching their time limit, and switching queues as appropriate. It
-        # also checks that all running Jobs have had a recent heartbeat, and if not
-        # will do the kill dance and resubmit.
-        
-        #*** not yet fully implemented...
         
         # update the status of each submission in case any of them finished
         my @still_not_done;
@@ -528,25 +554,19 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $c++;
             $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
             if ($job->running) {
-                # user's scheduler might kill the submission if it runs too long in the
-                # queue it was initially submitted to; user could do something like this
-                # every 15mins:
-                #if ($sub->close_to_time_limit(30)) {
-                #    # where close_to_time_limit returns true if $sub->job->wall_time >
-                #    # $job->requirements->time - 30.
-                #    $sub->extra_time(2);
-                #    # now make your scheduler recalculate the appropriate queue of a job
-                #    # that takes 2 extra hours, and if the queue changes, switch the
-                #    # queue:
-                #    $sub->scheduler->switch_queues($sub);
-                #}
-                
                 # check we've had a recent heartbeat
                 $self->debug(" -- running...");
                 if ($job->unresponsive) {
                     $self->debug(" -- unresponsive");
                     $job->kill_job;
                     $sub->update_status();
+                }
+                elsif ($sub->close_to_time_limit(30)) {
+                    # user's scheduler might kill the submission if it runs too
+                    # long in the queue it was initially submitted to; avoid
+                    # this by changing queue as necessary
+                    $self->debug(" -- within 30mins of time limit, will increase by 2hrs...");
+                    $sub->extra_time(2);
                 }
             }
             elsif ($job->finished) {

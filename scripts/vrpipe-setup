@@ -2,6 +2,30 @@
 use strict;
 use warnings;
 
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::FrontEnd;
 
 my $frontend = VRPipe::FrontEnd->new(description => "Setup a new pipeline, or alter the configuration of an existing one.",
@@ -15,13 +39,13 @@ my $frontend = VRPipe::FrontEnd->new(description => "Setup a new pipeline, or al
                                                    [],
                                                    [ q[To alter an existing PipelineSetup:] ],
                                                    [ 'setup=s', 'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'requirements', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed)] ],
+                                                   [ 'extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously] ],
                                                    [ 'deactivate', 'Turn off the given --setup' ],
                                                    [ 'reactivate', 'Turn on the given --setup' ] ]);
 
 my $user = $frontend->opts('user');
 my $setup = $frontend->get_pipelinesetups();
-my $override_reqs = $frontend->opts('requirements');
+my $extra_options = $frontend->opts('extra_options');
 my $deactivate = $frontend->opts('deactivate');
 my $reactivate = $frontend->opts('reactivate');
 my $list = $frontend->opts('list');
@@ -34,9 +58,9 @@ if ($setup && $list) {
 if ($user eq 'all' && ! $list) {
     $frontend->die_with_error("--user all when not listing with --list don't make sense; when creating a new setup set a real user name with --user, or leave it to the default");
 }
-if (($override_reqs || $deactivate || $reactivate) && ! $setup) {
-    $frontend->error("--requirments, --deactivate and --activate only make sense when given a --setup; ignoring them");
-    undef $override_reqs;
+if (($extra_options || $deactivate || $reactivate) && ! $setup) {
+    $frontend->error("--extra_options, --deactivate and --activate only make sense when given a --setup; ignoring them");
+    undef $extra_options;
     undef $deactivate;
     undef $reactivate;
 }
@@ -63,13 +87,13 @@ if ($setup) {
     }
     else {
         # allow the user to change pipeline setup options
-        $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") currently has these options:");
         
         # Get a list of all options possible, without duplication
         my %option_names;
         my $option_num = 0;
         my @options;
-        foreach my $stepm ($setup->pipeline->step_members) {
+        my $pipeline = $setup->pipeline;
+        foreach my $stepm ($pipeline->step_members) {
             my $step = $stepm->step;
             my $option_defs = $step->options_definition;
             foreach my $key (sort keys %$option_defs) {
@@ -81,9 +105,9 @@ if ($setup) {
                 $options[$option_num] = [$key, $step_option->description, $step_option->optional, $step_option->default_value, $step_option->allowed_values];
             }
             
-            if ($override_reqs) {
-                # also give the generic memory/time etc. options user could set for this
-                # step
+            if ($extra_options) {
+                # also give the generic memory/time etc. options user could set
+                # for this step
                 my $step_name = $step->name;
                 foreach my $resource (qw(memory time cpus tmp_space)) { # local_space custom
                     my $key = $step_name.'_'.$resource;
@@ -92,44 +116,79 @@ if ($setup) {
                     $option_names{$key} = $option_num;
                     $options[$option_num] = [$key, "Override the $resource requirement for the step '$step_name'", 1, '', []];
                 }
+                
+                # and an option to limit the number of simultanous jobs for this
+                # step
+                my $key = $step_name.'_max_simultaneous';
+                unless (exists $option_names{$key}) {
+                    $option_num++;
+                    $option_names{$key} = $option_num;
+                    $options[$option_num] = [$key, "Limit the number of simultaneous jobs for the step '$step_name'", 1, '', []];
+                }
             }
         }
         
-        # Show the user the list, along with currently set options, allow them to
-        # change an option, then repeat until they choose to finish
-        while (1) {
-            my $current_opts = $setup->options;
-            foreach my $i (1..$option_num) {
-                my ($key, $desc, $optional, $default, $allowed) = @{$options[$i]};
-                my $current = defined $current_opts->{$key} ? $current_opts->{$key} : '[not set]';
-                my $comment = $optional ? 'optional' : 'REQUIRED';
-                $frontend->output("$i. $key ($comment) => $current");
-                $frontend->output("\tDescription: $desc");
-                if ($default) {
-                    $frontend->output("\tDefault: $default");
-                }
-                if (@$allowed) {
-                    $frontend->output("\tAllowed values: ", join(' | ', @$allowed));
+        # also include behaviour options
+        my $reg = behaviours_to_regulators(get_pipeline_behaviours($pipeline));
+        foreach my $regulator (keys %$reg) {
+            my (@methods, %steps);
+            my $methods = $reg->{$regulator}->{methods};
+            while (my ($method, $steps) = each %$methods) {
+                push(@methods, $method);
+                foreach my $step (%$steps) {
+                    $steps{$step} = 1;
                 }
             }
+            my @steps = sort { $a <=> $b } keys %steps;
             
-            my $choice = $frontend->pick_number(question => "Choose an option to change", max => $option_num);
-            my $chosen_key = $options[$choice]->[0];
-            my $val = $frontend->ask_question(question => "Provide a new value for '$chosen_key'",
-                                              required => $options[$choice]->[2] ? 0 : 1,
-                                              $options[$choice]->[3] ? (default => $options[$choice]->[3]) : (),
-                                              $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ());
-            $current_opts->{$chosen_key} = $val;
-            $setup->options($current_opts);
-            $setup->update;
-            $frontend->output("Option updated!\n\n");
+            my @defaults = keys %{$reg->{$regulator}->{defaults}};
+            my $default = @defaults == 1 ? $defaults[0] : 'mixed';
             
-            my $answer = $frontend->ask_question(question => "Do you want to change another option?", possibles => [qw(y n)], default => 'n');
-            last unless $answer eq 'y';
-            $frontend->output("\n");
+            $option_num++;
+            $option_names{$regulator} = $option_num;
+            $options[$option_num] = [$regulator, "Turn the behaviours (".join(', ', @methods).") of steps (".join(', ', @steps).") on (1) of off (0)", 1, "$default" ne 'mixed' ? $default : '', [0, 1]];
         }
         
-        #*** allow changing of behaviour regulators...
+        if ($option_num) {
+            $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") currently has these options:");
+            
+            # Show the user the list, along with currently set options, allow them to
+            # change an option, then repeat until they choose to finish
+            while (1) {
+                my $current_opts = $setup->options;
+                foreach my $i (1..$option_num) {
+                    my ($key, $desc, $optional, $default, $allowed) = @{$options[$i]};
+                    my $current = defined $current_opts->{$key} ? $current_opts->{$key} : '[not set]';
+                    my $comment = $optional ? 'optional' : 'REQUIRED';
+                    $frontend->output("$i. $key ($comment) => $current");
+                    $frontend->output("\tDescription: $desc");
+                    if ($default) {
+                        $frontend->output("\tDefault: $default");
+                    }
+                    if (@$allowed) {
+                        $frontend->output("\tAllowed values: ", join(' | ', @$allowed));
+                    }
+                }
+                
+                my $choice = $frontend->pick_number(question => "Choose an option to change", max => $option_num);
+                my $chosen_key = $options[$choice]->[0];
+                my $val = $frontend->ask_question(question => "Provide a new value for '$chosen_key'",
+                                                  required => $options[$choice]->[2] ? 0 : 1,
+                                                  $options[$choice]->[3] ? (default => $options[$choice]->[3]) : (),
+                                                  $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ());
+                $current_opts->{$chosen_key} = $val;
+                $setup->options($current_opts);
+                $setup->update;
+                $frontend->output("Option updated!\n\n");
+                
+                my $answer = $frontend->ask_question(question => "Do you want to change another option?", possibles => [qw(y n)], default => 'n');
+                last unless $answer eq 'y';
+                $frontend->output("\n");
+            }
+        }
+        else {
+            $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") has no options that can be set (try rerunning with --extra_options ?).");
+        }
         
         # (probably not a good idea to allow changing datasource options?...)
     }
@@ -162,28 +221,38 @@ else {
     my @sms = $pipeline->steps;
     my @steps = map { $_->step } @sms;
     
-    # find the step whoes input is the data element
+    # find the steps whoes input is the data element
     my @adaptors = $schema->resultset('StepAdaptor')->search({ pipeline => $pipeline->id });
-    my ($source_input_step_num, $source_input_step_kind);
-    ADAP: foreach my $adaptor (@adaptors) {
+    my %source_input_step_num_to_kind;
+    foreach my $adaptor (@adaptors) {
         my $hash = $adaptor->adaptor_hash;
         while (my ($kind, $ins_hash) = each %$hash) {
             if (exists $ins_hash->{data_element}) {
-                $source_input_step_num = $adaptor->to_step;
-                $source_input_step_kind = $kind;
-                last ADAP;
+                push(@{$source_input_step_num_to_kind{$adaptor->to_step}}, $kind);
             }
         }
     }
-    unless ($source_input_step_num) {
+    unless (keys %source_input_step_num_to_kind) {
         $frontend->die_with_error("Your chosen pipeline doesn't seem to accept any user input!");
     }
     
     # figure out what sort of input data is expected
-    my ($source_input_step) = map { $_->step; } grep { $_->step_number == $source_input_step_num } @sms;
-    my $source_input_io_def = $source_input_step->inputs_definition->{$source_input_step_kind};
-    $frontend->output("Your chosen pipeline takes DataSource input during step $source_input_step_num (", $source_input_step->name, " - ", $source_input_step->description, "), which expects:");
-    describe_io_def($source_input_io_def);
+    my %source_input_steps;
+    foreach my $sm (@sms) {
+        my $step_number = $sm->step_number;
+        my @kinds = @{$source_input_step_num_to_kind{$step_number} || next};
+        foreach my $kind (@kinds) {
+            $source_input_steps{$step_number.'#'.$kind} = $sm->step;
+        }
+    }
+    $frontend->output("Your chosen pipeline takes DataSource input during step(s):");
+    foreach my $snk (sort { my ($n1, $s1) = split('#', $a); my ($n2, $s2) = split('#', $b); $n1 <=> $n2  || $s1 cmp $s2 } keys %source_input_steps) {
+        my $source_input_step = $source_input_steps{$snk};
+        my ($source_input_step_num, $source_input_step_kind) = split('#', $snk);
+        my $source_input_io_def = $source_input_step->inputs_definition->{$source_input_step_kind};
+        $frontend->output("\t$source_input_step_num (", $source_input_step->name, " - ", $source_input_step->description, "), which expects:");
+        describe_io_def($source_input_io_def);
+    }
     
     # ask the user for the DataSource details
     my @ds_types;
@@ -213,6 +282,12 @@ else {
     }
     my $chosen_ds_num = $frontend->pick_number(question => "Pick a DataSource type from the above list", max => $ds_num, $based_on_ds ? (default => $based_on_ds_type_num) : ());
     my $chosen_ds_type = $ds_types[$chosen_ds_num];
+    if (defined $based_on_ds_type && $based_on_ds_type ne $chosen_ds_type) {
+        undef $based_on_ds;
+        undef $based_on_ds_type;
+        undef $based_on_ds_method;
+        undef $based_on_ds_options;
+    }
     
     # get the source
     my $ds_module = "VRPipe::DataSource::$chosen_ds_type";
@@ -374,21 +449,21 @@ exit;
 sub describe_io_def {
     my $io_def = shift;
     
-    $frontend->output("\tFile type = ", $io_def->type, " (", $io_def->description, ")");
+    $frontend->output("\t\tFile type = ", $io_def->type, " (", $io_def->description, ")");
     my $files_comment = $io_def->check_existence ? 'and they must exist' : "and they don't have to exist yet";
     my $max = $io_def->max_files;
     if ($max == -1) {
         $max = 'unlimited';
     }
-    $frontend->output("\tNumber of files = ", $io_def->min_files, '..', $max, " ($files_comment)");
+    $frontend->output("\t\tNumber of files = ", $io_def->min_files, '..', $max, " ($files_comment)");
     my $metadata = $io_def->metadata;
     if (keys %$metadata) {
-        $frontend->output("\tFiles must also have the following metadata associated with them (so be sure to pick a DataSource capable of adding this metadata):");
-        my %optional = map { $_ => 1 } @{delete $metadata->{optional}};
+        $frontend->output("\t\tFiles must also have the following metadata associated with them (so be sure to pick a DataSource capable of adding this metadata):");
+        my %optional = map { $_ => 1 } @{delete $metadata->{optional} || []};
         foreach my $key (sort keys %$metadata) {
             my $val = $metadata->{$key};
             my $comment = exists $optional{$key} ? 'optional' : 'REQUIRED';
-            $frontend->output("\t\t$key => $val ($comment)");
+            $frontend->output("\t\t\t$key => $val ($comment)");
         }
     }
 }

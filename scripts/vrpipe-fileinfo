@@ -2,11 +2,32 @@
 use strict;
 use warnings;
 
-use lib '/nfs/users/nfs_s/sb10/src/git/VertebrateResequencing/vr-pipe/modules';
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
 
 use VRPipe::FrontEnd;
 use Path::Class;
-use Data::Dumper;
 
 my $frontend = VRPipe::FrontEnd->new(description => "Get information on files created by VRPipe - what pipeline created them, and what metadata they have.",
                                      opt_spec => [ [],
@@ -70,7 +91,7 @@ if ($frontend->option_was_set('tab_columns')) {
     }
 }
 else {
-    foreach my $col (qw(cmd_summary cmd_lines size lines md5 time metadata)) {
+    foreach my $col (qw(setup_info cmd_summary cmd_lines size lines md5 time metadata)) {
         if (exists $output_types{$col}) {
             push(@tab_cols, $col);
         }
@@ -93,6 +114,7 @@ my $schema = $frontend->schema;
 my %files;
 my $limit_count = 0;
 foreach my $path (@paths) {
+    $path = file($path)->absolute;
     my $file = $schema->resultset('File')->find({ path => $path });
     unless ($file) {
         $frontend->error("VRPipe does not know about $path; ignoring");
@@ -240,7 +262,41 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
         if ($col eq 'setup_info') {
             if ($stepstate) {
                 my $setup = $stepstate->pipelinesetup;
-                # ...
+                
+                my @results;
+                push(@results, "setup name: ".$setup->name, "id: ".$setup->id, "user: ".$setup->user);
+                
+                my $pipeline = $setup->pipeline;
+                push(@results, "pipeline name: ".$pipeline->name, "pipeline description: ".$pipeline->description);
+                
+                my $ps_opts = $setup->options;
+                if (keys %$ps_opts) {
+                    push(@results, "pipeline options:");
+                    while (my ($key, $val) = each %$ps_opts) {
+                        push(@results, "\t$key => $val");
+                    }
+                }
+                else {
+                    push(@results, "pipeline options: defaults/none");
+                }
+                
+                push(@results, "pipeline output root: ".$setup->output_root);
+                
+                my $datasource = $setup->datasource;
+                push(@results, "datasource type: ".$datasource->type, "datasource method: ".$datasource->method, "datasource source: ".$datasource->source);
+                
+                my $ds_opts = $datasource->options;
+                if (keys %$ds_opts) {
+                    push(@results, "datasource options:");
+                    while (my ($key, $val) = each %$ds_opts) {
+                        push(@results, "\t$key => $val");
+                    }
+                }
+                else {
+                    push(@results, "datasource options: defaults/none");
+                }
+                
+                $result = "\n".join("\n", map { "\t\t".$_ } @results);
             }
             else {
                 $result = 'file was not made by a (single) VRPipe pipeline';

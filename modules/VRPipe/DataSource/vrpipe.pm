@@ -1,3 +1,39 @@
+=head1 NAME
+
+VRPipe::DataSource::vrpipe - get pipeline inputs from another VRPipe pipeline
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Shane McCarthy <sm15@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
@@ -11,10 +47,10 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     }
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a metadata key which matches the regex.";
+            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option is a string of the form 'metadata_key#regex'. If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
         }
         elsif ($method eq 'group_by_metadata') {
-            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. Output files will only be included only if they have a metadata key which matches the regex.";
+            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
         }
         
         return '';
@@ -108,13 +144,16 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return $m->result_source->schema;
     }
     
-    method all (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?) {
-        my %args = (handle => $handle, maintain_element_grouping => $maintain_element_grouping);
+    method all (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$filter_after_grouping = 1) {
+        my %args = (handle => $handle, maintain_element_grouping => $maintain_element_grouping, filter_after_grouping => $filter_after_grouping);
         if ($filter) {
             $args{filter} = $filter;
         }
         my @elements;
         foreach my $result (@{$self->_all_results(%args, complete_elements => 1)}) {
+            if ($filter) {
+                next unless $result->{pass_filter};
+            }
             my $res = { paths => $result->{paths} };
             if ($maintain_element_grouping) {
                 $res->{lane} = $result->{result}->{lane} if (exists $result->{result}->{lane});
@@ -126,7 +165,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return \@elements;
     }
     
-    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0) {
+    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
         my ($key, $regex);
         if ($filter) {
             ($key, $regex) = split('#', $filter);
@@ -177,19 +216,30 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                         }
                         
                         foreach my $file (@$files) {
+                            my $pass_filter = 0;
+                            my $meta = $file->metadata;
                             if ($filter) {
-                                next unless $file->metadata->{$key} =~ m/$regex/;
+                                # if "filter_after_grouping => 0", we filter before grouping
+                                # by skipping files which don't match the regex or don't
+                                # have the required metadata
+                                if (defined $meta->{$key}) {
+                                    $pass_filter = $meta->{$key} =~ m/$regex/;
+                                    next if (!$filter_after_grouping && !$pass_filter);
+                                } else {
+                                    next unless $filter_after_grouping;
+                                }
                             }
                             
                             if ($maintain_element_grouping) {
                                 push @{$element_hash{paths}}, $file->path->stringify;
+                                $element_hash{pass_filter} ||= $pass_filter;
                             }
                             else {
                                 my %hash;
                                 $hash{paths} = [ $file->path->stringify ];
-                                my $meta = $file->metadata;
                                 $hash{metadata} = $meta if (keys %{$meta});
                                 $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
+                                $hash{pass_filter} ||= $pass_filter;
                                 push(@per_element_output_files, \%hash);
                             }
                         }
@@ -202,8 +252,8 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return \@output_files;
     }
     
-    method group_by_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$filter?) {
-        my %args = (handle => $handle, maintain_element_grouping => 0);
+    method group_by_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$filter?, Bool :$filter_after_grouping = 1) {
+        my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => $filter_after_grouping);
         if ($filter) {
             $args{filter} = $filter;
         }
@@ -219,11 +269,15 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             my $group_key = join '|', @group_keys;
             push(@{$group_hash->{$group_key}->{paths}}, @{$hash_ref->{paths}});
             push(@{$group_hash->{$group_key}->{parents}}, $hash_ref->{parent});
+            $group_hash->{$group_key}->{pass_filter} ||= $hash_ref->{pass_filter};
         }
         
         my @elements;
         foreach my $group (sort keys %{$group_hash}) {
             my $hash_ref = $group_hash->{$group};
+            if ($filter) {
+                next unless $hash_ref->{pass_filter};
+            }
             push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths}, group => $group }, withdrawn => 0);
             foreach my $parent (@{$hash_ref->{parents}}) {
                 VRPipe::DataElementLink->get(pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $elements[-1]->id);

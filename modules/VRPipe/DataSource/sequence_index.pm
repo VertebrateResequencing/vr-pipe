@@ -1,3 +1,42 @@
+=head1 NAME
+
+VRPipe::DataSource::sequence_index - get pipeline inputs from a sequence.index
+
+=head1 SYNOPSIS
+
+*** more documentation to come
+
+=head1 DESCRIPTION
+
+sequence.index files contain metadata describing fastq files, used for the
+1000 genomes project and described here: L<http://www.1000genomes.org/formats>.
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
     
 class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
@@ -98,7 +137,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                                  lane => $pr->[2],
                                  study => $pr->[3],
                                  study_name => $pr->[4],
-                                 center_name => $pr->[5],
+                                 center_name => uc($pr->[5]),
                                  sample_id => $pr->[8],
                                  sample => $pr->[9],
                                  population => $pr->[10],

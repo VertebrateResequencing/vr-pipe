@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::gatk_target_interval_creator - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Shane McCarthy <sm15@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 # java -Xmx1g -jar /path/to/GenomeAnalysisTK.jar \
@@ -10,7 +42,7 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites'),
+                 known_indels_for_realignment => VRPipe::StepOption->get(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites. Could be --DBSNP and -B options for older versions of GATK.'),
                  target_intervals_options => VRPipe::StepOption->get(description => 'command line options for GATK RealignerTargetCreator; excludes -known options which are set by another StepOption', optional => 1)};
     }
     method inputs_definition {
@@ -32,7 +64,7 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
             
             # Determine basename for intervals file
             my $known_indels = $options->{known_indels_for_realignment};
-            my @knowns = $known_indels =~ m/-known (\S+)/g;
+            my @knowns = $known_indels =~ m/-\S+ (\S+)/g;
             @knowns || $self->throw('No known indel sites supplied');
             my @known_files = map { Path::Class::File->new($_) } @knowns;
             my $basename = join '_', map { $_->basename } @known_files;

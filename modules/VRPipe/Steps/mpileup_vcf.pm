@@ -1,3 +1,35 @@
+=head1 NAME
+
+VRPipe::Steps::mpileup_vcf - a step
+
+=head1 DESCRIPTION
+
+*** more documentation to come
+
+=head1 AUTHOR
+
+Chris Joyce <cj5@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
@@ -8,9 +40,11 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
 							 default_value => 'bcftools'),
 		 bcftools_view_options => VRPipe::StepOption->get(description => 'bcftools view options',
 								  optional => 1,
-								  default_value => '-gcv'),};
+								  default_value => '-gcv'),
+                 mimimum_calls => VRPipe::StepOption->get(description => 'minumum expected number of variant calls',
+							  optional => 1,
+							  default_value => 0),};
     }
-    
     method body_sub {
         return sub {
             my $self = shift;
@@ -23,20 +57,20 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
             my $bcf_view_opts = $options->{bcftools_view_options};
 	    my $min_recs = $self->options->{mimimum_calls};
 	    
-	    my $max_cmdline_bams = $options->{max_cmdline_bams};
-	    if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
-		$self->warn("[todo] Generate a bam fofn");
-	    }
+	    #my $max_cmdline_bams = $options->{max_cmdline_bams};
+	    #if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
+	    #	$self->warn("[todo] Generate a bam fofn");
+	    #}
 	    
-            my $req = $self->new_requirements(memory => 500, time => 1);
+	    my $req = $self->new_requirements(memory => 500, time => 1);
 	    my $bam_list;
 	    my ($bam_metadata,$basename);
-
+	    
 	    # if more than one bam, vcf basename and any meta data will be based upon the last one
             foreach my $bam (@{$self->inputs->{bam_files}}) {
 		$bam_metadata = $bam->metadata;	
 		$basename = $bam->basename;	
-                my $bam_path = $bam->path;
+		my $bam_path = $bam->path;
 		$bam_list .= "$bam_path ";
             }
 	    
@@ -46,14 +80,13 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
 	    my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf');
 	    my $vcf_path = $vcf_file->path;
 	    if ($bam_metadata) {
-		    $vcf_file->add_metadata($bam_metadata);
+		$vcf_file->add_metadata($bam_metadata);
 	    }
 	    
 	    my $mpileup_cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list | $bcftools view $bcf_view_opts - | bgzip -c > $vcf_path];
 	    
 	    my $cmd = "use VRPipe::Steps::mpileup_vcf; VRPipe::Steps::mpileup_vcf->run_mpileup('$mpileup_cmd','$min_recs');";
 	    $self->dispatch_vrpipecode($cmd, $req, {output_files => [$vcf_file]});
-	    
 	};
     }
     method description {

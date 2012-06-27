@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 44;
+    use Test::Most tests => 45;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -83,10 +83,6 @@ is_deeply [$ds->method_options('single_column')], [['named', 'delimiter', 1, und
                                                    ['named', 'column_is_path', 0, 1, 'Bool']], 'method_options showed us what options the single_column method takes';
 
 # fofn_with_metadata
-#path    center_name     study   sample  platform        library lane
-#/a/path/7816_3#95.bam   SC      ERP000979       JB953   ILLUMINA        4858080 7816_3#95
-#/a/path/7413_5#95.bam   SC      ERP000979       JB953   ILLUMINA        4074406 7413_5#95
-#/a/path/8312_5#95.bam   SC      ERP000979       JB951   ILLUMINA        4074399 8312_5#95
 my @fwm_paths = ('/a/path/7816_3#95.bam', '/a/path/7413_5#95.bam', '/a/path/8312_5#95.bam');
 my %fwm_common_meta = (center_name => 'SC', study => 'ERP000979', platform => 'ILLUMINA');
 VRPipe::File->get(path => $fwm_paths[0])->add_metadata({library => 'foo'});
@@ -158,16 +154,15 @@ is_deeply $meta, { expected_md5 => 'f1826489facca0d0bdf02d9586b493f6',
                    mate => file(qw(t data 2822_6_2.fastq))->absolute->stringify }, 'a VRPipe::File created by source has the correct metadata';
 
 # test a special vrtrack test database; these tests are meant for the author
-# only, but will also work for anyone with a working VertRes:: and VRTrack::
-# setup
+# only, but will also work for anyone with a working VRTrack::Factory setup
 SKIP: {
-    my $num_tests = 25;
+    my $num_tests = 26;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
-    eval "require VertRes::Utils::VRTrackFactory; require VRTrack::VRTrack; require VRTrack::Lane;";
-    skip "VertRes::Utils::VRTrackFactory/VRTrack::VRTrack not loading", $num_tests if $@;
+    eval "require VRTrack::Factory;";
+    skip "VRTrack::Factory not loading", $num_tests if $@;
     
     # create the vrtrack db
-    my %cd = VertRes::Utils::VRTrackFactory->connection_details('rw');
+    my %cd = VRTrack::Factory->connection_details('rw');
     my @sql = VRTrack::VRTrack->schema();
     open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
     print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
@@ -178,11 +173,12 @@ SKIP: {
     }
     close($mysqlfh);
     
-    # populate it
+    # populate it *** uses update_vrmeta.pl, which may not be supplied with
+    #                 VRTrack in the future...
     system("update_vrmeta.pl --samples t/data/vrtrack.samples --index t/data/vrtrack.sequence.index --database $ENV{VRPIPE_VRTRACK_TESTDB} > /dev/null 2> /dev/null");
     
     # alter processed on the lanes to enable useful tests
-    my $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my $lanes = $vrtrack->processed_lane_hnames();
     my %expectations;
     for my $i (1..60) {
@@ -236,7 +232,7 @@ SKIP: {
     ok( ! $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change' );
     
     # create a new lane
-    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my $new_lane = VRTrack::Lane->create($vrtrack, 'new_lane');
     $new_lane->is_withdrawn(0);
     $new_lane->library_id(16);
@@ -383,7 +379,7 @@ SKIP: {
     # to reset the elements. Critically, the vrfile metadata should get updated,
     # or else we'd be stuck in an infinite loop of always detecting the
     # insert_size change and reseting
-    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my $lib = VRTrack::Library->new_by_name($vrtrack, 'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190');
     $lib->fragment_size_from(200);
     $lib->fragment_size_to(200);
@@ -394,7 +390,7 @@ SKIP: {
     is $vrfile->metadata->{insert_size}, '200', 'changing insert_size in vrtrack changes insert_size metadata on vrpipe files';
     
     # test getting improved bams that passed qc
-    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my %expected_qc_passed_improved_bams;
     my %passed_hnames = map { $_ => 1 } @{$expectations{qc_status_passed}};
     foreach my $hname (@{$expectations{qc}}) {

@@ -4,36 +4,36 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
 
 =head1 SYNOPSIS
 
-use VRPipe::Base;
-
-class VRPipe::Artist extends VRPipe::Persistent {
-    has 'name' => (is => 'rw',
-                   isa => Varchar[64],
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   is_key => 1);
-
-    has 'agent' => (is => 'rw',
-                    isa => Persistent,
-                    coerce => 1,
-                    traits => ['VRPipe::Persistent::Attributes'],
-                    belongs_to => 'VRPipe::Agent');
-
-    has 'age' => (is => 'rw',
-                  isa => IntSQL[3],
-                  traits => ['VRPipe::Persistent::Attributes'],
-                  default => 0);
-
-    has 'transient_value' => (is => 'rw', isa => 'Str');
+    use VRPipe::Base;
     
-    __PACKAGE__->make_persistent(has_many => [cds => 'VRPipe::CD']);
-}
-
-package main;
-
-use VRPipe::Artist;
-
-# get or create a new artist in the db by supplying all is_keys:
-my $bob = VRPipe::Artist->get(name => 'Bob');
+    class VRPipe::Artist extends VRPipe::Persistent {
+	has 'name' => (is => 'rw',
+		       isa => Varchar[64],
+		       traits => ['VRPipe::Persistent::Attributes'],
+		       is_key => 1);
+    
+	has 'agent' => (is => 'rw',
+			isa => Persistent,
+			coerce => 1,
+			traits => ['VRPipe::Persistent::Attributes'],
+			belongs_to => 'VRPipe::Agent');
+    
+	has 'age' => (is => 'rw',
+		      isa => IntSQL[3],
+		      traits => ['VRPipe::Persistent::Attributes'],
+		      default => 0);
+    
+	has 'transient_value' => (is => 'rw', isa => 'Str');
+	
+	__PACKAGE__->make_persistent(has_many => [cds => 'VRPipe::CD']);
+    }
+    
+    package main;
+    
+    use VRPipe::Artist;
+    
+    # get or create a new artist in the db by supplying all is_keys:
+    my $bob = VRPipe::Artist->get(name => 'Bob');
 
 =head1 DESCRIPTION
 
@@ -45,7 +45,7 @@ Use VRPipe::Base as normal to setup your class with normal 'has' sugar. For
 attributes that you want stored in the database, simply specify
 VRPipe::Persistent::Attributes as one of its traits. That trait will allow you
 to specificy most DBIx::Class::ResultSource::add_columns args
-(http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns)
+(L<http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSource.pm#add_columns>)
 as properties of your attribute. data_type is not accepted; instead your normal
 'isa' determines the data_type. Your isa must be one of IntSQL, Varchar, 'Bool',
 Datetime, Persistent, File, Dir, FileType, AbsoluteFile, 'CodeRef', 'HashRef' or
@@ -67,7 +67,7 @@ lazy or they might not get their default values when the instances are created.
 End your class definition with a call to __PACKAGE__->make_persistent, where you
 can supply the various relationship types as a hash (key as one of the
 relationship methods has_many or many_to_many
-(http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/Relationship.pm),
+(L<http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/Relationship.pm>),
 value as an array ref of the args you would send to that relationship method, or
 an array ref of array refs if you want to specify multiple of the same
 relationship type). The other relationship types (belongs_to, has_one and
@@ -91,7 +91,25 @@ different values you supplied to clone().
 
 =head1 AUTHOR
 
-Sendu Bala: sb10 at sanger ac uk
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
@@ -155,14 +173,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $class->table($table_name);
         
         # determine what columns our table will need from the class attributes
-        my (@psuedo_keys, @non_persistent, %for_indexing, %key_defaults);
+        my (@psuedo_keys, @non_persistent, %for_indexing, %indexed, %key_defaults);
         my %relationships = (belongs_to => [], has_one => [], might_have => []);
         my %flations;
         my $meta = $class->meta;
-
+	
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype); # eg mysql
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
-
+	
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
             unless ($attr->does('VRPipe::Persistent::Attributes')) {
@@ -233,17 +251,17 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 my $is_numeric = 0;
                 if ($cname =~ /IntSQL\[(\d+)\]/) {
                     $size = $1;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
                 }
                 elsif ($cname =~ /Varchar\[(\d+)\]/) {
                     $size = $1;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
                 }
                 elsif ($cname eq 'Text') {
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'Bool') {
-                	$cname = $converter->get_boolean_type();
+                    $cname = $converter->get_boolean_type();
                 }
                 elsif ($cname =~ /Ref/) {
                     if ($cname eq 'CodeRef') {
@@ -288,22 +306,21 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     else {
                         die "unsupported constraint '$cname' for attribute $name in $class\n";
                     }
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
-                    
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'Datetime') {
-                	$cname = $converter->get_datetime_type();
+                    $cname = $converter->get_datetime_type();
                 }
                 elsif ($cname eq 'Persistent') {
                     $size = 9;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
                 }
                 elsif ($cname eq 'File' || $cname eq 'AbsoluteFile' || $cname eq 'Dir') {
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'FileType') {
                     $size = 4;
-                	($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
+                    ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 0);
                 }
                 else {
                     die "unsupported constraint '$cname' for attribute $name in $class\n";
@@ -316,10 +333,25 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             else {
                 die "attr $name has no constraint in $class\n";
             }
-
+	    
+	    # note what will need indexing by us, and seperately note everything
+	    # that gets indexed - DBIx::Class auto-indexes belongs_to cols
+	    my $bt = $attr->belongs_to;
             if ($attr->is_key) {
-                $for_indexing{$name} = $column_info->{data_type};
+                $for_indexing{$name} = $column_info->{data_type} unless $bt;
+		$indexed{$name} = $column_info->{data_type};
             }
+	    if ($bt) {
+		$indexed{$name} = $column_info->{data_type};
+	    }
+            
+            # *** potential extra indexes:
+            # DataElement - would query speed up with withdrawn indexed?
+            # DataElementState - would query speed up with completed_steps indexed?
+            # Job - do I do a blind 'running'/'finished' query?
+            # PipelineSetup - worth indexing active?
+	    # StepState - index complete?
+	    # Submission - do I ever look up subs by _[sha]id? index retries, _done and _failed?
             
             # add the column in DBIx::Class, altering the name of the
             # auto-generated accessor so that we will keep our moose generated
@@ -618,8 +650,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         });
         
         # set up meta data to add indexes for the key columns after schema deploy
-		$meta->add_attribute( 'idx_keys' => ( is => 'rw', isa  => 'HashRef') );
-		$meta->get_attribute('idx_keys')->set_value($meta,\%for_indexing);
+	$meta->add_attribute('cols_to_idx' => ( is => 'rw', isa  => 'HashRef'));
+	$meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
+	$meta->add_attribute('idxd_cols' => ( is => 'rw', isa  => 'HashRef'));
+	$meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
     }
     
     # like discard_changes, except we don't clumsily wipe out the whole $self

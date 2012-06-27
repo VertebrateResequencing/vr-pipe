@@ -1,3 +1,97 @@
+=head1 NAME
+
+VRPipe::Parser::bamcheck - parse bamcheck files
+
+=head1 SYNOPSIS
+
+    use VRPipe::Parser;
+    
+    # create object, supplying bas file
+    my $pars = VRPipe::Parser->create('bamcheck', {file => 'my.bam.bamcheck'});
+    
+    # unlike normal parsers, you do not use parsed_record() or next_record();
+    # instead access information in the bamcheck file through the following
+    # methods
+    
+    # methods that return simple single values corresponding to the SN lines in
+    # the bamcheck file:
+    my $val = $pars->sequences();
+    my $val = $pars->is_paired();
+    my $val = $pars->is_sorted();
+    my $val = $pars->first_fragments();
+    my $val = $pars->last_fragments();
+    my $val = $pars->reads_mapped();
+    my $val = $pars->reads_unmapped();
+    my $val = $pars->reads_unpaired();
+    my $val = $pars->reads_paired();
+    my $val = $pars->reads_duplicated();
+    my $val = $pars->reads_mq0();
+    my $val = $pars->total_length();
+    my $val = $pars->bases_mapped();
+    my $val = $pars->bases_mapped_cigar();
+    my $val = $pars->bases_trimmed();
+    my $val = $pars->bases_duplicated();
+    my $val = $pars->mismatches();
+    my $val = $pars->error_rate();
+    my $val = $pars->average_length();
+    my $val = $pars->maximum_length();
+    my $val = $pars->average_quality();
+    my $val = $pars->insert_size_average();
+    my $val = $pars->insert_size_standard_deviation();
+    my $val = $pars->inward_oriented_pairs();
+    my $val = $pars->outward_oriented_pairs();
+    my $val = $pars->pairs_with_other_orientation();
+    
+    # COV lines give the coverage:
+    my $cov_hash = $pars->coverage(); # keys are coverage in bp, vals are counts
+    my $cum_hash = $pars->cumulative_coverage; # as above, but cumulative counts
+    my $mean = $pars->mean_coverage(); # a number
+    
+    # The remaining sections of the file can be accessed by calling one of the
+    # following methods, which all return an array ref. Each element of this ref
+    # corresponds to a line from that section, and the element is an array ref
+    # of all the values on the line, excluding the first column.
+    my $array_ref = $pars->first_fragment_qualities(); # FFQ lines
+    my $array_ref = $pars->last_fragment_qualities(); # LFQ lines
+    my $array_ref = $pars->first_fragment_gc(); # GCF lines
+    my $array_ref = $pars->last_fragment_gc(); # GCL lines
+    my $array_ref = $pars->indel_cycles(); # IC lines
+    my $array_ref = $pars->indel_dist(); # ID lines
+    my $array_ref = $pars->insert_size(); # IS lines
+    my $array_ref = $pars->gc_depth(); # GCD lines
+    my $array_ref = $pars->mismatches_per_cycle(); # MPC lines
+    my $array_ref = $pars->gc_content_per_cycle(); # GCC lines
+    my $array_ref = $pars->read_lengths(); # RL lines
+
+=head1 DESCRIPTION
+
+A parser for bamcheck files, which are bam statistic files, as produced by
+the B<bamcheck> executable.
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011-2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
 use VRPipe::Base;
 
 class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
@@ -122,6 +216,84 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                             isa => 'Num',
                             writer => '_mean_coverage');
     
+    our %mapping = (FFQ => 'first_fragment_qualities',
+                    LFQ => 'last_fragment_qualities',
+                    GCF => 'first_fragment_gc',
+                    GCL => 'last_fragment_gc',
+                    IC  => 'indel_cycles',
+                    ID  => 'indel_dist',
+                    IS  => 'insert_size',
+                    GCD => 'gc_depth',
+                    MPC => 'mismatches_per_cycle',
+                    GCC => 'gc_content_per_cycle',
+                    RL  => 'read_lengths'); # we don't actually use this mapping except to confirm what sections we understand
+    
+    has 'first_fragment_qualities' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_FFQ' => 'push' });
+    
+    has 'last_fragment_qualities' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_LFQ' => 'push' });
+    
+    has 'first_fragment_gc' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_GCF' => 'push' });
+    
+    has 'last_fragment_gc' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_GCL' => 'push' });
+    
+    has 'indel_cycles' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_IC' => 'push' });
+    
+    has 'indel_dist' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_ID' => 'push' });
+    
+    has 'insert_size' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_IS' => 'push' });
+    
+    has 'gc_depth' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_GCD' => 'push' });
+    
+    has 'mismatches_per_cycle' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_MPC' => 'push' });
+    
+    has 'gc_content_per_cycle' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_GCC' => 'push' });
+    
+    has 'read_lengths' => (traits    => ['Array'],
+                                       is        => 'ro',
+                                       isa       => 'ArrayRef[ArrayRef[Str]]',
+                                       default   => sub { [] },
+                                       handles   => { '_push_RL' => 'push' });
+    
 =head2 parsed_record
 
  Title   : parsed_record
@@ -138,54 +310,27 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
- Function: Parse the next line from the fastqcheck file.
- Returns : boolean (false at end of output; check the parsed_record for the
-           actual information)
+ Function: next_record does nothing in this parser; use the various methods to
+           to access the data, which is all parsed automatically
+ Returns : 0
  Args    : n/a
 
 =cut
     method next_record {
-        # just return if no file set
-        my $fh = $self->fh() || return;
-        
-        # *** actual parsing of the data not yet supported
         return 0;
-        
-        return 1;
     }
     
     method _get_header {
         my $fh = $self->fh() || return;
         return 1 if $self->_header_parsed();
         
-        #SN      sequences:      2000
-        #SN      is paired:      1
-        #SN      is sorted:      1
-        #SN      1st fragments:  1000
-        #SN      last fragments: 1000
-        #SN      reads mapped:   1084
-        #SN      reads unmapped: 916
-        #SN      reads unpaired: 14
-        #SN      reads paired:   1070
-        #SN      reads duplicated:       0
-        #SN      total length:   115000
-        #SN      bases mapped:   62288
-        #SN      bases mapped (cigar):   58663
-        #SN      bases trimmed:  0
-        #SN      bases duplicated:       0
-        #SN      mismatches:     1262
-        #SN      error rate:     2.151271e-02
-        #SN      average length: 57
-        #SN      maximum length: 61
-        #SN      average quality:        20.9
-        #SN      insert size average:    284.1
-        #SN      insert size standard deviation: 70.9
-        
         my $saw = 0;
         my $cov_count = 0;
         my $cov_total = 0;
         my $cum_cov = $self->_cum_coverage;
         while (<$fh>) {
+            next if /^#/;
+            
             if (/^SN\s+([^:]+):\s+(\S+)/) {
                 my $method = $1;
                 my $value = $2;
@@ -219,6 +364,14 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                         $cum_cov->{$past_cov} += $count;
                     }
                 }
+            }
+            else {
+                my ($key, @items) = split(/\t/, $_);
+                $self->throw("'$key' sections are not understood! Is this really a bamcheck file?") unless exists $mapping{$key};
+                
+                my $method = "_push_$key";
+                chomp($items[-1]);
+                $self->$method(\@items);
             }
         }
         $self->_mean_coverage(sprintf("%0.2f", $cov_total / $cov_count));
