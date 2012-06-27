@@ -248,7 +248,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
         while ($pars->next_record) {
             push(@times, $pars->time);
         }
-        $sched_oks++ if @times == 3;
+        $sched_oks++ if @times >= 3;
         
         undef $pars;
         $pars = $sub->job_stdout;
@@ -258,6 +258,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
             $line_num++;
             my $line = $pr->[0] || 'undef';
             $job_std{out}->{$line_num.' - '.$line}++;
+            last if $line_num == 3;
         }
         
         undef $pars;
@@ -268,6 +269,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
             $line_num++;
             my $line = $pr->[0] || 'undef';
             $job_std{err}->{$line_num.' - '.$line}++;
+            last if $line_num == 3;
         }
     }
     is $sched_oks, 3, 'The scheduler stdout of all 3 attempts on all 3 elements could be retrieved';
