@@ -38,8 +38,7 @@ my @expected_step_names = qw(sequence_dictionary
                              bam_count_covariates
                              bam_recalibrate_quality_scores
                              bam_calculate_bq
-                             bam_reheader
-                             bam_stats);
+                             bam_reheader);
 
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
@@ -130,7 +129,7 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
 # test start_from_scratch with this more complicated pipeline
 my $bam = file(output_subdirs(1), '17_bam_reheader', '2822_6.se.realign.recal.calmd.bam');
 my $des_to_restart = VRPipe::DataElementState->get(pipelinesetup => $mapping_pipelinesetup, dataelement => VRPipe::DataElement->get(id => 1));
-is_deeply [$des_to_restart->our_step_numbers], [3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18], 'our_step_numbers gave steps that are safe to restart';
+is_deeply [$des_to_restart->our_step_numbers], [3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17], 'our_step_numbers gave steps that are safe to restart';
 
 copy(file(qw(t data datasource.sequence_index.altered)), $seq_index_file);
 my $changed_fq_file = file(qw(t data 2822_6.fastq))->absolute;

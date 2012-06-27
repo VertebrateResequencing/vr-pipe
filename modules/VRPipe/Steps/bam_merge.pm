@@ -23,7 +23,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                          merged_bams => 'comma separated list of merged bam paths',
-                                                                         optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}
+                                                                         optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'merged_bams', 'bases']}
                                                             ),
                 };
     }
@@ -62,14 +62,30 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
             my $req = $self->new_requirements(memory => 1000, time => 1);
             while (my ($ended, $bam_files) = each %merge_groups) {
                 my @merged_bams;
+                my @merged_vrfids;
                 foreach my $bam (@$bam_files) {
                     my $paths = $bam->metadata->{merged_bams} || $bam->path->stringify;
-                    push @merged_bams, split(/,/, $paths);
+                    foreach my $path (split(/,/, $paths)) {
+                        push @merged_bams, $path;
+                        #push @merged_vrfids, 'VF:'.VRPipe::File->get(path => $path)->id; *** this leaks memory? Uses too much memory in this single loop?
+                    }
+                }
+                my $input_bam_paths = join(',', sort @merged_bams);
+                if (length($input_bam_paths) > 10000) {
+                    # this might be too large to store in the db, just use the
+                    # vrpipe file ids instead
+                    # $input_bam_paths = join(',', sort @merged_vrfids);
+                    # *** this is only needed by bam_reheader, and without it
+                    # the bam won't have any RG lines at all, but either above
+                    # leak must be fixed, or bam_reheader changed to get RGs
+                    # from header with this is unset. For now we just need this
+                    # step to work without crashing...
+                    $input_bam_paths = '';
                 }
                 my $merge_file = $self->output_file(output_key => 'merged_bam_files',
                                                     basename => "$ended.bam",
                                                     type => 'bam',
-                                                    metadata => { merged_bams => join(',', sort @merged_bams) });
+                                                    $input_bam_paths ? (metadata => { merged_bams => $input_bam_paths }) : ());
                 
                 my $temp_dir = $options->{tmp_dir} || $merge_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
@@ -95,7 +111,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                                                                                 reads => 'total number of reads (sequences)',
                                                                                 paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                                 merged_bams => 'comma separated list of merged bam paths',
-                                                                                optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study']}
+                                                                                optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases', 'merged_bams']}
                                                                     ),
                };
     }
@@ -121,8 +137,10 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         }
         
         if (scalar @in_paths == 1) {
-            symlink($in_files[0]->path, $out_file->path); # don't use $in_files[0]->symlink because $out_file->metadata will be different
-        } else {
+            $in_files[0]->copy($out_file);
+            return;
+        }
+        else {
             $out_file->disconnect;
             system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         }
@@ -136,7 +154,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         foreach my $in_file (@in_files) {
             my $meta = $in_file->metadata;
             $reads += $meta->{reads};
-            $bases += $meta->{bases};
+            $bases += $meta->{bases} if $meta->{bases};
             $paired ||= $meta->{paired};
             foreach my $key (keys %$meta) {
                 next if (grep /^$key$/, (qw(reads bases paired merged_bams)));
@@ -150,10 +168,12 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         if ($actual_reads == $reads) {
             my %new_meta;
             $new_meta{reads} = $actual_reads;
-            $new_meta{bases} = $bases;
+            $new_meta{bases} = $bases if $bases;
             $new_meta{paired} = $paired;
             foreach my $key (keys %merge_groups) {
-                $new_meta{$key} = join(',', sort keys %{$merge_groups{$key}});
+                my @vals = keys %{$merge_groups{$key}};
+                next unless @vals == 1; # we used to store comma-separated values, but that could get too big to store in db
+                $new_meta{$key} = $vals[0];
             }
             $out_file->add_metadata(\%new_meta);
             return 1;

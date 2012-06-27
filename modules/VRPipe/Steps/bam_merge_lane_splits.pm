@@ -200,12 +200,17 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
         my $pp;
+        my %step_name_counts;
         foreach my $stepm ($pipeline->step_members) {
             last if $stepm->id == $this_stepm_id;
             
             my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary || next;
             
             my $step_name = $stepm->step->name;
+            my $snc = ++$step_name_counts{$step_name};
+            if ($snc > 1) {
+                $step_name .= '.'.$snc;
+            }
             print $hfh "\@PG\tID:$step_name\tPN:", $cmd_summary->exe, "\t";
             if ($pp) {
                 print $hfh "PP:$pp\t";

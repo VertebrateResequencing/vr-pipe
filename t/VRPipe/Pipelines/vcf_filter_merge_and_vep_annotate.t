@@ -17,7 +17,7 @@ my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(vcf_filter vcf_merge vcf_annotate vep_analysis vcf_vep_consequences vcf_stats);
+my @expected_step_names = qw(vcf_multi_filter vcf_merge vcf_annotate vep_analysis vcf_vep_consequences vcf_stats);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 my $filter_opt_file_1 = file(qw(t data uk10k_gatk_20110715.filter))->absolute->stringify;
@@ -38,6 +38,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge
                                                     pipeline => $pipeline,
                                                     options => {'vcf-annotate_options' => "-a $annot_file -d $annot_desc_file -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ",
 								'vcf-annotate_2_options' => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
+                                                                'vcf-filter_programs' => "vcf-filter#vcf-filter",
                                                                 'vcf-filter_files' => "$filter_opt_file_1#$filter_opt_file_2",
                                                                 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
                                                                 'vcf2consequences_options' => "-grantham --gerp $gerp_cache",

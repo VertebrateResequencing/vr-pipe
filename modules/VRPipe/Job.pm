@@ -139,9 +139,13 @@ class VRPipe::Job extends VRPipe::Persistent {
         
         # check we're allowed to run, in a transaction to avoid race condition
         my $schema = $self->result_source->schema;
+        my $do_return = 0;
         $schema->txn_do(sub {
             unless ($self->pending) {
                 if ($self->block_and_skip_if_ok) {
+                    # Scheduler->run_on_node implementation should actually mean
+                    # this never happens:
+                    
                     # wait until the job has finished running, run it again if it
                     # failed, otherwise do nothing so that $job->ok will be true
                     while (1) {
@@ -149,7 +153,8 @@ class VRPipe::Job extends VRPipe::Persistent {
                         sleep(60);
                         if ($self->finished) {
                             if ($self->ok) {
-                                return;
+                                $do_return = 1;
+                                return; # out of the txn_do
                             }
                             else {
                                 # *** do some kind of reset on failure?
@@ -159,7 +164,8 @@ class VRPipe::Job extends VRPipe::Persistent {
                     }
                 }
                 elsif ($self->ok) {
-                    return;
+                    $do_return = 1;
+                    return; # out of the txn_do
                 }
                 else {
                     $self->throw("Job ".$self->id." could not be run because it was not in the pending state");
@@ -174,6 +180,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             $self->exit_code(undef);
             $self->update;
         });
+        return if $do_return;
         
         $self->disconnect;
         my $cmd_pid = fork();
@@ -331,9 +338,20 @@ class VRPipe::Job extends VRPipe::Persistent {
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
         if ($user && $host && $pid) {
             $self->disconnect;
-            ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
-                                                 #    Net::SSH::Perl is able to always log us in, but can take over a minute!
-            # *** do we care if the kill fails?...
+            eval {
+                local $SIG{ALRM} = sub { die "ssh timed out\n" };
+                alarm(15);
+                ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
+                                                     #    Net::SSH::Perl is able to always log us in, but can take over a minute!
+                # *** we need to do something if the kill fails...
+                alarm(0);
+            };
+            if ($@) {
+                die unless $@ eq "ssh timed out\n";
+                # *** and how do we handle not being able to ssh into the host
+                #     at all?
+                $self->warn("ssh to $host timed out, assuming that process $pid is dead...");
+            }
         }
         $self->running(0);
         $self->finished(1);

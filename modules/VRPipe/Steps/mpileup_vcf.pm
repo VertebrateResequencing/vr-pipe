@@ -1,7 +1,16 @@
 use VRPipe::Base;
 
 class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
-
+    around options_definition {
+	return { %{$self->$orig},
+		 bcftools_exe => VRPipe::StepOption->get(description => 'path to bcftools executable',
+							 optional => 1,
+							 default_value => 'bcftools'),
+		 bcftools_view_options => VRPipe::StepOption->get(description => 'bcftools view options',
+								  optional => 1,
+								  default_value => '-gcv'),};
+    }
+    
     method body_sub {
         return sub {
             my $self = shift;
@@ -12,40 +21,40 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
             my $interval_list = $options->{interval_list};
             my $bcftools = $options->{bcftools_exe};
             my $bcf_view_opts = $options->{bcftools_view_options};
-        	my $min_recs = $self->options->{mimimum_calls};
-
-			my $max_cmdline_bams = $options->{max_cmdline_bams};
-			if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
-				$self->warn("[todo] Generate a bam fofn");
-			}
-
+	    my $min_recs = $self->options->{mimimum_calls};
+	    
+	    my $max_cmdline_bams = $options->{max_cmdline_bams};
+	    if (scalar (@{$self->inputs->{bam_files}}) > $max_cmdline_bams) {
+		$self->warn("[todo] Generate a bam fofn");
+	    }
+	    
             my $req = $self->new_requirements(memory => 500, time => 1);
-			my $bam_list;
-			my ($bam_metadata,$basename);
+	    my $bam_list;
+	    my ($bam_metadata,$basename);
 
-			# if more than one bam, vcf basename and any meta data will be based upon the last one
+	    # if more than one bam, vcf basename and any meta data will be based upon the last one
             foreach my $bam (@{$self->inputs->{bam_files}}) {
-				$bam_metadata = $bam->metadata;	
-				$basename = $bam->basename;	
+		$bam_metadata = $bam->metadata;	
+		$basename = $bam->basename;	
                 my $bam_path = $bam->path;
-				$bam_list .= "$bam_path ";
+		$bam_list .= "$bam_path ";
             }
-
-			$mpileup_opts .= " -l $interval_list " if $interval_list;
-			$basename =~ s/\.bam/.mpileup.vcf.gz/;
-
-			my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf');
-			my $vcf_path = $vcf_file->path;
-			if ($bam_metadata) {
-				$vcf_file->add_metadata($bam_metadata);
-			}
-
-			my $mpileup_cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list | $bcftools view $bcf_view_opts - | bgzip -c > $vcf_path];
-
-			my $cmd = "use VRPipe::Steps::mpileup_vcf; VRPipe::Steps::mpileup_vcf->run_mpileup('$mpileup_cmd','$min_recs');";
-			$self->dispatch_vrpipecode($cmd, $req, {output_files => [$vcf_file]});
-
-	    };
+	    
+	    $mpileup_opts .= " -l $interval_list " if $interval_list;
+	    $basename =~ s/\.bam/.mpileup.vcf.gz/;
+	    
+	    my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf');
+	    my $vcf_path = $vcf_file->path;
+	    if ($bam_metadata) {
+		    $vcf_file->add_metadata($bam_metadata);
+	    }
+	    
+	    my $mpileup_cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list | $bcftools view $bcf_view_opts - | bgzip -c > $vcf_path];
+	    
+	    my $cmd = "use VRPipe::Steps::mpileup_vcf; VRPipe::Steps::mpileup_vcf->run_mpileup('$mpileup_cmd','$min_recs');";
+	    $self->dispatch_vrpipecode($cmd, $req, {output_files => [$vcf_file]});
+	    
+	};
     }
     method description {
         return "Run samtools mpileup and bcftools for one or more bams, generating one vcf without an intermediate bcf";
@@ -56,23 +65,21 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
     }
 
     method run_mpileup (ClassName|Object $self: Str $cmd_line, Int $min_recs) {
-        
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my ($output_path) = $cmd_line =~ /> (\S+)$/;
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
         my $output_recs = $output_file->num_records;
-
+	
         if ($output_recs < $min_recs) {
             $output_file->unlink;
-			$self->throw("Output VCF has $output_recs data lines, fewer than expected minimum $min_recs");
+	    $self->throw("Output VCF has $output_recs data lines, fewer than expected minimum $min_recs");
         }
         else {
             return 1;
         }
     }
-
 }
 
 1;

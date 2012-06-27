@@ -22,7 +22,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                          bases => 'total number of base pairs',
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                         optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
+                                                                         optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
                  dict_file => VRPipe::StepIODefinition->get(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
@@ -77,7 +77,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                        reads => 'total number of reads (sequences)',
                                                                        paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
                                                                        merged_bams => 'comma separated list of merged bam paths',
-                                                                       optional => ['library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
+                                                                       optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study', 'merged_bams']}) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -109,7 +109,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         $dict_file->close;
         
         # construct the RG lines from the bam metadata
-        # bam may be a merge of mupltiple bams, so we construct the RG lines
+        # bam may be a merge of multiple bams, so we construct the RG lines
         # from the metadata of each of the merged bams
         my $headed_bam_file = VRPipe::File->get(path => $output);
         my $meta = $headed_bam_file->metadata;
@@ -117,7 +117,12 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         if (defined $meta->{merged_bams}) {
             my @paths = split /,/, $meta->{merged_bams};
             foreach my $path (@paths) {
-                push @files, VRPipe::File->get(path => $path);
+                if ($path =~ /^VF:(\d+)$/) {
+                    push @files, VRPipe::File->get(id => $1);
+                }
+                else {
+                    push @files, VRPipe::File->get(path => $path);
+                }
             }
         } else {
             push @files, $headed_bam_file;
@@ -326,6 +331,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         foreach my $path (@$paths) {
             my $bam = VRPipe::File->get(path => file($path)->absolute);
             my $metadata = $bam->metadata;
+            next unless defined $metadata->{lane};
             foreach my $lane (split ',', $metadata->{lane}) {
                 $readgroups{$lane} = 1;
             }

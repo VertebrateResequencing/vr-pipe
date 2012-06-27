@@ -19,8 +19,8 @@ my $bwa_version = VRPipe::StepCmdSummary->determine_version('bwa', '^Version: (.
 my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^Version: (.+)$');
 
 ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get the fastq_mapping_with_bwa pipeline';
-ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'merge_lanes'), 'able to get the merge_lanes pipeline';
-ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'merge_libraries_and_split'), 'able to get the merge_libraries_and_split pipeline';
+ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_lanes'), 'able to get the bam_merge_lanes pipeline';
+ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_1000_genomes_libraries_with_split'), 'able to get the bam_merge_1000_genomes_libraries_with_split pipeline';
 ok my $release_pipeline = VRPipe::Pipeline->get(name => '1000genomes_release'), 'able to get the 1000genomes_release pipeline';
 
 my $mapping_dir = get_output_dir('mapping_mergeup_test');
@@ -111,7 +111,6 @@ my %bams = ('2822_6.pe.bam' => 1, '2822_6.se.bam' => 1, '2822_7.pe.bam' => 2, '2
 while (my ($bam, $element_id) = each %bams) {
     my @output_subdirs = output_subdirs($element_id);
     push(@mapping_files, file(@output_subdirs, '9_bam_merge_lane_splits', $bam));
-    push(@mapping_files, file(@output_subdirs, '10_bam_stats', $bam.'.bas'));
 }
 
 
@@ -147,9 +146,9 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->get(pipelinesetup => 2, stepmember => 11, dataelement => 5)->cmd_summary->summary,
            VRPipe::StepState->get(pipelinesetup => 2, stepmember => 12, dataelement => 5)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 2, stepmember => 13, dataelement => 5)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 3, stepmember => 14, dataelement => 8)->cmd_summary->summary],
+           VRPipe::StepState->get(pipelinesetup => 3, stepmember => 13, dataelement => 8)->cmd_summary->summary],
           ['bwa index -a is $reference_fasta',
            'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file',
            'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)',
@@ -190,7 +189,7 @@ is_deeply \@header_lines, \@expected_header_lines, 'split bam header is okay';
 VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
 
 my @mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
-is_deeply \@mapping_exists, [1,1,1,1,1,1,1,1,1,1], 'mapping files were not deleted after merge element was restarted';
+is_deeply \@mapping_exists, [1,1,1,1,1], 'mapping files were not deleted after merge element was restarted';
 
 my @split_exists = map { -s $_ ? 1 : 0 } @split_files;
 is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch';
@@ -201,19 +200,19 @@ is_deeply \@release_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0], '
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated after a start from scratch';
 
 # if a mapped bam is moved, is everything okay?
-my $orig_bam = VRPipe::File->get(path => $mapping_files[8]);
+my $orig_bam = VRPipe::File->get(path => $mapping_files[4]);
 $mapping_pipeline->make_path(dir($orig_bam->dir.'_moved'));
 my $moved_bam = VRPipe::File->get(path => file($orig_bam->dir.'_moved', $orig_bam->basename));
 $orig_bam->move($moved_bam);
 is_deeply [-e $orig_bam->path, -e $moved_bam->path], [undef, 1], 'moved an improved bam';
-$mapping_files[8] = file($moved_bam->path);
+$mapping_files[4] = file($moved_bam->path);
 
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'all files are still okay after a bam was moved';
 
 VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
 
 @mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
-is_deeply \@mapping_exists, [1,1,1,1,1,1,1,1,1,1], 'mapping files were not deleted after merge element was restarted and after bam was moved';
+is_deeply \@mapping_exists, [1,1,1,1,1], 'mapping files were not deleted after merge element was restarted and after bam was moved';
 
 @split_exists = map { -s $_ ? 1 : 0 } @split_files;
 is_deeply \@split_exists, [1,1,1,0,0,0], 'correct merge files were removed on start from scratch after bam was moved';

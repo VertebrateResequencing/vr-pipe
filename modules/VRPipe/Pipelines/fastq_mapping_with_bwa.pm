@@ -5,7 +5,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
         return 'fastq_mapping_with_bwa';
     }
     method _num_steps {
-        return 10;
+        return 9;
     }
     method description {
         return 'Map reads in fastq files to a reference genome with bwa';
@@ -23,8 +23,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
                   VRPipe::Step->get(name => 'bwa_aln_fastq'),
                   VRPipe::Step->get(name => 'bwa_sam'),
                   VRPipe::Step->get(name => 'sam_to_fixed_bam'),
-                  VRPipe::Step->get(name => 'bam_merge_lane_splits'),
-                  VRPipe::Step->get(name => 'bam_stats')
+                  VRPipe::Step->get(name => 'bam_merge_lane_splits')
                  ],
                  
                  [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'fastq_files'),
@@ -35,8 +34,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
                    VRPipe::StepAdaptorDefiner->new(from_step => 6, to_step => 7, from_key => 'bwa_sai_files', to_key => 'sai_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 7, to_step => 8, from_key => 'bwa_sam_files', to_key => 'sam_files'),
                    VRPipe::StepAdaptorDefiner->new(from_step => 8, to_step => 9, from_key => 'fixed_bam_files', to_key => 'bam_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 9, from_key => 'reference_dict', to_key => 'dict_file'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 9, to_step => 10, from_key => 'merged_lane_bams', to_key => 'bam_files') ],
+                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 9, from_key => 'reference_dict', to_key => 'dict_file') ],
                  
                  [ VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [5, 6], regulated_by => 'cleanup', default_regulation => 1),
                    VRPipe::StepBehaviourDefiner->new(after_step => 8, behaviour => 'delete_outputs', act_on_steps => [7], regulated_by => 'cleanup', default_regulation => 1),

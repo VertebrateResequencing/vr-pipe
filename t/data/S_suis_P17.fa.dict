@@ -1,0 +1,3 @@
+@HD	VN:1.0	SO:unsorted
+@SQ	SN:fake_chr1	LN:290640	M5:55f9584cf1f4194f13bbdc0167e0a05f	UR:ftp://s.suis.com/ref.fa	AS:SSuis1	SP:S.Suis
+@SQ	SN:fake_chr2	LN:1716851	M5:6dd2836053e5c4bd14ad49b5b2f2eb88	UR:ftp://s.suis.com/ref.fa	AS:SSuis1	SP:S.Suis

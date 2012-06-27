@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 45;
+    use Test::Most tests => 46;
     use VRPipeTest (required_env => 'SAMTOOLS');
     
     use_ok('VRPipe::Parser');
@@ -208,6 +208,13 @@ $pb->get_fields('SEQ', 'SEQ_LENGTH', 'MAPPED_SEQ_LENGTH');
 $pr = $pb->parsed_record;
 $pb->next_record;
 is_deeply $pr, { SEQ => 'CCCATAGCCCTATCCCTAACCCTAACCCGAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAAC', SEQ_LENGTH => 76, MAPPED_SEQ_LENGTH => 72}, 'seq length correct both raw and clipped';
+
+# double-check we can parse OQ tags in improved bams
+$pb = VRPipe::Parser->create('bam', {file => file(qw(t data 2822_6.improved.pe.bam))});
+$pb->get_fields('QNAME', 'OQ');
+$pb->next_record;
+$pr = $pb->parsed_record();
+is_deeply $pr, {QNAME => 'IL3_2822:6:1:20:1902', OQ => '?>?<?>/445224;97556294/359543443595:79998649;7<=999?>?=B@==>>'}, 'able to get OQ out of an improved bam';
 
 exit;
 

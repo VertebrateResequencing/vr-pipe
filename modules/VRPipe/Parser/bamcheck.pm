@@ -105,6 +105,23 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                          isa => 'Int',
                          writer => '_pairs_with_other_orientation');
     
+    has '_coverage' => (traits    => ['Hash'],
+                        is        => 'ro',
+                        isa       => 'HashRef[Str]',
+                        default   => sub { {} },
+                        handles   => { '_set_coverage' => 'set',
+                                       coverage => 'get' });
+    
+    has '_cum_coverage' => (traits    => ['Hash'],
+                            is        => 'ro',
+                            isa       => 'HashRef[Str]',
+                            default   => sub { {} },
+                            handles   => { cumulative_coverage => 'get' });
+    
+    has 'mean_coverage' => (is => 'ro',
+                            isa => 'Num',
+                            writer => '_mean_coverage');
+    
 =head2 parsed_record
 
  Title   : parsed_record
@@ -165,6 +182,9 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
         #SN      insert size standard deviation: 70.9
         
         my $saw = 0;
+        my $cov_count = 0;
+        my $cov_total = 0;
+        my $cum_cov = $self->_cum_coverage;
         while (<$fh>) {
             if (/^SN\s+([^:]+):\s+(\S+)/) {
                 my $method = $1;
@@ -181,10 +201,27 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                 $self->$method($value);
                 $saw++;
             }
-            else {
-                last if $saw >= 22;
+            elsif (my ($range, $cov, $count) = $_ =~ /^COV\s+(\S+)\s+(\d+)\s+(\d+)/) {
+                if ($range eq '[1000<]') {
+                    $cov = 1001;
+                }
+                $self->_set_coverage($cov => $count);
+                
+                if ($cov > 0) {
+                    # sum to get mean coverage, ignoring the >1000 outliers
+                    if ($cov <= 1000) {
+                        $cov_count += $count;
+                        $cov_total += $count * $cov;
+                    }
+                    
+                    # build up the cumulative coverage
+                    foreach my $past_cov (1..$cov) {
+                        $cum_cov->{$past_cov} += $count;
+                    }
+                }
             }
         }
+        $self->_mean_coverage(sprintf("%0.2f", $cov_total / $cov_count));
         
         if ($saw >= 22) {
             $self->_set_header_parsed();

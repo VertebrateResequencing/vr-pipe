@@ -1,3 +1,57 @@
+0.58    Various fixes to enable initial install and testing for
+        new users using latest CPAN modules.
+0.57    vrpipe-fileinfo can now tell you how a file was generated.
+0.56    New gatk_variant_calling_and_filter_vcf pipeline.
+0.55    Further merge pipeline fixes. New bam realignment around
+        discovered indels pipeline.
+0.54    Further fix for new merge pipeline.
+0.53    Fixed issues with bam merging pipelines, and renamed tham
+        all.
+0.52    New fofn_with_metadata DataSource - useful for inputting
+        external bams into pipelines. VRTrack-releated steps now
+        have deadlock-failure-avoidance.
+0.51    VRTrack DataSource now has an option to group_by_metadata.
+0.50    New merge_bams pipelines, to do "merge across". VRTrack
+        datasource now allows filtering on more status types, and
+        can get VRPipe improved bams.
+0.49    Critical bug fix in bam_to_fastq step.
+0.48    Tweaks and fixes to finalise new bam_genotype_checking
+        pipeline.
+0.47    Minor tweaks to finalise yet-unused pipelines.
+0.46    New versions of merge lanes and stampy mapping pipelines
+        with extra features.
+0.45    Critical speed fix for vrtrack datasource. Library merge
+        pipelines now index the resulting bams.
+0.44    Fix for plot_bamcheck step, letting it work when then is
+        no insert size.
+0.43    Efficiency fix for vrtrack datasource.
+0.42    Critical fix for vrtrack datasource, so that it now updates
+        file metadata when vrtrack metadata changes.
+0.41    vrtrack_update_improved step now sets lane reads and bases.
+0.40    Critical fix for vrtrack_update_mapstats step, letting it
+        work without exome_targets_file.
+0.39    vrpipe DataSource behaviour changed, so that a child pipeline
+        that deletes inputs won't mess up a parent that still needs
+        those files. Overhauled the genotype checking pipeline and
+        steps.
+0.38	Fix for gatk_target_interval_creator step, increasing its
+        default memory reservation.
+0.37    Overhaul of qc graphs & stats-related steps and pipelines
+        so that now wgs and exome projects all use the same
+        pipeline, with a single bamcheck call. bam_to_fastq step
+        fixed so that it runs in constant <500MB and copes with
+        bams that miss reads.
+0.36    Critical fixes to the underlying system to ensure job
+        submission doesn't stall out forever, to handle limits on
+        steps better, and to avoid issues when there are multiple
+        submissions for the same job. Also a fix for java to increase
+        likelyhood of jvm starting up.
+0.35    vrpipe-status script improved to give a better overview of
+        what the pipeline is doing, with warnings about pipeline
+        stalls. bam_to_fastq step reimplemented, should now be much
+        better.
+0.34    Critical speed fix for the VRTrack datasource. Fixes for the
+        archive_files pipeline and the vrtrack_update_mapstats step.
 0.33    Optimised bam_import_from_irods_and_vrtrack_qc_wgs pipeline.
         Memory and time reserved for jobs is now less likely to be
         insufficient.

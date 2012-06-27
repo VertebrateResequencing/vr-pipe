@@ -7,7 +7,7 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES CRAMTOOLS)],
-                    required_exe => [qw(samtools)]);
+                    required_exe => [qw(samtools bamcheck)]);
     use TestPipelines;
 }
 

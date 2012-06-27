@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 76;
+    use Test::Most tests => 70;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -97,6 +97,18 @@ while ($p->next_record) {
 }
 is_deeply [@records], ["fake_chr1+290640", "fake_chr2+1716851"], 'fasta file was parsed correctly';
 
+# dict
+$p = VRPipe::Parser->create('dict', {file => file(qw(t data S_suis_P17.fa.dict))});
+@records = ();
+$pr = $p->parsed_record;
+while ($p->next_record) {
+    push(@records, {%{$pr}});
+}
+my @common_dict = (UR => 'ftp://s.suis.com/ref.fa', AS => 'SSuis1', SP => 'S.Suis');
+is_deeply [@records], [{SN => 'fake_chr1', LN => 290640, M5 => '55f9584cf1f4194f13bbdc0167e0a05f', @common_dict},
+                       {SN => 'fake_chr2', LN => 1716851, M5 => '6dd2836053e5c4bd14ad49b5b2f2eb88', @common_dict}], 'dict file was parsed correctly';
+is $p->total_length, 2007491, 'total_length for dict files worked';
+
 # bam (we have Parser_bam.t for more in-depth testing of bam parsing)
 $p = VRPipe::Parser->create('bam', {file => file(qw(t data file.bam))});
 is $p->sam_version, '1.0', 'sam version could be parsed from bam file';
@@ -121,6 +133,11 @@ is $p->insert_size_standard_deviation, 70.9, 'bamcheck insert_size_standard_devi
 $p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_mq0))});
 is $p->reads_mq0, 1859041, 'reads_mq0 worked';
 is $p->pairs_with_other_orientation, 5857, 'pairs_with_other_orientation worked';
+# use a bamcheck with a simple COV section to test coverage methods
+$p = VRPipe::Parser->create('bamcheck', {file => file(qw(t data parser.bamcheck_simplecov))});
+is_deeply [$p->coverage(0), $p->coverage(1), $p->coverage(2), $p->coverage(3), $p->coverage(4), $p->coverage(5), $p->coverage(6), $p->coverage(7)], [0, 27893, 6485, 1188, 355, 49, 49, 0], 'coverage worked';
+is_deeply [$p->cumulative_coverage(1), $p->cumulative_coverage(2), $p->cumulative_coverage(3), $p->cumulative_coverage(4), $p->cumulative_coverage(5), $p->cumulative_coverage(6), $p->cumulative_coverage(7)], [36019, 8126, 1641, 453, 98, 49, 0], 'cumulative_coverage worked';
+is $p->mean_coverage, 1.29, 'mean_coverage worked';
 
 # bas
 $p = VRPipe::Parser->create('bas', {file => file(qw(t data example2.bas))});
@@ -147,34 +164,15 @@ is $p->duplicate_bases, 366, 'duplicate_bases worked';
     $fqp->next_record;
     is_deeply $pr, ['SRR001629.5', 'GGGGGCAATGCTGGGGTCGTCCTCCTCAACTCGCTCCAGGGGCCAGGGGATACCGCTCATATCACTAAGGGCGGTGCCCAGGTAGAGGAGCTCGCGATAGTCCCATTCAATGGACGTGTACCGGATGTTTAGGAGAGGCAGGGAGGCGATGATCTGGCATGTGTGCCGCAGGTGTGTCAGGAGGTCGTCAA', '88888>>BBBB>A@@@@BBBBBBBBBAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB@@@BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB@@@ABBBBBBBB'], 'parsed data for first sequence';
     
-    # get info on the 4th sequence
-    is $fqp->seq('SRR001629.14'), 'AAAAAAGTAGCCAAATCAACAGATCACATTTAGCATT', 'seq test when not yet reached';
-    is $pr->[0], 'SRR001629.5', 'using seq doesn\'t change our result holder';
-    $fqp->next_record;
-    is $pr->[0], 'SRR001629.9', 'using seq doesn\'t mess with next_result';
-    
-    # get info on the 3rd sequence
-    is $fqp->quality('SRR001629.13'), '@@@@@@@@@@@@@>>>>@@>>>>>>>>>><BB>@@>@@@>>@@@@@>AAA>@>>>>>>BBB999B>><<<@@@@B@>>99888889888>>>>>;;;999B<<BBBB<<<>>>', 'quality test when allready seen';
-    
-    # test sequence_ids
-    my @ids = $fqp->sequence_ids();
-    my %ids = map { $_ => 1 } @ids;
-    is $ids{'SRR001629.5'}, 1, 'sequence_ids gave first sequence id';
-    is $ids{'SRR001629.2599'}, 1, 'sequence_ids gave last sequence id';
-    is @ids, 1000, 'sequence_ids gave all ids';
-    
     # parse the last line
     while ($fqp->next_record) { next; };
     is_deeply $pr, ['SRR001629.2599', 'CACGTGTCCTCAACCTTGGCAAAATAAACTTTCAAAATTAACTGAGACCTATCTCAGATTTTCGGGGTTCACAGTAGCAAGGAAGTGGGGTCTGAGAGACGCCCC', 'BBBBBBBBBBBBBBBBBBAAAAAA?BBB?AAA?>>>>@@@@?B??BBBBBBBBBBBBB@@@@AAB@@@@AABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'], 'parsed data for last sequence';
     
-    ok $fqp->exists('SRR001629.13'), 'exists found an existing sequence';
-    ok ! $fqp->exists('fake'), 'exists didn\'t find a fake sequence';
-    
     # needs to work on .gz files as well
     $fqp = VRPipe::Parser->create('fastq', {file => $gz_file});
-    is $fqp->seq('SRR001629.2598'), 'AATGTCTCCTTGTGAACAGACTTTTGAGTATTTGGCTTTGTTATCCCCCAGAGAATACAAATGTCTCTATGGACACCAAGGTCATAATAACTCCACTTCTCCCATCCCCCTCACACCCTTTGGCAGCCTCATATAT', 'seq test on gz compressed fastq - penultimate read';
-    is $fqp->seq('SRR001629.1683'), 'CAACAAGTTATTTTAATTGAAAATAAATTTTCCTGACCAACTATTCTGTCAAAACCACATTAAATGAAGATAGCTCAGCAGTGACCAAATCACTATAAAAAGCATTACATGTTATGGGAGAAATGAGTGGGA', 'seq test on gz compressed fastq - read in the middle';
-    is $fqp->seq('SRR001629.2599'), 'CACGTGTCCTCAACCTTGGCAAAATAAACTTTCAAAATTAACTGAGACCTATCTCAGATTTTCGGGGTTCACAGTAGCAAGGAAGTGGGGTCTGAGAGACGCCCC', 'seq test on gz compressed fastq - last read';
+    $pr = $fqp->parsed_record;
+    while ($fqp->next_record) { next; };
+    is $pr->[1], 'CACGTGTCCTCAACCTTGGCAAAATAAACTTTCAAAATTAACTGAGACCTATCTCAGATTTTCGGGGTTCACAGTAGCAAGGAAGTGGGGTCTGAGAGACGCCCC', 'seq correct for last read of gz compressed fastq ';
     
     # qual to ints
     is_deeply [$fqp->qual_to_ints('!"#$%&\'()*+,5?DIS]~')], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20, 30, 35, 40, 50, 60, 93], 'qual_to_ints test worked';

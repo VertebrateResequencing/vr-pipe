@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 25;
+    use Test::Most tests => 44;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -82,6 +82,47 @@ is_deeply [$ds->method_options('single_column')], [['named', 'delimiter', 1, und
                                                    ['named', 'column', 1, undef, 'PositiveInt'],
                                                    ['named', 'column_is_path', 0, 1, 'Bool']], 'method_options showed us what options the single_column method takes';
 
+# fofn_with_metadata
+#path    center_name     study   sample  platform        library lane
+#/a/path/7816_3#95.bam   SC      ERP000979       JB953   ILLUMINA        4858080 7816_3#95
+#/a/path/7413_5#95.bam   SC      ERP000979       JB953   ILLUMINA        4074406 7413_5#95
+#/a/path/8312_5#95.bam   SC      ERP000979       JB951   ILLUMINA        4074399 8312_5#95
+my @fwm_paths = ('/a/path/7816_3#95.bam', '/a/path/7413_5#95.bam', '/a/path/8312_5#95.bam');
+my %fwm_common_meta = (center_name => 'SC', study => 'ERP000979', platform => 'ILLUMINA');
+VRPipe::File->get(path => $fwm_paths[0])->add_metadata({library => 'foo'});
+ok $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
+                                 method => 'all',
+                                 source => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+                                 options => {}), 'could create a fofn_with_metadata datasource';
+
+@results = ();
+foreach my $element (@{$ds->elements}) {
+    push(@results, $element->result);
+}
+is_deeply [@results,
+           VRPipe::File->get(path => $fwm_paths[0])->metadata,
+           VRPipe::File->get(path => $fwm_paths[1])->metadata,
+           VRPipe::File->get(path => $fwm_paths[2])->metadata],
+          [{paths => [$fwm_paths[0]]},
+           {paths => [$fwm_paths[1]]},
+           {paths => [$fwm_paths[2]]},
+           { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' },
+           { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' },
+           { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata all, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
+                                 method => 'grouped_by_metadata',
+                                 source => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+                                 options => { metadata_keys => 'study|sample' }), 'could create a fofn_with_metadata grouped_by_metadata datasource';
+
+@results = ();
+foreach my $element (@{$ds->elements}) {
+    push(@results, $element->result);
+}
+is_deeply [sort { $a->{group} cmp $b->{group} } @results],
+          [{paths => [$fwm_paths[2]], group => 'ERP000979|JB951'},
+           {paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953'}], 'got correct results for fofn_with_metadata grouped_by_metadata';
+
 # sequence_index
 ok $ds = VRPipe::DataSource->get(type => 'sequence_index',
                                  method => 'lane_fastqs',
@@ -120,7 +161,7 @@ is_deeply $meta, { expected_md5 => 'f1826489facca0d0bdf02d9586b493f6',
 # only, but will also work for anyone with a working VertRes:: and VRTrack::
 # setup
 SKIP: {
-    my $num_tests = 2;
+    my $num_tests = 25;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
     eval "require VertRes::Utils::VRTrackFactory; require VRTrack::VRTrack; require VRTrack::Lane;";
     skip "VertRes::Utils::VRTrackFactory/VRTrack::VRTrack not loading", $num_tests if $@;
@@ -154,6 +195,10 @@ SKIP: {
             if ($i > 10) {
                 $lane->is_processed('qc' => 1);
                 push(@{$expectations{qc}}, $name);
+                if ($i > 45) {
+                    $lane->qc_status('passed');
+                    push(@{$expectations{qc_status_passed}}, $name);
+                }
             }
             if ($i > 20) {
                 $lane->is_processed('mapped' => 1);
@@ -186,46 +231,102 @@ SKIP: {
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
    
- 
-    ### tests for  _has_changed ###
+    
+    ## tests for _has_changed
     ok( ! $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change' );
     
-    # create a new row that has a later time stamp
+    # create a new lane
     $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
-    my $name = 'new_lane';
-    sleep(2); # wait two seconds to create new lane so we have a later time stamp.
-    my $new_lane = VRTrack::Lane->create($vrtrack, $name);
+    my $new_lane = VRTrack::Lane->create($vrtrack, 'new_lane');
     $new_lane->is_withdrawn(0);
     $new_lane->library_id(16);
     $new_lane->update;
     ok( $ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after new lane insertion in test vrtrack db');
-
+    
     # Go back to unchanged state by deleting this lane. Check we don't have any changes
     $new_lane->delete;
     ok( !$ds->_source_instance->_has_changed, 'vrtrack datasource _has_change gives no change after inserted lane deleted in test vrtrack db');
-
+    
     # add a file to another lane and check for changes
     my $lane_to_add_file_for = VRTrack::Lane->new_by_name($vrtrack, 'ERR003040');
     my $newfile = $lane_to_add_file_for->add_file('new.fastq');
-    ok($ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after adding a file in test vrtrack db');
-    $newfile->delete; # return to original state so that _has_changed can be tested again
-
+    is $ds->_source_instance->_has_changed, 0, 'vrtrack datasource _has_changed gives no change after adding a file in test vrtrack db, with method lanes';
+    $newfile->delete;
+    
     # change some md5 sums in the files
     my $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
     # check for changes
-    $file->md5('34c009157187c5d9a7e976563ec1bad9');
+    $file->md5('34c009157187c5d9a7e976563ec1bad8');
     $file->update;
-    ok($ds->_source_instance->_has_changed, 'datasource _has_changed got change after md5 change in file table in test vrtrack db');
-    
-    # return db to original state so running this test again will work
+    is $ds->_source_instance->_has_changed, 0, 'datasource _has_changed got no change after md5 change in file table in test vrtrack db, with method lanes';
     $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
     $file->update;
     
-    ### lane_fastqs tests    
+    # if we change something that doesn't indicate a real change as far as our
+    # options are concerned, it shouldn't come up as _has_changed
+    $lane_to_add_file_for->qc_status('pending');
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 0, 'changing qc_status when it was not an option is ignored';
+    $lane_to_add_file_for->is_processed('mapped', 1);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing is_processed when it was an option is detected';
+    $lane_to_add_file_for->is_processed('mapped', 0);
+    $lane_to_add_file_for->qc_status('no_qc');
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 0, 'reverting lane back gives no change';
+    $lane_to_add_file_for->is_withdrawn(1);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing withdrawn is always detected';
+    $lane_to_add_file_for->is_withdrawn(0);
+    $lane_to_add_file_for->update;
+    
+    $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                  method => 'lanes',
+                                  source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                  options => {qc_status => 'pending'});
+    $results = 0;
+    foreach my $element (@{$ds->elements}) {
+        $results++;
+    }
+    is $results, 0, 'initially got no results for vrtrack lanes qc_status => pending';
+    $lane_to_add_file_for->qc_status('pending');
+    $lane_to_add_file_for->update;
+    $results = 0;
+    foreach my $element (@{$ds->elements}) {
+        $results++;
+    }
+    is $results, 1, 'after changing a lane to qc pending, got 1 dataelement';
+    
+    $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                  method => 'lanes',
+                                  source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                  options => {});
+    $results = 0;
+    foreach my $element (@{$ds->elements}) {
+        $results++;
+    }
+    is $results, 55, 'with no options we get all the active lanes in the db';
+    $lane_to_add_file_for->qc_status('pending');
+    $lane_to_add_file_for->is_processed('mapped', 1);
+    $lane_to_add_file_for->raw_bases(50);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 0, 'we can change lots of things without being detected';
+    $lane_to_add_file_for->is_withdrawn(1);
+    $lane_to_add_file_for->update;
+    is $ds->_source_instance->_has_changed, 1, 'but withdrawn is still detected';
+    
+    $lane_to_add_file_for->qc_status('no_qc');
+    $lane_to_add_file_for->is_processed('mapped', 0);
+    $lane_to_add_file_for->raw_bases(1473337566);
+    $lane_to_add_file_for->is_withdrawn(0);
+    $lane_to_add_file_for->update;
+    
+    
+    # lane_fastqs tests    
     ok $ds = VRPipe::DataSource->get(type => 'vrtrack',
                                   method => 'lane_fastqs',
                                   source => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                  options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library => [  'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190'] } ), 'could create a vrtrack datasource';
+                                  options => {import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library_regex => 'g1k-sc-NA19190-YRI-1\|SC\|SRP000542\|NA19190' } ), 'could create a vrtrack datasource';
     
     @results = ();
     foreach my $element (@{$ds->elements}) {
@@ -240,6 +341,8 @@ SKIP: {
     my $meta = $vrfile->metadata;
     is_deeply $meta, { 'bases' => '1696783',
                        'withdrawn' => 0,
+                       'project' => 'SRP000542',
+                       'species' => 'Homo sapiens',
                        'population' => 'YRI',
                        'paired' => 1,
                        'reads' => '45859',
@@ -252,9 +355,88 @@ SKIP: {
                        'expected_md5' => 'dfa4364855815d7433c451a87f0520d0',
                        'study' => 'SRP000542',
                        'lane' => 'ERR003199',
-                       'study_name' => 'SRP000542',
-                       'insert_size' => 175,
-                       'sample_id' => '',
-                       'mate' => ''}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
+                       'insert_size' => 175}, 'a VRPipe::File created by vrtrack datasource has the correct metadata';
+    
+    $newfile = $lane_to_add_file_for->add_file('new.fastq');
+    $newfile->type(0);
+    $newfile->update;
+    is $ds->_source_instance->_has_changed, 1, 'vrtrack datasource _has_changed gives change after adding a fastq file in test vrtrack db, with method lane_fastqs';
+    $newfile->delete;
+    
+    $newfile = $lane_to_add_file_for->add_file('new.bam');
+    $newfile->type(5);
+    $newfile->update;
+    is $ds->_source_instance->_has_changed, 0, 'vrtrack datasource _has_changed gives no change after adding a bam file in test vrtrack db, with method lane_fastqs';
+    $newfile->delete;
+    
+    # change some md5 sums in the files
+    $file = VRTrack::File->new_by_hierarchy_name( $vrtrack, 'ERR003038.filt.fastq.gz' );
+    # check for changes
+    $file->md5('34c009157187c5d9a7e976563ec1bad8');
+    $file->update;
+    is $ds->_source_instance->_has_changed, 1, 'datasource _has_changed got change after md5 change in file table in test vrtrack db, with method lane_fastqs';
+    $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
+    $file->update;
+    is $ds->_source_instance->_has_changed, 0, 'reverting file md5 back gives no change';
+    
+    # if we change the insert_size in vrtrack, this should cause the datasource
+    # to reset the elements. Critically, the vrfile metadata should get updated,
+    # or else we'd be stuck in an infinite loop of always detecting the
+    # insert_size change and reseting
+    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    my $lib = VRTrack::Library->new_by_name($vrtrack, 'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190');
+    $lib->fragment_size_from(200);
+    $lib->fragment_size_to(200);
+    $lib->update;
+    # (we also add a lane to force datasource to notice a change)
+    VRTrack::Lane->create($vrtrack, 'new_lane2');
+    $ds->elements;
+    is $vrfile->metadata->{insert_size}, '200', 'changing insert_size in vrtrack changes insert_size metadata on vrpipe files';
+    
+    # test getting improved bams that passed qc
+    $vrtrack = VertRes::Utils::VRTrackFactory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
+    my %expected_qc_passed_improved_bams;
+    my %passed_hnames = map { $_ => 1 } @{$expectations{qc_status_passed}};
+    foreach my $hname (@{$expectations{qc}}) {
+        my $vrlane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $hname);
+        my $improved_bam = VRPipe::File->get(path => file($hname.'.improved.bam')->absolute);
+        my $vrfile_name = 'VRPipe::File::'.$improved_bam->id;
+        my $md5 = 'an_md5_'.$improved_bam->id;
+	$vrfile = $vrlane->add_file($vrfile_name);
+	$vrfile->type(5);
+	$vrfile->md5($md5);
+	$vrfile->update;
+        $improved_bam->md5($md5);
+        $improved_bam->update;
+        if (exists $passed_hnames{$hname}) {
+            $expected_qc_passed_improved_bams{$improved_bam->path->stringify} = 1;
+        }
+        
+        # to give us more than 1 group to test, change the library of one of the
+        # lanes
+        if ($hname eq 'ERR008838') {
+            $vrlane->library_id(1);
+            $vrlane->update;
+        }
+    }
+    my %expected_groups = ('SRP000546|SRP000546|NA18633|HUMsgR3AIDCAASE' => 1,
+                           'SRP000547|SRP000547|NA07056|g1k_sc_NA07056_CEU_1' => 1);
+    $ds = VRPipe::DataSource->get(type => 'vrtrack',
+                                  method => 'lane_improved_bams',
+                                  source => $ENV{VRPIPE_VRTRACK_TESTDB},
+                                  options => {qc => 1,
+                                              qc_status => 'passed',
+                                              group_by_metadata => 'project|study|sample|library'});
+    my %actual_qc_passed_improved_bams;
+    my %actual_groups;
+    foreach my $element (@{$ds->elements}) {
+        my $result = $element->result;
+        $actual_groups{$result->{group} || 'no_group'} = 1;
+        foreach my $path (@{$result->{paths}}) {
+            $actual_qc_passed_improved_bams{$path} = 1;
+        }
+    }
+    is_deeply \%actual_qc_passed_improved_bams, \%expected_qc_passed_improved_bams, 'an improved bam qc passed datasource gave the expected files';
+    is_deeply \%actual_groups, \%expected_groups, 'a group_by_metadata datasource gave the expected groups';
 }
 exit;
