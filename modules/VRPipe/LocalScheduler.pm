@@ -120,13 +120,16 @@ class VRPipe::LocalScheduler {
         my $array_size = $self->a;
         my $lsj = VRPipe::LocalSchedulerJob->get(cmd => $cmd, array_size => $array_size, cwd => cwd());
         
+        my $user = getlogin || getpwuid($<);
+        my @lsjs_args;
         foreach my $aid (1..$array_size) {
             my $this_o = $o_file;
             $this_o =~ s/\%I/$aid/g;
             my $this_e = $e_file;
             $this_e =~ s/\%I/$aid/g;
-            VRPipe::LocalSchedulerJobState->get(localschedulerjob => $lsj, aid => $aid, o_file => $this_o, e_file => $this_e, user => getlogin || getpwuid($<));
+            push(@lsjs_args, { localschedulerjob => $lsj, aid => $aid, o_file => $this_o, e_file => $this_e, user => $user });
         }
+        VRPipe::LocalSchedulerJobState->bulk_create_or_update(@lsjs_args);
         
         my $sid = $lsj->id;
         print "Job <$sid> is submitted\n";
