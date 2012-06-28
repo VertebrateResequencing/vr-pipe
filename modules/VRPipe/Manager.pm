@@ -569,7 +569,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $limit = $self->global_limit;
         my $count = VRPipe::Job->search({ 'running' => 1 });
         
-        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef });
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef }, { order_by => 'requirements' }, 1000);
         
         my $scheduler = VRPipe::Scheduler->get;
         while (my $subs = $pager->next) {
@@ -607,7 +607,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             while (my ($req_id, $subs) = each %batches) {
                 $self->debug("_~_ Batched and submitted an array of ".scalar(@$subs)." subs");
                 my $sid = $scheduler->submit(array => $subs,
-                                             requirements => VRPipe::Requirements->get(id => $req_id));
+                                             requirements => $subs->[0]->requirements);
             }
         }
     }
