@@ -138,7 +138,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
             
             $self->_scheduled(DateTime->now);
             $self->release;
-            $self->update;
             
             return $sid;
         }
