@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 125;
+    use Test::Most tests => 123;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -242,16 +242,12 @@ $subs[1] = VRPipe::Submission->get(job => $jobs[0], stepstate => $stepstates[1],
 throws_ok { VRPipe::PersistentArray->get() } qr/needs id or members/, 'get() for PersistentArray fails with no args';
 throws_ok { VRPipe::PersistentArray->get(id => 1, members => \@subs) } qr/both id and members cannot be supplied/, 'get() for PersistentArray fails with both id and members supplied';
 ok my $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'created a PersistentArray using get(members => [...])';
-is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the created PArray has the correct contents';
+is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id, $subs_array->member(1)->id, $subs_array->member(2)->id], [1, 1, 2, 1, 2], 'the created PArray has the correct contents';
 undef $subs_array;
 ok $subs_array = VRPipe::PersistentArray->get(id => 1), 'got a PersistentArray using get(id => 1)';
-is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [1, 1, 2], 'the gotten PArray has the correct contents';
+is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id], [1, 1, 2], 'the gotten PArray has the correct contents';
 ok $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'created a PersistentArray using the same set of members)';
-is_deeply [$subs_array->id, $subs_array->members->[0]->id, $subs_array->members->[1]->id], [2, 1, 2], 'the created PArray has a new id, but the same contents otherwise';
-is $subs_array->member(2)->id, 2, 'member() works given an index';
-undef $subs_array;
-$subs_array = VRPipe::PersistentArray->get(id => 1);
-is $subs_array->member(2)->id, 2, 'member() works given an index when members() has not been called';
+is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id, $subs_array->member(1)->id, $subs_array->member(2)->id], [2, 3, 4, 1, 2], 'the created PArray has a new id, new persistentarray members, but the same contents otherwise';
 
 # now that we have some submissions and pipelinesetup, make some stepstats and
 # test that the multi-row get methods work

@@ -37,13 +37,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::PersistentArray extends VRPipe::Persistent {
-    has 'members' => (is => 'rw',
-                      isa => ArrayRefOfPersistent,
-                      lazy => 1,
-                      builder => '_build_members',
-                      predicate => '_members_populated');
-    
-    __PACKAGE__->make_persistent(has_many => [_members => 'VRPipe::PersistentArrayMember']);
+    __PACKAGE__->make_persistent(has_many => [members => 'VRPipe::PersistentArrayMember']);
     
     around get (ClassName|Object $self: ArrayRefOfPersistent :$members?, Persistent :$id?) {
         $self->throw("both id and members cannot be supplied to get() at the same time") if $id && $members;
@@ -59,30 +53,14 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
             my $array = $self->$orig();
             
             my $index = 0;
+            my @pam_args;
             foreach my $member (@{$members}) {
-                VRPipe::PersistentArrayMember->get(persistentarray => $array, class => ref($member), class_id => $member->id, array_index => ++$index);
+                push(@pam_args, { persistentarray => $array, class => ref($member), class_id => $member->id, array_index => ++$index });
             }
-            
-            $array->members($members);
+            VRPipe::PersistentArrayMember->bulk_create_or_update(@pam_args);
             
             return $array;
         }
-    }
-    
-    method _build_members {
-        # get all PersistentArrayMember rows with our id, and instantiate the
-        # corresponding Persistent objects
-        my @members;
-        foreach my $array_member ($self->_members) {
-            push(@members, $self->_array_member_to_member($array_member));
-        }
-        
-        return \@members;
-    }
-    
-    method _array_member_to_member (VRPipe::PersistentArrayMember $array_member) {
-        my $class = $array_member->class;
-        return $class->get(id => $array_member->class_id);
     }
     
     method member (PositiveInt $index) {
@@ -90,21 +68,15 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
             $self->throw("The array index supplied to member() is 1-based");
         }
         
-        if ($self->_members_populated) {
-            my $members = $self->members;
-            return $members->[$index - 1];
-        }
-        else {
-            foreach my $array_member ($self->_members) {
-                if ($array_member->array_index == $index) {
-                    return $self->_array_member_to_member($array_member);
-                }
-            }
-        }
+        my ($pam) = VRPipe::PersistentArrayMember->search({ persistentarray => $self->id, array_index => $index });
+        $pam || $self->throw("PersistentArray ".$self->id." does not have a member with index $index");
+        
+        my $class = $pam->class;
+        return $class->get(id => $pam->class_id);
     }
     
     method size {
-        return scalar $self->_members;
+        return scalar VRPipe::PersistentArrayMember->search({ persistentarray => $self->id });
     }
 }
 

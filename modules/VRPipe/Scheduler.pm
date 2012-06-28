@@ -119,7 +119,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
            heartbeat_interval => int (seconds between heartbeats)
 
 =cut
-    method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, PersistentArray|ArrayRefOfPersistent :$array?, PositiveInt :$heartbeat_interval?) {
+    method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, ArrayRefOfPersistent :$array?, PositiveInt :$heartbeat_interval?) {
         #my $scheduled_id = $sch->submit(submission => $VRPipe_jobmanager_submission);
         # this gets requirements from the Submission object. It also auto-sets
         # $submission->sid() to $scheduled_id (the return value, which is the value
@@ -137,33 +137,31 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # the scheduler, and if the scheduler has a problem and the submission fails,
         # we release all the Submission objects.
         
-        my @submissions;
+        my $submissions;
         my $for;
         my $aid = -1;
         if ($submission) {
-            push(@submissions, $submission);
+            $submissions = [$submission];
             $requirements ||= $submission->requirements;
             $for = $submission;
         }
         elsif ($array) {
-            if (ref($array) eq 'ARRAY') {
-                $array = VRPipe::PersistentArray->get(members => $array);
-            }
-            push(@submissions, @{$array->members});
-            $for = $array;
+            my $parray = VRPipe::PersistentArray->get(members => $array);
+            $for = $parray;
             $aid++;
+            $submissions = $array;
             
             if (! $requirements) {
                 my %req_ids;
-                foreach my $sub (@submissions) {
+                foreach my $sub (@$submissions) {
                     $req_ids{$sub->requirements->id} = 1;
                 }
                 if (keys %req_ids == 1) {
-                    $requirements = $submissions[0]->requirements;
+                    $requirements = $submissions->[0]->requirements;
                 }
             }
         }
-        $self->throw("at least one submission and requirements must be supplied") unless @submissions && $requirements;
+        $self->throw("at least one submission and requirements must be supplied") unless @$submissions && $requirements;
         
         # generate a command line that will submit to the scheduler
         my $cmd_line = $self->build_command_line(requirements => $requirements,
@@ -178,7 +176,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         try {
             $sid = $schema->txn_do(sub {
                 my $all_claimed = 1;
-                foreach my $sub (@submissions) {
+                foreach my $sub (@$submissions) {
                     my $claimed = $sub->claim;
                     unless ($claimed) {
                         $all_claimed = 0;
@@ -189,20 +187,16 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 }
                 
                 if ($all_claimed) {
-                    foreach my $sub (@submissions) {
-                        $sub->update;
-                    }
-                    
                     my $got_sid = $self->get_sid($cmd_line);
                     
                     if ($got_sid) {
-                        foreach my $sub (@submissions) {
+                        foreach my $sub (@$submissions) {
                             $sub->sid($got_sid);
                         }
                         return $got_sid;
                     }
                     else {
-                        foreach my $sub (@submissions) {
+                        foreach my $sub (@$submissions) {
                             $sub->release;
                         }
                         die "failed to submit to scheduler";
