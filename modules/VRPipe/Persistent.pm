@@ -958,7 +958,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 		# for MySQL InnoDB.
 		
 		# first go through everything and find existing rows for update
-		my @to_create;
+		my %to_create;
 		foreach my $arg_set (@$batch) {
 		    my ($find_args, $args) = @$arg_set;
 		    
@@ -981,12 +981,19 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 			}
 		    }
 		    else {
-			push(@to_create, {%$find_args, %$args});
+                        # populate() needs everything you supply to have the
+                        # same set of columns, so we must group accordingly
+                        # and later call populate multiple times
+                        my %populate_args = (%$find_args, %$args);
+                        my $pkey = join('|', sort keys %populate_args);
+                        push(@{$to_create{$pkey}}, \%populate_args);
 		    }
 		}
 		
 		# now bulk create the rows that didn't exist
-		$rs->populate(\@to_create) if @to_create;
+                foreach my $populate_args (values %to_create) {
+                    $rs->populate($populate_args);
+                }
 	    };
 	    
 	    $self->_do_transaction($schema, $transaction, "Failed to $class\->bulk_create_or_update");

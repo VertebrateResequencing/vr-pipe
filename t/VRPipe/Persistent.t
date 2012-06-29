@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 123;
+    use Test::Most tests => 124;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -355,6 +355,13 @@ VRPipe::Job->bulk_create_or_update(@job_args);
 $j_count = VRPipe::Job->search({dir => '/fake_dir', exit_code => undef });
 my $j_count_exited = VRPipe::Job->search({dir => '/fake_dir', exit_code => 0 });
 is_deeply [$j_count, $j_count_exited], [0, 1000], 'bulk_create_or_update worked when updating, and no duplicate rows were created';
+@job_args = ();
+foreach my $i (1..10) {
+    push(@job_args, { cmd => "fake_job with running set $i", dir => '/fake_dir', running => 1 });
+}
+VRPipe::Job->bulk_create_or_update({ cmd => "fake_job withouth running set", dir => '/fake_dir' }, @job_args);
+$j_count = VRPipe::Job->search({ running => 1 });
+is $j_count, 10, 'bulk_create_or_update was able to create and set non keys when it was first supplied some args that lacked the non key column';
 
 my $fm = Parallel::ForkManager->new(2);
 for (1..2) {
