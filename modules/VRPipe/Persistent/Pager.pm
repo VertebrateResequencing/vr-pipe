@@ -59,8 +59,7 @@ use VRPipe::Base;
 class VRPipe::Persistent::Pager {
     has resultset => (is => 'ro',
                       isa => 'DBIx::Class::ResultSet',
-                      required => 1,
-		      writer => '_modify_resultset');
+                      required => 1);
     
     has rows_per_page => (is => 'ro',
 			  default => 1000);
@@ -75,14 +74,19 @@ class VRPipe::Persistent::Pager {
 		   builder => '_build_pager',
 		   handles => [qw(current_page last_page total_entries)]);
     
+    has _initial_count => (is => 'ro',
+			   isa => 'Int',
+			   writer => '_set_count');
+    
     has _pages_done => (is => 'rw',
 			default => 0);
     
     method _build_pager {
 	my $rs = $self->resultset;
 	$rs = $rs->search({}, { rows => $self->rows_per_page, page => 1 });
-	$self->_modify_resultset($rs);
-	return $rs->pager;
+	my $pager = $rs->pager;
+	$self->_set_count($pager->total_entries);
+	return $pager;
     }
     
     method next {
@@ -90,9 +94,14 @@ class VRPipe::Persistent::Pager {
 	my $next_page = $self->_pages_done + 1;
 	return if $next_page > $last_page;
 	
+	my $rs = $self->resultset;
+	$rs = $rs->search({}, { rows => $self->rows_per_page, page => $next_page });
+	if ($rs->pager->total_entries != $self->_initial_count) {
+	    $self->throw("The number of rows that matched the query changed between pages");
+	}
+	
 	my $result_method = $self->result_method;
 	my $rows;
-	my $rs = $self->resultset->page($next_page);
 	if (ref($result_method)) {
 	    my @results = &$result_method($rs);
 	    if (@results == 1 && ref($results[0]) eq 'ARRAY') {
