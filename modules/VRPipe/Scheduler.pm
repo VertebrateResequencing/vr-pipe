@@ -173,6 +173,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # failure
         my $schema = $self->result_source->schema;
         my $sid;
+        my $for_id = $for->id;
         try {
             $sid = $schema->txn_do(sub {
                 my $all_claimed = 1;
@@ -182,7 +183,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                         $all_claimed = 0;
                         last;
                     }
-                    $sub->_hid($for->id);
+                    $sub->_hid($for_id);
                     $sub->_aid(++$aid);
                 }
                 
