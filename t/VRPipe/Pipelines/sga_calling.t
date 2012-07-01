@@ -36,7 +36,7 @@ VRPipe::PipelineSetup->get(name => 'sga prepare fastq test',
                            pipeline => $preprocess_pipeline,
                            options => { split_bam_only => '^(11|20)$',
                                         split_bam_include_mate => 1,
-                                        sga_exe => 'sga-dindel',
+                                        sga_exe => 'sga',
                                         cleanup => 0,
                                       });
 
@@ -48,7 +48,7 @@ VRPipe::PipelineSetup->get(name => 'sga calling test',
                            output_root => $calling_dir,
                            pipeline => $sga_pipeline,
                            options => { reference_fasta => $ref_fa,
-                                        sga_exe => 'sga-dindel',
+                                        sga_exe => 'sga',
                                         cleanup => 0 });
 
 
