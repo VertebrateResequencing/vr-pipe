@@ -39,7 +39,8 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         return { };
     }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => 'fastq files to be indexed') };
+        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => 'fastq files to be indexed',
+                                                              metadata => { sample => 'sample name' }) };
     }
     method body_sub {
         return sub {
@@ -68,7 +69,7 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "Build the BWT and FM-index for a set of reads";
+        return "Merge sample fastq files together and create a popidx file for quick lookup";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
@@ -84,42 +85,72 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         my $seq_fh = $merged_fastq->openw;
         my $idx_fh = $pop_index->openw;
         
+        my %samples;
+        my $expected_lines = 0;
+        foreach my $fq (@$fastqs) {
+            my $fq_file = VRPipe::File->get(path => file($fq));
+            my $sample = $fq_file->metadata->{sample};
+            push @{$samples{$sample}}, $fq;
+            $expected_lines += $fq_file->lines;
+        }
+        
+        $merged_fastq->disconnect;
+        
         # Track position data
         my $current_index = 0;
         my $current_start_index = 0;
         my $current_label = '';
         
         # Iterate over every file
-        foreach my $fq (@$fastqs) {
-            my $fq_file = VRPipe::File->get(path => file($fq));
-            
+        while (my ($sample, $fqs) = each %samples) {
             # Write out the previous file's data to the index, if any
             if($current_label ne '') {
                 print $idx_fh join("\t", ($current_start_index, $current_index - 1, $current_label)) . "\n";
             }
             
             # Reset position data
-            $current_label = $fq_file->metadata->{sample};
+            $current_label = $sample;
             $current_start_index = $current_index;
             
-            # parse the fastq file
-            my $pars = VRPipe::Parser->create('fastq', { file => $fq });
-            my $parsed_record = $pars->parsed_record();
-            while ($pars->next_record()) {
-                my $id = $parsed_record->[0];
-                my $seq_string = $parsed_record->[1];
-                my $qual_string = $parsed_record->[2];
-                
-                my ($header) = split(' ', $id);
-                my $record = "\@$header\n$seq_string\n+\n$qual_string\n";
-                
-                $current_index++;
-                print $seq_fh $record;
+            foreach my $fq (@$fqs) {
+                # parse the fastq file
+                my $pars = VRPipe::Parser->create('fastq', { file => $fq });
+                my $parsed_record = $pars->parsed_record();
+                while ($pars->next_record()) {
+                    my $id = $parsed_record->[0];
+                    my $seq_string = $parsed_record->[1];
+                    my $qual_string = $parsed_record->[2];
+                    
+                    my ($header) = split(' ', $id);
+                    my $record = "\@$header\n$seq_string\n+\n$qual_string\n";
+                    
+                    $current_index++;
+                    print $seq_fh $record;
+                }
             }
         }
+        $seq_fh->close;
         
         # Write the last element of the index
         print $idx_fh join("\t", ($current_start_index, $current_index - 1, $current_label)) . "\n";
+        $idx_fh->close;
+        
+        $pop_index->update_stats_from_disc(retries => 3);
+        $merged_fastq->update_stats_from_disc(retries => 3);
+        
+        my $actual_lines = $merged_fastq->lines;
+        my $index_lines = $pop_index->lines;
+        if ($actual_lines != $expected_lines) {
+            $merged_fastq->unlink;
+            $pop_index->unlink;
+            $self->throw("Merged fastq had $actual_lines actual lines, whereas we expected $expected_lines lines.");
+        } elsif ($index_lines != scalar @$fastqs) {
+            $merged_fastq->unlink;
+            $pop_index->unlink;
+            $self->throw("Index had $index_lines, whereas we expected ".scalar(@$fastqs)." lines.");
+        } else {
+            return 1;
+        }
     }
 }
 
