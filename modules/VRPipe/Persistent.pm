@@ -890,7 +890,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    # split up the find and create calls. Actually, search() is
 	    # faster than find(), and not sure we need any of the fancy
 	    # munging that find() does for us.
-	    my $return = $rs->search(\%find_args, { for => 'update' })->single if keys %find_args;
+	    my ($return, @extra) = $rs->search(\%find_args, { for => 'update' }) if keys %find_args;
+            if (@extra) {
+                my @ids = map { $_->id } ($return, @extra);
+                die "got more than one matching row: (@ids)\n";
+            }
 	    
 	    if ($return) {
 		# update the row with any non-key args supplied
@@ -970,10 +974,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 		    # for some reason find here is a zillion times slower than
 		    # using find in get(), but using search is faster than either
 		    # method in get()
-		    my ($return, $other) = $rs->search($find_args, { for => 'update', rows => 2 }) if keys %$find_args;
-		    if ($other) {
+		    my ($return, @extra) = $rs->search($find_args, { for => 'update' }) if keys %$find_args;
+		    if (@extra) {
 			my $find_str = join(', ', map { "$_ => $find_args->{$_}" } keys %$find_args);
-			$self->throw("during bulk_create_or_update for $class I searched for { $find_str } and got more than one row, including ids ".$return->id." and ".$other->id);
+                        my @ids = map { $_->id } ($return, @extra);
+			die "during bulk_create_or_update for $class I searched for { $find_str } and got more than one row, with ids (@ids)\n";
 		    }
 		    
 		    if ($return) {
