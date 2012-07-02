@@ -1,3 +1,6 @@
+0.77    When using SQLite as the database it may now lock up less, though the
+        local scheduler remains incompatible with it. Fixes to metadata stored
+        when merging bams, important for pipelines using bam_reheader step.
 0.76    Another schema upgrade to add a missing index. See IMPORTANT_NOTES if
         upgrading.
 0.75    Schema upgrade to provide better database indexes. See IMPORTANT_NOTES
