@@ -107,7 +107,7 @@ class VRPipe::Steps::sga_permute_reference with VRPipe::StepRole {
         return sub { return 1; };
     }
     method description {
-        return "Build the BWT and FM-index for a set of reads";
+        return "Permute ambiguous base calls in a fasta reference file for use in sga variant calling";
     }
     method max_simultaneous {
         return 0; # meaning unlimited
