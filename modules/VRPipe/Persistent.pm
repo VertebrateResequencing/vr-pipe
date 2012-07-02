@@ -120,6 +120,11 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
 	# $vals is an array ref of memory values
     }
     
+    # NB: VRPipe::Persistent::Pager will reset to page 1 during a ->next loop
+    # if the results you were searching for changes between pages. This means
+    # that what you do during the loop should be safe to rerun on the same
+    # database row more than once.
+    
     # get() can be used to create (insert) new objects into the database, and
     # also to update them. However you should avoid using get() for this purpose
     # in loop - it is VERY SLOW. When you don't care about the return value and

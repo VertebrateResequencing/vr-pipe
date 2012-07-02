@@ -283,7 +283,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         $self->debug("Spool for setup ".$setup->id." got ".$pager->total_entries." incomplete element states");
         
-        while (my $estates = $pager->next) {
+        ELOOP: while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
                 my $element = $estate->dataelement;
                 my $completed_steps = $estate->completed_steps;
@@ -409,7 +409,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     last;
                 }
                 
-                last if $incomplete_elements > $limit;
+                last ELOOP if $incomplete_elements > $limit;
             }
         }
         
@@ -569,10 +569,17 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $limit = $self->global_limit;
         my $count = VRPipe::Job->search({ 'running' => 1 });
         
-        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef }, { order_by => 'requirements' }, 1000);
+        # we want to now find all submissions that are not done or failed and
+        # that haven't already been submitted. Because another process could
+        # create new submissions which would change our results during the loop,
+        # we avoid unecessary (possibly infinite) loop restarts by Pager by
+        # first getting the most recently created submission and then searching
+        # for ids less than that.
+        my ($last_sub_id) = VRPipe::Submission->get_column_values('id', {}, { order_by => { -desc => 'id' }, rows => 1 });
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, 'id' => { '<=' => $last_sub_id } }, { order_by => 'requirements' }, 1000);
         
         my $scheduler = VRPipe::Scheduler->get;
-        while (my $subs = $pager->next) {
+        SLOOP: while (my $subs = $pager->next) {
             my %batches;
             foreach my $sub (@$subs) {
                 # if the job is a block_and_skip_if_ok job, we don't actually
@@ -598,7 +605,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 
                 # global limit handling
                 $count++;
-                last if $count >= $limit;
+                last SLOOP if $count >= $limit;
                 
                 # we're good to batch this one
                 push(@{$batches{$sub->requirements->id}}, $sub);

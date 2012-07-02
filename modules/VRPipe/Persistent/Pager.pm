@@ -30,6 +30,10 @@ to access a page's worth of the search results at a time.
 If memory is sufficient, you should try 10000 rows per page for good efficiency.
 The default is only 1000, which could be less than half the speed of 10000.
 
+NB: if what you are searching for changes between calls of next(), the query
+will be restarted and you will be on page 1 again (possibly going through rows
+you already dealt with, depending on what changed and what your query was).
+
 =head1 AUTHOR
 
 Sendu Bala <sb10@sanger.ac.uk>.
@@ -59,7 +63,8 @@ use VRPipe::Base;
 class VRPipe::Persistent::Pager {
     has resultset => (is => 'ro',
                       isa => 'DBIx::Class::ResultSet',
-                      required => 1);
+                      required => 1,
+		      writer => '_modify_resultset');
     
     has rows_per_page => (is => 'ro',
 			  default => 1000);
@@ -68,15 +73,11 @@ class VRPipe::Persistent::Pager {
 			  isa => 'Str|CodeRef',
 			  default => 'all');
     
-    has _pager => (is => 'ro',
+    has _pager => (is => 'rw',
 		   isa => 'Data::Page',
 		   lazy => 1,
 		   builder => '_build_pager',
 		   handles => [qw(current_page last_page total_entries)]);
-    
-    has _initial_count => (is => 'ro',
-			   isa => 'Int',
-			   writer => '_set_count');
     
     has _pages_done => (is => 'rw',
 			default => 0);
@@ -84,21 +85,25 @@ class VRPipe::Persistent::Pager {
     method _build_pager {
 	my $rs = $self->resultset;
 	$rs = $rs->search({}, { rows => $self->rows_per_page, page => 1 });
-	my $pager = $rs->pager;
-	$self->_set_count($pager->total_entries);
-	return $pager;
+	$self->_modify_resultset($rs);
+	return $rs->pager;
     }
     
     method next {
+	my $current_entries = $self->total_entries; # we must build our pager first, which alters resultset()
+	my $rs = $self->resultset;
+	my $new_rs = $rs->search({}, { rows => $self->rows_per_page, page => 1 });
+	if ($new_rs->pager->total_entries != $current_entries) {
+	    $rs = $new_rs;
+	    $self->_modify_resultset($rs);
+	    $self->_pager($rs->pager);
+	    $self->_pages_done(0);
+	}
+	
 	my $last_page = $self->last_page;
 	my $next_page = $self->_pages_done + 1;
 	return if $next_page > $last_page;
-	
-	my $rs = $self->resultset;
-	$rs = $rs->search({}, { rows => $self->rows_per_page, page => $next_page });
-	if ($rs->pager->total_entries != $self->_initial_count) {
-	    $self->throw("The number of rows that matched the query changed between pages");
-	}
+	$rs = $rs->page($next_page);
 	
 	my $result_method = $self->result_method;
 	my $rows;
