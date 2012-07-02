@@ -79,7 +79,6 @@ foreach my $element_id (3, 4) {
     foreach my $suffix (qw(fq popidx bwt sai)) {
         push(@calling_files, file(@output_subdirs, '4_fastq_merge_and_index', 'merged.'.$suffix));
     }
-    # foreach my $suffix (qw(base.vcf variant.vcf strings.fa)) {
     foreach my $suffix (qw(base.vcf variant.vcf)) {
         push(@calling_files, file(@output_subdirs, '6_sga_reference_based_calling', 'merged.'.$suffix));
     }

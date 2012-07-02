@@ -75,17 +75,17 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
                 $prefix =~ s/\.(fq|fastq)(\.gz)?$//;
                 my $base_vcf = $self->output_file(output_key => 'sga_base_vcf_files',  basename => qq[$prefix.base.vcf], type => 'vcf', metadata => $fq->metadata);
                 my $variant_vcf = $self->output_file(output_key => 'sga_variant_vcf_files',  basename => qq[$prefix.variant.vcf], type => 'vcf', metadata => $fq->metadata);
-                # my $strings_fasta = $self->output_file(output_key => 'sga_strings_fasta_files',  basename => qq[$prefix.strings.fa], type => 'txt', metadata => $fq->metadata);
+                my $strings_fasta = $self->output_file(output_key => 'sga_strings_fasta_files',  basename => qq[$prefix.strings.fa], type => 'txt', metadata => $fq->metadata);
                 my $cmd = qq[$sga_exe graph-diff $sga_opts -p $prefix --variant ].$fq->path.qq[ --reference ].$ref_file->path;
-                # $self->dispatch([$cmd, $req, {output_files => [$base_vcf,$variant_vcf,$strings_fasta]}]);
-                $self->dispatch([$cmd, $req, {output_files => [$base_vcf,$variant_vcf]}]);
+                $self->dispatch([$cmd, $req, {output_files => [$base_vcf,$variant_vcf,$strings_fasta]}]);
+                # $self->dispatch([$cmd, $req, {output_files => [$base_vcf,$variant_vcf]}]);
             }
         };
     }
     method outputs_definition {
         return { sga_base_vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
                  sga_variant_vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
-                 # sga_strings_fasta_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'variant calls made by sga graph-diff', max_files => -1)
+                 sga_strings_fasta_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'variant calls made by sga graph-diff', max_files => -1, check_existence => 0)
                 };
     }
     method post_process_sub {
