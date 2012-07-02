@@ -119,7 +119,9 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                 while (my ($chunk, $bam_files) = each %$chunks) {
                     my $merge_file = $self->output_file(output_key => 'merged_bam_files',
                                                         basename => "$ended.$chunk.bam",
-                                                        type => 'bam');
+                                                        type => 'bam',
+                                                        metadata => $self->common_metadata($bam_files)
+                                                        );
                     
                     my $temp_dir = $options->{tmp_dir} || $merge_file->dir;
                     my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
@@ -184,18 +186,11 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         my $reads = 0;
         my $bases = 0;
         my $paired = 0;
-        my %merge_groups;
         foreach my $in_file (@in_files) {
             my $meta = $in_file->metadata;
             $reads += $meta->{reads};
             $bases += $meta->{bases} if $meta->{bases};
             $paired ||= $meta->{paired};
-            foreach my $key (keys %$meta) {
-                next if (grep /^$key$/, (qw(reads bases paired)));
-                foreach my $value (split /,/, $meta->{$key}) {
-                    $merge_groups{$key}->{$value} = 1;
-                }
-            }
         }
         my $actual_reads = $out_file->num_records;
         
@@ -204,11 +199,6 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
             $new_meta{reads} = $actual_reads;
             $new_meta{bases} = $bases if $bases;
             $new_meta{paired} = $paired;
-            foreach my $key (keys %merge_groups) {
-                my @vals = keys %{$merge_groups{$key}};
-                next unless @vals == 1; # we used to store comma-separated values, but that could get too big to store in db
-                $new_meta{$key} = $vals[0];
-            }
             $out_file->add_metadata(\%new_meta);
             return 1;
         }

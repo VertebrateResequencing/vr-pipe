@@ -40,13 +40,14 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1,
                                                             metadata => {sample => 'sample name',
                                                                          center_name => 'center name',
+                                                                         library => 'library name',
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study, put in the DS field of the RG header line',
                                                                          population => 'sample population',
                                                                          analysis_group => 'project analysis group',
                                                                          split_sequence => 'chromosomal split',
                                                                          reads => 'total number of reads (sequences)',
-                                                                         optional => ['split_sequence'] }) };
+                                                                         optional => ['library', 'study', 'center_name', 'split_sequence'] }) };
     }
     method body_sub {
         return sub {
@@ -69,13 +70,14 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
                                                                       max_files => -1,
                                                                       metadata => {sample => 'sample name',
                                                                                    center_name => 'center name',
+                                                                                   library => 'library name',
                                                                                    platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                                    study => 'name of the study, put in the DS field of the RG header line',
                                                                                    population => 'sample population',
                                                                                    analysis_group => 'project analysis group',
                                                                                    split_sequence => 'chromosomal split',
                                                                                    reads => 'total number of reads (sequences)',
-                                                                                   optional => ['split_sequence'] }) };
+                                                                                   optional => ['library', 'study', 'center_name', 'split_sequence'] }) };
     }
     method post_process_sub {
         return sub {
@@ -105,12 +107,23 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         $bam->disconnect;
         
         my $sip = VRPipe::Parser->create('sequence_index', {file => $sequence_index});
+        my %si_lanes = map { $_ => 1 } $sip->get_lanes(sample_name => $meta->{sample}, 
+                                                       instrument_platform => $meta->{platform}, 
+                                                       anaylsis_group => $meta->{analysis_group}, 
+                                                       ignore_withdrawn => 1);
         
         my @fails;
+        unless (scalar keys %readgroup_info == scalar keys %si_lanes) {
+            push @fails, "Number of expected lanes in the sequence index (".scalar(keys %si_lanes).") not equal to the number of readgroups in the bam header (".scalar(keys %readgroup_info).")";
+        }
         while (my ($rg, $info) = each %readgroup_info) {
+            unless (exists $si_lanes{$rg}) {
+                push @fails, "Readgroup $rg in bam header not expected from sequence index";
+            }
             my $sample = $sip->lane_info($rg, 'SAMPLE_NAME');
-            my $center = $sip->lane_info($rg, 'CENTER_NAME');
+            my $center = uc($sip->lane_info($rg, 'CENTER_NAME'));
             my $platform = $sip->lane_info($rg, 'INSTRUMENT_PLATFORM');
+            my $library = $sip->lane_info($rg, 'LIBRARY_NAME');
             my $study = $sip->lane_info($rg, 'STUDY_ID');
             my $population = $sip->lane_info($rg, 'POPULATION');
             my $ag = $sip->lane_info($rg, 'ANALYSIS_GROUP');
@@ -118,14 +131,17 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             unless ($meta->{sample} eq $info->{SM} && $meta->{sample} eq $sample) {
                 push @fails, "sample metadata in db, bam header and sequence index do not agree: $$meta{sample}, $$info{SM}, $sample";
             }
-            unless ($meta->{center_name} =~ /$$info{CN}/ && $meta->{center_name} =~ /$center/ && $info->{CN} eq $center) {
+            unless ($info->{CN} eq $center) {
                 push @fails, "center_name metadata in db, bam header and sequence index do not agree: $$meta{center_name}, $$info{CN}, $center";
             }
             unless ($meta->{platform} eq $info->{PL} && $meta->{platform} eq $platform) {
                 push @fails, "platform metadata in db, bam header and sequence index do not agree: $$meta{platform}, $$info{PL}, $platform";
             }
-            unless ($meta->{study} =~ /$$info{DS}/ && $meta->{study} =~ /$study/ && $info->{DS} eq $study) {
-                push @fails, "study metadata in db, bam header and sequence index do not agree: $$meta{study}, $$info{DS}, $study";
+            unless ($info->{LB} eq $library) {
+                push @fails, "library metadata bam header and sequence index do not agree: $$info{LB}, $library";
+            }
+            unless ($info->{DS} eq $study) {
+                push @fails, "study metadata in bam header and sequence index do not agree: $$info{DS}, $study";
             }
             unless ($meta->{population} eq $population) {
                 push @fails, "population metadata in db and and sequence index do not agree: $$meta{population}, $population";

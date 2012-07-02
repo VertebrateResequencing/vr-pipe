@@ -645,6 +645,25 @@ role VRPipe::StepRole {
         
         return $self->dispatch_vrpipecode(@args);
     }
+    
+    method common_metadata (ArrayRef['VRPipe::File'] $files!) {
+        my %meta;
+        foreach my $file (@$files) {
+            my $file_meta = $file->metadata;
+            foreach my $key (keys %$file_meta)
+            {
+                $meta{$key}->{$$file_meta{$key}} += 1;
+            }
+        }
+        # Only keep metadata common to all files
+        my $common_meta = {};
+        foreach my $key (keys %meta) {
+            my @vals = keys %{$meta{$key}};
+            next unless (@vals == 1 && $meta{$key}->{$vals[0]} == @$files);
+            $common_meta->{$key} = $vals[0];
+        }
+        return $common_meta;
+    }
 }
 
 1;

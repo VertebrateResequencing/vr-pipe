@@ -80,6 +80,9 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
         }
         
         my $args = shift || { AutoCommit => 1, RaiseError => 1, PrintError => 0 };
+
+        my $dbtype = $class->get_dbtype;
+        $args->{sqlite_use_immediate_transaction} = 1 if $dbtype =~ /sqlite/i;
         
         $class->SUPER::connect($dsn, $user, $pass, $args);
     }
