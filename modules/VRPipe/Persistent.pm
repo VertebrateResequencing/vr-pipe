@@ -890,10 +890,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    # split up the find and create calls. Actually, search() is
 	    # faster than find(), and not sure we need any of the fancy
 	    # munging that find() does for us.
-	    my ($return, @extra) = $rs->search(\%find_args, { for => 'update' }) if keys %find_args;
-            if (@extra) {
-                my @ids = map { $_->id } ($return, @extra);
-                die "got more than one matching row: (@ids)\n";
+	    my ($return, @extra) = $rs->search(\%find_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %find_args;
+            
+            # there should not be any @extra, but some rare weirdness may give
+            # us duplicate rows in the db; take this opportunity to delete them
+            foreach my $row (@extra) {
+                $row->delete;
             }
 	    
 	    if ($return) {
