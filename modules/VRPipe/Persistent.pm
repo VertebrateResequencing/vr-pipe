@@ -11,18 +11,18 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
 		       isa => Varchar[64],
 		       traits => ['VRPipe::Persistent::Attributes'],
 		       is_key => 1);
-    
+        
 	has 'agent' => (is => 'rw',
 			isa => Persistent,
 			coerce => 1,
 			traits => ['VRPipe::Persistent::Attributes'],
 			belongs_to => 'VRPipe::Agent');
-    
+        
 	has 'age' => (is => 'rw',
 		      isa => IntSQL[3],
 		      traits => ['VRPipe::Persistent::Attributes'],
 		      default => 0);
-    
+        
 	has 'transient_value' => (is => 'rw', isa => 'Str');
 	
 	__PACKAGE__->make_persistent(has_many => [cds => 'VRPipe::CD']);
@@ -32,36 +32,40 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     
     use VRPipe::Persistent::Schema; # loads VRPipe::Artist and others
     
-    # get or create a new artist in the db by supplying all is_keys:
-    my $bob = VRPipe::Artist->get(name => 'Bob');
+    # create a new artist in the db by supplying all is_keys:
+    my $bob = VRPipe::Artist->get_or_create(name => 'Bob');
     
-    # you can also get by supplying just the id
-    my $bob = VRPipe::Artist->get(id => 1);
+    # get an existing artist by supplying all is_keys, or just the id:
+    $bob = VRPipe::Artist->get(name => 'Bob');
+    $bob = VRPipe::Artist->get(id => 1);
     
-    # get() returns an instance with all data columns and the full benefit of
-    # the object, but if you need to get many objects/rows from the database
-    # note that this is EXTREMELY SLOW. To speed up retrievals you need to a)
-    # select all the rows of interest at once, b) retrieve only the columns
-    # of data you're interested in, and c) avoid creation of fancy row objects
-    # and just pull out the raw data desired
+    # get and simultaneously update an existing artist:
+    $bob = VRPipe::Artist->get(name => 'Bob', age => 42);
+
+get() and get_or_create() return an instance with all data columns and the full
+benefit of the object, but if you need to get many objects/rows from the
+database note that this is EXTREMELY SLOW. To speed up retrievals you need to a)
+select all the rows of interest at once, b) retrieve only the columns of data
+you're interested in, and c) avoid creation of fancy row objects and just pull
+out the raw data desired.
     
-    # VRPipe::Persistent is based on DBIx::Class, so multi-row selects are done
-    # using DBIx::Class::ResultSet->search(). You can use it manually by
-    # extracting the schema object out of a VRPipe::Persistent object, but
-    # instead it is recommended to use one of the following convienience
-    # methods, which are all ultimately wrappers around ResultSet->search. Where
-    # you see { ... } arguements in the examples below, these are what you could
-    # supply as the first hashref arguement to ResultSet->search ($cond)
-    # and are the search conditions, eg. { column_name => 'column_value' } to
-    # select all rows with the value 'column_value' in the 'column_name' column.
-    # \%attrs can also be supplied as the following argument, which contain
-    # more advanced things like grouping, ordering and table joining
-    # instructions.
-    
-    # if memory is not a concern (you're not getting too many rows),
-    # get_column_values() combines the 3 speed ups in an easy-to-use method
-    # that gives you column values you're interested in and nothing else. This
-    # is the recommended way to do the fastest retrieval of raw data.
+VRPipe::Persistent is based on DBIx::Class, so multi-row selects are done using
+DBIx::Class::ResultSet->search(). You can use it manually by extracting the
+schema object out of a VRPipe::Persistent object, but instead it is recommended
+to use one of the following convienience methods, which are all ultimately
+wrappers around ResultSet->search. Where you see { ... } arguements in the
+examples below, these are what you could supply as the first hashref arguement
+to ResultSet->search ($cond) and are the search conditions, eg. { column_name =>
+'column_value' } to select all rows with the value 'column_value' in the
+'column_name' column. \%attrs can also be supplied as the following argument,
+which contain more advanced things like grouping, ordering and table joining
+instructions.
+
+If memory is not a concern (you're not getting too many rows),
+get_column_values() combines the 3 speed ups in an easy-to-use method that gives
+you column values you're interested in and nothing else. This is the recommended
+way to do the fastest retrieval of raw data.
+
     # get_column_values() returns a list of strings if you supply a single
     # column as the first arg:
     my @names = VRPipe::Artist->get_column_values('name', { age => 30 });
@@ -75,12 +79,12 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # you can supply attributes (columns attribute will be overwritten) as the
     # 3rd argument:
     my ($name) = VRPipe::Artist->get_column_values('name', { age => 30 }, { rows => 1 });
-    
-    # if you need full instances as return values instead of raw column values,
-    # use search(), which takes the same arguements as
-    # DBIx::Class::ResultSet->search() and returns a list of instances in list
-    # context, but it differs by returning a count in scalar context instead of
-    # a ResultSet:
+
+If you need full instances as return values instead of raw column values, use
+search(), which takes the same arguements as DBIx::Class::ResultSet->search()
+and returns a list of instances in list context, but it differs by returning a
+count in scalar context instead of a ResultSet:
+
     my $count = VRPipe::StepStats->search({ ... }); # very fast count(*) in SQL
     my @stepstats_instances = VRPipe::StepStats->search({ ... });
     
@@ -100,11 +104,11 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # or:
     my @memory_values = $rs_column->all; # fastest
     
-    # if you're dealing with a search that could give a large number of rows
-    # and you're worried about running out of memory, but still need greater
-    # speed than is possible with an inefficent $rs->next loop, you can use
-    # search_paged() which returns a VRPipe::Persistent::Pager object, which
-    # can be used like this:
+If you're dealing with a search that could give a large number of rows and
+you're worried about running out of memory, but still need greater speed than is
+possible with an inefficent $rs->next loop, you can use search_paged() which
+returns a VRPipe::Persistent::Pager object, which can be used like this:
+
     my $pager = VRPipe::StepStats->search_paged({ ... });
     while (my $stepstats = $pager->next) {
 	# $stepstats is an array ref of VRPipe::StepStats instances
@@ -120,27 +124,28 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
 	# $vals is an array ref of memory values
     }
     
-    # NB: VRPipe::Persistent::Pager will reset to page 1 during a ->next loop
-    # if the results you were searching for changes between pages. This means
-    # that what you do during the loop should be safe to rerun on the same
-    # database row more than once.
+NB: VRPipe::Persistent::Pager will reset to page 1 during a ->next loop if the
+results you were searching for changes between pages. This means that what you
+do during the loop should be safe to rerun on the same database row more than
+once.
     
-    # get() can be used to create (insert) new objects into the database, and
-    # also to update them. However you should avoid using get() for this purpose
-    # in loop - it is VERY SLOW. When you don't care about the return value and
-    # just want to insert/update rows, use bulk_create_or_update(). Instead of
-    # this:
+get_or_create() can be used to create (insert) new objects into the database,
+and also to update them. However you should avoid using get_or_create() for this
+purpose in a loop - it is VERY SLOW. When you don't care about the return value
+and just want to insert/update rows, use bulk_create_or_update().
+
+    # instead of this:
     foreach my $i (1..1000) {
-	VRPipe::Job->get(cmd => "fake_job $i", dir => '/fake_dir'); # SLOW
+	VRPipe::Job->get_or_create(cmd => "job $i", dir => '/fake_dir'); # SLOW
     }
     # collect the arguements you would have given to get() and supply them in a
     # list to bulk_create_or_update():
     my @job_args;
     foreach my $i (1..1000) {
-	push(@job_args, { cmd => "fake_job $i", dir => '/fake_dir' });
+	push(@job_args, { cmd => "job $i", dir => '/fake_dir' });
     }
     VRPipe::Job->bulk_create_or_update(@job_args); # fast
-    
+
 =head1 DESCRIPTION
 
 Moose interface to DBIx::Class.
@@ -182,13 +187,13 @@ value, or just a class name string for the default configuration.
 You can also supply table_name => $string if you don't want the table_name in
 your database to be the same as your class basename.
 
-For end users, get() is a convienience method that will do the equivalent of
-find_or_create on a ResultSource for your class, if supplied values for all
-is_key columns (with the optional exception of any allow_key_to_default columns)
-and an optional instance of VRPipe::Persistent::SchemaBase to the schema key
-(defaults to a production instance of VRPipe::Persistent::Schema). You can also
-call get(id => $id) if you know the real auto-increment key id() for your
-desired row.
+For end users, get_or_create() is a convienience method that will do the
+equivalent of update_or_create on a ResultSource for your class, if supplied
+values for all is_key columns (with the optional exception of any
+allow_key_to_default columns) and an optional instance of
+VRPipe::Persistent::SchemaBase to the schema key (defaults to a production
+instance of VRPipe::Persistent::Schema). You can also call get(id => $id) if you
+know the real auto-increment key id() for your desired row.
 
 clone() can be called on an instance of this class, supplying it 1 or more
 is_key columns. You'll get back a (potentially) new instance with all the same
