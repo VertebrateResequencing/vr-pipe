@@ -684,6 +684,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    # fix up the search args for us
 	    $self->_find_args($search_args, 1);
             
+            # by default we'll order by id for consistency and repeatability
+            unless ($search_attributes && exists $search_attributes->{order_by}) {
+                $search_attributes->{order_by} = { -asc => 'id' };
+            }
+            
             return $rs->search($search_args, $search_attributes ? $search_attributes : ());
 	});
 	
