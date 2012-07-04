@@ -109,7 +109,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         my $sip = VRPipe::Parser->create('sequence_index', {file => $sequence_index});
         my %si_lanes = map { $_ => 1 } $sip->get_lanes(sample_name => $meta->{sample}, 
                                                        instrument_platform => $meta->{platform}, 
-                                                       anaylsis_group => $meta->{analysis_group}, 
+                                                       analysis_group => $meta->{analysis_group}, 
                                                        ignore_withdrawn => 1);
         
         my @fails;
