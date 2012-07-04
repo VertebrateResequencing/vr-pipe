@@ -38,7 +38,7 @@ class VRPipe::Steps::vrtrack_update with VRPipe::StepRole {
     eval "use VRTrack::Factory;";
     
     method options_definition {
-        return { vrtrack_db => VRPipe::StepOption->get(description => 'the name of your VRTrack database (other connection settings are taken from the standard VRTrack environment variables)') };
+        return { vrtrack_db => VRPipe::StepOption->create(description => 'the name of your VRTrack database (other connection settings are taken from the standard VRTrack environment variables)') };
     }
     method inputs_definition {
         return { };

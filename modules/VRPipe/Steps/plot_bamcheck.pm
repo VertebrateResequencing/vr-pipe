@@ -35,17 +35,17 @@ use VRPipe::Base;
 class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
 
     method options_definition {
-        return { plot_bamcheck_exe => VRPipe::StepOption->get(description => 'path to plot-bamcheck executable',
+        return { plot_bamcheck_exe => VRPipe::StepOption->create(description => 'path to plot-bamcheck executable',
 							      optional => 1,
 							      default_value => 'plot-bamcheck')
                };
     }
     
     method inputs_definition {
-        return { bamcheck_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'bamcheck output files', max_files => -1,
+        return { bamcheck_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'bamcheck output files', max_files => -1,
 								 metadata => { source_bam => 'path to the bam file this bamcheck file was created from',
                                                                                lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }),
-		 fasta_gc_stats_file => VRPipe::StepIODefinition->get(type => 'txt', description => 'plot-bamcheck -s output file for the reference fasta')};
+		 fasta_gc_stats_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'plot-bamcheck -s output file for the reference fasta')};
     }
     
     method body_sub {
@@ -98,7 +98,7 @@ class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
     }
 
     method outputs_definition {
-        return { bamcheck_plots => VRPipe::StepIODefinition->get(type => 'bin',
+        return { bamcheck_plots => VRPipe::StepIODefinition->create(type => 'bin',
                                                                  description => 'png files produced by plot-bamcheck, with a caption in the metadata',
 								 min_files => 11,
                                                                  max_files => -1) };

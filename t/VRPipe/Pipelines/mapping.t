@@ -13,7 +13,7 @@ BEGIN {
 
 my $mapping_output_dir = get_output_dir('mapping');
 
-ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get a pre-written pipeline';
+ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'fastq_mapping_with_bwa'), 'able to get a pre-written pipeline';
 my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
@@ -25,11 +25,11 @@ my $ref_dir = dir($mapping_output_dir, 'ref');
 $mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
-my $si_datasource = VRPipe::DataSource->get(type => 'sequence_index',
+my $si_datasource = VRPipe::DataSource->create(type => 'sequence_index',
                                             method => 'lane_fastqs',
                                             source => file(qw(t data datasource.sequence_index)),
                                             options => { local_root_dir => dir(".")->absolute->stringify });
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis mapping',
                                                        datasource => $si_datasource,
                                                        output_root => $mapping_output_dir,
                                                        pipeline => $mapping_pipeline,
@@ -63,7 +63,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
 # specific to this setup, creating it is sufficient to reveal problems with
 # forking in Manager->trigger
 my $mapping_output_dir2 = get_output_dir('mapping_cleanup');
-VRPipe::PipelineSetup->get(name => 's_suis mapping',
+VRPipe::PipelineSetup->create(name => 's_suis mapping',
                            datasource => $si_datasource,
                            output_root => $mapping_output_dir2,
                            pipeline => $mapping_pipeline,
@@ -95,7 +95,7 @@ VRPipe::PipelineSetup->get(name => 's_suis mapping',
 # make a third setup in the same dir as the first but with different options;
 # again we don't have any specific tests for it, but we just want to make sure
 # we don't mess up the first setup's output
-VRPipe::PipelineSetup->get(name => 's_suis mapping 3',
+VRPipe::PipelineSetup->create(name => 's_suis mapping 3',
                            datasource => $si_datasource,
                            output_root => $mapping_output_dir,
                            pipeline => $mapping_pipeline,
@@ -127,9 +127,9 @@ VRPipe::PipelineSetup->get(name => 's_suis mapping 3',
 
 ok handle_pipeline(), 'pipeline ran ok';
 
-is_deeply [VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)->md5,
-           VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)->metadata,
-           VRPipe::File->get(path => file(qw(t data 8324_8_2.fastq))->absolute)->metadata],
+is_deeply [VRPipe::File->create(path => file(qw(t data 8324_8_1.fastq))->absolute)->md5,
+           VRPipe::File->create(path => file(qw(t data 8324_8_1.fastq))->absolute)->metadata,
+           VRPipe::File->create(path => file(qw(t data 8324_8_2.fastq))->absolute)->metadata],
           ['b90eb321fb12b47800132b237a6a3722',
            { lane => '8324_8',
              study => 'STUDY01',
@@ -167,10 +167,10 @@ is_deeply [VRPipe::File->get(path => file(qw(t data 8324_8_1.fastq))->absolute)-
              paired => 2,
              mate => file(qw(t data 8324_8_1.fastq))->absolute->stringify }], 'fastqs that went through the first step of the mapping pipeline have the correct metadata';
 
-my @split_fqs = (VRPipe::File->get(path => file(output_subdirs(1), '5_fastq_split', 'se_8000', '2822_6.1.fastq')),
-                 VRPipe::File->get(path => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_1.1.fastq.gz')),
-                 VRPipe::File->get(path => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_2.3.fastq.gz')),
-                 VRPipe::File->get(path => file(output_subdirs(3), '5_fastq_split', 'pe_8000', '2823_4_2.4.fastq.gz')));
+my @split_fqs = (VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', 'se_8000', '2822_6.1.fastq')),
+                 VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_1.1.fastq.gz')),
+                 VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_2.3.fastq.gz')),
+                 VRPipe::File->create(path => file(output_subdirs(3), '5_fastq_split', 'pe_8000', '2823_4_2.4.fastq.gz')));
 
 is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->metadata, $split_fqs[3]->metadata],
           [{ lane => '2822_6',
@@ -287,7 +287,7 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
         foreach my $ended ('se', 'pe') {
             my $bam = file(@output_subdirs, '9_bam_merge_lane_splits', "$lane.$ended.bam");
             $existing_final_bam_outs += -s $bam ? 1 : 0;
-            push(@final_bams, VRPipe::File->get(path => $bam));
+            push(@final_bams, VRPipe::File->create(path => $bam));
         }
     }
     else {
@@ -306,22 +306,22 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
         
         my $bam = file(@output_subdirs, '9_bam_merge_lane_splits', "$lane.pe.bam");
         $existing_final_bam_outs += -s $bam ? 1 : 0;
-        push(@final_bams, VRPipe::File->get(path => $bam));
+        push(@final_bams, VRPipe::File->create(path => $bam));
     }
 }
 
 my $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $fastq_split_outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => $element_id)->output_files->{split_fastq_files};
+    my $fastq_split_outs = VRPipe::StepState->create(pipelinesetup => 1, stepmember => 5, dataelement => $element_id)->output_files->{split_fastq_files};
     $recorded_outputs += @$fastq_split_outs;
 }
 is_deeply [$existing_outputs, $recorded_outputs], [31, 31], 'all the split files that should have been created by the fastq_split step exist and were recorded as step outputs';
 
-my $dict_file = VRPipe::File->get(path => file($ref_dir, 'S_suis_P17.fa.dict'));
+my $dict_file = VRPipe::File->create(path => file($ref_dir, 'S_suis_P17.fa.dict'));
 $existing_outputs = -s $dict_file->path ? 1 : 0;
 my %recorded_outputs;
 foreach my $element_id (1..4) {
-    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 1, dataelement => $element_id)->output_files->{reference_dict};
+    my $outs = VRPipe::StepState->create(pipelinesetup => 1, stepmember => 1, dataelement => $element_id)->output_files->{reference_dict};
     foreach my $out (@$outs) {
         $recorded_outputs{$out->path->stringify}++;
     }
@@ -339,7 +339,7 @@ foreach my $suffix (qw(amb ann bwt pac rbwt rpac rsa sa)) {
 %recorded_outputs = ();
 foreach my $element_id (1..4) {
     foreach my $out_key (qw(bwa_index_binary_files bwa_index_text_files)) {
-        my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => $element_id)->output_files->{$out_key};
+        my $outs = VRPipe::StepState->create(pipelinesetup => 1, stepmember => 2, dataelement => $element_id)->output_files->{$out_key};
         foreach my $out (@$outs) {
             $recorded_outputs{$out->path->stringify} = 1;
         }
@@ -350,28 +350,28 @@ is_deeply [$existing_outputs, $recorded_outputs], [8, 8], 'all the ref index fil
 
 $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => $element_id)->output_files->{bwa_sai_files};
+    my $outs = VRPipe::StepState->create(pipelinesetup => 1, stepmember => 6, dataelement => $element_id)->output_files->{bwa_sai_files};
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_sai_outs, $recorded_outputs], [31, 31], 'all the sai files that should have been created by the bwa_aln_fastq step exist and were recorded as step outputs';
 
 $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => $element_id)->output_files->{bwa_sam_files};
+    my $outs = VRPipe::StepState->create(pipelinesetup => 1, stepmember => 7, dataelement => $element_id)->output_files->{bwa_sam_files};
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_sam_outs, $recorded_outputs], [16, 16], 'all the sam files that should have been created by the bwa_sam step exist and were recorded as step outputs';
 
 $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => $element_id)->output_files->{fixed_bam_files};
+    my $outs = VRPipe::StepState->create(pipelinesetup => 1, stepmember => 8, dataelement => $element_id)->output_files->{fixed_bam_files};
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_split_bam_outs, $recorded_outputs], [16, 16], 'all the bam files that should have been created by the sam_to_fixed_bam step exist and were recorded as step outputs';
 
 $recorded_outputs = 0;
 foreach my $element_id (1..4) {
-    my $outs = VRPipe::StepState->get(pipelinesetup => 1, stepmember => 9, dataelement => $element_id)->output_files->{merged_lane_bams};
+    my $outs = VRPipe::StepState->create(pipelinesetup => 1, stepmember => 9, dataelement => $element_id)->output_files->{merged_lane_bams};
     $recorded_outputs += @$outs;
 }
 is_deeply [$existing_final_bam_outs, $recorded_outputs], [5, 5], 'all the bam files that should have been created by the bam_merge_lane_splits step exist and were recorded as step outputs';
@@ -444,10 +444,10 @@ is_deeply [@final_bam_metas],
              analysis_group => 'low coverage',
              mapped_fastqs => join(',', file(qw(t data 8324_8_1.fastq))->absolute->stringify, file(qw(t data 8324_8_2.fastq))->absolute->stringify) }], 'final bam files have the correct metadata';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary],
+is_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary],
           ['bwa index -a is $reference_fasta',
            'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file',
            'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)',

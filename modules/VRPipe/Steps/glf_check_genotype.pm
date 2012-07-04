@@ -34,17 +34,17 @@ use VRPipe::Base;
 
 class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
     method options_definition {
-        return { hapmap2bin_sample_genotypes_file => VRPipe::StepOption->get(description => 'absolute path to binary file of sample genotypes, produced by hapmap2bin'),
-		 expected_sample_metadata_key => VRPipe::StepOption->get(description => 'The key of the metadata on the bam/bcf file that holds the expected sample name to compare against in the hapmap2bin_sample_genotypes_file file',
+        return { hapmap2bin_sample_genotypes_file => VRPipe::StepOption->create(description => 'absolute path to binary file of sample genotypes, produced by hapmap2bin'),
+		 expected_sample_metadata_key => VRPipe::StepOption->create(description => 'The key of the metadata on the bam/bcf file that holds the expected sample name to compare against in the hapmap2bin_sample_genotypes_file file',
 									 optional => 1,
 									 default_value => 'individual',
 									 allowed_values => ['individual', 'sample']),
-        	 glf_exe => VRPipe::StepOption->get(description => 'path to the glf executable',
+        	 glf_exe => VRPipe::StepOption->create(description => 'path to the glf executable',
                                                     optional => 1,
                                                     default_value => 'glf') };
     }
     method inputs_definition {
-        return { bcf_files => VRPipe::StepIODefinition->get(type => 'bin',
+        return { bcf_files => VRPipe::StepIODefinition->create(type => 'bin',
                                                             max_files => -1,
                                                             description => 'bcf files for genotyping',
                                                             metadata => {source_bam => 'input bam path',
@@ -77,7 +77,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
 	};
     } 
     method outputs_definition {
-        return { gtypex_files_with_metadata => VRPipe::StepIODefinition->get(type => 'txt',
+        return { gtypex_files_with_metadata => VRPipe::StepIODefinition->create(type => 'txt',
 									     max_files => -1,
 									     description => 'file of likelihood scores calculated by glf',
 									     metadata => {expected_sample => 'name of expected sample', source_bam => 'input bam path'}) };

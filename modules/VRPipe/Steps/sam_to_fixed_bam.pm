@@ -34,18 +34,18 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
-                 uncompressed_fixed_bam_output => VRPipe::StepOption->get(description => 'A boolean to choose if the output bams from this step should be uncompressed',
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
+                 uncompressed_fixed_bam_output => VRPipe::StepOption->create(description => 'A boolean to choose if the output bams from this step should be uncompressed',
                                                                           optional => 1,
                                                                           default_value => 1),
-                 fixed_bam_seq_from_reference => VRPipe::StepOption->get(description => 'A boolean to choose whether sequence info is read from the reference -- set for mappers, such as smalt, which don\'t include this in output sam files',
+                 fixed_bam_seq_from_reference => VRPipe::StepOption->create(description => 'A boolean to choose whether sequence info is read from the reference -- set for mappers, such as smalt, which don\'t include this in output sam files',
                                                                             optional => 1),
-                 samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
+                 samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools') };
     }
     method inputs_definition {
-        return { sam_files => VRPipe::StepIODefinition->get(type => 'txt',
+        return { sam_files => VRPipe::StepIODefinition->create(type => 'txt',
                                                             max_files => -1,
                                                             description => 'raw sam files from a mapper',
                                                             metadata => {reads => 'total number of reads (sequences)',
@@ -62,7 +62,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
             
             my $u = $options->{uncompressed_fixed_bam_output} ? ' -u' : ' -b';
             my $t = $options->{fixed_bam_seq_from_reference} ? ' -T $reference_fasta' : '';
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools',
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'samtools',
                                                                version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
                                                                summary => "samtools view -bSu \$sam_file$t | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd$u - \$reference_fasta > \$fixed_bam_file"));
             
@@ -92,7 +92,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { fixed_bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { fixed_bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                                   max_files => -1,
                                                                   description => 'uncompressed coordinate-sorted bam file(s)',
                                                                   metadata => {reads => 'total number of reads (sequences)',

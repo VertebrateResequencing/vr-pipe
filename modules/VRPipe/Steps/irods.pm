@@ -56,7 +56,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         
         my $irods_exes = $self->irods_exes;
         foreach my $exe (keys %{$irods_exes}) {
-            $opts{$exe.'_exe'} = VRPipe::StepOption->get(description => "path to your irods '$exe' executable", optional => 1, default_value => $irods_exes->{$exe} || $exe);
+            $opts{$exe.'_exe'} = VRPipe::StepOption->create(description => "path to your irods '$exe' executable", optional => 1, default_value => $irods_exes->{$exe} || $exe);
         }
         
         return \%opts;

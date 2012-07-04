@@ -25,18 +25,18 @@ my $cmd = "gunzip -c $test_fq > $out_fq";
 my $ok = VRPipe::Steps::fastq_decompress->decompress_and_check($cmd);
 is $ok, 1, 'decompress_and_check ran ok';
 
-my $in_file = VRPipe::File->get(path => $test_fq);
+my $in_file = VRPipe::File->create(path => $test_fq);
 ok $in_file, 'got test fq file object';
 is $in_file->num_records, 50, 'expected number of records in test fq';
 
-my $out_file = VRPipe::File->get(path => $out_fq);
+my $out_file = VRPipe::File->create(path => $out_fq);
 ok $out_file, 'got output fq file object';
 is $out_file->num_records, 50, 'expected number of records in output fq';
 
 
 # test as part of a pipeline
-my $setup = VRPipe::PipelineSetup->get(name => 'fq_setup',
-                                       datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data decompress_datasource.fofn))->absolute),
+my $setup = VRPipe::PipelineSetup->create(name => 'fq_setup',
+                                       datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data decompress_datasource.fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
                                        options => {});

@@ -54,12 +54,12 @@ use lib "t";
 
 our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline get_bam_header get_bam_records finish);
 
-our $manager = VRPipe::Manager->get();
+our $manager = VRPipe::Manager->create();
 our $scheduler;
 our %setups;
 
 BEGIN {
-    $scheduler = VRPipe::Scheduler->get();
+    $scheduler = VRPipe::Scheduler->create();
     $scheduler->start_scheduler;
 }
 
@@ -141,9 +141,9 @@ sub create_single_step_pipeline {
     
     my $step = VRPipe::Step->get(name => $step_name) || die "Could not create a step named '$step_name'\n";
     my $pipeline_name = $step_name.'_pipeline';
-    my $pipeline = VRPipe::Pipeline->get(name => $pipeline_name, description => 'test pipeline for the '.$step_name.' step');
-    VRPipe::StepMember->get(step => $step, pipeline => $pipeline, step_number => 1);
-    VRPipe::StepAdaptor->get(pipeline => $pipeline, to_step => 1, adaptor_hash => { $input_key => { data_element => 0 } });
+    my $pipeline = VRPipe::Pipeline->create(name => $pipeline_name, description => 'test pipeline for the '.$step_name.' step');
+    VRPipe::StepMember->create(step => $step, pipeline => $pipeline, step_number => 1);
+    VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 1, adaptor_hash => { $input_key => { data_element => 0 } });
     
     my $output_dir = get_output_dir($pipeline_name);
     

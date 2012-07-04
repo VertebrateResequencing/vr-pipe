@@ -5,7 +5,7 @@ class VRPipe::Steps::test_import_bams with VRPipe::StepRole {
         return { };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'one or more bam files') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => 'one or more bam files') };
     }
     method body_sub {
         return sub {
@@ -25,7 +25,7 @@ class VRPipe::Steps::test_import_bams with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { local_bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { local_bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                              max_files => -1,
                                                              description => 'bams imported into the hashed directories',
                                                              metadata => {reads => 'number of reads in the bam file'}) };

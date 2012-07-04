@@ -76,8 +76,8 @@ class VRPipe::Steps::java with VRPipe::StepRole {
     }
     
     method options_definition {
-        return { java_exe => VRPipe::StepOption->get(description => 'path to your java executable', optional => 1, default_value => 'java'),
-                 tmp_dir => VRPipe::StepOption->get(description => 'location for tmp directories; defaults to working directory', optional => 1),
+        return { java_exe => VRPipe::StepOption->create(description => 'path to your java executable', optional => 1, default_value => 'java'),
+                 tmp_dir => VRPipe::StepOption->create(description => 'location for tmp directories; defaults to working directory', optional => 1),
                 };
     }
     method inputs_definition {

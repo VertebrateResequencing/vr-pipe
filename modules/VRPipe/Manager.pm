@@ -88,6 +88,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
     __PACKAGE__->make_persistent();
     
     around get (ClassName|Object $self: Persistent :$id?, PositiveInt :$global_limit = 500) {
+        return $self->create(global_limit => $global_limit);
+    }
+    around create (ClassName|Object $self: Persistent :$id?, PositiveInt :$global_limit = 500) {
         # our db-storage needs are class-wide, so we only have 1 row in our
         # table
         return $self->$orig(id => 1, global_limit => $global_limit);
@@ -296,9 +299,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 my $already_completed_steps = 0;
                 foreach my $member (@step_members) {
                     my $step_number = $member->step_number;
-                    my $state = VRPipe::StepState->get(stepmember => $member,
-                                                       dataelement => $element,
-                                                       pipelinesetup => $setup);
+                    my $state = VRPipe::StepState->create(stepmember => $member,
+                                                          dataelement => $element,
+                                                          pipelinesetup => $setup);
                     
                     my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                     if ($state->complete) {
@@ -393,7 +396,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                             if (@$dispatched) {
                                 foreach my $arrayref (@$dispatched) {
                                     my ($cmd, $reqs, $job_args) = @$arrayref;
-                                    my $sub = VRPipe::Submission->get(job => VRPipe::Job->get(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                    my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
                                     $self->debug(" parsing the step made new submission ".$sub->id." with job ".$sub->job->id);
                                 }
                                 $step_counts{$step_name}++ if $inc_step_count;
@@ -433,7 +436,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 my $sched_stdout = $submission->scheduler_stdout || next;
                 my $memory = ceil($sched_stdout->memory || $submission->memory);
                 my $time = ceil($sched_stdout->time || $submission->time);
-                VRPipe::StepStats->get(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
+                VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
             }
             
             $state->complete(1);

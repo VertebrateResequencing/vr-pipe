@@ -39,28 +39,22 @@ use VRPipe::Base;
 class VRPipe::PersistentArray extends VRPipe::Persistent {
     __PACKAGE__->make_persistent(has_many => [members => 'VRPipe::PersistentArrayMember']);
     
-    around get (ClassName|Object $self: ArrayRefOfPersistent :$members?, Persistent :$id?) {
-        $self->throw("both id and members cannot be supplied to get() at the same time") if $id && $members;
-        $self->throw("get() needs id or members option") unless $id || $members;
+    around get (ClassName|Object $self: Persistent :$id!) {
+        return $self->$orig(id => $id);
+    }
+    around create (ClassName|Object $self: ArrayRefOfPersistent :$members!) {
+        # create a new row, then use the new id to create new
+        # PersistentArrayMember rows for each supplied member
+        my $array = $self->$orig();
         
-        if ($id) {
-            # get by id
-            return $self->$orig(id => $id);
+        my $index = 0;
+        my @pam_args;
+        foreach my $member (@{$members}) {
+            push(@pam_args, { persistentarray => $array, class => ref($member), class_id => $member->id, array_index => ++$index });
         }
-        else {
-            # create a new row, then use the new id to create new
-            # PersistentArrayMember rows for each supplied member
-            my $array = $self->$orig();
-            
-            my $index = 0;
-            my @pam_args;
-            foreach my $member (@{$members}) {
-                push(@pam_args, { persistentarray => $array, class => ref($member), class_id => $member->id, array_index => ++$index });
-            }
-            VRPipe::PersistentArrayMember->bulk_create_or_update(@pam_args);
-            
-            return $array;
-        }
+        VRPipe::PersistentArrayMember->bulk_create_or_update(@pam_args);
+        
+        return $array;
     }
     
     method member (PositiveInt $index) {

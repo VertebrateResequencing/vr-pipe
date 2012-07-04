@@ -146,7 +146,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $for = $submission;
         }
         elsif ($array) {
-            my $parray = VRPipe::PersistentArray->get(members => $array);
+            my $parray = VRPipe::PersistentArray->create(members => $array);
             $for = $parray;
             $aid++;
             $submissions = $array;
@@ -261,7 +261,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $node_run_args .= ", heartbeat_interval => $heartbeat_interval";
         }
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
-        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
+        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->create(id => $self_id)->run_on_node($node_run_args);"];
         
         return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements,
                                                                    stdo_file => $self->scheduler_output_file($output_dir),

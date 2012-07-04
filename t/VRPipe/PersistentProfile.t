@@ -15,13 +15,13 @@ BEGIN {
 
 my ($l1, $t1);
 
-my $j1 = VRPipe::Job->get(cmd => 'foo');
+my $j1 = VRPipe::Job->create(cmd => 'foo');
 my $j2 = VRPipe::Job->get(cmd => 'foo');
-is $j2->id, $j1->id, 'create followed by find worked';
+is $j2->id, $j1->id, 'create followed by get worked';
 
 start_clock(__LINE__);
 for my $i (1..1000) {
-    VRPipe::Job->get(cmd => qq[echo "job $i ]. 'n'x1000 .qq[";]);
+    VRPipe::Job->create(cmd => qq[echo "job $i ]. 'n'x1000 .qq[";]);
 }
 lap(__LINE__);
 
@@ -33,7 +33,7 @@ lap(__LINE__);
 
 start_clock(__LINE__);
 for my $i (1..1000) {
-    my $file = VRPipe::File->get(path => "/my/file/path/$i");
+    my $file = VRPipe::File->create(path => "/my/file/path/$i");
     $file->add_metadata({foo => 'bar',
                          baz => 'loman',
                          cat => 'dog',
@@ -68,14 +68,14 @@ lap(__LINE__);
 # do the critical bits that Manager currently does to submit jobs; first set
 # up the objects
 start_clock(__LINE__);
-my $scheduler = VRPipe::Scheduler->get;
-my @reqs = map { VRPipe::Requirements->get(memory => $_->[0], time => $_->[1]) } ([500, 1], [1000, 2], [2000, 3]);
+my $scheduler = VRPipe::Scheduler->create;
+my @reqs = map { VRPipe::Requirements->create(memory => $_->[0], time => $_->[1]) } ([500, 1], [1000, 2], [2000, 3]);
 my $pipeline = VRPipe::Pipeline->get(name => 'test_pipeline');
 $pipeline->steps;
-my $ds = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
-my $ps = VRPipe::PipelineSetup->get(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {});
+my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
+my $ps = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {});
 $ds->elements;
-my $ss = VRPipe::StepState->get(stepmember => 1, dataelement => 1, pipelinesetup => 1);
+my $ss = VRPipe::StepState->create(stepmember => 1, dataelement => 1, pipelinesetup => 1);
 my @job_args;
 my @sub_args;
 my $job_offset = 1001;
@@ -115,8 +115,8 @@ while (my $subs = $pager->next) {
     }
     
     if ($added == 0) {
-        my $job = VRPipe::Job->get(cmd => "job extra", dir => '/tmp');
-        VRPipe::Submission->get(job => $job, stepstate => 1, requirements => 3, scheduler => 1, '_done' => 0, '_failed' => 0);
+        my $job = VRPipe::Job->create(cmd => "job extra", dir => '/tmp');
+        VRPipe::Submission->create(job => $job, stepstate => 1, requirements => 3, scheduler => 1, '_done' => 0, '_failed' => 0);
         
         my ($submission) = VRPipe::Submission->search({ '_failed' => 1, requirements => 2 }, { rows => 1 });
         $submission->_failed(0);
@@ -129,7 +129,12 @@ sub submit {
     my ($submissions, $requirements) = @_;
     
     my $aid = 0;
-    my $parray = VRPipe::PersistentArray->get(members => $submissions);
+    my ($c, $g) = (0, 0);
+    foreach my $sub (@$submissions) {
+        $c++;
+        $g++ if $sub && ref($sub);
+    }
+    my $parray = VRPipe::PersistentArray->create(members => $submissions);
     my $for = $parray;
     
     my $all_claimed = 1;

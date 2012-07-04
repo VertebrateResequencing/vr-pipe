@@ -179,7 +179,7 @@ class VRPipe::File extends VRPipe::Persistent {
         $type = lc($type);
         if ($type eq 'gz') {
             $path =~ s/\.gz$//;
-            $type = VRPipe::File->get(path => $path)->type;
+            $type = VRPipe::File->create(path => $path)->type;
         }
         if (exists $file_type_map{$type}) {
             $type = $file_type_map{$type};

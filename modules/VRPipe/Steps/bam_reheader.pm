@@ -34,13 +34,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
+        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools'),
-                 header_comment_file => VRPipe::StepOption->get(description => 'path to your file containing SAM comment lines to include in the header',optional => 1) };
+                 header_comment_file => VRPipe::StepOption->create(description => 'path to your file containing SAM comment lines to include in the header',optional => 1) };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                             max_files => -1,
                                                             description => '1 or more bam files',
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
@@ -55,7 +55,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                          optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
-                 dict_file => VRPipe::StepIODefinition->get(type => 'txt',
+                 dict_file => VRPipe::StepIODefinition->create(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
     method body_sub {
@@ -94,7 +94,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { headed_bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { headed_bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                           max_files => -1,
                                                           description => 'a bam file with good header',
                                                           metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',

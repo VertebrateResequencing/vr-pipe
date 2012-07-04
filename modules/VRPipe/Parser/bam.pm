@@ -160,7 +160,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
     method _get_fh {
         my $file = $self->file;
         if (ref($file) && (File->check($file) || $file->isa('VRPipe::File'))) {
-            my $vrpf = $file->isa('VRPipe::File') ? $file : VRPipe::File->get(path => $file->absolute, FileType->check($self->type) ? (type => $self->type) : ());
+            my $vrpf = $file->isa('VRPipe::File') ? $file : VRPipe::File->create(path => $file->absolute, FileType->check($self->type) ? (type => $self->type) : ());
             $self->_set_vrpipe_file($vrpf); # just to keep hold of the filename
             my $filename = $vrpf->path->stringify;
             $self->{_filename} = $filename;

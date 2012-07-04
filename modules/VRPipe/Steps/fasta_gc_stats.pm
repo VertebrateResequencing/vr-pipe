@@ -36,8 +36,8 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
 
     around options_definition {
         return { %{$self->$orig},
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
-		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
+                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
+		 exome_targets_file => VRPipe::StepOption->create(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
 							       optional => 1)
                };
     }
@@ -82,7 +82,7 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
     }
 
     method outputs_definition {
-        return { fasta_gc_stats_file => VRPipe::StepIODefinition->get(type => 'txt',
+        return { fasta_gc_stats_file => VRPipe::StepIODefinition->create(type => 'txt',
                                                                       description => 'a file that describes the gc stats of an input fasta') };
     }
     

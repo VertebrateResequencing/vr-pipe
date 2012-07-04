@@ -245,7 +245,8 @@ role VRPipe::StepRole {
     method _resolve_inputs {
         my $hash = $self->inputs_definition;
         my $step_num = $self->step_state->stepmember->step_number;
-        my $step_adaptor = VRPipe::StepAdaptor->get(pipeline => $self->step_state->stepmember->pipeline, to_step => $step_num);
+        my ($step_adaptor) = VRPipe::StepAdaptor->search({ pipeline => $self->step_state->stepmember->pipeline->id, to_step => $step_num });
+        return {} unless $step_adaptor;
         
         my %return;
         while (my ($key, $val) = each %$hash) {
@@ -350,17 +351,9 @@ role VRPipe::StepRole {
         return \%return;
     }
     
-    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {
-        # check that we don't have any outputs defined in the definition that
-        # no files were made for
-        while (my ($key, $val) = each %$defs) {
-            next if exists $hash->{$key};
-            next if $val->min_files == 0;
-            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
-        }
-        
+    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {        
         my @missing;
-        # check the files we actually output are as expected
+        # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
             my $def = $defs->{$key};
             my $check_s = 1;
@@ -422,7 +415,18 @@ role VRPipe::StepRole {
     }
     
     method missing_output_files {
-        return $self->_missing($self->outputs, $self->outputs_definition);
+        my $hash = $self->outputs;
+        my $defs = $self->outputs_definition;
+        
+        # check that we don't have any outputs defined in the definition that
+        # no files were made for
+        while (my ($key, $val) = each %$defs) {
+            next if exists $hash->{$key};
+            next if $val->min_files == 0;
+            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
+        }
+        
+        return $self->_missing($hash, $defs);
     }
     
     method _run_coderef (Str $method_name) {
@@ -447,7 +451,7 @@ role VRPipe::StepRole {
         $self->make_path($output_dir); #*** repeated, potentially unecessary filesystem access...
         $self->_last_output_dir($output_dir);
         
-        my $vrfile = VRPipe::File->get(path => file($output_dir, $basename), type => $type);
+        my $vrfile = VRPipe::File->create(path => file($output_dir, $basename), type => $type);
         $vrfile->add_metadata($metadata) if $metadata;
         
         if ($temporary) {
@@ -610,12 +614,12 @@ role VRPipe::StepRole {
         }
         #*** and the other resources?...
         
-        return VRPipe::Requirements->get(memory => $memory,
-                                         time => $time,
-                                         $cpus ? (cpus => $cpus) : (),
-                                         $tmp_space ? (tmp_space => $tmp_space) : (),
-                                         $local_space ? (local_space => $local_space) : (),
-                                         $custom ? (custom => $custom) : ());
+        return VRPipe::Requirements->create(memory => $memory,
+                                            time => $time,
+                                            $cpus ? (cpus => $cpus) : (),
+                                            $tmp_space ? (tmp_space => $tmp_space) : (),
+                                            $local_space ? (local_space => $local_space) : (),
+                                            $custom ? (custom => $custom) : ());
     }
     
     method dispatch (ArrayRef $aref) {

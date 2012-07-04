@@ -40,8 +40,6 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
-    use VRPipe::File;
-    
     method description {
         return "Use a simple list of items in a file as your source.";
     }
@@ -83,7 +81,7 @@ class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
             chomp;
             
             my $result = $_;
-            $result = $line_is_path ? [file($result)->absolute->stringify] : $result;
+            $result = $line_is_path ? [VRPipe::File->create(path => file($result)->absolute)->path->stringify] : $result;
             push(@results, { $key_name => $result });
         }
         

@@ -38,12 +38,12 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     use VRPipe::Utils::Math;
     
     method options_definition {
-        return { release_date => VRPipe::StepOption->get(description => 'for DCC-style filenames, provide the release date', optional => 1),
-                 sequence_index => VRPipe::StepOption->get(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index', optional => 1),
-                 rg_from_pu => VRPipe::StepOption->get(description => 'boolean which if true means that bam headers have their RG identifiers in the PU field instead of ID field of the RG lines in the bam header', optional => 1, default_value => 0) };
+        return { release_date => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date', optional => 1),
+                 sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index', optional => 1),
+                 rg_from_pu => VRPipe::StepOption->create(description => 'boolean which if true means that bam headers have their RG identifiers in the PU field instead of ID field of the RG lines in the bam header', optional => 1, default_value => 0) };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to calculate stats for') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to calculate stats for') };
     }
     method body_sub {
         return sub {
@@ -72,7 +72,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { bas_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a .bas file for each input bam file') };
+        return { bas_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a .bas file for each input bam file') };
     }
     method post_process_sub {
         return sub { return 1; };

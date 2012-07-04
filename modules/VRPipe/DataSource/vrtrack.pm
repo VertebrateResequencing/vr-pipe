@@ -355,7 +355,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 }
                 else {
                     $file_abs_path = file($local_root_dir, $file->name)->stringify;
-                    $vrfile = VRPipe::File->get(path => $file_abs_path, type => $vrpipe_filetype);
+                    $vrfile = VRPipe::File->create(path => $file_abs_path, type => $vrpipe_filetype);
                 }
                 
                 my $new_metadata = {

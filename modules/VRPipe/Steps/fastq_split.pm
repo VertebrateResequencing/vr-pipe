@@ -36,10 +36,10 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
     use POSIX;
     
     method options_definition {
-        return { fastq_chunk_size => VRPipe::StepOption->get(description => 'when splitting fastq files into smaller chunks, this sets the size in bp; a good figure might be 1000000000 for a fast mapper') };
+        return { fastq_chunk_size => VRPipe::StepOption->create(description => 'when splitting fastq files into smaller chunks, this sets the size in bp; a good figure might be 1000000000 for a fast mapper') };
     }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq',
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq',
                                                               max_files => 3,
                                                               description => '1-3 fastq files of the same lane',
                                                               metadata => {lane => 'lane name (a unique identifer for this sequencing run)',
@@ -91,7 +91,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { split_fastq_files => VRPipe::StepIODefinition->get(type => 'fq',
+        return { split_fastq_files => VRPipe::StepIODefinition->create(type => 'fq',
                                                                     max_files => -1,
                                                                     description => 'split fastq files',
                                                                     metadata => {source_fastq => 'the fastq file this was split from',

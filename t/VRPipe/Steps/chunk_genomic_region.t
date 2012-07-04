@@ -39,8 +39,8 @@ my $ploidy = {
 is_deeply [$ploidy_def], [$ploidy], 'ploidy file read correctly';
 
 # test as part of a pipeline
-my $setup = VRPipe::PipelineSetup->get(name => 'chunk_genomic_region_setup',
-                                       datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
+my $setup = VRPipe::PipelineSetup->create(name => 'chunk_genomic_region_setup',
+                                       datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
                                        options => { 

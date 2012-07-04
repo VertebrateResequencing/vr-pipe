@@ -34,19 +34,19 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf2consequences_options' => VRPipe::StepOption->get(description => 'options to vcf2consequences_vep, excluding -v and -i'),
-                 'vcf2consequences_exe' => VRPipe::StepOption->get(description => 'path to your vcf2consequences executable',
+        return { 'vcf2consequences_options' => VRPipe::StepOption->create(description => 'options to vcf2consequences_vep, excluding -v and -i'),
+                 'vcf2consequences_exe' => VRPipe::StepOption->create(description => 'path to your vcf2consequences executable',
                                                                optional => 1,
                                                                default_value => 'vcf2consequences_vep'),
-		 'tabix_exe' => VRPipe::StepOption->get(description => 'path to your tabix executable',
+		 'tabix_exe' => VRPipe::StepOption->create(description => 'path to your tabix executable',
                                                         optional => 1,
                                                         default_value => 'tabix') };
     }
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf',
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf',
                                                             description => 'annotated vcf files',
                                                             max_files => -1),
-        		vep_txt => VRPipe::StepIODefinition->get(type => 'txt',
+        		vep_txt => VRPipe::StepIODefinition->create(type => 'txt',
                                                              description => 'vep analysis output file',
                                                              metadata => {source_vcf => 'the vcf file analysed by the VEP'},
                                                              max_files => -1) };
@@ -101,10 +101,10 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
 		};
 	}
     method outputs_definition {
-        return { conseq_vcf => VRPipe::StepIODefinition->get(type => 'vcf',
+        return { conseq_vcf => VRPipe::StepIODefinition->create(type => 'vcf',
                                                              description => 'annotated vcf file with VEP consequences',
                                                              max_files => -1),
-                 tbi_file => VRPipe::StepIODefinition->get(type => 'bin',
+                 tbi_file => VRPipe::StepIODefinition->create(type => 'bin',
                                                            description => 'a tbi file',
                                                            max_files => -1) };
     }

@@ -34,10 +34,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
     method options_definition {
-        return { vcf_concat_exe => VRPipe::StepOption->get(description => 'path to vcf-concat executable', optional => 1, default_value => 'vcf-concat') };
+        return { vcf_concat_exe => VRPipe::StepOption->create(description => 'path to vcf-concat executable', optional => 1, default_value => 'vcf-concat') };
     }
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'vcf files to concat', 
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'vcf files to concat', 
                                                             metadata => { seq_no => 'a sequence number assigned by the split for reassembly in correct order' }) };
     }
 
@@ -89,7 +89,7 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { concat_vcf => VRPipe::StepIODefinition->get(type => 'vcf', max_files => 1, description => 'a concatenated .vcf.gz file for each set of input vcfs')};
+        return { concat_vcf => VRPipe::StepIODefinition->create(type => 'vcf', max_files => 1, description => 'a concatenated .vcf.gz file for each set of input vcfs')};
     }
     method post_process_sub {
         return sub { return 1; };

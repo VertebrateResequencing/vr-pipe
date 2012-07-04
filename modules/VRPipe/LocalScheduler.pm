@@ -118,7 +118,7 @@ class VRPipe::LocalScheduler {
         }
         
         my $array_size = $self->a;
-        my $lsj = VRPipe::LocalSchedulerJob->get(cmd => $cmd, array_size => $array_size, cwd => cwd());
+        my $lsj = VRPipe::LocalSchedulerJob->create(cmd => $cmd, array_size => $array_size, cwd => cwd());
         
         my $user = getlogin || getpwuid($<);
         my @lsjs_args;

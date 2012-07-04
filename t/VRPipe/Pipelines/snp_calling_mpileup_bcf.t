@@ -12,7 +12,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('snp_calling_mpileup_bcf_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup_bcf'), 'able to get the snp_calling_mpileup_bcf pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'snp_calling_mpileup_bcf'), 'able to get the snp_calling_mpileup_bcf pipeline';
 my @s_names;
 
 foreach my $stepmember ($pipeline->steps) {
@@ -22,8 +22,8 @@ foreach my $stepmember ($pipeline->steps) {
 my @expected_step_names = qw(mpileup_bcf bcf_to_vcf);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpileup_bcf pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'delimited',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my snp_calling_mpileup_bcf pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'delimited',
 			method => 'all_columns',
 			options => { delimiter => "\t" },
 			source => file(qw(t data hs_chr20.bam.fofn))),

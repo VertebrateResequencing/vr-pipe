@@ -12,7 +12,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('vcf_filter_merge_and_vep_annotate_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'vcf_filter_merge_and_vep_annotate'), 'able to get the vcf_filter_merge_and_vep_annotate pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'vcf_filter_merge_and_vep_annotate'), 'able to get the vcf_filter_merge_and_vep_annotate pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
@@ -29,8 +29,8 @@ my $annot_2_desc_file = file(qw(t data annots-rsIDs-AFs.2011-10-05.tab.gz.desc))
 my $vep_cache = file(qw(t data vep_cache))->absolute->stringify;
 my $gerp_cache = file(qw(t data gerp_cache))->absolute->stringify;
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge_and_vep_annotate pipeline setup',
-                                                    datasource => VRPipe::DataSource->get(type => 'delimited',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my vcf_filter_merge_and_vep_annotate pipeline setup',
+                                                    datasource => VRPipe::DataSource->create(type => 'delimited',
                                                                                           method => 'all_columns',
                                                                                           options => { delimiter => "\t" },
                                                                                           source => file(qw(t data datasource.vcfs))),

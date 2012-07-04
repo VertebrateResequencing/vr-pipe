@@ -150,16 +150,24 @@ class VRPipe::Job extends VRPipe::Persistent {
         }
     }
     
-    around get (ClassName|Object $self: %args) {
-        unless (exists $args{dir}) {
-            $args{dir} = cwd();
+    sub _get_args {
+        my ($self, $args) = @_;
+        unless (exists $args->{dir}) {
+            $args->{dir} = cwd();
         }
         else {
-            my $dir = dir($args{dir});
+            my $dir = dir($args->{dir});
             unless (-d $dir) {
                 $dir->mkpath || $self->throw("job output directory '$dir' could not be created");
             }
         }
+    }
+    around get (ClassName|Object $self: %args) {
+        $self->_get_args(\%args);
+        return $self->$orig(%args);
+    }
+    around create (ClassName|Object $self: %args) {
+        $self->_get_args(\%args);
         return $self->$orig(%args);
     }
     
@@ -313,12 +321,12 @@ class VRPipe::Job extends VRPipe::Persistent {
     method stdout_file {
         my $dir = $self->dir;
         my $file = $self->_std_file || return;
-        return VRPipe::File->get(path => file($dir, $file.'.o'), type => 'txt');
+        return VRPipe::File->create(path => file($dir, $file.'.o'), type => 'txt');
     }
     method stderr_file {
         my $dir = $self->dir;
         my $file = $self->_std_file || return;
-        return VRPipe::File->get(path => file($dir, $file.'.e'), type => 'txt');
+        return VRPipe::File->create(path => file($dir, $file.'.e'), type => 'txt');
     }
     method _std_file {
         my $pid = $self->pid || return;

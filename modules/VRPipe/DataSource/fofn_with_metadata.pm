@@ -98,7 +98,7 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
             }
             
             my $path = file($result->{paths}->[0])->absolute->stringify;
-            my $file = VRPipe::File->get(path => $path);
+            my $file = VRPipe::File->create(path => $path);
             $file->add_metadata($metadata, replace_data => 1);
             
             push(@results, {paths => [$path], metadata => $metadata});

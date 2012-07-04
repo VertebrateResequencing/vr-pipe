@@ -37,37 +37,37 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
     
     around options_definition {
 	return { %{$self->$orig},
-		 auto_qc_gtype_regex => VRPipe::StepOption->get(description => 'If the bam_genotype_checking pipeline was run, providing a gtype_analysis metadata key, provide a regular expression to choose acceptable status values',
+		 auto_qc_gtype_regex => VRPipe::StepOption->create(description => 'If the bam_genotype_checking pipeline was run, providing a gtype_analysis metadata key, provide a regular expression to choose acceptable status values',
                                                                 optional => 1,
                                                                 default_value => '^confirmed'),
-		 auto_qc_mapped_base_percentage => VRPipe::StepOption->get(description => 'Minimum percentage of mapped bases',
+		 auto_qc_mapped_base_percentage => VRPipe::StepOption->create(description => 'Minimum percentage of mapped bases',
                                                                            optional => 1,
                                                                            default_value => 90),
-		 auto_qc_duplicate_read_percentage => VRPipe::StepOption->get(description => 'Maximum percentage of duplicate reads',
+		 auto_qc_duplicate_read_percentage => VRPipe::StepOption->create(description => 'Maximum percentage of duplicate reads',
                                                                               optional => 1,
                                                                               default_value => 8),
-		 auto_qc_mapped_reads_properly_paired_percentage => VRPipe::StepOption->get(description => 'Minimum percentage of the reads that are mapped which are also properly paired',
+		 auto_qc_mapped_reads_properly_paired_percentage => VRPipe::StepOption->create(description => 'Minimum percentage of the reads that are mapped which are also properly paired',
 											    optional => 1,
 											    default_value => 80),
-		 auto_qc_error_rate => VRPipe::StepOption->get(description => 'Maximum allowed error rate',
+		 auto_qc_error_rate => VRPipe::StepOption->create(description => 'Maximum allowed error rate',
                                                                optional => 1,
                                                                default_value => 0.02),
-		 auto_qc_insert_peak_window => VRPipe::StepOption->get(description => 'A percentage of the insert size peak; this will be used get an acceptable range of insert sizes',
+		 auto_qc_insert_peak_window => VRPipe::StepOption->create(description => 'A percentage of the insert size peak; this will be used get an acceptable range of insert sizes',
 								       optional => 1,
 								       default_value => 25),
-		 auto_qc_insert_peak_reads => VRPipe::StepOption->get(description => 'The minimum percentage of reads that must have an insert size within the auto_qc_insert_peak_window',
+		 auto_qc_insert_peak_reads => VRPipe::StepOption->create(description => 'The minimum percentage of reads that must have an insert size within the auto_qc_insert_peak_window',
 								      optional => 1,
 								      default_value => 80),
-		 auto_qc_max_ins_to_del_ratio => VRPipe::StepOption->get(description => 'Maximum insert to deletion ratio',
+		 auto_qc_max_ins_to_del_ratio => VRPipe::StepOption->create(description => 'Maximum insert to deletion ratio',
 									 optional => 1,
 									 default_value => '1.0') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             description => 'bam files', 
                                                             max_files => -1,
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)'}),
-                 bamcheck_files => VRPipe::StepIODefinition->get(type => 'txt', 
+                 bamcheck_files => VRPipe::StepIODefinition->create(type => 'txt', 
 							  	 description => 'bamcheck files', 
 								 max_files => -1,
 								 metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)'}) };
@@ -103,7 +103,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         };
     }
     method outputs_definition {
-        return { auto_qc_summary => VRPipe::StepIODefinition->get(type => 'txt',
+        return { auto_qc_summary => VRPipe::StepIODefinition->create(type => 'txt',
                                                                   description => 'a summary text file explaining why the auto qc passed or failed',
                                                                   max_files => -1) };
     }

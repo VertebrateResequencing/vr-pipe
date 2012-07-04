@@ -34,13 +34,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', optional => 1, default_value => 'samtools'),
-                 samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options excluding -f', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
+        return { samtools_exe => VRPipe::StepOption->create(description => 'path to samtools executable', optional => 1, default_value => 'samtools'),
+                 samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
+                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
         };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to call variants') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants') };
     }
     method body_sub {
         return sub {
@@ -62,13 +62,13 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             my $cmd = qq[$samtools mpileup $mpileup_opts -f $reference_fasta $bam_list > $bcf_path];
             $self->dispatch_wrapped_cmd('VRPipe::Steps::mpileup_bcf', 'mpileup_bcf_and_check', [$cmd, $req, {output_files => [$bcf_file]}]); 
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'samtools', 
                                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), 
                                    summary => "samtools mpileup $mpileup_opts -f \$reference_fasta \$bam_files > \$bcf_file"));
         };
     }
     method outputs_definition {
-        return { bcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a .bcf file for each set of input bam files') };
+        return { bcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a .bcf file for each set of input bam files') };
     }
     method post_process_sub {
         return sub { return 1; };

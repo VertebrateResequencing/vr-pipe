@@ -245,7 +245,7 @@ class_type('VRPipe::Persistent');
 subtype PersistentArray, as 'VRPipe::PersistentArray';
 coerce PersistentArray,
     from ArrayRefOfPersistent,
-    via { VRPipe::PersistentArray->get(members => $_) };
+    via { VRPipe::PersistentArray->create(members => $_) };
     
 subtype PersistentHashRef,
     as HashRef[PersistentObject];

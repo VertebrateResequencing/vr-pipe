@@ -34,15 +34,15 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
     method options_definition {
-        return { bam_merge_keep_single_paired_separate => VRPipe::StepOption->get(description => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
+        return { bam_merge_keep_single_paired_separate => VRPipe::StepOption->create(description => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
                                                                                   optional => 1,
                                                                                   default_value => 1),
-                 samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
+                 samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                             max_files => -1,
                                                             description => '1 or more bam files to merge',
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
@@ -60,7 +60,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                                                                          mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
                                                                          chunk => 'mapped_fastq(s) are this chunk of original fastq(s)',
                                                                          optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}),
-                 dict_file => VRPipe::StepIODefinition->get(type => 'txt',
+                 dict_file => VRPipe::StepIODefinition->create(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
     method body_sub {
@@ -151,7 +151,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { merged_lane_bams => VRPipe::StepIODefinition->get(type => 'bam',
+        return { merged_lane_bams => VRPipe::StepIODefinition->create(type => 'bam',
                                                                    max_files => 2,
                                                                    description => 'a merged bam file for each library layout (single ended vs paired)',
                                                                    metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',

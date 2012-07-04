@@ -152,7 +152,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                                  $mate ? (mate => $mate) : (),
                                  $remote_path ? (remote_path => $remote_path) : () };
             
-            my $vrfile = VRPipe::File->get(path => $fastq, type => 'fq');
+            my $vrfile = VRPipe::File->create(path => $fastq, type => 'fq');
             my $current_metadata = $vrfile->metadata;
             my $changed = 0;
             if ($current_metadata && keys %$current_metadata) {

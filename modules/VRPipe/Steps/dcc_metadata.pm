@@ -34,10 +34,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
     method options_definition {
-        return { sequence_index => VRPipe::StepOption->get(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index') };
+        return { sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1,
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', description => 'bam files', max_files => -1,
                                                             metadata => {sample => 'sample name',
                                                                          center_name => 'center name',
                                                                          library => 'library name',
@@ -65,7 +65,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { dcc_ready_bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { dcc_ready_bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                                       description => 'a bam file with associated metadata',
                                                                       max_files => -1,
                                                                       metadata => {sample => 'sample name',

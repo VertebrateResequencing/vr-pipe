@@ -63,7 +63,7 @@ class VRPipe::StepBehaviourDefiner {
                                  isa => 'Bool');
     
     method define (Persistent|VRPipe::Pipeline $pipeline) {
-        my $sb = VRPipe::StepBehaviour->get(pipeline => $pipeline, after_step => $self->after_step, behaviour => $self->behaviour);
+        my $sb = VRPipe::StepBehaviour->create(pipeline => $pipeline, after_step => $self->after_step, behaviour => $self->behaviour);
         my $array = $sb->behaviour_array;
         
         my $behaviour = $self->behaviour;

@@ -13,7 +13,7 @@ BEGIN {
 
 my $mapping_output_dir = get_output_dir('bam_mapping_with_bwa_via_fastq');
 
-ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'bam_mapping_with_bwa_via_fastq'), 'able to get a pre-written pipeline';
+ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'bam_mapping_with_bwa_via_fastq'), 'able to get a pre-written pipeline';
 
 my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
@@ -26,8 +26,8 @@ my $ref_dir = dir($mapping_output_dir, 'ref');
 $mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 'bam_mapping_with_bwa_via_fastq',
-                                                       datasource => VRPipe::DataSource->get(type => 'fofn',
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(name => 'bam_mapping_with_bwa_via_fastq',
+                                                       datasource => VRPipe::DataSource->create(type => 'fofn',
                                                                                              method => 'all',
                                                                                              source => file(qw(t data datasource.bam_fofn))),
                                                        output_root => $mapping_output_dir,

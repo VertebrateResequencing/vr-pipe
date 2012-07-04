@@ -33,7 +33,7 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     use VRPipe::Persistent::Schema; # loads VRPipe::Artist and others
     
     # create a new artist in the db by supplying all is_keys:
-    my $bob = VRPipe::Artist->get_or_create(name => 'Bob');
+    my $bob = VRPipe::Artist->create(name => 'Bob');
     
     # get an existing artist by supplying all is_keys, or just the id:
     $bob = VRPipe::Artist->get(name => 'Bob');
@@ -42,7 +42,7 @@ VRPipe::Persistent - base class for objects that want to be persistent in the db
     # get and simultaneously update an existing artist:
     $bob = VRPipe::Artist->get(name => 'Bob', age => 42);
 
-get() and get_or_create() return an instance with all data columns and the full
+get() and create() return an instance with all data columns and the full
 benefit of the object, but if you need to get many objects/rows from the
 database note that this is EXTREMELY SLOW. To speed up retrievals you need to a)
 select all the rows of interest at once, b) retrieve only the columns of data
@@ -129,14 +129,14 @@ results you were searching for changes between pages. This means that what you
 do during the loop should be safe to rerun on the same database row more than
 once.
     
-get_or_create() can be used to create (insert) new objects into the database,
-and also to update them. However you should avoid using get_or_create() for this
+create() can be used to create (insert) new objects into the database,
+and also to update them. However you should avoid using create() for this
 purpose in a loop - it is VERY SLOW. When you don't care about the return value
 and just want to insert/update rows, use bulk_create_or_update().
 
     # instead of this:
     foreach my $i (1..1000) {
-	VRPipe::Job->get_or_create(cmd => "job $i", dir => '/fake_dir'); # SLOW
+	VRPipe::Job->create(cmd => "job $i", dir => '/fake_dir'); # SLOW
     }
     # collect the arguements you would have given to get() and supply them in a
     # list to bulk_create_or_update():
@@ -187,7 +187,7 @@ value, or just a class name string for the default configuration.
 You can also supply table_name => $string if you don't want the table_name in
 your database to be the same as your class basename.
 
-For end users, get_or_create() is a convienience method that will do the
+For end users, create() is a convienience method that will do the
 equivalent of update_or_create on a ResultSource for your class, if supplied
 values for all is_key columns (with the optional exception of any
 allow_key_to_default columns) and an optional instance of
@@ -675,7 +675,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             }
             
-            return $self->get(%args);
+            return $self->create(%args);
         });
 	
 	$meta->add_method('search_rs' => sub {
@@ -691,7 +691,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             # by default we'll order by id for consistency and repeatability
             unless ($search_attributes && exists $search_attributes->{order_by}) {
-                $search_attributes->{order_by} = { -asc => 'id' };
+                $search_attributes->{order_by} = { -asc => 'me.id' };
             }
             
             return $rs->search($search_args, $search_attributes ? $search_attributes : ());
@@ -841,8 +841,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     # get method expects all the psuedo keys and will get or create the
     # corresponding row in the db
-    sub get {
-	my ($self, %args) = @_;
+    sub _get {
+	my ($self, $create, %args) = @_;
 	
 	my ($schema, $rs, $class, $meta) = $self->_class_specific(\%args);
 	
@@ -865,6 +865,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 		    die "$@\n" if $@;
 		    my $obj = $factory_class->create($args{name}, {});
 		    $from_non_persistent = $obj;
+                    $create = 1;
 		    
 		    # now setup %args based on $obj; doing things this way means
 		    # we return a real Persistent object, but it is based on the
@@ -885,7 +886,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	
 	my $resolve = delete $args{auto_resolve};
 	if ($resolve && $self->can('resolve')) {
-	    my $obj = $self->get(%args);
+	    my $obj = $self->_get($create, %args);
 	    return $obj->resolve;
 	}
 	
@@ -915,19 +916,24 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 		}
 		$return->update;
 	    }
-	    else {
+	    elsif ($create) {
 		# create the row using all db column keys
 		$return = $rs->create({%find_args, %args});
 	    }
 	    
-	    # update the object with any non-persistent args supplied
-	    while (my ($method, $value) = each %non_persistent_args) {
-		$return->$method($value);
-	    }
-	    
-	    # for some reason the result_source has no schema, so
-	    # reattach it or inflation will break
-	    $return->result_source->schema($schema); 
+            if ($return) {
+                # update the object with any non-persistent args supplied
+                while (my ($method, $value) = each %non_persistent_args) {
+                    $return->$method($value);
+                }
+                
+                # for some reason the result_source has no schema, so
+                # reattach it or inflation will break
+                $return->result_source->schema($schema); 
+            }
+	    else {
+                die "no matching object exists in the database";
+            }
 	    
 	    return $return;
 	};
@@ -942,6 +948,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	
 	$row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
 	return $row;
+    }
+    sub get {
+        my $self = shift;
+        return $self->_get(0, @_);
+    }
+    sub create {
+        my $self = shift;
+        return $self->_get(1, @_);
     }
     
     # bulk inserts from populate() are fast, but we can easily end up with

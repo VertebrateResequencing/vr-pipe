@@ -35,11 +35,11 @@ use VRPipe::Base;
 class VRPipe::Steps::vcf_index with VRPipe::StepRole {
     method options_definition {
         return {
-		 'tabix_exe' => VRPipe::StepOption->get(description => 'path to tabix executable', optional => 1, default_value => 'tabix')
+		 'tabix_exe' => VRPipe::StepOption->create(description => 'path to tabix executable', optional => 1, default_value => 'tabix')
 		};
     }
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', description => 'vcf files to index', max_files => -1) 
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', description => 'vcf files to index', max_files => -1) 
 		};
     }
 	method body_sub {
@@ -63,7 +63,7 @@ class VRPipe::Steps::vcf_index with VRPipe::StepRole {
 	}
     method outputs_definition {
         return {
-                 tbi_file => VRPipe::StepIODefinition->get(type => 'bin', description => 'a tbi file', max_files => -1)
+                 tbi_file => VRPipe::StepIODefinition->create(type => 'bin', description => 'a tbi file', max_files => -1)
 		};
     }
     method post_process_sub {

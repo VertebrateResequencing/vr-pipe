@@ -58,7 +58,7 @@ role VRPipe::PipelineRole {
     
     method add_step (VRPipe::Step $step) {
         my $step_num = $self->num_steps() + 1;
-        my $sm = VRPipe::StepMember->get(step => $step, pipeline => $self, step_number => $step_num);
+        my $sm = VRPipe::StepMember->create(step => $step, pipeline => $self, step_number => $step_num);
         $self->_increment_steps($step_num);
         $self->update;
         return $sm;

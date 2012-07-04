@@ -34,16 +34,16 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_calculate_bq with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
-                 samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
+                 samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools'),
-                 samtools_calmd_options => VRPipe::StepOption->get(description => 'options to samtools calmd',
+                 samtools_calmd_options => VRPipe::StepOption->create(description => 'options to samtools calmd',
                                                           optional => 1,
                                                           default_value => '-Erb') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             max_files => -1, 
                                                             description => '1 or more bam files',
                                                             ) };
@@ -63,7 +63,7 @@ class VRPipe::Steps::bam_calculate_bq with VRPipe::StepRole {
                 $self->throw("samtools_calmd_options should not include the reference fasta or the calmd subcommand");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'samtools', 
                                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), 
                                    summary => "samtools calmd $calmd_opts \$bam_file \$reference_fasta > \$bq_bam_file"));
             
@@ -81,7 +81,7 @@ class VRPipe::Steps::bam_calculate_bq with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { bq_bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bq_bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                                max_files => -1, 
                                                                description => 'a bam file with BQ tag and good NM & MD tags',
                                                                ) };

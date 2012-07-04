@@ -34,13 +34,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
     method options_definition {
-        return { bcftools_exe => VRPipe::StepOption->get(description => 'path to bcftools executable', optional => 1, default_value => 'bcftools'),
-                 bcftools_view_options => VRPipe::StepOption->get(description => 'bcftools view options', optional => 1, default_value => '-p 0.99 -vcgN') };
+        return { bcftools_exe => VRPipe::StepOption->create(description => 'path to bcftools executable', optional => 1, default_value => 'bcftools'),
+                 bcftools_view_options => VRPipe::StepOption->create(description => 'bcftools view options', optional => 1, default_value => '-p 0.99 -vcgN') };
     }
     method inputs_definition {
-        return { bcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => '1 or more bcf files to convert to compressed vcf'),
-                 samples_files => VRPipe::StepIODefinition->get(type => 'txt', min_files => 0, max_files => -1, description => 'Optional samples file for restricting samples to call on and/or defining ploidy for each sample'),
-                 # sites_file => VRPipe::StepIODefinition->get(type => 'txt', min_files => 0, max_files => 1, description => 'Optional sites file for calling only at the given sites'),
+        return { bcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more bcf files to convert to compressed vcf'),
+                 samples_files => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0, max_files => -1, description => 'Optional samples file for restricting samples to call on and/or defining ploidy for each sample'),
+                 # sites_file => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0, max_files => 1, description => 'Optional sites file for calling only at the given sites'),
              };
     }
 
@@ -74,13 +74,13 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 $self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bcftools', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bcftools', 
                                    version => VRPipe::StepCmdSummary->determine_version($bcftools, '^Version: (.+)$'), 
                                    summary => "bcftools view $view_opts \$bcf_file | bgzip -c > \$vcf_file"));
         };
     }
     method outputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a .vcf.gz file for each input bcf file') };
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a .vcf.gz file for each input bcf file') };
     }
     method post_process_sub {
         return sub { return 1; };

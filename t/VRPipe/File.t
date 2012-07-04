@@ -16,7 +16,7 @@ open(my $fh, '>', $input_path) or die "Could not write to $input_path\n";
 print $fh "line1\nline2\n";
 close($fh);
 
-ok my $vrfile = VRPipe::File->get(path => $input_path, type => 'txt', metadata => {foo => 'bar'}), 'created a File using get()';
+ok my $vrfile = VRPipe::File->create(path => $input_path, type => 'txt', metadata => {foo => 'bar'}), 'created a File using create()';
 undef($vrfile);
 $vrfile = VRPipe::File->get(id => 1);
 $vrfile->add_metadata({baz => 'loman'});
@@ -35,11 +35,11 @@ isnt $orig_mtime, $new_mtime, 'mtime updated in db';
 is $vrfile->lines, 2, 'lines() worked';
 
 my $output_path = file($tmp_dir, 'output.txt');
-ok my $vrofile = VRPipe::File->get(path => $output_path, type => 'txt'), 'created another File using get()';
+ok my $vrofile = VRPipe::File->create(path => $output_path, type => 'txt'), 'created another File using create()';
 undef($vrofile);
 $vrofile = VRPipe::File->get(id => 2);
 is_deeply [$vrofile->path, $vrofile->e, $vrofile->s], [$output_path, 0, 0], 'file2 has the expected fields';
-throws_ok { VRPipe::File->get(path => 'output.txt', type => 'txt') } qr/must be absolute/, 'using get() with a relative path causes a throw';
+throws_ok { VRPipe::File->create(path => 'output.txt', type => 'txt') } qr/must be absolute/, 'using create() with a relative path causes a throw';
 
 ok my $ofh = $vrofile->openw, 'was able to open a file for writing';
 print $ofh "foo\n";
@@ -58,7 +58,7 @@ $vrofile->close;
 is_deeply [$vrofile->lines, $vrofile->_lines], [0, undef], 'now has 0 lines after truncate write';
 
 $output_path = file($tmp_dir, 'output.txt.gz');
-ok $vrofile = VRPipe::File->get(path => $output_path, type => 'txt'), 'created another File using get()';
+ok $vrofile = VRPipe::File->create(path => $output_path, type => 'txt'), 'created another File using create()';
 ok $ofh = $vrofile->openw, 'was able to open a file for writing compressed';
 print $ofh "foo\nbar\nbaz\n";
 $vrofile->close;
@@ -75,19 +75,19 @@ is $vrofile->lines, 3, 'raw_lines works correctly on a compressed file';
 
 # test copying, moving and symlinking files
 my $source_path = file($tmp_dir, 'source.txt');
-my $vrsource = VRPipe::File->get(path => $source_path, type => 'txt', metadata => { test => 'meta' });
+my $vrsource = VRPipe::File->create(path => $source_path, type => 'txt', metadata => { test => 'meta' });
 $ofh = $vrsource->openw;
 print $ofh "foo\n";
 $vrsource->close;
 
-my $vrcopy = VRPipe::File->get(path => file($tmp_dir, 'copy.txt'));
+my $vrcopy = VRPipe::File->create(path => file($tmp_dir, 'copy.txt'));
 $vrsource->copy($vrcopy);
 is_deeply [$vrsource->e, $vrcopy->e, $vrsource->md5, $vrcopy->md5], [1, 1, 'd3b07384d113edec49eaa6238ad5ff00', 'd3b07384d113edec49eaa6238ad5ff00'], 'copy of a file worked, and it updated the md5s';
 
-my $vrdest1 = VRPipe::File->get(path => file($tmp_dir, 'dest.txt'));
-my $vrdest2 = VRPipe::File->get(path => file($tmp_dir, 'dest2.txt'));
-my $vrdest3 = VRPipe::File->get(path => file($tmp_dir, 'dest3.txt'));
-my $vrdest4 = VRPipe::File->get(path => file($tmp_dir, 'dest4.txt'));
+my $vrdest1 = VRPipe::File->create(path => file($tmp_dir, 'dest.txt'));
+my $vrdest2 = VRPipe::File->create(path => file($tmp_dir, 'dest2.txt'));
+my $vrdest3 = VRPipe::File->create(path => file($tmp_dir, 'dest3.txt'));
+my $vrdest4 = VRPipe::File->create(path => file($tmp_dir, 'dest4.txt'));
 $vrsource->move($vrdest1);
 $vrdest1->move($vrdest2);
 $vrdest2->symlink($vrdest3);
@@ -108,7 +108,7 @@ $vrdest4->update_md5;
 $vrdest4->lines;
 is_deeply [$vrdest2->md5, $vrdest2->lines], [$vrdest4->md5, $vrdest4->lines], 'updating symlink md5 and lines updates the source md5 and lines as well';
 
-my $vrdest5 = VRPipe::File->get(path => file($tmp_dir, 'dest5.txt'));
+my $vrdest5 = VRPipe::File->create(path => file($tmp_dir, 'dest5.txt'));
 $vrdest4->move($vrdest5);
 is_deeply [$vrdest5->resolve->id, $vrdest4->resolve->id], [$real_fileid, $real_fileid], 'even a move of a symlink still resolves correctly for both source and dest';
 
@@ -121,7 +121,7 @@ is $vrfile->id, $real_fileid, 'with auto-resolve, getting a VRPipe::File with so
 
 # test that s() and open() works correctly for relative symlinks
 my $symlink = file(qw(t data dirs for symlink higher.link))->absolute;
-$vrfile = VRPipe::File->get(path => $symlink);
+$vrfile = VRPipe::File->create(path => $symlink);
 ok $vrfile->s, 's() worked for a complex relative symlink';
 is $vrfile->slurp, "the real file\n", 'slurp also worked on it';
 

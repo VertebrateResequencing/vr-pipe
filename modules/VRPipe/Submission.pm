@@ -126,7 +126,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
                       default => 0);
     
     method _build_default_scheduler {
-        return VRPipe::Scheduler->get();
+        return VRPipe::Scheduler->create();
     }
     
     # public getters for our private attributes
@@ -261,9 +261,14 @@ class VRPipe::Submission extends VRPipe::Persistent {
         push(@to_archive, [$self->scheduler_stdout_file(orig => 1), $self->scheduler_stdout_file, 0]);
         push(@to_archive, [$self->scheduler_stderr_file(orig => 1), $self->scheduler_stderr_file, 1]);
         
+        my $count = 0;
         foreach my $toa (@to_archive) {
+            $count++;
             my ($source, $dest, $add_marker) = @$toa;
             next unless ($source && $dest);
+            if (! ref($dest)) {
+                $self->throw("toa $count had dest $dest compared to source ".$source->path);
+            }
             $self->concatenate($source, $dest,
                                unlink_source => 1,
                                add_marker => $add_marker); 
@@ -412,7 +417,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $std_io_file = file($std_dir, $method);
         }
         
-        return VRPipe::File->get(path => $std_io_file, type => $type);
+        return VRPipe::File->create(path => $std_io_file, type => $type);
     }
     method scheduler_stdout_file (Bool :$orig = 0) {
         return $self->_scheduler_std_file('scheduler_output_file', substr($self->scheduler->type, 0, 3), $orig);
@@ -443,7 +448,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # this is where we want the job stdo/e to be archived to, not where the
         # job initially spits it out to
         my $std_dir = $self->std_dir || return;
-        return VRPipe::File->get(path => file($std_dir, 'job_std'.$kind), type => 'cat');
+        return VRPipe::File->create(path => file($std_dir, 'job_std'.$kind), type => 'cat');
     }
     method job_stdout_file {
         return $self->_job_std_file('out');
