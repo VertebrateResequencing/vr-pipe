@@ -107,10 +107,14 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         $bam->disconnect;
         
         my $sip = VRPipe::Parser->create('sequence_index', {file => $sequence_index});
-        my %si_lanes = map { $_ => 1 } $sip->get_lanes(sample_name => $meta->{sample}, 
-                                                       instrument_platform => $meta->{platform}, 
-                                                       analysis_group => $meta->{analysis_group}, 
-                                                       ignore_withdrawn => 1);
+        my @sample_lanes = $sip->get_lanes(sample_name => $meta->{sample}, ignore_withdrawn => 1);
+        
+        my %si_lanes;
+        foreach my $lane (@sample_lanes) {
+            next if ($sip->lane_info($lane, 'analysis_group') ne $meta->{analysis_group});
+            next if ($sip->lane_info($lane, 'instrument_platform') ne $meta->{platform});
+            $si_lanes{$lane} = 1;
+        }
         
         my @fails;
         unless (scalar keys %readgroup_info == scalar keys %si_lanes) {
