@@ -281,14 +281,26 @@ role VRPipe::StepRole {
                     
                     my $wanted_type = $val->type;
                     unless ($wanted_type eq 'any') {
-                        if ($result->s) {
-                            my $type = VRPipe::FileType->create($wanted_type, {file => $result->path});
+                        my $resolved = $result->resolve;
+                        my $has_size = 0;
+                        if ($resolved->s) {
+                            $has_size = 1;
+                            my $type = VRPipe::FileType->create($wanted_type, {file => $resolved->path});
                             unless ($type->check_type) {
-                                push(@skip_reasons, "file ".$result->path." was not the correct type, expected type $wanted_type and got type ".$type->type);
-                                next;
+                                # the type check will fail if the file doesn't
+                                # really exist, so make sure
+                                $resolved->update_stats_from_disc;
+                                if ($resolved->s) {
+                                    push(@skip_reasons, "file ".$result->path." was not the correct type ($wanted_type)");
+                                    next;
+                                }
+                                else {
+                                    $result->update_stats_from_disc;
+                                    $has_size = 0;
+                                }
                             }
                         }
-                        else {
+                        unless ($has_size) {
                             my $db_type = $result->type;
                             if ($db_type && $wanted_type ne $db_type) {
                                 push(@skip_reasons, "file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
@@ -444,7 +456,8 @@ role VRPipe::StepRole {
             my $schema = $self->result_source->schema;
             foreach my $path (@missing) {
                 my $file = VRPipe::File->get(path => $path);
-                next if $file->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
+                my $resolved = $file->resolve;
+                next if $resolved->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
                 my $rs = $schema->resultset('StepOutputFile')->search({ file => $file->id });
                 my $count = 0;
                 my $state;
@@ -455,7 +468,7 @@ role VRPipe::StepRole {
                 
                 if ($count == 1) {
                     $with_recourse++;
-                    push(@{$states_to_restart{$state->id}}, $file->path);
+                    push(@{$states_to_restart{$state->id}}, $resolved->path);
                 }
             }
             
