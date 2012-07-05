@@ -73,18 +73,17 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method _has_changed {
-        return 1 unless defined($self->_changed_marker);#on first instantiation _changed_marker is undefined, defaults to changed in this case 
+        return 1 unless defined($self->_changed_marker);#on first instantiation _changed_marker is undefined, defaults to changed in this case
         return 1 if ($self->_vrtrack_lane_file_checksum ne $self->_changed_marker);#checks for new or deleted lanes or changed files(including deleted/added files)
-        return 0; 
+        return 0;
     }
     
-    method _update_changed_marker { 
-        $self->_changed_marker($self->_vrtrack_lane_file_checksum); 
+    method _update_changed_marker {
+        $self->_changed_marker($self->_vrtrack_lane_file_checksum);
     }
 
     method _vrtrack_lane_file_checksum {
         my $vrtrack_source = $self->_open_source();
-        
         # concatenating the 'changed' column of all lanes would let us know if
         # anything at all changed in the lanes, but means that if we're running
         # a pipeline that changes something in the lane table we'll have to
@@ -215,7 +214,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         foreach my $lane ($self->_filtered_lanes(%args)) {
             push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {lane => $lane->hierarchy_name}, withdrawn => 0));
         }
-        $self->_update_changed_marker; 
+        $self->_update_changed_marker;
         return \@elements;
     }
     
@@ -395,7 +394,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 }
                 
                 # if there was no metadata this will add metadata to the file.
-                $vrfile->add_metadata($new_metadata, replace_data => 0); 
+                $vrfile->add_metadata($new_metadata, replace_data => 0);
                 
                 # if there was a change in VRPipe::File metadata store it in a
                 # hash and change the metadata in the VRPipe::File later when
