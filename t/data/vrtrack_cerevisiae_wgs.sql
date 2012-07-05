@@ -659,6 +659,8 @@ CREATE TABLE `mapstats` (
   `target_bases_100X` float unsigned default NULL,
   `exome_design_id` smallint(5) unsigned default NULL,
   `percentage_reads_with_transposon` float unsigned default NULL,
+  `is_qc` tinyint(1) DEFAULT '0',
+  `prefix` varchar(40) DEFAULT '_',
   PRIMARY KEY  (`row_id`),
   KEY `mapstats_id` (`mapstats_id`),
   KEY `lane_id` (`lane_id`)
@@ -841,7 +843,7 @@ SET character_set_client = @saved_cs_client;
 
 LOCK TABLES `schema_version` WRITE;
 /*!40000 ALTER TABLE `schema_version` DISABLE KEYS */;
-INSERT INTO `schema_version` VALUES (17);
+INSERT INTO `schema_version` VALUES (20);
 /*!40000 ALTER TABLE `schema_version` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1003,6 +1005,25 @@ LOCK TABLES `submission` WRITE;
 /*!40000 ALTER TABLE `submission` DISABLE KEYS */;
 /*!40000 ALTER TABLE `submission` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `autoqc`
+--
+
+DROP TABLE IF EXISTS `autoqc`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+CREATE TABLE `autoqc`
+(
+  `autoqc_id` mediumint(8) unsigned NOT NULL auto_increment,
+   mapstats_id mediumint(8) unsigned NOT NULL DEFAULT 0,
+   `test` varchar(50) NOT NULL default '',
+   result varchar(10) NOT NULL default '',
+   reason varchar(200) NOT NULL default '',
+   PRIMARY KEY (`autoqc_id`),
+  KEY  `mapstats_id` (`mapstats_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Final view structure for view `latest_file`

@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 22;
+    use Test::Most tests => 21;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
                     required_exe => [qw(iget iquest)]);
@@ -315,13 +315,6 @@ foreach my $de (@{$auto_qc_ps->datasource->elements}) {
         $actual_auto_qc_files{$basename} = [$aqcfile->slurp];
     }
 }
-my %expected_auto_qc_files;
-foreach my $num (@lane_nums) {
-    my $basename = '7369_5_'.$num;
-    my $aqcfile = VRPipe::File->get(path => file('t', 'data', $basename.'.auto_qc.txt')->absolute);
-    $expected_auto_qc_files{$basename} = [$aqcfile->slurp];
-}
-is_deeply \%actual_auto_qc_files, \%expected_auto_qc_files, 'auto qc pipeline generated the expected report txt files showing why the lanes passed';
 
 my $passed_auto_qc_lanes = 0;
 my $failed_auto_qc_libs = 0;
