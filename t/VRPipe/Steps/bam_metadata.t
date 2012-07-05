@@ -38,6 +38,7 @@ $setup = VRPipe::PipelineSetup->create(name => 'bm_setup_with_d',
                                                  bamcheck_options => '-d' });
 ok handle_pipeline(), 'bamcheck pipeline ran ok with bamcheck_options';
 
+$bam->reselect_values_from_db;
 is $bam->metadata->{rmdup_bases_mapped_c}, 12289, 'running bamcheck with bamcheck_options => -d added the rmdup_bases_mapped_c metadata';
 
 finish;

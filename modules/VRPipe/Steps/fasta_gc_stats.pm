@@ -67,7 +67,7 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
 		$plot_bc_opts .= ' -t '.$targets;
 		
 		# we need to uniqify the basename for each target file
-		my $tfile = VRPipe::File->get(path => $targets);
+		my $tfile = VRPipe::File->create(path => $targets);
 		unless ($tfile->md5) {
 		    $tfile->update_md5;
 		}

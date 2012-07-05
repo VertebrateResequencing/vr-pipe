@@ -139,6 +139,7 @@ my $vr_cff = VRPipe::File->create(path => $changed_fq_file);
 is $vr_cff->metadata->{expected_md5}, 'e6083e0173d78db081ddfe8f2aca955d', 'prior to changed datasource, expected_md5 of 2822_6.fastq is original';
 ok check_bam($bam, 'IL3_2822:6:1:26:1603'), 'prior to changed datasource, the bam output has an original read';
 ok handle_pipeline(), 'pipeline ran ok again, after changing the datasource';
+$vr_cff->reselect_values_from_db;
 is $vr_cff->metadata->{expected_md5}, '7812540da740d59eedf03894d9b33783', 'after changing datasource, expected_md5 of 2822_6.fastq is new';
 ok check_bam($bam, 'IL3_2822:6:1:26:1604'), 'after changing datasource, the bam output has the new read';
 

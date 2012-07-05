@@ -363,15 +363,15 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             
             if ($splits == 1) {
                 my $suffix = $fq =~ /\.gz$/ ? 'fastq.gz' : 'fastq';
-                push(@outs, VRPipe::File->get(path => file($split_dir, "$prefix.1.$suffix"),
-                                              type => 'fq',
-                                              metadata => { source_fastq => $fq->resolve->stringify }));
+                push(@outs, VRPipe::File->create(path => file($split_dir, "$prefix.1.$suffix"),
+                                                 type => 'fq',
+                                                 metadata => { source_fastq => $fq->resolve->stringify }));
             }
             else {
                 for my $split_num (1..$splits) {
-                    push(@outs, VRPipe::File->get(path => file($split_dir, "$prefix.$split_num.fastq.gz"),
-                                                  type => 'fq',
-                                                  metadata => { source_fastq => $fq->resolve->stringify }));
+                    push(@outs, VRPipe::File->create(path => file($split_dir, "$prefix.$split_num.fastq.gz"),
+                                                     type => 'fq',
+                                                     metadata => { source_fastq => $fq->resolve->stringify }));
                 }
             }
         }
