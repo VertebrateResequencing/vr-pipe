@@ -22,6 +22,8 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 
 my $filter_opt_file_1 = file(qw(t data uk10k_gatk_20110715.filter))->absolute->stringify;
 my $filter_opt_file_2 = file(qw(t data uk10k_mpileup_20110715.filter))->absolute->stringify;
+my $annot_opt_file_1 = "/nfs/vertres01/conf/uk10k_mpileup_20110328.annot";
+
 my $annot_file = file(qw(t data g1k_dbsnp132_annot.tab.gz))->absolute->stringify;
 my $annot_desc_file = file(qw(t data g1k_dbsnp132_annot_desc.txt))->absolute->stringify;
 my $annot_2_file = file(qw(t data annots-rsIDs-AFs.2011-10-05.tab.gz))->absolute->stringify;
@@ -38,8 +40,8 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_filter_merge
                                                     pipeline => $pipeline,
                                                     options => {'vcf-annotate_options' => "-a $annot_file -d $annot_desc_file -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ",
 								'vcf-annotate_2_options' => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
-                                                                'vcf-filter_programs' => "vcf-filter#vcf-filter",
-                                                                'vcf-filter_files' => "$filter_opt_file_1#$filter_opt_file_2",
+                                                                'vcf-filter_programs' => "vcf-annotate#vcf-filter",
+                                                                'vcf-filter_files' => "$annot_opt_file_1#$filter_opt_file_1",
                                                                 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
                                                                 'vcf2consequences_options' => "-grantham --gerp $gerp_cache",
                                                                 'vcf-stats_options' => "-f FILTER",

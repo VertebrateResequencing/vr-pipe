@@ -23,9 +23,8 @@ my @expected_step_names = qw(mpileup_vcf);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpileup_vcf pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'delimited',
-			method => 'all_columns',
-			options => { delimiter => "\t" },
+		datasource => VRPipe::DataSource->get(type => 'fofn',
+			method => 'all',
 			source => file(qw(t data hs_chr20.bam.fofn))),
 		output_root => $output_dir,
 		pipeline => $pipeline,
