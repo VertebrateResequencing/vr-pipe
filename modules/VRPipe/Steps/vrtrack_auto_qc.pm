@@ -89,7 +89,6 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 	    my %by_lane;
 	    foreach my $file (@{$self->inputs->{bam_files}}, @{$self->inputs->{bamcheck_files}}) {
 		push(@{$by_lane{$file->metadata->{lane}}}, $file->path);
-		my $lane = $file->metadata->{lane};
 	    }
 	    
             while (my ($lane, $files) = each %by_lane) {
