@@ -1,3 +1,5 @@
+0.79    Another critical bug fix for dcc_metadata step. Bug fix for bam_reheader
+        step. vrtrack_auto_qc step now has an extra metric.
 0.78    Critical bug fix for dcc_metadata step. Bug fix for when a step input
         is a symlink and the pointed-to file has been deleted without VRPipe's
         knowledge.
