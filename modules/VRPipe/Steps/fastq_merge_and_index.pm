@@ -140,6 +140,7 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         
         my $actual_lines = $merged_fastq->lines;
         my $index_lines = $pop_index->lines;
+        my $reads = $merged_fastq->num_records;
         if ($actual_lines != $expected_lines) {
             $merged_fastq->unlink;
             $pop_index->unlink;
@@ -149,6 +150,7 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
             $pop_index->unlink;
             $self->throw("Index had $index_lines, whereas we expected ".scalar(@$fastqs)." lines.");
         } else {
+            $merged_fastq->add_metadata({reads => $reads});
             return 1;
         }
     }

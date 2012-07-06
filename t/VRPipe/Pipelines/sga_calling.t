@@ -5,7 +5,7 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 4;
+    use Test::Most tests => 6;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
                     required_exe => [qw(sga)]);
     use TestPipelines;
@@ -36,6 +36,7 @@ VRPipe::PipelineSetup->get(name => 'sga prepare fastq test',
                            pipeline => $preprocess_pipeline,
                            options => { split_bam_only => '^(11|20)$',
                                         split_bam_include_mate => 1,
+                                        sga_preprocess_options => '--min-length=50',
                                         sga_exe => 'sga',
                                         cleanup => 0,
                                       });
@@ -44,18 +45,17 @@ VRPipe::PipelineSetup->get(name => 'sga calling test',
                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
                                                                  method => 'group_by_metadata',
                                                                  source => '1[4]',
-                                                                 options => { metadata_keys => 'split_sequence' }),
+                                                                 options => { metadata_keys => 'population|split_sequence' }),
                            output_root => $calling_dir,
                            pipeline => $sga_pipeline,
                            options => { reference_fasta => $ref_fa,
                                         sga_exe => 'sga',
                                         cleanup => 0 });
 
-
 ok handle_pipeline(), 'sga_prepare_fastq and sga_variant_calling pipelines ran ok';
 
 my @input_files;
-my %samples = ('NA19381' => 1, 'NA19334' => 2);
+my %samples = ('NA20340' => 1 , 'HG02449' => 2, 'NA20281' => 3, 'HG01958' => 4, 'NA19381' => 5, 'NA19334' => 6);
 while (my ($sample, $element_id) = each %samples) {
     my @output_subdirs = output_subdirs($element_id, 1);
     foreach my $chrom (qw(11 20)) {
@@ -74,7 +74,7 @@ foreach my $suffix (qw(fa sai rsai bwt rbwt ssa)) {
 }
 
 my @calling_files;
-foreach my $element_id (3, 4) {
+foreach my $element_id (7..12) {
     my @output_subdirs = output_subdirs($element_id, 2);
     foreach my $suffix (qw(fq popidx bwt sai)) {
         push(@calling_files, file(@output_subdirs, '4_fastq_merge_and_index', 'merged.'.$suffix));
@@ -85,5 +85,20 @@ foreach my $element_id (3, 4) {
 }
 
 ok handle_pipeline(@input_files, @ref_files, @calling_files), 'sga_prepare_fastq and sga_variant_calling pipelines created expected output files';
+
+ok my $sga_merge_pipeline = VRPipe::Pipeline->get(name => 'sga_merge_and_variant_calling'), 'able to get the sga_merge_and_variant_calling pipeline';
+
+VRPipe::PipelineSetup->get(name => 'sga merge and call test',
+                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
+                                                                 method => 'group_by_metadata',
+                                                                 source => '2[4:merged_fastq_file]',
+                                                                 options => { metadata_keys => 'continent|split_sequence' }),
+                           output_root => $calling_dir,
+                           pipeline => $sga_merge_pipeline,
+                           options => { reference_fasta => $ref_fa,
+                                        sga_exe => 'sga',
+                                        cleanup => 0 });
+
+ok handle_pipeline(), 'sga_merge_and_variant_calling pipeline ran ok';
 
 finish;

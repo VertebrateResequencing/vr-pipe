@@ -95,7 +95,11 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
                 next unless $meta->{paired};
                 my $basename = $fq->basename;
                 $basename =~ s/\.(1|2)\.(fq|fastq)(\.gz)?$/\.processed.fq/;
-                push @{$fastqs{$basename}}, $fq;
+                if ($meta->{paired} == 1) {
+                    unshift @{$fastqs{$basename}}, $fq;
+                } else {
+                    push @{$fastqs{$basename}}, $fq;
+                }
             }
             
             my $req = $self->new_requirements(memory => 3900, time => 1);
@@ -104,7 +108,7 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
                 my $meta = $self->common_metadata($fastqs{$fq});
                 my $processed_fq = $self->output_file(output_key => 'preprocessed_fastq_files', basename => $fq, type => 'fq', metadata => $meta);
                 my $cmd = qq[$sga_exe preprocess $sga_opts ].join(' ',@fqs).' > '.$processed_fq->path;
-                $self->dispatch([$cmd, $req, {output_files => [$processed_fq]}]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::sga_preprocess', 'preprocess_and_check', [$cmd, $req, {output_files => [$processed_fq]}]);
             }
         };
     }
@@ -119,6 +123,25 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
     }
     method max_simultaneous {
         return 0; # meaning unlimited
+    }
+    method preprocess_and_check (ClassName|Object $self: Str $cmd_line) {
+        my ($out_path) = $cmd_line =~ /> (\S+)$/;
+        $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        
+        my $out_fq = VRPipe::File->get(path => $out_path);
+        $out_fq->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        $out_fq->update_stats_from_disc(retries => 3);
+        
+        my $reads = $out_fq->num_records;
+        if ($reads > 0) {
+            $out_fq->add_metadata({reads => $reads});
+            return 1;
+        }
+        else {
+            $out_fq->unlink;
+            $self->throw("cmd [$cmd_line] failed because no reads were generated in the output fastq file - nothing passes you preprocessing thresholds??");
+        }
     }
 }
 
