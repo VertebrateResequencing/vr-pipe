@@ -52,6 +52,9 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 		 auto_qc_error_rate => VRPipe::StepOption->get(description => 'Maximum allowed error rate',
                                                                optional => 1,
                                                                default_value => 0.02),
+                 auto_qc_overlapping_base_duplicate_percent => VRPipe::StepOption->get(description => 'Maximum percent of bases duplicated due to overlapping reads of a pair',
+                                                                                       optional => 1,
+                                                                                       default_value => 4),
 		 auto_qc_insert_peak_window => VRPipe::StepOption->get(description => 'A percentage of the insert size peak; this will be used get an acceptable range of insert sizes',
 								       optional => 1,
 								       default_value => 25),
@@ -86,7 +89,6 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 	    my %by_lane;
 	    foreach my $file (@{$self->inputs->{bam_files}}, @{$self->inputs->{bamcheck_files}}) {
 		push(@{$by_lane{$file->metadata->{lane}}}, $file->path);
-		my $lane = $file->metadata->{lane};
 	    }
 	    
             while (my ($lane, $files) = each %by_lane) {
@@ -97,7 +99,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 		my $output_file = $self->output_file(output_key => 'auto_qc_summary', basename => $basename.'.auto_qc.txt', type => 'txt');
 		my $output_path = $output_file->path;
 		
-                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, results => q[$output_path]);";
+                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent}, results => q[$output_path]);";
                 $self->dispatch_vrpipecode($cmd, $req, {output_files => [$output_file]});
             }
         };
@@ -111,7 +113,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         return "Considering the stats in the bamcheck file for a lane, and the metadata stored on the bam file and in the VRTrack database for the corresponding lane, automatically decide if the lane passes the quality check.";
     }
 
-    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str|File :$results!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?) {
+    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str|File :$results!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?) {
 	my $bam_file = VRPipe::File->get(path => $bam);
 	my $meta = $bam_file->metadata;
 	my $bc = VRPipe::Parser->create('bamcheck', {file => $bamcheck});
@@ -243,10 +245,10 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 		$inum += $$row[1];
 		$dnum += $$row[2];
 	    }
-	    $reason = "The Ins/Del ratio is smaller than $max ($inum/$dnum)";
+	    $reason = "The Ins/Del ratio is smaller than $max ($inum/$dnum).";
 	    if (! $dnum or $inum/$dnum > $max) {
 		$status = 0;
-		$reason = "The Ins/Del ratio is bigger than $max ($inum/$dnum)";
+		$reason = "The Ins/Del ratio is bigger than $max ($inum/$dnum).";
 	    }
 	    push @qc_status, { test => 'InDel ratio', status => $status, reason => $reason };
 	}
@@ -291,7 +293,56 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 		$lib_status = $status ? 'passed' : 'failed';
 	    }
 	}
-	
+        
+        
+        # overlapping base duplicate percent
+        # calculate the proportion of mapped bases duplicated e.g. if a fragment
+        # is 160bp - then 40bp out of 200bp sequenced (or 20% of bases sequenced
+        # in the fragment are duplicate sequence)
+        #
+        #------------->
+        #          <------------
+        #        160bp
+        #|---------------------|
+        #          |--|
+        #          40bp
+        if (defined $auto_qc_overlapping_base_duplicate_percent) {
+            my $lengths = $bc->read_lengths();
+            if (@$lengths == 1) {
+                my $seqlen = $lengths->[0]->[0];
+                my $is_lines = $bc->insert_size() || [];
+                
+                if (@$is_lines) {
+                    my ($short_paired_reads, $normal_paired_reads, $total_paired_reads, $dup_mapped_bases, $tot_mapped_bases);
+                    foreach my $is_line (@$is_lines) {
+                        my ($is, $pairs_total, $inward, $outward, $other) = @$is_line;
+                        next unless $pairs_total;
+                        
+                        if (($seqlen * 2) > $is) {
+                            $short_paired_reads += $pairs_total;
+                            $dup_mapped_bases += $pairs_total * (($seqlen * 2) - $is);
+                        }
+                        else {
+                            $normal_paired_reads += $pairs_total;
+                        }
+                        $total_paired_reads += $pairs_total;
+                        $tot_mapped_bases += $pairs_total * ($seqlen * 2);
+                    }
+                    
+                    my $percent = sprintf("%0.1f", ($dup_mapped_bases * 100) / $tot_mapped_bases);
+                    my $max = $auto_qc_overlapping_base_duplicate_percent;
+                    
+                    $reason = "The percent of bases duplicated due to reads of a pair overlapping ($percent) is smaller than or equal to $max.";
+                    my $status = 1;
+                    if ($percent > $max) {
+                        $reason = "The percent of bases duplicated due to reads of a pair overlapping ($percent) is greater than $max.";
+                        $status = 0;
+                    }
+                    push @qc_status, { test => 'Overlap duplicate base percent', status => $status, reason => $reason };
+                }
+            }
+        }
+        
 	# now output the results
 	my $results_file = VRPipe::File->get(path => $results);
 	my $ofh = $results_file->openw;

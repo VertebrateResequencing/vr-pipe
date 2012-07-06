@@ -228,7 +228,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             foreach my $pg (split("\n", $existing_meta->{original_pg_chain})) {
                 my ($pid) = $pg =~ /\tID:([^\t]+)/;
                 my ($pn) = $pg =~ /\tPN:([^\t]+)/;
-                my ($pv) = $pg =~ /\tPN:([^\t]+)/;
+                my ($pv) = $pg =~ /\tVN:([^\t]+)/;
                 my ($cl) = $pg =~ /\tCL:([^\t]+)/;
                 my ($pp) = $pg =~ /\tPP:([^\t]+)/;
                 $pp ||= 'null';
