@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 122;
+    use Test::Most tests => 123;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -38,6 +38,11 @@ close($fh);
 ok $files[0] = VRPipe::File->create(path => $input1_path, type => 'txt', metadata => {foo => 'bar'}), 'created a File using create()';
 my $output1_path = file($output_dir, 'output1.txt');
 ok $files[1] = VRPipe::File->create(path => $output1_path, type => 'txt'), 'created another File using create()';
+
+$files[0]->disconnect;
+my $post_disconnect = VRPipe::File->get(id => 1);
+my $pd_worked = $post_disconnect && $post_disconnect->path() eq $input1_path;
+ok $pd_worked, 'we automatically reconnected to the database after a disconnect';
 
 my @ids;
 ok $ids[0] = VRPipe::StepIODefinition->create(type => 'bam', description => 'step_1 bam input'), 'created a InputDefinition using create()';

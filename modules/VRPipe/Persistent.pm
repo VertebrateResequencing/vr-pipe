@@ -293,6 +293,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype); # eg mysql
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
 	
+        my %ref_attribs;
         foreach my $attr ($meta->get_all_attributes) {
             my $name = $attr->name;
 	    $all_attribs{$name} = 1;
@@ -420,6 +421,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         die "unsupported constraint '$cname' for attribute $name in $class\n";
                     }
                     ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
+                    
+                    $ref_attribs{$name} = 1;
                 }
                 elsif ($cname eq 'Datetime') {
                     $cname = $converter->get_datetime_type();
@@ -427,6 +430,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 elsif ($cname eq 'Persistent') {
                     $size = 9;
                     ($cname,$size,$is_numeric) = $converter->get_column_info(size=> $size, is_numeric => 1);
+                    $ref_attribs{$name} = 1;
                 }
                 elsif ($cname eq 'File' || $cname eq 'AbsoluteFile' || $cname eq 'Dir') {
                     ($cname,$size,$is_numeric) = $converter->get_column_info(size=> -1, is_numeric => 0);
@@ -503,10 +507,13 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # now that dbic has finished creating/altering accessor methods, delete
         # them and replace with moose accessors, to give us moose type
         # constraints
+        my @clear_methods;
         foreach my $attr ($meta->get_all_attributes) {
             next unless $attr->does('VRPipe::Persistent::Attributes');
             my $name = $attr->name;
             my $dbic_name = '_'.$name;
+            my $clear_method = "_clear_$name";
+            push(@clear_methods, $clear_method);
             
             if ($accessor_altered{$name}) {
                 # remove DBIx::Class auto-generated accessor method
@@ -520,21 +527,22 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $meta->add_around_method_modifier($name => sub {
                 my $orig = shift;
                 my $self = shift;
-                my $moose_value = $self->$orig();
                 
-                $self->reconnect;
-                
-                my $dbic_value = $self->$dbic_name();
-                unless (@_) {
-                    # make sure we're in sync with the dbic value
-                    if (defined $dbic_value) {
-                        $moose_value = $self->$orig($dbic_value);
-                    }
-                    else {
-                        $moose_value = $self->$orig();
+                # if we've been called in non-void context, we'll later want to
+                # return the current inflated dbic value if it is a ref, or the
+                # moose coerced version of it otherwise
+                my $return_val;
+                if (defined wantarray()) {
+                    $return_val = exists $ref_attribs{$name} ? $self->$dbic_name() : $self->$orig();
+                    unless (defined $return_val) {
+                        my $dbic_val = $self->$dbic_name();
+                        if (defined $dbic_val) {
+                            $return_val = $self->$orig($dbic_val);
+                        }
                     }
                 }
-                else {
+                
+                if (@_) {
                     my $value = shift;
                     
                     if (defined $value) {
@@ -543,11 +551,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         $self->$orig($value);
                         
                         # now set it in the DBIC accessor
-                        #$dbic_value = $self->set_column($name, $value);
                         $self->$dbic_name($value);
                     }
                     else {
-                        my $clear_method = "_clear_$name";
                         $self->$clear_method();
                         $self->$dbic_name(undef);
                     }
@@ -562,19 +568,32 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     # yet without that call to ->update
                 }
                 
-                # if the dbic value is another Persistent object, return
-                # that, otherwise prefer the moose value
-                if (defined $dbic_value && ref($dbic_value)) {
-                    return $dbic_value;
-                }
-                else {
-                    return $moose_value;
-                }
+                return $return_val;
             });
         }
         
-	# various methods need a way of getting the schema, rs, class and meta;
-	# we also reconnect here
+        # like discard_changes, except we don't clumsily wipe out the whole
+        # $self hash
+        $meta->add_method('reselect_values_from_db' => sub {
+            my $self = shift;
+            return unless $self->in_storage;
+            
+            if (my $current_storage = $self->get_from_storage({force_pool => 'master'})) {
+                $self->{_column_data} = $current_storage->{_column_data};
+                delete $self->{_inflated_column};
+                delete $self->{related_resultsets};
+                bless $current_storage, 'Do::Not::Exist'; # avoid deep recursion on destruction
+                
+                foreach my $clear_method (@clear_methods) {
+                    $self->$clear_method();
+                }
+            }
+            else {
+                $self->in_storage(0);
+            }
+        });
+        
+	# various methods need a way of getting the schema, rs, class and meta
 	$meta->add_method('_class_specific' => sub {
 	    my ($self, $args) = @_;
 	    $args ||= {};
@@ -590,7 +609,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             }
 	    
 	    my $rs = $schema->resultset("$class");
-	    $self->reconnect;
 	    
 	    return ($schema, $rs, $class, $meta);
 	});
@@ -770,25 +788,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	$meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
     }
     
-    # like discard_changes, except we don't clumsily wipe out the whole $self
-    # hash
-    method reselect_values_from_db {
-        return unless $self->in_storage;
-        
-        if (my $current_storage = $self->get_from_storage({force_pool => 'master'})) {
-            $self->{_column_data} = $current_storage->{_column_data};
-            delete $self->{_inflated_column};
-            delete $self->{related_resultsets};
-            bless $current_storage, 'Do::Not::Exist'; # avoid deep recursion on destruction
-        }
-        else {
-            $self->in_storage(0);
-        }
-    }
-    
     # txn_do with auto-retries on deadlock
-    sub _do_transaction {
-	my ($self, $schema, $transaction, $error_message_prefix) = @_;
+    sub do_transaction {
+	my ($self, $transaction, $error_message_prefix, $schema) = @_;
+        $schema ||= $self->result_source->schema;
 	
 	my $retries = 0;
 	my $max_retries = 10;
@@ -942,9 +945,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	while (my ($key, $val) = each %find_args) {
 	    push(@fa, "$key => $val");
 	}
-	my $error_message_prefix = "Failed to $class\->get(".join(', ', @fa).')';
+	my $error_message_prefix = "Failed to $class\->_get(".join(', ', @fa).')';
 	
-	my $row = $self->_do_transaction($schema, $transaction, $error_message_prefix);
+	my $row = $self->do_transaction($transaction, $error_message_prefix, $schema);
 	
 	$row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
 	return $row;
@@ -973,6 +976,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	my $max_per_batch = 499; # less than a second for inserts, less than 3 seconds for updates
 	my $batch_num = 0;
 	my %done_args;
+        my %arg_counts;
+        my $arg_sets = 0;
 	foreach my $args (@_) {
 	    # we must not have duplicate args coming through here, or we will
 	    # create more than 1 row with the same values, breaking our pseudo-
@@ -984,28 +989,67 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 	    my $fa = $self->_find_args($args);
 	    push(@{$find_and_nonp_args[$batch_num]}, [$fa->[0], $args]);
 	    $batch_num++ if $#{$find_and_nonp_args[$batch_num]} == $max_per_batch;
+            
+            $arg_sets++;
+            while (my ($key, $val) = each %{$fa->[0]}) {
+                $arg_counts{"${key}:::$val"}++;
+            }
 	}
 	
-	foreach my $batch (@find_and_nonp_args) {
+        my @cols_to_presearch;
+        if ($arg_sets > 5) {
+            while (my ($arg, $count) = each %arg_counts) {
+                if ($count == $arg_sets) {
+                    my ($col, $val) = split(':::', $arg);
+                    push(@cols_to_presearch, ($col => $val));
+                }
+            }
+        }
+        
+        my $presearch_min_id;
+	foreach my $batch_i (0..$#find_and_nonp_args) {
+            my $batch = $find_and_nonp_args[$batch_i];
+            
 	    my $transaction = sub {
 		# we do not need to lock the whole table at the start here;
 		# the row-level locking we do seems to be sufficient, at least
 		# for MySQL InnoDB.
 		
-		# first go through everything and find existing rows for update
+                # we want to find existing rows, but it is slow to call
+                # $rs->search on every $arg_set in @$batch; we'll first do a
+                # fast check that there are any matching rows by seeing if the
+                # is_key args common to all $arg_sets have a count of 0
+                my $do_searches = 1;
+                if (@cols_to_presearch) {
+                    my @min_id_args = ();
+                    if ($presearch_min_id) {
+                        @min_id_args = ('me.id' => { '>' => $presearch_min_id });
+                    }
+                    my $count = $self->get_column_values('me.id', { @cols_to_presearch, @min_id_args }, { for => 'update', rows => $max_per_batch + 1 }); # $rs->search()->count does not lock the rows
+                    if ($count == 0) {
+                        $do_searches = 0;
+                    }
+                }
+                
+		# go through everything and find existing rows for update
 		my %to_create;
 		foreach my $arg_set (@$batch) {
 		    my ($find_args, $args) = @$arg_set;
 		    
-		    # for some reason find here is a zillion times slower than
-		    # using find in get(), but using search is faster than either
-		    # method in get()
-		    my ($return, @extra) = $rs->search($find_args, { for => 'update' }) if keys %$find_args;
-		    if (@extra) {
-			my $find_str = join(', ', map { "$_ => $find_args->{$_}" } keys %$find_args);
-                        my @ids = map { $_->id } ($return, @extra);
-			die "during bulk_create_or_update for $class I searched for { $find_str } and got more than one row, with ids (@ids)\n";
-		    }
+                    my $return;
+                    if ($do_searches) {
+                        # for some reason find here is a zillion times slower than
+                        # using find in get(), but using search is faster than either
+                        # method in get()
+                        ($return, my @extra) = $rs->search($find_args, { for => 'update' }) if keys %$find_args;
+                        
+                        # there should not be any @extra, but some rare
+                        # weirdness may give us duplicate rows in the db; take
+                        # this opportunity to delete them
+                        foreach my $row (@extra) {
+                            $row->delete;
+                        }
+                    }
 		    
 		    if ($return) {
 			if (keys %$args) {
@@ -1030,9 +1074,19 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 foreach my $populate_args (values %to_create) {
                     $rs->populate($populate_args);
                 }
+                
+                # if we have skipped checking for row existance, because our
+                # transaction is for this batch only we will need to do the
+                # presearch optimisation again, but obviously we just created
+                # a bunch of new rows that will match the presearch, so we need
+                # to get the last id of what we just created so we can ignore
+                # those
+                if (@cols_to_presearch && ! $do_searches && $batch_i != $#find_and_nonp_args) {
+                    ($presearch_min_id) = $self->get_column_values('id', { @cols_to_presearch }, { order_by => { -desc => ['id'] }, rows => 1 });
+                }
 	    };
 	    
-	    $self->_do_transaction($schema, $transaction, "Failed to $class\->bulk_create_or_update");
+	    $self->do_transaction($transaction, "Failed to $class\->bulk_create_or_update", $schema);
 	}
     }
     
