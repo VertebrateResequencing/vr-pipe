@@ -197,9 +197,8 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     method run (VRPipe::StepState :$stepstate?) {
         # check we're allowed to run, in a transaction to avoid race condition
-        my $schema = $self->result_source->schema;
         my $do_return = 0;
-        $schema->txn_do(sub {
+        my $transaction = sub {
             unless ($self->pending) {
                 if ($self->block_and_skip_if_ok) {
                     # Scheduler->run_on_node implementation should actually mean
@@ -239,7 +238,8 @@ class VRPipe::Job extends VRPipe::Persistent {
             $self->finished(0);
             $self->exit_code(undef);
             $self->update;
-        });
+        };
+        $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         return if $do_return;
         
         $self->disconnect;

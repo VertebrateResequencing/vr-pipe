@@ -167,12 +167,11 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             # we must not go through and update the dataelements more than
             # once simultaneously, and we must not return elements in a
             # partially updated state, so we lock/block at this point
-            my $schema = $self->result_source->schema;
             my $block = 0;
             my $continue = 1;
             do {
                 $self->reselect_values_from_db;
-                $schema->txn_do(sub {
+                my $transaction = sub {
                     my $lock_time = $self->_lock;
                     # check that the process that got the lock is still running,
                     # otherwise ignore the lock
@@ -204,7 +203,8 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                         $self->_lock(DateTime->now());
                         $self->update;
                     }
-                });
+                };
+                $self->do_transaction($transaction, "DataSource lock/block failed");
             } while ($block);
             return unless $continue;
             

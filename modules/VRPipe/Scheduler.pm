@@ -171,47 +171,40 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # claim all submission objects, associating them with the hashing id,
         # then attempt the submit and set their sid on success or release on
         # failure
-        my $schema = $self->result_source->schema;
-        my $sid;
         my $for_id = $for->id;
-        try {
-            $sid = $schema->txn_do(sub {
-                my $all_claimed = 1;
-                foreach my $sub (@$submissions) {
-                    my $claimed = $sub->claim;
-                    unless ($claimed) {
-                        $all_claimed = 0;
-                        last;
-                    }
-                    $sub->_hid($for_id);
-                    $sub->_aid(++$aid);
+        my $transaction = sub {
+            my $all_claimed = 1;
+            foreach my $sub (@$submissions) {
+                my $claimed = $sub->claim;
+                unless ($claimed) {
+                    $all_claimed = 0;
+                    last;
                 }
+                $sub->_hid($for_id);
+                $sub->_aid(++$aid);
+            }
+            
+            if ($all_claimed) {
+                my $got_sid = $self->get_sid($cmd_line);
                 
-                if ($all_claimed) {
-                    my $got_sid = $self->get_sid($cmd_line);
-                    
-                    if ($got_sid) {
-                        foreach my $sub (@$submissions) {
-                            $sub->sid($got_sid);
-                        }
-                        return $got_sid;
+                if ($got_sid) {
+                    foreach my $sub (@$submissions) {
+                        $sub->sid($got_sid);
                     }
-                    else {
-                        foreach my $sub (@$submissions) {
-                            $sub->release;
-                        }
-                        die "failed to submit to scheduler";
-                    }
+                    return $got_sid;
                 }
                 else {
-                    die "failed to claim all submissions";
+                    foreach my $sub (@$submissions) {
+                        $sub->release;
+                    }
+                    die "failed to submit to scheduler";
                 }
-            });
-        }
-        catch ($err) {
-            $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-            $self->throw("Failed to claim & submit: $err");
-        }
+            }
+            else {
+                die "failed to claim all submissions";
+            }
+        };
+        my $sid = $self->do_transaction($transaction, "Failed to claim & submit");
         
         return $sid;
         

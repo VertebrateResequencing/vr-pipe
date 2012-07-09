@@ -349,7 +349,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     }
     
     method _all_datasource_files {
-        my $schema = $self->_handle;
         my $sources = $self->vrpipe_sources;
         my @all_files;
         foreach my $setup_id (sort keys %{$sources}) {
