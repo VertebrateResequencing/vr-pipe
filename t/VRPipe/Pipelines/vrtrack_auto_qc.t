@@ -73,26 +73,34 @@ my $auto_qc_ps = VRPipe::PipelineSetup->get(name => 'auto_qc',
 
 ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
 
-my %actual_auto_qc_files;
-$lni = 0;
-foreach my $de (@{$auto_qc_ps->datasource->elements}) {
-    my @output_subdirs = output_subdirs($de->id, $auto_qc_ps->id);
-    my $lane_name = $lane_names[$lni++];
-    my $file_name = $lane_name;
-    $file_name =~ s/#/_/;
-    my $aqcfile = VRPipe::File->get(path => file(@output_subdirs, '1_vrtrack_auto_qc', $file_name.'.auto_qc.txt'));
-    if ($aqcfile->s) {
-        $actual_auto_qc_files{$lane_name} = [$aqcfile->slurp];
+# check autoqc tests on vrtrack database
+my %actual_auto_qc_data;
+$vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+die "Can't connect to tracking database\n" unless $vrtrack;
+
+foreach my $lane_name (@lane_names) {
+    my $sql = qq[select test,CASE result when 1 then "PASSED" when 0 then "FAILED" END as result,reason,m.mapstats_id from autoqc as a join latest_mapstats as m on m.mapstats_id = a.mapstats_id join latest_lane as l on l.lane_id = m.lane_id where l.name='$lane_name' order by a.autoqc_id;];
+
+    my $sth = $vrtrack->{_dbh}->prepare($sql);
+    $sth->execute();
+    while (my $r = $sth->fetchrow_hashref) {
+        push @{$actual_auto_qc_data{$lane_name}}, "$r->{test}:\t$r->{result}\t # $r->{reason}\n";
     }
+    $sth->finish;
 }
-my %expected_auto_qc_files;
+
+my %expected_auto_qc_data;
 foreach my $lane_name (@lane_names) {
     my $file_name = $lane_name;
     $file_name =~ s/#/_/;
-    my $aqcfile = VRPipe::File->get(path => file('t', 'data', $file_name.'.auto_qc.txt')->absolute);
-    $expected_auto_qc_files{$lane_name} = [$aqcfile->slurp];
+    my $aqcfile = file('t', 'data', $file_name.'.auto_qc.txt')->absolute;
+	open FILE, "<", $aqcfile or die $aqcfile, $!;
+    while (<FILE>) {
+		push @{$expected_auto_qc_data{$lane_name}},$_ unless /^Verdict/;
+	}
+	close FILE;
 }
-is_deeply \%actual_auto_qc_files, \%expected_auto_qc_files, 'auto qc pipeline generated the expected report txt files showing why the lanes passed';
+is_deeply \%actual_auto_qc_data, \%expected_auto_qc_data, 'auto qc pipeline generated the expected autoqc on vrtrack showing why the lanes passed';
 
 my $passed_auto_qc_lanes = 0;
 my $failed_auto_qc_libs = 0;
