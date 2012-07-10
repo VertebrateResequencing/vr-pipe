@@ -337,7 +337,7 @@ class VRPipe::FrontEnd {
     
     method ask_for_object (Str :$question!, Str :$class!, Str :$column!) {
         $self->make_all_objects($class);
-        my @things = $class->search({});
+        my @things = "VRPipe::$class"->search({});
         my %things = map { $_->$column => $_ } @things;
         my @thing_keys = sort keys %things;
         $self->output("\n");
@@ -358,7 +358,7 @@ class VRPipe::FrontEnd {
     }
     
     method already_exists (Str $class!, Str $key!, Str $value!) {
-        my $found = $class->search({ $key => $value });
+        my $found = "VRPipe::$class"->search({ $key => $value });
         if ($found) {
             return "a $class already exists with $key '$value'";
         }
