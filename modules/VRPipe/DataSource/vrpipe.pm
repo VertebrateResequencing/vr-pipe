@@ -364,7 +364,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                                                                'dataelement.withdrawn' => 0, 
                                                                'stepstate.stepmember' => $sources->{$setup_id}->{final_smid}, 
                                                                'output_key' => { '!=', 'temp' } }, 
-                                                             { join => {'stepstate' => 'dataelement'} });
+                                                             { join => {'stepstate' => 'dataelement'}, prefetch => 'file' });
             while (my $outputs = $pager->next) {
                 foreach my $output (@$outputs) {
                     push @all_files, $output->file->resolve;

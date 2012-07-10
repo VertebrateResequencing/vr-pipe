@@ -155,13 +155,13 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         my $num_steps = $pipeline->step_members;
         
         return VRPipe::DataElementState->search_paged({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
-                                                      { join => 'dataelement' });
+                                                      { join => 'dataelement', prefetch => 'dataelement' });
     }
     
     method _prepare_elements_and_states (Bool $status_messages = 0) {
         my $source = $self->_source_instance || return;
         
-        my @setups = VRPipe::PipelineSetup->search({ datasource => $self->id });
+        my @setup_ids = VRPipe::PipelineSetup->get_column_values('id', { datasource => $self->id });
         
         if ($source->_has_changed) {
             # we must not go through and update the dataelements more than
@@ -247,8 +247,8 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             my $pager = VRPipe::DataElement->get_column_values_paged('id', { datasource => $self->id, $most_recent_element_id ? (id => { '>' => $most_recent_element_id }) : () });
             while (my $eids = $pager->next) {
                 foreach my $eid (@$eids) {
-                    foreach my $setup (@setups) {
-                        push(@des_args, { pipelinesetup => $setup->id, dataelement => $eid });
+                    foreach my $setup_id (@setup_ids) {
+                        push(@des_args, { pipelinesetup => $setup_id, dataelement => $eid });
                     }
                 }
             }
@@ -271,14 +271,14 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             my $expected_count = VRPipe::DataElement->search({ datasource => $self->id });
             
             my @des_args;
-            foreach my $setup (@setups) {
-                my $count = VRPipe::DataElementState->search({ pipelinesetup => $setup->id });
+            foreach my $setup_id (@setup_ids) {
+                my $count = VRPipe::DataElementState->search({ pipelinesetup => $setup_id });
                 
                 if ($count < $expected_count) {
-                    my $pager = VRPipe::DataElement->search_paged({ datasource => $self->id });
-                    while (my $dataelements = $pager->next) {
-                        foreach my $element (@$dataelements) {
-                            push(@des_args, { pipelinesetup => $setup->id, dataelement => $element->id });
+                    my $pager = VRPipe::DataElement->get_column_values_paged('id', { datasource => $self->id });
+                    while (my $dataelement_ids = $pager->next) {
+                        foreach my $eid (@$dataelement_ids) {
+                            push(@des_args, { pipelinesetup => $setup_id, dataelement => $eid });
                         }
                     }
                 }

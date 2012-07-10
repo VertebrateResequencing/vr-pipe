@@ -98,7 +98,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
     
     method setups (Str :$pipeline_name?) {
         my @setups;
-        foreach my $ps (VRPipe::PipelineSetup->search({ })) {
+        foreach my $ps (VRPipe::PipelineSetup->search({ }, { prefetch => 'pipeline' })) {
             my $p = $ps->pipeline;
             if ($pipeline_name) {
                 next unless $p->name eq $pipeline_name;
@@ -464,7 +464,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
     
     method check_running  {
         # update the status of each submission in case any of them finished
-        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0 });
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0 }, { prefetch => 'job' });
         
         my $still_not_done = 0;
         my $c = 0;
@@ -519,7 +519,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # and Job methods to work out why and resubmit them as appropriate,
         # potentially with updated Requirements. max_retries defaults to 3.
         
-        my $pager = VRPipe::Submission->search_paged({ _failed => 1, retries => { '<' => $max_retries } });
+        my $pager = VRPipe::Submission->search_paged({ _failed => 1, retries => { '<' => $max_retries } }, { prefetch => [qw(scheduler requirements)] });
         
         while (my $subs = $pager->next) {
             foreach my $sub (@$subs) {
@@ -579,7 +579,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # first getting the most recently created submission and then searching
         # for ids less than that.
         my ($last_sub_id) = VRPipe::Submission->get_column_values('id', {}, { order_by => { -desc => 'id' }, rows => 1 });
-        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, 'id' => { '<=' => $last_sub_id } }, { order_by => 'requirements' }, 1000);
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, 'me.id' => { '<=' => $last_sub_id } }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
         
         my $scheduler = VRPipe::Scheduler->get;
         SLOOP: while (my $subs = $pager->next) {

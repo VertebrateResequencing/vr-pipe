@@ -79,7 +79,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                                               ['_output_files' => 'VRPipe::StepOutputFile']]);
     
     method output_files (PersistentFileHashRef $new_hash?) {
-        my @current_sofiles = VRPipe::StepOutputFile->search({ stepstate => $self->id, output_key => { '!=' => 'temp' } });
+        my @current_sofiles = VRPipe::StepOutputFile->search({ stepstate => $self->id, output_key => { '!=' => 'temp' } }, { prefetch => 'file' });
         my %hash;
         foreach my $sof (@current_sofiles) {
             push(@{$hash{$sof->output_key}}, $sof->file);

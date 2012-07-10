@@ -489,7 +489,7 @@ role VRPipe::StepRole {
                 next if $resolved->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
                 my $count = 0;
                 my $state;
-                foreach my $sof (VRPipe::StepOutputFile->search({ file => $file->id })) {
+                foreach my $sof (VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' })) {
                     $count++;
                     $state = $sof->stepstate;
                 }

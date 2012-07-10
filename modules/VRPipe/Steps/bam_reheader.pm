@@ -349,10 +349,10 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my @history;
         if ($pipelinesetup->datasource->type eq 'vrpipe') {
             my $vrpipe_sources = $pipelinesetup->datasource->_source_instance->vrpipe_sources;
-            foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id })) {
+            foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id }, { prefetch => [qw(pipelinesetup parent)] })) {
+                my $this_pipelinesetup = $link->pipelinesetup;
                 my $setup_id = $link->pipelinesetup->id;
                 next unless exists $vrpipe_sources->{$setup_id};
-                my $this_pipelinesetup = VRPipe::PipelineSetup->get(id => $setup_id);
                 my $this_stepmember = VRPipe::StepMember->get(id => $vrpipe_sources->{$setup_id}->{final_smid});
                 push @history, $self->command_history(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember);
             }
@@ -383,7 +383,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 $readgroups{$lane} = 1;
             }
         }
-        foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id })) {
+        foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id }, { prefetch => 'parent' })) {
             foreach my $rg ($self->element_readgroups($link->parent)) {
                 $readgroups{$rg} = 1;
             }
