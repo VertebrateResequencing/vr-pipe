@@ -60,7 +60,6 @@ sub postfilter {
     # line; fix them now
     s/^(\s*method .+)\n\s+(\#.+?)\n(\s*)/$1\n$3$2\n$3/gm;
     
-    
     # it also likes adding extra spaces between ; and # - remove these
     s/^(\s*\S[^#]+?); +\#/$1; #/gm;
     
