@@ -289,53 +289,54 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 	    }
 	}
         
-    # overlapping base duplicate percent
-    # calculate the proportion of mapped bases duplicated e.g. if a fragment
-    # is 160bp - then 40bp out of 200bp sequenced (or 20% of bases sequenced
-    # in the fragment are duplicate sequence)
-    #
-    #------------->
-    #          <------------
-    #        160bp
-    #|---------------------|
-    #          |--|
-    #          40bp
-    if (defined $auto_qc_overlapping_base_duplicate_percent) {
-        my $lengths = $bc->read_lengths();
-        if (@$lengths == 1) {
-            my $seqlen = $lengths->[0]->[0];
-            my $is_lines = $bc->insert_size() || [];
-            
-            if (@$is_lines) {
-                my ($short_paired_reads, $normal_paired_reads, $total_paired_reads, $dup_mapped_bases, $tot_mapped_bases);
-                foreach my $is_line (@$is_lines) {
-                    my ($is, $pairs_total, $inward, $outward, $other) = @$is_line;
-                    next unless $pairs_total;
+        
+        # overlapping base duplicate percent
+        # calculate the proportion of mapped bases duplicated e.g. if a fragment
+        # is 160bp - then 40bp out of 200bp sequenced (or 20% of bases sequenced
+        # in the fragment are duplicate sequence)
+        #
+        #------------->
+        #          <------------
+        #        160bp
+        #|---------------------|
+        #          |--|
+        #          40bp
+        if (defined $auto_qc_overlapping_base_duplicate_percent) {
+            my $lengths = $bc->read_lengths();
+            if (@$lengths == 1) {
+                my $seqlen = $lengths->[0]->[0];
+                my $is_lines = $bc->insert_size() || [];
+                
+                if (@$is_lines) {
+                    my ($short_paired_reads, $normal_paired_reads, $total_paired_reads, $dup_mapped_bases, $tot_mapped_bases);
+                    foreach my $is_line (@$is_lines) {
+                        my ($is, $pairs_total, $inward, $outward, $other) = @$is_line;
+                        next unless $pairs_total;
+                        
+                        if (($seqlen * 2) > $is) {
+                            $short_paired_reads += $pairs_total;
+                            $dup_mapped_bases += $pairs_total * (($seqlen * 2) - $is);
+                        }
+                        else {
+                            $normal_paired_reads += $pairs_total;
+                        }
+                        $total_paired_reads += $pairs_total;
+                        $tot_mapped_bases += $pairs_total * ($seqlen * 2);
+                    }
                     
-                    if (($seqlen * 2) > $is) {
-                        $short_paired_reads += $pairs_total;
-                        $dup_mapped_bases += $pairs_total * (($seqlen * 2) - $is);
+                    my $percent = sprintf("%0.1f", ($dup_mapped_bases * 100) / $tot_mapped_bases);
+                    my $max = $auto_qc_overlapping_base_duplicate_percent;
+                    
+                    $reason = "The percent of bases duplicated due to reads of a pair overlapping ($percent) is smaller than or equal to $max.";
+                    my $status = 1;
+                    if ($percent > $max) {
+                        $reason = "The percent of bases duplicated due to reads of a pair overlapping ($percent) is greater than $max.";
+                        $status = 0;
                     }
-                    else {
-                        $normal_paired_reads += $pairs_total;
-                    }
-                    $total_paired_reads += $pairs_total;
-                    $tot_mapped_bases += $pairs_total * ($seqlen * 2);
+                    push @qc_status, { test => 'Overlap duplicate base percent', status => $status, reason => $reason };
                 }
-                
-                my $percent = sprintf("%0.1f", ($dup_mapped_bases * 100) / $tot_mapped_bases);
-                my $max = $auto_qc_overlapping_base_duplicate_percent;
-                
-                $reason = "The percent of bases duplicated due to reads of a pair overlapping ($percent) is smaller than or equal to $max.";
-                my $status = 1;
-                if ($percent > $max) {
-                    $reason = "The percent of bases duplicated due to reads of a pair overlapping ($percent) is greater than $max.";
-                    $status = 0;
-                }
-                push @qc_status, { test => 'Overlap duplicate base percent', status => $status, reason => $reason };
             }
         }
-    }
         
 	# now output the results
 
