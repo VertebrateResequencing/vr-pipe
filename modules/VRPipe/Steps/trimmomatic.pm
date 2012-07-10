@@ -33,8 +33,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
-use File::Basename; 
-       
+use File::Basename;
+use List::MoreUtils qw(natatime);
     around options_definition {
         return { %{$self->$orig},
                  trimmomatic_jar_path => VRPipe::StepOption->get(description => 'path to Trimmomatic jar file', optional => 1, default_value => "$ENV{TRIMMOMATIC}"),
@@ -68,24 +68,66 @@ use File::Basename;
            )->path;
            
            my $step_options = $options->{'trimmomatic_step_options'};
-         
+           my $paired_end = $options->{'paired_end'};
            # IF SINGLE END
-           # warn Dumper $self->inputs->{fastq_files}; 
-           foreach my $seq_file  (@{$self->inputs->{fastq_files}}) {
-               my ($name) = fileparse( $seq_file->basename, ('.fastq') );
-               my $out_file = $self->output_file( output_key => 'trimmomatic_files',
-                                          basename => $name .'.trim.fastq',
-                                          type => 'fq',
-                                          metadata => $seq_file->metadata);
-               my $out_file_path = $out_file->path; 
-               my $seq_file_path = $seq_file->path;
-               my $cmd = $self->java_exe . " $jvm_args -classpath $trimmomatic_jar_path org.usadellab.trimmomatic.TrimmomaticSE $qual_enc -trimlog $log_file $seq_file_path $out_file_path $step_options";
-              $self->dispatch([ qq[$cmd], $req, { output_files => [ $out_file ] } ]);
-           }
-           # IF PAIRED END
-           # foreach pair of inputs 
-           #   $self->dispatch();
-       };
+           if(!$paired_end){
+               foreach my $seq_file  (@{$self->inputs->{fastq_files}}) {
+                   my ($name) = fileparse( $seq_file->basename, ('.fastq') );
+                   my $out_file = $self->output_file( output_key => 'trimmomatic_files',
+                                              basename => $name .'.trim.fastq',
+                                              type => 'fq',
+                                              metadata => $seq_file->metadata);
+                   my $out_file_path = $out_file->path; 
+                   my $seq_file_path = $seq_file->path;
+                   my $cmd = $self->java_exe . " $jvm_args -classpath $trimmomatic_jar_path org.usadellab.trimmomatic.TrimmomaticSE $qual_enc -trimlog $log_file $seq_file_path $out_file_path $step_options";
+                   $self->dispatch([ qq[$cmd], $req, { output_files => [ $out_file ] } ]);
+              }
+          }
+
+          if($paired_end) {
+              # must be even number.
+              my @input_files = @{$self->inputs->{fastq_files}};
+              $self->throw("Require an even number of input files for paired end processing.") 
+                     if(  @input_files % 2  );
+                
+              # expect a list of paired end files,  fastq.1 fastq.2 ..
+              my $it = natatime 2, @input_files;
+              while( my @pair = $it->() ) {
+                my ($name1) = fileparse( $pair[0]->basename, ('.fastq') );
+                my $out_file_1 = $self->output_file( output_key => 'trimmomatic_files',
+                                              basename => $name1 .'.paired.trim.fastq',
+                                              type => 'fq',
+                                              metadata => $pair[0]->metadata);
+                
+                my $out_file_2 = $self->output_file( output_key => 'trimmomatic_files',
+                                              basename => $name1 .'.unpaired.trim.fastq',
+                                              type => 'fq',
+                                              metadata => $pair[0]->metadata);
+
+                my ($name2) = fileparse( $pair[1]->basename, ('.fastq') );
+                my $out_file_3 = $self->output_file( output_key => 'trimmomatic_files',
+                                              basename => $name2 .'.paired.trim.fastq',
+                                              type => 'fq',
+                                              metadata => $pair[1]->metadata);
+              
+                my $out_file_4 = $self->output_file( output_key => 'trimmomatic_files',
+                                              basename => $name2 .'.unpaired.trim.fastq',
+                                              type => 'fq',
+                                              metadata => $pair[1]->metadata);
+             
+                my $out_file_path_1 = $out_file_1->path;
+                my $out_file_path_2 = $out_file_2->path;
+                my $out_file_path_3 = $out_file_3->path;
+                my $out_file_path_4 = $out_file_4->path;
+                
+                my $seq_file_path_1 = $pair[0]->path;
+                my $seq_file_path_2 = $pair[1]->path;
+
+                my $cmd = $self->java_exe . " $jvm_args -classpath $trimmomatic_jar_path org.usadellab.trimmomatic.TrimmomaticPE $qual_enc -trimlog $log_file $seq_file_path_1 $seq_file_path_2 $out_file_path_1 $out_file_path_2 $out_file_path_3 $out_file_path_4 $step_options";
+               $self->dispatch([ qq[$cmd], $req, { output_files => [ $out_file_1, $out_file_2, $out_file_3, $out_file_4 ] } ]);
+             } #end while
+          }#end if paired end 
+      };
     }
 
     method outputs_definition {

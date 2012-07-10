@@ -20,7 +20,7 @@ my $setup = VRPipe::PipelineSetup->get(name => 'trimmomatic',
                                        datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data fastqc_report_datasource.fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
-                                       options => {}
+                                       options => { }
 );
 
 my @output_subdirs = output_subdirs(1);
@@ -30,3 +30,4 @@ my $logfile = file(@output_subdirs, '1_trimmomatic', "trimmomatic.log");
 push(@outfiles, $outputfile, $logfile);
 ok handle_pipeline(@outfiles), 'trimmomatic pipeline ran ok, generating the expected trimmed file';
 
+# Some more tests here on expected output 
