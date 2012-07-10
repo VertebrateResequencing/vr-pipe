@@ -14,9 +14,6 @@ BEGIN {
     use_ok('VRTrack::Factory');
 }
 
-
-exit;
-
 # setup a little VRTrack db that has its files in irods. The sql used here will
 # need updating when VRTrack schema is incremented; to do that, put an exit
 # after the following block and run this test to create the db, then update
