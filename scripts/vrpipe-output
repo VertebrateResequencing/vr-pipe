@@ -146,8 +146,6 @@ if ($md5 && !$print) {
     $print = 1;
 }
 
-my $schema = $frontend->schema;
-
 # handle --step
 my %desired_steps;
 my $limit_steps = 0;
@@ -197,17 +195,18 @@ else {
 
 # loop through completed elements
 my $pipeline_length = @step_members;
-my $elements_pager = $setup->datasource->elements(1);
+my $estates_pager = $setup->dataelementstates_pager;
 my $count = 0;
 my $incomplete = 0;
-while (my $elements = $elements_pager->next) {
-    foreach my $element (@$elements) {
-        my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+my %done_outputs;
+while (my $estates = $estates_pager->next) {
+    foreach my $element_state (@$estates) {
         unless ($element_state->completed_steps == $pipeline_length) {
             $incomplete++;
             next;
         }
         
+        my $element = $element_state->dataelement;
         my $eident = "DataElement ".$element->id;
         
         my ($element_result, $input_parent_dir, $input_basename);
@@ -260,6 +259,11 @@ while (my $elements = $elements_pager->next) {
                             next FILE unless $val =~ /$regex/;
                         }
                     }
+                    
+                    # for block_and_skip jobs, multiple estates can claim to
+                    # have output the same output file, so we uniqify
+                    next if exists $done_outputs{$file->id};
+                    $done_outputs{$file->id} = 1;
                     
                     my %hash;
                     $hash{path} = $file->path->stringify;
@@ -359,7 +363,7 @@ while (my $elements = $elements_pager->next) {
                     $this_output_dir = dir($output_dir);
                 }
                 
-                $this_output_dir->mkpath;
+                $this_output_dir->mkpath unless $pretend;
             }
             
             # figure out basename_from_metadata
@@ -390,7 +394,7 @@ while (my $elements = $elements_pager->next) {
                 }
             }
             
-            # create a symlink for each output file
+            # create a symlink for each output file.
             foreach my $output_file (@output_files) {
                 # work out the basename
                 my $this_basename;

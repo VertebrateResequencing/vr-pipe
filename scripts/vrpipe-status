@@ -40,7 +40,6 @@ my $brief = $frontend->opts('brief');
 
 my @setups = $frontend->get_pipelinesetups();
 
-my $schema = $frontend->schema;
 foreach my $setup (@setups) {
     my $active = $setup->active;
     my $note = '';
@@ -112,20 +111,22 @@ foreach my $setup (@setups) {
         my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
         $frontend->output("Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)");
         
-        my $rs = $schema->resultset("Submission")->search({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id },
-                                                          { join => ['stepstate'] });
+        my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id },
+                                                     { join => ['stepstate'], prefetch => 'job' });
         
         my %sub_stats;
-        while (my $sub = $rs->next) {
-            my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
-            if ($sub_state eq 'scheduled') {
-                my $job = $sub->job;
-                $sub_state = $job->finished ? 'finished' : ($job->running ? 'running' : 'pending');
+        while (my $subs = $pager->next) {
+            foreach my $sub (@$subs) {
+                my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+                if ($sub_state eq 'scheduled') {
+                    my $job = $sub->job;
+                    $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
+                }
+                $sub_stats{$sub_state}++;
             }
-            $sub_stats{$sub_state}++;
         }
         if (keys %sub_stats) {
-            $frontend->display_hash("\nCurrent submission state", \%sub_stats, [qw(running pending failed)]);
+            $frontend->display_hash("\nCurrent submission state", \%sub_stats, [qw(running processing pending failed)]);
             if (keys %sub_stats == 1 && exists $sub_stats{failed}) {
                 my $failed = $sub_stats{failed};
                 if ($failed >= $num_incomplete) {

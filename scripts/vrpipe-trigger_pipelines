@@ -33,7 +33,7 @@ my $verbose = 0;
 my $limit = 2000;
 my $result = GetOptions("verbose" => \$verbose, "limit=i" => \$limit);
 
-my $manager = VRPipe::Manager->get(global_limit => $limit);
+my $manager = VRPipe::Manager->create(global_limit => $limit);
 $manager->set_verbose_global(1) if $verbose;
 
 while (1) {

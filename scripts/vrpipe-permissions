@@ -96,20 +96,20 @@ else {
 
 # loop through completed elements, getting the list of file paths to work with
 my $pipeline_length = @step_members;
-my $elements_pager = $setup->datasource->elements(1);
+my $estates_pager = $setup->dataelementstates_pager;
 my $complete_elements = 0;
 my $incomplete = 0;
-my @paths;
-while (my $elements = $elements_pager->next) {
-    foreach my $element (@$elements) {
-        my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
+my %paths;
+while (my $estates = $estates_pager->next) {
+    foreach my $element_state (@$estates) {
         unless ($element_state->completed_steps == $pipeline_length) {
             $incomplete++;
             next;
         }
         $complete_elements++;
         
-        # alter outputs
+        # collect outputs
+        my $element = $element_state->dataelement;
         foreach my $stepm (@allowed_step_members) {
             my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
             my $smid = $stepm->id;
@@ -124,13 +124,14 @@ while (my $elements = $elements_pager->next) {
                 
                 my @file_data;
                 foreach my $file (@files) {
-                    push(@paths, $file->path->stringify);
+                    $paths{$file->path->stringify} = 1;
                 }
             }
         }
     }
 }
 
+my @paths = keys %paths;
 my $changed = @paths;
 $frontend->output("$incomplete incomplete data elements were ignored, and $changed files were selected for alteration for $complete_elements complete elements...");
 
