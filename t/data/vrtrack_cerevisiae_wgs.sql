@@ -109,7 +109,7 @@ CREATE TABLE `file` (
   `raw_reads` bigint(20) unsigned default NULL,
   `raw_bases` bigint(20) unsigned default NULL,
   `mean_q` float unsigned default NULL,
-  `md5` varchar(40) default NULL,
+  `md5` char(32) default NULL,
   `note_id` mediumint(8) unsigned default NULL,
   `changed` datetime NOT NULL default '0000-00-00 00:00:00',
   `latest` tinyint(1) default '0',
@@ -257,7 +257,7 @@ DROP TABLE IF EXISTS `latest_file`;
   `raw_reads` bigint(20) unsigned,
   `raw_bases` bigint(20) unsigned,
   `mean_q` float unsigned,
-  `md5` varchar(40),
+  `md5` char(32),
   `note_id` mediumint(8) unsigned,
   `changed` datetime,
   `latest` tinyint(1)
