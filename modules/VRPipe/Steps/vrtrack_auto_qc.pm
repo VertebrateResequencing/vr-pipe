@@ -94,26 +94,21 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             while (my ($lane, $files) = each %by_lane) {
 		$self->throw("There was not exactly 1 bam file and 1 bamcheck file per lane for lane $lane (@$files)") unless @$files == 2;
 		
-		my $basename = $lane;
-		$basename =~ s/[^\w-]/_/g;
-		my $output_file = $self->output_file(output_key => 'auto_qc_summary', basename => $basename.'.auto_qc.txt', type => 'txt');
-		my $output_path = $output_file->path;
-		
-                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent}, results => q[$output_path]);";
-                $self->dispatch_vrpipecode($cmd, $req, {output_files => [$output_file]});
+        my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent} );";
+        $self->dispatch_vrpipecode($cmd, $req);
             }
         };
     }
     method outputs_definition {
-        return { auto_qc_summary => VRPipe::StepIODefinition->get(type => 'txt',
-                                                                  description => 'a summary text file explaining why the auto qc passed or failed',
-                                                                  max_files => -1) };
+        return {};
     }
+
     method description {
         return "Considering the stats in the bamcheck file for a lane, and the metadata stored on the bam file and in the VRTrack database for the corresponding lane, automatically decide if the lane passes the quality check.";
     }
 
-    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str|File :$results!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?) {
+    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?) {
+
 	my $bam_file = VRPipe::File->get(path => $bam);
 	my $meta = $bam_file->metadata;
 	my $bc = VRPipe::Parser->create('bamcheck', {file => $bamcheck});
@@ -344,17 +339,14 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         }
         
 	# now output the results
-	my $results_file = VRPipe::File->get(path => $results);
-	my $ofh = $results_file->openw;
+
+	# Get overall autoqc result
 	$status = 1;
 	for my $stat (@qc_status) {
 	    if (! $stat->{status}) {
 		$status = 0;
 	    }
-	    print $ofh "$stat->{test}:\t", ($stat->{status} ? 'PASSED' : 'FAILED'), "\t # $stat->{reason}\n";
 	}
-	print $ofh "Verdict:\t", ($status ? 'PASSED' : 'FAILED'), "\n";
-	$results_file->close;
 	
 	# write results to the VRTrack database
 	my $worked = $vrtrack->transaction(sub {
@@ -372,6 +364,13 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 		    $lib_to_update->update();
 		}
 	    }
+
+		# output autoQC results to the mapping stats
+		for my $stat (@qc_status) {
+			$mapstats->add_autoqc($stat->{test},$stat->{status},$stat->{reason});
+		}
+		$mapstats->update;
+
 	    $vrlane->auto_qc_status($status ? 'passed' : 'failed');
 	    
 	    # also, if we did our own genotype check, write those results back
