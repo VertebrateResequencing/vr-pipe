@@ -93,7 +93,7 @@ class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
         }
         my $ploidy_default = $$ploidy_regions{default} || 2;
         
-        my $reg_file = VRPipe::File->get(path => $genomic_region_file);
+        my $reg_file = VRPipe::File->create(path => $genomic_region_file);
         my $rfh = $reg_file->openr;
         
         my @chr_regions;

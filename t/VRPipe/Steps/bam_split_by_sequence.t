@@ -15,8 +15,8 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_split_by_s
 is_deeply [$step->id, $step->description], [1, 'Splits a BAM file into multiple BAM files, one for each sequence the reads were aligned to'], 'bam_split_by_sequence step created and has correct description';
 
 # test using the class methods directly
-my $parse_bam = file(qw(t data parser.1kg_lane.bam))->absolute->stringify;
-my $test_bam = file(qw(t data 2822_6.pe.bam))->absolute->stringify;
+my $parse_bam = VRPipe::File->create(path => file(qw(t data parser.1kg_lane.bam))->absolute)->path->stringify;
+my $test_bam = VRPipe::File->create(path => file(qw(t data 2822_6.pe.bam))->absolute)->path->stringify;
 my $split_dir = $output_dir->stringify;
 
 my $split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $split_dir, pretend => 1);

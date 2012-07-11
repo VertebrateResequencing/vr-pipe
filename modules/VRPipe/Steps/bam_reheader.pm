@@ -263,7 +263,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             $header_lines++;
         }
         if ($comment) {
-            my $comment_file = VRPipe::File->get(path => $comment);
+            my $comment_file = VRPipe::File->create(path => $comment);
             my $cfh = $comment_file->openr;
             while (<$cfh>) {
                 next unless /^\@CO/;
@@ -361,7 +361,9 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my @readgroups = $self->element_readgroups($dataelement);
         return () unless @readgroups;
         foreach my $stepm ($pipeline->step_members) {
-            my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary;
+            my ($step_state) = VRPipe::StepState->search({ pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement });
+            next unless $step_state;
+            my $cmd_summary = $step_state->cmd_summary;
             next unless $cmd_summary;
             my $step_name = $stepm->step->name;
             my $pg_hash = { program_id => $step_name, program_name => $cmd_summary->exe, program_version => $cmd_summary->version, command_line => $cmd_summary->summary, element_readgroups => \@readgroups };

@@ -141,7 +141,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
             }
             
             foreach my $prefix (@prefixes) {
-                my $split_bam = VRPipe::File->get(path => file($split_dir, $prefix.'.'.$bam_file->basename));
+                my $split_bam = VRPipe::File->create(path => file($split_dir, $prefix.'.'.$bam_file->basename));
                 $split_bams{$prefix} = $split_bam->path->stringify;
                 push(@{$seq_to_bam{$seq}}, $split_bam->path->stringify);
             }
@@ -150,7 +150,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         my @get_fields = ('RNAME');
         my ($unmapped_bam_path, $skip_mate_mapped);
         if ($make_unmapped) {
-            my $unmapped_bam = VRPipe::File->get(path => file($split_dir, 'unmapped.'.$bam_file->basename));
+            my $unmapped_bam = VRPipe::File->create(path => file($split_dir, 'unmapped.'.$bam_file->basename));
             $unmapped_bam_path = $unmapped_bam->path->stringify;
             $split_bams{unmapped} = $unmapped_bam_path;
             push(@get_fields, 'FLAG');
@@ -194,7 +194,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         foreach my $split_path (values %split_bams) {
             my $unchecked_path = $split_path.'.unchecked.bam';
             my $split_bam = VRPipe::File->get(path => file($split_path));
-            my $unchecked = VRPipe::File->get(path => file($unchecked_path));
+            my $unchecked = VRPipe::File->create(path => file($unchecked_path));
             
             $unchecked->update_stats_from_disc(retries => 3);
             

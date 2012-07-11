@@ -92,7 +92,7 @@ class VRPipe::Steps::sex_to_ploidy with VRPipe::StepRole {
 
     method write_sample_ploidy_file (ClassName|Object $self: Str|File $sample_sex_list, Str|File $sample_ploidy_path, Str :$female_ploidy, Str :$male_ploidy, Str :$assumed_sex) {
         
-        my $sex_file = VRPipe::File->get(path => $sample_sex_list);
+        my $sex_file = VRPipe::File->create(path => $sample_sex_list);
         my $fh = $sex_file->openr;
         
         my $ploidy_file = VRPipe::File->get(path => $sample_ploidy_path);

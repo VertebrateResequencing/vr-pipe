@@ -17,8 +17,8 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('fastq_decompre
 is_deeply [$step->id, $step->description], [1, 'Decompresses fastq files'], 'fastq_decompress step created and has correct description';
 
 # test using the class methods directly
-my $test_fq = file(qw(t data 2822_6.fastq.gz))->absolute;
-my $out_fq = file($output_dir, '2822_6.fastq')->absolute;
+my $test_fq = VRPipe::File->create(path => file(qw(t data 2822_6.fastq.gz))->absolute)->path;
+my $out_fq = VRPipe::File->create(path => file($output_dir, '2822_6.fastq')->absolute)->path;
 
 my $cmd = "gunzip -c $test_fq > $out_fq";
 

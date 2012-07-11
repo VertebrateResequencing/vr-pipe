@@ -265,14 +265,13 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
 =cut
     method bas (ClassName|Object $self: Str|File $in_bam!, Str|File $out_bas!, Int :$release_date? where {/^\d{8}$/}, Str|File :$sequence_index?, Bool :$rg_from_pu?, Str :$chr?) {
         unless (ref($in_bam) && ref($in_bam) eq 'VRPipe::File') {
-            $in_bam = VRPipe::File->get(path => file($in_bam));
+            $in_bam = VRPipe::File->create(path => file($in_bam));
         }
         unless (ref($out_bas) && ref($out_bas) eq 'VRPipe::File') {
-            $out_bas = VRPipe::File->get(path => file($out_bas));
+            $out_bas = VRPipe::File->create(path => file($out_bas));
         }
         
-        my $working_bas = VRPipe::File->get(path => $out_bas->path.'.working');
-        my $bas_fh = $working_bas->openw;
+        my $bas_fh = $out_bas->openw;
         
         my $expected_lines = 0;
         
@@ -482,15 +481,14 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                                      $data{duplicate_bases} || 0), "\n";
             $expected_lines++;
         }
-        $working_bas->close;
+        $out_bas->close;
         
-        my $actual_lines = $working_bas->lines;
+        my $actual_lines = $out_bas->lines;
         if ($actual_lines == $expected_lines) {
-            $working_bas->move($out_bas);
             return 1;
         }
         else {
-            $working_bas->unlink;
+            $out_bas->unlink;
             $self->warn("Wrote $expected_lines lines to ".$out_bas->path.", but only read back $actual_lines! Deleted the output.");
             return 0;
         }
