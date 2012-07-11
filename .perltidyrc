@@ -1,11 +1,10 @@
--nsfs
--pt=2
--sbt=2
--sot
--lp
--vt=2
--vtc=2
--bar
--l=0
--q
--it 2
+--nospace-for-semicolon
+--paren-tightness=2
+--square-bracket-tightness=2
+--stack-opening-tokens
+--line-up-parentheses
+--vertical-tightness=2
+--vertical-tightness-closing=2
+--opening-brace-always-on-right
+--maximum-line-length=0
+--iterations=2
