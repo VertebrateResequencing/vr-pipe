@@ -1,4 +1,4 @@
-=head1 NAME
+f=head1 NAME
 
 TestPipelines - test methods for use when testing pipelines
 
@@ -72,7 +72,7 @@ sub get_output_dir {
 }
 
 sub handle_pipeline {
-    my $give_up = 1500;
+    my $give_up = 3600;
     my $max_retries = VRPipeTest::max_retries();
     my $debug = VRPipeTest::debug();
     $manager->set_verbose_global(1) if $debug;
