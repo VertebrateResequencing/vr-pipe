@@ -1,4 +1,4 @@
-f=head1 NAME
+=head1 NAME
 
 TestPipelines - test methods for use when testing pipelines
 
