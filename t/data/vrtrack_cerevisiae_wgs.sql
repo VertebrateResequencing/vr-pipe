@@ -109,7 +109,7 @@ CREATE TABLE `file` (
   `raw_reads` bigint(20) unsigned default NULL,
   `raw_bases` bigint(20) unsigned default NULL,
   `mean_q` float unsigned default NULL,
-  `md5` varchar(40) default NULL,
+  `md5` char(32) default NULL,
   `note_id` mediumint(8) unsigned default NULL,
   `changed` datetime NOT NULL default '0000-00-00 00:00:00',
   `latest` tinyint(1) default '0',
@@ -141,7 +141,7 @@ SET character_set_client = utf8;
 CREATE TABLE `image` (
   `image_id` mediumint(8) unsigned NOT NULL auto_increment,
   `mapstats_id` mediumint(8) unsigned NOT NULL default '0',
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   `caption` varchar(40) default NULL,
   `image` mediumblob,
   PRIMARY KEY  (`image_id`),
@@ -257,7 +257,7 @@ DROP TABLE IF EXISTS `latest_file`;
   `raw_reads` bigint(20) unsigned,
   `raw_bases` bigint(20) unsigned,
   `mean_q` float unsigned,
-  `md5` varchar(40),
+  `md5` char(32),
   `note_id` mediumint(8) unsigned,
   `changed` datetime,
   `latest` tinyint(1)
@@ -569,7 +569,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `library_type` (
   `library_type_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`library_type_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -592,7 +592,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `mapper` (
   `mapper_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   `version` varchar(40) NOT NULL default '0',
   PRIMARY KEY  (`mapper_id`),
   UNIQUE KEY `name_v` (`name`,`version`)
@@ -738,7 +738,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `population` (
   `population_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`population_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -801,7 +801,7 @@ CREATE TABLE `sample` (
   `sample_id` smallint(5) unsigned NOT NULL default '0',
   `project_id` smallint(5) unsigned NOT NULL default '0',
   `ssid` mediumint(8) unsigned default NULL,
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   `hierarchy_name` varchar(40) NOT NULL default '',
   `individual_id` smallint(5) unsigned default NULL,
   `note_id` mediumint(8) unsigned default NULL,
@@ -845,7 +845,7 @@ SET character_set_client = @saved_cs_client;
 
 LOCK TABLES `schema_version` WRITE;
 /*!40000 ALTER TABLE `schema_version` DISABLE KEYS */;
-INSERT INTO `schema_version` VALUES (19);
+INSERT INTO `schema_version` VALUES (20);
 /*!40000 ALTER TABLE `schema_version` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -858,7 +858,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `seq_centre` (
   `seq_centre_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`seq_centre_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -915,7 +915,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `seq_tech` (
   `seq_tech_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`seq_tech_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -965,7 +965,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `study` (
   `study_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   `acc` varchar(40) default NULL,
   `ssid` mediumint(8) unsigned default NULL,
   `note_id` mediumint(8) unsigned default NULL,
@@ -993,7 +993,7 @@ SET character_set_client = utf8;
 CREATE TABLE `submission` (
   `submission_id` smallint(5) unsigned NOT NULL auto_increment,
   `date` datetime NOT NULL default '0000-00-00 00:00:00',
-  `name` varchar(40) NOT NULL default '',
+  `name` varchar(255) NOT NULL default '',
   `acc` varchar(40) default NULL,
   PRIMARY KEY  (`submission_id`),
   UNIQUE KEY `acc` (`acc`)
@@ -1008,6 +1008,25 @@ LOCK TABLES `submission` WRITE;
 /*!40000 ALTER TABLE `submission` DISABLE KEYS */;
 /*!40000 ALTER TABLE `submission` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `autoqc`
+--
+
+DROP TABLE IF EXISTS `autoqc`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+CREATE TABLE `autoqc`
+(
+  `autoqc_id` mediumint(8) unsigned NOT NULL auto_increment,
+   mapstats_id mediumint(8) unsigned NOT NULL DEFAULT 0,
+   `test` varchar(50) NOT NULL default '',
+   result tinyint(1) NOT NULL default '',
+   reason varchar(200) NOT NULL default '',
+   PRIMARY KEY (`autoqc_id`),
+  KEY  `mapstats_id` (`mapstats_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Final view structure for view `latest_file`

@@ -3,7 +3,8 @@ Mapped bases:	PASSED	 # At least 90.0% bases mapped after clipping (99.83%).
 Duplicate reads:	PASSED	 # 8.0% or fewer reads were duplicates (0.99%).
 Reads mapped in a proper pair:	PASSED	 # 80.0% or more reads that were mapped are in a proper pair (99.01%).
 Error rate:	PASSED	 # The error rate is lower than 0.02 (0.00357737).
-InDel ratio:	PASSED	 # The Ins/Del ratio is smaller than 1 (20297/27539)
+InDel ratio:	PASSED	 # The Ins/Del ratio is smaller than 1 (20297/27539).
 Insert size:	PASSED	 # Fail library, less than 80.0% of the inserts are within 25.0% of max peak (66.49%).
 Insert size (rev):	PASSED	 # Fail library, 80.0% of inserts are not within 25.0% of the max peak (33.54%).
+Overlap duplicate base percent:	PASSED	 # The percent of bases duplicated due to reads of a pair overlapping (1.7) is smaller than or equal to 4.
 Verdict:	PASSED

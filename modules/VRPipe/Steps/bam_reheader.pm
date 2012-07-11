@@ -267,6 +267,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             my $cfh = $comment_file->openr;
             while (<$cfh>) {
                 next unless /^\@CO/;
+                $self->throw("Bad line in header comment file $comment: $_") unless /^\@CO\t/;
                 print $hfh $_;
                 $header_lines++;
             }
