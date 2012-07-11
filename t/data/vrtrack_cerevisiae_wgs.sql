@@ -66,6 +66,34 @@ LOCK TABLES `assembly` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `autoqc`
+--
+
+DROP TABLE IF EXISTS `autoqc`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+CREATE TABLE `autoqc` (
+  `autoqc_id` mediumint(8) unsigned NOT NULL auto_increment,
+  `mapstats_id` mediumint(8) unsigned NOT NULL default '0',
+  `test` varchar(50) NOT NULL default '',
+  `result` tinyint(1) default '0',
+  `reason` varchar(200) NOT NULL default '',
+  PRIMARY KEY  (`autoqc_id`),
+  UNIQUE KEY `mapstats_test` (`mapstats_id`,`test`),
+  KEY `mapstats_id` (`mapstats_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Dumping data for table `autoqc`
+--
+
+LOCK TABLES `autoqc` WRITE;
+/*!40000 ALTER TABLE `autoqc` DISABLE KEYS */;
+/*!40000 ALTER TABLE `autoqc` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `exome_design`
 --
 
@@ -141,7 +169,7 @@ SET character_set_client = utf8;
 CREATE TABLE `image` (
   `image_id` mediumint(8) unsigned NOT NULL auto_increment,
   `mapstats_id` mediumint(8) unsigned NOT NULL default '0',
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   `caption` varchar(40) default NULL,
   `image` mediumblob,
   PRIMARY KEY  (`image_id`),
@@ -428,7 +456,7 @@ DROP TABLE IF EXISTS `latest_sample`;
   `sample_id` smallint(5) unsigned,
   `project_id` smallint(5) unsigned,
   `ssid` mediumint(8) unsigned,
-  `name` varchar(40),
+  `name` varchar(255),
   `hierarchy_name` varchar(40),
   `individual_id` smallint(5) unsigned,
   `note_id` mediumint(8) unsigned,
@@ -468,7 +496,7 @@ CREATE TABLE `library` (
   `library_request_id` mediumint(8) unsigned NOT NULL default '0',
   `sample_id` smallint(5) unsigned NOT NULL default '0',
   `ssid` mediumint(8) unsigned default NULL,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   `hierarchy_name` varchar(255) NOT NULL default '',
   `prep_status` enum('unknown','pending','started','passed','failed','cancelled','hold') default 'unknown',
   `auto_qc_status` enum('no_qc','passed','failed') default 'no_qc',
@@ -569,7 +597,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `library_type` (
   `library_type_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   PRIMARY KEY  (`library_type_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -592,7 +620,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `mapper` (
   `mapper_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   `version` varchar(40) NOT NULL default '0',
   PRIMARY KEY  (`mapper_id`),
   UNIQUE KEY `name_v` (`name`,`version`)
@@ -738,7 +766,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `population` (
   `population_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   PRIMARY KEY  (`population_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -801,7 +829,7 @@ CREATE TABLE `sample` (
   `sample_id` smallint(5) unsigned NOT NULL default '0',
   `project_id` smallint(5) unsigned NOT NULL default '0',
   `ssid` mediumint(8) unsigned default NULL,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   `hierarchy_name` varchar(40) NOT NULL default '',
   `individual_id` smallint(5) unsigned default NULL,
   `note_id` mediumint(8) unsigned default NULL,
@@ -858,7 +886,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `seq_centre` (
   `seq_centre_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   PRIMARY KEY  (`seq_centre_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -915,7 +943,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `seq_tech` (
   `seq_tech_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   PRIMARY KEY  (`seq_tech_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
@@ -965,7 +993,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 CREATE TABLE `study` (
   `study_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   `acc` varchar(40) default NULL,
   `ssid` mediumint(8) unsigned default NULL,
   `note_id` mediumint(8) unsigned default NULL,
@@ -993,7 +1021,7 @@ SET character_set_client = utf8;
 CREATE TABLE `submission` (
   `submission_id` smallint(5) unsigned NOT NULL auto_increment,
   `date` datetime NOT NULL default '0000-00-00 00:00:00',
-  `name` varchar(255) NOT NULL default '',
+  `name` varchar(255) default NULL,
   `acc` varchar(40) default NULL,
   PRIMARY KEY  (`submission_id`),
   UNIQUE KEY `acc` (`acc`)
@@ -1008,25 +1036,6 @@ LOCK TABLES `submission` WRITE;
 /*!40000 ALTER TABLE `submission` DISABLE KEYS */;
 /*!40000 ALTER TABLE `submission` ENABLE KEYS */;
 UNLOCK TABLES;
-
---
--- Table structure for table `autoqc`
---
-
-DROP TABLE IF EXISTS `autoqc`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
-CREATE TABLE `autoqc`
-(
-  `autoqc_id` mediumint(8) unsigned NOT NULL auto_increment,
-   mapstats_id mediumint(8) unsigned NOT NULL DEFAULT 0,
-   `test` varchar(50) NOT NULL default '',
-   result tinyint(1) NOT NULL default '',
-   reason varchar(200) NOT NULL default '',
-   PRIMARY KEY (`autoqc_id`),
-  KEY  `mapstats_id` (`mapstats_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
 
 --
 -- Final view structure for view `latest_file`
@@ -1117,4 +1126,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-06-21 13:45:38
+-- Dump completed on 2012-07-11 14:19:10
