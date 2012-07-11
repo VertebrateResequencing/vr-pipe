@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
-# this is exactly like the original perltidy script, except we add support for
-# MooseX::Declare method signatures, and we indent our blank lines
+# this is exactly like the original perltidy script, except we use our custom
+# VRPipe::Base::PerlTidy module instead of Perl::Tidy
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -27,7 +27,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 package main;
 
-use Perl::Tidy;
+use VRPipe::Base::PerlTidy;
 
 my $arg_string = undef;
 
@@ -39,36 +39,7 @@ if ( $^O =~ /Mac/ ) {
     );
 }
 
-Perl::Tidy::perltidy( argv => $arg_string, prefilter => \&prefilter, postfilter => \&postfilter );
-
-sub prefilter {
-    $_ = $_[0];
-    
-    # turn method into sub
-    s/^(\s*)method (.*)/$1sub $2 \#__METHOD/gm;
-    
-    return $_;
-}
-
-sub postfilter {
-    $_ = $_[0];
-    
-    # turn sub back into method
-    s/^(\s*)sub (.*?)\s* \#__METHOD/${1}method $2/gm;
-    
-    # the method->sub->method trick screws up comments that appear on the next
-    # line; fix them now
-    s/^(\s*method .+)\n\s+(\#.+?)\n(\s*)/$1\n$3$2\n$3/gm;
-    
-    # it also likes adding extra spaces between ; and # - remove these
-    s/^(\s*\S[^#]+?)([;,]) +\#/$1$2 #/gm;
-    
-    # don't have completely empty lines between things; instead indent to the
-    # correct level
-    s/\n\n([\s]+)(\S.*)/\n$1\n$1$2/gm;
-    
-    return $_;
-}
+VRPipe::Base::PerlTidy::perltidy( argv => $arg_string );
 
 __END__
 
