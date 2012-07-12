@@ -53,7 +53,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 			my $vep_opts = $options->{'vep_options'};
 			my $cat_exe;
 
-			if ($vep_opts =~ /-[i,o]/) {
+			if ($vep_opts =~ /-[i,o] /) {
 				$self->throw("vep_options should not include the -i or -o option");
 			}
 
