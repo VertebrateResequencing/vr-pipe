@@ -4,7 +4,9 @@ VRPipe::Pipelines::vcf_vep_annotate - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Pipeline to Annotate VCF files with consequences using the Ensembl Variant Effect Predictor, VEP. Performs the following steps:
+  1. vep_analysis - Accepts VCF files as imput and analyses them using Variant Effect Predictor, generating analysis output text file
+  2. vcf_vep_consequences - Generates an annotated version of the input vcf files with the consequence predictions from step 1
 
 =head1 AUTHOR
 

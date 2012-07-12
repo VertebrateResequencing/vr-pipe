@@ -1,3 +1,7 @@
+0.80    New bam_improvement_no_recal pipeline. New SGA-related pipelines. The
+        vrtrack_auto_qc step now stores test results in the new VRTrack AutoQC
+        table (instead of in a text file), and so requires VRTrack schema 20,
+        which is found in the vr-codebase git repository version 0.04 or higher.
 0.79    Another critical bug fix for dcc_metadata step. Bug fix for bam_reheader
         step. vrtrack_auto_qc step now has an extra metric.
 0.78    Critical bug fix for dcc_metadata step. Bug fix for when a step input
