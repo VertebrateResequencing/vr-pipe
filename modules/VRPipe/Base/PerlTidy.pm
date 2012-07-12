@@ -35,6 +35,14 @@ sub prefilter {
     # turn method into sub
     s/^(\s*)method (.*)/$1sub $2 \#__METHOD/gm;
     
+    # turn class into simple braced block
+    s/^(\s*)class (.+?)\{(.*?)\n/$1\{ \#__CLASS $2 \#__EXTRA $3\n/gm;
+    
+    # it messes up indentation and syntax checking for add_method(); turn it
+    # into a plain anonymous sub
+    #$meta->add_method('search_rs' => sub {
+    s/^(\s*)(.+?)->add_method(.+?) sub \{(.*)\n//;
+    
     return $_;
 }
 
@@ -43,6 +51,9 @@ sub postfilter {
     
     # turn sub back into method
     s/^(\s*)sub (.*?)\s* \#__METHOD/${1}method $2/gm;
+    
+    # restore class
+    s/^(\s*)\{\s+\#__CLASS (.+?) \#__EXTRA (.*?)\n/$1class $2\{$3\n/gm;
     
     # the method->sub->method trick screws up comments that appear on the next
     # line; fix them now
