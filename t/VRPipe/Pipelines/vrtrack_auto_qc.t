@@ -51,8 +51,8 @@ foreach my $file_prefix (qw(autoqc_normal autoqc_short)) {
     }
     
     # bamcheck metadata
-    my $bam = file('t', 'data', $file_prefix.'.bam')->absolute;
-    my $bamcheck = file($output_dir, $file_prefix.'.bam.bamcheck');
+    my $bam = VRPipe::File->create(path => file('t', 'data', $file_prefix.'.bam')->absolute)->path;
+    my $bamcheck = VRPipe::File->create(path => file($output_dir, $file_prefix.'.bam.bamcheck'))->path;
     VRPipe::Steps::bamcheck->stats_from_bamcheck("bamcheck $bam > $bamcheck");
     
     # mapstats
