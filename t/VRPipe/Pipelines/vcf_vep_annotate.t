@@ -6,10 +6,8 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-            debug => 1,
-		    required_exe => [qw(variant_effect_predictor.pl vcf2consequences_vep tabix)]);
+                    required_exe => [qw(variant_effect_predictor.pl vcf2consequences_vep tabix)]);
     use TestPipelines;
-    $ENV{'DBIC_TRACE'}=1;
 }
 
 my $output_dir = get_output_dir('vcf_vep_annotate_pipeline');
