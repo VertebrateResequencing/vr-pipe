@@ -234,6 +234,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     use VRPipe::Persistent::Pager;
+    use Data::Dumper;
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
@@ -1171,6 +1172,18 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $self->throw("$last_error");
         }
         return 1;
+    }
+    
+    # to let you Dumper a Persistent object without tons of useless stuff
+    sub _dumper_hook {
+        $_[0] = bless {
+            %{ $_[0] },
+            '_result_source' => '* not shown for clarity *',
+        }, ref($_[0]);
+    }
+    method dump {
+        local $Data::Dumper::Freezer = '_dumper_hook';
+        Dumper($self);
     }
 }
 
