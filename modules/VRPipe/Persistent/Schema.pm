@@ -59,26 +59,18 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::ConverterFactory;
     
     our $VERSION = 22;
-    #__PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
-    #                                           DataSource DataElement Pipeline
-    #                                           StepCmdSummary StepMember File
-    #                                           PipelineSetup StepBehaviour
-    #                                           StepState Submission StepAdaptor
-    #                                           PersistentArray StepOption
-    #                                           PersistentArrayMember Manager
-    #                                           StepIODefinition StepOutputFile
-    #                                           DataElementState DataElementLink
-    #                                           LocalSchedulerJob
-    #                                           LocalSchedulerJobState
-    #                                           StepStats/]});
-    
-    # if the schema changes, bump $VERSION above, then run a test script to
-    # populate your test database, then:
-    # perl -MDBIx::Class::Schema::Loader=make_schema_at,dump_to_dir:./foo -e 'make_schema_at("VRPipe::Persistent::Schema", { debug => 1 }, [ "dbi:mysql:dbname=...;host=...;port=...","username", "password" ])'
-    # rm -fr modules/VRPipe/Persistent/Schema
-    # mv foo/VRPipe/Persistent/Schema modules/VRPipe/Persistent/
-    # rm -fr foo
-    __PACKAGE__->load_namespaces;
+    __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
+                                               DataSource DataElement Pipeline
+                                               StepCmdSummary StepMember File
+                                               PipelineSetup StepBehaviour
+                                               StepState Submission StepAdaptor
+                                               PersistentArray StepOption
+                                               PersistentArrayMember Manager
+                                               StepIODefinition StepOutputFile
+                                               DataElementState DataElementLink
+                                               LocalSchedulerJob
+                                               LocalSchedulerJobState
+                                               StepStats/]});
     
     # deploy method overridden in order to add indexes in a db-dependent manner
     sub deploy {
