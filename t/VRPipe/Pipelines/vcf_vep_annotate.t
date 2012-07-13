@@ -6,10 +6,9 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-            debug => 1,
+#            debug => 1,
 		    required_exe => [qw(variant_effect_predictor.pl vcf2consequences_vep tabix)]);
     use TestPipelines;
-    $ENV{'DBIC_TRACE'}=1;
 }
 
 my $output_dir = get_output_dir('vcf_vep_annotate_pipeline');
@@ -31,7 +30,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_vep_annotate
 			source => file(qw(t data datasource.vcf_fofn))),
 		output_root => $output_dir,
 		pipeline => $pipeline,
-		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --offline --cache --dir $vep_cache",
 		'vcf2consequences_options' => "--gerp $gerp_cache",
 		cleanup => 1});
 
