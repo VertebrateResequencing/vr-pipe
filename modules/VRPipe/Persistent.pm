@@ -608,8 +608,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 
                 $schema = $GLOBAL_CONNECTED_SCHEMA;
             }
-	    
-	    my $rs = $schema->resultset("$class");
+            my $result_class = "$class";
+            $result_class =~ s/VRPipe::/VRPipe::Persistent::Schema::Result::/;
+	    my $rs = $schema->resultset($result_class);
 	    
 	    return ($schema, $rs, $class, $meta);
 	});
