@@ -38,7 +38,7 @@ use Data::Dumper;
      method options_definition {
         return {
                   bismark_exe => VRPipe::StepOption->get(description => 'path to your bismark executable', optional => 1, default_value => $ENV{BISMARK_EXE}),
-                 paired => VRPipe::StepOption->get(description => 'path to your bismark executable', optional => 1, default_value => '0'),
+                 paired_end => VRPipe::StepOption->get(description => 'path to your bismark executable', optional => 1, default_value => '0'),
                  bismark_genome_folder => VRPipe::StepOption->get( description => 'path to your bismark genome folder', optional => 1, default_value => $ENV{BISMARK_GENOME_FOLDER} )
         }
     }
@@ -59,37 +59,58 @@ use Data::Dumper;
             $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bismark', version => VRPipe::StepCmdSummary->determine_version($bismark_exe . ' --version', 'Bismark Version:  (.+) '), summary => 'bismark -o output_file bismark_genome_folder input_file'));
             my $req = $self->new_requirements(memory =>500, time => 1); #16GB RAM? Could be 8GB?
         
-            # Single end case
             my @input_file =  @{$self->inputs->{fastq_files}};
-            $self->throw("One input file expected") unless ( @input_file == 1);            
- 
-            my ($name) = fileparse( $input_file[0]->basename, ('.fastq') );
-            
-            my $output_file_1 = $self->output_file( output_key => 'bismark_report',
+                      
+            my ($name) = fileparse( $input_file[0]->basename, ('.fastq') );            
+                     
+	     #* Think about whether need any of the info bismark spits out, prob not 
+             #* my $stdoutput_file = $self->output_file( output_key => 'bismark_output',
+             #*                              basename => $name . '.out.txt',
+             #*                              type => 'txt',
+             #*                              metadata => $input_file[0]->metadata);
+             #* my $stdoutput_file_path = $stdoutput_file->path;
+             #* my $cmd ="perl $bismark_exe -o $output_file_dir $bismark_genome_folder $input_file_path >& $stdoutput_file_path";
+
+            my $bismark_genome_folder = $options->{bismark_genome_folder};
+                       my $paired = $options->{paired_end};
+            my ($cmd, $output_file_1, $output_file_2  );
+            if( ! $paired ) {   # Single end case
+               
+               $self->throw("One input file expected") unless ( @input_file == 1);  
+               $output_file_1 = $self->output_file( output_key => 'bismark_report',
                                           basename => $name . "/$name.fastq_Bismark_mapping_report.txt",
                                           type => 'txt',
                                           metadata => $input_file[0]->metadata);
             
-            my $output_file_2 = $self->output_file( output_key => 'bismark_sam',
+               $output_file_2 = $self->output_file( output_key => 'bismark_sam',
                                           basename => $name . "/$name.fastq_bismark.sam",
                                           type => 'txt',
                                           metadata => $input_file[0]->metadata);
-          
-	   #* Think about whether need any of the info bismark spits out, prob not 
-           #* my $stdoutput_file = $self->output_file( output_key => 'bismark_output',
-           #*                              basename => $name . '.out.txt',
-           #*                              type => 'txt',
-           #*                              metadata => $input_file[0]->metadata);
-           #* my $stdoutput_file_path = $stdoutput_file->path;
+                my $output_file_dir = $output_file_1->dir->stringify;
+                my $input_file_path  = $input_file[0]->path;
+                $cmd ="perl $bismark_exe -o $output_file_dir $bismark_genome_folder $input_file_path";
+            } #end if not paired
+           
+           if( $paired ) {
+             $self->throw("One input file expected") unless ( @input_file == 2);  
+             $output_file_1 = $self->output_file( output_key => 'bismark_report',
+                                          basename => $name . "/$name.fastq_Bismark_paired-end_mapping_report.txt",
+                                          type => 'txt',
+                                          metadata => $input_file[0]->metadata);
 
-            my $bismark_genome_folder = $options->{bismark_genome_folder};
-            my $output_file_dir = $output_file_1->dir->stringify;
-            my $input_file_path  = $input_file[0]->path;
-            my $cmd ="perl $bismark_exe -o $output_file_dir $bismark_genome_folder $input_file_path";
-           #* my $cmd ="perl $bismark_exe -o $output_file_dir $bismark_genome_folder $input_file_path >& $stdoutput_file_path";
-            my $out = $self->dispatch([ qq[$cmd], $req, { output_files => [$output_file_1, $output_file_2 ] } ] );
-       } 
-    }
+             $output_file_2 = $self->output_file( output_key => 'bismark_sam',
+                                          basename => $name . "/$name.fastq_bismark_pe.sam",
+                                          type => 'txt',
+                                          metadata => $input_file[0]->metadata);
+             my $output_file_dir = $output_file_1->dir->stringify;
+             my $input_file_path_1  = $input_file[0]->path;
+             my $input_file_path_2  = $input_file[1]->path;
+             $cmd ="perl $bismark_exe -o $output_file_dir $bismark_genome_folder -1 $input_file_path_1 -2 $input_file_path_2";
+          }
+
+          my $out = $self->dispatch([ qq[$cmd], $req, { output_files => [$output_file_1, $output_file_2 ] } ] );          
+     }
+   }
 
     method outputs_definition {
         return { 
