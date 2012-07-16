@@ -11,6 +11,8 @@
 --iterations=2
 --warning-output
 --backup-and-modify-in-place
+--noblanks-before-comments
+--keep-old-blank-lines=2
 # all other options explictly listed with their default values
 # (or the values as modified by above options)
 --add-newlines
@@ -20,7 +22,6 @@
 --blank-lines-before-packages=1
 --blank-lines-before-subs=1
 --blanks-before-blocks
---blanks-before-comments
 --block-brace-tightness=0
 --block-brace-vertical-tightness=0
 --nobrace-left-and-indent
@@ -54,7 +55,6 @@
 --html-table-of-contents
 --indent-block-comments
 --indent-columns=4
---keep-old-blank-lines=1
 --nologfile
 --long-block-line-count=8
 --look-for-autoloader
