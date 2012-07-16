@@ -75,12 +75,9 @@ use Data::Dumper;
                                               metadata => $infile->metadata);            
             my $infile_path = $infile->path;
 
-            #my $outfile_path = $outfile1->dir->stringify;
-
             my $req = $self->new_requirements(memory => 1500, time => 1);
             
             my $cmd = $paired ? $exe . " -p --comprehensive $infile_path" : $exe . " -s --comprehensive $infile_path" ; #> $outfile_path";
-            warn $cmd;
             $self->dispatch([ qq[$cmd], $req, { output_files => [ $outfile1, $outfile2, $outfile3 ] } ]);
        }
    }
@@ -90,7 +87,6 @@ use Data::Dumper;
         meth_calls_CHH => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
         meth_calls_CpG => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
         meth_calls_CHG => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position')
-      #  summary_report => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position') 
      }
    } 
 
