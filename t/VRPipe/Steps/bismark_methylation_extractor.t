@@ -21,7 +21,7 @@ my $setup = VRPipe::PipelineSetup->get(name => 'bismark_methylation_extractor',
                                                                   source => file(qw(t data bismark_meth_exr_datasource.fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
-                                       options => { }
+                                       options => { paired_end => 1 }
 );
 
 my @output_subdirs = output_subdirs(1);

@@ -55,6 +55,7 @@ use Data::Dumper;
             my $self = shift;
             my $options = $self->options;
             my $exe = $options->{'bismark_meth_extractor_exe'};
+            my $paired = $options->{'paired_end'};
             my ($infile) = @{$self->inputs->{sam_file}};        
             my $name = $infile->basename;
             
@@ -73,9 +74,13 @@ use Data::Dumper;
                                               type => 'txt',
                                               metadata => $infile->metadata);            
             my $infile_path = $infile->path;
+
             #my $outfile_path = $outfile1->dir->stringify;
+
             my $req = $self->new_requirements(memory => 1500, time => 1);
-            my $cmd = $exe . " -s --comprehensive $infile_path"; #> $outfile_path";
+            
+            my $cmd = $paired ? $exe . " -p --comprehensive $infile_path" : $exe . " -s --comprehensive $infile_path" ; #> $outfile_path";
+            warn $cmd;
             $self->dispatch([ qq[$cmd], $req, { output_files => [ $outfile1, $outfile2, $outfile3 ] } ]);
        }
    }
