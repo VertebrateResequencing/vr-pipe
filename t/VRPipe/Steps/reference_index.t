@@ -24,8 +24,8 @@ my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->absolute->stringify;
 copy($ref_fa_source, $ref_fa);
 
 # test as part of a pipeline
-my $setup = VRPipe::PipelineSetup->get(name => 'fasta_index',
-                                       datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn))->absolute),
+my $setup = VRPipe::PipelineSetup->create(name => 'fasta_index',
+                                       datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
                                        options => { reference_fasta => $ref_fa });

@@ -16,8 +16,8 @@ is_deeply [$step->id, $step->description], [1, 'Strips tags from bam files'], 'b
 
 my $tags_to_strip = 'OQ XM XG XO';
 my @tags = split(/\s+/, $tags_to_strip);
-my $tag_bam = file(qw(t data 2822_6.pe.bam))->absolute;
-my $strip_bam = file($output_dir, 'strip.bam');
+my $tag_bam = VRPipe::File->create(path => file(qw(t data 2822_6.pe.bam))->absolute)->path;
+my $strip_bam = VRPipe::File->create(path => file($output_dir, 'strip.bam'))->path;
 my $ok = VRPipe::Steps::bam_strip_tags->tag_strip($tag_bam, $strip_bam, tags_to_strip => [@tags]);
 is $ok, 1,  'tag_strip() ran okay';
 
@@ -50,8 +50,8 @@ my @actual_stripped_reads = get_bam_records($strip_bam);
 is_deeply [@actual_stripped_reads[0..9]], \@expected_stripped_reads, 'correct tags stripped from bam';
 
 # test as part of a pipeline
-my $setup = VRPipe::PipelineSetup->get(name => 'strip_setup',
-                                       datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
+my $setup = VRPipe::PipelineSetup->create(name => 'strip_setup',
+                                       datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
                                        options => { bam_tags_to_strip => $tags_to_strip });

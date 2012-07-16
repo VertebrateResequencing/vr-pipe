@@ -46,13 +46,13 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-                 var_filter_opts => VRPipe::StepOption->get(description => 'options for GATK VariantFiltration, excluding reference genome, input and output'),
+                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+                 var_filter_opts => VRPipe::StepOption->create(description => 'options for GATK VariantFiltration, excluding reference genome, input and output'),
                };
     }
 
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'one or more tabixed vcf files for hard-filtering variant calls'),
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'one or more tabixed vcf files for hard-filtering variant calls'),
 		};
     }
 
@@ -65,7 +65,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
             my $var_filter_opts = $options->{var_filter_opts};
 	    my $reference_fasta = $options->{reference_fasta};
 	    
-	    $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+	    $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'GenomeAnalysisTK', 
 							       version => $self->gatk_version(),
 							       summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path '.$var_filter_opts));
 	    
@@ -91,7 +91,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
         };
     }
     method outputs_definition {
-        return { filtered_vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'a hard-filtered vcf file for each input vcf') };
+        return { filtered_vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a hard-filtered vcf file for each input vcf') };
     }
     method post_process_sub {
         return sub { return 1; };

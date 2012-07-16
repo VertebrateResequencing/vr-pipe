@@ -13,7 +13,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('cram_test');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'bam_cram_bam_test_pipeline'), 'able to get the bam_cram_bam_test_pipeline pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'bam_cram_bam_test_pipeline'), 'able to get the bam_cram_bam_test_pipeline pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
@@ -25,8 +25,8 @@ my $ref_dir = dir($output_dir, 'ref');
 $pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'human_g1k_v37.chr20.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
-my $pipelinesetup = VRPipe::PipelineSetup->get(name => 'bam_to_cram_to_bam',
-                                               datasource => VRPipe::DataSource->get(type => 'fofn',
+my $pipelinesetup = VRPipe::PipelineSetup->create(name => 'bam_to_cram_to_bam',
+                                               datasource => VRPipe::DataSource->create(type => 'fofn',
                                                                                      method => 'all',
                                                                                      source => file(qw(t data hs_chr20.qc.bam.fofn)),
                                                                                      options => { }),

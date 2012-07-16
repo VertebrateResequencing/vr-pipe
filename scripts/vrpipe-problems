@@ -35,15 +35,10 @@ my $frontend = VRPipe::FrontEnd->new(description => "Provide an overview of prob
 my $retries = $frontend->opts('retries');
 my $setup = $frontend->get_pipelinesetups();
 
-my $schema = $frontend->schema;
-
-my @subs;
-my $rs = $schema->resultset("Submission")->search({ "_failed" => 1, retries => $retries,
-                                                    $setup ? ('stepstate.pipelinesetup' => $setup->id) : () },
-                                                  $setup ? { join => 'stepstate' } : () );
-while (my $sub = $rs->next) {
-    push(@subs, $sub);
-}
+my @subs = VRPipe::Submission->search({ "_failed" => 1, retries => $retries,
+                                        $setup ? ('stepstate.pipelinesetup' => $setup->id) : () },
+                                      { $setup ? (join => 'stepstate') : (),
+                                        prefetch => { stepstate => ['pipelinesetup', { stepmember => 'step' }] } } );
 
 my %summary;
 foreach my $sub (@subs) {
@@ -69,7 +64,7 @@ if (keys %summary) {
             my $fails = $steps->{$step};
             my $cmd = "vrpipe-submissions --setup $setup_id --step '$step_name' --failed";
             $cmd .= ' --deployment testing' if ($frontend->opts('deployment') eq 'testing');
-            $frontend->output("\t", "Step $step_name has failed for $fails Data Elements; investigate by running: $cmd");
+            $frontend->output("\t", "Step $step_name has failed $fails submissions; investigate by running: $cmd");
         }
         
         $frontend->output("---\n\n");

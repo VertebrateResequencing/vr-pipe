@@ -34,12 +34,12 @@ use VRPipe::Base;
 
 class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
     method options_definition {
-        return { gtype_confidence => VRPipe::StepOption->get(description => 'confidence level to be used as a cutoff to determine whether genotyping has passed or not',
+        return { gtype_confidence => VRPipe::StepOption->create(description => 'confidence level to be used as a cutoff to determine whether genotyping has passed or not',
                                                              optional => 1,
                                                              default_value => 1.05) };
     }
     method inputs_definition {
-        return { gtypex_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1,
+        return { gtypex_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1,
         		                                       description => 'gtypex files containing likelihood scores for genotyping',
                                                                metadata => {expected_sample => 'name of expected sample', source_bam => 'input bam path'}) };
     }

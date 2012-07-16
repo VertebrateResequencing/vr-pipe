@@ -34,15 +34,15 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bwa_aln_bam with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
-                 bwa_aln_options => VRPipe::StepOption->get(description => 'options to bwa aln, excluding the input fastq, reference, -b, -0/1/2 and -f options',
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
+                 bwa_aln_options => VRPipe::StepOption->create(description => 'options to bwa aln, excluding the input fastq, reference, -b, -0/1/2 and -f options',
                                                             optional => 1),
-                 bwa_exe => VRPipe::StepOption->get(description => 'path to your bwa executable',
+                 bwa_exe => VRPipe::StepOption->create(description => 'path to your bwa executable',
                                                     optional => 1,
                                                     default_value => 'bwa') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                             max_files => -1,
                                                             description => 'fastq files, which will be alnd independently',
                                                             metadata => {reads => 'total number of reads (sequences)'}) };
@@ -61,7 +61,7 @@ class VRPipe::Steps::bwa_aln_bam with VRPipe::StepRole {
             }
             my $cmd = $bwa_exe.' aln '.$bwa_opts;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => 'bwa aln '.$bwa_opts.' -f $sai_file -b $reference_fasta $bam_file'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => 'bwa aln '.$bwa_opts.' -f $sai_file -b $reference_fasta $bam_file'));
             
             my $req = $self->new_requirements(memory => 2900, time => 4);
             foreach my $bam (@{$self->inputs->{bam_files}}) {
@@ -81,7 +81,7 @@ class VRPipe::Steps::bwa_aln_bam with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { bwa_sai_files => VRPipe::StepIODefinition->get(type => 'bin',
+        return { bwa_sai_files => VRPipe::StepIODefinition->create(type => 'bin',
                                                                 max_files => -1,
                                                                 description => 'output files of independent bwa aln calls on each input bam',
                                                                 metadata => {source_bam => 'the bam file that was input to bwa aln to generate this sai file',

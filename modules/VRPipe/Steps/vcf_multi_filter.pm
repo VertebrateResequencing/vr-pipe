@@ -35,9 +35,9 @@ use VRPipe::Base;
 class VRPipe::Steps::vcf_multi_filter extends VRPipe::Steps::vcf_filter {
 	method options_definition {
 		return { 
-			'vcf-filter_programs' => VRPipe::StepOption->get(description => 'path to one or more filter executables, one per vcf to be filtered in parallel, delimited by #'),
-            'vcf-filter_files' => VRPipe::StepOption->get(description => 'one or more filter program option files, one per filter executable, delimited by #'),
-			'tabix_exe' => VRPipe::StepOption->get(description => 'path to your tabix executable', optional => 1, default_value => 'tabix'),
+			'vcf-filter_programs' => VRPipe::StepOption->create(description => 'path to one or more filter executables, one per vcf to be filtered in parallel, delimited by #'),
+            'vcf-filter_files' => VRPipe::StepOption->create(description => 'one or more filter program option files, one per filter executable, delimited by #'),
+			'tabix_exe' => VRPipe::StepOption->create(description => 'path to your tabix executable', optional => 1, default_value => 'tabix'),
         };
 	}
 	method body_sub {

@@ -35,15 +35,15 @@ use VRPipe::Base;
 class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_update {
     around options_definition {
         return { %{$self->$orig},
-		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
+		 exome_targets_file => VRPipe::StepOption->create(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
 							       optional => 1) };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             description => 'bam file with associated bamcheck statistics in the metadata', 
                                                             max_files => -1,
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)'}),
-		 bamcheck_plots => VRPipe::StepIODefinition->get(type => 'bin',
+		 bamcheck_plots => VRPipe::StepIODefinition->create(type => 'bin',
                                                                  description => 'png files produced by plot-bamcheck, with a caption in the metadata',
 								 min_files => 11,
                                                                  max_files => -1,

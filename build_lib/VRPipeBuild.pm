@@ -75,6 +75,7 @@ sub required_modules {
              'IO::Capture::Stderr' => 0,
              'IO::Uncompress::AnyUncompress' => 0,
 	     'List::Util' => 0,
+             'List::MoreUtils' => 0,
 	     'Module::Find' => 0,
              'Moose' => 0,
              'MooseX::AbstractFactory' => 0,

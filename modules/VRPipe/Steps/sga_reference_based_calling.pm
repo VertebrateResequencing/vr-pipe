@@ -12,7 +12,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -48,12 +48,12 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
     method options_definition {
-        return { sga_graph_diff_options => VRPipe::StepOption->get(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '--debruijn --low-coverage -k 51'),
-                 sga_exe => VRPipe::StepOption->get(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_graph_diff_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '--debruijn --low-coverage -k 51'),
+                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
     method inputs_definition {
-        return { sga_indexed_variant_reads => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => 'file with variant reads'),
-                 reference_fasta => VRPipe::StepIODefinition->get(type => 'txt', max_files => 1, description => 'reference fasta file') },
+        return { sga_indexed_variant_reads => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'file with variant reads'),
+                 reference_fasta => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'reference fasta file') },
     }
     method body_sub {
         return sub {
@@ -67,7 +67,7 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
                 $self->throw("sga_graph_diff_options should not include the reference or graph-diff subcommand");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga graph-diff '.$sga_opts.' --variant $variant_fastq --reference $reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga graph-diff '.$sga_opts.' --variant $variant_fastq --reference $reference_fasta'));
             
             my $req = $self->new_requirements(memory => 16000, time => 1);
             foreach my $fq (@{$self->inputs->{sga_indexed_variant_reads}}) {
@@ -83,9 +83,9 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { sga_base_vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
-                 sga_variant_vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
-                 sga_strings_fasta_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'variant calls made by sga graph-diff', max_files => -1, check_existence => 0)
+        return { sga_base_vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
+                 sga_variant_vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
+                 sga_strings_fasta_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'variant calls made by sga graph-diff', max_files => -1, check_existence => 0)
                 };
     }
     method post_process_sub {

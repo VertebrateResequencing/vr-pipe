@@ -179,7 +179,7 @@ class VRPipe::File extends VRPipe::Persistent {
         $type = lc($type);
         if ($type eq 'gz') {
             $path =~ s/\.gz$//;
-            $type = VRPipe::File->get(path => $path)->type;
+            $type = VRPipe::File->create(path => $path)->type;
         }
         if (exists $file_type_map{$type}) {
             $type = $file_type_map{$type};
@@ -191,38 +191,41 @@ class VRPipe::File extends VRPipe::Persistent {
     __PACKAGE__->make_persistent();
     
     method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
-        my $existing_meta = $self->metadata;
-        
-        # incase the input $meta was the same hashref as existing_meta, we need
-        # a new ref or update will do nothing
-        my $new_meta = {};
-        while (my ($key, $val) = each %$existing_meta) {
-            $new_meta->{$key} = $val;
-        }
-        
-        while (my ($key, $val) = each %$meta) {
-            # we don't always overwrite existing values
-            if ($replace_data) {
-                next unless (defined $val && "$val" ne "");
-            }
-            else {
-                next if exists $new_meta->{$key};
+        my $transaction = sub  {
+            # select our row for update, to lock it
+            my ($locked_self) = $self->search({id => $self->id}, { for => 'update' });
+            
+            my $existing_meta = $locked_self->metadata;
+            
+            # incase the input $meta was the same hashref as existing_meta, we need
+            # a new ref or update will do nothing
+            my $new_meta = {};
+            while (my ($key, $val) = each %$existing_meta) {
+                $new_meta->{$key} = $val;
             }
             
-            $new_meta->{$key} = $val;
-        }
-        
-        # *** there is an issue where if add_metadata is called more than once
-        # on the same file at the same time, only the last one might get its
-        # metadata stored...
-        $self->metadata($new_meta);
-        $self->update;
-        $self->touch if ($self->e);
+            while (my ($key, $val) = each %$meta) {
+                # we don't always overwrite existing values
+                if ($replace_data) {
+                    next unless (defined $val && "$val" ne "");
+                }
+                else {
+                    next if exists $new_meta->{$key};
+                }
+                
+                $new_meta->{$key} = $val;
+            }
+            
+            $locked_self->metadata($new_meta);
+            $locked_self->update;
+        };
+        $self->do_transaction($transaction, "Failed to add_metadata for file ".$self->path);
         
         my $resolve = $self->resolve;
         if ($resolve ne $self) {
             $resolve->add_metadata($meta, replace_data => $replace_data);
         }
+        $self->reselect_values_from_db;
     }
     
     method openr {

@@ -36,13 +36,13 @@ class VRPipe::Steps::convex_gam_correction with VRPipe::StepRole {
 
     method options_definition {
         return { 
-                 'features_file' => VRPipe::StepOption->get(description => 'features file form L2R calculation step'),
-                 'breakpoints_file' => VRPipe::StepOption->get(description => 'breakpoints file'),
-                 'rscript_path' => VRPipe::StepOption->get(description => 'full path to CoNVex R scripts'),
+                 'features_file' => VRPipe::StepOption->create(description => 'features file form L2R calculation step'),
+                 'breakpoints_file' => VRPipe::StepOption->create(description => 'breakpoints file'),
+                 'rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
         };
     }
     method inputs_definition {
-        return { rd_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => '1 or more convex read depth files'),
+        return { rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more convex read depth files'),
                };
     }
 	method body_sub {
@@ -79,7 +79,7 @@ class VRPipe::Steps::convex_gam_correction with VRPipe::StepRole {
 	}
     method outputs_definition {
         return {
-			gam_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a GAM Correction file for each input Read depth and L2R file'),
+			gam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a GAM Correction file for each input Read depth and L2R file'),
         };
     }
     method post_process_sub {

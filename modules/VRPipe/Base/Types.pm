@@ -232,12 +232,13 @@ subtype PersistentObject, as 'VRPipe::Persistent';
 #    where { $_->isa('VRPipe::Persistent') },
 #    message { "Not a Persistent object" };
 
+use Data::Dumper;
 subtype Persistent,
     as PositiveInt, # can't coerce IntSQL[16]
     where { length(shift) <= 16 };
 coerce Persistent,
     from PersistentObject,
-    via { $_->id };
+    via { $_->{_column_data}->{id} }; # this is called so many times, its worth directly accessing the hash structure instead of calling id(), for the speedup
 
 subtype ArrayRefOfPersistent,
     as ArrayRef[PersistentObject];
@@ -245,7 +246,7 @@ class_type('VRPipe::Persistent');
 subtype PersistentArray, as 'VRPipe::PersistentArray';
 coerce PersistentArray,
     from ArrayRefOfPersistent,
-    via { VRPipe::PersistentArray->get(members => $_) };
+    via { VRPipe::PersistentArray->create(members => $_) };
     
 subtype PersistentHashRef,
     as HashRef[PersistentObject];

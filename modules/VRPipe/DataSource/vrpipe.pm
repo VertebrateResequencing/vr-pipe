@@ -38,6 +38,7 @@ use VRPipe::Base;
 
 class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     use Digest::MD5 qw(md5_hex);
+    use Storable qw(nfreeze);
     
     method description {
         return "Use files created by VRPipe pipelines as a datasource.";
@@ -62,7 +63,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                              lazy => 1);
     
     method _build_vrpipe_sources {
-        my $schema = $self->_handle;
         my @sources = split /\|/, $self->source;
         
         my %vrpipe_sources;
@@ -71,13 +71,13 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             $pipeline_setup ||= $source;
             my $setup;
             if ($pipeline_setup =~ /^\d+$/) {
-                $setup = $schema->resultset("PipelineSetup")->find({ id => $pipeline_setup });
+                ($setup) = VRPipe::PipelineSetup->search({ id => $pipeline_setup }, { rows => 1 });
                 unless ($setup) {
                     $self->throw("$pipeline_setup is not a valid pipeline setup id\n");
                 }
             }
             else {
-                $setup = $schema->resultset("PipelineSetup")->find({ name => $pipeline_setup });
+                ($setup) = VRPipe::PipelineSetup->search({ name => $pipeline_setup }, { rows => 1 });
                 unless ($setup) {
                     $self->throw("$pipeline_setup is not a valid pipeline setup name\n");
                 }
@@ -116,6 +116,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                 if (exists $desired_steps{names}->{$step_name}) {
                     foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
                         $vrpipe_sources{$setup_id}->{stepmembers}->{$smid}->{$kind} = 1;
+                        $vrpipe_sources{$setup_id}->{stepmember_objects}->{$smid} = $stepm;
                     }
                     if ($max_step < $step_num) {
                         $max_step = $step_num;
@@ -125,6 +126,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                 if (exists $desired_steps{numbers}->{$step_num}) {
                     foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
                         $vrpipe_sources{$setup_id}->{stepmembers}->{$smid}->{$kind} = 1;
+                        $vrpipe_sources{$setup_id}->{stepmember_objects}->{$smid} = $stepm;
                     }
                     if ($max_step < $step_num) {
                         $max_step = $step_num;
@@ -135,6 +137,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             $vrpipe_sources{$setup_id}->{total_steps} = scalar @step_members;
             $vrpipe_sources{$setup_id}->{num_steps} = $max_step;
             $vrpipe_sources{$setup_id}->{final_smid} = $final_smid;
+            $vrpipe_sources{$setup_id}->{setup_obj} = $setup;
         }
         return \%vrpipe_sources;
     }
@@ -149,7 +152,10 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         if ($filter) {
             $args{filter} = $filter;
         }
-        my @elements;
+        
+        # create the elements
+        my @element_args;
+        my %result_to_linkargs;
         foreach my $result (@{$self->_all_results(%args, complete_elements => 1)}) {
             if ($filter) {
                 next unless $result->{pass_filter};
@@ -159,10 +165,29 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                 $res->{lane} = $result->{result}->{lane} if (exists $result->{result}->{lane});
                 $res->{group} = $result->{result}->{group} if (exists $result->{result}->{group});
             }
-            push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $res, withdrawn => 0);
-            VRPipe::DataElementLink->get(pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id}, child => $elements[-1]->id);
+            push @element_args, { datasource => $self->_datasource_id, result => $res };
+            
+            $result_to_linkargs{_res_to_str($res)} = {pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id}};
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
+        
+        # create corresponding dataelementlinks
+        my @link_args;
+        my %result_to_eid = map { _res_to_str($_->[0]) => $_->[1] } @{VRPipe::DataElement->get_column_values(['result', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || []};
+        while (my ($res, $linkargs) = each %result_to_linkargs) {
+            my $child = $result_to_eid{$res} || $self->throw("No DataElement was created for result $res?");
+            push(@link_args, { %$linkargs, child => $child });
+        }
+        VRPipe::DataElementLink->bulk_create_or_update(@link_args);
+    }
+    
+    sub _res_to_str {
+        my $res = shift;
+        my $str = join('|', @{$res->{paths} || []});
+        foreach my $key ('lane', 'group') {
+            $str .= '|'.$res->{$key} if defined $res->{$key};
+        }
+        return $str;
     }
     
     method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
@@ -176,76 +201,80 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         my $vrpipe_sources = $self->vrpipe_sources;
         foreach my $setup_id (keys %{$vrpipe_sources}) {
             my $stepmembers = $vrpipe_sources->{$setup_id}->{stepmembers};
-            my $setup = VRPipe::PipelineSetup->get(id => $setup_id);
-            my $elements = $setup->datasource->elements;
+            my $stepmember_objs = $vrpipe_sources->{$setup_id}->{stepmember_objects};
+            my $setup = $vrpipe_sources->{$setup_id}->{setup_obj};
             my $total_steps = $vrpipe_sources->{$setup_id}->{total_steps};
             
+            my $elements_pager = $setup->datasource->elements;
+            my %element_state_completed_steps = map { $_->[0] => $_->[1] } @{VRPipe::DataElementState->get_column_values(['dataelement', 'completed_steps'], { pipelinesetup => $setup_id }) || []};
+            
             my @per_element_output_files;
-            ELEMENT: foreach my $element (@$elements) {
-                my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-                
-                # complete_elements means we do not consider a dataelement until
-                # it has completed its pipeline, even if the output file we want
-                # comes from an earlier step. This is because our pipeline might
-                # delete this file, whilst the parent pipeline is still running
-                # and needs it to complete
-                unless ($element_state->completed_steps == $total_steps) {
-                    return([]) if $complete_all;
-                    next if $complete_elements;
-                }
-                
-                my $element_id = $element->id;
-                my %element_hash = ( parent => { element_id => $element_id, setup_id => $setup_id }, result => $element->result );
-                foreach my $smid (keys %{$stepmembers}) {
-                    my $stepm = VRPipe::StepMember->get(id => $smid);
-                    my $force = exists $stepmembers->{$smid}->{all};
-                    
-                    my $stepstate = $handle->resultset("StepState")->find({stepmember => $smid, dataelement => $element_id, pipelinesetup => $setup_id});
-                    unless ($stepstate && $stepstate->complete) {
-                        # this shouldn't happen since we did the completed_steps
-                        # check above, but just incase we have an
-                        # inconsistency...
+            ELEMENT: while (my $elements = $elements_pager->next) {
+                foreach my $element (@$elements) {
+                    # complete_elements means we do not consider a dataelement until
+                    # it has completed its pipeline, even if the output file we want
+                    # comes from an earlier step. This is because our pipeline might
+                    # delete this file, whilst the parent pipeline is still running
+                    # and needs it to complete
+                    my $element_id = $element->id;
+                    unless ($element_state_completed_steps{$element_id} == $total_steps) {
                         return([]) if $complete_all;
-                        next ELEMENT if $complete_elements;
+                        next if $complete_elements;
                     }
                     
-                    my $step_outs = $stepstate->output_files;
-                    while (my ($kind, $files) = each %{$step_outs}) {
-                        unless ($force) {
-                            next unless exists $stepmembers->{$smid}->{$kind};
+                    my %element_hash = ( parent => { element_id => $element_id, setup_id => $setup_id }, result => $element->result );
+                    foreach my $smid (keys %{$stepmembers}) {
+                        my $stepm = $stepmember_objs->{$smid};
+                        my $force = exists $stepmembers->{$smid}->{all};
+                        
+                        my ($stepstate) = VRPipe::StepState->search({stepmember => $smid, dataelement => $element_id, pipelinesetup => $setup_id}, { rows => 1 });
+                        unless ($stepstate && $stepstate->complete) {
+                            # this shouldn't happen since we did the completed_steps
+                            # check above, but just incase we have an
+                            # inconsistency...
+                            return([]) if $complete_all;
+                            next ELEMENT if $complete_elements;
                         }
                         
-                        foreach my $file (@$files) {
-                            my $pass_filter = 0;
-                            my $meta = $file->metadata;
-                            if ($filter) {
-                                # if "filter_after_grouping => 0", we filter before grouping
-                                # by skipping files which don't match the regex or don't
-                                # have the required metadata
-                                if (defined $meta->{$key}) {
-                                    $pass_filter = $meta->{$key} =~ m/$regex/;
-                                    next if (!$filter_after_grouping && !$pass_filter);
-                                } else {
-                                    next unless $filter_after_grouping;
-                                }
+                        my $step_outs = $stepstate->output_files;
+                        while (my ($kind, $files) = each %{$step_outs}) {
+                            unless ($force) {
+                                next unless exists $stepmembers->{$smid}->{$kind};
                             }
                             
-                            if ($maintain_element_grouping) {
-                                push @{$element_hash{paths}}, $file->path->stringify;
-                                $element_hash{pass_filter} ||= $pass_filter;
-                            }
-                            else {
-                                my %hash;
-                                $hash{paths} = [ $file->path->stringify ];
-                                $hash{metadata} = $meta if (keys %{$meta});
-                                $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
-                                $hash{pass_filter} ||= $pass_filter;
-                                push(@per_element_output_files, \%hash);
+                            foreach my $file (@$files) {
+                                my $pass_filter = 0;
+                                my $meta = $file->metadata;
+                                if ($filter) {
+                                    # if "filter_after_grouping => 0", we filter before grouping
+                                    # by skipping files which don't match the regex or don't
+                                    # have the required metadata
+                                    if (defined $meta->{$key}) {
+                                        $pass_filter = $meta->{$key} =~ m/$regex/;
+                                        next if (!$filter_after_grouping && !$pass_filter);
+                                    }
+                                    else {
+                                        next unless $filter_after_grouping;
+                                    }
+                                }
+                                
+                                if ($maintain_element_grouping) {
+                                    push @{$element_hash{paths}}, $file->path->stringify;
+                                    $element_hash{pass_filter} ||= $pass_filter;
+                                }
+                                else {
+                                    my %hash;
+                                    $hash{paths} = [ $file->path->stringify ];
+                                    $hash{metadata} = $meta if (keys %{$meta});
+                                    $hash{parent} = { element_id => $element_id, setup_id => $setup_id };
+                                    $hash{pass_filter} ||= $pass_filter;
+                                    push(@per_element_output_files, \%hash);
+                                }
                             }
                         }
                     }
+                    push(@per_element_output_files, \%element_hash) if ($maintain_element_grouping && exists $element_hash{paths});
                 }
-                push(@per_element_output_files, \%element_hash) if ($maintain_element_grouping && exists $element_hash{paths});
             }
             push(@output_files, @per_element_output_files);
         }
@@ -272,32 +301,47 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             $group_hash->{$group_key}->{pass_filter} ||= $hash_ref->{pass_filter};
         }
         
-        my @elements;
+        # build up the dataelement args in the normal way for _create_elements
+        my @element_args;
         foreach my $group (sort keys %{$group_hash}) {
             my $hash_ref = $group_hash->{$group};
             if ($filter) {
                 next unless $hash_ref->{pass_filter};
             }
-            push @elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths}, group => $group }, withdrawn => 0);
-            foreach my $parent (@{$hash_ref->{parents}}) {
-                VRPipe::DataElementLink->get(pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $elements[-1]->id);
+            push @element_args, {datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths}, group => $group } };
+        }
+        $self->_create_elements(\@element_args);
+        
+        # we also need to make a dataelementlink for each dataelement we just
+        # made
+        my @link_args;
+        my %group_to_eid = map { $_->[0]->{group} => $_->[1] } @{VRPipe::DataElement->get_column_values(['result', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || []};
+        foreach my $group (sort keys %{$group_hash}) {
+            my $hash_ref = $group_hash->{$group};
+            if ($filter) {
+                next unless $hash_ref->{pass_filter};
+            }
+            
+            my $child_id = $group_to_eid{$group} || $self->throw("No DataElement was created for group $group?");
+            my %parents = map { $_->{element_id} => $_ } @{$hash_ref->{parents}};
+            foreach my $key (sort keys %parents) {
+                my $parent = $parents{$key};
+                push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child_id });
             }
         }
-        
-        return \@elements;
+        VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
     
     # The changed marker for vrpipe datasources will be a comma separated list of the number 
     # of elements in each of the pipelinesetups that have completed and the number that have 
     # been withdrawn. Any change in these numbers will lead to the dataelements being revised. 
     method _element_state_status_checksum {
-        my $schema = $self->_handle;
         my $sources = $self->vrpipe_sources;
         my @complete_list;
         foreach my $setup_id (sort keys %{$sources}) {
             my $num_steps = $sources->{$setup_id}->{total_steps};
-            my $num_complete = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 0}, { join => 'dataelement' });
-            my $num_withdrawn = $schema->resultset('DataElementState')->count({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 1}, { join => 'dataelement' });
+            my $num_complete = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 0}, { join => 'dataelement' });
+            my $num_withdrawn = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => {'>=', $num_steps}, 'dataelement.withdrawn' => 1}, { join => 'dataelement' });
             push @complete_list, ($num_complete, $num_withdrawn);
         }
         my $digest = md5_hex join(',', @complete_list);
@@ -305,7 +349,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     }
     
     method _all_datasource_files {
-        my $schema = $self->_handle;
         my $sources = $self->vrpipe_sources;
         my @all_files;
         foreach my $setup_id (sort keys %{$sources}) {
@@ -316,15 +359,16 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             # stepoutputfile.output_key != "temp" and
             # stepstate.stepmember=$stepm and stepstate.pipelinesetup=$setup_id and 
             # stepstate.complete=1;
-            my $stepm = $sources->{$setup_id}->{final_smid};
-            my $rs = $schema->resultset('StepOutputFile')->search({ 'stepstate.complete' => 1, 
-                                                                    'stepstate.pipelinesetup' => $setup_id, 
-                                                                    'dataelement.withdrawn' => 0, 
-                                                                    'stepstate.stepmember' => $stepm, 
-                                                                    'output_key' => { '!=', 'temp' } }, 
-                                                                  { join => {'stepstate' => 'dataelement'} });
-            while (my $output = $rs->next) {
-                push @all_files, $output->file->resolve;
+            my $pager = VRPipe::StepOutputFile->search_paged({ 'stepstate.complete' => 1, 
+                                                               'stepstate.pipelinesetup' => $setup_id, 
+                                                               'dataelement.withdrawn' => 0, 
+                                                               'stepstate.stepmember' => $sources->{$setup_id}->{final_smid}, 
+                                                               'output_key' => { '!=', 'temp' } }, 
+                                                             { join => {'stepstate' => 'dataelement'}, prefetch => 'file' });
+            while (my $outputs = $pager->next) {
+                foreach my $output (@$outputs) {
+                    push @all_files, $output->file->resolve;
+                }
             }
         }
         return \@all_files;

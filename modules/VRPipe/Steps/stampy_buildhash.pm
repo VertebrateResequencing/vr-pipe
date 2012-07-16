@@ -34,8 +34,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::stampy_buildhash with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
-                 stampy_exe => VRPipe::StepOption->get(description => 'path to your stampy.py executable',
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
+                 stampy_exe => VRPipe::StepOption->create(description => 'path to your stampy.py executable',
                                                        optional => 1,
                                                        default_value => 'stampy.py') };
     }
@@ -51,7 +51,7 @@ class VRPipe::Steps::stampy_buildhash with VRPipe::StepRole {
             
             my $stampy_exe = $options->{stampy_exe};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py -g $ref.fa -H $ref.fa'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'stampy', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py -g $ref.fa -H $ref.fa'));
             
             my $cmd = $stampy_exe." -g $ref -H $ref";
             $self->output_file(output_key => 'stampy_index_sthash_file',
@@ -62,7 +62,7 @@ class VRPipe::Steps::stampy_buildhash with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { stampy_index_sthash_file => VRPipe::StepIODefinition->get(type => 'bin', description => 'the file produced by stampy -H') };
+        return { stampy_index_sthash_file => VRPipe::StepIODefinition->create(type => 'bin', description => 'the file produced by stampy -H') };
     }
     method post_process_sub {
         return sub { return 1; };

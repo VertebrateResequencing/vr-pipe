@@ -34,17 +34,17 @@ use VRPipe::Base;
 
 class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
     method options_definition {
-        return { 'centromere_reg_file' => VRPipe::StepOption->get(description => 'Centromere regions file'),
-                 'sw_exec' => VRPipe::StepOption->get(description => 'Full path to Smith-Waterman execution binary'),
-                 'sw_pval' => VRPipe::StepOption->get(description => 'p value for Smith-Waterman algorithm', optional => 1, default_value => 2),
-                 'swt_del' => VRPipe::StepOption->get(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
-                 'swt_dup' => VRPipe::StepOption->get(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
-                 'dv' => VRPipe::StepOption->get(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
-                 'rscript_path' => VRPipe::StepOption->get(description => 'full path to CoNVex R scripts'),
+        return { 'centromere_reg_file' => VRPipe::StepOption->create(description => 'Centromere regions file'),
+                 'sw_exec' => VRPipe::StepOption->create(description => 'Full path to Smith-Waterman execution binary'),
+                 'sw_pval' => VRPipe::StepOption->create(description => 'p value for Smith-Waterman algorithm', optional => 1, default_value => 2),
+                 'swt_del' => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
+                 'swt_dup' => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
+                 'dv' => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
+                 'rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
         };
     }
     method inputs_definition {
-        return { gam_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => '1 or more gam files from which to call CNV') };
+        return { gam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more gam files from which to call CNV') };
     }
 	method body_sub {
 		return sub {
@@ -80,7 +80,7 @@ class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
 	}
     method outputs_definition {
         return {
-			cnv_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a CNV call file for each input GAM file'),
+			cnv_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a CNV call file for each input GAM file'),
         };
     }
     method post_process_sub {

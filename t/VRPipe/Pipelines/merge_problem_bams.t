@@ -17,8 +17,8 @@ my $picard = VRPipe::Steps::picard->new(picard_path => $ENV{PICARD});
 my $picard_version = $picard->determine_picard_version();
 my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^Version: (.+)$');
 
-ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_lanes_and_fix_rgs'), 'able to get the bam_merge_lanes_and_fix_rgs pipeline';
-ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'bam_merge'), 'able to get the bam_merge pipeline';
+ok my $merge_lanes_pipeline = VRPipe::Pipeline->create(name => 'bam_merge_lanes_and_fix_rgs'), 'able to get the bam_merge_lanes_and_fix_rgs pipeline';
+ok my $merge_libraries_pipeline = VRPipe::Pipeline->create(name => 'bam_merge'), 'able to get the bam_merge pipeline';
 my $output_dir = get_output_dir('merge_lanes_and_fix_rgs');
 
 # The bams in this test are outputs of the improvement pipeline given sanger
@@ -36,17 +36,17 @@ copy($ref_fa_source, $ref_fa);
 # since merge_lanes_and_fix_rgs requires a vrpipe datasource currently (since
 # only that has grouping on metadata_keys functionality), we start with a simple
 # import pipeline
-VRPipe::PipelineSetup->get(name => 'test bam import',
-                           datasource => VRPipe::DataSource->get(type => 'fofn',
+VRPipe::PipelineSetup->create(name => 'test bam import',
+                           datasource => VRPipe::DataSource->create(type => 'fofn',
                                                                  method => 'all',
                                                                  source => file($poor_dir, 'fofn')->stringify,
                                                                  options => { } ),
                            output_root => $output_dir,
-                           pipeline => VRPipe::Pipeline->get(name => 'import_bams'),
+                           pipeline => VRPipe::Pipeline->create(name => 'import_bams'),
                            options => { });
 
-VRPipe::PipelineSetup->get(name => 'test merge lanes',
-                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
+VRPipe::PipelineSetup->create(name => 'test merge lanes',
+                           datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                  method => 'group_by_metadata',
                                                                  source => 'test bam import[1]',
                                                                  options => { metadata_keys => 'sample|platform|library' } ),
@@ -57,8 +57,8 @@ VRPipe::PipelineSetup->get(name => 'test merge lanes',
                                         bam_merge_memory => 200,
                                         cleanup => 1 });
 
-VRPipe::PipelineSetup->get(name => 'test merge libraries',
-                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
+VRPipe::PipelineSetup->create(name => 'test merge libraries',
+                           datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                  method => 'group_by_metadata',
                                                                  source => 'test merge lanes[4:markdup_bam_files]',
                                                                  options => { metadata_keys => 'sample|platform' } ),

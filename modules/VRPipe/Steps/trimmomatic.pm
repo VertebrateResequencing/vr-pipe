@@ -37,16 +37,15 @@ use File::Basename;
 use List::MoreUtils qw(natatime);
     around options_definition {
         return { %{$self->$orig},
-                 trimmomatic_jar_path => VRPipe::StepOption->get(description => 'path to Trimmomatic jar file', optional => 1, default_value => "$ENV{TRIMMOMATIC}"),
-                 paired_end => VRPipe::StepOption->get(description => 'Run in Paired End mode (default is for single end).', optional => 1, default_value => "0"),
-                 trimmomatic_step_options => VRPipe::StepOption->get(description => 'String of the step options for Trimmomatic.', optional => 1, default_value => 'LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36'),
-                 log_file => VRPipe::StepOption->get(description => 'Path for log file.', optional => 1, default_value => '')
+                 trimmomatic_jar_path => VRPipe::StepOption->create(description => 'path to Trimmomatic jar file', optional => 1, default_value => "$ENV{TRIMMOMATIC}"),
+                 paired_end => VRPipe::StepOption->create(description => 'Run in Paired End mode (default is for single end).', optional => 1, default_value => "0"),
+                 trimmomatic_step_options => VRPipe::StepOption->create(description => 'String of the step options for Trimmomatic.', optional => 1, default_value => 'LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36'),
+                 log_file => VRPipe::StepOption->create(description => 'Path for log file.', optional => 1, default_value => '')
         };
     }
-    
     method inputs_definition {
         return {
-            fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => '1 or more fastq files to trim reads.')
+            fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files to trim reads.')
         };
     }
     method body_sub {
@@ -132,8 +131,8 @@ use List::MoreUtils qw(natatime);
 
     method outputs_definition {
         return {
-           trimmed_files => VRPipe::StepIODefinition->get( type => 'fq', max_files => -1, description => 'trimmomatic trimmed file output'), 
-           trimmomatic_log => VRPipe::StepIODefinition->get( type => 'txt', description => 'trimmomatic log file')     
+           trimmed_files => VRPipe::StepIODefinition->create( type => 'fq', max_files => -1, description => 'trimmomatic trimmed file output'), 
+           trimmomatic_log => VRPipe::StepIODefinition->create( type => 'txt', description => 'trimmomatic log file')     
         };
     }
     method post_process_sub {

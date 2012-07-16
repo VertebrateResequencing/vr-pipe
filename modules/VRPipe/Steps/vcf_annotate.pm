@@ -34,14 +34,14 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf-annotate_options' => VRPipe::StepOption->get(description => 'vcf-annotate pass 1 options'),
-                 'vcf-annotate_2_options' => VRPipe::StepOption->get(description => 'vcf-annotate pass 2 options'),
-                 'vcf-annotate_exe' => VRPipe::StepOption->get(description => 'path to your vcf-annotate executable',
+        return { 'vcf-annotate_options' => VRPipe::StepOption->create(description => 'vcf-annotate pass 1 options'),
+                 'vcf-annotate_2_options' => VRPipe::StepOption->create(description => 'vcf-annotate pass 2 options'),
+                 'vcf-annotate_exe' => VRPipe::StepOption->create(description => 'path to your vcf-annotate executable',
                                                                optional => 1,
                                                                default_value => 'vcf-annotate') };
     }
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf',
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf',
                                                             description => 'vcf files',
                                                             max_files => -1) };
     }
@@ -82,7 +82,7 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { annotated_vcf => VRPipe::StepIODefinition->get(type => 'vcf',
+        return { annotated_vcf => VRPipe::StepIODefinition->create(type => 'vcf',
                                                                description => 'annotated vcf file',
                                                                max_files => -1) };
     }

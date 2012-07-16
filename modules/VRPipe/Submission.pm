@@ -126,7 +126,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
                       default => 0);
     
     method _build_default_scheduler {
-        return VRPipe::Scheduler->get();
+        return VRPipe::Scheduler->create();
     }
     
     # public getters for our private attributes
@@ -138,7 +138,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
             
             $self->_scheduled(DateTime->now);
             $self->release;
-            $self->update;
             
             return $sid;
         }
@@ -195,6 +194,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method update_status {
+        $self->reselect_values_from_db;
         $self->throw("Cannot call update_status when the job ".$self->job->id." is not finished") unless $self->job->finished;
         return if $self->done || $self->failed;
         
@@ -261,9 +261,14 @@ class VRPipe::Submission extends VRPipe::Persistent {
         push(@to_archive, [$self->scheduler_stdout_file(orig => 1), $self->scheduler_stdout_file, 0]);
         push(@to_archive, [$self->scheduler_stderr_file(orig => 1), $self->scheduler_stderr_file, 1]);
         
+        my $count = 0;
         foreach my $toa (@to_archive) {
+            $count++;
             my ($source, $dest, $add_marker) = @$toa;
             next unless ($source && $dest);
+            if (! ref($dest)) {
+                $self->throw("toa $count had dest $dest compared to source ".$source->path);
+            }
             $self->concatenate($source, $dest,
                                unlink_source => 1,
                                add_marker => $add_marker); 
@@ -292,18 +297,22 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # job, incase it is not this sub in an array of block_and_skip jobs that
         # gets retried; also, if we're switching queues, it will be the first
         # sub that is actually running the job
-        my $rs = $self->result_source->schema->resultset('Submission')->search({ 'job' => $job->id }, { order_by => { -asc => 'id' } });
+        my $pager = VRPipe::Submission->search_paged({ 'job' => $job->id }, { order_by => { -asc => 'id' } });
         my $first = 1;
-        while (my $to_extra = $rs->next) {
-            if ($first && $switch_queue && $to_extra->sid) {
-                $self->debug("calling switch_queues(".$to_extra->sid.", $switch_queue)");
-                $scheduler->switch_queue($to_extra->sid, $switch_queue);
+        while (my $to_extras = $pager->next) {
+            foreach my $to_extra (@$to_extras) {
+                if ($first && $switch_queue && $to_extra->sid) {
+                    $self->debug("calling switch_queues(".$to_extra->sid.", $switch_queue)");
+                    $scheduler->switch_queue($to_extra->sid, $switch_queue);
+                }
+                $first = 0;
+                
+                $to_extra->requirements($new_req);
+                $to_extra->update;
             }
-            $first = 0;
-            
-            $to_extra->requirements($new_req);
-            $to_extra->update;
         }
+        
+        $self->reselect_values_from_db;
         
         return 1;
     }
@@ -311,7 +320,19 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method memory {
         return $self->requirements->memory;
     }
-    method extra_memory (Int $extra = 1000) {
+    method extra_memory (Int $extra?) {
+        unless ($extra) {
+            # increase by 1GB or 30%, whichever is greater
+            my $minimum_memory_increase = 1000;
+            my $memory_increase_percentage = 0.3;
+            my $current_mem = $self->memory;
+            my $updated_memory_limit = $current_mem * (1 + $memory_increase_percentage);
+            if ($updated_memory_limit < $current_mem + $minimum_memory_increase) {
+                $updated_memory_limit = $current_mem + $minimum_memory_increase;
+            }
+            $extra = $updated_memory_limit - $current_mem;
+        }
+        
         $self->_add_extra('memory', $extra);
     }
     
@@ -396,7 +417,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $std_io_file = file($std_dir, $method);
         }
         
-        return VRPipe::File->get(path => $std_io_file, type => $type);
+        return VRPipe::File->create(path => $std_io_file, type => $type);
     }
     method scheduler_stdout_file (Bool :$orig = 0) {
         return $self->_scheduler_std_file('scheduler_output_file', substr($self->scheduler->type, 0, 3), $orig);
@@ -427,7 +448,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # this is where we want the job stdo/e to be archived to, not where the
         # job initially spits it out to
         my $std_dir = $self->std_dir || return;
-        return VRPipe::File->get(path => file($std_dir, 'job_std'.$kind), type => 'cat');
+        return VRPipe::File->create(path => file($std_dir, 'job_std'.$kind), type => 'cat');
     }
     method job_stdout_file {
         return $self->_job_std_file('out');
@@ -518,6 +539,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         $self->_claim(0);
         $self->_hid(undef);
         $self->update;
+        $self->reselect_values_from_db;
     }
 }
 

@@ -34,8 +34,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::fasta_index with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable', optional => 1, default_value => 'samtools'),
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file') };
+        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable', optional => 1, default_value => 'samtools'),
+                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file') };
     }
     method inputs_definition {
         return { };
@@ -49,7 +49,7 @@ class VRPipe::Steps::fasta_index with VRPipe::StepRole {
             my $ref = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path, $ref") unless $ref->is_absolute;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools', version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), summary => 'samtools faidx $reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'samtools', version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), summary => 'samtools faidx $reference_fasta'));
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             $self->output_file(output_key => 'fai_file',
@@ -60,7 +60,7 @@ class VRPipe::Steps::fasta_index with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { fai_file => VRPipe::StepIODefinition->get(type => 'txt', description => 'a .fai index file for the reference fasta') };
+        return { fai_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'a .fai index file for the reference fasta') };
     }
     method post_process_sub {
         return sub { return 1; };

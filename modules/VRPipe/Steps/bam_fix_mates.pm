@@ -43,11 +43,11 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
     around options_definition {
         return { %{$self->$orig},
-                 picard_fix_mates_options => VRPipe::StepOption->get(description => '', optional => 1, default_value => 'SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
+                 picard_fix_mates_options => VRPipe::StepOption->create(description => '', optional => 1, default_value => 'SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
                };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more name-sorted bam files') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more name-sorted bam files') };
     }
     method body_sub {
         return sub {
@@ -58,7 +58,7 @@ class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
             
             my $fixmate_options = $options->{picard_fix_mates_options};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'picard', 
                                    version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file '.$fixmate_options));
             
@@ -84,7 +84,7 @@ class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
         };
     }
     method outputs_definition {
-        return { fixmate_bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'a coordinate-sorted uncompressed bam file with fixed mates') };
+        return { fixmate_bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => 'a coordinate-sorted uncompressed bam file with fixed mates') };
     }
     method post_process_sub {
         return sub { return 1; };

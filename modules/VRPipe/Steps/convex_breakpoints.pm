@@ -35,15 +35,15 @@ use VRPipe::Base;
 class VRPipe::Steps::convex_breakpoints with VRPipe::StepRole {
     method options_definition {
         return { 
-                 'rd_sample_file_name' => VRPipe::StepOption->get(description => 'Full path to a specific sample Read Depth file from which to generate breakpoints', optional => 1),
-                 'rscript_path' => VRPipe::StepOption->get(description => 'Full path to CoNVex R scripts'),
-                 'max_bin_size' => VRPipe::StepOption->get(description => 'Maximum bin size', optional => 1, default_value => 1000),
-                 'bp_file_name' => VRPipe::StepOption->get(description => 'Full path to the output Breakpoints file'),
+                 'rd_sample_file_name' => VRPipe::StepOption->create(description => 'Full path to a specific sample Read Depth file from which to generate breakpoints', optional => 1),
+                 'rscript_path' => VRPipe::StepOption->create(description => 'Full path to CoNVex R scripts'),
+                 'max_bin_size' => VRPipe::StepOption->create(description => 'Maximum bin size', optional => 1, default_value => 1000),
+                 'bp_file_name' => VRPipe::StepOption->create(description => 'Full path to the output Breakpoints file'),
         };
     }
     method inputs_definition {
         return { 
-            rd_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)'),
+            rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)'),
         };
     }
     method body_sub {

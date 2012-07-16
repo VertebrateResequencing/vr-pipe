@@ -34,23 +34,23 @@ use VRPipe::Base;
 
 class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file to map against'),
-                 stampy_map_options => VRPipe::StepOption->get(description => 'options for stampy mapping, excluding the output, input fastq(s), reference, --bwa and --bwaoptions options',
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
+                 stampy_map_options => VRPipe::StepOption->create(description => 'options for stampy mapping, excluding the output, input fastq(s), reference, --bwa and --bwaoptions options',
                                                                optional => 1),
-                 stampy_bwa_options => VRPipe::StepOption->get(description => 'to use bwa for premapping, supply the string you would give to --bwaoptions, excluding the reference',
+                 stampy_bwa_options => VRPipe::StepOption->create(description => 'to use bwa for premapping, supply the string you would give to --bwaoptions, excluding the reference',
                                                                optional => 1),
-                 stampy_substitution_rate_from_metadata => VRPipe::StepOption->get(description => q[set stampy's --substitutionrate option based on the value of the substitution_rate metadata key on the input fastqs, if present],
+                 stampy_substitution_rate_from_metadata => VRPipe::StepOption->create(description => q[set stampy's --substitutionrate option based on the value of the substitution_rate metadata key on the input fastqs, if present],
                                                                                    optional => 1,
                                                                                    default_value => 1),
-                 stampy_exe => VRPipe::StepOption->get(description => 'path to your stampy.py executable',
+                 stampy_exe => VRPipe::StepOption->create(description => 'path to your stampy.py executable',
                                                        optional => 1,
                                                        default_value => 'stampy.py'),
-                 bwa_exe => VRPipe::StepOption->get(description => 'path to your bwa executable',
+                 bwa_exe => VRPipe::StepOption->create(description => 'path to your bwa executable',
                                                     optional => 1,
                                                     default_value => 'bwa') };
     }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq',
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq',
                                                               max_files => -1,
                                                               description => 'fastq file(s) to be mapped',
                                                               metadata => {lane => 'lane name (a unique identifer for this sequencing run)',
@@ -224,11 +224,11 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                 $stampy_opts .= '--substitutionrate='.$srates[0];
             }
             $stampy_opts =~ s/$ref/\$ref/g;
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'stampy', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'stampy', version => VRPipe::StepCmdSummary->determine_version($stampy_exe, '^stampy v(\S+)'), summary => 'stampy.py '.$stampy_opts.' -g $ref.fa -h $ref.fa -o $out.sam -M $fastq(s)'));
         };
     }
     method outputs_definition {
-        return { stampy_sam_files => VRPipe::StepIODefinition->get(type => 'txt',
+        return { stampy_sam_files => VRPipe::StepIODefinition->create(type => 'txt',
                                                                    max_files => -1,
                                                                    description => 'mapped sam file per endedness and lane',
                                                                    metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',

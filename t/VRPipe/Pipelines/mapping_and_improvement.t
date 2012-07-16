@@ -16,7 +16,7 @@ BEGIN {
 
 my $mapping_output_dir = get_output_dir('mapping_with_improvement');
 
-ok my $mapping_pipeline = VRPipe::Pipeline->get(name => '1000genomes_illumina_mapping_with_improvement'), 'able to get a pre-written pipeline';
+ok my $mapping_pipeline = VRPipe::Pipeline->create(name => '1000genomes_illumina_mapping_with_improvement'), 'able to get a pre-written pipeline';
 
 my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
@@ -64,8 +64,8 @@ copy($known_sites_source.'.tbi', $known_sites.'.tbi');
 my $seq_index_file = file($res_dir, 'sequence.index');
 copy(file(qw(t data datasource.sequence_index)), $seq_index_file);
 
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
-                                                       datasource => VRPipe::DataSource->get(type => 'sequence_index',
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis mapping',
+                                                       datasource => VRPipe::DataSource->create(type => 'sequence_index',
                                                                                              method => 'lane_fastqs',
                                                                                              source => $seq_index_file,
                                                                                              options => { local_root_dir => dir(".")->absolute->stringify }),
@@ -106,15 +106,15 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
 
 ok handle_pipeline(), 'pipeline ran ok';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 11, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 12, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 14, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 15, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 16, dataelement => 1)->cmd_summary->summary],
+is_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 11, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 12, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 14, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 15, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 16, dataelement => 1)->cmd_summary->summary],
           ['bwa index -a is $reference_fasta',
            'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file',
            'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)',
@@ -128,17 +128,18 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataeleme
 
 # test start_from_scratch with this more complicated pipeline
 my $bam = file(output_subdirs(1), '17_bam_reheader', '2822_6.se.realign.recal.calmd.bam');
-my $des_to_restart = VRPipe::DataElementState->get(pipelinesetup => $mapping_pipelinesetup, dataelement => VRPipe::DataElement->get(id => 1));
+my $des_to_restart = VRPipe::DataElementState->create(pipelinesetup => $mapping_pipelinesetup, dataelement => VRPipe::DataElement->create(id => 1));
 is_deeply [$des_to_restart->our_step_numbers], [3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17], 'our_step_numbers gave steps that are safe to restart';
 
 copy(file(qw(t data datasource.sequence_index.altered)), $seq_index_file);
 my $changed_fq_file = file(qw(t data 2822_6.fastq))->absolute;
 copy(file(qw(t data 2822_6.fastq.altered)), $changed_fq_file);
 
-my $vr_cff = VRPipe::File->get(path => $changed_fq_file);
+my $vr_cff = VRPipe::File->create(path => $changed_fq_file);
 is $vr_cff->metadata->{expected_md5}, 'e6083e0173d78db081ddfe8f2aca955d', 'prior to changed datasource, expected_md5 of 2822_6.fastq is original';
 ok check_bam($bam, 'IL3_2822:6:1:26:1603'), 'prior to changed datasource, the bam output has an original read';
 ok handle_pipeline(), 'pipeline ran ok again, after changing the datasource';
+$vr_cff->reselect_values_from_db;
 is $vr_cff->metadata->{expected_md5}, '7812540da740d59eedf03894d9b33783', 'after changing datasource, expected_md5 of 2822_6.fastq is new';
 ok check_bam($bam, 'IL3_2822:6:1:26:1604'), 'after changing datasource, the bam output has the new read';
 

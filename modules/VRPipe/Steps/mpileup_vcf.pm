@@ -35,13 +35,13 @@ use VRPipe::Base;
 class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
     around options_definition {
 	return { %{$self->$orig},
-		 bcftools_exe => VRPipe::StepOption->get(description => 'path to bcftools executable',
+		 bcftools_exe => VRPipe::StepOption->create(description => 'path to bcftools executable',
 							 optional => 1,
 							 default_value => 'bcftools'),
-		 bcftools_view_options => VRPipe::StepOption->get(description => 'bcftools view options',
+		 bcftools_view_options => VRPipe::StepOption->create(description => 'bcftools view options',
 								  optional => 1,
 								  default_value => '-gcv'),
-                 mimimum_calls => VRPipe::StepOption->get(description => 'minumum expected number of variant calls',
+                 mimimum_calls => VRPipe::StepOption->create(description => 'minumum expected number of variant calls',
 							  optional => 1,
 							  default_value => 0),};
     }
@@ -94,7 +94,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
     }
 
     method outputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'a vcf file for each set of one or more input bams') };
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a vcf file for each set of one or more input bams') };
     }
 
     method run_mpileup (ClassName|Object $self: Str $cmd_line, Int $min_recs) {

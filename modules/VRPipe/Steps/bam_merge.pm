@@ -35,15 +35,15 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
     around options_definition {
         return { %{$self->$orig},
-                 merge_sam_files_options => VRPipe::StepOption->get(description => 'options for picard MergeSamFiles', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT'),
-                 bam_merge_keep_single_paired_separate => VRPipe::StepOption->get(description => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
+                 merge_sam_files_options => VRPipe::StepOption->create(description => 'options for picard MergeSamFiles', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT'),
+                 bam_merge_keep_single_paired_separate => VRPipe::StepOption->create(description => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
                                                                                   optional => 1,
                                                                                   default_value => 1),
-                 bam_merge_maximum_files => VRPipe::StepOption->get(description => 'set the maximum number of files to merge in one go; eg. if there are 100 bams to merge and you set this to 40, 3 output bams will result, being merges of 40, 40 and 20 of the input bams (defaults to infinity)',
+                 bam_merge_maximum_files => VRPipe::StepOption->create(description => 'set the maximum number of files to merge in one go; eg. if there are 100 bams to merge and you set this to 40, 3 output bams will result, being merges of 40, 40 and 20 of the input bams (defaults to infinity)',
                                                                     optional => 1) };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             max_files => -1, 
                                                             description => '1 or more bam files',
                                                             metadata => {lane => 'lane name, or comma separated list of lane names if merged',
@@ -110,7 +110,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                 }
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'picard', 
                                    version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam '.$opts));
             
@@ -135,7 +135,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         };
     }
     method outputs_definition {
-        return { merged_bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { merged_bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                                    max_files => -1, 
                                                                    description => '1 or more bam merged bam files',
                                                                    metadata => {lane => 'lane name, or comma separated list of lane names if merged',

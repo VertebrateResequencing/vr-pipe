@@ -43,14 +43,14 @@ class VRPipe::Steps::gatk_vcf_leftalign extends VRPipe::Steps::gatk {
 	around options_definition {
 		return { 
             %{$self->$orig},
-			reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-			leftalign_options => VRPipe::StepOption->get(description => 'any addional general GATK options to pass the LeftAligner', optional => 1, default_value => '--phone_home NO_ET'),
+			reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+			leftalign_options => VRPipe::StepOption->create(description => 'any addional general GATK options to pass the LeftAligner', optional => 1, default_value => '--phone_home NO_ET'),
 	    };
     }
 
     method inputs_definition {
         return {
-        vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'input vcf files'),
+        vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'input vcf files'),
 		};
     }
 
@@ -80,7 +80,7 @@ class VRPipe::Steps::gatk_vcf_leftalign extends VRPipe::Steps::gatk {
         };
     }
     method outputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'output vcf files') };
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'output vcf files') };
     }
     method post_process_sub {
         return sub { return 1; };

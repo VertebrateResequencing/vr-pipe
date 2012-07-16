@@ -79,10 +79,9 @@ class VRPipe::StepState extends VRPipe::Persistent {
                                               ['_output_files' => 'VRPipe::StepOutputFile']]);
     
     method output_files (PersistentFileHashRef $new_hash?) {
-        my @current_ofiles = $self->_output_files;
+        my @current_sofiles = VRPipe::StepOutputFile->search({ stepstate => $self->id, output_key => { '!=' => 'temp' } }, { prefetch => 'file' });
         my %hash;
-        foreach my $sof (@current_ofiles) {
-            next if $sof->output_key eq 'temp';
+        foreach my $sof (@current_sofiles) {
             push(@{$hash{$sof->output_key}}, $sof->file);
         }
         
@@ -110,11 +109,14 @@ class VRPipe::StepState extends VRPipe::Persistent {
             
             # remember new ones
             delete $new_hash->{temp};
+            my @sof_args;
+            my $own_id = $self->id;
             while (my ($key, $files) = each %$new_hash) {
                 foreach my $file (@$files) {
-                    VRPipe::StepOutputFile->get(stepstate => $self, file => $file, output_key => $key);
+                    push(@sof_args, { stepstate => $own_id, file => $file->id, output_key => $key });
                 }
             }
+            VRPipe::StepOutputFile->bulk_create_or_update(@sof_args);
             
             return $new_hash;
         }
@@ -124,31 +126,29 @@ class VRPipe::StepState extends VRPipe::Persistent {
     }
     
     method temp_files (ArrayRefOfPersistent $new_array?) {
-        my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('StepOutputFile')->search({ stepstate => $self->id, output_key => 'temp' });
-        my @array;
-        while (my $sof = $rs->next) {
-            push(@array, $sof->file);
-        }
+        my @file_ids = VRPipe::StepOutputFile->get_column_values('file', { stepstate => $self->id, output_key => 'temp' }); # *** can we get file objects out efficiently?
         
         if ($new_array) {
             # forget temp files we no longer have
             my %new_file_ids = map { $_->id => 1 } @$new_array;
-            foreach my $file (@array) {
-                unless (exists $new_file_ids{$file->id}) {
-                    VRPipe::StepOutputFile->get(stepstate => $self, file => $file, output_key => 'temp')->delete;
+            foreach my $file_id (@file_ids) {
+                unless (exists $new_file_ids{$file_id}) {
+                    VRPipe::StepOutputFile->get(stepstate => $self, file => $file_id, output_key => 'temp')->delete;
                 }
             }
             
             # remember new ones
+            my @sof_args;
+            my $own_id = $self->id;
             foreach my $file (@$new_array) {
-                VRPipe::StepOutputFile->get(stepstate => $self, file => $file, output_key => 'temp');
+                push(@sof_args, { stepstate => $own_id, file => $file->id, output_key => 'temp' });
             }
+            VRPipe::StepOutputFile->bulk_create_or_update(@sof_args);
             
             return $new_array;
         }
         else {
-            return \@array;
+            return [map { VRPipe::File->get(id => $_) } @file_ids];
         }
         
     }
@@ -187,14 +187,12 @@ class VRPipe::StepState extends VRPipe::Persistent {
         
         # first reset all associated submissions in order to reset their jobs
         my @sub_ids;
-        my $schema = $self->result_source->schema;
         foreach my $sub ($self->submissions) {
             push(@sub_ids, $sub->id);
             $sub->start_over;
             
             # delete any stepstats there might be for us
-            my $rs = $schema->resultset('StepStats')->search({ submission => $sub->id });
-            while (my $ss = $rs->next) {
+            foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
                 $ss->delete;
             }
             

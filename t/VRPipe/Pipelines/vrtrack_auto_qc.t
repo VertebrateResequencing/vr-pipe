@@ -46,13 +46,13 @@ my $output_dir = get_output_dir('auto_qc');
 my $lni = 0;
 foreach my $file_prefix (qw(autoqc_normal autoqc_short)) {
     foreach my $suffix ('.bam', '.bam.bamcheck') {
-        my $file = VRPipe::File->get(path => file('t', 'data', $file_prefix.$suffix)->absolute);
+        my $file = VRPipe::File->create(path => file('t', 'data', $file_prefix.$suffix)->absolute);
         $file->add_metadata({lane => $lane_names[$lni]});
     }
     
     # bamcheck metadata
-    my $bam = file('t', 'data', $file_prefix.'.bam')->absolute;
-    my $bamcheck = file($output_dir, $file_prefix.'.bam.bamcheck');
+    my $bam = VRPipe::File->create(path => file('t', 'data', $file_prefix.'.bam')->absolute)->path;
+    my $bamcheck = VRPipe::File->create(path => file($output_dir, $file_prefix.'.bam.bamcheck'))->path;
     VRPipe::Steps::bamcheck->stats_from_bamcheck("bamcheck $bam > $bamcheck");
     
     # mapstats
@@ -62,13 +62,13 @@ foreach my $file_prefix (qw(autoqc_normal autoqc_short)) {
 }
 
 # autoqc that writes results to vrtrack
-my $auto_qc_ps = VRPipe::PipelineSetup->get(name => 'auto_qc',
-                                            datasource => VRPipe::DataSource->get(type => 'delimited',
+my $auto_qc_ps = VRPipe::PipelineSetup->create(name => 'auto_qc',
+                                            datasource => VRPipe::DataSource->create(type => 'delimited',
                                                                                   method => 'all_columns',
                                                                                   source => file(qw(t data autoqc.tab))->absolute->stringify,
                                                                                   options => { delimiter => "\t" }),
                                             output_root => $output_dir,
-                                            pipeline => VRPipe::Pipeline->get(name => 'vrtrack_auto_qc'),
+                                            pipeline => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc'),
                                             options => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} });
 
 ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';

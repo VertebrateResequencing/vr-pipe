@@ -37,40 +37,40 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
     
     around options_definition {
 	return { %{$self->$orig},
-		 auto_qc_gtype_regex => VRPipe::StepOption->get(description => 'If the bam_genotype_checking pipeline was run, providing a gtype_analysis metadata key, provide a regular expression to choose acceptable status values',
+		 auto_qc_gtype_regex => VRPipe::StepOption->create(description => 'If the bam_genotype_checking pipeline was run, providing a gtype_analysis metadata key, provide a regular expression to choose acceptable status values',
                                                                 optional => 1,
                                                                 default_value => '^confirmed'),
-		 auto_qc_mapped_base_percentage => VRPipe::StepOption->get(description => 'Minimum percentage of mapped bases',
+		 auto_qc_mapped_base_percentage => VRPipe::StepOption->create(description => 'Minimum percentage of mapped bases',
                                                                            optional => 1,
                                                                            default_value => 90),
-		 auto_qc_duplicate_read_percentage => VRPipe::StepOption->get(description => 'Maximum percentage of duplicate reads',
+		 auto_qc_duplicate_read_percentage => VRPipe::StepOption->create(description => 'Maximum percentage of duplicate reads',
                                                                               optional => 1,
                                                                               default_value => 8),
-		 auto_qc_mapped_reads_properly_paired_percentage => VRPipe::StepOption->get(description => 'Minimum percentage of the reads that are mapped which are also properly paired',
+		 auto_qc_mapped_reads_properly_paired_percentage => VRPipe::StepOption->create(description => 'Minimum percentage of the reads that are mapped which are also properly paired',
 											    optional => 1,
 											    default_value => 80),
-		 auto_qc_error_rate => VRPipe::StepOption->get(description => 'Maximum allowed error rate',
+		 auto_qc_error_rate => VRPipe::StepOption->create(description => 'Maximum allowed error rate',
                                                                optional => 1,
                                                                default_value => 0.02),
-                 auto_qc_overlapping_base_duplicate_percent => VRPipe::StepOption->get(description => 'Maximum percent of bases duplicated due to overlapping reads of a pair',
+                 auto_qc_overlapping_base_duplicate_percent => VRPipe::StepOption->create(description => 'Maximum percent of bases duplicated due to overlapping reads of a pair',
                                                                                        optional => 1,
                                                                                        default_value => 4),
-		 auto_qc_insert_peak_window => VRPipe::StepOption->get(description => 'A percentage of the insert size peak; this will be used get an acceptable range of insert sizes',
+		 auto_qc_insert_peak_window => VRPipe::StepOption->create(description => 'A percentage of the insert size peak; this will be used get an acceptable range of insert sizes',
 								       optional => 1,
 								       default_value => 25),
-		 auto_qc_insert_peak_reads => VRPipe::StepOption->get(description => 'The minimum percentage of reads that must have an insert size within the auto_qc_insert_peak_window',
+		 auto_qc_insert_peak_reads => VRPipe::StepOption->create(description => 'The minimum percentage of reads that must have an insert size within the auto_qc_insert_peak_window',
 								      optional => 1,
 								      default_value => 80),
-		 auto_qc_max_ins_to_del_ratio => VRPipe::StepOption->get(description => 'Maximum insert to deletion ratio',
+		 auto_qc_max_ins_to_del_ratio => VRPipe::StepOption->create(description => 'Maximum insert to deletion ratio',
 									 optional => 1,
 									 default_value => '1.0') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             description => 'bam files', 
                                                             max_files => -1,
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)'}),
-                 bamcheck_files => VRPipe::StepIODefinition->get(type => 'txt', 
+                 bamcheck_files => VRPipe::StepIODefinition->create(type => 'txt', 
 							  	 description => 'bamcheck files', 
 								 max_files => -1,
 								 metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)'}) };
@@ -386,8 +386,41 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 	    }
 	    
 	    $vrlane->update();
-	});
-	
+	}, undef, [$lib_to_update, $vrlane]);
+        
+        # for some bizarre reason, at this point $lib_to_update->auto_qc_status
+        # can report the desired status, yet the database has not actually been
+        # updated. Check this
+        if ($worked && $lib_to_update) {
+            $vrtrack = $self->get_vrtrack(db => $db);
+            my $lib_id = $lib_to_update->id;
+            my $check_lib = VRTrack::Library->new($vrtrack, $lib_id);
+            my $desired_qc_status = $lib_to_update->auto_qc_status;
+            my $actual_qc_status = $check_lib->auto_qc_status; 
+            $self->throw("the auto_qc_status we set ($desired_qc_status) does not match the one in the db ($actual_qc_status) for lane $lib_id") unless $actual_qc_status eq $desired_qc_status;
+            
+            # below commented section definitely solves the problem, but latest
+            # VRTrack has a more generic solution (not yet confirmed effective)
+            
+            #my $max_retries = 10;
+            #while ($check_lib->auto_qc_status ne $desired_qc_status) {
+            #    warn "library auto_qc_status in the database was not $desired_qc_status, will try and set it again...\n";
+            #    $vrtrack->transaction(sub {
+            #        $check_lib->auto_qc_status($desired_qc_status);
+            #        $check_lib->update;
+            #    });
+            #    
+            #    $max_retries--;
+            #    if ($max_retries <= 0) {
+            #        $self->throw("Could not get library auto_qc_status to update in the database for library $lib_id");
+            #    }
+            #    
+            #    $vrtrack = $self->get_vrtrack(db => $db);
+            #    $check_lib = VRTrack::Library->new($vrtrack, $lib_id);
+            #}
+            #warn "Pretty sure that library auto_qc_status in the database is now $desired_qc_status\n";
+        }
+        
 	if ($worked) {
 	    # also add the result as metadata on the bam file
 	    $bam_file->add_metadata({auto_qc_status => $status ? 'passed' : 'failed'}, replace_data => 1);

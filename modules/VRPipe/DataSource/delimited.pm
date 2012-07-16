@@ -63,11 +63,11 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
     }
     
     method all (Defined :$handle!, Str :$delimiter!, ArrayRef :$path_columns?) {
-        my @elements;
+        my @element_args;
         foreach my $result ($self->_all_results(handle => $handle, delimiter => $delimiter, $path_columns ? ( path_columns => $path_columns) : ())) {
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $result));
+            push(@element_args, { datasource => $self->_datasource_id, result => $result });
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
     
     around _all_results (Defined :$handle!, Str :$delimiter!, ArrayRef :$path_columns?, Bool :$columns_are_paths?) {
@@ -82,7 +82,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
             my $del_result;
             for my $key (1..@split) {
                 if ($columns_are_paths || exists $path_cols{$key}) {
-                    push(@{$del_result->{paths}}, file($split[$key - 1])->absolute->stringify);
+                    push(@{$del_result->{paths}}, VRPipe::File->create(path => file($split[$key - 1])->absolute)->path->stringify); # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
                 }
                 else {
                     $del_result->{$key} = $split[$key - 1];
@@ -97,20 +97,19 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
     method single_column (Defined :$handle!, Str :$delimiter!, PositiveInt :$column!, Bool :$column_is_path = 1) {
         my $key_name = $column_is_path ? 'paths' : $column;
         
-        my @elements;
+        my @element_args;
         foreach my $hash_ref ($self->_all_results(handle => $handle, delimiter => $delimiter, $column_is_path ? (path_columns => [$column]) : ())) {
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { $key_name => $hash_ref->{$key_name} }));
+            push(@element_args, { datasource => $self->_datasource_id, result => { $key_name => $hash_ref->{$key_name} } });
         }
-        
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
     
     method all_columns (Defined :$handle!, Str :$delimiter!) {
-        my @elements;
+        my @element_args;
         foreach my $hash_ref ($self->_all_results(handle => $handle, delimiter => $delimiter, columns_are_paths => 1)) {
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths} }));
+            push(@element_args, { datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths} }});
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
     
     method grouped_single_column (Defined :$handle!, Str :$delimiter!, PositiveInt :$column!, PositiveInt :$group_by!, Bool :$column_is_path = 1) {
@@ -120,13 +119,12 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
         }
         
         my $key_name = $column_is_path ? 'paths' : $column;
-        my @elements;
+        my @element_args;
         foreach my $group (sort keys %$group_hash) {
             my $array_ref = $group_hash->{$group};
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { $key_name => $array_ref, group => $group }, withdrawn => 0));
+            push(@element_args, { datasource => $self->_datasource_id, result => { $key_name => $array_ref, group => $group } });
         }
-        
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
 }
 

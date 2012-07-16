@@ -15,8 +15,8 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_split_by_s
 is_deeply [$step->id, $step->description], [1, 'Splits a BAM file into multiple BAM files, one for each sequence the reads were aligned to'], 'bam_split_by_sequence step created and has correct description';
 
 # test using the class methods directly
-my $parse_bam = file(qw(t data parser.1kg_lane.bam))->absolute->stringify;
-my $test_bam = file(qw(t data 2822_6.pe.bam))->absolute->stringify;
+my $parse_bam = VRPipe::File->create(path => file(qw(t data parser.1kg_lane.bam))->absolute)->path->stringify;
+my $test_bam = VRPipe::File->create(path => file(qw(t data 2822_6.pe.bam))->absolute)->path->stringify;
 my $split_dir = $output_dir->stringify;
 
 my $split_bams = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($parse_bam, split_dir => $split_dir, pretend => 1);
@@ -66,8 +66,8 @@ $ok = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($test_bam, spl
 is $ok, 1,  'split_bam_by_sequence() merge test ran okay';
 
 # test as part of a pipeline
-VRPipe::PipelineSetup->get(name => 'split_setup',
-                           datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
+VRPipe::PipelineSetup->create(name => 'split_setup',
+                           datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
                            output_root => $output_dir,
                            pipeline => $pipeline,
                            options => { split_bam_merge => q[{ '^fake_chr[12]$' => 'autosome', '^[^\\*]+' => 'mapped' }], split_bam_make_unmapped => 1 });
@@ -83,7 +83,7 @@ foreach my $bam (qw(2822_7.pe.bam 2822_6.pe.bam 2822_6.se.bam 2823_4.pe.bam 8324
 ok handle_pipeline(@output_files), 'single step bam_split_by_sequence pipeline ran and created all expected output files';
 
 
-VRPipe::DataElementState->get(pipelinesetup => 1, dataelement => 5)->start_from_scratch();
+VRPipe::DataElementState->create(pipelinesetup => 1, dataelement => 5)->start_from_scratch();
 
 my @file_exists = map { -s $_ ? 1 : 0 } @output_files;
 is_deeply \@file_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0], 'correct files were removed after start from scratch';
@@ -91,8 +91,8 @@ is_deeply \@file_exists, [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0], 'correct files were re
 ok handle_pipeline(@output_files), 'all file recreated after an element was started from scratch';
 
 # run a longer test
-VRPipe::PipelineSetup->get(name => 'split_setup2',
-                           datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data split_bam_datasource.fofn))->absolute),
+VRPipe::PipelineSetup->create(name => 'split_setup2',
+                           datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data split_bam_datasource.fofn))->absolute),
                            output_root => $output_dir,
                            pipeline => $pipeline,
                            options => { split_bam_merge => q[{'^1$' => 'chrom1', '^2$' => 'chrom2', '^3$'  => 'chrom3', '^4$'  => 'chrom4', '^5$'  => 'chrom5', '^6$'  => 'chrom6', '^7$'  => 'chrom7', '^8$'  => 'chrom8', '^9$'  => 'chrom9', '^10$' => 'chrom10', '^11$' => 'chrom11', '^12$' => 'chrom12', '^13$' => 'chrom13', '^14$' => 'chrom14', '^15$' => 'chrom15', '^16$' => 'chrom16', '^17$' => 'chrom17', '^18$' => 'chrom18', '^19$' => 'chrom19', '^20$' => 'chrom20', '^21$' => 'chrom21', '^22$' => 'chrom22', '^X$'  => 'chromX', '^Y$'  => 'chromY', '^MT$'  => 'chromMT', '^[^\\*]+' => 'mapped' }], 

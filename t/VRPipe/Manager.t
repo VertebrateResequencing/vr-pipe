@@ -15,29 +15,30 @@ BEGIN {
 # data elements; the second has multiple steps but a single data element.
 # all of the following set up stuff should have been tested in Persistent.t
 # so we don't bother with tests unless we actually get to the manager
-my $scheduler = VRPipe::Scheduler->get();
+my $scheduler = VRPipe::Scheduler->create();
 my $output_root = get_output_dir('manager_test_output');
 
 # pipeline 1
-my $single_step = VRPipe::Step->get(name => 'element_outputter',
+my $single_step = VRPipe::Step->create(name => 'element_outputter',
                                     inputs_definition => { },
                                     body_sub => sub { my $self = shift;
                                                       my $element_name = $self->data_element->result->{line};
                                                       my $ofile = $self->output_file(output_key => 'the_only_output', basename => "$element_name.o", type => 'txt')->path;
                                                       $self->dispatch([qq{sleep 5; echo "output for $element_name" > $ofile}, $self->new_requirements(memory => 60, time => 1)]); },
-                                    outputs_definition => { the_only_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'element_name.o file') },
+                                    outputs_definition => { the_only_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'element_name.o file') },
                                     post_process_sub => sub { return 1 },
                                     description => 'outputs the data element result to a file');
 
-my $five_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist)));
+my $five_element_datasource = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist)));
 
-my $single_step_pipeline = VRPipe::Pipeline->get(name => 'single_step_pipeline', description => 'simple test pipeline with only a single step');
+my $single_step_pipeline = VRPipe::Pipeline->create(name => 'single_step_pipeline', description => 'simple test pipeline with only a single step');
 $single_step_pipeline->add_step($single_step);
 
 my $first_pipeline_output_dir = dir($output_root, 'single_step_pipeline');
-my $first_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $five_element_datasource, output_root => $first_pipeline_output_dir, pipeline => $single_step_pipeline);
+my $first_pipelinesetup = VRPipe::PipelineSetup->create(name => 'ps1', datasource => $five_element_datasource, output_root => $first_pipeline_output_dir, pipeline => $single_step_pipeline);
 
 my @first_output_files;
+$five_element_datasource->elements;
 foreach my $element_num (1..5) {
     push(@first_output_files, file(output_subdirs(VRPipe::DataElement->get(datasource => $five_element_datasource->id, result => {line => "fed_result_$element_num"})->id), '1_element_outputter', "fed_result_$element_num.o"));
 }
@@ -49,35 +50,35 @@ my $input1_path = file($second_pipeline_output_dir, 'input1.txt');
 open(my $fh, '>', $input1_path) or die "Could not write to $input1_path\n";
 print $fh "input1_line1\ninput2_line2\n";
 close($fh);
-my $input1_file = VRPipe::File->get(path => $input1_path, type => 'txt');
+my $input1_file = VRPipe::File->create(path => $input1_path, type => 'txt');
 
-my $single_element_datasource = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
-my $multi_step_pipeline = VRPipe::Pipeline->get(name => 'multi_step_pipeline', description => 'simple test pipeline with five steps');
+my $single_element_datasource = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
+my $multi_step_pipeline = VRPipe::Pipeline->create(name => 'multi_step_pipeline', description => 'simple test pipeline with five steps');
 
 my @steps;
-$steps[0] = VRPipe::Step->get(name => 'step_1',
+$steps[0] = VRPipe::Step->create(name => 'step_1',
                               inputs_definition => { static_input => $input1_file },
                               body_sub => sub { my $ofile = shift->output_file(output_key => 'step1_output', basename => 'output1.txt', type => 'txt');
                                                 my $fh = $ofile->openw();
                                                 print $fh "step1output\n";
                                                 $ofile->close(); },
-                              outputs_definition => { step1_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step1_output file') },
+                              outputs_definition => { step1_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step1_output file') },
                               post_process_sub => sub { return 1 },
                               description => 'the first step');
-VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, to_step => 2, adaptor_hash => { step2_input => { step1_output => 1 } });
-$steps[1] = VRPipe::Step->get(name => "step_2",
-                              inputs_definition => { step2_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_2 input') },
+VRPipe::StepAdaptor->create(pipeline => $multi_step_pipeline, to_step => 2, adaptor_hash => { step2_input => { step1_output => 1 } });
+$steps[1] = VRPipe::Step->create(name => "step_2",
+                              inputs_definition => { step2_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_2 input') },
                               body_sub => sub {
                                                 my $ofile = shift->output_file(output_key => 'step2_output', basename => 'step2_output.txt', type => 'txt');
                                                 my $fh = $ofile->openw();
                                                 print $fh "step2output\n";
                                                 $ofile->close();
                                                },
-                              outputs_definition => { step2_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step2_output file') },
+                              outputs_definition => { step2_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step2_output file') },
                               post_process_sub => sub { return 1 });
-VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, to_step => 3, adaptor_hash => { step3_input => { step2_output => 2 } });
-$steps[2] = VRPipe::Step->get(name => "step_3",
-                              inputs_definition => { step3_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_3 input') },
+VRPipe::StepAdaptor->create(pipeline => $multi_step_pipeline, to_step => 3, adaptor_hash => { step3_input => { step2_output => 2 } });
+$steps[2] = VRPipe::Step->create(name => "step_3",
+                              inputs_definition => { step3_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_3 input') },
                               body_sub => sub { 
                                                 my $self = shift;
                                                 my $ofile = $self->output_file(output_key => 'step3_output', basename => 'step3_output.txt', type => 'txt')->path;
@@ -85,36 +86,37 @@ $steps[2] = VRPipe::Step->get(name => "step_3",
                                                 $self->dispatch(["sleep 4;", $self->new_requirements(memory => 50, time => 1)]);
                                                 $self->dispatch(["sleep 3;", $self->new_requirements(memory => 50, time => 1)]);
                                                },
-                              outputs_definition => { step3_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step3_output file') },
+                              outputs_definition => { step3_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step3_output file') },
                               post_process_sub => sub { return 1 });
-VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, to_step => 4, adaptor_hash => { step4_input => { step3_output => 3 } });
-$steps[3] = VRPipe::Step->get(name => "step_4",
-                              inputs_definition => { step4_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_4 input') },
+VRPipe::StepAdaptor->create(pipeline => $multi_step_pipeline, to_step => 4, adaptor_hash => { step4_input => { step3_output => 3 } });
+$steps[3] = VRPipe::Step->create(name => "step_4",
+                              inputs_definition => { step4_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_4 input') },
                               body_sub => sub {
                                                 my $ofile = shift->output_file(output_key => 'step4_output', basename => 'step4_basename.o', type => 'txt');
                                                 my $fh = $ofile->openw();
                                                 print $fh "step4output\n";
                                                 $ofile->close();
                                                },
-                              outputs_definition => { step4_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step4_output file') },
+                              outputs_definition => { step4_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step4_output file') },
                               post_process_sub => sub { return 1 });
-VRPipe::StepAdaptor->get(pipeline => $multi_step_pipeline, to_step => 5, adaptor_hash => { step5_input => { step4_output => 4 } });
-$steps[4] = VRPipe::Step->get(name => "step_5",
-                              inputs_definition => { step5_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step_5 input') },
+VRPipe::StepAdaptor->create(pipeline => $multi_step_pipeline, to_step => 5, adaptor_hash => { step5_input => { step4_output => 4 } });
+$steps[4] = VRPipe::Step->create(name => "step_5",
+                              inputs_definition => { step5_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_5 input') },
                               body_sub => sub {
                                                 my $ofile = shift->output_file(output_key => 'step5_output', basename => 'step5_output.txt', type => 'txt');
                                                 my $fh = $ofile->openw();
                                                 print $fh "step5output\n";
                                                 $ofile->close();
                                                },
-                              outputs_definition => { step5_output => VRPipe::StepIODefinition->get(type => 'txt', description => 'step5_output file') },
+                              outputs_definition => { step5_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step5_output file') },
                               post_process_sub => sub { return 1 });
 
 foreach my $step (@steps) {
     $multi_step_pipeline->add_step($step);
 }
-my $second_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps2', datasource => $single_element_datasource, output_root => $second_pipeline_output_dir, pipeline => $multi_step_pipeline);
+my $second_pipelinesetup = VRPipe::PipelineSetup->create(name => 'ps2', datasource => $single_element_datasource, output_root => $second_pipeline_output_dir, pipeline => $multi_step_pipeline);
 
+$single_element_datasource->elements;
 my @second_output_files = (file(output_subdirs(VRPipe::DataElement->get(datasource => $single_element_datasource->id, result => {line => "single_element"})->id, 2), "1_step_1", 'output1.txt'));
 foreach my $step_num (2..5) {
     my $ofile = file(output_subdirs(VRPipe::DataElement->get(datasource => $single_element_datasource->id, result => {line => "single_element"})->id, 2), "${step_num}_step_$step_num", $step_num == 4 ? 'step4_basename.o' : "step${step_num}_output.txt");
@@ -122,7 +124,7 @@ foreach my $step_num (2..5) {
 }
 
 # setup and use manager
-ok my $manager = VRPipe::Manager->get(), 'can get a manager with no args';
+ok my $manager = VRPipe::Manager->create(), 'can create a manager with no args';
 is $manager->id, 1, 'manager always has an id of 1';
 my @manager_setups = $manager->setups;
 is @manager_setups, 2, 'setups() returns the correct number of PipelineSetups';
@@ -133,15 +135,16 @@ is handle_pipeline(@first_output_files, @second_output_files), 1, 'multi-step pi
 
 # now lets create a pipeline using a pre-written step, where we'll test that a
 # step can work with both a datasource input and the outputs of a previous step
-my $prewritten_step_pipeline = VRPipe::Pipeline->get(name => 'md5_pipeline', description => 'simple test pipeline with two steps that create md5 files');
-VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, to_step => 1, adaptor_hash => { md5_file_input => { data_element => 0 } });
+my $prewritten_step_pipeline = VRPipe::Pipeline->create(name => 'md5_pipeline', description => 'simple test pipeline with two steps that create md5 files');
+VRPipe::StepAdaptor->create(pipeline => $prewritten_step_pipeline, to_step => 1, adaptor_hash => { md5_file_input => { data_element => 0 } });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
-VRPipe::StepAdaptor->get(pipeline => $prewritten_step_pipeline, to_step => 2, adaptor_hash => { md5_file_input => { md5_files => 1 } });
+VRPipe::StepAdaptor->create(pipeline => $prewritten_step_pipeline, to_step => 2, adaptor_hash => { md5_file_input => { md5_files => 1 } });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
 
-my $fofn_datasource = VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn)));
+my $fofn_datasource = VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn)));
+$fofn_datasource->elements;
 my $prewritten_step_pipeline_output_dir = dir($output_root, 'md5_pipeline');
-my $md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps3',
+my $md5_pipelinesetup = VRPipe::PipelineSetup->create(name => 'ps3',
                                                    datasource => $fofn_datasource,
                                                    output_root => $prewritten_step_pipeline_output_dir,
                                                    pipeline => $prewritten_step_pipeline,
@@ -172,7 +175,7 @@ ok $md5s[3] && $md5s[4] && $md5s[5], 'md5s of md5 files were all set in db';
 # test that a new pipelinesetup will work when using a previously completed
 # datasource
 $prewritten_step_pipeline_output_dir = dir($output_root, 'md5_pipeline2');
-$md5_pipelinesetup = VRPipe::PipelineSetup->get(name => 'ps4',
+$md5_pipelinesetup = VRPipe::PipelineSetup->create(name => 'ps4',
                                                 datasource => $fofn_datasource,
                                                 output_root => $prewritten_step_pipeline_output_dir,
                                                 pipeline => $prewritten_step_pipeline,
@@ -190,15 +193,15 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
 # we can have the input step to a pipeline take 2 different types of file from
 # the datasource
 {
-    my $ds = VRPipe::DataSource->get(type => 'fofn_with_metadata',
+    my $ds = VRPipe::DataSource->create(type => 'fofn_with_metadata',
                                      method => 'grouped_by_metadata',
                                      source => file(qw(t data datasource.fofnwm_mixed_types)),
                                      options => { metadata_keys => 'lane' });
     
     # make a single-step pipeline that takes 2 different types as input
-    my $single_step = VRPipe::Step->get(name => 'two_type_step',
-                                        inputs_definition => { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1, metadata => {lane => 'lane name'}),
-                                                               fastq_files => VRPipe::StepIODefinition->get(type => 'fq', description => 'fastq files', max_files => -1, metadata => {lane => 'lane name'}) },
+    my $single_step = VRPipe::Step->create(name => 'two_type_step',
+                                        inputs_definition => { bam_files => VRPipe::StepIODefinition->create(type => 'bam', description => 'bam files', max_files => -1, metadata => {lane => 'lane name'}),
+                                                               fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'fastq files', max_files => -1, metadata => {lane => 'lane name'}) },
                                         body_sub => sub { my $self = shift;
                                                           my @bams = grep { $_->path =~ /\.bam$/ } @{$self->inputs->{bam_files}};
                                                           my @fqs = grep { $_->path =~ /\.fastq$/ } @{$self->inputs->{fastq_files}};
@@ -210,12 +213,12 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
                                         outputs_definition => { },
                                         post_process_sub => sub { return 1 },
                                         description => 'a step that takes 2 different file types');
-    my $two_type_pipeline = VRPipe::Pipeline->get(name => 'two_type_step_pipeline', description => 'two_type_step pipeline');
-    VRPipe::StepAdaptor->get(pipeline => $two_type_pipeline, to_step => 1, adaptor_hash => { bam_files => { data_element => 0 }, fastq_files => { data_element => 0 } });
+    my $two_type_pipeline = VRPipe::Pipeline->create(name => 'two_type_step_pipeline', description => 'two_type_step pipeline');
+    VRPipe::StepAdaptor->create(pipeline => $two_type_pipeline, to_step => 1, adaptor_hash => { bam_files => { data_element => 0 }, fastq_files => { data_element => 0 } });
     $two_type_pipeline->add_step($single_step);
     
     my $output_root = get_output_dir('manager_null_output');
-    VRPipe::PipelineSetup->get(name => 'two_type_one_step_ps', datasource => $ds, output_root => $output_root, pipeline => $two_type_pipeline);
+    VRPipe::PipelineSetup->create(name => 'two_type_one_step_ps', datasource => $ds, output_root => $output_root, pipeline => $two_type_pipeline);
     handle_pipeline();
     
     my $oks = 0;
@@ -230,7 +233,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
 # scheduler and job stdout/err
 {
     my ($output_root, $pipeline) = create_single_step_pipeline('test_step_fail', 'file');
-    my $fail_ps = VRPipe::PipelineSetup->get(name => 'fail_ps', datasource => $fofn_datasource, output_root => $output_root, pipeline => $pipeline);
+    my $fail_ps = VRPipe::PipelineSetup->create(name => 'fail_ps', datasource => $fofn_datasource, output_root => $output_root, pipeline => $pipeline);
     my $ps_id = $fail_ps->id;
     my @ofiles = (file(output_subdirs(7, $ps_id), '1_test_step_fail', 'file.bam'),
                   file(output_subdirs(8, $ps_id), '1_test_step_fail', 'file.cat'),
@@ -248,7 +251,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
         while ($pars->next_record) {
             push(@times, $pars->time);
         }
-        $sched_oks++ if @times == 3;
+        $sched_oks++ if @times >= 3;
         
         undef $pars;
         $pars = $sub->job_stdout;
@@ -258,6 +261,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
             $line_num++;
             my $line = $pr->[0] || 'undef';
             $job_std{out}->{$line_num.' - '.$line}++;
+            last if $line_num == 3;
         }
         
         undef $pars;
@@ -268,6 +272,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
             $line_num++;
             my $line = $pr->[0] || 'undef';
             $job_std{err}->{$line_num.' - '.$line}++;
+            last if $line_num == 3;
         }
     }
     is $sched_oks, 3, 'The scheduler stdout of all 3 attempts on all 3 elements could be retrieved';

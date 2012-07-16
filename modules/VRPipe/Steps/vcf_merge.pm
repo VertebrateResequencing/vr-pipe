@@ -34,15 +34,15 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf-isec_exe' => VRPipe::StepOption->get(description => 'path to your vcf-isec executable',
+        return { 'vcf-isec_exe' => VRPipe::StepOption->create(description => 'path to your vcf-isec executable',
                                                            optional => 1,
                                                            default_value => 'vcf-isec'),
-		 'tabix_exe' => VRPipe::StepOption->get(description => 'path to your tabix executable',
+		 'tabix_exe' => VRPipe::StepOption->create(description => 'path to your tabix executable',
                                                         optional => 1,
                                                         default_value => 'tabix') };
     }
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf',
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf',
 							    description => 'compressed vcf files',
 							    max_files => -1) };
     }
@@ -77,10 +77,10 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
 		};
 	}
     method outputs_definition {
-        return { merged_vcf => VRPipe::StepIODefinition->get(type => 'vcf',
+        return { merged_vcf => VRPipe::StepIODefinition->create(type => 'vcf',
                                                              description => 'a merged vcf file',
                                                              max_files => 1),
-                 tbi_file => VRPipe::StepIODefinition->get(type => 'bin',
+                 tbi_file => VRPipe::StepIODefinition->create(type => 'bin',
                                                            description => 'a tbi file',
                                                            max_files => -1) };
     }
