@@ -60,7 +60,7 @@ use List::MoreUtils qw(natatime);
            my $req = $self->new_requirements(memory => 1500, time => 1);
            my $jvm_args = $self->jvm_args($req->memory);
                     
-           my $log_file = $self->output_file( output_key => 'trimmomatic_files',
+           my $log_file = $self->output_file( output_key => 'trimmomatic_log',
                                           basename => 'trimmomatic.log',
                                           type => 'txt',
                                           #metadata => $seq_file->metadata
@@ -72,7 +72,7 @@ use List::MoreUtils qw(natatime);
            if(!$paired_end){
                foreach my $seq_file  (@{$self->inputs->{fastq_files}}) {
                    my ($name) = fileparse( $seq_file->basename, ('.fastq') );
-                   my $out_file = $self->output_file( output_key => 'trimmomatic_files',
+                   my $out_file = $self->output_file( output_key => 'trimmed_files',
                                               basename => $name .'.trim.fastq',
                                               type => 'fq',
                                               metadata => $seq_file->metadata);
@@ -93,23 +93,23 @@ use List::MoreUtils qw(natatime);
               my $it = natatime 2, @input_files;
               while( my @pair = $it->() ) {
                 my ($name1) = fileparse( $pair[0]->basename, ('.fastq') );
-                my $out_file_1 = $self->output_file( output_key => 'trimmomatic_files',
+                my $out_file_1 = $self->output_file( output_key => 'trimmed_files',
                                               basename => $name1 .'.paired.trim.fastq',
                                               type => 'fq',
                                               metadata => $pair[0]->metadata);
                 
-                my $out_file_2 = $self->output_file( output_key => 'trimmomatic_files',
+                my $out_file_2 = $self->output_file( output_key => 'trimmed_files',
                                               basename => $name1 .'.unpaired.trim.fastq',
                                               type => 'fq',
                                               metadata => $pair[0]->metadata);
 
                 my ($name2) = fileparse( $pair[1]->basename, ('.fastq') );
-                my $out_file_3 = $self->output_file( output_key => 'trimmomatic_files',
+                my $out_file_3 = $self->output_file( output_key => 'trimmed_files',
                                               basename => $name2 .'.paired.trim.fastq',
                                               type => 'fq',
                                               metadata => $pair[1]->metadata);
               
-                my $out_file_4 = $self->output_file( output_key => 'trimmomatic_files',
+                my $out_file_4 = $self->output_file( output_key => 'trimmed_files',
                                               basename => $name2 .'.unpaired.trim.fastq',
                                               type => 'fq',
                                               metadata => $pair[1]->metadata);
@@ -130,7 +130,10 @@ use List::MoreUtils qw(natatime);
     }
 
     method outputs_definition {
-        return { };
+        return {
+           trimmed_files => VRPipe::StepIODefinition->create( type => 'fq', max_files => -1, description => 'trimmomatic trimmed file output'), 
+           trimmomatic_log => VRPipe::StepIODefinition->create( type => 'txt', description => 'trimmomatic log file')     
+        };
     }
     method post_process_sub {
         return sub { return 1; };

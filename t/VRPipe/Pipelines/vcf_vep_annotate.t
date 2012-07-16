@@ -29,7 +29,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my vcf_vep_annot
 			source => file(qw(t data datasource.vcf_fofn))),
 		output_root => $output_dir,
 		pipeline => $pipeline,
-		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --offline --cache --dir $vep_cache",
 		'vcf2consequences_options' => "--gerp $gerp_cache",
 		cleanup => 1});
 
