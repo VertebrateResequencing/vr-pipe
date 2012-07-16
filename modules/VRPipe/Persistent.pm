@@ -745,7 +745,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 			    push(@return, &{$inflator}($ref->[0]));
 			}
 			return @return;
-		    }
+		    };
 		}
 		else {
 		    $sub = sub {
@@ -755,7 +755,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 			    push(@return, $ref->[0]);
 			}
 			return @return;
-		    }
+		    };
 		}
 	    }
 	    else {
@@ -765,17 +765,18 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
 			my @return;
 			foreach my $ref ($cursor->all) {
 			    foreach my $i (@is_to_inflate) {
-				$ref->[$i] = &{$inflaters[$i]}($ref->[$i]);
+                                my $code_ref = $inflaters[$i];
+				$ref->[$i] = &{$code_ref}($ref->[$i]);
 			    }
 			    push(@return, $ref);
 			}
 			return \@return;
-		    }
+		    };
 		}
 		else {
 		    $sub = sub {
 			return [shift->cursor->all]
-		    }
+		    };
 		}
 	    }
 	    
