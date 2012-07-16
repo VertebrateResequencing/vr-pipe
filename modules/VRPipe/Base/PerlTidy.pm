@@ -39,9 +39,12 @@ sub prefilter {
     s/^(\s*)class (.+?)\{(.*?)\n/$1\{ \#__CLASS $2 \#__EXTRA $3\n/gm;
     
     # it messes up indentation and syntax checking for add_method(); turn it
-    # into a plain anonymous sub
-    #$meta->add_method('search_rs' => sub {
-    s/^(\s*)(.+?)->add_method(.+?) sub \{(.*)\n//;
+    # into a plain sub
+    s/\n(\s*)\$meta->add_method\('(\w+?)' => sub \{(.*?)\n(.+?)\n(\s*)\}\);\n/\n${1}sub $2 \{ \#__ADDMETHOD $3\n$4\n$5\}\n/gs;
+    
+    # it fails with syntax error on try/catch blocks, and can't get the same
+    # solution as method blocks to work right; turn them into if/else
+    s/\n(\s*)try \{(.+)?\}(\s+)catch ([^\{]*)\{/\n${1}if (1) { #__TRY $2}${3}else { #__CATCH $4 __ENDCATCH/gs;
     
     return $_;
 }
@@ -54,6 +57,12 @@ sub postfilter {
     
     # restore class
     s/^(\s*)\{\s+\#__CLASS (.+?) \#__EXTRA (.*?)\n/$1class $2\{$3\n/gm;
+    
+    # restore add_method
+    s/\n(\s*)sub (\w+?) \{ +\#__ADDMETHOD(.*?)\n(.+?)\n(\s*)\}\n/\n${1}\$meta->add_method\('$2' => sub \{ $3\n$4\n$5\}\);\n/gs;
+    
+    # restore try/catch
+    s/\n(\s*)if \(1\) \{ +\#__TRY(.+)?\}(\s+)else \{ +\#__CATCH ([^\n]*) __ENDCATCH\n/\n${1}try \{$2\}${3}catch $4\{\n/gs;
     
     # the method->sub->method trick screws up comments that appear on the next
     # line; fix them now
