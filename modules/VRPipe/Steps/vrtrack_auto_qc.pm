@@ -386,8 +386,41 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
 	    }
 	    
 	    $vrlane->update();
-	});
-	
+	}, undef, [$lib_to_update, $vrlane]);
+        
+        # for some bizarre reason, at this point $lib_to_update->auto_qc_status
+        # can report the desired status, yet the database has not actually been
+        # updated. Check this
+        if ($worked && $lib_to_update) {
+            $vrtrack = $self->get_vrtrack(db => $db);
+            my $lib_id = $lib_to_update->id;
+            my $check_lib = VRTrack::Library->new($vrtrack, $lib_id);
+            my $desired_qc_status = $lib_to_update->auto_qc_status;
+            my $actual_qc_status = $check_lib->auto_qc_status; 
+            $self->throw("the auto_qc_status we set ($desired_qc_status) does not match the one in the db ($actual_qc_status) for lane $lib_id") unless $actual_qc_status eq $desired_qc_status;
+            
+            # below commented section definitely solves the problem, but latest
+            # VRTrack has a more generic solution (not yet confirmed effective)
+            
+            #my $max_retries = 10;
+            #while ($check_lib->auto_qc_status ne $desired_qc_status) {
+            #    warn "library auto_qc_status in the database was not $desired_qc_status, will try and set it again...\n";
+            #    $vrtrack->transaction(sub {
+            #        $check_lib->auto_qc_status($desired_qc_status);
+            #        $check_lib->update;
+            #    });
+            #    
+            #    $max_retries--;
+            #    if ($max_retries <= 0) {
+            #        $self->throw("Could not get library auto_qc_status to update in the database for library $lib_id");
+            #    }
+            #    
+            #    $vrtrack = $self->get_vrtrack(db => $db);
+            #    $check_lib = VRTrack::Library->new($vrtrack, $lib_id);
+            #}
+            #warn "Pretty sure that library auto_qc_status in the database is now $desired_qc_status\n";
+        }
+        
 	if ($worked) {
 	    # also add the result as metadata on the bam file
 	    $bam_file->add_metadata({auto_qc_status => $status ? 'passed' : 'failed'}, replace_data => 1);
