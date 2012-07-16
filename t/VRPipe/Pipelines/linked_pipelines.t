@@ -14,8 +14,8 @@ my $output_dir   = get_output_dir('base_test_pipeline');
 my $output_dir_2 = get_output_dir('link_test_pipeline');
 my $output_dir_3 = get_output_dir('link_merge_test_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'test_pipeline'), 'able to get the test_pipeline pipeline';
-ok my $link_pipeline = VRPipe::Pipeline->get(name => 'linked_pipeline'), 'able to get the linked_pipeline pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'test_pipeline'), 'able to get the test_pipeline pipeline';
+ok my $link_pipeline = VRPipe::Pipeline->create(name => 'linked_pipeline'), 'able to get the linked_pipeline pipeline';
 
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
@@ -39,8 +39,8 @@ my $ds = file($tmp_dir, 'datasource.fofn');
 copy($orig_ds, $ds);
 
 # setup base pipeline from a file datasource
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'fofn source',
-                                                    datasource => VRPipe::DataSource->get(type => 'fofn',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'fofn source',
+                                                    datasource => VRPipe::DataSource->create(type => 'fofn',
                                                                                           method => 'all',
                                                                                           source => $ds),
                                                     output_root => $output_dir,
@@ -51,8 +51,8 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'fofn source',
                                                                 cleanup => 0});
 
 # test a vrpipe datasource
-my $test_pipelinesetup_2 = VRPipe::PipelineSetup->get(name => 'vrpipe datasource test',
-                                                      datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $test_pipelinesetup_2 = VRPipe::PipelineSetup->create(name => 'vrpipe datasource test',
+                                                      datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                             method => 'all',
                                                                                             source => 'fofn source[3]',
                                                                                             options => { }),
@@ -63,8 +63,8 @@ my $test_pipelinesetup_2 = VRPipe::PipelineSetup->get(name => 'vrpipe datasource
                                                                   cleanup => 0});
 
 # test a vrpipe datasource, grouping by metadata keys
-my $test_pipelinesetup_3 = VRPipe::PipelineSetup->get(name => 'vrpipe datasource grouped test',
-                                                      datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $test_pipelinesetup_3 = VRPipe::PipelineSetup->create(name => 'vrpipe datasource grouped test',
+                                                      datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                             method => 'group_by_metadata',
                                                                                             source => '1[2]',
                                                                                             options => { metadata_keys => 'one_meta',
@@ -98,7 +98,7 @@ handle_pipeline(); # *** there's some sort of bug that means the following test 
 # has finished, so only now can we figure out remaining expected output file
 # paths
 my $element_count = 0;
-foreach my $eid (map { $_->id } @{$test_pipelinesetup_2->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($test_pipelinesetup_2->datasource)}) {
     $element_count++;
     my @output_subdirs = output_subdirs($eid, 2);
     my $step_index = 0;
@@ -109,7 +109,7 @@ foreach my $eid (map { $_->id } @{$test_pipelinesetup_2->datasource->elements}) 
 }
 is $element_count, 3, 'the "all" linked pipeline had a dataelement for each parent element';
 $element_count = 0;
-foreach my $eid (map { $_->id } @{$test_pipelinesetup_3->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($test_pipelinesetup_3->datasource)}) {
     $element_count++;
     my @output_subdirs = output_subdirs($eid, 3);
     my $step_index = 0;
@@ -124,35 +124,35 @@ ok handle_pipeline(@base_files, @link_files, @link_merge_files), 'pipelines ran 
 # Check that metadata filter is applied after grouping.
 # Only one file has the metadata three_meta => StepOption_default_decided_three_option - 
 # only this one file should be required to pass the filter. 
-my $ds_test = VRPipe::DataSource->get(type => 'vrpipe',
+my $ds_test = VRPipe::DataSource->create(type => 'vrpipe',
                                         method => 'group_by_metadata',
                                         source => '1[4]',
                                         options => { metadata_keys => 'four_meta',
                                                      filter => 'three_meta#StepOption_default_decided_three_option' });
 my @results = ();
-foreach my $element (@{$ds_test->elements}) {
+foreach my $element (@{get_elements($ds_test)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => \@step_four_base_files, group => 'bar'}], 'metadata filtering for "group_by_metadata" vrpipe datasource method worked as expected';
 
-$ds_test = VRPipe::DataSource->get(type => 'vrpipe',
+$ds_test = VRPipe::DataSource->create(type => 'vrpipe',
                                         method => 'group_by_metadata',
                                         source => '1[4]',
                                         options => { metadata_keys => 'four_meta',
                                                      filter => 'three_meta#StepOption_default_decided_three_option',
                                                      filter_after_grouping => 0 });
 @results = ();
-foreach my $element (@{$ds_test->elements}) {
+foreach my $element (@{get_elements($ds_test)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [ $step_four_base_files[1] ], group => 'bar'}], 'metadata filtering for "group_by_metadata" vrpipe datasource method with "filter_after_grouping" option off worked as expected';
 
-$ds_test = VRPipe::DataSource->get(type => 'vrpipe',
+$ds_test = VRPipe::DataSource->create(type => 'vrpipe',
                                    method => 'all',
                                    source => '1[4]',
                                    options => { filter => 'three_meta#StepOption_default_decided_three_option' });
 @results = ();
-foreach my $element (@{$ds_test->elements}) {
+foreach my $element (@{get_elements($ds_test)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for "all" vrpipe datasource method worked as expected';
@@ -172,7 +172,7 @@ move($tmp_file, $ds);
 ok handle_pipeline(@base_files, @link_files, @link_merge_files), 'pipelines with changed datasource ran ok - original and withdrawn files all exist';
 my @new_files;
 $element_count = 0;
-foreach my $eid (map { $_->id } @{$test_pipelinesetup_3->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($test_pipelinesetup_3->datasource)}) {
     $element_count++;
     my @output_subdirs = output_subdirs($eid, 3);
     my $step_index = 0;
@@ -185,8 +185,8 @@ is $element_count, 1, 'datasource 3 still has just 1 active element after withdr
 isnt $new_files[0], $link_merge_files[0], 'the merge pipeline has produced a new merge file since one of the parent elements got withdrawn';
 ok handle_pipeline(@new_files), 'new merge files all exist after changing datasource';
 
-my $element1 = VRPipe::DataElement->get(datasource => 2, result => { paths => [ $base_files[2]->stringify ] });
-my $element2 = VRPipe::DataElement->get(datasource => 3, result => { paths => [ map { $_->stringify } @base_files[1,5,9] ], group => '50' });
+my $element1 = VRPipe::DataElement->create(datasource => 2, result => { paths => [ $base_files[2]->stringify ] });
+my $element2 = VRPipe::DataElement->create(datasource => 3, result => { paths => [ map { $_->stringify } @base_files[1,5,9] ], group => '50' });
 is_deeply [$element1->withdrawn, $element2->withdrawn], [1,1], 'elements correctly withdrawn after changing datasource';
 
 
@@ -195,30 +195,30 @@ is_deeply [$element1->withdrawn, $element2->withdrawn], [1,1], 'elements correct
 my $output_dir_parent = get_output_dir('parent_test_pipeline');
 my $output_dir_deleter = get_output_dir('deleter_test_pipeline');
 
-my $parent_pipeline = VRPipe::Pipeline->get(name => 'parent_pipeline', description => 'simple test pipeline with 3 steps, where the 3rd uses the output of the first');
-VRPipe::StepAdaptor->get(pipeline => $parent_pipeline, to_step => 1, adaptor_hash => { one_input => { data_element => 0 } });
-VRPipe::StepAdaptor->get(pipeline => $parent_pipeline, to_step => 2, adaptor_hash => { delay_input => { one_output => 1 } });
-my $delay_step = VRPipe::Step->get(name => 'delay_step',
-                                   inputs_definition => { delay_input => VRPipe::StepIODefinition->get(type => 'txt', description => 'step two input file') },
+my $parent_pipeline = VRPipe::Pipeline->create(name => 'parent_pipeline', description => 'simple test pipeline with 3 steps, where the 3rd uses the output of the first');
+VRPipe::StepAdaptor->create(pipeline => $parent_pipeline, to_step => 1, adaptor_hash => { one_input => { data_element => 0 } });
+VRPipe::StepAdaptor->create(pipeline => $parent_pipeline, to_step => 2, adaptor_hash => { delay_input => { one_output => 1 } });
+my $delay_step = VRPipe::Step->create(name => 'delay_step',
+                                   inputs_definition => { delay_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step two input file') },
                                    body_sub => sub { my $self = shift; $self->dispatch_vrpipecode('sleep(60);', $self->new_requirements(memory => 500, time => 1)); },
                                    outputs_definition => { },
                                    post_process_sub => sub { return 1 },
                                    description => 'the delay step');
-VRPipe::StepAdaptor->get(pipeline => $parent_pipeline, to_step => 3, adaptor_hash => { two_input => { one_output => 1 } });
-$parent_pipeline->add_step(VRPipe::Step->get(name => 'test_step_one'));
+VRPipe::StepAdaptor->create(pipeline => $parent_pipeline, to_step => 3, adaptor_hash => { two_input => { one_output => 1 } });
+$parent_pipeline->add_step(VRPipe::Step->create(name => 'test_step_one'));
 $parent_pipeline->add_step($delay_step);
-$parent_pipeline->add_step(VRPipe::Step->get(name => 'test_step_two'));
+$parent_pipeline->add_step(VRPipe::Step->create(name => 'test_step_two'));
 
-my $parent_setup = VRPipe::PipelineSetup->get(name => 'parent setup',
-                                              datasource => VRPipe::DataSource->get(type => 'fofn',
+my $parent_setup = VRPipe::PipelineSetup->create(name => 'parent setup',
+                                              datasource => VRPipe::DataSource->create(type => 'fofn',
                                                                                     method => 'all',
                                                                                     source => $ds),
                                               output_root => $output_dir_parent,
                                               pipeline => $parent_pipeline,
                                               options => {all_option => 'foo',
                                                           one_option => 50});
-my $delete_setup = VRPipe::PipelineSetup->get(name => 'deleter setup',
-                                              datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $delete_setup = VRPipe::PipelineSetup->create(name => 'deleter setup',
+                                              datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                     method => 'all',
                                                                                     source => 'parent setup[1]',
                                                                                     options => { }),
@@ -238,7 +238,7 @@ foreach my $in ('file2.txt', 'file3.txt') {
     push(@not_expected_files, file(@output_subdirs, '1_'.$expected_base_step_names[0], "$in.step_one"));
     push(@expected_files, file(@output_subdirs, '3_'.$expected_base_step_names[1], "$in.step_one.step_two"));
 }
-foreach my $eid (map { $_->id } @{$delete_setup->datasource->elements}) {
+foreach my $eid (map { $_->id } @{get_elements($delete_setup->datasource)}) {
     my @output_subdirs = output_subdirs($eid, 5);
     push(@not_expected_files, file(@output_subdirs, '1_'.$expected_link_step_names[0], "merged.txt"));
     push(@expected_files, file(@output_subdirs, '2_'.$expected_link_step_names[1], "merged.txt.step_one"));
@@ -260,7 +260,7 @@ is $deleted, 4, 'the files that should have gotten deleted were deleted';
 
 
 # # change metadata and detect changes
-# VRPipe::File->get(path => $base_files[5]->stringify)->add_metadata({one_meta => '20'}, replace_data => 1);
+# VRPipe::File->create(path => $base_files[5]->stringify)->add_metadata({one_meta => '20'}, replace_data => 1);
 # ok handle_pipeline(@base_files, @link_files, @link_merge_files, @new_files), 'pipelines ran ok after file metadata changed - original and withdrawn files all exist';
 # 
 # my @newer_files;
@@ -273,12 +273,12 @@ is $deleted, 4, 'the files that should have gotten deleted were deleted';
 # }
 # ok handle_pipeline(@newer_files), 'new merge files all exist after metadata change';
 # 
-# my $element3 = VRPipe::DataElement->get(datasource => 3, result => { paths => [ map { $_->stringify } @base_files[5,9] ], group => '50' });
+# my $element3 = VRPipe::DataElement->create(datasource => 3, result => { paths => [ map { $_->stringify } @base_files[5,9] ], group => '50' });
 # is $element3->withdrawn, 1, 'elements correctly withdrawn after metadata change';
 # 
 # # if filter option one_meta#50 had not been set, a further data element 
 # # would have been created. check that we have the expected number of elements
-# my $elements = $test_pipelinesetup_3->datasource->elements;
+# my $elements = get_elements($test_pipelinesetup_3->datasource);
 # is scalar(@$elements), 1, 'group_by_metadata/filter option worked correctly - element not created';
 
 finish;

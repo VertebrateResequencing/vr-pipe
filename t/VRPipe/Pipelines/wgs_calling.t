@@ -11,7 +11,7 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $calling_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_chunked_mpileup_bcf'), 'able to get the snp_calling_chunked_mpileup_bcf pipeline';
+ok my $calling_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_chunked_mpileup_bcf'), 'able to get the snp_calling_chunked_mpileup_bcf pipeline';
 
 my $calling_dir = get_output_dir('wgs_calling_test');
 
@@ -21,8 +21,8 @@ my $override_file = file(qw(t data wgs_calling_override_options))->absolute->str
 
 # copy input bams to the output dir, since we will create .bai files and don't
 # want them in the t/data directory
-my $orig_fofn_file = VRPipe::File->get(path => file(qw(t data wgs_calling_datasource.fofn))->absolute);
-my $fofn_file = VRPipe::File->get(path => file($calling_dir, 'wgs_calling_datasource.fofn'));
+my $orig_fofn_file = VRPipe::File->create(path => file(qw(t data wgs_calling_datasource.fofn))->absolute);
+my $fofn_file = VRPipe::File->create(path => file($calling_dir, 'wgs_calling_datasource.fofn'));
 my $ifh = $orig_fofn_file->openr;
 my $ofh = $fofn_file->openw;
 print $ofh scalar <$ifh>;
@@ -38,8 +38,8 @@ while (<$ifh>) {
 $orig_fofn_file->close;
 $fofn_file->close;
 
-VRPipe::PipelineSetup->get(name => 'wgs test mapping',
-                           datasource => VRPipe::DataSource->get(type => 'fofn_with_metadata',
+VRPipe::PipelineSetup->create(name => 'wgs test mapping',
+                           datasource => VRPipe::DataSource->create(type => 'fofn_with_metadata',
                                                                  method => 'grouped_by_metadata',
                                                                  source => file($calling_dir, 'wgs_calling_datasource.fofn'),
                                                                  options => { metadata_keys => 'analysis_group|chrom' },),
@@ -97,8 +97,8 @@ while (my ($chrom, $element_id) = each %chroms) {
 
 ok handle_pipeline(@intermediate_files, @final_files), 'pipeline ran ok and all calling files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary],
+is_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary],
           ['samtools mpileup -DSV -C50 -m2 -F0.0005 -d 10000 -g -r $region -f $reference_fasta $bam_files > $bcf_file',
            'bcftools view -p 0.99 -vcgN $bcf_file | bgzip -c > $vcf_file'],
           'cmd summaries for the major steps were as expected';
@@ -110,8 +110,8 @@ my $chr20_vcf = $final_files[2]->absolute->stringify;
 is `zcat $chr20_vcf | grep INDEL | wc -l`, "1\n", 'chunk_override_options option worked as expected';
 
 # check final vcfs have metadata
-is_deeply [VRPipe::File->get(path => $final_files[0])->metadata,
-           VRPipe::File->get(path => $final_files[2])->metadata],
+is_deeply [VRPipe::File->create(path => $final_files[0])->metadata,
+           VRPipe::File->create(path => $final_files[2])->metadata],
           [{ chrom => '11',
              analysis_group => 'low_coverage' },
            { chrom => '20',
@@ -120,10 +120,10 @@ is_deeply [VRPipe::File->get(path => $final_files[0])->metadata,
 # run annotation pipeline
 my $vep_cache = file(qw(t data vep_cache))->absolute->stringify;
 
-ok my $annotation_pipeline = VRPipe::Pipeline->get(name => 'vcf_vep_annotate'), 'able to get the vcf_vep_annotate pipeline';
+ok my $annotation_pipeline = VRPipe::Pipeline->create(name => 'vcf_vep_annotate'), 'able to get the vcf_vep_annotate pipeline';
 
-VRPipe::PipelineSetup->get(name => 'wgs test annotation',
-                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
+VRPipe::PipelineSetup->create(name => 'wgs test annotation',
+                           datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                  method => 'all',
                                                                  source => 'wgs test mapping[7:concat_vcf]',
                                                                  options => { }),

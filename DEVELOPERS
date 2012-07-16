@@ -1,0 +1,35 @@
+This document is aimed at those wishing to develop new VRPipe code and have it
+integrated into the main Master branch. Please follow this before submitting a
+pull request.
+
+
+perltidy and podtidy
+--------------------
+Before commiting work you should ensure that your code has been tidied by our
+custom perltidy script called vrpipe-perltidy (found in the scripts
+subdirectory) using our custom .perltidyrc file (found in the root directory).
+
+For this to work you'll need to have Perl::Tidy installed, at least version
+20120701.
+
+It should also have it's POD tidied by standard podtidy (install Pod::Tidy, at
+least version 0.10) with the option --columns 80.
+
+eg.:
+$ vrpipe-perltidy modules/VRPipe/[my_modified_file].pm
+$ rm modules/VRPipe/[my_modified_file].pm.bak
+$ podtidy --columns 80 --inplace --nobackup modules/VRPipe/[my_modified_file].pm
+$ git add modules/VRPipe/[my_modified_file].pm
+$ git commit
+
+You can automate this process by installing the custom git hook
+vrpipe-githook_tidy. This is based on App::githook_perltidy which you should
+install first (for the purposes of installing its dependencies - you won't use
+it directly).
+
+After installation, install the hook (you only need to do this once):
+$ vrpipe-githook_tidy install
+
+Now you can just:
+$ git add modules/VRPipe/[my_modified_file].pm
+$ git commit

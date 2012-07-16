@@ -13,7 +13,7 @@ BEGIN {
 
 my $improvement_output_dir = get_output_dir('bam_improvement');
 
-ok my $improvement_pipeline = VRPipe::Pipeline->get(name => 'bam_improvement'), 'able to get the bam_improvement pipeline';
+ok my $improvement_pipeline = VRPipe::Pipeline->create(name => 'bam_improvement'), 'able to get the bam_improvement pipeline';
 
 my @s_names;
 foreach my $stepmember ($improvement_pipeline->steps) {
@@ -52,8 +52,8 @@ copy($known_sites_source.'.tbi', $known_sites.'.tbi');
 
 # copy input bams to the output dir, since we will create .bai files and don't
 # want them in the t/data directory
-my $orig_fofn_file = VRPipe::File->get(path => file(qw(t data improvement_datasource.fofn))->absolute);
-my $fofn_file = VRPipe::File->get(path => file($improvement_output_dir, 'improvement_datasource.fofn'));
+my $orig_fofn_file = VRPipe::File->create(path => file(qw(t data improvement_datasource.fofn))->absolute);
+my $fofn_file = VRPipe::File->create(path => file($improvement_output_dir, 'improvement_datasource.fofn'));
 my $ifh = $orig_fofn_file->openr;
 my $ofh = $fofn_file->openw;
 while (<$ifh>) {
@@ -66,13 +66,13 @@ while (<$ifh>) {
 $orig_fofn_file->close;
 $fofn_file->close;
 
-ok my $ds = VRPipe::DataSource->get(type => 'fofn',
+ok my $ds = VRPipe::DataSource->create(type => 'fofn',
                                  method => 'all',
                                  source => $fofn_file->path->stringify,
                                  options => {}), 'could create a fofn datasource';
 
 my @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file($improvement_output_dir, '2822_7.pe.bam')->absolute]}, 
@@ -81,7 +81,7 @@ is_deeply \@results, [{paths => [file($improvement_output_dir, '2822_7.pe.bam')-
                       {paths => [file($improvement_output_dir, '2823_4.pe.bam')->absolute]}, 
                       {paths => [file($improvement_output_dir, '8324_8.pe.bam')->absolute]}], 'got correct results for fofn all';
 
-my $improvement_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis improvement',
+my $improvement_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis improvement',
                                                        datasource => $ds,
                                                        output_root => $improvement_output_dir,
                                                        pipeline => $improvement_pipeline,
@@ -121,7 +121,7 @@ foreach my $file (@files) {
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 
-verify_bam_header($output_files[-1], VRPipe::File->get(path => file(qw(t data 8324_8.pe.realign.recal.calmd.bam.reheader))->absolute));
+verify_bam_header($output_files[-1], VRPipe::File->create(path => file(qw(t data 8324_8.pe.realign.recal.calmd.bam.reheader))->absolute));
 
 finish;
 

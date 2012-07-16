@@ -34,12 +34,12 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_index with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
+        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to index') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to index') };
     }
     method body_sub {
         return sub {
@@ -62,7 +62,7 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { bai_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a .bai file for each input bam file') };
+        return { bai_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a .bai file for each input bam file') };
     }
     method post_process_sub {
         return sub { return 1; };

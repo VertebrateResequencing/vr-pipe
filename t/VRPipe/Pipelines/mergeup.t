@@ -18,10 +18,10 @@ my $picard_version = $picard->determine_picard_version();
 my $bwa_version = VRPipe::StepCmdSummary->determine_version('bwa', '^Version: (.+)$');
 my $samtools_version = VRPipe::StepCmdSummary->determine_version('samtools', '^Version: (.+)$');
 
-ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'fastq_mapping_with_bwa'), 'able to get the fastq_mapping_with_bwa pipeline';
-ok my $merge_lanes_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_lanes'), 'able to get the bam_merge_lanes pipeline';
-ok my $merge_libraries_pipeline = VRPipe::Pipeline->get(name => 'bam_merge_1000_genomes_libraries_with_split'), 'able to get the bam_merge_1000_genomes_libraries_with_split pipeline';
-ok my $release_pipeline = VRPipe::Pipeline->get(name => '1000genomes_release'), 'able to get the 1000genomes_release pipeline';
+ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'fastq_mapping_with_bwa'), 'able to get the fastq_mapping_with_bwa pipeline';
+ok my $merge_lanes_pipeline = VRPipe::Pipeline->create(name => 'bam_merge_lanes'), 'able to get the bam_merge_lanes pipeline';
+ok my $merge_libraries_pipeline = VRPipe::Pipeline->create(name => 'bam_merge_1000_genomes_libraries_with_split'), 'able to get the bam_merge_1000_genomes_libraries_with_split pipeline';
+ok my $release_pipeline = VRPipe::Pipeline->create(name => '1000genomes_release'), 'able to get the 1000genomes_release pipeline';
 
 my $mapping_dir = get_output_dir('mapping_mergeup_test');
 
@@ -31,8 +31,8 @@ $mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
-                                                       datasource => VRPipe::DataSource->get(type => 'sequence_index',
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis mapping',
+                                                       datasource => VRPipe::DataSource->create(type => 'sequence_index',
                                                                                              method => 'lane_fastqs',
                                                                                              source => file(qw(t data datasource.sequence_index)),
                                                                                              options => { local_root_dir => dir(".")->absolute->stringify }),
@@ -65,8 +65,8 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping',
 
 my $build_dir = get_output_dir('build_test');
 
-my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge lanes',
-                                                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis merge lanes',
+                                                           datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                                  method => 'group_by_metadata',
                                                                                                  source => 's_suis mapping[9:merged_lane_bams]',
                                                                                                  options => { metadata_keys => 'analysis_group|population|sample|platform|library' } ),
@@ -77,8 +77,8 @@ my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge
                                                                         bam_merge_memory => 200,
                                                                         cleanup => 1 });
 
-my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge libraries',
-                                                               datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis merge libraries',
+                                                               datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                                      method => 'group_by_metadata',
                                                                                                      source => 's_suis merge lanes[3:markdup_bam_files]',
                                                                                                      options => { metadata_keys => 'analysis_group|population|sample|platform' } ),
@@ -95,8 +95,8 @@ my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis m
                                                                             delete_input_bams => 1,
                                                                             remove_merged_bams => 1 });
 
-my $release_pipeline_setup = VRPipe::PipelineSetup->get(name => 's_suis release',
-                                                               datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $release_pipeline_setup = VRPipe::PipelineSetup->create(name => 's_suis release',
+                                                               datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                                      method => 'all',
                                                                                                      source => 's_suis merge libraries[4:split_bam_files]',
                                                                                                      options => { filter => 'split_sequence#^(fake_chr2|unmapped)$',
@@ -122,7 +122,7 @@ handle_pipeline(@mapping_files);
 
 my @split_files;
 my @split_files_removed;
-foreach my $element (@{$merge_libraries_pipelinesetup->datasource->elements}) {
+foreach my $element (@{get_elements($merge_libraries_pipelinesetup->datasource)}) {
     my @output_subdirs = output_subdirs($element->id, 3);
     foreach my $file ('fake_chr1.pe.1.bam', 'fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@split_files, file(@output_subdirs, '4_bam_split_by_sequence', $file));
@@ -136,7 +136,7 @@ foreach my $element (@{$merge_libraries_pipelinesetup->datasource->elements}) {
 
 my @release_files;
 my @release_files_removed;
-foreach my $element (@{$release_pipeline_setup->datasource->elements}) {
+foreach my $element (@{get_elements($release_pipeline_setup->datasource)}) {
     my @output_subdirs = output_subdirs($element->id, 4);
     foreach my $file ('fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@release_files, file(@output_subdirs, '1_dcc_metadata', $file));
@@ -155,13 +155,13 @@ foreach my $element (@{$release_pipeline_setup->datasource->elements}) {
 
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'pipelines ran ok and correct output files created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 2, stepmember => 11, dataelement => 5)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 2, stepmember => 12, dataelement => 5)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 3, stepmember => 13, dataelement => 8)->cmd_summary->summary],
+is_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 2, stepmember => 11, dataelement => 5)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 2, stepmember => 12, dataelement => 5)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 3, stepmember => 13, dataelement => 8)->cmd_summary->summary],
           ['bwa index -a is $reference_fasta',
            'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file',
            'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)',
@@ -199,7 +199,7 @@ my @header_lines = get_bam_header($split_files[0]);
 is_deeply \@header_lines, \@expected_header_lines, 'split bam header is okay';
 
 # check start_from_scratch works correctly
-VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
+VRPipe::DataElementState->create(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
 
 my @mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
 is_deeply \@mapping_exists, [1,1,1,1,1], 'mapping files were not deleted after merge element was restarted';
@@ -213,16 +213,16 @@ is_deeply \@release_exists, \@release_files_removed, 'correct release files were
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'output files were recreated after a start from scratch';
 
 # if a mapped bam is moved, is everything okay?
-my $orig_bam = VRPipe::File->get(path => $mapping_files[4]);
+my $orig_bam = VRPipe::File->create(path => $mapping_files[4]);
 $mapping_pipeline->make_path(dir($orig_bam->dir.'_moved'));
-my $moved_bam = VRPipe::File->get(path => file($orig_bam->dir.'_moved', $orig_bam->basename));
+my $moved_bam = VRPipe::File->create(path => file($orig_bam->dir.'_moved', $orig_bam->basename));
 $orig_bam->move($moved_bam);
 is_deeply [-e $orig_bam->path, -e $moved_bam->path], [undef, 1], 'moved an improved bam';
 $mapping_files[4] = file($moved_bam->path);
 
 ok handle_pipeline(@mapping_files, @split_files, @release_files), 'all files are still okay after a bam was moved';
 
-VRPipe::DataElementState->get(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
+VRPipe::DataElementState->create(pipelinesetup => 2, dataelement => 7)->start_from_scratch();
 
 @mapping_exists = map { -s $_ ? 1 : 0 } @mapping_files;
 is_deeply \@mapping_exists, [1,1,1,1,1], 'mapping files were not deleted after merge element was restarted and after bam was moved';

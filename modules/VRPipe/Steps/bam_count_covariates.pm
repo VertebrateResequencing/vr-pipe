@@ -48,12 +48,12 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 known_sites_for_recalibration => VRPipe::StepOption->get(description => '-knownSites option(s) for GATK. Could be --DBSNP and -B options for older versions of GATK.'),
-                 gatk_count_covariates_options => VRPipe::StepOption->get(description => 'command line options for GATK CountCovariates -- must include -cov options; excludes the -knownSites option(s) which are set by another StepOption', optional => 1, default_value => '-l INFO -L 1 -L 2 -L 3 -L 4 -L 5 -L 6 -L 7 -L 8 -L 9 -L 10 -L 11 -L 12 -L 13 -L 14 -L 15 -L 16 -L 17 -L 18 -L 19 -L 20 -L 21 -L 22 -L X -L Y -L MT -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate'),
+                 known_sites_for_recalibration => VRPipe::StepOption->create(description => '-knownSites option(s) for GATK. Could be --DBSNP and -B options for older versions of GATK.'),
+                 gatk_count_covariates_options => VRPipe::StepOption->create(description => 'command line options for GATK CountCovariates -- must include -cov options; excludes the -knownSites option(s) which are set by another StepOption', optional => 1, default_value => '-l INFO -L 1 -L 2 -L 3 -L 4 -L 5 -L 6 -L 7 -L 8 -L 9 -L 10 -L 11 -L 12 -L 13 -L 14 -L 15 -L 16 -L 17 -L 18 -L 19 -L 20 -L 21 -L 22 -L X -L Y -L MT -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate'),
                 };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files')};
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files')};
     }
     method body_sub {
         return sub {
@@ -72,7 +72,7 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
                 $self->throw("gatk_count_covariates_options should not include the reference, knownSites option or CountCovariates task command");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'GenomeAnalysisTK', 
                                    version => $self->gatk_version(),
                                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T CountCovariates -R $reference_fasta -I $bam_file -recalFile $bam_file.recal_data.csv -knownSites $known_sites_file(s) '.$covariates_options));
             
@@ -97,7 +97,7 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
         };
     }
     method outputs_definition {
-        return { bam_recalibration_files => VRPipe::StepIODefinition->get(type => 'txt', 
+        return { bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', 
                                                                       max_files => -1, 
                                                                       description => 'recalibration file from CountCovariates',
                                                                       metadata => { source_bam => 'the bam file used to generate this recal file' } ) };

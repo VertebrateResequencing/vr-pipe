@@ -5,7 +5,7 @@ class VRPipe::Steps::test_step_fail with VRPipe::StepRole {
         return {  };
     }
     method inputs_definition {
-        return { file => VRPipe::StepIODefinition->get(type => 'any', description => 'an in file') };
+        return { file => VRPipe::StepIODefinition->create(type => 'any', description => 'an in file') };
     }
     method body_sub {
         return sub {
@@ -17,7 +17,7 @@ class VRPipe::Steps::test_step_fail with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { out => VRPipe::StepIODefinition->get(type => 'txt', description => 'an out file') };
+        return { out => VRPipe::StepIODefinition->create(type => 'txt', description => 'an out file') };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -33,7 +33,7 @@ class VRPipe::Steps::test_step_fail with VRPipe::StepRole {
         my $made;
         my @progress_files;
         foreach my $i (1..3) {
-            my $ofile = VRPipe::File->get(path => $out.'.'.$i);
+            my $ofile = VRPipe::File->create(path => $out.'.'.$i);
             push(@progress_files, $ofile);
             next if $ofile->s;
             my $ofh = $ofile->openw;

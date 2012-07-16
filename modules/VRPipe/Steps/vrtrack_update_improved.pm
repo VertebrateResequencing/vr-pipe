@@ -34,7 +34,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vrtrack_update_improved extends VRPipe::Steps::vrtrack_update {
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             description => 'bam file that has been improved', 
                                                             max_files => -1,
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)'}) };

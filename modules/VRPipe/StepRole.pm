@@ -59,40 +59,48 @@ role VRPipe::StepRole {
     
     # these may be needed by body_sub and post_process_sub
     has 'step_state' => (is => 'rw',
-                         isa => 'VRPipe::StepState');
- 
+                         isa => 'VRPipe::StepState',
+                         trigger => \&_rebuild);
+    
     has 'data_element' => (is => 'ro',
                            isa => 'VRPipe::DataElement',
                            builder => '_build_data_element',
-                           lazy => 1);
+                           lazy => 1,
+                           clearer => '_clear_data_element');
     
     has 'output_root' => (is => 'ro',
                           isa => Dir,
                           coerce => 1,
                           builder => '_build_output_root',
-                          lazy => 1);
+                          lazy => 1,
+                          clearer => '_clear_output_root');
     
     has 'options' => (is => 'ro',
                       isa => 'HashRef',
                       builder => '_resolve_options',
-                      lazy => 1);
+                      lazy => 1,
+                      clearer => '_clear_options');
     
     has 'inputs' => (is => 'ro',
                      isa => PersistentFileHashRef,
                      builder => '_resolve_inputs',
-                     lazy => 1);
+                     lazy => 1,
+                     clearer => '_clear_inputs');
     
     has 'outputs' => (is => 'ro',
                       isa => PersistentFileHashRef,
                       builder => '_build_outputs',
-                      lazy => 1);
+                      lazy => 1,
+                      clearer => '_clear_outputs');
     has 'temps' => (is => 'ro',
                     isa => ArrayRefOfPersistent,
                     builder => '_build_temps',
-                    lazy => 1);
+                    lazy => 1,
+                    clearer => '_clear_temps');
     
     has 'previous_step_outputs' => (is => 'rw',
-                                    isa => PreviousStepOutput);
+                                    isa => PreviousStepOutput,
+                                    trigger => sub { shift->_clear_inputs });
     
     has 'allow_smaller_recommended_requirements_override' => (is => 'rw',
                                                               isa => 'Bool',
@@ -107,7 +115,8 @@ role VRPipe::StepRole {
                          default => sub { [] },
                          handles => { _dispatch => 'push',
                                       num_dispatched  => 'count' },
-                         writer => '_set_dispatched');
+                         writer => '_set_dispatched',
+                         clearer => '_clear_dispatched');
     
     # and we'll also store all the output files the body_sub makes
     has '_output_files' => (is => 'ro',
@@ -116,19 +125,35 @@ role VRPipe::StepRole {
                             lazy    => 1,
                             default => sub { {} },
                             handles => { _remember_output_files => 'set' },
-                            writer => '_set_output_files');
+                            writer => '_set_output_files',
+                            clearer => '_clear_output_files');
     has '_temp_files' => (is => 'ro',
                           traits  => ['Array'],
                           isa     => 'ArrayRef',
                           lazy    => 1,
                           default => sub { [] },
                           handles => { _remember_temp_file => 'push' },
-                          writer => '_set_temp_files');
+                          writer => '_set_temp_files',
+                          clearer => '_clear_temp_files');
     has '_last_output_dir' => (is => 'rw',
                                isa => Dir,
                                lazy => 1,
                                coerce => 1,
-                               builder => '_build_last_output_dir');
+                               builder => '_build_last_output_dir',
+                               clearer => '_clear_last_output_dir');
+    
+    method _rebuild {
+        $self->_clear_data_element;
+        $self->_clear_output_root;
+        $self->_clear_options;
+        $self->_clear_inputs;
+        $self->_clear_outputs;
+        $self->_clear_temps;
+        $self->_clear_dispatched;
+        $self->_clear_output_files;
+        $self->_clear_temp_files;
+        $self->_clear_last_output_dir;
+    }
     
     method _build_data_element {
         my $step_state = $self->step_state || $self->throw("Cannot get data element without step state");
@@ -220,7 +245,8 @@ role VRPipe::StepRole {
     method _resolve_inputs {
         my $hash = $self->inputs_definition;
         my $step_num = $self->step_state->stepmember->step_number;
-        my $step_adaptor = VRPipe::StepAdaptor->get(pipeline => $self->step_state->stepmember->pipeline, to_step => $step_num);
+        my ($step_adaptor) = VRPipe::StepAdaptor->search({ pipeline => $self->step_state->stepmember->pipeline->id, to_step => $step_num });
+        return {} unless $step_adaptor;
         
         my %return;
         while (my ($key, $val) = each %$hash) {
@@ -325,17 +351,9 @@ role VRPipe::StepRole {
         return \%return;
     }
     
-    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {
-        # check that we don't have any outputs defined in the definition that
-        # no files were made for
-        while (my ($key, $val) = each %$defs) {
-            next if exists $hash->{$key};
-            next if $val->min_files == 0;
-            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
-        }
-        
+    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {        
         my @missing;
-        # check the files we actually output are as expected
+        # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
             my $def = $defs->{$key};
             my $check_s = 1;
@@ -344,6 +362,7 @@ role VRPipe::StepRole {
             }
             
             foreach my $file (@$val) {
+                $file->reselect_values_from_db;
                 my $resolved = $file->resolve;
                 if ($check_s && ! $resolved->s) {
                     # double-check incase the step did not update_stats_from_disc
@@ -374,7 +393,7 @@ role VRPipe::StepRole {
                             my $meta = $file->metadata;
                             foreach my $key (@needed) {
                                 unless (exists $meta->{$key}) {
-                                    $self->warn($file->path." exists, but lacks metadata key $key!");
+                                    $self->warn($file->path." exists, but lacks metadata key $key, needed by def ".$def->id."!");
                                     $bad = 1;
                                 }
                             }
@@ -396,7 +415,18 @@ role VRPipe::StepRole {
     }
     
     method missing_output_files {
-        return $self->_missing($self->outputs, $self->outputs_definition);
+        my $hash = $self->outputs;
+        my $defs = $self->outputs_definition;
+        
+        # check that we don't have any outputs defined in the definition that
+        # no files were made for
+        while (my ($key, $val) = each %$defs) {
+            next if exists $hash->{$key};
+            next if $val->min_files == 0;
+            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
+        }
+        
+        return $self->_missing($hash, $defs);
     }
     
     method _run_coderef (Str $method_name) {
@@ -421,7 +451,7 @@ role VRPipe::StepRole {
         $self->make_path($output_dir); #*** repeated, potentially unecessary filesystem access...
         $self->_last_output_dir($output_dir);
         
-        my $vrfile = VRPipe::File->get(path => file($output_dir, $basename), type => $type);
+        my $vrfile = VRPipe::File->create(path => file($output_dir, $basename), type => $type);
         $vrfile->add_metadata($metadata) if $metadata;
         
         if ($temporary) {
@@ -453,15 +483,13 @@ role VRPipe::StepRole {
         if (@missing) {
             my $with_recourse = 0;
             my %states_to_restart;
-            my $schema = $self->result_source->schema;
             foreach my $path (@missing) {
                 my $file = VRPipe::File->get(path => $path);
                 my $resolved = $file->resolve;
                 next if $resolved->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
-                my $rs = $schema->resultset('StepOutputFile')->search({ file => $file->id });
                 my $count = 0;
                 my $state;
-                while (my $sof = $rs->next) {
+                foreach my $sof (VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' })) {
                     $count++;
                     $state = $sof->stepstate;
                 }
@@ -586,12 +614,12 @@ role VRPipe::StepRole {
         }
         #*** and the other resources?...
         
-        return VRPipe::Requirements->get(memory => $memory,
-                                         time => $time,
-                                         $cpus ? (cpus => $cpus) : (),
-                                         $tmp_space ? (tmp_space => $tmp_space) : (),
-                                         $local_space ? (local_space => $local_space) : (),
-                                         $custom ? (custom => $custom) : ());
+        return VRPipe::Requirements->create(memory => $memory,
+                                            time => $time,
+                                            $cpus ? (cpus => $cpus) : (),
+                                            $tmp_space ? (tmp_space => $tmp_space) : (),
+                                            $local_space ? (local_space => $local_space) : (),
+                                            $custom ? (custom => $custom) : ());
     }
     
     method dispatch (ArrayRef $aref) {

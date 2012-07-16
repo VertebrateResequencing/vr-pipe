@@ -36,13 +36,13 @@ use VRPipe::Parser;
 class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
      around options_definition {
           return { %{$self->$orig},
-                   samtools_mpileup_options => VRPipe::StepOption->get(description => 'options for samtools mpileup, excluding -l and -f (-g is required)',
+                   samtools_mpileup_options => VRPipe::StepOption->create(description => 'options for samtools mpileup, excluding -l and -f (-g is required)',
                                                                        optional => 1, 
                                                                        default_value => '-ugDI -d 1000 -C50') };
      }
      method inputs_definition {
-          return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'bam files for bcf production'),
-                   hapmap_file => VRPipe::StepIODefinition->get(type => 'txt', description => 'hapmap sites (-l positions) file') };
+          return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => 'bam files for bcf production'),
+                   hapmap_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'hapmap sites (-l positions) file') };
      }
      method body_sub {
          return sub {
@@ -93,7 +93,7 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
           };
      }
      method outputs_definition {
-          return { bcf_files_with_metadata => VRPipe::StepIODefinition->get(type => 'bin',
+          return { bcf_files_with_metadata => VRPipe::StepIODefinition->create(type => 'bin',
                                                                             max_files => -1,
                                                                             description => 'bcf file produced for bam file using samtools',
                                                                             metadata => {sample => 'name of expected sample',

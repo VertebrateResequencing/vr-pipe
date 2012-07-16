@@ -13,7 +13,7 @@ BEGIN {
 my $stats_output_dir = get_output_dir('bam_qc_graphs_and_stats');
 my $target_output_dir = get_output_dir('bam_qc_graphs_and_stats_targeted');
 
-ok my $stats_pipeline = VRPipe::Pipeline->get(name => 'bam_qc_graphs_and_stats'), 'able to get the bam_qc_graphs_and_stats pipeline';
+ok my $stats_pipeline = VRPipe::Pipeline->create(name => 'bam_qc_graphs_and_stats'), 'able to get the bam_qc_graphs_and_stats pipeline';
 
 my @s_names;
 foreach my $stepmember ($stats_pipeline->steps) {
@@ -37,19 +37,19 @@ copy($fa_index_source, $fa_index);
 
 my $bc_options = "-q 20";
 
-my $ds = VRPipe::DataSource->get(type => 'fofn',
+my $ds = VRPipe::DataSource->create(type => 'fofn',
                                  method => 'all',
                                  source => file(qw(t data hs_chr20.qc.bam.fofn))->absolute);
 
 # setup 2 pipelines, 1 wgs, 1 exome
-VRPipe::PipelineSetup->get(name => 'graphs_and_stats whole genome',
+VRPipe::PipelineSetup->create(name => 'graphs_and_stats whole genome',
                            datasource => $ds,
                            output_root => $stats_output_dir,
                            pipeline => $stats_pipeline,
                            options => {reference_fasta => $ref_fa,
                                        bamcheck_options => $bc_options});
 
-VRPipe::PipelineSetup->get(name => 'graphs_and_stats exome',
+VRPipe::PipelineSetup->create(name => 'graphs_and_stats exome',
                            datasource => $ds,
                            output_root => $target_output_dir,
                            pipeline => $stats_pipeline,
@@ -88,7 +88,7 @@ ok handle_pipeline(@other_files, @output_files, @target_files), 'pipeline ran an
 # check that the results for wgs vs exome are actually different; since the
 # same bam file was used in both piplines, it will have the metadata of both
 # mixed together
-my $meta = VRPipe::File->get(path => file(qw(t data hs_chr20.a.bam))->absolute)->metadata;
+my $meta = VRPipe::File->create(path => file(qw(t data hs_chr20.a.bam))->absolute)->metadata;
 is_deeply [$meta->{reads},
            $meta->{bases_of_1X_coverage},
            $meta->{targeted_reads},

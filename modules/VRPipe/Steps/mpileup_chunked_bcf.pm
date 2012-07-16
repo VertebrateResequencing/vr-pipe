@@ -36,15 +36,15 @@ class VRPipe::Steps::mpileup_chunked_bcf extends VRPipe::Steps::mpileup_bcf {
 
     around options_definition {
         return { %{$self->$orig},
-                 chunk_override_options => VRPipe::StepOption->get(description => 'File defining mpileup_bcf options to be overridden for specific chunks. This option is required, but may point to an empty file.'),
+                 chunk_override_options => VRPipe::StepOption->create(description => 'File defining mpileup_bcf options to be overridden for specific chunks. This option is required, but may point to an empty file.'),
         };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to call variants',
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants',
                                                             metadata => {chrom => 'chrom',
                                                                          split_sequence => 'the chromosomal split sequence from the bam_split_by_sequence step',
                                                                          optional => ['chrom', 'split_sequence']}),
-                 chunked_regions_file => VRPipe::StepIODefinition->get(type => 'txt', max_files => 1, description => 'File of chromosome region chunks to run concurrently')
+                 chunked_regions_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'File of chromosome region chunks to run concurrently')
                 };
     }
 
@@ -109,13 +109,13 @@ class VRPipe::Steps::mpileup_chunked_bcf extends VRPipe::Steps::mpileup_bcf {
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::mpileup_bcf', 'mpileup_bcf_and_check', [$cmd, $req, {output_files => [$bcf_file]}]); 
             }
 
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'samtools', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'samtools', 
                                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), 
                                    summary => "samtools mpileup $mpileup_opts -r \$region -f \$reference_fasta \$bam_files > \$bcf_file"));
         };
     }
     method outputs_definition {
-        return { bcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a .bcf file for each chunked region',
+        return { bcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a .bcf file for each chunked region',
                                                             metadata => {chrom => 'chrom',
                                                                          split_sequence => 'the chromosomal split sequence from the bam_split_by_sequence step',
                                                                          seq_no => 'a sequence number assigned by the split for reassembly in correct order',

@@ -12,7 +12,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -70,9 +70,9 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_permute_reference with VRPipe::StepRole {
     method options_definition {
-        return { sga_permute_reference_options => VRPipe::StepOption->get(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '--permute-ambiguous'),
-                 sga_exe => VRPipe::StepOption->get(description => 'path to your sga executable', optional => 1, default_value => 'sga'),
-                 reference_fasta => VRPipe::StepOption->get(description => 'Absolute path to reference fasta file') };
+        return { sga_permute_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '--permute-ambiguous'),
+                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga'),
+                 reference_fasta => VRPipe::StepOption->create(description => 'Absolute path to reference fasta file') };
     }
     method inputs_definition {
         return { };
@@ -90,7 +90,7 @@ class VRPipe::Steps::sga_permute_reference with VRPipe::StepRole {
                 $self->throw("sga_permute_reference_options should not include the reference or preprocess subcommand");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess '.$sga_opts.' $reference_fasta > $permuted_reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess '.$sga_opts.' $reference_fasta > $permuted_reference_fasta'));
             
             my $basename = $ref->basename;
             $basename =~ s/(fa|fasta)(\.gz)?/permute.fa/;
@@ -101,7 +101,7 @@ class VRPipe::Steps::sga_permute_reference with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { permuted_reference_fasta => VRPipe::StepIODefinition->get(type => 'txt', description => 'the files produced by sga index', max_files => 1) };
+        return { permuted_reference_fasta => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', max_files => 1) };
     }
     method post_process_sub {
         return sub { return 1; };

@@ -74,7 +74,7 @@ class VRPipe::Steps::picard extends VRPipe::Steps::java {
     
     around options_definition {
         return { %{$self->$orig},
-                 picard_path => VRPipe::StepOption->get(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
+                 picard_path => VRPipe::StepOption->create(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
                 };
     }
     method inputs_definition {

@@ -12,7 +12,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -52,11 +52,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_merge with VRPipe::StepRole {
     method options_definition {
-        return { sga_merge_options => VRPipe::StepOption->get(description => 'options to sga index', optional => 1, default_value => ''),
-                 sga_exe => VRPipe::StepOption->get(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_merge_options => VRPipe::StepOption->create(description => 'options to sga index', optional => 1, default_value => ''),
+                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => 'fastq files to be merged') };
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'fastq files to be merged') };
     }
     method body_sub {
         return sub {
@@ -68,7 +68,7 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
             if ($sga_opts =~ /merge|-p|--prefix/) {
                 $self->throw("sga_merge_options should not include the merge subcommand or --prefix (-p) option");
             }
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga merge '.$sga_opts.' $fastq_file_1 $fastq_file_2'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga merge '.$sga_opts.' $fastq_file_1 $fastq_file_2'));
             
             my $req = $self->new_requirements(memory => 3900, time => 1);
             my @fastqs = sort { $a->s <=> $b->s  } @{$self->inputs->{fastq_files}};
@@ -104,10 +104,10 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { merged_fastq_files => VRPipe::StepIODefinition->get(type => 'fq', description => 'the files produced by sga index', max_files => -1),
-                 merged_bwt_files => VRPipe::StepIODefinition->get(type => 'bin', description => 'the files produced by sga index', max_files => -1),
-                 merged_sai_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'the files produced by sga index', max_files => -1),
-                 merged_popidx_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'the files produced by sga index', min_files => 0, max_files => -1) };
+        return { merged_fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'the files produced by sga index', max_files => -1),
+                 merged_bwt_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the files produced by sga index', max_files => -1),
+                 merged_sai_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', max_files => -1),
+                 merged_popidx_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', min_files => 0, max_files => -1) };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -127,25 +127,25 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
         my (@in_fastqs, @in_bwts, @in_sais, @in_popidxs);
         my $popidx;
         foreach my $in_path (@in_paths) {
-            push @in_fastqs, VRPipe::File->get(path => $in_path);
+            push @in_fastqs, VRPipe::File->create(path => $in_path);
             my ($in_bwt, $in_sai, $in_popidx) = ($in_path, $in_path, $in_path);
             $in_bwt =~ s/\.(fq|fastq)/.bwt/;
-            push @in_bwts, VRPipe::File->get(path => $in_bwt);
+            push @in_bwts, VRPipe::File->create(path => $in_bwt);
             $in_sai =~ s/\.(fq|fastq)/.sai/;
-            push @in_sais, VRPipe::File->get(path => $in_sai);
+            push @in_sais, VRPipe::File->create(path => $in_sai);
             $in_popidx =~ s/\.(fq|fastq)/.popidx/;
             if (-s $in_popidx) {
                 ++$popidx;
-                push @in_popidxs, VRPipe::File->get(path => $in_popidx);
+                push @in_popidxs, VRPipe::File->create(path => $in_popidx);
             }
         }
-        my $out_fq = VRPipe::File->get(path => $prefix.'.fq');
-        my $out_fa = VRPipe::File->get(path => $prefix.'.fa');
-        my $out_bwt = VRPipe::File->get(path => $prefix.'.bwt');
-        my $out_sai = VRPipe::File->get(path => $prefix.'.sai');
+        my $out_fq = VRPipe::File->create(path => $prefix.'.fq');
+        my $out_fa = VRPipe::File->create(path => $prefix.'.fa');
+        my $out_bwt = VRPipe::File->create(path => $prefix.'.bwt');
+        my $out_sai = VRPipe::File->create(path => $prefix.'.sai');
         my $out_popidx;
         if ($popidx) {
-            $out_popidx = VRPipe::File->get(path => $prefix.'.popidx');
+            $out_popidx = VRPipe::File->create(path => $prefix.'.popidx');
         }
         
         if (scalar @in_paths == 1) {

@@ -35,10 +35,10 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_target_interval_creator_discovery extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 gatk_target_intervals_discovery_options => VRPipe::StepOption->get(description => 'command line options for GATK RealignerTargetCreator, when used to discover locations to realign around, excluding -R and -T', optional => 1)};
+                 gatk_target_intervals_discovery_options => VRPipe::StepOption->create(description => 'command line options for GATK RealignerTargetCreator, when used to discover locations to realign around, excluding -R and -T', optional => 1)};
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             max_files => -1, 
                                                             description => '1 or more bam files') };
     }
@@ -56,7 +56,7 @@ class VRPipe::Steps::gatk_target_interval_creator_discovery extends VRPipe::Step
                 $self->throw("gatk_target_intervals_discovery_options should not include the reference or RealignerTargetCreator task command");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'GenomeAnalysisTK', 
                                    version => $self->gatk_version(),
                                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -I $input_bam -o $intervals_file '.$intervals_opts));
             
@@ -76,7 +76,7 @@ class VRPipe::Steps::gatk_target_interval_creator_discovery extends VRPipe::Step
         };
     }
     method outputs_definition {
-        return { intervals_file => VRPipe::StepIODefinition->get(type => 'txt',
+        return { intervals_file => VRPipe::StepIODefinition->create(type => 'txt',
                                                                  max_files => -1,
                                                                  description => 'GATK intervals file for known indel sites',
                                                                  metadata => { source_bam => 'the bam that was used to discover locations to realign around' }) };

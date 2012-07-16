@@ -34,12 +34,12 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_split with VRPipe::StepRole {
 	method options_definition {
-		return { tabix_exe => VRPipe::StepOption->get(description => 'path to tabix executable', optional => 1, default_value => 'tabix'),
+		return { tabix_exe => VRPipe::StepOption->create(description => 'path to tabix executable', optional => 1, default_value => 'tabix'),
 		};
     }
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf', description => '1 or more indexed, compressed vcf files to split', max_files => -1),
-		chunked_regions_file => VRPipe::StepIODefinition->get(type => 'txt', max_files => 1, description => 'file of chomosome region chunks into which each vcf should be split'),
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', description => '1 or more indexed, compressed vcf files to split', max_files => -1),
+		chunked_regions_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'file of chomosome region chunks into which each vcf should be split'),
 		 };
     }
     method body_sub {
@@ -81,7 +81,7 @@ class VRPipe::Steps::vcf_split with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { vcf_split_files => VRPipe::StepIODefinition->get(type => 'vcf', max_files => -1, description => 'a set of split vcf.gz files for each input vcf') };
+        return { vcf_split_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a set of split vcf.gz files for each input vcf') };
     }
     method post_process_sub {
         return sub { return 1; };

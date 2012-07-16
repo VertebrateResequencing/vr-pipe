@@ -17,10 +17,10 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('fastqc_quality
 
 is_deeply [$step->id, $step->description], [1, 'Produces quality report using fastqc'], 'fastqc_quality_report step created and has correct description';
 
-VRPipe::File->get(path => file(qw(t data 2822_6_1.fastq))->absolute);
+VRPipe::File->create(path => file(qw(t data 2822_6_1.fastq))->absolute);
 
-my $setup = VRPipe::PipelineSetup->get(name => 'fastqc_quality_report',
-                                       datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data fastqc_report_datasource.fofn))->absolute),
+my $setup = VRPipe::PipelineSetup->create(name => 'fastqc_quality_report',
+                                       datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data fastqc_report_datasource.fofn))->absolute),
                                        output_root => $output_dir,
                                        pipeline => $pipeline,
                                        options => { fastqc_exe => 'fastqc' }

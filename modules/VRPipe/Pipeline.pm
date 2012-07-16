@@ -85,15 +85,7 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
     # step members
     sub step_members {
         my $self = shift;
-        my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('StepMember')->search({ pipeline => $self->id });
-        
-        my @stepms;
-        while (my $stepm = $rs->next) {
-            push(@stepms, $stepm);
-        }
-        
-        return @stepms;
+        return VRPipe::StepMember->search({ pipeline => $self->id });
     }
 }
 

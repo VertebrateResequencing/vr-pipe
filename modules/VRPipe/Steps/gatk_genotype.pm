@@ -45,20 +45,20 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 	around options_definition {
 		return { %{$self->$orig},
-			genotyper_opts => VRPipe::StepOption->get(description => 'options for GATK UnifiedGenotyper, excluding -R,-D,-I,-o'),
-			reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-			dbsnp_ref => VRPipe::StepOption->get(description => 'absolute path to dbsnp reference vcf', optional => 1),
-			max_cmdline_bams => VRPipe::StepOption->get(description => 'max number of bam filenames to allow on command line', 
+			genotyper_opts => VRPipe::StepOption->create(description => 'options for GATK UnifiedGenotyper, excluding -R,-D,-I,-o'),
+			reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+			dbsnp_ref => VRPipe::StepOption->create(description => 'absolute path to dbsnp reference vcf', optional => 1),
+			max_cmdline_bams => VRPipe::StepOption->create(description => 'max number of bam filenames to allow on command line', 
 				optional => 1, 
 				default_value => 30),
-			interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -L option', 
+			interval_list => VRPipe::StepOption->create(description => 'absolute path to targets interval list file for -L option', 
 				optional => 1,),
 	};
 }
 
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
-		chunked_regions_file => VRPipe::StepIODefinition->get(type => 'txt', min_files => 0, max_files => 1, description => 'file of chomosome region chunks to run concurrently'),
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
+		chunked_regions_file => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0, max_files => 1, description => 'file of chomosome region chunks to run concurrently'),
 		};
     }
 
@@ -139,13 +139,13 @@ class VRPipe::Steps::gatk_genotype extends VRPipe::Steps::gatk {
 		$self->dispatch([$cmd, $req, {output_files => [$vcf_file]}]); 
 	    }
 	    
-	    $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+	    $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'GenomeAnalysisTK', 
 							       version => $self->gatk_version(),
 							       summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bam_path -o $vcf_path '.$genotyper_opts));
         };
     }
     method outputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'either a single .vcf.gz file, or a chunk set of vcf.gz files, for each set of input bam files') };
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'either a single .vcf.gz file, or a chunk set of vcf.gz files, for each set of input bam files') };
     }
     method post_process_sub {
         return sub { return 1; };

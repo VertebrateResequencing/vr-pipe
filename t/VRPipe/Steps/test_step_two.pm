@@ -2,12 +2,12 @@ use VRPipe::Base;
 
 class VRPipe::Steps::test_step_two with VRPipe::StepRole {
     method options_definition {
-        return { all_option => VRPipe::StepOption->get(description => 'an option that applies to all steps'),
-                 two_option => VRPipe::StepOption->get(description => 'an optional option for step two',
+        return { all_option => VRPipe::StepOption->create(description => 'an option that applies to all steps'),
+                 two_option => VRPipe::StepOption->create(description => 'an optional option for step two',
                                                        optional => 1) };
     }
     method inputs_definition {
-        return { two_input => VRPipe::StepIODefinition->get(type => 'txt',
+        return { two_input => VRPipe::StepIODefinition->create(type => 'txt',
                                                             description => 'step two input file',
                                                             metadata => {one_meta => 'metadata we require to appear on our input file'}) };
     }
@@ -18,7 +18,7 @@ class VRPipe::Steps::test_step_two with VRPipe::StepRole {
             my $all_opt = Path::Class::File->new($options->{all_option});
             my $two_opt = $options->{two_option} || 'body_decided_two_option';
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cat',
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'cat',
                                                                version => VRPipe::StepCmdSummary->determine_version('cat --version', '^cat \(GNU coreutils\) (\S+)$'),
                                                                summary => 'cat $input_file > $output_file'));
             
@@ -38,7 +38,7 @@ class VRPipe::Steps::test_step_two with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { two_output => VRPipe::StepIODefinition->get(type => 'txt',
+        return { two_output => VRPipe::StepIODefinition->create(type => 'txt',
                                                              description => 'step two output file',
                                                              metadata => {one_meta => 'metadata from step one',
                                                                           two_meta => 'metadata applied to step two output file'}) };

@@ -34,18 +34,18 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file the sai files were aligned with'),
-                 bwa_samse_options => VRPipe::StepOption->get(description => 'options to bwa samse, excluding the input sai, bam, reference, -r and -f',
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file the sai files were aligned with'),
+                 bwa_samse_options => VRPipe::StepOption->create(description => 'options to bwa samse, excluding the input sai, bam, reference, -r and -f',
                                                               optional => 1,
                                                               default_value => ''),
-                 bwa_sampe_options => VRPipe::StepOption->get(description => 'options to bwa sampe, excluding the input sai, bams, reference, -r and -f; defaults to bwa sampe with -a set as appropriate for the bam insert_size',
+                 bwa_sampe_options => VRPipe::StepOption->create(description => 'options to bwa sampe, excluding the input sai, bams, reference, -r and -f; defaults to bwa sampe with -a set as appropriate for the bam insert_size',
                                                               optional => 1),
-                 bwa_exe => VRPipe::StepOption->get(description => 'path to your bwa executable',
+                 bwa_exe => VRPipe::StepOption->create(description => 'path to your bwa executable',
                                                     optional => 1,
                                                     default_value => 'bwa') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                             max_files => -1,
                                                             description => 'bam files',
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run)',
@@ -63,7 +63,7 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                                                                          reverse_reads => 'number of reverse reads',
                                                                          paired => '0=single ended reads only; 1=paired end reads present',
                                                                          optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}),
-                 sai_files => VRPipe::StepIODefinition->get(type => 'bin',
+                 sai_files => VRPipe::StepIODefinition->create(type => 'bin',
                                                             max_files => -1,
                                                             description => 'sai files, as produced by bwa aln',
                                                             metadata => {source_bam => 'the bam file that was input to bwa aln to generate this sai file',
@@ -212,11 +212,11 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
             }
             
             $summary_cmd =~ s/^\S+/bwa/;
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $bam_file(s)'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => $summary_cmd.' -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $bam_file(s)'));
         };
     }
     method outputs_definition {
-        return { bwa_sam_files => VRPipe::StepIODefinition->get(type => 'txt',
+        return { bwa_sam_files => VRPipe::StepIODefinition->create(type => 'txt',
                                                                 max_files => -1,
                                                                 description => 'mapped sam file(s)',
                                                                 metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',

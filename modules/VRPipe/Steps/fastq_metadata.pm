@@ -37,7 +37,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
         return { };
     }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', description => 'fastq files', max_files => -1) };
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'fastq files', max_files => -1) };
     }
     method body_sub {
         return sub {
@@ -69,7 +69,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { fastq_files_with_metadata => VRPipe::StepIODefinition->get(type => 'fq',
+        return { fastq_files_with_metadata => VRPipe::StepIODefinition->create(type => 'fq',
                                                                             description => 'a fastq file with associated metadata',
                                                                             max_files => -1,
                                                                             metadata => {bases => 'total number of base pairs',

@@ -60,13 +60,7 @@ class VRPipe::DataElement extends VRPipe::Persistent {
     __PACKAGE__->make_persistent(); # has_many => [element_states => 'VRPipe::DataElementState'] doesn't work because of ordering issues?
     
     method element_states {
-        my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('DataElementState')->search({ dataelement => $self->id });
-        my @states;
-        while (my $state = $rs->next) {
-            push(@states, $state);
-        }
-        return @states;
+        return VRPipe::DataElementState->search({ dataelement => $self->id }, { prefetch => [qw(dataelement pipelinesetup)] });
     }
     
     method start_from_scratch (VRPipe::PipelineSetup $setup, ArrayRef[PositiveInt] $step_numbers?) {

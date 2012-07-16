@@ -35,13 +35,13 @@ use VRPipe::Base;
 class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
 	around options_definition {
         return { %{$self->$orig},
-                 'convex_classpath' => VRPipe::StepOption->get(description => 'path to convex package jar'),
-                 'regions_file' => VRPipe::StepOption->get(description => 'regions file for which to generate read depths'),
-                 'chr_prefix' => VRPipe::StepOption->get(description => 'chromosome name prefix within the bam', optional => 1),
+                 'convex_classpath' => VRPipe::StepOption->create(description => 'path to convex package jar'),
+                 'regions_file' => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
+                 'chr_prefix' => VRPipe::StepOption->create(description => 'chromosome name prefix within the bam', optional => 1),
         };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to call variants') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants') };
     }
 	method body_sub {
 		return sub {
@@ -78,7 +78,7 @@ class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
 	}
     method outputs_definition {
         return {
-			rd_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a read depths file for each input bam'),
+			rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a read depths file for each input bam'),
         };
     }
     method post_process_sub {

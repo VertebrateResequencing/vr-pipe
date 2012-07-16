@@ -146,8 +146,6 @@ if ($md5 && !$print) {
     $print = 1;
 }
 
-my $schema = $frontend->schema;
-
 # handle --step
 my %desired_steps;
 my $limit_steps = 0;
@@ -197,252 +195,260 @@ else {
 
 # loop through completed elements
 my $pipeline_length = @step_members;
-my $elements = $setup->datasource->elements;
+my $estates_pager = $setup->dataelementstates_pager;
 my $count = 0;
 my $incomplete = 0;
-foreach my $element (@$elements) {
-    my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-    unless ($element_state->completed_steps == $pipeline_length) {
-        $incomplete++;
-        next;
-    }
-    
-    my $eident = "DataElement ".$element->id;
-    
-    my ($element_result, $input_parent_dir, $input_basename);
-    if (defined $list || $output_with_input || $basename_as_input) {
-        $element_result = $element->result;
-        my $input_paths = $element_result->{paths};
-        if ($input_paths) {
-            $input_parent_dir = common_parent_dir($input_paths);
-            
-            if ($basename_as_input) {
-                if (@$input_paths == 1) {
-                    $input_basename = file($input_paths->[0])->basename;
-                    $input_basename =~ s/\.[^\.]+$/.$basename_as_input/;
-                }
-                else {
-                    $frontend->error("$eident doesn't have exactly one input path associated with it, so --basename_as_input won't work; skipping");
-                    next;
-                }
-            }
-        }
-    }
-    
-    # get output file details
-    my %output_files;
-    my @output_files;
-    my $filtered_files = 0;
-    my $total_files = 0;
-    foreach my $stepm (@allowed_step_members) {
-        my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
-        my $step_outs = $stepstate->output_files;
-        my $smid = $stepm->id;
-        my $force = exists $allowed_kinds{$smid}->{all};
-        my $step_name = $stepm->step->name;
-        my $step_num = $stepm->step_number;
-        my $step_desc = "Step $step_num ($step_name)";
-        while (my ($kind, $files) = each %$step_outs) {
-            unless ($force) {
-                next unless exists $allowed_kinds{$smid}->{$kind};
-            }
-            my @files = grep { $_->s || $_->resolve->s } @$files;
-            next unless @files;
-            
-            my @file_data;
-            FILE: foreach my $file (@files) {
-                my $meta = $file->metadata;
-                if ($filter) {
-                    foreach my $key (keys %filters) {
-                        my $val = $meta->{$key} || next FILE;
-                        my $regex = $filters{$key};
-                        next FILE unless $val =~ /$regex/;
-                    }
-                }
-                
-                my %hash;
-                $hash{path} = $file->path->stringify;
-                $hash{metadata} = $meta if keys %$meta;
-                push(@file_data, \%hash);
-                push(@output_files, $file);
-            }
-            $filtered_files += @files - @file_data;
-            $total_files += @files;
-            next unless @file_data;
-            $output_files{$step_desc}->{$kind} = \@file_data;
-        }
-    }
-    next if $filtered_files == $total_files;
-    
-    if (defined $list) {
-        # print out useful info about the input
-        $frontend->output("--- Data Element ", $element->id, " ---");
-        my $dump = Dumper($element_result);
-        $dump =~ s/\$VAR1 = \{\s*?\n/Input:\n/;
-        $dump =~ s/\n\s+\};\s+//;
-        $frontend->output($dump);
-        if ($input_parent_dir) {
-            $frontend->output("--output_with_input symlinks would go in here: ", $input_parent_dir);
-        }
-        else {
-            $frontend->output("--output_with_input can't be used, since there's no common parent directory for the input files");
+my %done_outputs;
+while (my $estates = $estates_pager->next) {
+    foreach my $element_state (@$estates) {
+        unless ($element_state->completed_steps == $pipeline_length) {
+            $incomplete++;
+            next;
         }
         
-        # print out useful info about the output files
-        $frontend->output("\n");
-        $dump = Dumper(\%output_files);
-        $dump =~ s/\$VAR1 = \{\s*?\n/Output:\n/;
-        $dump =~ s/\n\s+\};\s+//;
-        $frontend->output($dump);
+        my $element = $element_state->dataelement;
+        my $eident = "DataElement ".$element->id;
         
-        $frontend->output("------\n\n");
-        if ($list) {
-            last if ++$count >= $list;
-        }
-    }
-    else {
-        # work out the output dir
-        my $this_output_dir;
-        if ($output_with_input) {
-            unless ($input_parent_dir) {
-                $frontend->error("$eident has no common parent directory for its input files, so --output_with_input doesn't work for it; skipping");
-                next;
-            }
-            $this_output_dir = dir($input_parent_dir);
-        }
-        else {
-            if ($output_by_metadata) {
-                my @subdir_keys = split('\/', $output_by_metadata);
+        my ($element_result, $input_parent_dir, $input_basename);
+        if (defined $list || $output_with_input || $basename_as_input) {
+            $element_result = $element->result;
+            my $input_paths = $element_result->{paths};
+            if ($input_paths) {
+                $input_parent_dir = common_parent_dir($input_paths);
                 
-                # find the first output file metadata that has all these keys
-                my @subdirs;
-                foreach my $file (@output_files) {
-                    my $metadata = $file->metadata;
-                    my @these_dirs;
-                    foreach my $key (@subdir_keys) {
-                        if (defined $metadata->{$key}) {
-                            my $sub_dir = $metadata->{$key};
-                            $sub_dir =~ s/\W/_/g;
-                            push(@these_dirs, $sub_dir);
-                        }
-                    }
-                    if (@these_dirs == @subdir_keys) {
-                        @subdirs = @these_dirs;
-                        last;
-                    }
-                }
-                
-                unless (@subdirs) {
-                    $frontend->error("$eident resulted in output files, none of which had metadata keys @subdir_keys; skipping");
-                    next;
-                }
-                if (@path_regex) {
-                    my @final_subdirs;
-                    foreach my $subdir (@subdirs) {
-                        foreach my $regex (@path_search_and_replace) {
-                            my ($search, $replace) = @$regex;
-                            $subdir =~ s/$search/$replace/;
-                            my @captured = (undef, $1, $2, $3, $4, $5, $6, $7, $8, $9);
-                            foreach my $i (1..9) {
-                                my $capture = $captured[$i] || next;
-                                $subdir =~ s/\$$i/$capture/;
-                            }
-                        }
-                        push @final_subdirs, split('\/', $subdir);
-                    }
-                    @subdirs = @final_subdirs;
-                }
-                $this_output_dir = dir($output_dir, @subdirs);
-            }
-            else {
-                $this_output_dir = dir($output_dir);
-            }
-            
-            $this_output_dir->mkpath;
-        }
-        
-        # figure out basename_from_metadata
-        my $metadata_basename;
-        if ($basename_from_metadata) {
-            my @basename_keys = $basename_from_metadata =~ m/%([^%]+)%/g;
-            
-            # find the first output file metadata that has all these keys
-            OFILE: foreach my $file (@output_files) {
-                my $metadata = $file->metadata;
-                my $this_basename = $basename_from_metadata;
-                foreach my $key (@basename_keys) {
-                    if (defined $metadata->{$key}) {
-                        my $val = $metadata->{$key};
-                        $val =~ s/\W/_/g;
-                        $this_basename =~ s/%$key%/$val/;
+                if ($basename_as_input) {
+                    if (@$input_paths == 1) {
+                        $input_basename = file($input_paths->[0])->basename;
+                        $input_basename =~ s/\.[^\.]+$/.$basename_as_input/;
                     }
                     else {
-                        next OFILE;
+                        $frontend->error("$eident doesn't have exactly one input path associated with it, so --basename_as_input won't work; skipping");
+                        next;
                     }
                 }
-                $metadata_basename = $this_basename;
-            }
-            
-            unless ($metadata_basename) {
-                $frontend->error("$eident resulted in output files, none of which had metadata keys @basename_keys; skipping");
-                next;
             }
         }
         
-        # create a symlink for each output file
-        foreach my $output_file (@output_files) {
-            # work out the basename
-            my $this_basename;
-            my $obase = $output_file->basename;
-            if ($basename_as_output) {
-                $this_basename = $obase;
-            }
-            elsif ($basename_as_input) {
-                my $suffix = file_suffix($obase);
-                $this_basename = $input_basename.'.'.$suffix;
-            }
-            elsif ($basename_from_metadata) {
-                my $suffix = file_suffix($obase);
-                $this_basename = $metadata_basename.'.'.$suffix;
-            }
-            
-            if (@basename_regex) {
-                foreach my $regex (@search_and_replace) {
-                    my ($search, $replace) = @$regex;
-                    $this_basename =~ s/$search/$replace/;
-                    my @captured = (undef, $1, $2, $3, $4, $5, $6, $7, $8, $9);
-                    foreach my $i (1..9) {
-                        my $capture = $captured[$i] || next;
-                        $this_basename =~ s/\$$i/$capture/;
+        # get output file details
+        my %output_files;
+        my @output_files;
+        my $filtered_files = 0;
+        my $total_files = 0;
+        foreach my $stepm (@allowed_step_members) {
+            my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
+            my $step_outs = $stepstate->output_files;
+            my $smid = $stepm->id;
+            my $force = exists $allowed_kinds{$smid}->{all};
+            my $step_name = $stepm->step->name;
+            my $step_num = $stepm->step_number;
+            my $step_desc = "Step $step_num ($step_name)";
+            while (my ($kind, $files) = each %$step_outs) {
+                unless ($force) {
+                    next unless exists $allowed_kinds{$smid}->{$kind};
+                }
+                my @files = grep { $_->s || $_->resolve->s } @$files;
+                next unless @files;
+                
+                my @file_data;
+                FILE: foreach my $file (@files) {
+                    my $meta = $file->metadata;
+                    if ($filter) {
+                        foreach my $key (keys %filters) {
+                            my $val = $meta->{$key} || next FILE;
+                            my $regex = $filters{$key};
+                            next FILE unless $val =~ /$regex/;
+                        }
                     }
+                    
+                    # for block_and_skip jobs, multiple estates can claim to
+                    # have output the same output file, so we uniqify
+                    next if exists $done_outputs{$file->id};
+                    $done_outputs{$file->id} = 1;
+                    
+                    my %hash;
+                    $hash{path} = $file->path->stringify;
+                    $hash{metadata} = $meta if keys %$meta;
+                    push(@file_data, \%hash);
+                    push(@output_files, $file);
                 }
+                $filtered_files += @files - @file_data;
+                $total_files += @files;
+                next unless @file_data;
+                $output_files{$step_desc}->{$kind} = \@file_data;
             }
-            
-            my $dest = file($this_output_dir, $this_basename);
-            my $resolved_output = $output_file->resolve;
-            
-            # make sure it doesn't already exist
-            my $source = $resolved_output->path;
-            if (-e $dest) {
-                unless (-l $dest && ($dest->resolve->absolute eq $source || $dest->resolve->absolute eq $output_file->path)) {
-                    $frontend->error("Can't create symlink $source => $dest since the destination already exists and isn't a symlink pointing to the source; skipping");
-                }
-                next;
-            }
-            
-            # create symlink
-            if ($pretend) {
-                $frontend->output($resolved_output->path.' => '.$dest);
+        }
+        next if $filtered_files == $total_files;
+        
+        if (defined $list) {
+            # print out useful info about the input
+            $frontend->output("--- Data Element ", $element->id, " ---");
+            my $dump = Dumper($element_result);
+            $dump =~ s/\$VAR1 = \{\s*?\n/Input:\n/;
+            $dump =~ s/\n\s+\};\s+//;
+            $frontend->output($dump);
+            if ($input_parent_dir) {
+                $frontend->output("--output_with_input symlinks would go in here: ", $input_parent_dir);
             }
             else {
-                $resolved_output->symlink(VRPipe::File->get(path => $dest));
+                $frontend->output("--output_with_input can't be used, since there's no common parent directory for the input files");
             }
-            if ($print) {
-                if ($md5) {
-                    $frontend->output($resolved_output->md5 || 'unknownmd5', "\t", $dest);
+            
+            # print out useful info about the output files
+            $frontend->output("\n");
+            $dump = Dumper(\%output_files);
+            $dump =~ s/\$VAR1 = \{\s*?\n/Output:\n/;
+            $dump =~ s/\n\s+\};\s+//;
+            $frontend->output($dump);
+            
+            $frontend->output("------\n\n");
+            if ($list) {
+                last if ++$count >= $list;
+            }
+        }
+        else {
+            # work out the output dir
+            my $this_output_dir;
+            if ($output_with_input) {
+                unless ($input_parent_dir) {
+                    $frontend->error("$eident has no common parent directory for its input files, so --output_with_input doesn't work for it; skipping");
+                    next;
+                }
+                $this_output_dir = dir($input_parent_dir);
+            }
+            else {
+                if ($output_by_metadata) {
+                    my @subdir_keys = split('\/', $output_by_metadata);
+                    
+                    # find the first output file metadata that has all these keys
+                    my @subdirs;
+                    foreach my $file (@output_files) {
+                        my $metadata = $file->metadata;
+                        my @these_dirs;
+                        foreach my $key (@subdir_keys) {
+                            if (defined $metadata->{$key}) {
+                                my $sub_dir = $metadata->{$key};
+                                $sub_dir =~ s/\W/_/g;
+                                push(@these_dirs, $sub_dir);
+                            }
+                        }
+                        if (@these_dirs == @subdir_keys) {
+                            @subdirs = @these_dirs;
+                            last;
+                        }
+                    }
+                    
+                    unless (@subdirs) {
+                        $frontend->error("$eident resulted in output files, none of which had metadata keys @subdir_keys; skipping");
+                        next;
+                    }
+                    if (@path_regex) {
+                        my @final_subdirs;
+                        foreach my $subdir (@subdirs) {
+                            foreach my $regex (@path_search_and_replace) {
+                                my ($search, $replace) = @$regex;
+                                $subdir =~ s/$search/$replace/;
+                                my @captured = (undef, $1, $2, $3, $4, $5, $6, $7, $8, $9);
+                                foreach my $i (1..9) {
+                                    my $capture = $captured[$i] || next;
+                                    $subdir =~ s/\$$i/$capture/;
+                                }
+                            }
+                            push @final_subdirs, split('\/', $subdir);
+                        }
+                        @subdirs = @final_subdirs;
+                    }
+                    $this_output_dir = dir($output_dir, @subdirs);
                 }
                 else {
-                    $frontend->output($dest);
+                    $this_output_dir = dir($output_dir);
+                }
+                
+                $this_output_dir->mkpath unless $pretend;
+            }
+            
+            # figure out basename_from_metadata
+            my $metadata_basename;
+            if ($basename_from_metadata) {
+                my @basename_keys = $basename_from_metadata =~ m/%([^%]+)%/g;
+                
+                # find the first output file metadata that has all these keys
+                OFILE: foreach my $file (@output_files) {
+                    my $metadata = $file->metadata;
+                    my $this_basename = $basename_from_metadata;
+                    foreach my $key (@basename_keys) {
+                        if (defined $metadata->{$key}) {
+                            my $val = $metadata->{$key};
+                            $val =~ s/\W/_/g;
+                            $this_basename =~ s/%$key%/$val/;
+                        }
+                        else {
+                            next OFILE;
+                        }
+                    }
+                    $metadata_basename = $this_basename;
+                }
+                
+                unless ($metadata_basename) {
+                    $frontend->error("$eident resulted in output files, none of which had metadata keys @basename_keys; skipping");
+                    next;
+                }
+            }
+            
+            # create a symlink for each output file.
+            foreach my $output_file (@output_files) {
+                # work out the basename
+                my $this_basename;
+                my $obase = $output_file->basename;
+                if ($basename_as_output) {
+                    $this_basename = $obase;
+                }
+                elsif ($basename_as_input) {
+                    my $suffix = file_suffix($obase);
+                    $this_basename = $input_basename.'.'.$suffix;
+                }
+                elsif ($basename_from_metadata) {
+                    my $suffix = file_suffix($obase);
+                    $this_basename = $metadata_basename.'.'.$suffix;
+                }
+                
+                if (@basename_regex) {
+                    foreach my $regex (@search_and_replace) {
+                        my ($search, $replace) = @$regex;
+                        $this_basename =~ s/$search/$replace/;
+                        my @captured = (undef, $1, $2, $3, $4, $5, $6, $7, $8, $9);
+                        foreach my $i (1..9) {
+                            my $capture = $captured[$i] || next;
+                            $this_basename =~ s/\$$i/$capture/;
+                        }
+                    }
+                }
+                
+                my $dest = file($this_output_dir, $this_basename);
+                my $resolved_output = $output_file->resolve;
+                
+                # make sure it doesn't already exist
+                my $source = $resolved_output->path;
+                if (-e $dest) {
+                    unless (-l $dest && ($dest->resolve->absolute eq $source || $dest->resolve->absolute eq $output_file->path)) {
+                        $frontend->error("Can't create symlink $source => $dest since the destination already exists and isn't a symlink pointing to the source; skipping");
+                    }
+                    next;
+                }
+                
+                # create symlink
+                if ($pretend) {
+                    $frontend->output($resolved_output->path.' => '.$dest);
+                }
+                else {
+                    $resolved_output->symlink(VRPipe::File->get(path => $dest));
+                }
+                if ($print) {
+                    if ($md5) {
+                        $frontend->output($resolved_output->md5 || 'unknownmd5', "\t", $dest);
+                    }
+                    else {
+                        $frontend->output($dest);
+                    }
                 }
             }
         }

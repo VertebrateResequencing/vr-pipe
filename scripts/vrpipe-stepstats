@@ -64,15 +64,13 @@ foreach my $setup (@{$frontend->opts('setup') || []}) {
 
 # get the stats per step, pipelinesetup and overall
 my %stats;
-my $schema = $frontend->schema;
 while (my ($step_id, $setup_ids) = each %steps) {
     my $step = VRPipe::Step->get(id => $step_id);
     my $ssu = VRPipe::StepStatsUtil->new(step => $step);
     
     if (exists $setup_ids->{all}) {
-        my $rs = $schema->resultset('StepStats')->search({ step => $step_id }, { distinct => 1 });
-        my $rs_column = $rs->get_column('pipelinesetup');
-        while (my $setup_id = $rs_column->next) {
+        my @setup_ids = VRPipe::StepStats->get_column_values('pipelinesetup', { step => $step_id }, { distinct => 1 });
+        foreach my $setup_id (@setup_ids) {
             $setup_ids->{$setup_id} = 1;
         }
         delete $setup_ids->{all};
@@ -109,7 +107,6 @@ exit;
 
 sub add_stats {
     my ($step_id, $setup_id) = @_;
-    my $rs = $schema->resultset('StepStats')->search({ step => $step_id, pipelinesetup => $setup_id });
     
     my $step = VRPipe::Step->get(id => $step_id);
     my $step_name = $step->name;
@@ -117,42 +114,44 @@ sub add_stats {
     my $setup_name = $setup->name;
     
     foreach my $column ('memory', 'time') {
-        my $rs_column = $rs->get_column($column);
+        my $pager = VRPipe::StepStats->get_column_values_paged($column, { step => $step_id, pipelinesetup => $setup_id });
         
-        while (my $stat = $rs_column->next) {
-            foreach my $grouping ('overall', 'step', 'setup') {
-                my $array_ref;
-                if ($grouping eq 'overall') {
-                    $array_ref = $stats{by_all}->{$column}->{overall} || [];
-                    $stats{by_all}->{$column}->{overall} = $array_ref;
-                }
-                elsif ($grouping eq 'step') {
-                    $array_ref = $stats{by_step}->{$column}->{$step_name} || [];
-                    $stats{by_step}->{$column}->{$step_name} = $array_ref;
-                }
-                elsif ($grouping eq 'setup') {
-                    $array_ref = $stats{by_setup}->{$column}->{$setup_name} || [];
-                    $stats{by_setup}->{$column}->{$setup_name} = $array_ref;
-                }
-                
-                $array_ref->[0]++;
-                if ($array_ref->[0] == 1) {
-                    $array_ref->[1] = $stat;
-                    $array_ref->[2] = 0;
-                    $array_ref->[3] = $stat;
-                    if ($column eq 'time') {
-                        $array_ref->[4] = $stat;
+        while (my $stat_ref = $pager->next) {
+            foreach my $stat (@$stat_ref) {
+                foreach my $grouping ('overall', 'step', 'setup') {
+                    my $array_ref;
+                    if ($grouping eq 'overall') {
+                        $array_ref = $stats{by_all}->{$column}->{overall} || [];
+                        $stats{by_all}->{$column}->{overall} = $array_ref;
                     }
-                }
-                else {
-                    my $old_mean = $array_ref->[1];
-                    $array_ref->[1] += ($stat - $old_mean) / $array_ref->[0];
-                    $array_ref->[2] += ($stat - $old_mean) * ($stat - $array_ref->[1]);
-                    if ($stat > $array_ref->[3]) {
+                    elsif ($grouping eq 'step') {
+                        $array_ref = $stats{by_step}->{$column}->{$step_name} || [];
+                        $stats{by_step}->{$column}->{$step_name} = $array_ref;
+                    }
+                    elsif ($grouping eq 'setup') {
+                        $array_ref = $stats{by_setup}->{$column}->{$setup_name} || [];
+                        $stats{by_setup}->{$column}->{$setup_name} = $array_ref;
+                    }
+                    
+                    $array_ref->[0]++;
+                    if ($array_ref->[0] == 1) {
+                        $array_ref->[1] = $stat;
+                        $array_ref->[2] = 0;
                         $array_ref->[3] = $stat;
+                        if ($column eq 'time') {
+                            $array_ref->[4] = $stat;
+                        }
                     }
-                    if ($column eq 'time') {
-                        $array_ref->[4] += $stat;
+                    else {
+                        my $old_mean = $array_ref->[1];
+                        $array_ref->[1] += ($stat - $old_mean) / $array_ref->[0];
+                        $array_ref->[2] += ($stat - $old_mean) * ($stat - $array_ref->[1]);
+                        if ($stat > $array_ref->[3]) {
+                            $array_ref->[3] = $stat;
+                        }
+                        if ($column eq 'time') {
+                            $array_ref->[4] += $stat;
+                        }
                     }
                 }
             }

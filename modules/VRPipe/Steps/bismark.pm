@@ -37,16 +37,16 @@ use File::Basename;
 use Data::Dumper;
      method options_definition {
         return {
-                  bismark_exe => VRPipe::StepOption->get(description => 'path to your bismark executable', optional => 1, default_value => $ENV{BISMARK_EXE}),
-                 paired_end => VRPipe::StepOption->get(description => 'Set to 1 if input files are paired end. Default is for singel end.', optional => 1, default_value => '0'),
-                 bismark_genome_folder => VRPipe::StepOption->get( description => 'path to your bismark genome folder', optional => 1, default_value => $ENV{BISMARK_GENOME_FOLDER} )
+                  bismark_exe => VRPipe::StepOption->create(description => 'path to your bismark executable', optional => 1, default_value => $ENV{BISMARK_EXE}),
+                 paired_end => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for singel end.', optional => 1, default_value => '0'),
+                 bismark_genome_folder => VRPipe::StepOption->create( description => 'path to your bismark genome folder', optional => 1, default_value => $ENV{BISMARK_GENOME_FOLDER} )
         }
     }
 
     method inputs_definition {
         return {
                 # sequence file - fastq for now
-    fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => '1 or more fastq files')
+    fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files')
         };
     }
 
@@ -56,7 +56,7 @@ use Data::Dumper;
             my $self = shift;
             my $options = $self->options;
             my $bismark_exe = $options->{bismark_exe};
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'bismark', version => VRPipe::StepCmdSummary->determine_version($bismark_exe . ' --version', 'Bismark Version:  (.+) '), summary => 'bismark -o output_file bismark_genome_folder input_file'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bismark', version => VRPipe::StepCmdSummary->determine_version($bismark_exe . ' --version', 'Bismark Version:  (.+) '), summary => 'bismark -o output_file bismark_genome_folder input_file'));
             my $req = $self->new_requirements(memory =>500, time => 1); #16GB RAM? Could be 8GB?
             my @input_file =  @{$self->inputs->{fastq_files}};
             my ($name) = fileparse( $input_file[0]->basename, ('.fastq') );            	    
@@ -104,8 +104,8 @@ use Data::Dumper;
 
     method outputs_definition {
         return { 
-              bismark_sam => VRPipe::StepIODefinition->get(type => 'txt', description => 'bismark mapped sequences files in sam format'),
-              bismark_report => VRPipe::StepIODefinition->get(type => 'txt', description => 'bismark mapped sequences files in sam format')
+              bismark_sam => VRPipe::StepIODefinition->create(type => 'txt', description => 'bismark mapped sequences files in sam format'),
+              bismark_report => VRPipe::StepIODefinition->create(type => 'txt', description => 'bismark mapped sequences files in sam format')
         };
     } 
 

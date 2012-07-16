@@ -12,7 +12,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('breakdancer_analysis_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'breakdancer_analysis'), 'able to get the breakdancer_analysis pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'breakdancer_analysis'), 'able to get the breakdancer_analysis pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
@@ -20,8 +20,8 @@ foreach my $stepmember ($pipeline->steps) {
 my @expected_step_names = qw(breakdancer_bam2cfg breakdancer_sv_detection);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my breakdancer_analysis pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'delimited',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my breakdancer_analysis pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'delimited',
 			method => 'all_columns',
 			options => { delimiter => "\t" },
 			source => file(qw(t data hs_chr20.bam.datasource))),

@@ -12,7 +12,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -70,11 +70,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
     method options_definition {
-        return { sga_preprocess_options => VRPipe::StepOption->get(description => 'options to sga preprocess', optional => 1, default_value => '--min-length=75'),
-                 sga_exe => VRPipe::StepOption->get(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_preprocess_options => VRPipe::StepOption->create(description => 'options to sga preprocess', optional => 1, default_value => '--min-length=75'),
+                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => 'fastq files to be indexed') };
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'fastq files to be indexed') };
     }
     method body_sub {
         return sub {
@@ -87,7 +87,7 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
                 $self->throw("sga_preprocess_options should not include the preprocess subcommand");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess '.$sga_opts.' $fastq_file(s)'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess '.$sga_opts.' $fastq_file(s)'));
             
             my %fastqs;
             foreach my $fq (@{$self->inputs->{fastq_files}}) {
@@ -113,7 +113,7 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { preprocessed_fastq_files => VRPipe::StepIODefinition->get(type => 'fq', description => 'the preprocessed fastq files', max_files => -1) };
+        return { preprocessed_fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'the preprocessed fastq files', max_files => -1) };
     }
     method post_process_sub {
         return sub { return 1; };

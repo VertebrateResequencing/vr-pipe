@@ -12,7 +12,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('retroseq_analysis_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'retroseq_analysis'), 'able to get the retroseq_analysis pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'retroseq_analysis'), 'able to get the retroseq_analysis pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
@@ -29,8 +29,8 @@ print REF "Alu\t${alu_file}\n";
 print REF "L1HS\t${l1hs_file}\n";
 close(REF);
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my retroseq_analysis pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'fofn',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my retroseq_analysis pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'fofn',
 			method => 'all',
 			source => file(qw(t data hs_chr20.bam.fofn))),
 		output_root => $output_dir,

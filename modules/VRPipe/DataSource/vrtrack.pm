@@ -210,12 +210,11 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{mapped} = $mapped if defined($mapped);
         $args{improved} = $improved if defined($improved);
         
-        my @elements;
+        my @element_args;
         foreach my $lane ($self->_filtered_lanes(%args)) {
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {lane => $lane->hierarchy_name}, withdrawn => 0));
+            push(@element_args, { datasource => $self->_datasource_id, result => {lane => $lane->hierarchy_name} });
         }
-        $self->_update_changed_marker;
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
     
     method lane_bams (Defined :$handle!,
@@ -355,7 +354,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 }
                 else {
                     $file_abs_path = file($local_root_dir, $file->name)->stringify;
-                    $vrfile = VRPipe::File->get(path => $file_abs_path, type => $vrpipe_filetype);
+                    $vrfile = VRPipe::File->create(path => $file_abs_path, type => $vrpipe_filetype);
                 }
                 
                 my $new_metadata = {
@@ -450,13 +449,16 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         }
         
         my $did = $self->_datasource_id;
-        my @elements;
+        my @element_args;
         foreach my $result (@$results) {
-            push(@elements, VRPipe::DataElement->get(datasource => $did, result => { paths => $result->{paths}, $group_name => $result->{$group_name} }, withdrawn => 0));
+            my $result_hash = { paths => $result->{paths}, $group_name => $result->{$group_name} };
+            push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($result->{changed}) {
+                my $element = VRPipe::DataElement->get(datasource => $did, result => $result_hash);
+                
                 # reset element states first
-                foreach my $estate ($elements[-1]->element_states) {
+                foreach my $estate ($element->element_states) {
                     $estate->start_from_scratch;
                 }
                 # then change metadata in files
@@ -466,8 +468,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 }
             }
         }
-        
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
 }
 

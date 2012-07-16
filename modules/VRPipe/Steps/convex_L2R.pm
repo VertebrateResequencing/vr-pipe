@@ -35,14 +35,14 @@ use VRPipe::Base;
 class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
     method options_definition {
         return { 
-                 'regions_file' => VRPipe::StepOption->get(description => 'regions file for which to generate read depths'),
-                 'rscript_path' => VRPipe::StepOption->get(description => 'full path to CoNVex R scripts'),
-                 'includeChrX' => VRPipe::StepOption->get(description => 'indicates whether to include Chr X in calulation', optional => 1, default_value => 1),
+                 'regions_file' => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
+                 'rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+                 'includeChrX' => VRPipe::StepOption->create(description => 'indicates whether to include Chr X in calulation', optional => 1, default_value => 1),
         };
     }
     method inputs_definition {
         return { 
-            rd_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)'),
+            rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)'),
         };
     }
     method body_sub {
@@ -95,8 +95,8 @@ class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
     }
     method outputs_definition {
         return {
-            features_file => VRPipe::StepIODefinition->get(type => 'txt', max_files => 1, description => 'a single convex features file for each set of L2R files'),
-                          l2r_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a log 2 ratio file for each input read depths file'),
+            features_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'a single convex features file for each set of L2R files'),
+                          l2r_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a log 2 ratio file for each input read depths file'),
         };
     }
     method post_process_sub {

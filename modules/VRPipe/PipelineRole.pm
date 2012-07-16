@@ -58,7 +58,7 @@ role VRPipe::PipelineRole {
     
     method add_step (VRPipe::Step $step) {
         my $step_num = $self->num_steps() + 1;
-        my $sm = VRPipe::StepMember->get(step => $step, pipeline => $self, step_number => $step_num);
+        my $sm = VRPipe::StepMember->create(step => $step, pipeline => $self, step_number => $step_num);
         $self->_increment_steps($step_num);
         $self->update;
         return $sm;
@@ -67,23 +67,17 @@ role VRPipe::PipelineRole {
     method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[VRPipe::StepAdaptorDefiner] $adaptor_defs, ArrayRef[VRPipe::StepBehaviourDefiner] $behaviour_defs) {
         # first check the pipeline hasn't already been constructed correctly
         my $all_ok = 1;
-        my $schema =  $self->result_source->schema;
         my $step_num = 0;
         my @sms;
         foreach my $step (@$steps) {
             my $step_id = $step->id;
-            my $rs = $schema->resultset('StepMember')->search(
+            my @results = VRPipe::StepMember->search(
                 {
                     'step' => $step_id,
                     'pipeline' => $self->id,
                     'step_number' => ++$step_num
                 }
             );
-            
-            my @results;
-            while (my $sm = $rs->next) {
-                push(@results, $sm);
-            }
             
             if (@results == 1) {
                 push(@sms, @results);
@@ -115,8 +109,7 @@ role VRPipe::PipelineRole {
             my $sa = $definer->define($self);
             $wanted_sas{$sa->id} = 1;
         }
-        my $rs = $schema->resultset('StepAdaptor')->search({ pipeline => $self->id });
-        while (my $sa = $rs->next) {
+        foreach my $sa (VRPipe::StepAdaptor->search({ pipeline => $self->id })) {
             unless (exists $wanted_sas{$sa->id}) {
                 $sa->delete;
             }
@@ -128,8 +121,7 @@ role VRPipe::PipelineRole {
             my $sb = $definer->define($self);
             $wanted_sbs{$sb->id} = 1;
         }
-        $rs = $schema->resultset('StepBehaviour')->search({ pipeline => $self->id });
-        while (my $sb = $rs->next) {
+        foreach my $sb (VRPipe::StepBehaviour->search({ pipeline => $self->id })) {
             unless (exists $wanted_sbs{$sb->id}) {
                 $sb->delete;
             }
@@ -154,7 +146,8 @@ role VRPipe::PipelineRole {
                       my $obj = $module->new();
                       $self->_construct_pipeline($obj->_step_list);
                 }
-            } else {
+            }
+            else {
                 return;
             }
         }

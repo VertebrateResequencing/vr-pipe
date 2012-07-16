@@ -119,7 +119,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
            heartbeat_interval => int (seconds between heartbeats)
 
 =cut
-    method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, PersistentArray|ArrayRefOfPersistent :$array?, PositiveInt :$heartbeat_interval?) {
+    method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, ArrayRefOfPersistent :$array?, PositiveInt :$heartbeat_interval?) {
         #my $scheduled_id = $sch->submit(submission => $VRPipe_jobmanager_submission);
         # this gets requirements from the Submission object. It also auto-sets
         # $submission->sid() to $scheduled_id (the return value, which is the value
@@ -137,33 +137,31 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # the scheduler, and if the scheduler has a problem and the submission fails,
         # we release all the Submission objects.
         
-        my @submissions;
+        my $submissions;
         my $for;
         my $aid = -1;
         if ($submission) {
-            push(@submissions, $submission);
+            $submissions = [$submission];
             $requirements ||= $submission->requirements;
             $for = $submission;
         }
         elsif ($array) {
-            if (ref($array) eq 'ARRAY') {
-                $array = VRPipe::PersistentArray->get(members => $array);
-            }
-            push(@submissions, @{$array->members});
-            $for = $array;
+            my $parray = VRPipe::PersistentArray->create(members => $array);
+            $for = $parray;
             $aid++;
+            $submissions = $array;
             
             if (! $requirements) {
                 my %req_ids;
-                foreach my $sub (@submissions) {
+                foreach my $sub (@$submissions) {
                     $req_ids{$sub->requirements->id} = 1;
                 }
                 if (keys %req_ids == 1) {
-                    $requirements = $submissions[0]->requirements;
+                    $requirements = $submissions->[0]->requirements;
                 }
             }
         }
-        $self->throw("at least one submission and requirements must be supplied") unless @submissions && $requirements;
+        $self->throw("at least one submission and requirements must be supplied") unless @$submissions && $requirements;
         
         # generate a command line that will submit to the scheduler
         my $cmd_line = $self->build_command_line(requirements => $requirements,
@@ -173,50 +171,40 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         # claim all submission objects, associating them with the hashing id,
         # then attempt the submit and set their sid on success or release on
         # failure
-        my $schema = $self->result_source->schema;
-        my $sid;
-        try {
-            $sid = $schema->txn_do(sub {
-                my $all_claimed = 1;
-                foreach my $sub (@submissions) {
-                    my $claimed = $sub->claim;
-                    unless ($claimed) {
-                        $all_claimed = 0;
-                        last;
-                    }
-                    $sub->_hid($for->id);
-                    $sub->_aid(++$aid);
+        my $for_id = $for->id;
+        my $transaction = sub {
+            my $all_claimed = 1;
+            foreach my $sub (@$submissions) {
+                my $claimed = $sub->claim;
+                unless ($claimed) {
+                    $all_claimed = 0;
+                    last;
                 }
+                $sub->_hid($for_id);
+                $sub->_aid(++$aid);
+            }
+            
+            if ($all_claimed) {
+                my $got_sid = $self->get_sid($cmd_line);
                 
-                if ($all_claimed) {
-                    foreach my $sub (@submissions) {
-                        $sub->update;
+                if ($got_sid) {
+                    foreach my $sub (@$submissions) {
+                        $sub->sid($got_sid);
                     }
-                    
-                    my $got_sid = $self->get_sid($cmd_line);
-                    
-                    if ($got_sid) {
-                        foreach my $sub (@submissions) {
-                            $sub->sid($got_sid);
-                        }
-                        return $got_sid;
-                    }
-                    else {
-                        foreach my $sub (@submissions) {
-                            $sub->release;
-                        }
-                        die "failed to submit to scheduler";
-                    }
+                    return $got_sid;
                 }
                 else {
-                    die "failed to claim all submissions";
+                    foreach my $sub (@$submissions) {
+                        $sub->release;
+                    }
+                    die "failed to submit to scheduler";
                 }
-            });
-        }
-        catch ($err) {
-            $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-            $self->throw("Failed to claim & submit: $err");
-        }
+            }
+            else {
+                die "failed to claim all submissions";
+            }
+        };
+        my $sid = $self->do_transaction($transaction, "Failed to claim & submit");
         
         return $sid;
         
@@ -266,7 +254,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $node_run_args .= ", heartbeat_interval => $heartbeat_interval";
         }
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
-        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->get(id => $self_id)->run_on_node($node_run_args);"];
+        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->create(id => $self_id)->run_on_node($node_run_args);"];
         
         return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements,
                                                                    stdo_file => $self->scheduler_output_file($output_dir),
@@ -322,9 +310,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 # because of fail and restart issues. Instead we always only
                 # actually call $job->run if this submission is the first
                 # submission created for this $job
-                my $schema = $self->result_source->schema;
-                my $rs = $schema->resultset('Submission')->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
-                my $first_sub = $rs->next;
+                my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
                 return unless $first_sub->id == $submission->id;
             }
             $job->run(stepstate => $submission->stepstate);
