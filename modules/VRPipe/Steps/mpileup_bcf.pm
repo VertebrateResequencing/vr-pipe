@@ -37,7 +37,6 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
         return { samtools_exe => VRPipe::StepOption->get(description => 'path to samtools executable', optional => 1, default_value => 'samtools'),
                  samtools_mpileup_options => VRPipe::StepOption->get(description => 'samtools mpileup options excluding -f', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
                  reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-                 interval_list => VRPipe::StepOption->get(description => 'absolute path to targets interval list file for -l option', optional => 1),
         };
     }
     method inputs_definition {
@@ -50,8 +49,6 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             my $samtools = $options->{samtools_exe};
             my $mpileup_opts = $options->{samtools_mpileup_options};
             my $reference_fasta = $options->{reference_fasta};
-            my $interval_list = $options->{interval_list};
-            $mpileup_opts .= " -l $interval_list " if $interval_list;
             
             my $bam_list;
             foreach my $bam (@{$self->inputs->{bam_files}}) {
