@@ -33,7 +33,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-{    #__CLASS VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata  #__EXTRA
+class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
     around options_definition {
         my $options = $self->$orig;
         return { %{ $self->$orig },

@@ -33,7 +33,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-{    #__CLASS VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck  #__EXTRA
+class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
     
     has 'meta_to_check' => (is      => 'rw',
                             isa     => 'ArrayRef',

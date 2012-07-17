@@ -1,6 +1,6 @@
 use VRPipe::Base;
 
-{    #__CLASS VRPipe::Pipelines::convex_read_depth_generation with VRPipe::PipelineRole  #__EXTRA
+class VRPipe::Pipelines::convex_read_depth_generation with VRPipe::PipelineRole {
     
     method name {
         return 'convex_read_depth_generation';
