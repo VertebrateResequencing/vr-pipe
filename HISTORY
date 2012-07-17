@@ -1,3 +1,6 @@
+0.82    Critical fix to the new PerlTidy module so that it does not break
+        classes when tidying. Critical fix for VRPipe::File to revert to
+        previous behaviour of keeping file metadata even after file deletion.
 0.81    This version features major changes to how the underlying system
         interacts with the database, which results in greatly improved speed
         (orders of magnitude in certain critical areas) and bounded memory
