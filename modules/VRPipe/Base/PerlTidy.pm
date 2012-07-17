@@ -1,3 +1,4 @@
+
 =head1 COPYRIGHT AND LICENSE
 
 Author: Sendu Bala <sb10@sanger.ac.uk>.
@@ -26,7 +27,7 @@ use strict;
 use warnings;
 
 sub perltidy {
-    return Perl::Tidy::perltidy( prefilter => \&prefilter, postfilter => \&postfilter, @_ );
+    return Perl::Tidy::perltidy(prefilter => \&prefilter, postfilter => \&postfilter, @_);
 }
 
 sub prefilter {
@@ -36,7 +37,7 @@ sub prefilter {
     s/^(\s*)method (.*)/$1sub $2 \#__METHOD/gm;
     
     # turn class into simple braced block
-    s/^(\s*)class (.+?)\{(.*?)\n/$1\{ \#__CLASS $2 \#__EXTRA $3\n/gm;
+    s/^(\s*)class (.+?)\{(.*?)\n/$1\{ \#__CLASS $2 \#__EXTRA$3\n/gm;
     
     # it messes up indentation and syntax checking for add_method(); turn it
     # into a plain sub
@@ -56,7 +57,7 @@ sub postfilter {
     s/^(\s*)sub (.*?)\s* \#__METHOD/${1}method $2/gm;
     
     # restore class
-    s/^(\s*)\{\s+\#__CLASS (.+?) \#__EXTRA (.*?)\n/$1class $2\{$3\n/gm;
+    s/^(\s*)\{\s+\#__CLASS (.+?) \#__EXTRA(.*?)\n/${1}class $2\{$3\n/gm;
     
     # restore add_method
     s/\n(\s*)sub (\w+?) \{ +\#__ADDMETHOD(.*?)\n(.+?)\n(\s*)\}\n/\n${1}\$meta->add_method\('$2' => sub \{ $3\n$4\n$5\}\);\n/gs;
