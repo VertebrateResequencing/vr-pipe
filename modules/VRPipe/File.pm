@@ -56,7 +56,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-{    #__CLASS VRPipe::File extends VRPipe::Persistent  #__EXTRA
+class VRPipe::File extends VRPipe::Persistent {
     use Devel::GlobalDestruction;
     use MooseX::Aliases;
     use File::ReadBackwards;
