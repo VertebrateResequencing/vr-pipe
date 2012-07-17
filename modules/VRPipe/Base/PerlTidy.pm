@@ -33,8 +33,8 @@ sub perltidy {
 sub prefilter {
     $_ = $_[0];
     
-    # turn method into sub
-    s/^(\s*)method (.*)/$1sub $2 \#__METHOD/gm;
+    # turn method/around etc. into sub
+    s/^(\s*)(method|around|after|before) (\S+) (.*)\{([^\{]*)$/$1sub $3 \{ \#__$2 $4 \#__EXTRA$5/gm;
     
     # turn class into simple braced block
     s/^(\s*)class (.+?)\{(.*?)\n/$1\{ \#__CLASS $2 \#__EXTRA$3\n/gm;
@@ -53,8 +53,8 @@ sub prefilter {
 sub postfilter {
     $_ = $_[0];
     
-    # turn sub back into method
-    s/^(\s*)sub (.*?)\s* \#__METHOD/${1}method $2/gm;
+    # turn sub back into method/around etc.
+    s/^(\s*)sub (\S+) \{\s*\#__(method|around|after|before) (.*) \#__EXTRA(.*)$/$1$3 $2 $4\{$5/gm;
     
     # restore class
     s/^(\s*)\{\s+\#__CLASS (.+?) \#__EXTRA(.*?)\n/${1}class $2\{$3\n/gm;
