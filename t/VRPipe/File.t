@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 35;
+    use Test::Most tests => 36;
     use VRPipeTest;
 }
 
@@ -111,8 +111,14 @@ $vrdest2->reselect_values_from_db;
 is_deeply [$vrdest2->md5, $vrdest2->lines], [$vrdest4->md5, $vrdest4->lines], 'updating symlink md5 and lines updates the source md5 and lines as well';
 
 my $vrdest5 = VRPipe::File->create(path => file($tmp_dir, 'dest5.txt'));
-$vrdest4->move($vrdest5);
-is_deeply [$vrdest5->resolve->id, $vrdest4->resolve->id], [$real_fileid, $real_fileid], 'even a move of a symlink still resolves correctly for both source and dest';
+$vrdest2->symlink($vrdest5);
+$vrdest5->remove;
+$vrdest2->reselect_values_from_db;
+is_deeply [$vrdest2->md5, $vrdest2->lines], ['f47c75614087a8dd938ba4acff252494', '2'], 'removing a symlink does not undef the md5 or lines of the original file';
+
+my $vrdest6 = VRPipe::File->create(path => file($tmp_dir, 'dest6.txt'));
+$vrdest4->move($vrdest6);
+is_deeply [$vrdest6->resolve->id, $vrdest4->resolve->id], [$real_fileid, $real_fileid], 'even a move of a symlink still resolves correctly for both source and dest';
 
 my $source_id = $vrsource->id;
 undef $vrsource;
