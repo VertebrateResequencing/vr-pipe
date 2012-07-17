@@ -118,7 +118,7 @@ foreach my $sub (@subs) {
     $frontend->output("The working directory for the job is ", $job->dir);
     $frontend->output("We reserved ", $req->memory, "MB memory and ", $req->time, "hrs of time");
     
-    unless ($sub_state eq 'scheduled') {
+    if ($sub_state ne 'scheduled' || $sub->retries > 0) {
         my $pars = $sub->scheduler_stdout;
         my $scheduler_ofile = $sub->scheduler_stdout_file;
         $scheduler_ofile &&= $scheduler_ofile->path;
@@ -154,7 +154,7 @@ foreach my $sub (@subs) {
         }
     }
     
-    unless ($job_state eq 'pending') {
+    if ($job_state ne 'pending' || $sub->retries > 0) {
         my $pars = $sub->job_stdout;
         if ($pars) {
             show_output("The job itself produced some stdout:", $pars);

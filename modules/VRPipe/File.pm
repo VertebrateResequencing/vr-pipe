@@ -344,6 +344,7 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($worked) {
             $self->_lines(undef);
             $self->parent(undef);
+            $self->metadata(undef);
             $self->update;
         }
         return $worked;
@@ -572,7 +573,7 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     after _lines {
         my $resolve = $self->resolve;
-        if ($resolve ne $self) {
+        if ($resolve ne $self && defined $self->{_lines}) {
             $resolve->_lines($self->{_lines}); #*** to avoid recursion we access the self hash!! rework?...
             $resolve->update;
         }
@@ -595,7 +596,7 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     after md5 {
         my $resolve = $self->resolve;
-        if ($resolve ne $self) {
+        if ($resolve ne $self && defined $self->{md5}) {
             $resolve->md5($self->{md5}); #*** to avoid recursion we access the self hash!! rework?...
             $resolve->update;
         }
