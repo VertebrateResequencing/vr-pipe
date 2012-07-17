@@ -12,7 +12,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('mpileup_with_leftaln_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'mpileup_with_leftaln'), 'able to get the mpileup_with_leftaln pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'mpileup_with_leftaln'), 'able to get the mpileup_with_leftaln pipeline';
 my @s_names;
 
 foreach my $stepmember ($pipeline->steps) {
@@ -22,8 +22,8 @@ foreach my $stepmember ($pipeline->steps) {
 my @expected_step_names = qw(mpileup_vcf vcf_index gatk_vcf_leftalign);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my mpileup_with_leftaln pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'fofn',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my mpileup_with_leftaln pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'fofn',
 			method => 'all',
 			source => file(qw(t data hs_chr20.bam.fofn))),
 		output_root => $output_dir,

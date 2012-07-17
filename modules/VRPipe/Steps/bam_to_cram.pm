@@ -35,12 +35,12 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
     around options_definition {
         return { %{$self->$orig},
-                 cramtools_bam_to_cram_options => VRPipe::StepOption->get(description => 'Options for cramtools cram command to convert bam to cram', optional => 1),
+                 cramtools_bam_to_cram_options => VRPipe::StepOption->create(description => 'Options for cramtools cram command to convert bam to cram', optional => 1),
                };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
-                 bai_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => '1 or more bam index files') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
+                 bai_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more bam index files') };
     }
     method body_sub {
         return sub {
@@ -56,7 +56,7 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
                 $self->throw("cramtools_bam_to_cram_options should not include the reference, input or output options");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cramtools', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'cramtools', 
                                    version => $self->cramtools_version(),
                                    summary => 'java $jvm_args -jar cramtools.jar cram --input-bam-file $bam_file --output-cram-file $cram_file --reference-fasta-file $reference_fasta '.$opts));
             
@@ -82,7 +82,7 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
         };
     }
     method outputs_definition {
-        return { cram_files => VRPipe::StepIODefinition->get(type => 'cram', max_files => -1, description => 'a cram file') };
+        return { cram_files => VRPipe::StepIODefinition->create(type => 'cram', max_files => -1, description => 'a cram file') };
     }
     method post_process_sub {
         return sub { return 1; };

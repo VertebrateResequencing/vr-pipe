@@ -100,6 +100,19 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                    default => 'vrpipe');
     
     __PACKAGE__->make_persistent(has_many => [states => 'VRPipe::StepState']);
+    
+    # because lots of frontends get the dataelementstates for a particular
+    # pipelinesetup
+    sub _des_search_args {
+        my $self = shift;
+        return ({ pipelinesetup => $self->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement', prefetch => 'dataelement' });
+    }
+    method dataelementstates_pager {
+        return VRPipe::DataElementState->search_paged($self->_des_search_args);
+    }
+    method dataelementstates {
+        return VRPipe::DataElementState->search($self->_des_search_args);
+    }
 }
 
 1;

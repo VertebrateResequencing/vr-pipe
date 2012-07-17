@@ -48,13 +48,13 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_recalibrate_variants extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{$self->$orig},
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to reference genome fasta'),
-                 var_recal_opts => VRPipe::StepOption->get(description => 'options for GATK VariantRecalibrator, excluding reference genome, input and output'),
+                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+                 var_recal_opts => VRPipe::StepOption->create(description => 'options for GATK VariantRecalibrator, excluding reference genome, input and output'),
                };
     }
 
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'one or more tabixed vcf files for variant recalibration'),
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'one or more tabixed vcf files for variant recalibration'),
 		};
     }
 
@@ -95,8 +95,8 @@ class VRPipe::Steps::gatk_recalibrate_variants extends VRPipe::Steps::gatk {
     }
     method outputs_definition {
         return {
-			recal_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a recalibration table file in CSV format for each input vcf'),
-			tranches_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a tranches file for each vcf used by ApplyRecalibration'),
+			recal_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a recalibration table file in CSV format for each input vcf'),
+			tranches_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a tranches file for each vcf used by ApplyRecalibration'),
 		};
     }
     method post_process_sub {

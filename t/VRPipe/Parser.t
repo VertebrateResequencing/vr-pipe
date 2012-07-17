@@ -68,6 +68,7 @@ is_deeply [@records], [["first line of 4th record", "second line of 4th record"]
                        [],
                        ["first line of 2nd record", "second line of 2nd record"],
                        ["first line of 1st record", "second line of 1st record"]], 'cat file was parsed correctly';
+undef $p;
 $p = VRPipe::Parser->create('cat', {file => file(qw(t data parser.cat))});
 @records = ();
 while ($p->next_record) {

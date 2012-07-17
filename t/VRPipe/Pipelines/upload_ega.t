@@ -17,7 +17,7 @@ my $ega_dropbox_passwd = $ENV{EGA_DROPBOX_PW};
 my $testdir = file(qw(t data))->absolute->stringify;
 system("rm $testdir/upload_log*");
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'upload_ega'), 'able to get the upload_ega pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'upload_ega'), 'able to get the upload_ega pipeline';
 my @s_names;
 
 foreach my $stepmember ($pipeline->steps) {
@@ -27,8 +27,8 @@ foreach my $stepmember ($pipeline->steps) {
 my @expected_step_names = qw(ega_upload);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my upload_ega pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'fofn',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my upload_ega pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'fofn',
 			method => 'all',
 			source => file(qw(t data hs_chr20.bam.fofn))),
 		output_root => $output_dir,

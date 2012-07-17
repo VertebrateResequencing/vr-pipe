@@ -12,7 +12,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -58,11 +58,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
     method options_definition {
-        return { sga_index_reference_options => VRPipe::StepOption->get(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '-d 10'),
-                 sga_exe => VRPipe::StepOption->get(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_index_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '-d 10'),
+                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
     method inputs_definition {
-        return { reference_fasta => VRPipe::StepIODefinition->get(type => 'txt', max_files => 1, description => 'reference fasta file') },
+        return { reference_fasta => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'reference fasta file') },
     }
     method body_sub {
         return sub {
@@ -77,7 +77,7 @@ class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
             }
             my $cmd = $sga_exe.' index '.$sga_opts;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga index '.$sga_opts.' $reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga index '.$sga_opts.' $reference_fasta'));
             $cmd .= ' '.$ref_file->path;
             
             my $prefix = $ref_file->basename;
@@ -94,8 +94,8 @@ class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { sga_index_binary_files => VRPipe::StepIODefinition->get(type => 'bin', description => 'the binary files produced by sga index', max_files => 2),
-                 sga_index_text_files => VRPipe::StepIODefinition->get(type => 'txt', description => 'the text files produced by sga index', max_files => 2) };
+        return { sga_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the binary files produced by sga index', max_files => 2),
+                 sga_index_text_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the text files produced by sga index', max_files => 2) };
     }
     method post_process_sub {
         return sub { return 1; };

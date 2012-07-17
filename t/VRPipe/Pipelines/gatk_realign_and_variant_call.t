@@ -11,7 +11,7 @@ BEGIN {
 }
 
 my $output_dir = get_output_dir('gatk_realign_discovery');
-ok my $pipeline = VRPipe::Pipeline->get(name => 'bam_realignment_around_discovered_indels'), 'able to get the bam_realignment_around_discovered_indels pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'bam_realignment_around_discovered_indels'), 'able to get the bam_realignment_around_discovered_indels pipeline';
 
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
@@ -27,8 +27,8 @@ $pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'pombe_ref.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
-VRPipe::PipelineSetup->get(name => 'indel realignment',
-			   datasource => VRPipe::DataSource->get(type => 'fofn_with_metadata',
+VRPipe::PipelineSetup->create(name => 'indel realignment',
+			   datasource => VRPipe::DataSource->create(type => 'fofn_with_metadata',
 			  					 method => 'all',
 			 					 options => { },
 								 source => file(qw(t data pombe_bam.fofnwm))->absolute->stringify),
@@ -42,7 +42,7 @@ ok handle_pipeline(), 'pipeline ran';
 #*** needs proper tests
 
 $output_dir = get_output_dir('gatk_snp_calling_and_filter');
-ok $pipeline = VRPipe::Pipeline->get(name => 'gatk_variant_calling_and_filter_vcf'), 'able to get the gatk_variant_calling_and_filter_vcf pipeline';
+ok $pipeline = VRPipe::Pipeline->create(name => 'gatk_variant_calling_and_filter_vcf'), 'able to get the gatk_variant_calling_and_filter_vcf pipeline';
 
 @s_names = ();
 foreach my $stepmember ($pipeline->steps) {
@@ -52,12 +52,12 @@ foreach my $stepmember ($pipeline->steps) {
 @expected_step_names = qw(bam_index gatk_genotype vcf_index gatk_variant_filter vcf_index);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-my $ds = VRPipe::DataSource->get(type => 'vrpipe',
+my $ds = VRPipe::DataSource->create(type => 'vrpipe',
 				 method => 'all',
 				 options => { },
 				 source => 'indel realignment[4]');
 
-VRPipe::PipelineSetup->get(name => 'snp call and filter',
+VRPipe::PipelineSetup->create(name => 'snp call and filter',
 			   datasource => $ds,
 			   output_root => $output_dir,
 			   pipeline => $pipeline,
@@ -67,7 +67,7 @@ VRPipe::PipelineSetup->get(name => 'snp call and filter',
 					var_filter_opts => '--filterExpression "QUAL <= 150" --filterName "QUALfilt" --filterExpression "ADalt <= 18" --filterName "ADaltfil" --filterExpression "Dels > 0.00" --filterName "Delsfilt" --filterExpression "PLalt >= 41" --filterName "PLaltfilt" --filterExpression "ADpropalt <= 0.37" --filterName "ADpropaltfilt" --filterExpression "QD <= 0.45" --filterName "QDfilt" --filterExpression "MQ <= 5.90" --filterName "MQfilt" --filterExpression "SB > -0.01" --filterName "SBfilt" --missingValuesInExpressionsShouldEvaluateAsFailing' });
 
 $output_dir = get_output_dir('gatk_indel_calling_and_filter');
-VRPipe::PipelineSetup->get(name => 'indel call and filter',
+VRPipe::PipelineSetup->create(name => 'indel call and filter',
 			   datasource => $ds,
 			   output_root => $output_dir,
 			   pipeline => $pipeline,

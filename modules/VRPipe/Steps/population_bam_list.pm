@@ -35,13 +35,13 @@ use VRPipe::Base;
 class VRPipe::Steps::population_bam_list with VRPipe::StepRole {
 	method options_definition {
 		return {
-				whole_genome_mode => VRPipe::StepOption->get(description => "Indicates bam lists not split by chromosome",optional => 1,default_value => 0),
-				chrom_list =>  VRPipe::StepOption->get(description => 'Names of chromosomes', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y' ),
-				pops_definition => VRPipe::StepOption->get(description => "populations structure definition, eg {AMR=>[qw(MXL CLM PUR)],AFR=>[qw(YRI LWK ASW)],ASN=>[qw(CHB CHS JPT)],EUR=>[qw(CEU TSI FIN GBR IBS)],}"),
+				whole_genome_mode => VRPipe::StepOption->create(description => "Indicates bam lists not split by chromosome",optional => 1,default_value => 0),
+				chrom_list =>  VRPipe::StepOption->create(description => 'Names of chromosomes', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y' ),
+				pops_definition => VRPipe::StepOption->create(description => "populations structure definition, eg {AMR=>[qw(MXL CLM PUR)],AFR=>[qw(YRI LWK ASW)],ASN=>[qw(CHB CHS JPT)],EUR=>[qw(CEU TSI FIN GBR IBS)],}"),
 		};
 	}
     method inputs_definition {
-        return { bam_fofn => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'fofn of bam files, with each filename containing a population id'),
+        return { bam_fofn => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'fofn of bam files, with each filename containing a population id'),
 		};
     }
 
@@ -103,7 +103,7 @@ class VRPipe::Steps::population_bam_list with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { population_bam_fofn => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'bam fofn for a population group') };
+        return { population_bam_fofn => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'bam fofn for a population group') };
     }
     method post_process_sub {
         return sub { return 1; };

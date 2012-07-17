@@ -2,13 +2,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::test_step_three with VRPipe::StepRole {
     method options_definition {
-        return { all_option => VRPipe::StepOption->get(description => 'an option that applies to all steps'),
-                 three_option => VRPipe::StepOption->get(description => 'an optional option for step three with a default',
+        return { all_option => VRPipe::StepOption->create(description => 'an option that applies to all steps'),
+                 three_option => VRPipe::StepOption->create(description => 'an optional option for step three with a default',
                                                          optional => 1,
                                                          default_value => 'StepOption_default_decided_three_option') };
     }
     method inputs_definition {
-        return { three_input => VRPipe::StepIODefinition->get(type => 'txt',
+        return { three_input => VRPipe::StepIODefinition->create(type => 'txt',
                                                               description => 'step three input file',
                                                               metadata => {one_meta => 'metadata we require to appear on our input file, from step one',
                                                                            two_meta => 'metadata we require to appear on our input file, from step two'}) };
@@ -20,7 +20,7 @@ class VRPipe::Steps::test_step_three with VRPipe::StepRole {
             my $all_opt = Path::Class::File->new($options->{all_option});
             my $three_opt = $options->{three_option};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cat',
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'cat',
                                                                version => VRPipe::StepCmdSummary->determine_version('cat --version', '^cat \(GNU coreutils\) (\S+)$'),
                                                                summary => 'cat $input_file > $output_file'));
             
@@ -40,7 +40,7 @@ class VRPipe::Steps::test_step_three with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { three_output => VRPipe::StepIODefinition->get(type => 'txt',
+        return { three_output => VRPipe::StepIODefinition->create(type => 'txt',
                                                                description => 'step three output file',
                                                                metadata => {one_meta => 'metadata from step one',
                                                                             two_meta => 'metadata from step two',

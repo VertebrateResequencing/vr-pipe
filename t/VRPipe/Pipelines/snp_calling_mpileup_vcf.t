@@ -12,7 +12,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('snp_calling_mpileup_vcf_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup_vcf'), 'able to get the snp_calling_mpileup_vcf pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'snp_calling_mpileup_vcf'), 'able to get the snp_calling_mpileup_vcf pipeline';
 my @s_names;
 
 foreach my $stepmember ($pipeline->steps) {
@@ -22,14 +22,13 @@ foreach my $stepmember ($pipeline->steps) {
 my @expected_step_names = qw(mpileup_vcf);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_mpileup_vcf pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'fofn',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my snp_calling_mpileup_vcf pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'fofn',
 			method => 'all',
 			source => file(qw(t data hs_chr20.bam.fofn))),
 		output_root => $output_dir,
 		pipeline => $pipeline,
 		options => { cleanup => 0,
-			#interval_list => file(qw(t data hs_chr20.invervals.bed))->absolute->stringify,
 			#samtools_mpileup_options => '-C50 -aug -r 20:1-70000',
 			samtools_mpileup_options => '-C50 -aug',
 			reference_fasta => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,

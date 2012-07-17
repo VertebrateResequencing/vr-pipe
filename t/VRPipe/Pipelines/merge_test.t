@@ -13,7 +13,7 @@ BEGIN {
 
 my $merge_output_dir = get_output_dir('merge_test');
 
-ok my $merge_pipeline = VRPipe::Pipeline->get(name => 'merge_test_pipeline'), 'able to get the merge_test_pipeline pipeline';
+ok my $merge_pipeline = VRPipe::Pipeline->create(name => 'merge_test_pipeline'), 'able to get the merge_test_pipeline pipeline';
 
 my @s_names;
 foreach my $stepmember ($merge_pipeline->steps) {
@@ -26,7 +26,7 @@ my @expected_step_names = qw(test_import_bams
                              bam_mark_duplicates);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-ok my $ds = VRPipe::DataSource->get(type => 'delimited',
+ok my $ds = VRPipe::DataSource->create(type => 'delimited',
                                  method => 'grouped_single_column',
                                  source => file(qw(t data datasource.bams))->absolute->stringify,
                                  options => { delimiter => "\t",
@@ -34,15 +34,15 @@ ok my $ds = VRPipe::DataSource->get(type => 'delimited',
                                                column => 2 }), 'could create a delimited datasource';
 
 my @results = ();
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{paths => [file('t', 'data', '2822_6.pe.bam')->absolute, file('t', 'data', '2822_6.se.bam')->absolute, file('t', 'data', '2822_7.pe.bam')->absolute], , group => 'LIB01'}, 
                       {paths => [file('t', 'data', '2823_4.pe.bam')->absolute], group => 'LIB02'}, 
                       {paths => [file('t', 'data', '8324_8.pe.bam')->absolute], group => 'LIB03'}], 'got correct results for delimited datasource';
 
-my $merge_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge',
-                                                       datasource => VRPipe::DataSource->get(type => 'delimited',
+my $merge_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis merge',
+                                                       datasource => VRPipe::DataSource->create(type => 'delimited',
                                                                                              method => 'grouped_single_column',
                                                                                              source => file(qw(t data datasource.bams))->absolute->stringify,
                                                                                              options => { delimiter => "\t",
@@ -57,8 +57,8 @@ my $merge_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis merge',
 
 ok handle_pipeline(), 'pipeline ran ok';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary,
-           VRPipe::StepState->get(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary],
+is_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary,
+           VRPipe::StepState->create(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary],
           ['java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam VALIDATION_STRINGENCY=SILENT',
            'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'],
           'cmd summaries for the major steps were as expected';

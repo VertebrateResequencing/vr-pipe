@@ -39,12 +39,12 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
     
     around options_definition {
         return { %{$self->$orig},
-                 irods_get_zone => VRPipe::StepOption->get(description => 'the zone (top level directory) where your data is stored in iRODs',
+                 irods_get_zone => VRPipe::StepOption->create(description => 'the zone (top level directory) where your data is stored in iRODs',
                                                            optional => 1,
                                                            default_value => 'seq') };
     }
     method inputs_definition {
-        return { basenames => VRPipe::StepIODefinition->get(type => 'any',
+        return { basenames => VRPipe::StepIODefinition->create(type => 'any',
                                                             description => 'file paths that do not exist yet - the basename will be used to find the file in iRODs, and the file will be saved at this full path',
                                                             max_files => -1,
                                                             metadata => {expected_md5 => 'the md5 checksum the file is supposed to have',
@@ -82,7 +82,7 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
         };
     }
     method outputs_definition {
-        return { local_files => VRPipe::StepIODefinition->get(type => 'any',
+        return { local_files => VRPipe::StepIODefinition->create(type => 'any',
                                                               description => 'a file on a local disc, extracted from iRODs',
                                                               max_files => -1) };
     }

@@ -34,14 +34,14 @@ use VRPipe::Base;
 
 class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
-                 smalt_map_to_sam_options => VRPipe::StepOption->get(description => 'options to smalt map -f samsoft', optional => 1),
-                 smalt_map_to_sam_pe_options => VRPipe::StepOption->get(description => 'additional options for smalt map -f samsoft for paired end reads', optional => 1),
-                 smalt_map_reverse_input_read_order => VRPipe::StepOption->get(description => 'option to reverse the order in which reads are inputted to smalt map', optional => 1, default_value => 0),
-                 smalt_exe => VRPipe::StepOption->get(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
+                 smalt_map_to_sam_options => VRPipe::StepOption->create(description => 'options to smalt map -f samsoft', optional => 1),
+                 smalt_map_to_sam_pe_options => VRPipe::StepOption->create(description => 'additional options for smalt map -f samsoft for paired end reads', optional => 1),
+                 smalt_map_reverse_input_read_order => VRPipe::StepOption->create(description => 'option to reverse the order in which reads are inputted to smalt map', optional => 1, default_value => 0),
+                 smalt_exe => VRPipe::StepOption->create(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
     }
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq',
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq',
                                                               max_files => -1,
                                                               description => 'fastq files',
                                                               metadata => {lane => 'lane name (a unique identifer for this sequencing run)',
@@ -59,7 +59,7 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                                                                            mate => 'if paired, the path to the fastq that is our mate',
                                                                            chunk => 'if the fastq file was produced by fastq_split Step, the chunk number',
                                                                            optional => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}),
-                 index_files => VRPipe::StepIODefinition->get(type => 'bin',
+                 index_files => VRPipe::StepIODefinition->create(type => 'bin',
                                                             min_files => 2,
                                                             max_files => 2,
                                                             description => 'binary files, as produced by smalt index',
@@ -187,13 +187,13 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
             }
             
             my $summary_cmd = "smalt map -f samsoft$these_opts -o \$sam_file \$index_base \$fastq_file(s)";
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'smalt', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'smalt', 
                                                                version => VRPipe::StepCmdSummary->determine_version($smalt_exe.' version', '^Version: (.+)$'), 
                                                                summary => $summary_cmd));
         };
     }
     method outputs_definition {
-        return { smalt_sam_files => VRPipe::StepIODefinition->get(type => 'txt',
+        return { smalt_sam_files => VRPipe::StepIODefinition->create(type => 'txt',
                                                                 max_files => -1,
                                                                 description => 'mapped sam file(s)',
                                                                 metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',

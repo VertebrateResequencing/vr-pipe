@@ -15,7 +15,7 @@ BEGIN {
 
 my $mapping_output_dir = get_output_dir('bam_mapping_with_stampy');
 
-ok my $mapping_pipeline = VRPipe::Pipeline->get(name => 'bam_mapping_with_stampy'), 'able to get the bam_mapping_with_stampy pipeline';
+ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'bam_mapping_with_stampy'), 'able to get the bam_mapping_with_stampy pipeline';
 
 my @s_names;
 foreach my $stepmember ($mapping_pipeline->steps) {
@@ -28,8 +28,8 @@ my $ref_dir = dir($mapping_output_dir, 'ref');
 $mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping with stampy',
-                                                       datasource => VRPipe::DataSource->get(type => 'fofn',
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(name => 's_suis mapping with stampy',
+                                                       datasource => VRPipe::DataSource->create(type => 'fofn',
                                                                                              method => 'all',
                                                                                              source => file(qw(t data datasource.bam_fofn))),
                                                        output_root => $mapping_output_dir,
@@ -58,7 +58,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->get(name => 's_suis mapping w
 
 my $mapping_output_dir2 = get_output_dir('bam_mapping_with_stampy_divergent');
 
-ok my $mapping_pipeline2 = VRPipe::Pipeline->get(name => 'bam_mapping_with_stampy_divergent'), 'able to get the bam_mapping_with_stampy_divergent pipeline';
+ok my $mapping_pipeline2 = VRPipe::Pipeline->create(name => 'bam_mapping_with_stampy_divergent'), 'able to get the bam_mapping_with_stampy_divergent pipeline';
 
 @s_names = ();
 foreach my $stepmember ($mapping_pipeline2->steps) {
@@ -66,8 +66,8 @@ foreach my $stepmember ($mapping_pipeline2->steps) {
 }
 is_deeply \@s_names, [qw(sequence_dictionary stampy_buildgenome stampy_buildhash bam_metadata bam_name_sort bam_to_fastq fastq_split stampy_map_fastq sam_to_fixed_bam bam_merge_lane_splits bam_substitution_rate stampy_map_fastq sam_to_fixed_bam bam_merge_lane_splits bamcheck)], 'the pipeline has the correct steps';
 
-VRPipe::PipelineSetup->get(name => 's_suis mapping with stampy',
-                           datasource => VRPipe::DataSource->get(type => 'fofn',
+VRPipe::PipelineSetup->create(name => 's_suis mapping with stampy',
+                           datasource => VRPipe::DataSource->create(type => 'fofn',
                                                                  method => 'all',
                                                                  source => file(qw(t data datasource.bam_fofn))),
                            output_root => $mapping_output_dir2,

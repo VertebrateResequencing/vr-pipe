@@ -5,14 +5,14 @@ class VRPipe::Steps::text_merge with VRPipe::StepRole {
         return { };
     }
     method inputs_definition {
-        return { input_text_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1,
+        return { input_text_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1,
                                                                    description => 'text files to merge') };
     }
     method body_sub {
         return sub {
             my $self = shift;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cat',
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'cat',
                                                                version => VRPipe::StepCmdSummary->determine_version('cat --version', '^cat \(GNU coreutils\) (\S+)$'),
                                                                summary => 'cat $input_file(s) > $output_file'));
             
@@ -30,7 +30,7 @@ class VRPipe::Steps::text_merge with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { merged_file => VRPipe::StepIODefinition->get(type => 'txt',
+        return { merged_file => VRPipe::StepIODefinition->create(type => 'txt',
                                                               description => 'merged text file') };
     }
     method post_process_sub {

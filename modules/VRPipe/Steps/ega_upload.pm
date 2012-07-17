@@ -35,16 +35,16 @@ use VRPipe::Base;
 class VRPipe::Steps::ega_upload extends VRPipe::Steps::java {
 	around options_definition {
         return { %{$self->$orig},
-                 'ega_upload_jar' => VRPipe::StepOption->get(description => 'path to EGA upload client jar'),
-                 'ega_dropbox' => VRPipe::StepOption->get(description => 'EGA dropbox name'),
-                 'ega_dropbox_passwd' => VRPipe::StepOption->get(description => 'EGA dropbox password'),
-                 'allow_dups' => VRPipe::StepOption->get(description => 'Do not fail the job if file already exists in dropbox',
+                 'ega_upload_jar' => VRPipe::StepOption->create(description => 'path to EGA upload client jar'),
+                 'ega_dropbox' => VRPipe::StepOption->create(description => 'EGA dropbox name'),
+                 'ega_dropbox_passwd' => VRPipe::StepOption->create(description => 'EGA dropbox password'),
+                 'allow_dups' => VRPipe::StepOption->create(description => 'Do not fail the job if file already exists in dropbox',
                                                         optional => 1,
                                                         default_value => 0),
         };
     }
     method inputs_definition {
-        return { upload_files => VRPipe::StepIODefinition->get(type => 'bin',
+        return { upload_files => VRPipe::StepIODefinition->create(type => 'bin',
                                                             description => 'files to upload to dropbox , eg bams or vcfs',
                                                             max_files => -1) };
     }

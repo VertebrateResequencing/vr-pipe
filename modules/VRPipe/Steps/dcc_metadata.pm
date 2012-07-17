@@ -34,10 +34,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
     method options_definition {
-        return { sequence_index => VRPipe::StepOption->get(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index') };
+        return { sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index'),
+                 release_date => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date (YYYYMMDD)'), };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1,
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', description => 'bam files', max_files => -1,
                                                             metadata => {sample => 'sample name',
                                                                          center_name => 'center name',
                                                                          library => 'library name',
@@ -54,7 +55,12 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             my $self = shift;
             my $options = $self->options;
             my $sequence_index = $options->{sequence_index};
+            my $release_date = $options->{release_date};
+            unless ( $release_date =~ /^\d{8}$/ ) {
+                $self->throw("Release date ($release_date) not of the correct form (YYYYMMDD).");
+            }
             foreach my $bam (@{$self->inputs->{bam_files}}) {
+                $bam->add_metadata({release_date => $release_date}, replace_data => 0);
                 my $in_path = $bam->path;
                 my $ofile = $self->output_file(output_key => 'dcc_ready_bam_files', basename => $bam->basename, type => 'bam', metadata => $bam->metadata);
                 my $out_path = $ofile->path;
@@ -65,7 +71,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { dcc_ready_bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { dcc_ready_bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                                       description => 'a bam file with associated metadata',
                                                                       max_files => -1,
                                                                       metadata => {sample => 'sample name',
@@ -77,6 +83,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
                                                                                    analysis_group => 'project analysis group',
                                                                                    split_sequence => 'chromosomal split',
                                                                                    reads => 'total number of reads (sequences)',
+                                                                                   release_date => 'DCC sequence index release date',
                                                                                    optional => ['library', 'study', 'center_name', 'split_sequence'] }) };
     }
     method post_process_sub {
@@ -138,7 +145,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
                 push @fails, "sample metadata in db, bam header and sequence index do not agree: $$meta{sample}, $$info{SM}, $sample";
             }
             unless ($info->{CN} eq $center) {
-                push @fails, "center_name metadata in db, bam header and sequence index do not agree: $$meta{center_name}, $$info{CN}, $center";
+                push @fails, "center_name metadata in bam header and sequence index do not agree: $$meta{center_name}, $$info{CN}, $center";
             }
             unless ($meta->{platform} eq $info->{PL} && $meta->{platform} eq $platform) {
                 push @fails, "platform metadata in db, bam header and sequence index do not agree: $$meta{platform}, $$info{PL}, $platform";
@@ -150,10 +157,10 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
                 push @fails, "study metadata in bam header and sequence index do not agree: $$info{DS}, $study";
             }
             unless ($meta->{population} eq $population) {
-                push @fails, "population metadata in db and and sequence index do not agree: $$meta{population}, $population";
+                push @fails, "population metadata in db and sequence index do not agree: $$meta{population}, $population";
             }
             unless ($meta->{analysis_group} eq $ag) {
-                push @fails, "analysis_group metadata in db and and sequence index do not agree: $$meta{analysis_group}, $ag";
+                push @fails, "analysis_group metadata in db and sequence index do not agree: $$meta{analysis_group}, $ag";
             }
         }
         

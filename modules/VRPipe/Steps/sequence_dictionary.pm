@@ -41,10 +41,10 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
     }
     
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->get(description => 'absolute path to fasta file'),
-                 reference_assembly_name => VRPipe::StepOption->get(description => 'public name of the assembly, eg. NCBI37; defaults to being excluded', optional => 1),
-                 reference_public_url => VRPipe::StepOption->get(description => 'public url that the reference_fasta can be accessed from; defaults to reference_fasta path', optional => 1),
-                 reference_species => VRPipe::StepOption->get(description => 'species of the reference genome; defaults to being excluded', optional => 1)};
+        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to fasta file'),
+                 reference_assembly_name => VRPipe::StepOption->create(description => 'public name of the assembly, eg. NCBI37; defaults to being excluded', optional => 1),
+                 reference_public_url => VRPipe::StepOption->create(description => 'public url that the reference_fasta can be accessed from; defaults to reference_fasta path', optional => 1),
+                 reference_species => VRPipe::StepOption->create(description => 'species of the reference genome; defaults to being excluded', optional => 1)};
     }
     method inputs_definition {
         return { };
@@ -72,7 +72,7 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { reference_dict => VRPipe::StepIODefinition->get(type => 'txt', description => '.dict file') };
+        return { reference_dict => VRPipe::StepIODefinition->create(type => 'txt', description => '.dict file') };
     }
     method post_process_sub {
         return sub { return 1; };

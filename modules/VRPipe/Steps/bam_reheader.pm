@@ -34,13 +34,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
+        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools'),
-                 header_comment_file => VRPipe::StepOption->get(description => 'path to your file containing SAM comment lines to include in the header',optional => 1) };
+                 header_comment_file => VRPipe::StepOption->create(description => 'path to your file containing SAM comment lines to include in the header',optional => 1) };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                             max_files => -1,
                                                             description => '1 or more bam files',
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
@@ -55,7 +55,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                                                                          reads => 'total number of reads (sequences)',
                                                                          paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
                                                                          optional => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']}),
-                 dict_file => VRPipe::StepIODefinition->get(type => 'txt',
+                 dict_file => VRPipe::StepIODefinition->create(type => 'txt',
                                                             description => 'a sequence dictionary file for your reference fasta') };
     }
     method body_sub {
@@ -94,7 +94,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { headed_bam_files => VRPipe::StepIODefinition->get(type => 'bam',
+        return { headed_bam_files => VRPipe::StepIODefinition->create(type => 'bam',
                                                           max_files => -1,
                                                           description => 'a bam file with good header',
                                                           metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
@@ -263,7 +263,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             $header_lines++;
         }
         if ($comment) {
-            my $comment_file = VRPipe::File->get(path => $comment);
+            my $comment_file = VRPipe::File->create(path => $comment);
             my $cfh = $comment_file->openr;
             while (<$cfh>) {
                 next unless /^\@CO/;
@@ -346,17 +346,14 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method command_history (ClassName|Object $self: VRPipe::PipelineSetup :$pipelinesetup!, VRPipe::DataElement :$dataelement!, VRPipe::StepMember :$stepmember!) {
         my $this_stepm_id = $stepmember->id;
         my $pipeline = $stepmember->pipeline;
-        my $m = VRPipe::Manager->get;
-        my $schema = $m->result_source->schema;
         
         my @history;
         if ($pipelinesetup->datasource->type eq 'vrpipe') {
             my $vrpipe_sources = $pipelinesetup->datasource->_source_instance->vrpipe_sources;
-            my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
-            while (my $link = $rs->next) {
+            foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id }, { prefetch => [qw(pipelinesetup parent)] })) {
+                my $this_pipelinesetup = $link->pipelinesetup;
                 my $setup_id = $link->pipelinesetup->id;
                 next unless exists $vrpipe_sources->{$setup_id};
-                my $this_pipelinesetup = VRPipe::PipelineSetup->get(id => $setup_id);
                 my $this_stepmember = VRPipe::StepMember->get(id => $vrpipe_sources->{$setup_id}->{final_smid});
                 push @history, $self->command_history(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember);
             }
@@ -365,7 +362,9 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my @readgroups = $self->element_readgroups($dataelement);
         return () unless @readgroups;
         foreach my $stepm ($pipeline->step_members) {
-            my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary;
+            my ($step_state) = VRPipe::StepState->search({ pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement });
+            next unless $step_state;
+            my $cmd_summary = $step_state->cmd_summary;
             next unless $cmd_summary;
             my $step_name = $stepm->step->name;
             my $pg_hash = { program_id => $step_name, program_name => $cmd_summary->exe, program_version => $cmd_summary->version, command_line => $cmd_summary->summary, element_readgroups => \@readgroups };
@@ -377,8 +376,6 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
 
     method element_readgroups (ClassName|Object $self: VRPipe::DataElement $dataelement!) {
         my %readgroups;
-        my $m = VRPipe::Manager->get;
-        my $schema = $m->result_source->schema;
         my $result = $dataelement->result;
         my $paths = $result->{paths} || $self->throw("data element ".$dataelement->id." gave a result with no paths");
         foreach my $path (@$paths) {
@@ -389,8 +386,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 $readgroups{$lane} = 1;
             }
         }
-        my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
-        while (my $link = $rs->next) {
+        foreach my $link (VRPipe::DataElementLink->search({ child => $dataelement->id }, { prefetch => 'parent' })) {
             foreach my $rg ($self->element_readgroups($link->parent)) {
                 $readgroups{$rg} = 1;
             }

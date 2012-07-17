@@ -14,13 +14,17 @@ BEGIN {
     use_ok('VRTrack::Factory');
 }
 
-# setup a little VRTrack db that has its files in irods
+# setup a little VRTrack db that has its files in irods. The sql used here will
+# need updating when VRTrack schema is incremented; to do that, put an exit
+# after the following block and run this test to create the db, then update
+# the db: update-vrtrack-schema -o -s ../vr-codebase/sql/VRTrack_schema_[...],
+# then mysqldump it
 my %cd = VRTrack::Factory->connection_details('rw');
 open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
 print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
 print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
 print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-my @sql = VRPipe::File->get(path => file(qw(t data vrtrack_cerevisiae_wgs.sql))->absolute)->slurp;
+my @sql = VRPipe::File->create(path => file(qw(t data vrtrack_cerevisiae_wgs.sql))->absolute)->slurp;
 foreach my $sql (@sql) {
     print $mysqlfh $sql;
 }
@@ -30,17 +34,17 @@ close($mysqlfh);
 my $output_dir = get_output_dir('bam_import_from_irods_and_vrtrack_qc');
 my $irods_dir = dir($output_dir, 'irods_import')->stringify;
 
-ok my $ds = VRPipe::DataSource->get(type => 'vrtrack',
+ok my $ds = VRPipe::DataSource->create(type => 'vrtrack',
                                     method => 'lane_bams',
                                     source => $ENV{VRPIPE_VRTRACK_TESTDB},
                                     options => {local_root_dir => $irods_dir}), 'could create a vrtrack datasource';
 my $results = 0;
-foreach my $element (@{$ds->elements}) {
+foreach my $element (@{get_elements($ds)}) {
     $results++;
 }
 is $results, 5, 'got correct number of bams from the vrtrack db';
 
-ok my $import_qc_pipeline = VRPipe::Pipeline->get(name => 'bam_import_from_irods_and_vrtrack_qc'), 'able to get the bam_import_from_irods_and_vrtrack_qc pipeline';
+ok my $import_qc_pipeline = VRPipe::Pipeline->create(name => 'bam_import_from_irods_and_vrtrack_qc'), 'able to get the bam_import_from_irods_and_vrtrack_qc pipeline';
 my @s_names;
 foreach my $stepmember ($import_qc_pipeline->steps) {
     push(@s_names, $stepmember->step->name);
@@ -53,7 +57,7 @@ $import_qc_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'pombe_ref.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
-VRPipe::PipelineSetup->get(name => 'pombe import and qc',
+VRPipe::PipelineSetup->create(name => 'pombe import and qc',
                            datasource => $ds,
                            output_root => $output_dir,
                            pipeline => $import_qc_pipeline,
@@ -152,13 +156,13 @@ copy($known_sites_source, $known_sites);
 copy($known_sites_source.'.tbi', $known_sites.'.tbi');
 
 $output_dir = get_output_dir('bam_improvement');
-VRPipe::PipelineSetup->get(name => 'pombe improvement',
-                                    datasource => VRPipe::DataSource->get(type => 'vrpipe',
+VRPipe::PipelineSetup->create(name => 'pombe improvement',
+                                    datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                           method => 'all',
                                                                           source => 'pombe import and qc[1]',
                                                                           options => { }),
                                     output_root => $output_dir,
-                                    pipeline => VRPipe::Pipeline->get(name => 'bam_improvement_and_update_vrtrack'),
+                                    pipeline => VRPipe::Pipeline->create(name => 'bam_improvement_and_update_vrtrack'),
                                     options => {reference_fasta => $ref_fa,
                                                 reference_assembly_name => 'SPombe1',
                                                 reference_public_url => 'ftp://s.pombe.com/ref.fa',
@@ -269,13 +273,13 @@ my $snp_bin = file($res_dir, 'pombe_snps.bin')->stringify;
 copy($snp_bin_source, $snp_bin);
 
 $output_dir = get_output_dir('genotype_check');
-VRPipe::PipelineSetup->get(name => 'genotype_checking',
-			   datasource => VRPipe::DataSource->get(type => 'vrpipe',
+VRPipe::PipelineSetup->create(name => 'genotype_checking',
+			   datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                  method => 'all',
                                                                  source => 'pombe improvement[10]',
                                                                  options => { }),
 			   output_root => $output_dir,
-			   pipeline => VRPipe::Pipeline->get(name => 'bam_genotype_checking'),
+			   pipeline => VRPipe::Pipeline->create(name => 'bam_genotype_checking'),
 			   options => {reference_fasta => $ref_fa,
 			               hapmap2bin_sample_genotypes_file => $snp_bin,
 				       expected_sample_metadata_key => 'sample'});
@@ -294,23 +298,23 @@ is $gtype_analysis_correct, 5, 'all the bams had the expected gtype_analysis met
 
 # autoqc that writes results to vrtrack
 $output_dir = get_output_dir('auto_qc');
-my $auto_qc_ps = VRPipe::PipelineSetup->get(name => 'auto_qc',
-                                            datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $auto_qc_ps = VRPipe::PipelineSetup->create(name => 'auto_qc',
+                                            datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                   method => 'group_by_metadata',
                                                                                   source => 'pombe import and qc[3]|pombe improvement[10]',
                                                                                   options => { metadata_keys => 'lane' }),
                                             output_root => $output_dir,
-                                            pipeline => VRPipe::Pipeline->get(name => 'vrtrack_auto_qc'),
+                                            pipeline => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc'),
                                             options => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} });
 
 ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
 
 my %actual_auto_qc_files;
 my $lni = 0;
-foreach my $de (@{$auto_qc_ps->datasource->elements}) {
+foreach my $de (@{get_elements($auto_qc_ps->datasource)}) {
     my @output_subdirs = output_subdirs($de->id, $auto_qc_ps->id);
     my $basename = '7369_5_'.$lane_nums[$lni++];
-    my $aqcfile = VRPipe::File->get(path => file(@output_subdirs, '1_vrtrack_auto_qc', $basename.'.auto_qc.txt'));
+    my $aqcfile = VRPipe::File->create(path => file(@output_subdirs, '1_vrtrack_auto_qc', $basename.'.auto_qc.txt'));
     if ($aqcfile->s) {
         $actual_auto_qc_files{$basename} = [$aqcfile->slurp];
     }
@@ -344,13 +348,13 @@ is_deeply [$lane_gtype_correct, $passed_auto_qc_lanes], [5, 5], 'auto qc also se
 
 # test that we can re-run QC
 $output_dir = get_output_dir('re_qc');
-my $reqc_ps = VRPipe::PipelineSetup->get(name => 'pombe reqc',
-                                         datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $reqc_ps = VRPipe::PipelineSetup->create(name => 'pombe reqc',
+                                         datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                method => 'all',
                                                                                source => 'pombe improvement[10]',
                                                                                options => { }),
                                          output_root => $output_dir,
-                                         pipeline => VRPipe::Pipeline->get(name => 'vrtrack_qc_graphs_and_auto_qc'),
+                                         pipeline => VRPipe::Pipeline->create(name => 'vrtrack_qc_graphs_and_auto_qc'),
                                          options => {reference_fasta => $ref_fa,
                                                      reference_assembly_name => 'SPombe1',
                                                      reference_public_url => 'ftp://s.pombe.com/ref.fa',
@@ -443,26 +447,26 @@ is $passed_auto_qc_lanes, 5, 'after redoing QC, still have 5 lanes passed';
 
 # mergeup
 $output_dir = get_output_dir('lane_merge');
-VRPipe::PipelineSetup->get(name => 'pombe merge lanes',
-                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
+VRPipe::PipelineSetup->create(name => 'pombe merge lanes',
+                           datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                  method => 'group_by_metadata',
                                                                  source => 'pombe improvement[10]',
                                                                  options => { metadata_keys => 'population|sample|platform|library' } ),
                            output_root => $output_dir,
-                           pipeline => VRPipe::Pipeline->get(name => 'bam_merge_lanes_and_fix_rgs'),
+                           pipeline => VRPipe::Pipeline->create(name => 'bam_merge_lanes_and_fix_rgs'),
                            options => { bam_tags_to_strip => 'OQ XM XG XO',
                                         bam_merge_keep_single_paired_separate => 1,
                                         cleanup => 1,
                                         delete_input_bams => 1 });
 
 $output_dir = get_output_dir('library_merge');
-VRPipe::PipelineSetup->get(name => 'pombe merge libraries',
-                           datasource => VRPipe::DataSource->get(type => 'vrpipe',
+VRPipe::PipelineSetup->create(name => 'pombe merge libraries',
+                           datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                  method => 'group_by_metadata',
                                                                  source => 'pombe merge lanes[4]',
                                                                  options => { metadata_keys => 'population|sample|platform' } ),
                            output_root => $output_dir,
-                           pipeline => VRPipe::Pipeline->get(name => 'bam_merge_and_split'),
+                           pipeline => VRPipe::Pipeline->create(name => 'bam_merge_and_split'),
                            options => { bam_merge_keep_single_paired_separate => 0,
                                         split_bam_make_unmapped => 0,
                                         delete_input_bams => 1,
@@ -470,20 +474,20 @@ VRPipe::PipelineSetup->get(name => 'pombe merge libraries',
 
 # mergeacross
 $output_dir = get_output_dir('merge_across');
-my $mergeacross_ps = VRPipe::PipelineSetup->get(name => 'pombe mergeacross',
-                                                datasource => VRPipe::DataSource->get(type => 'vrpipe',
+my $mergeacross_ps = VRPipe::PipelineSetup->create(name => 'pombe mergeacross',
+                                                datasource => VRPipe::DataSource->create(type => 'vrpipe',
                                                                                       method => 'group_by_metadata',
                                                                                       source => 'pombe merge libraries[2]',
                                                                                       options => { metadata_keys => 'split_sequence' } ),
                                                 output_root => $output_dir,
-                                                pipeline => VRPipe::Pipeline->get(name => 'bam_merge'),
+                                                pipeline => VRPipe::Pipeline->create(name => 'bam_merge'),
                                                 options => { bam_merge_keep_single_paired_separate => 0,
                                                              bam_merge_maximum_files => 2,
                                                              delete_input_bams => 1 });
 
 handle_pipeline();
 my @merged_bams;
-foreach my $element (@{$mergeacross_ps->datasource->elements}) {
+foreach my $element (@{get_elements($mergeacross_ps->datasource)}) {
     my @output_subdirs = output_subdirs($element->id, $mergeacross_ps->id);
     for my $chunk (1..3) {
         push(@merged_bams, file(@output_subdirs, '1_bam_merge', "pe.$chunk.bam"));

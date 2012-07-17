@@ -38,12 +38,12 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     use VRPipe::Utils::Math;
     
     method options_definition {
-        return { release_date => VRPipe::StepOption->get(description => 'for DCC-style filenames, provide the release date', optional => 1),
-                 sequence_index => VRPipe::StepOption->get(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index', optional => 1),
-                 rg_from_pu => VRPipe::StepOption->get(description => 'boolean which if true means that bam headers have their RG identifiers in the PU field instead of ID field of the RG lines in the bam header', optional => 1, default_value => 0) };
+        return { release_date => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date', optional => 1),
+                 sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index', optional => 1),
+                 rg_from_pu => VRPipe::StepOption->create(description => 'boolean which if true means that bam headers have their RG identifiers in the PU field instead of ID field of the RG lines in the bam header', optional => 1, default_value => 0) };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to calculate stats for') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to calculate stats for') };
     }
     method body_sub {
         return sub {
@@ -72,7 +72,7 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { bas_files => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'a .bas file for each input bam file') };
+        return { bas_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a .bas file for each input bam file') };
     }
     method post_process_sub {
         return sub { return 1; };
@@ -265,14 +265,13 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
 =cut
     method bas (ClassName|Object $self: Str|File $in_bam!, Str|File $out_bas!, Int :$release_date? where {/^\d{8}$/}, Str|File :$sequence_index?, Bool :$rg_from_pu?, Str :$chr?) {
         unless (ref($in_bam) && ref($in_bam) eq 'VRPipe::File') {
-            $in_bam = VRPipe::File->get(path => file($in_bam));
+            $in_bam = VRPipe::File->create(path => file($in_bam));
         }
         unless (ref($out_bas) && ref($out_bas) eq 'VRPipe::File') {
-            $out_bas = VRPipe::File->get(path => file($out_bas));
+            $out_bas = VRPipe::File->create(path => file($out_bas));
         }
         
-        my $working_bas = VRPipe::File->get(path => $out_bas->path.'.working');
-        my $bas_fh = $working_bas->openw;
+        my $bas_fh = $out_bas->openw;
         
         my $expected_lines = 0;
         
@@ -482,15 +481,14 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                                      $data{duplicate_bases} || 0), "\n";
             $expected_lines++;
         }
-        $working_bas->close;
+        $out_bas->close;
         
-        my $actual_lines = $working_bas->lines;
+        my $actual_lines = $out_bas->lines;
         if ($actual_lines == $expected_lines) {
-            $working_bas->move($out_bas);
             return 1;
         }
         else {
-            $working_bas->unlink;
+            $out_bas->unlink;
             $self->warn("Wrote $expected_lines lines to ".$out_bas->path.", but only read back $actual_lines! Deleted the output.");
             return 0;
         }

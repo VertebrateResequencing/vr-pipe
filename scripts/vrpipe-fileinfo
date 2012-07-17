@@ -108,14 +108,12 @@ foreach my $col (@tab_cols) {
     }
 }
 
-my $schema = $frontend->schema;
-
 # handle --paths
 my %files;
 my $limit_count = 0;
 foreach my $path (@paths) {
     $path = file($path)->absolute;
-    my $file = $schema->resultset('File')->find({ path => $path });
+    my ($file) = VRPipe::File->search({ path => $path });
     unless ($file) {
         $frontend->error("VRPipe does not know about $path; ignoring");
     }
@@ -182,37 +180,39 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
         
         # loop through completed elements
         my $pipeline_length = @step_members;
-        my $elements = $setup->datasource->elements;
-        foreach my $element (@$elements) {
-            my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-            unless ($element_state->completed_steps == $pipeline_length) {
-                next;
-            }
-            
-            # get output files
-            foreach my $stepm (@allowed_step_members) {
-                my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
-                my $step_outs = $stepstate->output_files;
-                my $smid = $stepm->id;
-                my $force = exists $allowed_kinds{$smid}->{all};
-                my $step_name = $stepm->step->name;
-                my $step_num = $stepm->step_number;
-                my $step_desc = "Step $step_num ($step_name)";
-                while (my ($kind, $files) = each %$step_outs) {
-                    unless ($force) {
-                        next unless exists $allowed_kinds{$smid}->{$kind};
-                    }
-                    my @these_files = grep { $_->s || $_->resolve->s } @$files;
-                    
-                    foreach my $file (@these_files) {
-                        my $fid = $file->id;
-                        unless (exists $files{$fid}) {
-                            $files{$fid} = $file;
-                            $limit_count++;
+        my $estates_pager = $setup->dataelementstates_pager;
+        while (my $estates = $estates_pager->next) {
+            foreach my $element_state (@$estates) {
+                unless ($element_state->completed_steps == $pipeline_length) {
+                    next;
+                }
+                
+                # get output files
+                my $element = $element_state->dataelement;
+                foreach my $stepm (@allowed_step_members) {
+                    my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
+                    my $step_outs = $stepstate->output_files;
+                    my $smid = $stepm->id;
+                    my $force = exists $allowed_kinds{$smid}->{all};
+                    my $step_name = $stepm->step->name;
+                    my $step_num = $stepm->step_number;
+                    my $step_desc = "Step $step_num ($step_name)";
+                    while (my ($kind, $files) = each %$step_outs) {
+                        unless ($force) {
+                            next unless exists $allowed_kinds{$smid}->{$kind};
                         }
+                        my @these_files = grep { $_->s || $_->resolve->s } @$files;
                         
-                        if ($limit) {
-                            last LIMIT_BREAK if $limit_count >= $limit;
+                        foreach my $file (@these_files) {
+                            my $fid = $file->id;
+                            unless (exists $files{$fid}) {
+                                $files{$fid} = $file;
+                                $limit_count++;
+                            }
+                            
+                            if ($limit) {
+                                last LIMIT_BREAK if $limit_count >= $limit;
+                            }
                         }
                     }
                 }
@@ -386,11 +386,7 @@ exit;
 
 sub file_to_stepstate {
     my $file = shift;
-    my $rs = $schema->resultset('StepOutputFile')->search({ file => $file->id });
-    my @sofs;
-    while (my $sof = $rs->next) {
-        push @sofs, $sof;
-    }
+    my @sofs = VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' });
     return unless @sofs == 1;
     return $sofs[0]->stepstate;
 }
@@ -408,11 +404,11 @@ sub stepstate_chain {
     my @chain;
     if ($pipelinesetup->datasource->type eq 'vrpipe') {
         my $vrpipe_sources = $pipelinesetup->datasource->_source_instance->vrpipe_sources;
-        my $rs = $schema->resultset('DataElementLink')->search({ child => $dataelement->id });
-        while (my $link = $rs->next) {
-            my $setup_id = $link->pipelinesetup->id;
+        my @links = VRPipe::DataElementLink->search({ child => $dataelement->id }, { prefetch => [qw(pipelinesetup parent)] });
+        foreach my $link (@links) {
+            my $this_pipelinesetup = $link->pipelinesetup;
+            my $setup_id = $this_pipelinesetup->id;
             next unless exists $vrpipe_sources->{$setup_id};
-            my $this_pipelinesetup = VRPipe::PipelineSetup->get(id => $setup_id);
             my $this_stepmember = VRPipe::StepMember->get(id => $vrpipe_sources->{$setup_id}->{final_smid});
             push @chain, stepstate_chain(VRPipe::StepState->get(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember));
         }

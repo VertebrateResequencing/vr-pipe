@@ -57,8 +57,6 @@ if ($all && ! $force_with_all && $start_from_scratch) {
     $frontend->die_with_error("Sorry, --all combined with --start_from_scratch seems like a really bad idea. Use --force_with_all if you're really really sure");
 }
 
-my $schema = $frontend->schema;
-
 my @element_states;
 if ($desired_ele) {
     @element_states = ($frontend->opts('element'));
@@ -66,23 +64,20 @@ if ($desired_ele) {
 else {
     foreach my $setup ($frontend->get_pipelinesetups()) {
         if ($all) {
-            my $rs = $schema->resultset('DataElementState')->search({ pipelinesetup => $setup->id, 'dataelement.withdrawn' => 0 },
-                                                                    { join => 'dataelement' });
-            
-            while (my $state = $rs->next) {
-                push(@element_states, $state);
-            }
+            @element_states = $setup->dataelementstates;
         }
         else {
-            my $estates = $setup->datasource->incomplete_element_states($setup);
+            my $estates_pager = $setup->datasource->incomplete_element_states($setup);
+            my @estates;
+            while (my $estates = $estates_pager->next) {
+                push(@estates, @$estates);
+            }
+            
             if ($failed) {
                 my $pipeline = $setup->pipeline;
-                foreach my $estate (@$estates) {
-                    my $rs = $schema->resultset('StepMember')->search({ step_number => ($estate->completed_steps + 1), pipeline => $pipeline->id });
-                    my @sms;
-                    while (my $sm = $rs->next) {
-                        push(@sms, $sm);
-                    }
+                foreach my $estate (@estates) {
+                    my @sms = VRPipe::StepMember->search({ step_number => ($estate->completed_steps + 1), pipeline => $pipeline->id });
+                    
                     my $step_member;
                     if (@sms == 1) {
                         $step_member = $sms[0];
@@ -98,8 +93,7 @@ else {
                         next;
                     }
                     
-                    $rs = $schema->resultset('Submission')->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
-                    my $found = $rs->next;
+                    my ($found) = VRpipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
                     if ($found) {
                         #*** can we combine all the above into one big search search query with multiple joins?...
                         push(@element_states, $estate);
@@ -107,7 +101,7 @@ else {
                 }
             }
             else {
-                push(@element_states, @$estates);
+                push(@element_states, @estates);
             }
         }
     }
@@ -145,9 +139,9 @@ foreach my $estate (@element_states) {
         my ($step_member) = grep { $_->step_number == $current_step_num } @stepms;
         my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
         
-        my $rs = $schema->resultset('Submission')->search({ stepstate => $sstate->id });
+        my @subs = VRPipe::Submission->search({ stepstate => $sstate->id }, { prefetch => 'job' });
         my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
-        while (my $sub = $rs->next) {
+        foreach my $sub (@subs) {
             if ($sub->failed) {
                 if ($sub->retries >= $retries) {
                     $num_perm_failed++;

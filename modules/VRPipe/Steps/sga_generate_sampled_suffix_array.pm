@@ -12,7 +12,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -42,11 +42,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_generate_sampled_suffix_array with VRPipe::StepRole {
     method options_definition {
-        return { sga_gen_ssa_options => VRPipe::StepOption->get(description => 'options to sga gen-ssa', optional => 1),
-                 sga_exe => VRPipe::StepOption->get(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_gen_ssa_options => VRPipe::StepOption->create(description => 'options to sga gen-ssa', optional => 1),
+                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
     method inputs_definition {
-        return { reference_fasta => VRPipe::StepIODefinition->get(type => 'txt', max_files => 1, description => 'reference fasta file') },
+        return { reference_fasta => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'reference fasta file') },
     }
     method body_sub {
         return sub {
@@ -61,7 +61,7 @@ class VRPipe::Steps::sga_generate_sampled_suffix_array with VRPipe::StepRole {
             }
             my $cmd = $sga_exe.' gen-ssa '.$sga_opts;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga gen-ssa '.$sga_opts.' $reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga gen-ssa '.$sga_opts.' $reference_fasta'));
             $cmd .= ' '.$ref_file->path;
             
             my $basename = $ref_file->basename;
@@ -73,7 +73,7 @@ class VRPipe::Steps::sga_generate_sampled_suffix_array with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { sampled_suffix_array => VRPipe::StepIODefinition->get(type => 'bin', description => 'the sampled suffix array file', max_files => 1) };
+        return { sampled_suffix_array => VRPipe::StepIODefinition->create(type => 'bin', description => 'the sampled suffix array file', max_files => 1) };
     }
     method post_process_sub {
         return sub { return 1; };

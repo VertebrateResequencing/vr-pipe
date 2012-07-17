@@ -76,15 +76,8 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         
         # get all the stepstates made for our dataelement and pipeline and
         # start_over() them
-        my $schema = $self->result_source->schema;
-        my $rs = $schema->resultset('StepState')->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id });
-        my @sss; # (we must go through the search results before using the objects, because in using them we disconnect from the db, breaking the search)
-        while (my $ss = $rs->next) {
+        foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id }, { prefetch => 'stepmember' })) {
             next unless exists $step_numbers{$ss->stepmember->step_number};
-            push(@sss, $ss);
-        }
-        
-        foreach my $ss (@sss) {
             $ss->start_over();
         }
         
@@ -95,8 +88,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         
         # If this data element was used as the source of another dataelement, we want to also restart those dataelements
         my @children;
-        $rs = $schema->resultset('DataElementLink')->search({ pipelinesetup => $self->pipelinesetup->id, parent => $self->dataelement->id });
-        while (my $link = $rs->next) {
+        foreach my $link (VRPipe::DataElementLink->search({ pipelinesetup => $self->pipelinesetup->id, parent => $self->dataelement->id }, { prefetch => 'child' })) {
             push @children, $link->child->element_states;
         }
         foreach my $child (@children) {
@@ -105,13 +97,10 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
     }
     
     method our_step_numbers {
-        my $schema = $self->result_source->schema;
-        
         # get all our stepstates
-        my $rs = $schema->resultset('StepState')->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id });
         my @step_states;
         my %ss_ids;
-        while (my $ss = $rs->next) {
+        foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id })) {
             push(@step_states, $ss);
             $ss_ids{$ss->id} = 1;
         }
@@ -126,12 +115,14 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
                 
                 # check that all other step states that output this same file
                 # are also our own step states
-                $rs = $schema->resultset('StepOutputFile')->search({ file => $sof->file->id });
-                while (my $other_sof = $rs->next) {
-                    my $other_ss = $other_sof->stepstate;
-                    unless (exists $ss_ids{$other_ss->id}) {
-                        $ours = 0;
-                        last;
+                my $pager = VRPipe::StepOutputFile->search_paged({ file => $sof->file->id }, { prefetch => 'stepstate' });
+                PLOOP: while (my $other_sofs = $pager->next) {
+                    foreach my $other_sof (@$other_sofs) {
+                        my $other_ss = $other_sof->stepstate;
+                        unless (exists $ss_ids{$other_ss->id}) {
+                            $ours = 0;
+                            last PLOOP;
+                        }
                     }
                 }
                 

@@ -39,7 +39,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         return { };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             max_files => -1, 
                                                             description => '1 or more name sorted bam files',
                                                             metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
@@ -118,7 +118,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->get(type => 'fq', 
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', 
                                                               max_files => -1, 
                                                               description => '1 or more fastq files',
                                                               metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',

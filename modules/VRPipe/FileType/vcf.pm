@@ -50,7 +50,7 @@ class VRPipe::FileType::vcf extends VRPipe::FileType::txt {
     
     method num_header_lines {
         my $path = $self->file;
-        my $vrfile = VRPipe::File->get(path => $path);
+        my $vrfile = VRPipe::File->create(path => $path);
         my $fh = $vrfile->openr;
         my $count = 0;
         while (<$fh>) {

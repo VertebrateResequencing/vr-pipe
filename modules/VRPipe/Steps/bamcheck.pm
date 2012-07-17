@@ -36,17 +36,17 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return { bamcheck_exe => VRPipe::StepOption->get(description => 'path to your bamcheck executable',
+        return { bamcheck_exe => VRPipe::StepOption->create(description => 'path to your bamcheck executable',
                                                          optional => 1,
                                                          default_value => 'bamcheck'),
-                 bamcheck_options => VRPipe::StepOption->get(description => 'options to bamcheck, excluding -r and -t (which are set by reference_fasta and exome_targets_file options)',
+                 bamcheck_options => VRPipe::StepOption->create(description => 'options to bamcheck, excluding -r and -t (which are set by reference_fasta and exome_targets_file options)',
                                                              optional => 1),
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file'),
-		 exome_targets_file => VRPipe::StepOption->get(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
+                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
+		 exome_targets_file => VRPipe::StepOption->create(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
 							       optional => 1)};
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', description => 'bam files', max_files => -1) };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', description => 'bam files', max_files => -1) };
     }
     method body_sub {
         return sub {
@@ -66,7 +66,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { bamcheck_files => VRPipe::StepIODefinition->get(type => 'txt',
+        return { bamcheck_files => VRPipe::StepIODefinition->create(type => 'txt',
                                                                  description => 'the output of bamcheck on a bam',
                                                                  max_files => -1,
                                                                  metadata => {source_bam => 'path to the bam file this bamcheck file was created from',

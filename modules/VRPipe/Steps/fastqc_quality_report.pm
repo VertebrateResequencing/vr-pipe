@@ -35,13 +35,13 @@ use VRPipe::Base;
 class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
 use File::Basename;
     method options_definition {
-        return { fastqc_exe => VRPipe::StepOption->get(description => 'path to your fastqc executable', optional => 1, default_value => 'fastqc')}
+        return { fastqc_exe => VRPipe::StepOption->create(description => 'path to your fastqc executable', optional => 1, default_value => 'fastqc')}
     
     }
     method inputs_definition {
         return {
                 # sequence file - fastq for now
-    fastq_files => VRPipe::StepIODefinition->get(type => 'fq', max_files => -1, description => '1 or more fastq files to calculate quality reports for')     
+    fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files to calculate quality reports for')     
    
         };
     }
@@ -50,7 +50,7 @@ use File::Basename;
             my $self = shift;
             my $options = $self->options;
             my $fastqc = $options->{fastqc_exe};
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'fastqc', version => VRPipe::StepCmdSummary->determine_version($fastqc . ' --version', '^FastQC v(.+)$'), summary => 'fastqc --noextract file1 '));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'fastqc', version => VRPipe::StepCmdSummary->determine_version($fastqc . ' --version', '^FastQC v(.+)$'), summary => 'fastqc --noextract file1 '));
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $seq_file  (@{$self->inputs->{fastq_files}}) {
@@ -66,7 +66,7 @@ use File::Basename;
      };
     }
     method outputs_definition {
-        return { fastq_report_files => VRPipe::StepIODefinition->get(type => 'bin', description => 'a zip file containing the fastqc quality report files') };
+        return { fastq_report_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'a zip file containing the fastqc quality report files') };
     }
     method post_process_sub {
         return sub { return 1; };

@@ -306,7 +306,7 @@ role VRPipe::Base::FileMethods {
     }
     
     method verify_md5 (File $path, Str $md5) {
-        my $vrfile = VRPipe::File->get(path => $path);
+        my $vrfile = VRPipe::File->create(path => $path);
         
         if ($self->file_md5($vrfile) eq $md5) {
             $vrfile->md5($md5);

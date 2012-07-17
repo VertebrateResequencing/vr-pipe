@@ -40,8 +40,6 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
-    use VRPipe::File;
-    
     method description {
         return "Use a simple list of items in a file as your source.";
     }
@@ -62,11 +60,11 @@ class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
     }
     
     method all (Defined :$handle!, Bool :$skip_comments = 1, Bool :$line_is_path = 0) {
-        my @elements;
+        my @element_args;
         foreach my $result ($self->_all_results(handle => $handle, skip_comments => $skip_comments, line_is_path => $line_is_path)) {
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => $result, withdrawn => 0));
+            push(@element_args, { datasource => $self->_datasource_id, result => $result });
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
     
     method _all_results (Defined :$handle!, Bool :$skip_comments = 1, Bool :$line_is_path = 0) {
@@ -83,7 +81,7 @@ class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
             chomp;
             
             my $result = $_;
-            $result = $line_is_path ? [file($result)->absolute->stringify] : $result;
+            $result = $line_is_path ? [VRPipe::File->create(path => file($result)->absolute)->path->stringify] : $result; # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
             push(@results, { $key_name => $result });
         }
         

@@ -38,7 +38,7 @@ class VRPipe::Steps::fastq_decompress with VRPipe::StepRole {
         return { };
     }
     method inputs_definition {
-        return { compressed_fastq_files => VRPipe::StepIODefinition->get(type => 'fq', description => 'compressed fastq files', max_files => -1) };
+        return { compressed_fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'compressed fastq files', max_files => -1) };
     }
     method body_sub {
         return sub {
@@ -57,7 +57,7 @@ class VRPipe::Steps::fastq_decompress with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { decompressed_fastq_files => VRPipe::StepIODefinition->get(type => 'fq', description => 'decompressed fastq files', max_files => -1) };
+        return { decompressed_fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'decompressed fastq files', max_files => -1) };
     }
     method post_process_sub {
         return sub { return 1; };

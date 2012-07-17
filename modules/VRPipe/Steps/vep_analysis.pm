@@ -34,13 +34,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
     method options_definition {
-        return { 'vep_options' => VRPipe::StepOption->get(description => 'options to vep, excluding -i or -o'),
-                 'vep_exe' => VRPipe::StepOption->get(description => 'path to your vep executable',
+        return { 'vep_options' => VRPipe::StepOption->create(description => 'options to vep, excluding -i or -o'),
+                 'vep_exe' => VRPipe::StepOption->create(description => 'path to your vep executable',
                                                                optional => 1,
                                                                default_value => 'variant_effect_predictor.pl') };
     }
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf',
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf',
                                                             description => 'vcf files',
                                                             max_files => -1) };
     }
@@ -53,7 +53,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 			my $vep_opts = $options->{'vep_options'};
 			my $cat_exe;
 
-			if ($vep_opts =~ /-[i,o]/) {
+			if ($vep_opts =~ /-[i,o] /) {
 				$self->throw("vep_options should not include the -i or -o option");
 			}
 
@@ -81,7 +81,7 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
 		};
 	}
     method outputs_definition {
-        return { vep_txt => VRPipe::StepIODefinition->get(type => 'txt',
+        return { vep_txt => VRPipe::StepIODefinition->create(type => 'txt',
                                                              description => 'vep analysis output file',
                                                              max_files => -1) };
     }

@@ -69,8 +69,6 @@ if (! $setup && ! @paths) {
     $frontend->die_with_error(qq[rm: missing operand\nTry `vrpipe-rm --help' for more information.]);
 }
 
-my $schema = $frontend->schema;
-
 if ($setup) {
     # handle --steps
     my %desired_steps;
@@ -108,39 +106,45 @@ if ($setup) {
     
     # loop through completed elements
     my $pipeline_length = @step_members;
-    my $elements = $setup->datasource->elements;
     my $deleted = 0;
     my $complete_elements = 0;
     my $incomplete = 0;
-    foreach my $element (@$elements) {
-        my $element_state = VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $element);
-        unless ($element_state->completed_steps == $pipeline_length) {
-            $incomplete++;
-            next;
-        }
-        $complete_elements++;
-        
-        # delete outputs
-        foreach my $stepm (@allowed_step_members) {
-            my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
-            my $smid = $stepm->id;
-            my $force = exists $allowed_kinds{$smid}->{all};
+    my $estates_pager = $setup->dataelementstates_pager;
+    my %done_files;
+    while (my $estates = $estates_pager->next) {
+        foreach my $element_state (@$estates) {
+            unless ($element_state->completed_steps == $pipeline_length) {
+                $incomplete++;
+                next;
+            }
+            $complete_elements++;
             
-            while (my ($kind, $files) = each %$step_outs) {
-                unless ($force) {
-                    next unless exists $allowed_kinds{$smid}->{$kind};
-                }
-                my @files = grep { $_->s } @$files;
-                next unless @files;
+            # delete outputs
+            my $element = $element_state->dataelement;
+            foreach my $stepm (@allowed_step_members) {
+                my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
+                my $smid = $stepm->id;
+                my $force = exists $allowed_kinds{$smid}->{all};
                 
-                my @file_data;
-                foreach my $file (@files) {
-                    if ($verbose) {
-                        my $path = $file->path->stringify;
-                        $frontend->output($path);
+                while (my ($kind, $files) = each %$step_outs) {
+                    unless ($force) {
+                        next unless exists $allowed_kinds{$smid}->{$kind};
                     }
-                    $file->unlink unless $pretend;
-                    $deleted++;
+                    my @files = grep { $_->s } @$files;
+                    next unless @files;
+                    
+                    my @file_data;
+                    foreach my $file (@files) {
+                        next if exists $done_files{$file->id};
+                        $done_files{$file->id} = 1;
+                        
+                        if ($verbose) {
+                            my $path = $file->path->stringify;
+                            $frontend->output($path);
+                        }
+                        $file->unlink unless $pretend;
+                        $deleted++;
+                    }
                 }
             }
         }
@@ -237,7 +241,7 @@ sub rm_path {
     }
     else {
         unless (is_protected($path)) {
-            my $vrfile = $schema->resultset("File")->find({ path => file($path)->absolute });
+            my ($vrfile) = VRPipe::File->search({ path => file($path)->absolute });
             
             if ($pretend) {
                 $frontend->output($path);

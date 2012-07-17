@@ -35,11 +35,11 @@ use VRPipe::Base;
 class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
     around options_definition {
         return { %{$self->$orig},
-                 cramtools_index_options => VRPipe::StepOption->get(description => 'Options for cramtools index command to index a cram file', optional => 1),
+                 cramtools_index_options => VRPipe::StepOption->create(description => 'Options for cramtools index command to index a cram file', optional => 1),
                };
     }
     method inputs_definition {
-        return { cram_files => VRPipe::StepIODefinition->get(type => 'cram', max_files => -1, description => '1 or more cram files') };
+        return { cram_files => VRPipe::StepIODefinition->create(type => 'cram', max_files => -1, description => '1 or more cram files') };
     }
     method body_sub {
         return sub {
@@ -55,7 +55,7 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
                 $self->throw("cramtools_index_options should not include the reference or input options");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cramtools', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'cramtools', 
                                    version => $self->cramtools_version(),
                                    summary => 'java $jvm_args -jar cramtools.jar index --input-cram-file $cram_file --reference-fasta-file $reference_fasta '.$opts));
             
@@ -78,7 +78,7 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
         };
     }
     method outputs_definition {
-        return { cram_index_files => VRPipe::StepIODefinition->get(type => 'bin', max_files => -1, description => 'a cram index file') };
+        return { cram_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a cram index file') };
     }
     method post_process_sub {
         return sub { return 1; };

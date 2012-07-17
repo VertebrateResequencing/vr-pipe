@@ -2,11 +2,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::test_step_four with VRPipe::StepRole {
     method options_definition {
-        return { all_option => VRPipe::StepOption->get(description => 'an option that applies to all steps'),
-                 four_option => VRPipe::StepOption->get(description => 'a required option for step four') };
+        return { all_option => VRPipe::StepOption->create(description => 'an option that applies to all steps'),
+                 four_option => VRPipe::StepOption->create(description => 'a required option for step four') };
     }
     method inputs_definition {
-        return { four_input => VRPipe::StepIODefinition->get(type => 'txt',
+        return { four_input => VRPipe::StepIODefinition->create(type => 'txt',
                                                              description => 'step four input file',
                                                              metadata => {one_meta => 'metadata we require to appear on our input file, from step one',
                                                                           two_meta => 'metadata we require to appear on our input file, from step two',
@@ -20,7 +20,7 @@ class VRPipe::Steps::test_step_four with VRPipe::StepRole {
             my $all_opt = Path::Class::File->new($options->{all_option});
             my $four_opt = $options->{four_option};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'cat',
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'cat',
                                                                version => VRPipe::StepCmdSummary->determine_version('cat --version', '^cat \(GNU coreutils\) (\S+)$'),
                                                                summary => 'cat $input_file > $output_file'));
             
@@ -42,7 +42,7 @@ class VRPipe::Steps::test_step_four with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { four_output => VRPipe::StepIODefinition->get(type => 'txt',
+        return { four_output => VRPipe::StepIODefinition->create(type => 'txt',
                                                               description => 'step four output file',
                                                               metadata => {one_meta => 'metadata from step one',
                                                                            two_meta => 'metadata from step two',

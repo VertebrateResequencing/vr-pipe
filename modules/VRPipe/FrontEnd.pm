@@ -230,19 +230,19 @@ class VRPipe::FrontEnd {
             next unless $self->option_was_set($opt);
             my $val = $self->opts($opt);
             my @desired = ref($val) eq 'ARRAY' ? @$val : ($val);
+            my $full_class = "VRPipe::$class";
             
-            my $schema = $self->schema;
             my @found;
             foreach my $desired (@desired) {
                 my $found;
                 if ($desired =~ /^\d+$/) {
-                    $found = $schema->resultset($class)->find({ id => $desired });
+                    ($found) = $full_class->search({ id => $desired });
                     unless ($found) {
                         $self->die_with_error("$desired is not a valid $class id");
                     }
                 }
                 else {
-                    $found = $schema->resultset($class)->find({ name => $desired });
+                    ($found) = $full_class->search({ name => $desired });
                     unless ($found) {
                         $self->die_with_error("$desired is not a valid $class name");
                     }
@@ -278,10 +278,7 @@ class VRPipe::FrontEnd {
             unless (defined $inactive) {
                 $inactive = $self->opts('deactivated');
             }
-            my $rs = $self->schema->resultset("PipelineSetup")->search( { $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) } );
-            while (my $setup = $rs->next) {
-                push(@setups, $setup);
-            }
+            @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) });
         }
         
         if ($self->_multiple_setups && ! @setups) {
@@ -340,11 +337,7 @@ class VRPipe::FrontEnd {
     
     method ask_for_object (Str :$question!, Str :$class!, Str :$column!) {
         $self->make_all_objects($class);
-        my $rs = $self->schema->resultset($class);
-        my @things;
-        while (my $thing = $rs->next) {
-            push(@things, $thing);
-        }
+        my @things = "VRPipe::$class"->search({});
         my %things = map { $_->$column => $_ } @things;
         my @thing_keys = sort keys %things;
         $self->output("\n");
@@ -365,8 +358,8 @@ class VRPipe::FrontEnd {
     }
     
     method already_exists (Str $class!, Str $key!, Str $value!) {
-        my @found = $self->schema->resultset($class)->search({ $key => $value });
-        if (@found) {
+        my $found = "VRPipe::$class"->search({ $key => $value });
+        if ($found) {
             return "a $class already exists with $key '$value'";
         }
         return;

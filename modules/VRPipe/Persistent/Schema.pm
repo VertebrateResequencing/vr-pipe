@@ -55,11 +55,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
-
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
-
-    our $VERSION = 21;
+    
+    our $VERSION = 22;
     __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
                                                DataSource DataElement Pipeline
                                                StepCmdSummary StepMember File
@@ -72,7 +71,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                                                LocalSchedulerJob
                                                LocalSchedulerJobState
                                                StepStats/]});
-
+    
     # deploy method overridden in order to add indexes in a db-dependent manner
     sub deploy {
         my ($self, $sqltargs, $dir) = @_;
@@ -93,7 +92,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
             );
         }
     }
-
+    
     sub get_idx_sql {
         my ($self, $mode) = @_;
 	$mode = 'create' unless $mode;

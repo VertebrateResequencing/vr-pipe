@@ -63,8 +63,8 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
     
     around options_definition {
         return { %{$self->$orig},
-                 reference_fasta => VRPipe::StepOption->get(description => 'absolute path to genome reference file used to do the mapping'),
-                 gatk_path => VRPipe::StepOption->get(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"),
+                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
+                 gatk_path => VRPipe::StepOption->create(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"),
                 };
     }
     method inputs_definition {

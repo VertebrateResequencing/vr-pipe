@@ -37,14 +37,14 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
     
     around options_definition {
         return { %{$self->$orig},
-                 gatk_indelrealigner_options => VRPipe::StepOption->get(description => 'command line options for GATK IndelRealigner', optional => 1, default_value => '--disable_bam_indexing'),
+                 gatk_indelrealigner_options => VRPipe::StepOption->create(description => 'command line options for GATK IndelRealigner', optional => 1, default_value => '--disable_bam_indexing'),
                 };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             max_files => -1, 
                                                             description => '1 or more bam files'),
-                 intervals_file => VRPipe::StepIODefinition->get(type => 'txt',
+                 intervals_file => VRPipe::StepIODefinition->create(type => 'txt',
                                                                  max_files => -1,
                                                                  description => 'GATK intervals file for each input bam file',
                                                                  metadata => { source_bam => 'bam file this intervals file was created for' }) };
@@ -63,7 +63,7 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
                 $self->throw("gatk_indelrealigner_options should not include the reference or IndelRealigner task command");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'GenomeAnalysisTK', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'GenomeAnalysisTK', 
                                    version => $self->gatk_version(),
                                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file '.$realign_opts));
             
@@ -97,7 +97,7 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
         };
     }
     method outputs_definition {
-        return { realigned_bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { realigned_bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                                       max_files => -1, 
                                                                       description => 'a name-sorted bam file with improved alignments near indels') };
     }

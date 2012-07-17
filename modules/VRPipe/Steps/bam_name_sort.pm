@@ -34,13 +34,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->get(description => 'path to your samtools executable',
+        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
                                                          optional => 1,
                                                          default_value => 'samtools'),
-                 samtools_sort_options => VRPipe::StepOption->get(description => 'command line options for samtools sort, excluding -n and -o', optional => 1)  };
+                 samtools_sort_options => VRPipe::StepOption->create(description => 'command line options for samtools sort, excluding -n and -o', optional => 1)  };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                             max_files => -1, 
                                                             description => '1 or more bam files') };
         
@@ -89,7 +89,7 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { name_sorted_bam_files => VRPipe::StepIODefinition->get(type => 'bam', 
+        return { name_sorted_bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
                                                                         max_files => -1, 
                                                                         description => 'a name-sorted bam file') };
     }

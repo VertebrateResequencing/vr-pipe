@@ -36,10 +36,10 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
     use Digest::MD5;
     
     method options_definition {
-        return { disc_pool_file => VRPipe::StepOption->get(description => 'path to a file with an absolute path of a storage root directory on each line')};
+        return { disc_pool_file => VRPipe::StepOption->create(description => 'path to a file with an absolute path of a storage root directory on each line')};
     }
     method inputs_definition {
-        return { file => VRPipe::StepIODefinition->get(type => 'any', description => 'a file that should be archived') };
+        return { file => VRPipe::StepIODefinition->create(type => 'any', description => 'a file that should be archived') };
     }
     method body_sub {
         return sub {
@@ -92,7 +92,7 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { moved_file => VRPipe::StepIODefinition->get(type => 'any',
+        return { moved_file => VRPipe::StepIODefinition->create(type => 'any',
                                                              description => 'the input file at its new location') };
     }
     method post_process_sub {

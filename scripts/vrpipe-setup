@@ -68,8 +68,6 @@ if ($deactivate && $reactivate) {
     $frontend->die_with_error("--deactivate and --activate are mutually exclusive");
 }
 
-my $schema = $frontend->schema;
-
 if ($setup) {
     # are we de/reactivating it?
     if ($deactivate || $reactivate) {
@@ -195,14 +193,14 @@ if ($setup) {
 }
 elsif ($list) {
     # list existing setups, including those that have been deactivated
-    my $rs;
+    my $search_args;
     if ($user eq 'all') {
-        $rs = $schema->resultset("PipelineSetup");
+        $search_args = {};
     }
     else {
-        $rs = $schema->resultset("PipelineSetup")->search( { user => $user } );
+        $search_args = { user => $user };
     }
-    while (my $setup = $rs->next) {
+    foreach my $setup (VRPipe::PipelineSetup->search($search_args)) {
         my $active = $setup->active ? 'active' : 'inactive';
         $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ", $active for user ", $setup->user, ")");
     }
@@ -222,7 +220,7 @@ else {
     my @steps = map { $_->step } @sms;
     
     # find the steps whoes input is the data element
-    my @adaptors = $schema->resultset('StepAdaptor')->search({ pipeline => $pipeline->id });
+    my @adaptors = VRPipe::StepAdaptor->search({ pipeline => $pipeline->id });
     my %source_input_step_num_to_kind;
     foreach my $adaptor (@adaptors) {
         my $hash = $adaptor->adaptor_hash;
@@ -435,8 +433,8 @@ else {
     
     # actually create the datasource and pipelinesetup
     if ($correct eq 'y') {
-        my $ds = VRPipe::DataSource->get(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args);
-        my $ps = VRPipe::PipelineSetup->get(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args, user => $user);
+        my $ds = VRPipe::DataSource->create(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args);
+        my $ps = VRPipe::PipelineSetup->create(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args, user => $user);
         $frontend->output("\nYour new PipelineSetup has been created!\nName: $setup_name; Id: ", $ps->id, " (remember at least one of these for use later)");
     }
     else {
@@ -470,12 +468,7 @@ sub describe_io_def {
 
 sub get_pipeline_behaviours {
     my $pipeline = shift;
-    my $rs = $schema->resultset("StepBehaviour")->search( { pipeline => $pipeline->id } );
-    my @bs;
-    while (my $b = $rs->next) {
-        push(@bs, $b);
-    }
-    return @bs;
+    return VRPipe::StepBehaviour->search( { pipeline => $pipeline->id } );
 }
 
 sub behaviours_to_regulators {

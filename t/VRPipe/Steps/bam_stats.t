@@ -62,8 +62,8 @@ SKIP: {
     skip "longer-running pipeline test disabled without VRPIPE_TEST_PIPELINES", $num_tests unless $ENV{VRPIPE_TEST_PIPELINES};
     
     # test as part of a pipeline
-    my $setup = VRPipe::PipelineSetup->get(name => 'bsp_setup',
-                                           datasource => VRPipe::DataSource->get(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
+    my $setup = VRPipe::PipelineSetup->create(name => 'bsp_setup',
+                                           datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
                                            output_root => $output_dir,
                                            pipeline => $pipeline,
                                            options => {});

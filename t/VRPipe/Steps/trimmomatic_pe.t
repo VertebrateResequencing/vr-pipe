@@ -15,11 +15,8 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('trimmomatic', 
 is_deeply [$step->id, $step->description], [1, 'Step for the Trimmomatic Read Trimmer'], 'trimmomatic step created and has correct description';
 
 # run trimmomatic on a fastq file.
-#my $file1 = VRPipe::File->get(path => file(qw(t data 2822_6_1.fastq))->absolute, metadata=>{});
-#my $file2 = VRPipe::File->get(path => file(qw(t data 2822_6_2.fastq))->absolute, metadata=>{});
-
-my $setup = VRPipe::PipelineSetup->get(name => 'trimmomatic',
-                                       datasource => VRPipe::DataSource->get( 
+my $setup = VRPipe::PipelineSetup->create(name => 'trimmomatic',
+                                       datasource => VRPipe::DataSource->create(
                                                                   type => 'delimited', 
                                                                   method => 'all_columns', 
                                                                   options => { delimiter => "\t" }, 

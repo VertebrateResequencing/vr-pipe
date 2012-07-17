@@ -35,11 +35,11 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
     around options_definition {
         return { %{$self->$orig},
-                 markdup_options => VRPipe::StepOption->get(description => 'command line options for Picard MarkDuplicates', optional => 1, default_value => 'ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'),
+                 markdup_options => VRPipe::StepOption->create(description => 'command line options for Picard MarkDuplicates', optional => 1, default_value => 'ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'),
                 };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files') };
     }
     method body_sub {
         return sub {
@@ -50,7 +50,7 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
             
             my $markdup_opts = $options->{markdup_options};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->get(exe => 'picard', 
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'picard', 
                                    version => $self->picard_version(),
                                    summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file '.$markdup_opts));
             
@@ -74,7 +74,7 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
         };
     }
     method outputs_definition {
-        return { markdup_bam_files => VRPipe::StepIODefinition->get(type => 'bam',max_files => -1,description => 'a bam file with duplicates marked') };
+        return { markdup_bam_files => VRPipe::StepIODefinition->create(type => 'bam',max_files => -1,description => 'a bam file with duplicates marked') };
     }
     method post_process_sub {
         return sub { return 1; };

@@ -34,10 +34,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
     method options_definition {
-        return { bam_tags_to_strip => VRPipe::StepOption->get(description => 'Tags to strip from the BAM files. Give tags separated by spaces.', optional => 1, default_value => 'OQ XM XG XO') };
+        return { bam_tags_to_strip => VRPipe::StepOption->create(description => 'Tags to strip from the BAM files. Give tags separated by spaces.', optional => 1, default_value => 'OQ XM XG XO') };
     }
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => '1 or more bam files to strip tags from') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to strip tags from') };
     }
     method body_sub {
         return sub {
@@ -61,7 +61,7 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
         };
     }
     method outputs_definition {
-        return { tag_stripped_bam_files => VRPipe::StepIODefinition->get(type => 'bam', max_files => -1, description => 'bam files with tags stripped out') };
+        return { tag_stripped_bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => 'bam files with tags stripped out') };
     }
     method post_process_sub {
         return sub { return 1; };

@@ -34,13 +34,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_stats with VRPipe::StepRole {
 	method options_definition {
-        return { 'vcf-stats_options' => VRPipe::StepOption->get(description => 'vcf-stats options'),
-			'vcf-stats_exe' => VRPipe::StepOption->get(description => 'path to vcf-stats executable',
+        return { 'vcf-stats_options' => VRPipe::StepOption->create(description => 'vcf-stats options'),
+			'vcf-stats_exe' => VRPipe::StepOption->create(description => 'path to vcf-stats executable',
 					optional => 1,
 					default_value => 'vcf-stats') };
 	}
 	method inputs_definition {
-		return { vcf_files => VRPipe::StepIODefinition->get(type => 'vcf',
+		return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf',
 				description => 'vcf files',
 				max_files => -1) };
 	}
@@ -76,7 +76,7 @@ class VRPipe::Steps::vcf_stats with VRPipe::StepRole {
 		};
 	}
 	method outputs_definition {
-		return { stats_file => VRPipe::StepIODefinition->get(type => 'txt',
+		return { stats_file => VRPipe::StepIODefinition->create(type => 'txt',
 				description => 'a vcf stats file',
 				max_files => -1) };
 	}

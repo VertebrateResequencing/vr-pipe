@@ -152,7 +152,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                                  $mate ? (mate => $mate) : (),
                                  $remote_path ? (remote_path => $remote_path) : () };
             
-            my $vrfile = VRPipe::File->get(path => $fastq, type => 'fq');
+            my $vrfile = VRPipe::File->create(path => $fastq, type => 'fq');
             my $current_metadata = $vrfile->metadata;
             my $changed = 0;
             if ($current_metadata && keys %$current_metadata) {
@@ -184,13 +184,16 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             }
         }
         
-        my @elements = ();
+        my @element_args = ();
+        my $did = $self->_datasource_id;
         foreach my $lane (sort keys %$lanes_hash) {
             my $hash_ref = $lanes_hash->{$lane};
-            push(@elements, VRPipe::DataElement->get(datasource => $self->_datasource_id, result => {paths => $hash_ref->{paths}, lane => $lane}, withdrawn => 0));
+            my $result_hash = { paths => $hash_ref->{paths}, lane => $lane };
+            push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                foreach my $estate ($elements[-1]->element_states) {
+                my $element = VRPipe::DataElement->get(datasource => $did, result => $result_hash);
+                foreach my $estate ($element->element_states) {
                     $estate->start_from_scratch;
                 }
                 
@@ -202,7 +205,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 }
             }
         }
-        return \@elements;
+        $self->_create_elements(\@element_args);
     }
 }
 

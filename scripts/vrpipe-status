@@ -40,7 +40,6 @@ my $brief = $frontend->opts('brief');
 
 my @setups = $frontend->get_pipelinesetups();
 
-my $schema = $frontend->schema;
 foreach my $setup (@setups) {
     my $active = $setup->active;
     my $note = '';
@@ -54,13 +53,13 @@ foreach my $setup (@setups) {
     
     my $datasource = $setup->datasource;
     my $num_elements;
-    my @incomplete;
+    my $incomplete_pager;
     eval {
-        $num_elements = scalar(@{$datasource->elements});
-        @incomplete = @{$datasource->incomplete_element_states($setup)};
+        $num_elements = $datasource->elements(1)->total_entries;
+        $incomplete_pager = $datasource->incomplete_element_states($setup);
     };
     my $ds_error = $@;
-    my $num_incomplete = @incomplete;
+    my $num_incomplete = $incomplete_pager->total_entries;
     next if $incomplete_only && ! $num_incomplete;
     $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
     if ($ds_error) {
@@ -94,15 +93,17 @@ foreach my $setup (@setups) {
     }
     
     $frontend->output("There are a total of $num_elements Data Elements in the datasource to work on, and $num_incomplete elements are incomplete");
-    if (@incomplete) {
+    if ($num_incomplete) {
         my %status_hash;
         my $fully_complete = $num_elements - $num_incomplete;
         $status_hash{"$step_members steps completed"} = $fully_complete;
         my $num_steps_complete = $fully_complete * $step_members;
-        foreach my $es (@incomplete) {
-            my $completed_steps = $es->completed_steps;
-            $num_steps_complete += $completed_steps;
-            $status_hash{"$completed_steps steps completed"}++;
+        while (my $incompletes = $incomplete_pager->next) {
+            foreach my $es (@$incompletes) {
+                my $completed_steps = $es->completed_steps;
+                $num_steps_complete += $completed_steps;
+                $status_hash{"$completed_steps steps completed"}++;
+            }
         }
         $frontend->display_hash('Breakdown', \%status_hash, [sort { my ($ay) = $a =~ /^(\d+)/; my ($be) = $b =~ /^(\d+)/; $ay <=> $be } keys %status_hash]);
         
@@ -110,20 +111,22 @@ foreach my $setup (@setups) {
         my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
         $frontend->output("Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)");
         
-        my $rs = $schema->resultset("Submission")->search({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id },
-                                                          { join => ['stepstate'] });
+        my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id },
+                                                     { join => ['stepstate'], prefetch => 'job' });
         
         my %sub_stats;
-        while (my $sub = $rs->next) {
-            my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
-            if ($sub_state eq 'scheduled') {
-                my $job = $sub->job;
-                $sub_state = $job->finished ? 'finished' : ($job->running ? 'running' : 'pending');
+        while (my $subs = $pager->next) {
+            foreach my $sub (@$subs) {
+                my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+                if ($sub_state eq 'scheduled') {
+                    my $job = $sub->job;
+                    $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
+                }
+                $sub_stats{$sub_state}++;
             }
-            $sub_stats{$sub_state}++;
         }
         if (keys %sub_stats) {
-            $frontend->display_hash("\nCurrent submission state", \%sub_stats, [qw(running pending failed)]);
+            $frontend->display_hash("\nCurrent submission state", \%sub_stats, [qw(running processing pending failed)]);
             if (keys %sub_stats == 1 && exists $sub_stats{failed}) {
                 my $failed = $sub_stats{failed};
                 if ($failed >= $num_incomplete) {

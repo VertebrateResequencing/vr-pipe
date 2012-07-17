@@ -6,15 +6,13 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-            debug => 1,
-		    required_exe => [qw(variant_effect_predictor.pl vcf2consequences_vep tabix)]);
+                    required_exe => [qw(variant_effect_predictor.pl vcf2consequences_vep tabix)]);
     use TestPipelines;
-    $ENV{'DBIC_TRACE'}=1;
 }
 
 my $output_dir = get_output_dir('vcf_vep_annotate_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'vcf_vep_annotate'), 'able to get the vcf_vep_annotate pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'vcf_vep_annotate'), 'able to get the vcf_vep_annotate pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
@@ -25,13 +23,13 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 my $vep_cache = file(qw(t data vep_cache))->absolute->stringify;
 my $gerp_cache = file(qw(t data gerp_cache))->absolute->stringify;
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my vcf_vep_annotate pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'fofn',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my vcf_vep_annotate pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'fofn',
 			method => 'all',
 			source => file(qw(t data datasource.vcf_fofn))),
 		output_root => $output_dir,
 		pipeline => $pipeline,
-		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+		options => { 'vep_options' => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --offline --cache --dir $vep_cache",
 		'vcf2consequences_options' => "--gerp $gerp_cache",
 		cleanup => 1});
 

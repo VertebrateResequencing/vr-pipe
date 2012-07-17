@@ -1,3 +1,14 @@
+# version 0.81:
+This version increments the schema version, so be sure to run vrpipe-db_upgrade
+if you used a previous version of VRPipe.
+There is also improved handling of duplicate database rows. Older versions of
+VRPipe may have left you with many duplicate rows, most likely in the
+dataelementstate and stepstate tables. You may like to manually remove these:
+mysql> delete des from dataelementstate as des inner join (select min(id) minid, pipelinesetup, dataelement from dataelementstate group by pipelinesetup, dataelement having count(*) > 1) as dups on (dups.pipelinesetup = des.pipelinesetup and dups.dataelement = des.dataelement and dups.minid <> des.id);
+mysql> delete t from stepstate as t inner join (select min(id) minid, stepmember, dataelement, pipelinesetup from stepstate group by stepmember, dataelement, pipelinesetup having count(*) > 1) as dups on (dups.stepmember = t.stepmember and dups.dataelement = t.dataelement and dups.pipelinesetup = t.pipelinesetup and dups.minid <> t.id);
+Note that this may have strange effects on what the system thinks has completed,
+but shouldn't cause any harm and is recommended.
+
 # version 0.76:
 Like 0.75, this version improves indexes. See the notes for 0.75 if upgrading.
 

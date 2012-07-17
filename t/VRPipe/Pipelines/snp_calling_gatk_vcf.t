@@ -11,7 +11,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('snp_calling_gatk_vcf_pipeline');
 
-ok my $pipeline = VRPipe::Pipeline->get(name => 'snp_calling_gatk_vcf'), 'able to get the snp_calling_gatk_vcf pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_vcf'), 'able to get the snp_calling_gatk_vcf pipeline';
 
 my @s_names;
 foreach my $stepmember ($pipeline->steps) {
@@ -32,8 +32,8 @@ $recal_opts .= " --phone_home NO_ET";
 
 my $var_filter_opts = "--filterExpression 'MQ0 >= 4 && (MQ0 / (1.0 * DP)) > 0.1' --filterName HARD_TO_VALIDATE --mask:NAME,BED " .  file(qw(t data chr20_trunc.pilot.indels.bed.mask))->absolute->stringify . " --maskName 'InDel' --clusterWindowSize 11 --phone_home NO_ET";
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->get(name => 'my snp_calling_gatk_vcf pipeline setup',
-		datasource => VRPipe::DataSource->get(type => 'delimited',
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(name => 'my snp_calling_gatk_vcf pipeline setup',
+		datasource => VRPipe::DataSource->create(type => 'delimited',
 			method => 'all_columns',
 			options => { delimiter => "\t" },
 			source => file(qw(t data hs_chr20.bam.datasource))),
