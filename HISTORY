@@ -1,3 +1,38 @@
+0.81    This version features major changes to how the underlying system
+        interacts with the database, which results in greatly improved speed
+        (orders of magnitude in certain critical areas) and bounded memory
+        usage. End-users of the front-end scripts like vrpipe-status are not
+        really affected by the changes, but developers who have written their
+        own VRPipe scripts, Steps or Pipelines should be aware of the following:
+        
+        Persistent methods (see updated POD of VRPipe::Persistent for details):
+        create() replaces what get() used to do: get an instance of a Persistent
+        object from the database, creating or updating it if necessary. get()
+        has been changed to only retrieve and update - it no longer creates but
+        throws if the row isn't already in the database. get() should still be
+        used whenever possible, especially in end-user scripts.
+        Persistent instances now no longer access the database every time you
+        call one of its methods to retrieve a column value. This means if you
+        get an instance, then change column values in a different process, your
+        instance will have out-of-date values. You can use new method
+        reselect_values_from_db() to update your instance.
+        There are new methods search(), get_column_values(), (also with
+        *_paged() variants) and search_rs() for fast retrieval of many rows.
+        New method bulk_create_or_update() lets you create many rows quickly.
+        New method dump() can be used when debugging, letting you Dumper a
+        Persistent instance without outputting tons of irrelevent information to
+        the screen.
+        New method do_transaction() can be used for doing a series of operations
+        in a transaction.
+        
+        DataSource authors:
+        source methods are now called safely, guaranteed single simultaneous
+        process only. They no longer directly create or return DataElements
+        themselves, but should call _create_elements() method instead.
+        
+        If you wish to contribute code with a pull request, please read the new
+        DEVELOPERS file. It explains details of how to use our custom perltidy
+        setup.
 0.80    New bam_improvement_no_recal pipeline. New SGA-related pipelines. The
         vrtrack_auto_qc step now stores test results in the new VRTrack AutoQC
         table (instead of in a text file), and so requires VRTrack schema 20,
