@@ -59,13 +59,16 @@ foreach my $setup (@setups) {
         $incomplete_pager = $datasource->incomplete_element_states($setup);
     };
     my $ds_error = $@;
-    my $num_incomplete = $incomplete_pager->total_entries;
-    next if $incomplete_only && ! $num_incomplete;
-    $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
-    if ($ds_error) {
+    my $banner = "--- Pipeline Setup '".$setup->name."' (id ".$setup->id." for user ".$setup->user.") $note---";
+    if ($ds_error || ! $incomplete_pager) {
+        $frontend->output($banner);
+        $ds_error ||= 'Could not create a incomplete_element_states pager for setup '.$setup->id;
         $frontend->output("There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n");
         next;
     }
+    my $num_incomplete = $incomplete_pager->total_entries;
+    next if $incomplete_only && ! $num_incomplete;
+    $frontend->output($banner);
     
     my $pipeline = $setup->pipeline;
     my $step_members = $pipeline->steps;
