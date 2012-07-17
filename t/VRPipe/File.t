@@ -103,9 +103,11 @@ is $vrdest2->metadata->{test2}, 'meta2', 'changing metadata on a symlink changes
 $ofh = $vrdest4->open('>>');
 print $ofh "bar\n";
 $vrdest4->close;
+$vrdest2->reselect_values_from_db;
 is $vrdest2->s, $vrdest4->s, 'writing to a symlink updates the source size';
 $vrdest4->update_md5;
 $vrdest4->lines;
+$vrdest2->reselect_values_from_db;
 is_deeply [$vrdest2->md5, $vrdest2->lines], [$vrdest4->md5, $vrdest4->lines], 'updating symlink md5 and lines updates the source md5 and lines as well';
 
 my $vrdest5 = VRPipe::File->create(path => file($tmp_dir, 'dest5.txt'));
