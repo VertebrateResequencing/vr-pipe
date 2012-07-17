@@ -38,15 +38,15 @@ use Data::Dumper;
 
      method options_definition {
         return {  
-                  bismark_meth_extractor_exe => VRPipe::StepOption->get(description => 'path to your bismark methylation extractor executable', optional => 1, default_value => $ENV{BISMARK_METH_EXR_EXE}),
-                  paired_end => VRPipe::StepOption->get(description => 'Run on files generated with paired end data (default is to run on single end).', optional => 1, default_value => 0)      
+                  bismark_meth_extractor_exe => VRPipe::StepOption->create(description => 'path to your bismark methylation extractor executable', optional => 1, default_value => $ENV{BISMARK_METH_EXR_EXE}),
+                  paired_end => VRPipe::StepOption->create(description => 'Run on files generated with paired end data (default is to run on single end).', optional => 1, default_value => 0)      
  
        }
     }
 
     method inputs_definition {
         return {
-          sam_file => VRPipe::StepIODefinition->get(type => 'any', max_files => -1, description => 'A sam file')
+          sam_file => VRPipe::StepIODefinition->create(type => 'any', max_files => -1, description => 'A sam file')
         };
     }
 
@@ -84,9 +84,9 @@ use Data::Dumper;
 
    method outputs_definition {
       return {
-        meth_calls_CHH => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
-        meth_calls_CpG => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
-        meth_calls_CHG => VRPipe::StepIODefinition->get(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position')
+        meth_calls_CHH => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
+        meth_calls_CpG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
+        meth_calls_CHG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position')
      }
    } 
 

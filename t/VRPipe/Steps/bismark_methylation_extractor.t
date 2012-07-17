@@ -13,8 +13,8 @@ BEGIN {
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bismark_methylation_extractor', 'sam_file');
 is_deeply [$step->id, $step->description], [1, 'Step for the Methylation Extractor tool bundled with Bismark to produce a table of methylation calls by position'], 'Bismark methylation extractor step created and has correct description';
 
-my $setup = VRPipe::PipelineSetup->get(name => 'bismark_methylation_extractor',
-                                       datasource => VRPipe::DataSource->get(
+my $setup = VRPipe::PipelineSetup->create(name => 'bismark_methylation_extractor',
+                                       datasource => VRPipe::DataSource->create(
                                                                   type => 'delimited',
                                                                   method => 'all_columns',
                                                                   options => { delimiter => "\t" },
