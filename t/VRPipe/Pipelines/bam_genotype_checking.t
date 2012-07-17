@@ -73,7 +73,7 @@ foreach (qw(a b c d)) {
     push(@gtype_results, $bam_meta->{gtype_analysis});
 }
 is_deeply \@gtype_results, ['status=unconfirmed expected=NA20526 found=NA20586 ratio=1.016',
-			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000',
+			    'status=unconfirmed expected=NA20527 found=NA20521 ratio=1.000',
 			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000',
 			    'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000'], 'gtype_analysis results were stored correctly as metadata on the input bams';
 
