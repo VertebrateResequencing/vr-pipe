@@ -72,6 +72,9 @@ sub postfilter {
     # it also likes adding extra spaces between ; and # - remove these
     s/^(\s*\S[^#]+?)([;,]) +\#/$1$2 #/gm;
     
+    # don't have completely empty lines after start of brace block
+    s/\{\n\n/\{\n/g;
+    
     # don't have completely empty lines between things; instead indent to the
     # correct level
     s/\n\n([\s]+)(\S.*)/\n$1\n$1$2/gm;
