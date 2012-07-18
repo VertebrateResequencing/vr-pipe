@@ -37,8 +37,8 @@ class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
     around options_definition {
         my $options = $self->$orig;
         return { %{ $self->$orig },
-                 sample_sex_file => VRPipe::StepOption->get(description => 'File listing the sex (eg M or F) of samples, assumed_sex is used if no file provided',                      optional => 1),
-                 assumed_sex     => VRPipe::StepOption->get(description => 'If sex is not present for a sample in the sample sex file (or no file provided), then this sex is assumed', optional => 1), };
+                 sample_sex_file => VRPipe::StepOption->create(description => 'File listing the sex (eg M or F) of samples, assumed_sex is used if no file provided',                      optional => 1),
+                 assumed_sex     => VRPipe::StepOption->create(description => 'If sex is not present for a sample in the sample sex file (or no file provided), then this sex is assumed', optional => 1), };
     }
     
     method post_process_sub {
@@ -52,11 +52,10 @@ class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
             my %sample_sex;
             
             if ($sample_sex_file) {
-                my $sample_sex_path = Path::Class::File->new($sample_sex_file);
-                $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_path->is_absolute;
+                my $sample_file = Path::Class::File->new($sample_sex_file);
+                $self->throw("sample_sex_file must be an absolute path") unless $sample_file->is_absolute;
                 
-                my $sex_file = VRPipe::File->get(path => $sample_sex_path);
-                my $fh = $sex_file->openr;
+                my $fh = $sample_file->openr;
                 while (<$fh>) {
                     chomp;
                     my ($sample, $sex) = split;
@@ -66,7 +65,6 @@ class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
             }
             
             foreach my $bamfile (@{ $self->inputs->{bam_files} }) {
-                
                 my $meta = $bamfile->metadata;
                 unless (defined $meta->{sex}) {
                     my $bam_sample = $meta->{sample};
@@ -76,7 +74,7 @@ class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
                         $bam_sex = $sample_sex{$bam_sample};
                     }
                     else {
-                        return 0 unless $assumed_sex;
+                        $self->throw("Cannot assign a sex for sample $bam_sample") unless $assumed_sex;
                         $bam_sex = $assumed_sex;
                     }
                     $bamfile->add_metadata({ sex => $bam_sex });

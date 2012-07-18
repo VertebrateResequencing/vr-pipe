@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::PipelineNonPersistentFactory - a factory for pipelines defined in files
@@ -8,11 +9,11 @@ VRPipe::PipelineNonPersistentFactory - a factory for pipelines defined in files
 
 =head1 DESCRIPTION
 
-L<VRPipe::Pipeline>s are objects stored in the B<VRPipe> database. But pipelines
-can also be defined in Perl module files. These non-persistent versions are read
-from the .pm files and converted into Persistent objects as necessary. In this
-way we can can create .pm files and also create pipelines on the fly using
-the Persistent API, and both seem to behave the same way.
+L<VRPipe::Pipeline>s are objects stored in the B<VRPipe> database. But
+pipelines can also be defined in Perl module files. These non-persistent
+versions are read from the .pm files and converted into Persistent objects as
+necessary. In this way we can can create .pm files and also create pipelines on
+the fly using the Persistent API, and both seem to behave the same way.
 
 *** more documentation to come
 
@@ -44,6 +45,6 @@ package VRPipe::PipelineNonPersistentFactory;
 use MooseX::AbstractFactory;
 
 implementation_does qw/VRPipe::PipelineRole/;
-implementation_class_via sub { 'VRPipe::Pipelines::'.shift };
+implementation_class_via sub { 'VRPipe::Pipelines::' . shift };
 
 1;

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::LocalScheduler - a job scheduler for the local node
@@ -8,9 +9,9 @@ VRPipe::LocalScheduler - a job scheduler for the local node
 
 =head1 DESCRIPTION
 
-For testing purposes, or for those without a compute cluster, this simple
-job scheduler can be used instead of LSF et al. It implements a single queue
-of jobs, and it just tries to blindly execute them on the local CPU, without
+For testing purposes, or for those without a compute cluster, this simple job
+scheduler can be used instead of LSF et al. It implements a single queue of
+jobs, and it just tries to blindly execute them on the local CPU, without
 regard for their memory needs or time requirements.
 
 Note that it is poorly tested and perhaps unreliable, so probably should not be
@@ -57,39 +58,40 @@ class VRPipe::LocalScheduler {
     
     our $DEFAULT_CPUS = Sys::CPU::cpu_count();
     
-    has 'deployment' => (is => 'ro',
-                         isa => 'Str',
-                         default => 'testing',
+    has 'deployment' => (is            => 'ro',
+                         isa           => 'Str',
+                         default       => 'testing',
                          documentation => 'testing|production (default testing): determins which database is used to track locally scheduled jobs');
     
-    has 'pidbase' => (is => 'rw',
-                      isa => Dir,
-                      coerce => 1,
+    has 'pidbase' => (is      => 'rw',
+                      isa     => Dir,
+                      coerce  => 1,
                       builder => '_default_pidbase',
-                      lazy => 1);
+                      lazy    => 1);
     
-    has 'cpus' => (is => 'ro',
-                   isa => 'Int',
+    has 'cpus' => (is      => 'ro',
+                   isa     => 'Int',
                    default => $DEFAULT_CPUS);
     
     # for submit
-    has 'o' => (is => 'ro',
-                isa => 'Str',
+    has 'o' => (is            => 'ro',
+                isa           => 'Str',
                 documentation => 'absolute path to stdout of scheduler (required for submit)');
     
-    has 'e' => (is => 'ro',
-                isa => 'Str',
+    has 'e' => (is            => 'ro',
+                isa           => 'Str',
                 documentation => 'absolute path to stderr of scheduler (required for submit)');
     
-    has 'a' => (is => 'ro',
-                isa => 'Int',
+    has 'a' => (is            => 'ro',
+                isa           => 'Int',
                 documentation => 'to specify a job array give the size of the array (default 1)',
-                default => 1);
+                default       => 1);
+
     
-    
+
     sub BUILD {
         my $self = shift;
-        my $d = $self->deployment;
+        my $d    = $self->deployment;
         unless ($d eq 'testing' || $d eq 'production') {
             $self->throw("'$d' is not a valid deployment type; --deployment testing|production");
         }
@@ -97,7 +99,7 @@ class VRPipe::LocalScheduler {
     }
     
     method _default_pidbase {
-        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment.'_scheduler_output_root';
+        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_scheduler_output_root';
         return $vrp_config->$method_name();
     }
     
@@ -122,7 +124,7 @@ class VRPipe::LocalScheduler {
         
         my $user = getlogin || getpwuid($<);
         my @lsjs_args;
-        foreach my $aid (1..$array_size) {
+        foreach my $aid (1 .. $array_size) {
             my $this_o = $o_file;
             $this_o =~ s/\%I/$aid/g;
             my $this_e = $e_file;
@@ -169,7 +171,7 @@ class VRPipe::LocalScheduler {
             $self->throw("bad id format '$id'");
         }
         
-        my ($lsj) = VRPipe::LocalSchedulerJob->search({id => $sid});
+        my ($lsj) = VRPipe::LocalSchedulerJob->search({ id => $sid });
         
         unless ($lsj) {
             print "Job <$sid> is not found\n";
@@ -177,13 +179,13 @@ class VRPipe::LocalScheduler {
         }
         
         my @lsjss;
-        foreach my $lsjs (VRPipe::LocalSchedulerJobState->search({localschedulerjob => $sid})) {
+        foreach my $lsjs (VRPipe::LocalSchedulerJobState->search({ localschedulerjob => $sid })) {
             if ($aid) {
                 next unless $lsjs->aid == $aid;
             }
             push(@lsjss, $lsjs);
         }
-        if ($aid && ! @lsjss) {
+        if ($aid && !@lsjss) {
             print "Job <$sid\[$aid\]> is not found\n";
             return;
         }
@@ -192,7 +194,7 @@ class VRPipe::LocalScheduler {
     }
     
     method unfinished_lsjss {
-        return VRPipe::LocalSchedulerJobState->search({start_time => undef});
+        return VRPipe::LocalSchedulerJobState->search({ start_time => undef });
     }
     
     method process_queue {

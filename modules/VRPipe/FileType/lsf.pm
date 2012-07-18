@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::lsf - lsf filetype
@@ -8,9 +9,11 @@ VRPipe::FileType::lsf - lsf filetype
 
 =head1 DESCRIPTION
 
-The L<LSF Platform|http://www.platform.com/workload-management/high-performance-computing> is a job scheduling system.
-When it is used to schedule and run jobs, it produces messages when the job
-completes. This filetype is for those report files (C<-o> files).
+The L<LSF
+Platform|http://www.platform.com/workload-management/high-performance-computing>
+is a job scheduling system. When it is used to schedule and run jobs, it
+produces messages when the job completes. This filetype is for those report
+files (C<-o> files).
 
 *** more documentation to come
 

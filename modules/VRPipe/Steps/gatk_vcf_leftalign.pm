@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::gatk_vcf_leftalign - a step
@@ -38,67 +39,66 @@ use VRPipe::Base;
 #   -T LeftAlignVariants \
 #   --variant input.vcf \
 #   -o output.vcf
- 
+
 class VRPipe::Steps::gatk_vcf_leftalign extends VRPipe::Steps::gatk {
-	around options_definition {
-		return { 
-            %{$self->$orig},
-			reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
-			leftalign_options => VRPipe::StepOption->create(description => 'any addional general GATK options to pass the LeftAligner', optional => 1, default_value => '--phone_home NO_ET'),
-	    };
+    around options_definition {
+        return { %{ $self->$orig },
+                 reference_fasta   => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+                 leftalign_options => VRPipe::StepOption->create(description => 'any addional general GATK options to pass the LeftAligner', optional => 1, default_value => '--phone_home NO_ET'), };
     }
-
+    
     method inputs_definition {
-        return {
-        vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'input vcf files'),
-		};
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'input vcf files'), };
     }
-
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
-			$self->handle_standard_options($options);
+            $self->handle_standard_options($options);
             
-            my $reference_fasta = $options->{reference_fasta};
+            my $reference_fasta   = $options->{reference_fasta};
             my $leftalign_options = $options->{leftalign_options};
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
-
-            foreach my $vcf (@{$self->inputs->{vcf_files}}) {
-			
-				my $basename = $vcf->basename;
-				$basename =~ s/vcf\.gz/aln.vcf.gz/;
-				my $vcf_out = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf');
-				my $input_path = $vcf->path;
-				my $output_path = $vcf_out->path;
-
-				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T LeftAlignVariants -R $reference_fasta $leftalign_options --variant $input_path -o $output_path];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_vcf_leftalign', 'leftaln_vcf', [$cmd, $req, {output_files => [$vcf_out]}]);
-			}
+            
+            foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
+                my $basename = $vcf->basename;
+                $basename =~ s/vcf\.gz/aln.vcf.gz/;
+                my $vcf_out     = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf');
+                my $input_path  = $vcf->path;
+                my $output_path = $vcf_out->path;
+                
+                my $cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T LeftAlignVariants -R $reference_fasta $leftalign_options --variant $input_path -o $output_path];
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_vcf_leftalign', 'leftaln_vcf', [$cmd, $req, { output_files => [$vcf_out] }]);
+            }
         };
     }
+    
     method outputs_definition {
         return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'output vcf files') };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Runs the gatk UnifiedGenotyper indel left-aligner against vcf files";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
+    
     method leftaln_vcf (ClassName|Object $self: Str $cmd_line) {
-
         my ($input_path, $output_path) = $cmd_line =~ /\-\-variant (\S+) \-o (\S+)$/;
-
+        
         my $input_file = VRPipe::File->get(path => $input_path);
         my $input_recs = $input_file->num_records;
         $input_file->disconnect;
-
+        
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $output_file = VRPipe::File->get(path => $output_path);
@@ -107,7 +107,7 @@ class VRPipe::Steps::gatk_vcf_leftalign extends VRPipe::Steps::gatk {
         
         unless ($output_recs == $input_recs) {
             $output_file->unlink;
-			$self->throw("Output VCF has different number of data lines from input (input $input_recs, output $output_recs)");
+            $self->throw("Output VCF has different number of data lines from input (input $input_recs, output $output_recs)");
         }
         else {
             return 1;

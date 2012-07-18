@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepOutputFile - a specifc output file of a step for a particular datum
@@ -9,8 +10,9 @@ VRPipe::StepOutputFile - a specifc output file of a step for a particular datum
 =head1 DESCRIPTION
 
 All files are tracked as Persistent L<VRPipe::File> objects, but this class
-makes it possible to find which files were output by a particular L<VRPipe::Step>
-for a particular L<VRPipe::PipelineSetup> and L<VRPipe::DataElement>.
+makes it possible to find which files were output by a particular
+L<VRPipe::Step> for a particular L<VRPipe::PipelineSetup> and
+L<VRPipe::DataElement>.
 
 *** more documentation to come
 
@@ -41,22 +43,22 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepOutputFile extends VRPipe::Persistent {
-    has 'stepstate' => (is => 'rw',
-                        isa => Persistent,
-                        coerce => 1,
-                        traits => ['VRPipe::Persistent::Attributes'],
-                        is_key => 1,
+    has 'stepstate' => (is         => 'rw',
+                        isa        => Persistent,
+                        coerce     => 1,
+                        traits     => ['VRPipe::Persistent::Attributes'],
+                        is_key     => 1,
                         belongs_to => 'VRPipe::StepState');
     
-    has 'file' => (is => 'rw',
-                   isa => Persistent,
-                   coerce => 1,
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   is_key => 1,
+    has 'file' => (is         => 'rw',
+                   isa        => Persistent,
+                   coerce     => 1,
+                   traits     => ['VRPipe::Persistent::Attributes'],
+                   is_key     => 1,
                    belongs_to => 'VRPipe::File');
     
-    has 'output_key' => (is => 'rw',
-                         isa => Varchar[64],
+    has 'output_key' => (is     => 'rw',
+                         isa    => Varchar [64],
                          traits => ['VRPipe::Persistent::Attributes'],
                          is_key => 1);
     

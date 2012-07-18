@@ -1,16 +1,17 @@
-=head1 Overview
 
+=head1 Overview
+ 
  This document describes all the modules and methods necessary to build a new
  database-driven pipeline system. We go from the fundamental building blocks
  at the start up to the modules and methods you're more likely to use yourself
  on a daily-basis by the end of this document. Later modules assume knowledge of
  earlier ones in the POD (and most likely use or inherit from them in the code),
  so it is recommended to read this document in the order presented.
-
+ 
  On overview diagram is available here: ...
 
 =head1 VRPipe::SiteConfig & VRPipe::Utils::Config & Build.pl
-
+ 
  We need set-once, site-specific configuration. Probably implement something
  along the lines of http://www.perlmonks.org/?node_id=464358 with config stored
  as perl data structure in modules/VRPipe/SiteConfig.pm, VRPipe::Utils::Config
@@ -18,7 +19,7 @@
  interactive process to set appropriate values. Once all set
  modules/VRPipe/SiteConfig.pm will be created and will be installable in the
  normal way.
-
+ 
  We need to know what the available job schedulers are, which one should be used
  by default, and which queues should be used in order of preference. Though it's
  possible to query LSF what the limits on a queue are, we may as well also just
@@ -26,7 +27,7 @@
  for the default root directory in which we'll store STDOUT and STDERR files.
  And we'll ask for the global maximum number of jobs we can have scheduled per-
  user across all queues (default 0 for infinity).
-
+ 
  We'll also store MySQL access details in the config file. One of the details
  will be a database name prefix that any VRPipe:: module wanting to create a
  database will use. We'll do something special to store the password encrypted
@@ -34,27 +35,27 @@
  passed in as an earlier config option) and we might also adjust our version
  control settings so that modules/VRPipe/SiteConfig.pm is ignored for adding
  and commits.
-
+ 
  Details stored in the SiteConfig.pm file will be easily accessible to other
  VRPipe::* modules via VRPipe::Utils::Config when they need get a default
  value for something.
-
+ 
  # basic set/getting:
  my $config = VRPipe::Utils::Config->new;
  $config->set('databases', 'mysql', 'username', $value);
  # above sets $VRPipe::SiteConfig::CONFIG{databases}->{mysql}->{username}
  my $username = $config->get('databases', 'mysql', 'username');
-
+ 
  # encryption of passwords:
  $config->set_encrypted(['databases', 'mysql', 'password', $raw_value],
                         $config->get('key_file'));
-
+ 
  # set/get a list/hash
  $config->set('schedulers', [@values]); # or {%values}
  my @known_schedulers = $config->get('schedulers');
 
 =head1 VRPipe::Persistent
-
+ 
  We want to be able to store/retrieve persistent values in a database, but
  don't want to be specific to a particular driver. We don't even want to have
  to use SQL: we could store our information in a file or memory if need be.
@@ -62,10 +63,10 @@
  around it and use it 'indirectly' so that we can avoid having to specifiy which
  Persistent module ('driver') we're using, leaving that up to SiteConfig
  variable, class or instance method setting to decide at run-time.
-
+ 
  This is only used to implement certain VRPipe:: modules, not for direct use by
  end-users.
-
+ 
  # setup:
  use base VRPipe::Persistent;
  sub initialize {
@@ -74,35 +75,35 @@
   VRPipe::Persistent::driver('File'); # override globablly
   $self->driver('File'); # override locally
   $self->datastore(...); # override driver-specific settings, like db name
-
+  
   $self->SUPER::initialize(@_);
   # At this point, $self stores in itself a correctly setup Persistent::$driver.
-
+  
   $self->add_attribute(...);
   # passes through to Persistent, doing the eval dance internally within
   # VRPipe::Persistent. Regardless of the underlying system, there is some
   # mechanism for saying which attributes form the unique key
  }
-
+ 
  # get/set:
  $self->$attribute(); # if not overriden, passes through to VRPipe::Persistent
                       # AUTOLOAD, which passes to:
  $self->value($attribute, $value); # which passes to the Persistent object
  # unique key attributes cannot be set
-
+ 
  # we can get/set arbitrarily complex data structures (mixtures of arrays and
  # hashes and scalars only... perhaps even code refs?).
  # most likely implemented by simple string concatenation with special
  # seperators, and automatically turned back into the right structure (if a list
  # goes in to a set, a list comes out during the get).
-
+ 
  # Does an auto-save on every value set. Does an auto-restore during object
  # creation. Does not bother wrapping any of the other Persistent methods.
  # If you really need them, provides access to the the Persistent object with
  # $self->persistent(). Auto-restore works if the necessary keys have been
  # supplied to new(), or if new(id => $id) was called. A unique (auto-increment)
  # id is associated with every sub-class key set.
-
+ 
  # For consistency and speed, objects are cached, so in
  # [$a = $class->new(id => 5); $b = $class->new(id => 5);], $a and $b point to
  # the same location in memory. To protect against multiple processes accessing
@@ -114,7 +115,7 @@
  VRPipe::Persistent::capture_stop;
  # @object_array now contains every Persistent-based object that was created
  # between start and stop.
-
+ 
  # All VRPipe::Persistent-based classes will also have a last_updated()
  # auto-set during a save() which will be used to delete old 'rows' from the db
  # when expunge_old($num_of_days) is called. expunge_old() calls the class-only-
@@ -123,17 +124,17 @@
  # from but aren't writing to don't get expunged by expunge_old).
 
 =head1 VRPipe::FileTypeHandler*
-
+ 
  These classes provide 'best' ways of doing common operations on files of a
  certain filetype. We have VRPipe::Parser::*, but not all filetypes necessarily
  need a parser, or there is a fast way to do a particular operation which does
  not use normal ParserI methods. As with Parser modules, being compressed should
  be transparent; that is, .gz is not a filetype.
-
+ 
  # create a handler without knowing the filetype; it will guess, defaulting to
  # text type:
  my $handler = VRPipe::FileTypeHandler->new(file => "myfile");
-
+ 
  # or if you know the filetype:
  $handler = VRPipe::FileTypeHandler->new(file => "myfile", type => "bam");
  # == VRPipe::FileTypeHandler::bam->new(file => "myfile");
@@ -141,7 +142,7 @@
  # VRPipe::FileTypeHandlerI and we become them automatically.
  # can also accept a VRPipe::File instead of string for file option, and get
  # type from that; VRPipe::IO would get the path from it
-
+ 
  # do some common operations:
  my $records = $handler->num_records; # get the number of records in the file
  my $header_lines = $handler->num_header;
@@ -150,19 +151,19 @@
  }
 
 =head1 VRPipe::File
-
+ 
  This class describes a file-on-disc, storing information about it in our
  database. The idea is to minimise accessing the filesystem as much as possible;
  VRPipe::File would be used pervasively every single time any kind of file
  access is done in all VRPipe::* code. It is implemented using
  VRPipe::Persistent.
-
+ 
  # create: at minimum we need to know the path and type
  my $file_obj = VRPipe::File->new(path => '/abs/path/filename.bam',
                                    type => 'bam');
  # or by id:
  $file_obj = VRPipe::File->new(id => $a_valid_file_id);
-
+ 
  # new() calls:
  $file_obj->refresh_stats();
  # Above stores stats about file in db, including the time the stats were
@@ -171,57 +172,58 @@
  # disc-check. This method clears out any existing data in the db for this file
  # and replaces it with the results of a check-on-disc if the last modify time
  # on disc is greater than that in the db (or if the file does not exist).
-
+ 
  # get a reference to the file entry in the db:
  my $file_id = $file_obj->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # same id is always returned for every file_obj created with the same 'path'
  # option.
-
+ 
  # open:
  my $fh = $file_obj->open;
  # it attempts an open if the db says the file exists, and if it fails due to
  # the file not existing it will refresh_stats() before throwing an error. It
  # will also throw if called when the db says the file does not exist.
-
+ 
  # unlink:
  $file_obj->unlink;
  # deletes a file and then does refresh_stats().
-
+ 
  # move:
  $file_obj->mv('/abs/path/new/location');
  # does a safe copy to the location, checks the md5s match, creates a new
  # file_obj for the new file, then does $self->unlink
 
+ 
 
  # before getting stats about a file, we can control if we'll use the existing
  # db-stats or update from a new disc-check
-
+ 
  my $updated = $file_obj->refresh_stats();
  # always checks on disc and stores answer in db, return true if the file had
  # been modified since the previous refresh (or if the file now exists when it
  # did not at the previous refresh). A refresh does not write to the db unless
  # the file had been modified, and so things like md5 and num_records are not
  # touched; otherwise they are cleared and will have to be calculated again
-
+ 
  $file_obj->non_existant_behaviour('always_refresh');
  # by default, if a file is non-existant in the db, a refresh_stats() is
  # triggered prior to any get stat method to see if it exists now. This can be
  # turned off above temporarily (while $file_obj is in scope) with
  # 'never_refresh', or with the class method to apply globally.
-
+ 
  $file_obj->expiry_time(86400); VRPipe::File::expiry_time(86400);
  # stats that were taken more than this many seconds ago trigger a
  # refresh_stats(), can work across all file instances with the class method.
-
+ 
  # get stats about the file from db
  if ($file_obj->e) { # yay! the file exists! }
  my $size_in_bytes = $file_obj->s;
  my $modified = $file_obj->last_modify_time; # in seconds since the epoch
  my $last_refresh = $file_obj->last_disc_check; # "
-
+ 
  my $md5sum = $file_obj->md5; # only calculated when first called in 'get' mode
-
+ 
  my $num_records = $file_obj->num_records; # the number of records in the file,
  # only calculated when first called in 'get' mode. It will store record counts
  # in db so only has to parse any given file once:
@@ -234,34 +236,34 @@
     my $num_records = $handler->num_records();
     $file_obj->num_records($num_records); # answer stored in db
  }
-
+ 
  # truncation checking
  if ($file_obj->complete(expected_records => 50)) { ... }
  if ($file_obj->complete(expected_records_from => [$file_obj2, $file_obj3])) { }
  # compares summed total num_records in the given files to the num in this file
 
 =head1 VRPipe::JobManager::Job
-
+ 
  This class describes information about a command we want to run via the shell.
  The information is stored in a db (implemented using VRPipe::Persistent).
-
+ 
  # create, with at least the command line specified, also requiring the working
  # directory, but this defaults to the current working directory:
  my $job = VRPipe::JobManager::Job->new(cmd => "myshellcommand -a foo bar",
                                          dir => '/abs/path/');
  # or by id:
  $job = VRPipe::JobManager::Job->new(id => $a_valid_job_id);
-
+ 
  # get a reference to the job entry in the db:
  my $job_id = $job->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # same id is always returned for every job object created with the same 'cmd'
  # and 'dir' pair.
-
+ 
  # find out about the job:
  my $cmd = $job->cmd;
  my $dir = $job->dir;
-
+ 
  if ($job->pending) {
     # no attempt has been made to run the cmd yet, or we were reset
  }
@@ -280,7 +282,7 @@
     my $elapsed_time = $job->wall_time;
     # if called while ->running, it's current time() - ->start_time, otherwise
     # it's ->end_time - ->start_time.
-
+    
     if ($job->ok) { # the cmd returned a good exit value }
     else {
         # the cmd failed
@@ -292,7 +294,7 @@
                                      # ->reset()
     }
  }
-
+ 
  # run the command:
  $job->run;
  # This sets the running state in db, then chdir to ->dir, then forks to run
@@ -312,7 +314,7 @@
  # run with block_and_skip_if_ok.
  # While running we update heartbeat() in the db every 30mins so that other
  # processes can query and see if we're still alive.
-
+ 
  # kill a job, perhaps one you suspect has got 'stuck' and won't die normally:
  if ($job->running && $job->last_heartbeat > 3600) {
     $job->kill;
@@ -333,10 +335,10 @@
  # have to ->kill it first.
 
 =head1 VRPipe::JobManager::Requirements
-
+ 
  This class describes the expected requirements of a job. The information is
  stored in a db (implemented using VRPipe::Persistent).
-
+ 
  # create, specifying at least memory and time (others have defaults as shown,
  # all are used for the 'key'):
  my $req = VRPipe::JobManager::Requirements->new(
@@ -350,28 +352,28 @@
            );
  # or by id:
  $req = VRPipe::JobManager::Requirements->new(id => $a_valid_requirements_id);
-
+ 
  # get a reference to the requirements entry in the db:
  my $req_id = $req->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # same id is always returned for every Requirements object created with the
  # same full specification of requirements.
-
+ 
  # get the requirements:
  my $memory = $req->memory;
  # and so on for the other things passed to new(). These cannot be set! They're
  # supposed to be immutable.
-
+ 
  # make a new Requirements based on another with one or more attributes changed:
  my $new_req = $req->clone(time => 10);
 
 =head1 VRPipe::JobManager::Submission
-
+ 
  This class describes information about a job submission, which is a request to
  run a particular job within a particular job scheduler with certain hints to
  that scheduler about what the job requries.
  The information is stored in a db (implemented using VRPipe::Persistent).
-
+ 
  # create, with at least a Job and Requirements specified. A Scheduler is also
  # needed, but the default Scheduler (from SiteConfig) will be set if not
  # specified. Internally it just stores the object ids, and only the Job->id
@@ -382,7 +384,7 @@
            );
  # or by id:
  $sub = VRPipe::JobManager::Submission->new(id => $a_valid_submission_id);
-
+ 
  # get a reference to the submission entry in the db:
  my $sub_id = $sub->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
@@ -394,7 +396,7 @@
  # we want to still get back the same submission object (which will also prevent
  # multiple processes trying to run the same job with different requiremnts at
  # once).
-
+ 
  # override scheduler:
  ...->new(..., scheduler => $VRPipe_jobmanager_scheduler);
  # above sets the scheduler for this submission only
@@ -403,13 +405,13 @@
  # objects when scheduler => isn't supplied to new(), and it also changes the
  # return value of $sub->scheduler on existing objects, without changing the
  #Êvalue in the db.
-
+ 
  # find out about and manipulate the submission:
  my $job = $sub->job;
  my $req = $sub->requirements;
  my $sch = $sub->scheduler;
  my $retries = $sub->retries;
-
+ 
  # it provides get-only methods to all the requirements of our requirements
  # object, which just pass through:
  my $memory = $sub->memory;
@@ -427,11 +429,11 @@
  # switch the queue for this submission. You might call extra_memory() for a
  # submission that failed due to running out of memory, so that a second attempt
  # running the submission might work.
-
+ 
  if ($sub->failed) {
     # we're currently scheduled, we had been run to ->job->finished status,
     # but the job died.
-
+    
     # If we failed for some known reason like running out of
     # memory, we might change our requirements and retry:
     if ($sub->scheduler->ran_out_of_memory(fh => $sub->last_stdout) {
@@ -439,7 +441,7 @@
         $sub->extra_memory($sub->memory);
         $sub->reset;
     }
-
+    
     # of if we failed for some unknown reason we might just try it again for
     # luck, 3rd time's the charm:
     if ($sub->retries < 3) { $sub->reset }
@@ -558,39 +560,39 @@
         # trusting that some other process will take care of this $sub.
     }
  }
-
+ 
  # This class extends expunge() to delete the ->stdout and ->stderr files (and
  # parent dirs if empty) prior to removal from the db.
 
 =head1 VRPipe::PersistentArray
-
+ 
  This class represents an array of Persistent objects. It is implemented by
  storing the object ids and class in it's "table" in the Persistent db against
  an auto-increment self id. It can even store other PersistentArray objects.
-
+ 
  An example usage is a list of Submission objects that you want to submit
  all at once to your Scheduler for efficiency reasons. Though it is
  (deliberatly) not enforced, the idea is that you'd group together many
  Submission objects that all share the same Requirements object, and submit
  those as an array.
-
+ 
  # create one using a required array ref of Persistent objects:
  my $array = VRPipe::PersistentArray->new(members => [$sub1, $sub2...]);
  # or by id:
  $array = VRPipe::PersistentArray->new(id => $a_valid_array_id);
-
+ 
  # get a reference to the array entry in the db:
  my $array_id = $array->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # id auto-increments every time new(members => []) is called, so if called
  # twice in a row with the exact same list of persistents it will give back
  # 2 different PersistentArray objects with 2 different ids.
-
+ 
  # get a list of Persistent objects from the PersistentArray:
  my @persistents = $array->members;
  my @submissions = $array->members('VRPipe::JobManager::Submission');
  # (members is read-only)
-
+ 
  # get an individual Persistent object from the PersistentArray:
  my $persistent = $array->member($index);
  
@@ -599,13 +601,13 @@
  my $new_array = $old_array->merge(@obj_list);
 
 =head1 VRPipe::JobManager::Scheduler*
-
+ 
  A Scheduler is a class that presents a simple consistent interface to a
  particular job scheduler, such as LSF. There will also be a Scheduler called
  'Local', implementing the interface for a single-CPU system that has no job
  scheduling system - useful for running tests.
  (This class is implemented using VRPipe::Persistent.)
-
+ 
  # create; no options necessary since it will take defaults from SiteConfig, but
  # the key args are:
  my $sch = VRPipe::JobManager::Scheduler->new(type => 'LSF',
@@ -613,7 +615,7 @@
  # or by id:
  $sch = VRPipe::JobManager::Scheduler->new(id => $a_valid_scheduler_id);
  # these new() calls create VRPipe::JobManager::Schedulers::LSF objects
-
+ 
  # get a reference to the scheduler entry in the db:
  my $sch_id = $sch->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
@@ -622,13 +624,13 @@
  # the only 2 variables we store persistently; most methods are more like class
  # methods and you supply all the data needed by them yourself from other
  # objects, and results are stored in those objects.
-
+ 
  # get info about a scheduler:
  my $type = $sch->type; # eg. the string 'LSF'
  my $output_root = $sch->output_root; # the absolute path to the root directory
                                       # that the user wants STDOUT & STDERR of
                                       # this scheduler stored
-
+ 
  # submit one or more jobs to the scheduler (queue them to be run):
  my $scheduled_id = $sch->submit(submission => $VRPipe_jobmanager_submission);
  # this gets requirements from the Submission object. It also auto-sets
@@ -645,7 +647,7 @@
  # In both cases, it claims all Submission objects prior to interacting with
  # the scheduler, and if the scheduler has a problem and the submission fails,
  # we release all the Submission objects.
-
+ 
  # submit() uses the Requirements object to decide on a queue to submit to:
  my $queue = $sch->queue($VRPipe_jobmanager_requirements);
  # and it figures out exactly where STDOUT & STDERR should go based on hashing
@@ -664,12 +666,12 @@
  # them:
  $sch->unlink_output($VRPipe_jobmanager_submission);
  # this also prunes empy dirs.
-
+ 
  # the command that submit() actually schedules in the scheduler is a little
  # perl -e that takes the referenced Submission id (working it out from the
  # PersistentArray object and index if this was an PersistentArray submit),
  # pulls out the Job and does ->run on that.
-
+ 
  # though some schedulers may have some kind of limit in place on the maximum
  # number of jobs a user or the system as a whole can keep scheduled at once,
  # we deliberatly don't model or support that limit here. If we do go over the
@@ -685,7 +687,7 @@
  # For testing purposes, VRPipe::JobManager::Schedulers::Local will accept
  # a practically-infinite-sized list (max_jobs is v.high), and handle tracking
  # and serially running the jobs one-at-a-time itself.
-
+ 
  # query and manipulate a particular submission (these methods access the
  # scheduler itself, so should normally be avoided; use Submission and Job
  # methods to track state instead):
@@ -742,20 +744,20 @@
  }
 
 =head1 VRPipe::PipelineManager*
-
+ 
  A "pipeline" is a series of "steps" (specified in a VRPipe::Pipelines::*
  module) that are run on some part of a dataset, and PipelineManager* modules
  exist to make it easy to supply the correct data to the pipeline, run multiple
  instances of the pipeline at once on every part of the whole dataset at once
  (where actual running of commands makes use of VRPipe::JobManager*), keep
  track of progress and make sure that everything completes successfully.
-
+ 
  A pipeline essentially boils down to an ordered series of
  VRPipe::JobManager::Submission objects where each one will only run once
  certain other Submissions have completed and input files are available etc.
 
 =head1 VRPipe::PipelineManager::DataSource
-
+ 
  This class describes a source of data that a VRPipe::Pipelines::* module
  could be run on. A datasource is ultimately comprised of a list of things
  (directories, files, database keys, whatever), and a particular instance of
@@ -772,7 +774,7 @@
  output of the first. The information stored in an instance of the DataSource
  would be the Setup of the first pipeline, and an element might be one of the
  files that the last step of the first pipeline provides.
-
+ 
  # create; there are 3 required args 'type', 'source', and 'method', and an
  # optional 'options' hash that can be set:
  my $dat = VRPipe::PipelineManager::DataSource->new(type => 'VRTrack',
@@ -795,13 +797,13 @@
  # VRPipe::PipelineManager::DataSources::Chain object.
  # Or create using an id:
  $dat = VRPipe::PipelineManager::DataSource->new(id => $a_valid_datasource_id);
-
+ 
  # get a reference to the datasource entry in the db:
  my $dat_id = $pip->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # same id is always returned for every DataSource object created with the
  # same type, source and method.
-
+ 
  # get the core info on this pipeline (these are get-only):
  my $type = $dat->type;
  my $source = $dat->source; # this might be a database name string or a file
@@ -809,12 +811,12 @@
  my $method = $dat->method; # this is a string corresponding to the name of a
                             # method defined in $dat's class, and is therefore
                             # $type specific
-
+ 
  # get/set the optional arbitrary settings that control how the desired method
  # will behave:
  $dat->options(platforms => ['SLX', '454'], ...); # you set a hash
  my %options = $dat->options; # and get back a hash
-
+ 
  # get the list of data elements:
  my @data_elements = $dat->data_elements;
  # this method causes $dat->$method($source, %options) to be run, and by
@@ -825,12 +827,12 @@
  # module.
 
 =head1 VRPipe::PipelineManager::Setup
-
+ 
  This class describes a pipeline run on a certain dataset with certain settings.
  The settings are stored in a db (implemented using VRPipe::Persistent). Before
  you can run a pipeline, you "set up a pipeline" by creating an instance of
  Setup.
-
+ 
  # create; there are 3 required key-forming options 'name', 'module' and
  # 'data_source', and new() will also accept an abitrary set of key => value
  # pairs that describe the settings needed by the pipeline module in question:
@@ -844,46 +846,46 @@
                 hash_config => { key1 => 'val1', key2 => 'val2' }, ...);
  # or by id:
  $set = VRPipe::PipelineManager::Setup->new(id => $a_valid_pipeline_id);
-
+ 
  # get a reference to the Setup entry in the db:
  my $set_id = $set->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # same id is always returned for every Setup object created with the same
  # name, module and data_source.
-
+ 
  # get the core info on this Setup (these are get-only):
  my $name = $set->name; # (a string)
  my $module = $set->module; # (a string)
  my $data_source = $set->data_source; # (a VRPipe::PipelineManager::DataSource)
-
+ 
  # deal with settings:
  my $ref = $set->get('reference');
  $set->set('reference', 'newchimp_ref.fa'); # overwrite or create as appropriate
  $set->unset('reference'); # the reference key and any value is removed from the
                            # db entirely
-
+ 
  # set a list/hash of values:
  $set->set('samples', ['NA01', 'NA02']);
  $set->set('platforms', {'NA01' => 'SLX', 'NA02' => '454'});
  # and get back:
  my @samples = $set->get('samples');
  my %sample_to_platform = $set->get('platforms');
-
+ 
  # copy the arbitrary settings of one Setup into another:
  $set->copy($set2);
  # this does a "union" preferring $set2 values, leaving $set values for keys
  # not found in $set2 untouched.
-
+ 
  # pull out all the settings into a hash ref, for passing into a
  # VRPipe::Pipelines::* module:
  my $settings = $set->settings;
-
+ 
  # a Setup can store on itself the concept of being 'active'; when inactive
  # other systems can choose to ignore this pipeline (this is not enforced in
  # any way):
  $set->active($boolean);
  if ($set->active) { # true by default }
-
+ 
  # it can also store on itself a PersistentArray, which can be used
  # to describe its "children" (objects created in order to run this Setup):
  my $VRPipe_persistentarray = $set->children($VRPipe_persistentarray);
@@ -892,24 +894,24 @@
  # Submission objects.
 
 =head1 VRPipe::ResultStore
-
+ 
  This class makes it very easy to store (a small amount of) data from the output
  of some job in the database, instead of in a file on disc. Implemented using
  VRPipe::Persistent.
-
+ 
  # create; 'name' being required and you'll have to arrange that your name is
  # going to be globally unique across all pipelines, setups and data sources
  # (*** how?!... this module needs more thought...):
  my $res = VRPipe::ResultStore->new(name => '/abs/path/to/file');
  # or by id:
  $res = VRPipe::ResultStore->new(id => $a_valid_resultstore_id);
-
+ 
  # get a reference to the resultstore entry in the db:
  my $res_id = $res->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # same id is always returned for every ResultStore object created with the
  # same name.
-
+ 
  # store something:
  $res->store($my_resultfile_contents_as_one_big_string);
  $res->store(%my_results_as_a_hash);
@@ -919,26 +921,26 @@
  my $string = $res->retrieve;
 
 =head1 VRPipe::Pipeline*
-
+ 
  VRPipe::Pipeline is the base class of the modules (VRPipe::Pipelines::*) that
  actually define the work to be done to go from raw input to final output, as
  a series of 'steps'. These modules do not directly store any persistent data.
  The base class provides the following implemented methods:
-
+ 
  # find out what VRPipe::PipelineManager::DataSource types and methods are
  # supported:
  my @valid = $obj->valid_datasources; # a list of array refs, each ref being a
                                       # type,method tuple.
-
+ 
  # what are the required and optional settings for this particular
  # VRPipe::Pipelines::* module?
  my %configurable_settings = $obj->valid_settings;
  # configurable_settings is some hash with required and optional keys and then
  # some data structure to describe what is valid
-
+ 
  # get a reverse ordered list of step names:
  my @steps = $obj->steps;
-
+ 
  # deal with a step:
  foreach my $step_name (@steps) {
     my @required_files = $obj->required_files($step_name);
@@ -979,7 +981,7 @@
     #  the steps if the last step completed - we'll only check the last
     #  step and do nothing else)
  }
-
+ 
  # child classes don't override steps(), required_files() etc., they just
  # define a class array ref called $steps which contains hash refs which
  # contain name, step, requires and provides keys, with the last 3 having
@@ -987,7 +989,7 @@
  # subroutine ref as a value. valid_datasources() gets its info from a different
  # class array ref called $valid_datasources. valid_settings() gets its info
  # from a class hash ref called $valid_settings;
-
+ 
  # when you create a new instance of a VRPipe::Pipeline subclass, you must
  # suppy the following:
  my $subclass = VRPipe::Pipelines::subclass->new(
@@ -997,11 +999,12 @@
  # required files are, where it will write its provided files, and be able to
  # proceed with doing work when run_step($name) is called.
 
+ 
 
  # The step, requires, provides and finish subroutines of a subclass (which
  # receive no arguments directly) are implemented with the help of some
  # VRPipe::Pipeline methods:
-
+ 
  # get the root working directory:
  my $root_dir = $self->root_dir; # == $self->{config}->{root} || cwd
  # if you work in a subdirectory of the root, perhaps elements from your
@@ -1013,7 +1016,7 @@
  # $out_file is a VRPipe::File with the absolute path to my.out.file in
  # working_dir(). Whenever dealing with files generally you'll use
  # VRPipe::File.
-
+ 
  # inside a step subroutine, when you want to do something that takes more
  # than a few seconds, you make a VRPipe::JobManager::Requirements object
  # that describes the needs of what you want to do, and come up with a command
@@ -1024,14 +1027,15 @@
  # something with the cmd and requirements.
  # if you dispatched things you return false, otherwise if you successfully
  # completed everything your step needed to do, you return true.
-
+ 
  # if a step needs to carry out some post-processing after the things it
  # dispached have actually been run, it can setup another subroutine and include
  # a ref to it under the 'finish' key of the $steps class ref.
-
+ 
  # you could make use of VRPipe::ResultStore to store (small) final output
  # instead of writing to disc.
 
+ 
 
  # NB: compared to the original VRPipe::Pipeline* system, this is deliberatly
  # very lightweight: no checking of file existance is done here to determine
@@ -1049,12 +1053,12 @@
  # of type 'chain' with a source of the first Setup. 
 
 =head1 VRPipe::PipelineManager::Step
-
+ 
  This class provides state tracking for running a particular
  VRPipe::Pipelines::* module step with a certain pipeline setup against a
  specific VRPipe::PipelineManager::DataSource->data_elements element. State is
  stored persistently thanks to implementing with VRPipe::Persistent.
-
+ 
  # create; there are 4 required key-forming options:
  my $act = VRPipe::PipelineManager::Step->new(step => 'name_of_step',
                 module => 'VRPipe::Pipelines::Mapping',
@@ -1065,19 +1069,19 @@
  # VRPipe::PipelineManager::DataSource object)
  # or by id:
  $act = VRPipe::PipelineManager::Step->new(id => $a_valid_step_id);
-
+ 
  # get a reference to the step entry in the db:
  my $act_id = $act->id;
  # gives us a unique id that other systems and dbs can refer to or store. The
  # same id is always returned for every Step object created with the
  # same step, module, dataelement_key and setup.
-
+ 
  # get the core info on this Step (these are get-only):
  my $module = $act->module;
  my $step = $act->step; # a string name of a step in $module
  my $dataelement_key = $act->dataelement_key;
  my $setup = $act->setup; # a VRPipe::PipelineManager::Setup instance
-
+ 
  # do stuff depending on the overall state of the Step:
  if ($act->complete) {
     # at some point we decided that this step completed fully successfully.
@@ -1118,21 +1122,21 @@
  }
 
 =head1 VRPipe::PipelineManager::Manager
-
+ 
  The high-level manager interface for script and end-user use. It does need to
  store one bit of persistent data, but it isn't instance-specific, so while this
  module makes use of VRPipe::Persistent, it isn't like all the others that
  inherit from it. (Infact, it probably implements its persistent storage by
  abusing VRPipe::ResultStore ?)
-
+ 
  # create:
  my $man = VRPipe::PipelineManager::Manager->new;
-
+ 
  # get a list of all VRPipe::PipelineManager::Setup objects:
  my @setups = $man->setups;
  # limited to those for a certain pipeline module:
  @setups = $man->setups(module => 'VRPipe::Pipelines::Mapping');
-
+ 
  # trigger/find out about the pipelines:
  foreach my $set (@setups) {
     if ($set->active) {
@@ -1245,7 +1249,7 @@
         # pipeline setup
     }
  }
-
+ 
  # Having ->run at least 1 pipeline setup, we'll have a bunch of Submission
  # objects in the Persistent db, but none of them will have been submitted. We
  # deal with submitting, coping with failed Submissions, retrying Submissions
@@ -1253,7 +1257,7 @@
  # the pipelines that spawned them. This is completly generic, and you could
  # imagine running a script that calls these methods every 10mins in a cron job
  # or something.
-
+ 
  # get all Submissions that have not completed ok (used internally by the
  # subsequent methods, answer cached once per instance of Manager):
  my @incomplete_submissions = $man->submissions();
@@ -1262,19 +1266,19 @@
  # boolean is true, to give a run() time to finish, so we'll see all of its
  # Submission objects. After a reasonable amount of time it will stop blocking
  # though, incase a run() went bad and failed to turn off running().
-
+ 
  # deal with failed Submissions:
  $man->resubmit_failures(max_retries => 3);
  # this checks all the ->submissions for ones that failed, and uses the standard
  # Submission and Job methods to work out why and resubmit them as appropriate,
  # potentially with updated Requirements. max_retries defaults to 3.
-
+ 
  $man->check_running;
  # this does the dance of checking if any of the currently running ->submissions
  # are approaching their time limit, and switching queues as appropriate. It
  # also checks that all running Jobs have had a recent heartbeat, and if not
  # will do the kill dance and resubmit.
-
+ 
  # batch Submissions into arrays and submit them:
  $man->submit;
  # this groups all the non-permanently-failed ->submissions into lists based
@@ -1297,8 +1301,10 @@
 
 
 
-=head1 Random Notes
 
+
+=head1 Random Notes
+ 
  https://www.socialtext.net/perl5/index.cgi?orm
  http://poop.sourceforge.net/
  Fey::ORM is supposed to work with Moose [unknown]
@@ -1323,83 +1329,133 @@
   dbs, but has none of the nice pointer, lazy-load, 1-copy-in-memory stuff that
   Tangram has.
 
-http://search.cpan.org/~crenz/Module-Find-0.10/Find.pm for finding and loading modules in a certain namespace
+http://search.cpan.org/~crenz/Module-Find-0.10/Find.pm for finding and loading
+modules in a certain namespace
 
 $self->wait_for { $code->that_may_throw_a_temporary_failure };
 
 http://www.oodesign.com/memento-pattern.html for saving object state ??
 
-3 different kinds of cmd running: "real", "checking" and "meta" jobs, so that when you want to get a list of all command lines that will be or have been run without 
-really running the pipeline, you can choose to only list the "real" ones. Real jobs may rely on information from meta jobs before the command line can be calculated, but a 
-placeholder system allows command lines to be output with the placeholder symbols. Handles placeholders for loop counts as well.
+3 different kinds of cmd running: "real", "checking" and "meta" jobs, so that
+when you want to get a list of all command lines that will be or have been run
+without  really running the pipeline, you can choose to only list the "real"
+ones. Real jobs may rely on information from meta jobs before the command line
+can be calculated, but a  placeholder system allows command lines to be output
+with the placeholder symbols. Handles placeholders for loop counts as well.
 
 http://www.oodesign.com/null-object-pattern.html for optional logging etc?
 
-http://search.cpan.org/~dsbike/MooseX-Documenter-0.01/lib/MooseX/Documenter.pm to help auto-document moose classes
+http://search.cpan.org/~dsbike/MooseX-Documenter-0.01/lib/MooseX/Documenter.pm
+to help auto-document moose classes
 
-http://search.cpan.org/dist/MooseX-AbstractFactory/lib/MooseX/AbstractFactory.pm for Factories
+http://search.cpan.org/dist/MooseX-AbstractFactory/lib/MooseX/AbstractFactory.pm
+for Factories
 
-http://search.cpan.org/~jhannah/MooseX-Workers-0.15/lib/MooseX/Workers.pm to implement the forking system needed by jobs that run on the farm?
+http://search.cpan.org/~jhannah/MooseX-Workers-0.15/lib/MooseX/Workers.pm to
+implement the forking system needed by jobs that run on the farm?
 
-http://search.cpan.org/~gphat/MooseX-UndefTolerant-0.06/lib/MooseX/UndefTolerant.pm for all attributes?
+http://search.cpan.org/~gphat/MooseX-UndefTolerant-0.06/lib/MooseX/UndefTolerant.pm
+for all attributes?
 
-http://search.cpan.org/~jjnapiork/MooseX-Types-Parameterizable-0.04/lib/MooseX/Types/Parameterizable.pm to implement a varchar attribute type
+http://search.cpan.org/~jjnapiork/MooseX-Types-Parameterizable-0.04/lib/MooseX/Types/Parameterizable.pm
+to implement a varchar attribute type
 
-http://search.cpan.org/~ajgb/MooseX-Types-Implements-1.103350/lib/MooseX/Types/Implements.pm to specify attributes implement certain roles
+http://search.cpan.org/~ajgb/MooseX-Types-Implements-1.103350/lib/MooseX/Types/Implements.pm
+to specify attributes implement certain roles
 
-http://search.cpan.org/~groditi/MooseX-Types-Common-0.001002/lib/MooseX/Types/Common/String.pm to specify non-empty-no-newlines string
+http://search.cpan.org/~groditi/MooseX-Types-Common-0.001002/lib/MooseX/Types/Common/String.pm
+to specify non-empty-no-newlines string
 
-http://search.cpan.org/~mmorgan/MooseX-SlurpyConstructor-1.1/lib/MooseX/SlurpyConstructor.pm to make Petr happy
-http://search.cpan.org/~stevan/MooseX-Param-0.02/lib/MooseX/Param.pm an alternative way to make Petr happy
+http://search.cpan.org/~mmorgan/MooseX-SlurpyConstructor-1.1/lib/MooseX/SlurpyConstructor.pm
+to make Petr happy
+http://search.cpan.org/~stevan/MooseX-Param-0.02/lib/MooseX/Param.pm an
+alternative way to make Petr happy
 
-http://search.cpan.org/~bobtfish/MooseX-SimpleConfig-0.09/lib/MooseX/SimpleConfig.pm one way of getting config from file to pass to new()
-http://search.cpan.org/~bobtfish/MooseX-Getopt-0.35/lib/MooseX/Getopt.pm and get options from command line
-http://search.cpan.org/~drolsky/MooseX-Configuration-0.02/lib/MooseX/Configuration.pm for a good way of writing a config file
+http://search.cpan.org/~bobtfish/MooseX-SimpleConfig-0.09/lib/MooseX/SimpleConfig.pm
+one way of getting config from file to pass to new()
+http://search.cpan.org/~bobtfish/MooseX-Getopt-0.35/lib/MooseX/Getopt.pm and
+get options from command line
+http://search.cpan.org/~drolsky/MooseX-Configuration-0.02/lib/MooseX/Configuration.pm
+for a good way of writing a config file
 
-http://search.cpan.org/~rjbs/MooseX-SetOnce-0.100472/lib/MooseX/SetOnce.pm only allow an attribute to be set once. could be useful for something?
+http://search.cpan.org/~rjbs/MooseX-SetOnce-0.100472/lib/MooseX/SetOnce.pm only
+allow an attribute to be set once. could be useful for something?
 
-http://search.cpan.org/~edenc/MooseX-Role-Cmd-0.10/lib/MooseX/Role/Cmd.pm is like my WrapperI thing with methods that get converted to cmd line args, but nicer/simpler - worth rewriting all wrappers
+http://search.cpan.org/~edenc/MooseX-Role-Cmd-0.10/lib/MooseX/Role/Cmd.pm is
+like my WrapperI thing with methods that get converted to cmd line args, but
+nicer/simpler - worth rewriting all wrappers
 
-http://search.cpan.org/~franckc/MooseX-Privacy-0.05/lib/MooseX/Privacy.pm private and protected methods and attributes
+http://search.cpan.org/~franckc/MooseX-Privacy-0.05/lib/MooseX/Privacy.pm
+private and protected methods and attributes
 
-http://search.cpan.org/~flora/MooseX-MethodAttributes-0.24/lib/MooseX/MethodAttributes.pm introspect method attributes
+http://search.cpan.org/~flora/MooseX-MethodAttributes-0.24/lib/MooseX/MethodAttributes.pm
+introspect method attributes
 
-http://search.cpan.org/~bobtfish/MooseX-MetaDescription-0.04/lib/MooseX/MetaDescription.pm possible way of storing descriptions of the args configurable in pipelines
-http://search.cpan.org/~kentnl/MooseX-AttributeIndexes-1.0.0/lib/MooseX/AttributeIndexes.pm might be useful since it lets you define and introspect which attributes should be indexed by db
+http://search.cpan.org/~bobtfish/MooseX-MetaDescription-0.04/lib/MooseX/MetaDescription.pm
+possible way of storing descriptions of the args configurable in pipelines
+http://search.cpan.org/~kentnl/MooseX-AttributeIndexes-1.0.0/lib/MooseX/AttributeIndexes.pm
+might be useful since it lets you define and introspect which attributes should
+be indexed by db
 
-http://search.cpan.org/~jgoulah/MooseX-LogDispatch-1.2002/lib/MooseX/LogDispatch.pm possibly nice way of doing logging
+http://search.cpan.org/~jgoulah/MooseX-LogDispatch-1.2002/lib/MooseX/LogDispatch.pm
+possibly nice way of doing logging
 
-http://search.cpan.org/~jrockway/MooseX-FileAttribute-0.02/lib/MooseX/FileAttribute.pm looks great for specifying file/dir attributes (if can override must_exist method)
+http://search.cpan.org/~jrockway/MooseX-FileAttribute-0.02/lib/MooseX/FileAttribute.pm
+looks great for specifying file/dir attributes (if can override must_exist
+method)
 
-http://search.cpan.org/~csjewell/MooseX-Error-Exception-Class-0.099/lib/MooseX/Error/Exception/Class.pm turn Moose exceptions into Exception::Class objects
+http://search.cpan.org/~csjewell/MooseX-Error-Exception-Class-0.099/lib/MooseX/Error/Exception/Class.pm
+turn Moose exceptions into Exception::Class objects
 
-http://search.cpan.org/~jjnapiork/MooseX-Attribute-ENV-0.01/lib/MooseX/Attribute/ENV.pm set attributes from env vars
+http://search.cpan.org/~jjnapiork/MooseX-Attribute-ENV-0.01/lib/MooseX/Attribute/ENV.pm
+set attributes from env vars
 
-http://search.cpan.org/~dwheeler/Pod-Site-0.52/lib/Pod/Site.pm generate pod HTML
+http://search.cpan.org/~dwheeler/Pod-Site-0.52/lib/Pod/Site.pm generate pod
+HTML
 
 A monitoring system that restarts the main system if it crashes
 
-Distinction between failure of the executable, and failure of the output file check, which would be built into wrappers
+Distinction between failure of the executable, and failure of the output file
+check, which would be built into wrappers
 
-Can build a pipeline by choosing to enter command lines directly (with placeholder system) instead of picking an existing step; the result is ultimately the same: a recording of a command line to run
+Can build a pipeline by choosing to enter command lines directly (with
+placeholder system) instead of picking an existing step; the result is
+ultimately the same: a recording of a command line to run
 
-Generic system to interface with and update an external db like VRTrack to retreive new input data
+Generic system to interface with and update an external db like VRTrack to
+retreive new input data
 
-a step can have a dependency of another step which it will force to be called prior to itself even if that step was not part of the pipeline. Eg. indexing a bam
+a step can have a dependency of another step which it will force to be called
+prior to itself even if that step was not part of the pipeline. Eg. indexing a
+bam
 
-Automatic resolving of file type conversion: if a pipeline has a step or input data that produces/is bam files, followed by a step that requires fastq input, a step that takes bam input and outputs fastq will be inserted inbetween
+Automatic resolving of file type conversion: if a pipeline has a step or input
+data that produces/is bam files, followed by a step that requires fastq input,
+a step that takes bam input and outputs fastq will be inserted inbetween
 
-Safe handling of multiple jobs (from different pipelines even) needing the same prerequisite file created (eg. reference index): they shouldn't all try and create it at the same time!
-Should be able to apply this safety to prerequisites specified as steps by looking at the paths of files the step will create. Also needs protection from a job that started working
-on the prereq being killed: don't want all the dependent jobs waiting for infinity; one of the others should try it again.
+Safe handling of multiple jobs (from different pipelines even) needing the same
+prerequisite file created (eg. reference index): they shouldn't all try and
+create it at the same time! Should be able to apply this safety to
+prerequisites specified as steps by looking at the paths of files the step will
+create. Also needs protection from a job that started working on the prereq
+being killed: don't want all the dependent jobs waiting for infinity; one of
+the others should try it again.
 
-When defining a custom step (or hardcoding a new step class) you include differently named file placeholders in your cmd line. Then you define what each one should be:
-input-data-source|file-or-pipe-from-previous-step(excluding forced pre-requisite steps)|static-file-from-config-parameter. You also have the option of modifying the
-name: no-change|basename|regex-substitution|basename+regex-substitution. Other placeholders include the working dir for that element and config-paramters. For more complex
-situations of working on multiple files from a previous step you can use a special list placeholder to have them all put in the same command line with a custom join, or
-an element placeholder which will result in it creating a command line for each element of the list. If even more complex and the output of previous step is different
-types of file, the previous step will have typed its output, and the placeholder system will let you say which type you want to work with. Or you can define a subroutine
-that determines how the placeholder gets filled (which is run at run-time under LSF).
+When defining a custom step (or hardcoding a new step class) you include
+differently named file placeholders in your cmd line. Then you define what each
+one should be: input-data-source|file-or-pipe-from-previous-step(excluding
+forced pre-requisite steps)|static-file-from-config-parameter. You also have
+the option of modifying the name:
+no-change|basename|regex-substitution|basename+regex-substitution. Other
+placeholders include the working dir for that element and config-paramters. For
+more complex situations of working on multiple files from a previous step you
+can use a special list placeholder to have them all put in the same command
+line with a custom join, or an element placeholder which will result in it
+creating a command line for each element of the list. If even more complex and
+the output of previous step is different types of file, the previous step will
+have typed its output, and the placeholder system will let you say which type
+you want to work with. Or you can define a subroutine that determines how the
+placeholder gets filled (which is run at run-time under LSF).
 
 =cut
 

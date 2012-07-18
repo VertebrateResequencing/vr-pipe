@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Base::Debuggable - debug message handling
@@ -8,8 +9,8 @@ VRPipe::Base::Debuggable - debug message handling
 
 =head1 DESCRIPTION
 
-Provides warning, error, debug and log message handling.
-*** more documentation to come
+Provides warning, error, debug and log message handling. *** more documentation
+to come
 
 =head1 AUTHOR
 
@@ -52,18 +53,18 @@ role VRPipe::Base::Debuggable {
     our $GLOBAL_LOG_FILE = File::Spec->catfile($ENV{HOME}, '.VRPipe.log');
     
     # these are just to allow verbose and log_file to be set during new()
-    has '_verbose'    => (is => 'ro',
-                         isa => VerbosityValue,
-                         default => 0,
-                         init_arg => 'verbose',
-                         trigger => \&verbose);
-    has '_log_file'   => (is => 'ro',
-                          isa => 'Str|Path::Class::File',
-                          init_arg => 'log_file',
-                          trigger => \&log_file);
-    
-=head2 verbose
+    has '_verbose' => (is       => 'ro',
+                       isa      => VerbosityValue,
+                       default  => 0,
+                       init_arg => 'verbose',
+                       trigger  => \&verbose);
+    has '_log_file' => (is       => 'ro',
+                        isa      => 'Str|Path::Class::File',
+                        init_arg => 'log_file',
+                        trigger  => \&log_file);
 
+=head2 verbose
+ 
  Title   : verbose
  Usage   : $obj->verbose(1); # per-instance
            VRPipe::Any::Class->set_verbose_global(2); # global override -
@@ -81,6 +82,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, a verbosity value to set: -1,0,0.5,1 or 2
 
 =cut
+    
     method verbose (ClassName|Object $self: VerbosityValue $value?, VerbosityValue $old_val?) {
         unless (ref($self)) {
             return $GLOBAL_VERBOSITY || 0;
@@ -100,12 +102,13 @@ role VRPipe::Base::Debuggable {
     method set_verbose_global (ClassName|Object $self: VerbosityValue $value) {
         $GLOBAL_VERBOSITY = $value;
     }
+    
     method clear_verbose_global (ClassName $class:) {
         undef $GLOBAL_VERBOSITY;
     }
-    
-=head2 warn
 
+=head2 warn
+ 
  Title   : warn
  Usage   : $obj->warn("warning message");
  Function: Warns about something; strength of warning determined by ->verbose().
@@ -114,6 +117,7 @@ role VRPipe::Base::Debuggable {
  Args    : A string giving a warning message
 
 =cut
+    
     method warn (ClassName|Object $self: Str $message) {
         my $verbose = $self->verbose();
         return if $verbose <= -1;
@@ -125,7 +129,7 @@ role VRPipe::Base::Debuggable {
             cluck($message);
         }
         elsif ($verbose == 0.5) {
-            CORE::warn($message."\n");
+            CORE::warn($message . "\n");
         }
         else {
             carp($message);
@@ -133,9 +137,9 @@ role VRPipe::Base::Debuggable {
         
         $self->log($message);
     }
-    
-=head2 debug
 
+=head2 debug
+ 
  Title   : debug
  Usage   : $obj->debug("This is debugging output");
  Function: Warns a debugging message when verbose is > 0.
@@ -144,6 +148,7 @@ role VRPipe::Base::Debuggable {
  Args    : Message string to debug about
 
 =cut
+    
     method debug (ClassName|Object $self: Str $message) {
         if ($self->verbose > 0) {
             $self->log($message);
@@ -151,9 +156,9 @@ role VRPipe::Base::Debuggable {
             CORE::warn $message;
         }
     }
-    
-=head2 throw
 
+=head2 throw
+ 
  Title   : throw
  Usage   : $obj->throw("throwing exception message");
  Function: Throws an exception, which, if not caught with an eval or
@@ -165,10 +170,11 @@ role VRPipe::Base::Debuggable {
  Args    : A string giving a descriptive error message
 
 =cut
+    
     method throw (ClassName|Object $self: Str $message = '[no message]') {
         my $cwd = getcwd();
         #my $first_line = "FATAL ERROR on $time{'yyyy/mm/dd hh:mm:ss'} in $cwd";
-        my $t = time();
+        my $t          = time();
         my $first_line = "FATAL ERROR at epoch $t in $cwd";
         
         my $capture = IO::Capture::Stderr->new();
@@ -207,17 +213,17 @@ role VRPipe::Base::Debuggable {
         
         foreach my $line ($first_line, '', @message, '', @confess) {
             my $this_length = length($line);
-            $throw_message .= "| $line".(' 'x($line_length - $this_length))." |\n";
+            $throw_message .= "| $line" . (' ' x ($line_length - $this_length)) . " |\n";
         }
-        $throw_message .= $line."\n\n";
+        $throw_message .= $line . "\n\n";
         
         $self->log($throw_message, 2);
         
         die $throw_message;
     }
-    
-=head2 write_logs
 
+=head2 write_logs
+ 
  Title   : write_logs
  Usage   : $obj->write_logs(1);
  Function: Turn the writing of log messages on or off. Changing this acts
@@ -226,15 +232,16 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, boolean to set
 
 =cut
+    
     method write_logs (ClassName|Object $self: Bool $set?) {
         if (defined $set) {
             $GLOBAL_WRITE_LOGS = $set;
         }
         return $GLOBAL_WRITE_LOGS;
     }
-    
-=head2 log_file
 
+=head2 log_file
+ 
  Title   : log_file
  Usage   : $obj->log_file("/path/to/logfile");
  Function: Get or set the path to the log file. Changing this acts globally
@@ -243,6 +250,7 @@ role VRPipe::Base::Debuggable {
  Args    : none to get, string to set
 
 =cut
+    
     method log_file (ClassName|Object $self: Str|Path::Class::File $set?, Str|File $old_val?) {
         if (defined $set) {
             open(my $fh, ">>", $set) || $self->throw("Could not append to log file '$set'");
@@ -251,9 +259,9 @@ role VRPipe::Base::Debuggable {
         }
         return $GLOBAL_LOG_FILE;
     }
-    
-=head2 log
 
+=head2 log
+ 
  Title   : log
  Usage   : $obj->log('message');
  Function: Appends message to file set in log_file() if write_logs() is on.
@@ -262,6 +270,7 @@ role VRPipe::Base::Debuggable {
            per verbose(), using current value of verbose() as default.
 
 =cut
+    
     method log (ClassName|Object $self: Str $message, VerbosityValue $verbose?) {
         return unless $self->write_logs();
         $verbose ||= $self->verbose;

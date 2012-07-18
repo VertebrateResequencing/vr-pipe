@@ -43,16 +43,16 @@ foreach my $lane_name (@lane_names) {
 # that it have a populated mapstats table, which in turn means we need the
 # bamcheck results stored as metadata on the bams
 my $output_dir = get_output_dir('auto_qc');
-my $lni = 0;
+my $lni        = 0;
 foreach my $file_prefix (qw(autoqc_normal autoqc_short)) {
     foreach my $suffix ('.bam', '.bam.bamcheck') {
-        my $file = VRPipe::File->create(path => file('t', 'data', $file_prefix.$suffix)->absolute);
-        $file->add_metadata({lane => $lane_names[$lni]});
+        my $file = VRPipe::File->create(path => file('t', 'data', $file_prefix . $suffix)->absolute);
+        $file->add_metadata({ lane => $lane_names[$lni] });
     }
     
     # bamcheck metadata
-    my $bam = VRPipe::File->create(path => file('t', 'data', $file_prefix.'.bam')->absolute)->path;
-    my $bamcheck = VRPipe::File->create(path => file($output_dir, $file_prefix.'.bam.bamcheck'))->path;
+    my $bam = VRPipe::File->create(path => file('t', 'data', $file_prefix . '.bam')->absolute)->path;
+    my $bamcheck = VRPipe::File->create(path => file($output_dir, $file_prefix . '.bam.bamcheck'))->path;
     VRPipe::Steps::bamcheck->stats_from_bamcheck("bamcheck $bam > $bamcheck");
     
     # mapstats
@@ -62,14 +62,14 @@ foreach my $file_prefix (qw(autoqc_normal autoqc_short)) {
 }
 
 # autoqc that writes results to vrtrack
-my $auto_qc_ps = VRPipe::PipelineSetup->create(name => 'auto_qc',
-                                            datasource => VRPipe::DataSource->create(type => 'delimited',
-                                                                                  method => 'all_columns',
-                                                                                  source => file(qw(t data autoqc.tab))->absolute->stringify,
-                                                                                  options => { delimiter => "\t" }),
-                                            output_root => $output_dir,
-                                            pipeline => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc'),
-                                            options => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} });
+my $auto_qc_ps = VRPipe::PipelineSetup->create(name       => 'auto_qc',
+                                               datasource => VRPipe::DataSource->create(type    => 'delimited',
+                                                                                        method  => 'all_columns',
+                                                                                        source  => file(qw(t data autoqc.tab))->absolute->stringify,
+                                                                                        options => { delimiter => "\t" }),
+                                               output_root => $output_dir,
+                                               pipeline    => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc'),
+                                               options     => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} });
 
 ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
 
@@ -80,11 +80,11 @@ die "Can't connect to tracking database\n" unless $vrtrack;
 
 foreach my $lane_name (@lane_names) {
     my $sql = qq[select test,CASE result when 1 then "PASSED" when 0 then "FAILED" END as result,reason,m.mapstats_id from autoqc as a join latest_mapstats as m on m.mapstats_id = a.mapstats_id join latest_lane as l on l.lane_id = m.lane_id where l.name='$lane_name' order by a.autoqc_id;];
-
+    
     my $sth = $vrtrack->{_dbh}->prepare($sql);
     $sth->execute();
     while (my $r = $sth->fetchrow_hashref) {
-        push @{$actual_auto_qc_data{$lane_name}}, "$r->{test}:\t$r->{result}\t # $r->{reason}\n";
+        push @{ $actual_auto_qc_data{$lane_name} }, "$r->{test}:\t$r->{result}\t # $r->{reason}\n";
     }
     $sth->finish;
 }
@@ -93,17 +93,17 @@ my %expected_auto_qc_data;
 foreach my $lane_name (@lane_names) {
     my $file_name = $lane_name;
     $file_name =~ s/#/_/;
-    my $aqcfile = file('t', 'data', $file_name.'.auto_qc.txt')->absolute;
-	open FILE, "<", $aqcfile or die $aqcfile, $!;
+    my $aqcfile = file('t', 'data', $file_name . '.auto_qc.txt')->absolute;
+    open FILE, "<", $aqcfile or die $aqcfile, $!;
     while (<FILE>) {
-		push @{$expected_auto_qc_data{$lane_name}},$_ unless /^Verdict/;
-	}
-	close FILE;
+        push @{ $expected_auto_qc_data{$lane_name} }, $_ unless /^Verdict/;
+    }
+    close FILE;
 }
 is_deeply \%actual_auto_qc_data, \%expected_auto_qc_data, 'auto qc pipeline generated the expected autoqc on vrtrack showing why the lanes passed';
 
 my $passed_auto_qc_lanes = 0;
-my $failed_auto_qc_libs = 0;
+my $failed_auto_qc_libs  = 0;
 $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
 foreach my $lane_name (@lane_names) {
     my $lane = VRTrack::Lane->new_by_name($vrtrack, $lane_name);

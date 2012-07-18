@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::bam - parse and write bam files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying bam file
@@ -71,16 +72,15 @@ VRPipe::Parser::bam - parse and write bam files
 =head1 DESCRIPTION
 
 bam files are the compressed binary forms of sam files:
-L<http://samtools.sourceforge.net/>
-They hold aligned biological sequence data.
+L<http://samtools.sourceforge.net/> They hold aligned biological sequence data.
 
 This parser is strictly for bam files (not sam files). Unlike other parsers,
 this can also be used to write bam files, though you can only write (slightly
 modified versions of) records that you read in, not brand new data.
 
 The environment variable SAMTOOLS must point to a directory where samtools
-source has been compiled, so containing at least bam.h and libbam.a.
-See http://cpansearch.perl.org/src/LDS/Bio-SamTools-1.06/README for advice on
+source has been compiled, so containing at least bam.h and libbam.a. See
+http://cpansearch.perl.org/src/LDS/Bio-SamTools-1.06/README for advice on
 gettings things to work. Specifically, you'll probably need to add -fPIC and
 -m64 to the CFLAGS line in samtools's Makefile before compiling.
 
@@ -113,33 +113,30 @@ use VRPipe::Base;
 class VRPipe::Parser::bam with VRPipe::ParserRole {
     use Devel::GlobalDestruction;
     
-    use Inline C => Config => FILTERS => 'Strip_POD' =>
-               INC => "-I$ENV{SAMTOOLS}" =>
-               LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" =>
-               CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
+    use Inline C => Config => FILTERS => 'Strip_POD' => INC => "-I$ENV{SAMTOOLS}" => LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" => CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
     
-    our %flags = (paired_tech    => 0x0001,
-                  paired_map     => 0x0002,
-                  self_unmapped  => 0x0004,
-                  mate_unmapped  => 0x0008,
-                  self_reverse   => 0x0010,
-                  mate_reverse   => 0x0020,
-                  '1st_in_pair'  => 0x0040,
-                  '2nd_in_pair'  => 0x0080,
-                  not_primary    => 0x0100,
-                  failed_qc      => 0x0200,
-                  duplicate      => 0x0400);
+    our %flags = (paired_tech   => 0x0001,
+                  paired_map    => 0x0002,
+                  self_unmapped => 0x0004,
+                  mate_unmapped => 0x0008,
+                  self_reverse  => 0x0010,
+                  mate_reverse  => 0x0020,
+                  '1st_in_pair' => 0x0040,
+                  '2nd_in_pair' => 0x0080,
+                  not_primary   => 0x0100,
+                  failed_qc     => 0x0200,
+                  duplicate     => 0x0400);
     
-    has 'parsed_record' => (is => 'ro',
-                            isa => 'HashRef',
+    has 'parsed_record' => (is      => 'ro',
+                            isa     => 'HashRef',
                             default => sub { {} });
     
-    has '_header' => (is => 'rw',
-                      isa => 'HashRef',
+    has '_header' => (is      => 'rw',
+                      isa     => 'HashRef',
                       default => sub { {} });
     
-    has '_writes' => (is => 'rw',
-                      isa => 'HashRef',
+    has '_writes' => (is      => 'rw',
+                      isa     => 'HashRef',
                       default => sub { {} });
     
     sub BUILD {
@@ -178,11 +175,9 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
             $self->throw("bam parser only supports VRPipe::File or path inputs");
         }
     }
-    
-    use Inline C => <<'END_C';
 
 =head2 is_sequencing_paired
-
+ 
  Title   : is_sequencing_paired
  Usage   : if ($obj->is_sequencing_paired($flag)) { ... };
  Function: Ask if a given flag indicates the read was paired in sequencing.
@@ -191,12 +186,8 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
 
 =cut
 
-int is_sequencing_paired(SV* self, int flag) {
-    return (flag & 0x0001) > 0 ? 1 : 0;
-}
-
 =head2 is_mapped_paired
-
+ 
  Title   : is_mapped_paired
  Usage   : if ($obj->is_mapped_paired($flag)) { ... };
  Function: Ask if a given flag indicates the read was mapped in a proper pair.
@@ -205,12 +196,8 @@ int is_sequencing_paired(SV* self, int flag) {
 
 =cut
 
-int is_mapped_paired(SV* self, int flag) {
-    return (flag & 0x0002) > 0 ? 1 : 0;
-}
-
 =head2 is_mapped
-
+ 
  Title   : is_mapped
  Usage   : if ($obj->is_mapped($flag)) { ... };
  Function: Ask if a given flag indicates the read was itself mapped.
@@ -219,12 +206,8 @@ int is_mapped_paired(SV* self, int flag) {
 
 =cut
 
-int is_mapped(SV* self, int flag) {
-    return (flag & 0x0004) == 0 ? 1 : 0;
-}
-
 =head2 is_mate_mapped
-
+ 
  Title   : is_mate_mapped
  Usage   : if ($obj->is_mate_mapped($flag)) { ... };
  Function: Ask if a given flag indicates the read's mate was mapped.
@@ -233,12 +216,8 @@ int is_mapped(SV* self, int flag) {
 
 =cut
 
-int is_mate_mapped(SV* self, int flag) {
-    return (flag & 0x0008) == 0 ? 1 : 0;
-}
-
 =head2 is_reverse_strand
-
+ 
  Title   : is_reverse_strand
  Usage   : if ($obj->is_reverse_strand($flag)) { ... };
  Function: Ask if a given flag indicates the read is on the reverse stand.
@@ -247,12 +226,8 @@ int is_mate_mapped(SV* self, int flag) {
 
 =cut
 
-int is_reverse_strand(SV* self, int flag) {
-    return (flag & 0x0010) > 0 ? 1 : 0;
-}
-
 =head2 is_mate_reverse_strand
-
+ 
  Title   : is_mate_reverse_strand
  Usage   : if ($obj->is_mate_reverse_strand($flag)) { ... };
  Function: Ask if a given flag indicates the read's mate is on the reverse
@@ -262,12 +237,8 @@ int is_reverse_strand(SV* self, int flag) {
 
 =cut
 
-int is_mate_reverse_strand(SV* self, int flag) {
-    return (flag & 0x0020) > 0 ? 1 : 0;
-}
-
 =head2 is_first
-
+ 
  Title   : is_first
  Usage   : if ($obj->is_first($flag)) { ... };
  Function: Ask if a given flag indicates the read was the first of a pair.
@@ -276,12 +247,8 @@ int is_mate_reverse_strand(SV* self, int flag) {
 
 =cut
 
-int is_first(SV* self, int flag) {
-    return (flag & 0x0040) > 0 ? 1 : 0;
-}
-
 =head2 is_second
-
+ 
  Title   : is_second
  Usage   : if ($obj->is_second($flag)) { ... };
  Function: Ask if a given flag indicates the read was the second of a pair.
@@ -290,12 +257,8 @@ int is_first(SV* self, int flag) {
 
 =cut
 
-int is_second(SV* self, int flag) {
-    return (flag & 0x0080) > 0 ? 1 : 0;
-}
-
 =head2 is_primary
-
+ 
  Title   : is_primary
  Usage   : if ($obj->is_primary($flag)) { ... };
  Function: Ask if a given flag indicates the read alignment was primary.
@@ -304,12 +267,8 @@ int is_second(SV* self, int flag) {
 
 =cut
 
-int is_primary(SV* self, int flag) {
-    return (flag & 0x0100) == 0 ? 1 : 0;
-}
-
 =head2 passes_qc
-
+ 
  Title   : passes_qc
  Usage   : if ($obj->passes_qc($flag)) { ... };
  Function: Ask if a given flag indicates the read passes quality checks.
@@ -318,12 +277,8 @@ int is_primary(SV* self, int flag) {
 
 =cut
 
-int passes_qc(SV* self, int flag) {
-    return (flag & 0x0200) == 0 ? 1 : 0;
-}
-
 =head2 is_duplicate
-
+ 
  Title   : is_duplicate
  Usage   : if ($obj->is_duplicate($flag)) { ... };
  Function: Ask if a given flag indicates the read was a duplicate.
@@ -331,15 +286,57 @@ int passes_qc(SV* self, int flag) {
  Args    : int (the flag recieved from $parsed_record->{FLAG})
 
 =cut
+    
+    use Inline C => <<'END_C';
+
+int is_sequencing_paired(SV* self, int flag) {
+    return (flag & 0x0001) > 0 ? 1 : 0;
+}
+
+int is_mapped_paired(SV* self, int flag) {
+    return (flag & 0x0002) > 0 ? 1 : 0;
+}
+
+int is_mapped(SV* self, int flag) {
+    return (flag & 0x0004) == 0 ? 1 : 0;
+}
+
+int is_mate_mapped(SV* self, int flag) {
+    return (flag & 0x0008) == 0 ? 1 : 0;
+}
+
+int is_reverse_strand(SV* self, int flag) {
+    return (flag & 0x0010) > 0 ? 1 : 0;
+}
+
+int is_mate_reverse_strand(SV* self, int flag) {
+    return (flag & 0x0020) > 0 ? 1 : 0;
+}
+
+int is_first(SV* self, int flag) {
+    return (flag & 0x0040) > 0 ? 1 : 0;
+}
+
+int is_second(SV* self, int flag) {
+    return (flag & 0x0080) > 0 ? 1 : 0;
+}
+
+int is_primary(SV* self, int flag) {
+    return (flag & 0x0100) == 0 ? 1 : 0;
+}
+
+int passes_qc(SV* self, int flag) {
+    return (flag & 0x0200) == 0 ? 1 : 0;
+}
 
 int is_duplicate(SV* self, int flag) {
     return (flag & 0x0400) > 0 ? 1 : 0;
 }
 
 END_C
-    
-=head2 sam_version
 
+=head2 sam_version
+ 
  Title   : sam_version
  Usage   : my $sam_version = $obj->sam_version();
  Function: Return the file format version of this sam file, as given in the
@@ -348,12 +345,13 @@ END_C
  Args    : n/a
 
 =cut
+    
     method sam_version {
         return $self->_get_single_header_tag('HD', 'VN');
     }
-    
-=head2 group_order
 
+=head2 group_order
+ 
  Title   : group_order
  Usage   : my $group_order = $obj->group_order();
  Function: Return the group order of this sam file, as given in the header.
@@ -361,12 +359,13 @@ END_C
  Args    : n/a
 
 =cut
+    
     method group_order {
         return $self->_get_single_header_tag('HD', 'GO');
     }
-    
-=head2 sort_order
 
+=head2 sort_order
+ 
  Title   : sort_order
  Usage   : my $sort_order = $obj->sort_order();
  Function: Return the sort order of this sam file, as given in the header.
@@ -374,12 +373,13 @@ END_C
  Args    : n/a
 
 =cut
+    
     method sort_order {
         return $self->_get_single_header_tag('HD', 'SO');
     }
-    
-=head2 program_info
 
+=head2 program_info
+ 
  Title   : program_info
  Usage   : my %all_program_info = $obj->program_info();
  Function: Get information about the programs used to create/process this bam,
@@ -394,13 +394,14 @@ END_C
            program id and tag (like 'VN' or 'CL') for specific info
 
 =cut
+    
     sub program_info {
         my ($self, @args) = @_;
         return $self->_handle_multi_line_header_types('PG', @args);
     }
-    
-=head2 program
 
+=head2 program
+ 
  Title   : program
  Usage   : my $program = $obj->program();
  Function: Return the program used to do the mapping, as given in the header.
@@ -410,12 +411,13 @@ END_C
  Args    : n/a
 
 =cut
+    
     method program {
         return $self->_guess_mapping_program();
     }
     
     method _guess_mapping_program {
-        my %info = $self->program_info();
+        my %info     = $self->program_info();
         my @programs = keys %info;
         
         if (@programs == 1) {
@@ -425,28 +427,30 @@ END_C
             my (@known_prg, @unknown_prg);
             for my $program (@programs) {
                 if ($program =~ /bwa|maq|ssaha|bfast|stampy|smalt/i) {
-                    if (exists $info{$program}{PN}){
+                    if (exists $info{$program}{PN}) {
                         push @known_prg, $info{$program}{PN};
-                    } else {
+                    }
+                    else {
                         push @known_prg, $program;
                     }
                 }
                 elsif ($program !~ /GATK/) {
-                    if (exists $info{$program}{PN}){
+                    if (exists $info{$program}{PN}) {
                         push @unknown_prg, $info{$program}{PN};
-                    } else {
+                    }
+                    else {
                         push @unknown_prg, $program;
                     }
                 }
             }
-    
+            
             if (@known_prg) {
                 return $known_prg[0];
             }
             elsif (@unknown_prg) {
                 return $unknown_prg[0];
             }
-    
+            
             # guess randomly
             if (@programs) {
                 return $programs[0];
@@ -457,9 +461,9 @@ END_C
             }
         }
     }
-    
-=head2 program_version
 
+=head2 program_version
+ 
  Title   : program_version
  Usage   : my $program_version = $obj->program_version();
  Function: Return the program version used to do the mapping, as given in the
@@ -470,13 +474,14 @@ END_C
  Args    : n/a
 
 =cut
+    
     method program_version {
         my $program_id = $self->_guess_mapping_program();
         return $self->program_info($program_id, 'VN');
     }
-    
-=head2 command_line
 
+=head2 command_line
+ 
  Title   : command_line
  Usage   : my $command_line = $obj->command_line();
  Function: Return the command line used to do the mapping, as given in the
@@ -487,13 +492,14 @@ END_C
  Args    : n/a
 
 =cut
+    
     method command_line {
         my $program_id = $self->_guess_mapping_program();
         return $self->program_info($program_id, 'CL');
     }
-    
-=head2 sequence_info
 
+=head2 sequence_info
+ 
  Title   : sequence_info
  Usage   : my %all_sequences_info = $obj->sequence_info();
            my %sequence_info = $obj->sequence_info('chr1');
@@ -510,13 +516,14 @@ END_C
            sequence id and tag (like 'LN' or 'M5') for specific info
 
 =cut
+    
     sub sequence_info {
         my ($self, @args) = @_;
         return $self->_handle_multi_line_header_types('SQ', @args);
     }
-    
-=head2 readgroup_info
 
+=head2 readgroup_info
+ 
  Title   : readgroup_info
  Usage   : my %all_rg_info = $obj->readgroup_info();
            my %rg_info = $obj->readgroup_info('SRR00001');
@@ -532,13 +539,14 @@ END_C
            readgroup id and tag (like 'LB' or 'SM') for specific info
 
 =cut
+    
     sub readgroup_info {
         my ($self, @args) = @_;
         return $self->_handle_multi_line_header_types('RG', @args);
     }
-    
-=head2 samples
 
+=head2 samples
+ 
  Title   : samples
  Usage   : my @samples = $obj->samples();
  Function: Get all the unique SM fields from amongst all RG lines in
@@ -547,6 +555,7 @@ END_C
  Args    : none
 
 =cut
+    
     method samples {
         return $self->_get_unique_rg_fields('SM');
     }
@@ -555,7 +564,7 @@ END_C
         my %vals;
         my %rg_info = $self->readgroup_info();
         while (my ($rg, $data) = each %rg_info) {
-            $vals{$data->{$field} || next} = 1;
+            $vals{ $data->{$field} || next } = 1;
         }
         my @uniques = sort keys %vals;
         return @uniques;
@@ -636,7 +645,7 @@ END_C
                     $hash->{$type} = \@tags;
                 }
                 else {
-                    push(@{$hash->{$type}}, \@tags);
+                    push(@{ $hash->{$type} }, \@tags);
                 }
             }
             else {
@@ -666,7 +675,7 @@ END_C
         $self->_close_idx;
         delete $self->{_cbam};
         
-        while (my ($key, $val) = each %{$self->{_writes} || {}}) {
+        while (my ($key, $val) = each %{ $self->{_writes} || {} }) {
             $self->_close_bam($val);
         }
         delete $self->{_writes};
@@ -676,9 +685,9 @@ END_C
         return if in_global_destruction;
         shift->close;
     }
-    
-=head2 get_fields
 
+=head2 get_fields
+ 
  Title   : get_fields
  Usage   : $obj->get_fields('QNAME', 'FLAG', 'RG');
  Function: For efficiency reasons, next_record() will not parse each result at
@@ -705,6 +714,7 @@ END_C
            furthermore you can also request optional tags, such as 'RG'.
 
 =cut
+    
     sub get_fields {
         my ($self, @fields) = @_;
         $self->{_fields} = [@fields];
@@ -717,7 +727,7 @@ END_C
     }
 
 =head2 parsed_record
-
+ 
  Title   : parsed_record
  Usage   : my $parsed_record = $obj->parsed_record()
  Function: Get the data structure that will hold the last result requested by
@@ -731,7 +741,7 @@ END_C
 =cut
 
 =head2 region
-
+ 
  Title   : region
  Usage   : $obj->region('3:10000-11000');
  Function: Specify the chromosomal region that next_record() will get alignments
@@ -743,6 +753,7 @@ END_C
  Args    : A region specification string (as understood by samtools view)
 
 =cut
+    
     sub region {
         my ($self, $region) = @_;
         
@@ -763,7 +774,7 @@ END_C
     }
 
 =head2 flag_selector
-
+ 
  Title   : flag_selector
  Usage   : $obj->flag_selector(self_unmapped => 1, mate_unmapped => 1);
  Function: Alter next_record() so that it only returns alignments with flags
@@ -788,6 +799,7 @@ END_C
            duplicate
 
 =cut
+    
     sub flag_selector {
         my ($self, %args) = @_;
         
@@ -807,7 +819,7 @@ END_C
     }
 
 =head2 required_flag
-
+ 
  Title   : required_flag
  Usage   : $obj->required_flag(4);
  Function: Require that the flag field of an alignment match the desired bitwise
@@ -819,7 +831,7 @@ END_C
 =cut
 
 =head2 filtering_flag
-
+ 
  Title   : filtering_flag
  Usage   : $obj->filtering_flag(4);
  Function: Require that the flag field of an alignment not match the desired
@@ -832,7 +844,7 @@ END_C
 =cut
 
 =head2 minimum_quality
-
+ 
  Title   : minimum_quality
  Usage   : $obj->minimum_quality(30);
  Function: Require that the mapping quality field of an alignment be greater
@@ -845,7 +857,7 @@ END_C
 =cut
 
 =head2 required_library
-
+ 
  Title   : required_library
  Usage   : $obj->required_library('my_library_name');
  Function: Alters next_record() so that it will only return alignments for reads
@@ -856,7 +868,7 @@ END_C
 =cut
 
 =head2 required_readgroup
-
+ 
  Title   : required_readgroup
  Usage   : $obj->required_readgroup('my_readgroup_name');
  Function: Alters next_record() so that it will only return alignments for reads
@@ -868,7 +880,7 @@ END_C
 =cut
 
 =head2 next_record
-
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Access the next alignment from the bam file.
@@ -879,7 +891,7 @@ END_C
 =cut
 
 =head2 write_result
-
+ 
  Title   : write_result
  Usage   : $obj->write_result("out.bam");
  Function: Write the most recent result retrieved with next_record() (not
@@ -893,7 +905,7 @@ END_C
 =cut
 
 =head2 ignore_tags_on_write
-
+ 
  Title   : ignore_tags_on_write
  Usage   : $obj->ignore_tags_on_write(qw(OQ XM XG XO));
  Function: When using write(), ignore the given tags so that they will not be
@@ -903,6 +915,7 @@ END_C
  Args    : list of tags to ignore
 
 =cut
+    
     sub ignore_tags_on_write {
         my ($self, @tags) = @_;
         $self->{_ignore_tags} = [@tags];
@@ -913,8 +926,8 @@ END_C
             $self->_do_strip(0);
         }
     }
-
-use Inline C => <<'END_C';
+    
+    use Inline C => <<'END_C';
 
 #include "bam.h"
 

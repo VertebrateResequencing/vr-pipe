@@ -16,25 +16,27 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_to_fastq',
 is_deeply [$step->id, $step->description], [1, 'Converts bam files to fastq files'], 'bam_to_fastq step created and has correct description';
 
 # pipeline requires certain metadata on the input bams, so we just manually set that now
-VRPipe::File->create(path => file(qw(t data 2822_6.pe.bam))->absolute, metadata => {lane => '2822_6',
-                                                                                 reads => 400,
-                                                                                 bases => 23000,
-                                                                                 forward_reads => 200,
-                                                                                 reverse_reads => 200,
-                                                                                 paired => 1});
-VRPipe::File->create(path => file(qw(t data 2822_6.improved.pe.bam))->absolute, metadata => {lane => '2822_6',
-                                                                                          reads => 400,
-                                                                                          bases => 23000,
-                                                                                          forward_reads => 200,
-                                                                                          reverse_reads => 200,
-                                                                                          paired => 1});
+VRPipe::File->create(path     => file(qw(t data 2822_6.pe.bam))->absolute,
+                     metadata => { lane          => '2822_6',
+                                   reads         => 400,
+                                   bases         => 23000,
+                                   forward_reads => 200,
+                                   reverse_reads => 200,
+                                   paired        => 1 });
+VRPipe::File->create(path     => file(qw(t data 2822_6.improved.pe.bam))->absolute,
+                     metadata => { lane          => '2822_6',
+                                   reads         => 400,
+                                   bases         => 23000,
+                                   forward_reads => 200,
+                                   reverse_reads => 200,
+                                   paired        => 1 });
 
-my $setup = VRPipe::PipelineSetup->create(name => 'btq_setup',
-                                       datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.btf_fofn))->absolute),
-                                       output_root => $output_dir,
-                                       pipeline => $pipeline,
-                                       options => {});
- 
+my $setup = VRPipe::PipelineSetup->create(name        => 'btq_setup',
+                                          datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.btf_fofn))->absolute),
+                                          output_root => $output_dir,
+                                          pipeline    => $pipeline,
+                                          options     => {});
+
 my @fastqs;
 for my $j (1, 2) {
     foreach my $i (1, 2) {
@@ -56,12 +58,12 @@ finish;
 
 sub read_fastq {
     my $path = shift;
-    my $pars = VRPipe::Parser->create('fastq', {file => VRPipe::File->create(path => $path)});
+    my $pars = VRPipe::Parser->create('fastq', { file => VRPipe::File->create(path => $path) });
     
     my %data;
     my $pr = $pars->parsed_record();
     while ($pars->next_record()) {
-        $data{$pr->[0]} = [$pr->[1], $pr->[2]];
+        $data{ $pr->[0] } = [$pr->[1], $pr->[2]];
     }
     return \%data;
 }

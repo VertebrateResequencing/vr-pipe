@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::cramtools - a step
@@ -33,18 +34,18 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::cramtools extends VRPipe::Steps::java {
-    has 'cramtools_path' => (is => 'rw',
-                             isa => Dir,
+    has 'cramtools_path' => (is     => 'rw',
+                             isa    => Dir,
                              coerce => 1);
     
     around _build_standard_options {
-        return [@{$self->$orig}, 'cramtools_path'];
+        return [@{ $self->$orig }, 'cramtools_path'];
     }
     
     our %CRAMTOOLS_VERSIONS;
-    has 'cramtools_version' => (is => 'ro',
-                                isa => 'Str',
-                                lazy => 1,
+    has 'cramtools_version' => (is      => 'ro',
+                                isa     => 'Str',
+                                lazy    => 1,
                                 builder => 'determine_cramtools_version');
     
     method jar (ClassName|Object $self:) {
@@ -62,28 +63,33 @@ class VRPipe::Steps::cramtools extends VRPipe::Steps::java {
     }
     
     around options_definition {
-        return { %{$self->$orig},
+        return { %{ $self->$orig },
                  reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
-                 cramtools_path => VRPipe::StepOption->create(description => 'path to cramtools jar file', optional => 1, default_value => "$ENV{CRAMTOOLS}"),
-                };
+                 cramtools_path  => VRPipe::StepOption->create(description => 'path to cramtools jar file', optional => 1, default_value => "$ENV{CRAMTOOLS}"), };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub { return 1; };
     }
+    
     method outputs_definition {
-        return { };
+        return {};
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Generic step for using the cramtools";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;                     # meaning unlimited
     }
 }
 

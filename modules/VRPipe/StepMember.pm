@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepMember - a Step of a Pipeline
@@ -8,9 +9,9 @@ VRPipe::StepMember - a Step of a Pipeline
 
 =head1 DESCRIPTION
 
-A L<VRPipe::Step> can be reused in multiple different L<VRPipe::Pipeline>s.
-A Pipeline itself does not hold a list of Steps within its definition. Instead
-it C<has_many> StepMembers, which tie a Step to a particular Pipeline and also
+A L<VRPipe::Step> can be reused in multiple different L<VRPipe::Pipeline>s. A
+Pipeline itself does not hold a list of Steps within its definition. Instead it
+C<has_many> StepMembers, which tie a Step to a particular Pipeline and also
 notes the C<step_number()>, so that the correct order of Steps is known.
 
 *** more documentation to come
@@ -42,22 +43,22 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepMember extends VRPipe::Persistent {
-    has 'step' => (is => 'rw',
-                   isa => Persistent,
-                   coerce => 1,
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   is_key => 1,
+    has 'step' => (is         => 'rw',
+                   isa        => Persistent,
+                   coerce     => 1,
+                   traits     => ['VRPipe::Persistent::Attributes'],
+                   is_key     => 1,
                    belongs_to => 'VRPipe::Step');
     
-    has 'pipeline' => (is => 'rw',
-                       isa => Persistent,
-                       coerce => 1,
-                       traits => ['VRPipe::Persistent::Attributes'],
-                       is_key => 1,
+    has 'pipeline' => (is         => 'rw',
+                       isa        => Persistent,
+                       coerce     => 1,
+                       traits     => ['VRPipe::Persistent::Attributes'],
+                       is_key     => 1,
                        belongs_to => 'VRPipe::Pipeline');
     
-    has 'step_number' => (is => 'rw',
-                          isa => IntSQL[4],
+    has 'step_number' => (is     => 'rw',
+                          isa    => IntSQL [4],
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_key => 1);
     
@@ -65,7 +66,7 @@ class VRPipe::StepMember extends VRPipe::Persistent {
     
     around step (PreviousStepOutput :$previous_step_outputs?, VRPipe::StepState :$step_state?) {
         my $step = $self->$orig();
-        $step->step_state($step_state) if $step_state;
+        $step->step_state($step_state)                       if $step_state;
         $step->previous_step_outputs($previous_step_outputs) if $previous_step_outputs;
         return $step;
     }

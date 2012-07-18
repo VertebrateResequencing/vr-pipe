@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataSourceFactory - instantiate a particular type of DataSource
@@ -9,7 +10,7 @@ VRPipe::DataSourceFactory - instantiate a particular type of DataSource
 =head1 DESCRIPTION
 
 Internal use only; normally you just:
-
+    
     my $ds = VRPipe::DataSource->get(type => 'fofn', ...)
 
 *** more documentation to come
@@ -42,6 +43,6 @@ package VRPipe::DataSourceFactory;
 use MooseX::AbstractFactory;
 
 implementation_does qw/VRPipe::DataSourceRole/;
-implementation_class_via sub { 'VRPipe::DataSource::'.shift };
+implementation_class_via sub { 'VRPipe::DataSource::' . shift };
 
 1;

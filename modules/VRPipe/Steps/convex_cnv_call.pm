@@ -1,10 +1,12 @@
+
 =head1 NAME
 
 VRPipe::Steps::convex_cnv_call - a step
 
 =head1 DESCRIPTION
 
-Runs the SWCNVCall R script in the CoNVex package, generating CNV Calls from GAM Correction files
+Runs the SWCNVCall R script in the CoNVex package, generating CNV Calls from
+GAM Correction files
 
 =head1 AUTHOR
 
@@ -35,64 +37,67 @@ use VRPipe::Base;
 class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
     method options_definition {
         return { 'centromere_reg_file' => VRPipe::StepOption->create(description => 'Centromere regions file'),
-                 'sw_exec' => VRPipe::StepOption->create(description => 'Full path to Smith-Waterman execution binary'),
-                 'sw_pval' => VRPipe::StepOption->create(description => 'p value for Smith-Waterman algorithm', optional => 1, default_value => 2),
-                 'swt_del' => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
-                 'swt_dup' => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
-                 'dv' => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
-                 'rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
-        };
+                 'sw_exec'             => VRPipe::StepOption->create(description => 'Full path to Smith-Waterman execution binary'),
+                 'sw_pval'             => VRPipe::StepOption->create(description => 'p value for Smith-Waterman algorithm', optional => 1, default_value => 2),
+                 'swt_del'             => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
+                 'swt_dup'             => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
+                 'dv'                  => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
+                 'rscript_path'        => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'), };
     }
+    
     method inputs_definition {
         return { gam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more gam files from which to call CNV') };
     }
-	method body_sub {
-		return sub {
-			my $self = shift;
-
-			my $options = $self->options;
-
-			my $centromere_reg_file= $options->{'centromere_reg_file'};
-			my $sw_exec = $options->{'sw_exec'};
-			my $sw_pval = $options->{'sw_pval'};
-			my $swt_del = $options->{'swt_del'};
-			my $swt_dup = $options->{'swt_dup'};
-			my $dv = $options->{'dv'};
-			my $rscript_path = $options->{'rscript_path'};
-
+    
+    method body_sub {
+        return sub {
+            my $self = shift;
+            
+            my $options = $self->options;
+            
+            my $centromere_reg_file = $options->{'centromere_reg_file'};
+            my $sw_exec             = $options->{'sw_exec'};
+            my $sw_pval             = $options->{'sw_pval'};
+            my $swt_del             = $options->{'swt_del'};
+            my $swt_dup             = $options->{'swt_dup'};
+            my $dv                  = $options->{'dv'};
+            my $rscript_path        = $options->{'rscript_path'};
+            
             my $req = $self->new_requirements(memory => 2000, time => 1);
-
-			foreach my $gam_file (@{$self->inputs->{gam_files}}) {
-				my $gam_path = $gam_file->path;
-                my $sample = $gam_file->metadata->{sample};
-
+            
+            foreach my $gam_file (@{ $self->inputs->{gam_files} }) {
+                my $gam_path = $gam_file->path;
+                my $sample   = $gam_file->metadata->{sample};
+                
                 # CNV call filename example: CoNVex_MOPD5095428_p2_tdel5_tdup5_dv0.5_.txt
-				my $basename = "CoNVex_${sample}_p${sw_pval}_tdel${swt_del}_tdup${swt_dup}_dv${dv}_.txt";
-
-				my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt' );
-				my $cnv_dir = $cnv_file->dir;
-
-				my $cmd = "R --vanilla --slave --args '$sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$sample,$centromere_reg_file,$cnv_dir,$sw_exec' < $rscript_path/SWCNVCall.R";
-				$self->dispatch([$cmd, $req, {output_files => [$cnv_file]}]); 
-			}
-		};
-
-	}
-    method outputs_definition {
-        return {
-			cnv_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a CNV call file for each input GAM file'),
+                my $basename = "CoNVex_${sample}_p${sw_pval}_tdel${swt_del}_tdup${swt_dup}_dv${dv}_.txt";
+                
+                my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt');
+                my $cnv_dir = $cnv_file->dir;
+                
+                my $cmd = "R --vanilla --slave --args '$sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$sample,$centromere_reg_file,$cnv_dir,$sw_exec' < $rscript_path/SWCNVCall.R";
+                $self->dispatch([$cmd, $req, { output_files => [$cnv_file] }]);
+            }
         };
+    
     }
+    
+    method outputs_definition {
+        return { cnv_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a CNV call file for each input GAM file'), };
+    }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Runs CoNVex SW CNV Call program, generating a CNV Call text file for each GAM file";
     }
-    method max_simultaneous {
-        return 0; # meaning unlimited
-    }
     
+    method max_simultaneous {
+        return 0;            # meaning unlimited
+    }
+
 }
 
 1;

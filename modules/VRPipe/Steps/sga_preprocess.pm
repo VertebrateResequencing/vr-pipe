@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::sga_preprocess - a step
@@ -33,7 +34,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 # Usage: sga preprocess [OPTION] --quality-scale=STR READS1 READS2 ...
 # Prepare READS1, READS2, ... data files for assembly
 # If pe-mode is turned on (pe-mode=1) then if a read is discarded its pair will be discarded as well.
-# 
+#
 #       --help                           display this help and exit
 #       -v, --verbose                    display verbose output
 #       -o, --out=FILE                   write the reads to FILE (default: stdout)
@@ -42,7 +43,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 #                                        1 - reads are paired with the first read in READS1 and the second
 #                                        read in READS2. The paired reads will be interleaved in the output file
 #                                        2 - reads are paired and the records are interleaved within a single file.
-#       -q, --quality-trim=INT           perform Heng Li's BWA quality trim algorithm. 
+#       -q, --quality-trim=INT           perform Heng Li's BWA quality trim algorithm.
 #                                        Reads are trimmed according to the formula:
 #                                        argmax_x{\sum_{i=x+1}^l(INT-q_i)} if q_l<INT
 #                                        where l is the original read length.
@@ -70,60 +71,68 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
     method options_definition {
-        return { sga_preprocess_options => VRPipe::StepOption->create(description => 'options to sga preprocess', optional => 1, default_value => '--min-length=75'),
-                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_preprocess_options => VRPipe::StepOption->create(description => 'options to sga preprocess',   optional => 1, default_value => '--min-length=75'),
+                 sga_exe                => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
+    
     method inputs_definition {
         return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'fastq files to be indexed') };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
             
-            my $sga_exe = $options->{sga_exe};
+            my $sga_exe  = $options->{sga_exe};
             my $sga_opts = $options->{sga_preprocess_options};
             if ($sga_opts =~ /preprocess/) {
                 $self->throw("sga_preprocess_options should not include the preprocess subcommand");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess '.$sga_opts.' $fastq_file(s)'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess ' . $sga_opts . ' $fastq_file(s)'));
             
             my %fastqs;
-            foreach my $fq (@{$self->inputs->{fastq_files}}) {
+            foreach my $fq (@{ $self->inputs->{fastq_files} }) {
                 my $meta = $fq->metadata;
                 next unless $meta->{paired};
                 my $basename = $fq->basename;
                 $basename =~ s/\.(1|2)\.(fq|fastq)(\.gz)?$/\.processed.fq/;
                 if ($meta->{paired} == 1) {
-                    unshift @{$fastqs{$basename}}, $fq;
-                } else {
-                    push @{$fastqs{$basename}}, $fq;
+                    unshift @{ $fastqs{$basename} }, $fq;
+                }
+                else {
+                    push @{ $fastqs{$basename} }, $fq;
                 }
             }
             
             my $req = $self->new_requirements(memory => 3900, time => 1);
             foreach my $fq (keys %fastqs) {
-                my @fqs = map { $_->path } @{$fastqs{$fq}};
-                my $meta = $self->common_metadata($fastqs{$fq});
+                my @fqs          = map { $_->path } @{ $fastqs{$fq} };
+                my $meta         = $self->common_metadata($fastqs{$fq});
                 my $processed_fq = $self->output_file(output_key => 'preprocessed_fastq_files', basename => $fq, type => 'fq', metadata => $meta);
-                my $cmd = qq[$sga_exe preprocess $sga_opts ].join(' ',@fqs).' > '.$processed_fq->path;
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::sga_preprocess', 'preprocess_and_check', [$cmd, $req, {output_files => [$processed_fq]}]);
+                my $cmd          = qq[$sga_exe preprocess $sga_opts ] . join(' ', @fqs) . ' > ' . $processed_fq->path;
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::sga_preprocess', 'preprocess_and_check', [$cmd, $req, { output_files => [$processed_fq] }]);
             }
         };
     }
+    
     method outputs_definition {
         return { preprocessed_fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'the preprocessed fastq files', max_files => -1) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Prepare fastq files for assembly with sga";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
+    
     method preprocess_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($out_path) = $cmd_line =~ /> (\S+)$/;
         $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
@@ -135,7 +144,7 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
         
         my $reads = $out_fq->num_records;
         if ($reads > 0) {
-            $out_fq->add_metadata({reads => $reads});
+            $out_fq->add_metadata({ reads => $reads });
             return 1;
         }
         else {

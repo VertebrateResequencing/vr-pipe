@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepStats - store basic stats about the work a Step requests
@@ -42,33 +43,33 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepStats extends VRPipe::Persistent {
-    has 'step' => (is => 'rw',
-                   isa => Persistent,
-                   coerce => 1,
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   is_key => 1,
+    has 'step' => (is         => 'rw',
+                   isa        => Persistent,
+                   coerce     => 1,
+                   traits     => ['VRPipe::Persistent::Attributes'],
+                   is_key     => 1,
                    belongs_to => 'VRPipe::Step');
     
-    has 'pipelinesetup' => (is => 'rw',
-                            isa => Persistent,
-                            coerce => 1,
-                            traits => ['VRPipe::Persistent::Attributes'],
-                            is_key => 1,
+    has 'pipelinesetup' => (is         => 'rw',
+                            isa        => Persistent,
+                            coerce     => 1,
+                            traits     => ['VRPipe::Persistent::Attributes'],
+                            is_key     => 1,
                             belongs_to => 'VRPipe::PipelineSetup');
     
-    has 'submission' => (is => 'rw',
-                         isa => Persistent,
-                         coerce => 1,
-                         traits => ['VRPipe::Persistent::Attributes'],
-                         is_key => 1,
+    has 'submission' => (is         => 'rw',
+                         isa        => Persistent,
+                         coerce     => 1,
+                         traits     => ['VRPipe::Persistent::Attributes'],
+                         is_key     => 1,
                          belongs_to => 'VRPipe::Submission');
     
-    has 'memory' => (is => 'rw',
-                     isa => IntSQL[6],
+    has 'memory' => (is     => 'rw',
+                     isa    => IntSQL [6],
                      traits => ['VRPipe::Persistent::Attributes']);
     
-    has 'time' => (is => 'rw',
-                   isa => IntSQL[8], # this time is in seconds, and we might have something run for weeks or even months
+    has 'time' => (is     => 'rw',
+                   isa    => IntSQL [8],                       # this time is in seconds, and we might have something run for weeks or even months
                    traits => ['VRPipe::Persistent::Attributes']);
     
     __PACKAGE__->make_persistent();

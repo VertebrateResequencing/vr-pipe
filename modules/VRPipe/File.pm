@@ -73,7 +73,7 @@ class VRPipe::File extends VRPipe::Persistent {
     #     insensitive, so we can't store two different files that only differ
     #     by case!
     has 'path' => (is      => 'rw',
-                   isa     => AbsoluteFile, # we can't be nice and auto convert relative to absolute because alterations made by moose during construction do not affect what gets put in the db
+                   isa     => AbsoluteFile,                      # we can't be nice and auto convert relative to absolute because alterations made by moose during construction do not affect what gets put in the db
                    coerce  => 1,
                    traits  => ['VRPipe::Persistent::Attributes'],
                    is_key  => 1,
@@ -139,7 +139,7 @@ class VRPipe::File extends VRPipe::Persistent {
                     isa => 'Maybe[IO::File|FileHandle]');
     
     method check_file_existence_on_disc (File $path?) {
-        $path ||= $self->path; # optional so that we can call this without a db connection by supplying the path
+        $path ||= $self->path;         # optional so that we can call this without a db connection by supplying the path
         my $e = -e $path;
         return $e || 0;
     }
@@ -575,6 +575,7 @@ class VRPipe::File extends VRPipe::Persistent {
         $lines || $self->throw("Failed to find any lines in " . $self->path . ", even though it has size!");
         return $lines;
     }
+    
     after _lines {
         my $resolve = $self->resolve;
         if ($resolve ne $self && defined $self->{_lines}) {
@@ -598,10 +599,11 @@ class VRPipe::File extends VRPipe::Persistent {
         $self->md5($md5);
         $self->update;
     }
+    
     after md5 {
         my $resolve = $self->resolve;
         if ($resolve ne $self && defined $self->{md5}) {
-            $resolve->md5($self->{md5}); #*** to avoid recursion we access the self hash!! rework?...
+            $resolve->md5($self->{md5});       #*** to avoid recursion we access the self hash!! rework?...
             $resolve->update;
         }
     }

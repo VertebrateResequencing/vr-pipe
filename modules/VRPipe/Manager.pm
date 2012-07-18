@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Manager - methods for managing the execution of pipelines
@@ -10,7 +11,8 @@ VRPipe::Manager - methods for managing the execution of pipelines
 
 This is the main module used to discover what work needs to be done ('trigger'
 each L<VRPipe::PipelineSetup>) and then to 'dispatch' that work out to the
-system's job scheduler to actually run the command lines on the compute cluster.
+system's job scheduler to actually run the command lines on the compute
+cluster.
 
 The B<vrpipe-trigger_pipelines> and B<vrpipe-dispatch_pipelines> scripts call
 methods of this module.
@@ -58,29 +60,30 @@ class VRPipe::Manager extends VRPipe::Persistent {
     our %step_limit_instigators;
     our $do_step_limits = 0;
     
-    has '_running' => (is => 'rw',
-                       isa => 'Bool',
-                       traits => ['VRPipe::Persistent::Attributes'],
+    has '_running' => (is      => 'rw',
+                       isa     => 'Bool',
+                       traits  => ['VRPipe::Persistent::Attributes'],
                        default => 0);
     
-    has '_run_start' => (is => 'rw',
-                         isa => Datetime,
-                         traits => ['VRPipe::Persistent::Attributes'],
+    has '_run_start' => (is          => 'rw',
+                         isa         => Datetime,
+                         traits      => ['VRPipe::Persistent::Attributes'],
                          is_nullable => 1);
     
-    has '_instance_run_start' => (is => 'rw',
+    has '_instance_run_start' => (is  => 'rw',
                                   isa => Datetime);
     
-    has 'global_limit' => (is => 'rw',
+    has 'global_limit' => (is  => 'rw',
                            isa => PositiveInt);
     
-    has '_created_pipelines' => (is => 'rw',
+    has '_created_pipelines' => (is  => 'rw',
                                  isa => 'HashRef');
     
     # public getters for our private attributes
     method running {
         return $self->_running;
     }
+    
     method run_start {
         return $self->_run_start;
     }
@@ -90,6 +93,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
     around get (ClassName|Object $self: Persistent :$id?, PositiveInt :$global_limit = 500) {
         return $self->create(global_limit => $global_limit);
     }
+    
     around create (ClassName|Object $self: Persistent :$id?, PositiveInt :$global_limit = 500) {
         # our db-storage needs are class-wide, so we only have 1 row in our
         # table
@@ -98,7 +102,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
     
     method setups (Str :$pipeline_name?) {
         my @setups;
-        foreach my $ps (VRPipe::PipelineSetup->search({ }, { prefetch => 'pipeline' })) {
+        foreach my $ps (VRPipe::PipelineSetup->search({}, { prefetch => 'pipeline' })) {
             my $p = $ps->pipeline;
             if ($pipeline_name) {
                 next unless $p->name eq $pipeline_name;
@@ -109,50 +113,50 @@ class VRPipe::Manager extends VRPipe::Persistent {
             # the steps method. *** steps() currently gives a memory leak, so
             # that's the other reason we are careful to only call it once per
             # pipeline
-            my $ps_id = $ps->id;
+            my $ps_id   = $ps->id;
             my $created = $self->_created_pipelines;
-            unless (exists $created->{$p->id}) {
+            unless (exists $created->{ $p->id }) {
                 $p->steps;
-                $created->{$p->id} = 1;
+                $created->{ $p->id } = 1;
                 $self->_created_pipelines($created);
             }
             
             # we can have step-specific limits on how many subs to run at
             # once; see if any are in place and set them globally for all
             # setups
-            if ($ps->active && ! exists $setups_checked_for_step_limits{$ps_id}) {
+            if ($ps->active && !exists $setups_checked_for_step_limits{$ps_id}) {
                 my $user_opts = $ps->options;
                 
                 my @stepms = $ps->pipeline->step_members;
                 foreach my $stepm (@stepms) {
-                    my $step = $stepm->step;
+                    my $step      = $stepm->step;
                     my $step_name = $step->name;
                     
-                    my $limit = $user_opts->{$step_name.'_max_simultaneous'};
+                    my $limit = $user_opts->{ $step_name . '_max_simultaneous' };
                     unless ($limit) {
                         $limit = $step->max_simultaneous;
                     }
                     
                     if ($limit) {
-                        if (! defined $step_limits{$step_name} || $limit <= $step_limits{$step_name}) {
-                            $step_limits{$step_name} = $limit;
-                            $setups_with_step_limits{$ps_id}->{$step_name} = $limit;
+                        if (!defined $step_limits{$step_name} || $limit <= $step_limits{$step_name}) {
+                            $step_limits{$step_name}                                = $limit;
+                            $setups_with_step_limits{$ps_id}->{$step_name}          = $limit;
                             $step_limit_instigators{$step_name}->{$limit}->{$ps_id} = 1;
-                            $do_step_limits = 1;
+                            $do_step_limits                                         = 1;
                         }
                     }
                 }
                 
                 $setups_checked_for_step_limits{$ps_id} = 1;
             }
-            elsif (! $ps->active && exists $setups_with_step_limits{$ps_id}) {
-                my @limited_steps = keys %{$setups_with_step_limits{$ps_id}};
-                while (my ($step_name, $limit) = each %{$setups_with_step_limits{$ps_id}}) {
+            elsif (!$ps->active && exists $setups_with_step_limits{$ps_id}) {
+                my @limited_steps = keys %{ $setups_with_step_limits{$ps_id} };
+                while (my ($step_name, $limit) = each %{ $setups_with_step_limits{$ps_id} }) {
                     delete $step_limit_instigators{$step_name}->{$limit}->{$ps_id};
                     my $current_limit = $step_limits{$step_name};
-                    unless (keys %{$step_limit_instigators{$step_name}->{$current_limit}}) {
+                    unless (keys %{ $step_limit_instigators{$step_name}->{$current_limit} }) {
                         delete $step_limit_instigators{$step_name}->{$current_limit};
-                        my @other_limits = sort { $a <=> $b } keys %{$step_limit_instigators{$step_name}};
+                        my @other_limits = sort { $a <=> $b } keys %{ $step_limit_instigators{$step_name} };
                         if (@other_limits) {
                             $step_limits{$step_name} = $other_limits[0];
                         }
@@ -186,7 +190,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         # we'll collect data from our spools
         my %retrieved_responses = ();
-        $fm->run_on_finish (
+        $fm->run_on_finish(
             sub {
                 my $data_structure_reference = $_[5];
                 if (defined($data_structure_reference)) {
@@ -195,8 +199,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 else {
                     $self->throw("spool child failed to return anything");
                 }
-            }
-        );
+            });
         
         foreach my $setup (@$setups) {
             if ($setup->active) {
@@ -265,17 +268,17 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         # touch every child of setup
         
-        my $setup_id = $setup->id;
-        my $pipeline = $setup->pipeline;
+        my $setup_id     = $setup->id;
+        my $pipeline     = $setup->pipeline;
         my @step_members = $pipeline->step_members;
-        my $num_steps = scalar(@step_members);
+        my $num_steps    = scalar(@step_members);
         
-        my $datasource = $setup->datasource;
+        my $datasource  = $setup->datasource;
         my $output_root = $setup->output_root;
         $self->make_path($output_root);
-        my $all_done = 1;
+        my $all_done            = 1;
         my $incomplete_elements = 0;
-        my $limit = $self->global_limit;
+        my $limit               = $self->global_limit;
         my %step_counts;
         
         # We don't pass a limit to incomplete_element_states since that could
@@ -284,13 +287,13 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # limit though. The real limiting happens in handle_submissions()
         my $pager = $datasource->incomplete_element_states($setup);
         
-        $self->debug("Spool for setup ".$setup->id." got ".$pager->total_entries." incomplete element states");
-        
-        ELOOP: while (my $estates = $pager->next) {
+        $self->debug("Spool for setup " . $setup->id . " got " . $pager->total_entries . " incomplete element states");
+      
+      ELOOP: while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
-                my $element = $estate->dataelement;
+                my $element         = $estate->dataelement;
                 my $completed_steps = $estate->completed_steps;
-                $self->debug("setup $setup_id | incomplete element loop $incomplete_elements for element id ".$element->id." which has completed $completed_steps steps of $num_steps");
+                $self->debug("setup $setup_id | incomplete element loop $incomplete_elements for element id " . $element->id . " which has completed $completed_steps steps of $num_steps");
                 next if $completed_steps == $num_steps; # (rare, if ever?)
                 
                 $incomplete_elements++;
@@ -299,8 +302,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 my $already_completed_steps = 0;
                 foreach my $member (@step_members) {
                     my $step_number = $member->step_number;
-                    my $state = VRPipe::StepState->create(stepmember => $member,
-                                                          dataelement => $element,
+                    my $state = VRPipe::StepState->create(stepmember    => $member,
+                                                          dataelement   => $element,
                                                           pipelinesetup => $setup);
                     
                     my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
@@ -322,7 +325,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         next;
                     }
                     
-                    my $step_name = $step->name;
+                    my $step_name      = $step->name;
                     my $inc_step_count = 0;
                     if (exists $step_limits{$step_name}) {
                         $inc_step_count = 1;
@@ -336,7 +339,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     # waiting on submissions to complete?
                     my @submissions = $state->submissions;
                     if (@submissions) {
-                        my $unfinished = VRPipe::Submission->search({'_done' => 0, stepstate => $state->id});
+                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->id });
                         unless ($unfinished) {
                             my $ok = $step->post_process();
                             if ($ok) {
@@ -397,12 +400,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
                                 foreach my $arrayref (@$dispatched) {
                                     my ($cmd, $reqs, $job_args) = @$arrayref;
                                     my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
-                                    $self->debug(" parsing the step made new submission ".$sub->id." with job ".$sub->job->id);
+                                    $self->debug(" parsing the step made new submission " . $sub->id . " with job " . $sub->job->id);
                                 }
                                 $step_counts{$step_name}++ if $inc_step_count;
                             }
                             else {
-                                $self->debug("step ".$step->id." for data element ".$element->id." for pipeline setup ".$setup->id." neither completed nor dispatched anything!");
+                                $self->debug("step " . $step->id . " for data element " . $element->id . " for pipeline setup " . $setup->id . " neither completed nor dispatched anything!");
                                 # it is possible for a parse to result in a different step being started over because input files were missing
                             }
                         }
@@ -422,7 +425,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
     }
     
     method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, PreviousStepOutput $previous_step_outputs) {
-        while (my ($key, $val) = each %{$step->outputs()}) {
+        while (my ($key, $val) = each %{ $step->outputs() }) {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
@@ -435,7 +438,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             foreach my $submission ($state->submissions) {
                 my $sched_stdout = $submission->scheduler_stdout || next;
                 my $memory = ceil($sched_stdout->memory || $submission->memory);
-                my $time = ceil($sched_stdout->time || $submission->time);
+                my $time   = ceil($sched_stdout->time   || $submission->time);
                 VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
             }
             
@@ -462,17 +465,17 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    method check_running  {
+    method check_running {
         # update the status of each submission in case any of them finished
         my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0 }, { prefetch => 'job' });
         
         my $still_not_done = 0;
-        my $c = 0;
+        my $c              = 0;
         while (my $subs = $pager->next) {
             foreach my $sub (@$subs) {
                 my $job = $sub->job;
                 $c++;
-                $self->debug("loop $c, sub ".$sub->id." job ".$job->id);
+                $self->debug("loop $c, sub " . $sub->id . " job " . $job->id);
                 if ($job->running) {
                     # check we've had a recent heartbeat
                     $self->debug(" -- running...");
@@ -502,7 +505,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     my $pend_time = $sub->pend_time;
                     $self->debug(" -- pending for $pend_time seconds...");
                     if ($pend_time > 21600) { #*** rather than check every time check_running is called after 6hrs have passed, can we only check again once every subsequent hour?
-                        $self->warn("submission ".$sub->id." has been scheduled for $pend_time seconds - will try and resolve this");
+                        $self->warn("submission " . $sub->id . " has been scheduled for $pend_time seconds - will try and resolve this");
                         $sub->unschedule_if_not_pending;
                     }
                 }
@@ -534,7 +537,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                             $sub->extra_memory;
                         }
                         elsif ($status eq 'RUNLIMIT') {
-                            my $hrs = ceil($parser->time / 60 / 60) + 1;
+                            my $hrs         = ceil($parser->time / 60 / 60) + 1;
                             my $current_hrs = $sub->time;
                             $sub->extra_time($hrs - $current_hrs);
                         }
@@ -558,10 +561,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
         if ($do_step_limits) {
             my $array_ref = VRPipe::Submission->get_column_values(['step.name', 'count(step.name)'],
                                                                   { '_done' => 0, '_failed' => 0, '_sid' => { '!=', undef } },
-                                                                  { join => { stepstate => { stepmember => 'step' } },
-                                                                    group_by => ['step.name'] });
+                                                                  {  join     => { stepstate => { stepmember => 'step' } },
+                                                                     group_by => ['step.name'] });
             foreach my $vals (@$array_ref) {
-                $step_counts{$vals->[0]} = $vals->[1];
+                $step_counts{ $vals->[0] } = $vals->[1];
             }
         }
         
@@ -582,7 +585,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, 'me.id' => { '<=' => $last_sub_id } }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
         
         my $scheduler = VRPipe::Scheduler->get;
-        SLOOP: while (my $subs = $pager->next) {
+      SLOOP: while (my $subs = $pager->next) {
             my %batches;
             foreach my $sub (@$subs) {
                 # if the job is a block_and_skip_if_ok job, we don't actually
@@ -611,12 +614,12 @@ class VRPipe::Manager extends VRPipe::Persistent {
                 last SLOOP if $count >= $limit;
                 
                 # we're good to batch this one
-                push(@{$batches{$sub->requirements->id}}, $sub);
+                push(@{ $batches{ $sub->requirements->id } }, $sub);
             }
             
             while (my ($req_id, $subs) = each %batches) {
-                $self->debug("_~_ Batched and submitted an array of ".scalar(@$subs)." subs");
-                my $sid = $scheduler->submit(array => $subs,
+                $self->debug("_~_ Batched and submitted an array of " . scalar(@$subs) . " subs");
+                my $sid = $scheduler->submit(array        => $subs,
                                              requirements => $subs->[0]->requirements);
             }
         }

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_to_fastq - a step
@@ -36,36 +37,37 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return { };
+        return {};
     }
+    
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
-                                                            max_files => -1, 
-                                                            description => '1 or more name sorted bam files',
-                                                            metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                         bases => 'total number of base pairs',
-                                                                         reads => 'total number of reads (sequences)',
-                                                                         forward_reads => 'number of forward reads',
-                                                                         reverse_reads => 'number of reverse reads',
-                                                                         paired => '0=single ended reads only; 1=paired end reads present',
-                                                                         mean_insert_size => 'mean insert size (0 if unpaired)',
-                                                                         library => 'library name',
-                                                                         sample => 'sample name',
-                                                                         center_name => 'center name',
-                                                                         platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                         study => 'name of the study, put in the DS field of the RG header line',
-                                                                         optional => ['library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size']}
-                                                            ),
-                };
+        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                               max_files   => -1,
+                                                               description => '1 or more name sorted bam files',
+                                                               metadata    => {
+                                                                             lane             => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                                                                             bases            => 'total number of base pairs',
+                                                                             reads            => 'total number of reads (sequences)',
+                                                                             forward_reads    => 'number of forward reads',
+                                                                             reverse_reads    => 'number of reverse reads',
+                                                                             paired           => '0=single ended reads only; 1=paired end reads present',
+                                                                             mean_insert_size => 'mean insert size (0 if unpaired)',
+                                                                             library          => 'library name',
+                                                                             sample           => 'sample name',
+                                                                             center_name      => 'center name',
+                                                                             platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                                                                             study            => 'name of the study, put in the DS field of the RG header line',
+                                                                             optional         => ['library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size'] }), };
     }
+    
     method body_sub {
         return sub {
             my $self = shift;
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
-            foreach my $bam (@{$self->inputs->{bam_files}}) {
-                my $meta = $bam->metadata;
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
+                my $meta   = $bam->metadata;
                 my $paired = $meta->{paired};
                 
                 my $source_bam = $bam->path->stringify;
@@ -80,79 +82,86 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 my @fastqs;
                 if ($paired) {
                     my $fastq = $self->output_file(output_key => 'fastq_files',
-                                                   basename => "$fastq_meta->{lane}.1.fastq",
-                                                   type => 'fq',
-                                                   metadata => {%$fastq_meta,
-                                                                reads => $meta->{forward_reads},
-                                                                paired => 1});
+                                                   basename   => "$fastq_meta->{lane}.1.fastq",
+                                                   type       => 'fq',
+                                                   metadata   => {
+                                                                 %$fastq_meta,
+                                                                 reads  => $meta->{forward_reads},
+                                                                 paired => 1 });
                     my $reverse = $self->output_file(output_key => 'fastq_files',
-                                                     basename => "$fastq_meta->{lane}.2.fastq",
-                                                     type => 'fq',
-                                                     metadata => {%$fastq_meta,
-                                                                  reads => $meta->{reverse_reads},
-                                                                  paired => 2});
+                                                     basename   => "$fastq_meta->{lane}.2.fastq",
+                                                     type       => 'fq',
+                                                     metadata   => {
+                                                                   %$fastq_meta,
+                                                                   reads  => $meta->{reverse_reads},
+                                                                   paired => 2 });
                     @fastqs = ($fastq, $reverse);
                     
-                    $fastq->add_metadata({mate => $reverse->path->stringify});
-                    $reverse->add_metadata({mate => $fastq->path->stringify});
+                    $fastq->add_metadata({ mate => $reverse->path->stringify });
+                    $reverse->add_metadata({ mate => $fastq->path->stringify });
                     
-                    $out_spec = 'forward => q['.$fastq->path.'], reverse => q['.$reverse->path.']';
+                    $out_spec = 'forward => q[' . $fastq->path . '], reverse => q[' . $reverse->path . ']';
                 }
                 else {
                     my $fastq = $self->output_file(output_key => 'fastq_files',
-                                                   basename => "$fastq_meta->{lane}.0.fastq",
-                                                   type => 'fq',
-                                                   metadata => {%$fastq_meta,
-                                                                reads => $meta->{reads},
-                                                                bases => $meta->{bases},
-                                                                avg_read_length => sprintf("%0.2f", $meta->{reads} / $meta->{bases}),
-                                                                paired => 0});
+                                                   basename   => "$fastq_meta->{lane}.0.fastq",
+                                                   type       => 'fq',
+                                                   metadata   => {
+                                                                 %$fastq_meta,
+                                                                 reads           => $meta->{reads},
+                                                                 bases           => $meta->{bases},
+                                                                 avg_read_length => sprintf("%0.2f", $meta->{reads} / $meta->{bases}),
+                                                                 paired          => 0 });
                     @fastqs = ($fastq);
                     
-                    $out_spec = 'single => q['.$fastq->path.']';
+                    $out_spec = 'single => q[' . $fastq->path . ']';
                 }
                 
                 my $this_cmd = "use VRPipe::Steps::bam_to_fastq; VRPipe::Steps::bam_to_fastq->bam_to_fastq(bam => q[$source_bam], $out_spec);";
-                $self->dispatch_vrpipecode($this_cmd, $req, {output_files => \@fastqs});
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@fastqs });
             }
         };
     }
+    
     method outputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', 
-                                                              max_files => -1, 
-                                                              description => '1 or more fastq files',
-                                                              metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                           bases => 'total number of base pairs',
-                                                                           reads => 'total number of reads (sequences)',
-                                                                           avg_read_length => 'the average length of reads',
-                                                                           paired => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
-                                                                           mate => 'if paired, the path to the fastq that is our mate',
-                                                                           source_bam => 'path of the bam file this fastq file was made from',
-                                                                           insert_size => 'expected library insert size (0 if unpaired)',
-                                                                           mean_insert_size => 'calculated mean insert size (0 if unpaired)',
-                                                                           library => 'library name',
-                                                                           sample => 'sample name',
-                                                                           center_name => 'center name',
-                                                                           platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                           study => 'name of the study',
-                                                                           optional => ['mate', 'library', 'sample', 'center_name', 'platform', 'study', 'insert_size', 'mean_insert_size']}),
-               };
+        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
+                                                                 max_files   => -1,
+                                                                 description => '1 or more fastq files',
+                                                                 metadata    => {
+                                                                               lane             => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                                                                               bases            => 'total number of base pairs',
+                                                                               reads            => 'total number of reads (sequences)',
+                                                                               avg_read_length  => 'the average length of reads',
+                                                                               paired           => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
+                                                                               mate             => 'if paired, the path to the fastq that is our mate',
+                                                                               source_bam       => 'path of the bam file this fastq file was made from',
+                                                                               insert_size      => 'expected library insert size (0 if unpaired)',
+                                                                               mean_insert_size => 'calculated mean insert size (0 if unpaired)',
+                                                                               library          => 'library name',
+                                                                               sample           => 'sample name',
+                                                                               center_name      => 'center name',
+                                                                               platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                                                                               study            => 'name of the study',
+                                                                               optional         => ['mate', 'library', 'sample', 'center_name', 'platform', 'study', 'insert_size', 'mean_insert_size'] }), };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Converts bam files to fastq files";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method bam_to_fastq (ClassName|Object $self: Str|File :$bam!, Str|File :$forward?, Str|File :$reverse?, Str|File :$single?) {
         if ((defined $forward ? 1 : 0) + (defined $reverse ? 1 : 0) == 1) {
             $self->throw("When forward is used, reverse is required, and vice versa");
         }
-        if (! $forward && ! $single) {
+        if (!$forward && !$single) {
             $self->throw("At least one of single or forward+reverse are required");
         }
         
@@ -168,7 +177,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         }
         
         # parse bam file, convert to fastq, using OQ values if present
-        my $pars = VRPipe::Parser->create('bam', {file => $in_file});
+        my $pars = VRPipe::Parser->create('bam', { file => $in_file });
         $in_file->disconnect;
         my $pr = $pars->parsed_record();
         $pars->get_fields('QNAME', 'FLAG', 'SEQ', 'QUAL', 'OQ');
@@ -176,10 +185,10 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         my ($pair_count, $single_count, $total_reads_parsed) = (0, 0, 0);
         while ($pars->next_record()) {
             my $qname = $pr->{QNAME};
-            my $flag = $pr->{FLAG};
+            my $flag  = $pr->{FLAG};
             
-            my $seq = $pr->{SEQ};
-            my $oq = $pr->{OQ};
+            my $seq  = $pr->{SEQ};
+            my $oq   = $pr->{OQ};
             my $qual = $oq eq '*' ? $pr->{QUAL} : $oq;
             if ($pars->is_reverse_strand($flag)) {
                 $seq = reverse($seq);
@@ -229,16 +238,16 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             # check that sequence lengths match quality string lengths, and
             # get read and base counts
             my ($these_reads, $these_bases) = (0, 0);
-            my $pars = VRPipe::Parser->create('fastq', {file => $out_file});
+            my $pars = VRPipe::Parser->create('fastq', { file => $out_file });
             $in_file->disconnect;
             my $pr = $pars->parsed_record;
             while ($pars->next_record()) {
-                my $id = $pr->[0];
-                my $seq_len = length($pr->[1]);
+                my $id       = $pr->[0];
+                my $seq_len  = length($pr->[1]);
                 my $qual_len = length($pr->[2]);
                 unless ($seq_len == $qual_len) {
                     $out_file->unlink;
-                    $self->throw("Made fastq file ".$out_file->path." but sequence $id had mismatching sequence and quality lengths ($seq_len vs $qual_len)");
+                    $self->throw("Made fastq file " . $out_file->path . " but sequence $id had mismatching sequence and quality lengths ($seq_len vs $qual_len)");
                 }
                 $these_reads++;
                 $these_bases += $seq_len;
@@ -254,21 +263,21 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             # write out could actually be read back again
             my $expected_reads = $fq_meta->{paired} ? $pair_count : $single_count;
             unless ($expected_reads == $these_reads) {
-                $self->throw("Made fastq file ".$out_file->path." but there were only $these_reads reads instead of $expected_reads");
+                $self->throw("Made fastq file " . $out_file->path . " but there were only $these_reads reads instead of $expected_reads");
             }
-            $extra_meta{$out_file->id}->{reads} = $these_reads;
+            $extra_meta{ $out_file->id }->{reads} = $these_reads;
             
             # we can't really do much checking for base counts, so will assume
             # that if the above is fine, bases must be fine
-            $extra_meta{$out_file->id}->{bases} = $these_bases;
+            $extra_meta{ $out_file->id }->{bases} = $these_bases;
         }
         
         # add/correct metadata
         foreach my $out_file (@out_files) {
-            my $extra = $extra_meta{$out_file->id} || next;
-            $out_file->add_metadata({bases => $extra->{bases},
-                                     reads => $extra->{reads},
-                                     avg_read_length => sprintf("%0.2f", $extra->{bases} / $extra->{reads})},
+            my $extra = $extra_meta{ $out_file->id } || next;
+            $out_file->add_metadata({ bases           => $extra->{bases},
+                                      reads           => $extra->{reads},
+                                      avg_read_length => sprintf("%0.2f", $extra->{bases} / $extra->{reads}) },
                                     replace_data => 1);
         }
     }

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::sga_permute_reference - a step
@@ -33,7 +34,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 # Usage: sga preprocess [OPTION] --quality-scale=STR READS1 READS2 ...
 # Prepare READS1, READS2, ... data files for assembly
 # If pe-mode is turned on (pe-mode=1) then if a read is discarded its pair will be discarded as well.
-# 
+#
 #       --help                           display this help and exit
 #       -v, --verbose                    display verbose output
 #       -o, --out=FILE                   write the reads to FILE (default: stdout)
@@ -42,7 +43,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 #                                        1 - reads are paired with the first read in READS1 and the second
 #                                        read in READS2. The paired reads will be interleaved in the output file
 #                                        2 - reads are paired and the records are interleaved within a single file.
-#       -q, --quality-trim=INT           perform Heng Li's BWA quality trim algorithm. 
+#       -q, --quality-trim=INT           perform Heng Li's BWA quality trim algorithm.
 #                                        Reads are trimmed according to the formula:
 #                                        argmax_x{\sum_{i=x+1}^l(INT-q_i)} if q_l<INT
 #                                        where l is the original read length.
@@ -71,46 +72,52 @@ use VRPipe::Base;
 class VRPipe::Steps::sga_permute_reference with VRPipe::StepRole {
     method options_definition {
         return { sga_permute_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '--permute-ambiguous'),
-                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga'),
-                 reference_fasta => VRPipe::StepOption->create(description => 'Absolute path to reference fasta file') };
+                 sga_exe                       => VRPipe::StepOption->create(description => 'path to your sga executable',                            optional => 1, default_value => 'sga'),
+                 reference_fasta               => VRPipe::StepOption->create(description => 'Absolute path to reference fasta file') };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref     = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $sga_exe = $options->{sga_exe};
+            my $sga_exe  = $options->{sga_exe};
             my $sga_opts = $options->{sga_permute_reference_options};
             if ($sga_opts =~ /$ref|preprocess/) {
                 $self->throw("sga_permute_reference_options should not include the reference or preprocess subcommand");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess '.$sga_opts.' $reference_fasta > $permuted_reference_fasta'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga preprocess ' . $sga_opts . ' $reference_fasta > $permuted_reference_fasta'));
             
             my $basename = $ref->basename;
             $basename =~ s/(fa|fasta)(\.gz)?/permute.fa/;
-            my $outfile = $self->output_file(output_key => 'permuted_reference_fasta', output_dir => $ref->dir->stringify,  basename => $basename, type => 'txt');
+            my $outfile = $self->output_file(output_key => 'permuted_reference_fasta', output_dir => $ref->dir->stringify, basename => $basename, type => 'txt');
             
-            my $cmd = qq[$sga_exe preprocess $sga_opts $ref > ].$outfile->path;
-            $self->dispatch([$cmd, $self->new_requirements(memory => 16000, time => 1), {block_and_skip_if_ok => 1}]);
+            my $cmd = qq[$sga_exe preprocess $sga_opts $ref > ] . $outfile->path;
+            $self->dispatch([$cmd, $self->new_requirements(memory => 16000, time => 1), { block_and_skip_if_ok => 1 }]);
         };
     }
+    
     method outputs_definition {
         return { permuted_reference_fasta => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', max_files => 1) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Permute ambiguous base calls in a fasta reference file for use in sga variant calling";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
 

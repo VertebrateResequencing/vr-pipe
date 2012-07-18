@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::bam - bam filetype
@@ -9,8 +10,7 @@ VRPipe::FileType::bam - bam filetype
 =head1 DESCRIPTION
 
 bam files are the compressed binary forms of sam files:
-L<http://samtools.sourceforge.net/>
-They hold aligned biological sequence data.
+L<http://samtools.sourceforge.net/> They hold aligned biological sequence data.
 
 *** more documentation to come
 
@@ -51,13 +51,14 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
     }
     
     method num_header_lines {
-        my $path = $self->file;
-        my $headers = `samtools view -H $path`;
+        my $path         = $self->file;
+        my $headers      = `samtools view -H $path`;
         my @header_lines = split(/\n/, $headers);
         return scalar(@header_lines);
     }
+    
     method num_records {
-        my $path = $self->file;
+        my $path    = $self->file;
         my $records = `samtools view -c $path`;
         ($records) = $records =~ /^(\d+)/m;
         $records ||= 0;

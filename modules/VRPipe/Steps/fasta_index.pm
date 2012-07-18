@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::fasta_index - a step
@@ -34,16 +35,18 @@ use VRPipe::Base;
 
 class VRPipe::Steps::fasta_index with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable', optional => 1, default_value => 'samtools'),
+        return { samtools_exe    => VRPipe::StepOption->create(description => 'path to your samtools executable', optional => 1, default_value => 'samtools'),
                  reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file') };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
-            my $options = $self->options;
+            my $self     = shift;
+            my $options  = $self->options;
             my $samtools = $options->{samtools_exe};
             
             my $ref = Path::Class::File->new($options->{reference_fasta});
@@ -54,22 +57,26 @@ class VRPipe::Steps::fasta_index with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 500, time => 1);
             $self->output_file(output_key => 'fai_file',
                                output_dir => $ref->dir,
-                               basename => $ref->basename.'.fai',
-                               type => 'txt');
-            $self->dispatch([qq[$samtools faidx $ref], $req, {block_and_skip_if_ok => 1}]);
+                               basename   => $ref->basename . '.fai',
+                               type       => 'txt');
+            $self->dispatch([qq[$samtools faidx $ref], $req, { block_and_skip_if_ok => 1 }]);
         };
     }
+    
     method outputs_definition {
         return { fai_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'a .fai index file for the reference fasta') };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Indexes fasta files using samtools";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
 

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_recalibrate_quality_scores - a step
@@ -42,17 +43,17 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk {
     around options_definition {
-        return { %{$self->$orig},
-                 bam_recalibration_options => VRPipe::StepOption->create(description => 'command line options for GATK TableRecalibration', optional => 1, default_value => '-l INFO --disable_bam_indexing'),
-                };
+        return { %{ $self->$orig }, bam_recalibration_options => VRPipe::StepOption->create(description => 'command line options for GATK TableRecalibration', optional => 1, default_value => '-l INFO --disable_bam_indexing'), };
     }
+    
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
+        return { bam_files               => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
                  bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from count covariates step') };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
             $self->handle_standard_options($options);
             
@@ -64,52 +65,56 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
                 $self->throw("bam_recalibration_options should not include the reference, recalFile option or TableRecalibration task command");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'GenomeAnalysisTK', 
-                                   version => $self->gatk_version(),
-                                   summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file '.$recal_opts));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'GenomeAnalysisTK',
+                                                                  version => $self->gatk_version(),
+                                                                  summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file ' . $recal_opts));
             
             my $req = $self->new_requirements(memory => 4500, time => 2);
-            foreach my $recal_file (@{$self->inputs->{bam_recalibration_files}}) {
-                my $bam_path = $recal_file->metadata->{source_bam};
-                my $bam = VRPipe::File->get(path => $bam_path);
-                my $bam_base = $bam->basename;
-                my $bam_meta = $bam->metadata;
+            foreach my $recal_file (@{ $self->inputs->{bam_recalibration_files} }) {
+                my $bam_path   = $recal_file->metadata->{source_bam};
+                my $bam        = VRPipe::File->get(path => $bam_path);
+                my $bam_base   = $bam->basename;
+                my $bam_meta   = $bam->metadata;
                 my $recal_base = $bam_base;
                 $recal_base =~ s/bam$/recal.bam/;
                 my $recal_bam_file = $self->output_file(output_key => 'recalibrated_bam_files',
-                                                  basename => $recal_base,
-                                                  type => 'bam',
-                                                  metadata => $bam_meta);
+                                                        basename   => $recal_base,
+                                                        type       => 'bam',
+                                                        metadata   => $bam_meta);
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_bam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T TableRecalibration -R $ref -recalFile ].$recal_file->path.qq[ -I ].$bam->path.qq[ -o ].$recal_bam_file->path.qq[ $recal_opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_recalibrate_quality_scores', 'recal_and_check', [$this_cmd, $req, {output_files => [$recal_bam_file]}]); 
+                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T TableRecalibration -R $ref -recalFile ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_recalibrate_quality_scores', 'recal_and_check', [$this_cmd, $req, { output_files => [$recal_bam_file] }]);
             }
         };
     }
+    
     method outputs_definition {
-        return { recalibrated_bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
-                                                                      max_files => -1, 
-                                                                      description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
-                                                                      ) };
+        return { recalibrated_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                                            max_files   => -1,
+                                                                            description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Recalibrate quality scores of each mapped base using GATK";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
+    
     method recal_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($in_path, $out_path) = $cmd_line =~ /-I (\S+) -o (\S+)/;
-        $in_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $in_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
-        my $in_file = VRPipe::File->get(path => $in_path);
+        my $in_file  = VRPipe::File->get(path => $in_path);
         my $out_file = VRPipe::File->get(path => $out_path);
         
         $in_file->disconnect;

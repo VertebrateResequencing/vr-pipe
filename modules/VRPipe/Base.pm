@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Base - a set up module for all VRPipe classes
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Base;
     
     class VRPipe::MyClass {
@@ -36,8 +37,8 @@ VRPipe::Base - a set up module for all VRPipe classes
 =head1 DESCRIPTION
 
 Used in place of 'use MooseX::Declare;', providing the same functionality. In
-addition it sets the base class of your class to VRPipe::Base:UseMoose, which in
-turn gives you the VRPipe::Base::Debuggable and Cleanable roles.
+addition it sets the base class of your class to VRPipe::Base:UseMoose, which
+in turn gives you the VRPipe::Base::Debuggable and Cleanable roles.
 
 Furthermore, all VRPipe::Base::Types are loaded for you, and
 MooseX::StrictConstructor is turned on.
@@ -76,9 +77,7 @@ class VRPipe::Base extends MooseX::Declare is dirty {
     clean;
     
     around keywords (ClassName $self:) {
-        ClassKeyword->new(identifier => 'class'),
-        RoleKeyword->new(identifier => 'role'),
-        NamespaceKeyword->new(identifier => 'namespace'),
+        ClassKeyword->new(identifier => 'class'), RoleKeyword->new(identifier => 'role'), NamespaceKeyword->new(identifier => 'namespace'),;
     }
 }
 

@@ -21,6 +21,7 @@ my $requirements = VRPipe::Requirements->create(memory => 1, time => 1);
 is $scheduler->determine_queue($requirements), 'local', q[determine_queue() returned local's only queue];
 
 
+
 # lsf
 ok $scheduler = VRPipe::Scheduler->create(type => 'lsf'), q[able to get the lsf scheduler using get(type => 'lsf')];
 is $scheduler->type, 'lsf', 'the type really is lsf';
@@ -37,6 +38,7 @@ SKIP: {
     $requirements = VRPipe::Requirements->create(memory => 1, time => 49);
     is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave basement queue for 10MB and 49hr';
 }
+
 
 
 done_testing;

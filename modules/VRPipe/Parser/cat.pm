@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::cat - parse VRPipe concatenate files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying a cat file
@@ -53,7 +54,7 @@ use VRPipe::Base;
 
 class VRPipe::Parser::cat with VRPipe::ParserRole {
 =head2 parsed_record
-
+ 
  Title   : parsed_record
  Usage   : my $parsed_record= $obj->parsed_record()
  Function: Get the data structure that will hold the last parsed record
@@ -62,9 +63,9 @@ class VRPipe::Parser::cat with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-    
-=head2 next_record
 
+=head2 next_record
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next report from the cat file, starting with the last and
@@ -74,6 +75,7 @@ class VRPipe::Parser::cat with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record {
         # just return if no file set
         my $fh = $self->fh() || return;

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::SchedulerMethodsRole - a role required by Schedulers
@@ -10,12 +11,12 @@ VRPipe::SchedulerMethodsRole - a role required by Schedulers
 
 L<VRPipe::Scheduler> will look to the site-wide configuration of B<VRPipe> to
 see what type of job scheduler should be used, then load
-C<VRPipe::Schedulers::[type]> in order to do its work. That class must implement
-this role, the required methods of which provide Scheduler the
+C<VRPipe::Schedulers::[type]> in order to do its work. That class must
+implement this role, the required methods of which provide Scheduler the
 scheduler-specific command lines needed to do its work.
 
-Until more documentation appears here, see the existing local and lsf types
-for a clue about what the required methods are supposed to accept and return.
+Until more documentation appears here, see the existing local and lsf types for
+a clue about what the required methods are supposed to accept and return.
 Contact the author if you get stuck.
 
 *** more documentation to come
