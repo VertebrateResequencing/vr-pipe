@@ -1213,7 +1213,22 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     # to let you Dumper a Persistent object without tons of useless stuff
     sub _dumper_hook {
-        $_[0] = bless { %{ $_[0] }, '_result_source' => '* not shown for clarity *', }, ref($_[0]);
+        $_[0] = bless { _strip_result_source($_[0]) }, ref($_[0]);
+    }
+    sub _strip_result_source {
+        my $ref = shift;
+        my %hash;
+        while (my ($key, $val) = each %$ref) {
+            my $val_type = ref($val);
+            if ($key =~ /result_source$/) {
+                $val = '* not shown for clarity *';
+            }
+            elsif ($val_type && ($val_type eq 'HASH' || UNIVERSAL::can($val, 'can'))) {
+                $val = { _strip_result_source($val) };
+            }
+            $hash{$key} = $val;
+        }
+        return %hash;
     }
     
     method dump {
