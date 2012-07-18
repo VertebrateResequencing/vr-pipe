@@ -462,7 +462,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    method check_running  {
+    method check_running {
         # update the status of each submission in case any of them finished
         my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0 }, { prefetch => 'job' });
         
