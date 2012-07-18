@@ -127,18 +127,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return $digest;
     }
     
-    method _filtered_lanes (Defined :$handle!,
-                            Str :$project_regex?,
-                            Str :$sample_regex?,
-                            Str :$library_regex?,
-                            Str :$gt_status?,
-                            Str :$qc_status?,
-                            Str :$auto_qc_status?,
-                            Str :$npg_qc_status?,
-                            Bool :$import?,
-                            Bool :$qc?,
-                            Bool :$mapped?,
-                            Bool :$improved?) {
+    method _filtered_lanes (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?) {
         my @lanes = $handle->get_lanes($project_regex ? (project_regex => $project_regex) : (),
                                        $sample_regex ? (sample_regex => $sample_regex) : (),
                                        $library_regex ? (library_regex => $library_regex) : ());
@@ -184,18 +173,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return @filtered;
     }
     
-    method lanes (Defined :$handle!,
-                  Str :$project_regex?,
-                  Str :$sample_regex?,
-                  Str :$library_regex?,
-                  Str :$gt_status?,
-                  Str :$qc_status?,
-                  Str :$auto_qc_status?,
-                  Str :$npg_qc_status?,
-                  Bool :$import?,
-                  Bool :$qc?,
-                  Bool :$mapped?,
-                  Bool :$improved?) {
+    method lanes (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?) {
         my %args;
         $args{handle} = $handle if defined($handle);
         $args{project_regex} = $project_regex if defined($project_regex);
@@ -217,20 +195,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $self->_create_elements(\@element_args);
     }
     
-    method lane_bams (Defined :$handle!,
-                      Str|Dir :$local_root_dir!,
-                      Str :$project_regex?,
-                      Str :$sample_regex?,
-                      Str :$library_regex?,
-                      Str :$gt_status?,
-                      Str :$qc_status?,
-                      Str :$auto_qc_status?,
-                      Str :$npg_qc_status?,
-                      Bool :$import?,
-                      Bool :$qc?,
-                      Bool :$mapped?,
-                      Bool :$improved?,
-                      Str :$group_by_metadata?) {
+    method lane_bams (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?, Str :$group_by_metadata?) {
         my %args;
         $args{handle} = $handle if defined($handle);
         $args{local_root_dir} = $local_root_dir if defined($local_root_dir);
@@ -252,19 +217,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return $self->_lane_files(%args);
     }
     
-    method lane_improved_bams (Defined :$handle!,
-                               Str :$project_regex?,
-                               Str :$sample_regex?,
-                               Str :$library_regex?,
-                               Str :$gt_status?,
-                               Str :$qc_status?,
-                               Str :$auto_qc_status?,
-                               Str :$npg_qc_status?,
-                               Bool :$import?,
-                               Bool :$qc?,
-                               Bool :$mapped?,
-                               Bool :$improved?,
-                               Str :$group_by_metadata?) {
+    method lane_improved_bams (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?, Str :$group_by_metadata?) {
         my %args;
         $args{handle} = $handle if defined($handle);
         $args{project_regex} = $project_regex if defined($project_regex);
@@ -285,20 +238,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return $self->_lane_files(%args);
     }
     
-    method lane_fastqs(Defined :$handle!,
-                       Str|Dir :$local_root_dir!,
-                       Str :$project_regex?,
-                       Str :$sample_regex?,
-                       Str :$library_regex?,
-                       Str :$gt_status?,
-                       Str :$qc_status?,
-                       Str :$auto_qc_status?,
-                       Str :$npg_qc_status?,
-                       Bool :$import?,
-                       Bool :$qc?,
-                       Bool :$mapped?,
-                       Bool :$improved?,
-                       Str :$group_by_metadata?) {
+    method lane_fastqs (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?, Str :$group_by_metadata?) {
         my %args;
         $args{handle} = $handle if defined($handle);
         $args{local_root_dir} = $local_root_dir if defined($local_root_dir);

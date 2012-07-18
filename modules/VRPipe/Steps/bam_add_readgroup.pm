@@ -50,7 +50,7 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                                                                          center_name => 'center name',
                                                                          platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                          study => 'name of the study',
-                                                                         platform_unit => 'platform sequencing unit',,
+                                                                         platform_unit => 'platform sequencing unit',
                                                                          reads => 'total number of reads (sequences)',
                                                                          optional => ['library', 'platform_unit', 'sample', 'center_name', 'platform', 'study']}) };
     }

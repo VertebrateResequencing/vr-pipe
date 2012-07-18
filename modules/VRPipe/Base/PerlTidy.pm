@@ -41,7 +41,7 @@ sub prefilter {
     
     # it messes up indentation and syntax checking for add_method(); turn it
     # into a plain sub
-    s/\n(\s*)\$meta->add_method\('(\w+?)' => sub \{(.*?)\n(.+?)\n(\s*)\}\);\n/\n${1}sub $2 \{ \#__ADDMETHOD $3\n$4\n$5\}\n/gs;
+    s/\n(\s*)\$meta->add_method\('(\w+?)' => sub \{(.*?)\n(.+?)\n(\s*)\}\);\n/\n${1}sub $2 \{ \#__ADDMETHOD $3\n$4\n$5\} \#__ENDMETHOD\n/gs;
     
     # it fails with syntax error on try/catch blocks, and can't get the same
     # solution as method blocks to work right; turn them into if/else
@@ -60,17 +60,10 @@ sub postfilter {
     s/^(\s*)\{\s+\#__CLASS (.+?) \#__EXTRA(.*?)\n/${1}class $2\{$3\n/gm;
     
     # restore add_method
-    s/\n(\s*)sub (\w+?) \{ +\#__ADDMETHOD(.*?)\n(.+?)\n(\s*)\}\n/\n${1}\$meta->add_method\('$2' => sub \{ $3\n$4\n$5\}\);\n/gs;
+    s/\n(\s*)sub (\S+) \{ +\#__ADDMETHOD(.*?)\n(.+?)\n(\s*)\} +\#__ENDMETHOD\n/\n${1}\$meta->add_method\('$2' => sub \{ $3\n$4\n$5\}\);\n/gs;
     
     # restore try/catch
     s/\n(\s*)if \(1\) \{ +\#__TRY(.+)?\}(\s+)else \{ +\#__CATCH ([^\n]*) __ENDCATCH\n/\n${1}try \{$2\}${3}catch $4\{\n/gs;
-    
-    # the method->sub->method trick screws up comments that appear on the next
-    # line; fix them now
-    s/^(\s*method .+)\n\s+(\#.+?)\n(\s*)/$1\n$3$2\n$3/gm;
-    
-    # it also likes adding extra spaces between ; and # - remove these
-    s/^(\s*\S[^#]+?)([;,]) +\#/$1$2 #/gm;
     
     # don't have completely empty lines after start of brace block
     s/\{\n\n/\{\n/g;
