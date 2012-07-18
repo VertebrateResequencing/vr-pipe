@@ -65,13 +65,6 @@ sub postfilter {
     # restore try/catch
     s/\n(\s*)if \(1\) \{ +\#__TRY(.+)?\}(\s+)else \{ +\#__CATCH ([^\n]*) __ENDCATCH\n/\n${1}try \{$2\}${3}catch $4\{\n/gs;
     
-    # the method->sub->method trick screws up comments that appear on the next
-    # line; fix them now
-    s/^(\s*method .+)\n\s+(\#.+?)\n(\s*)/$1\n$3$2\n$3/gm;
-    
-    # it also likes adding extra spaces between ; and # - remove these
-    s/^(\s*\S[^#]+?)([;,]) +\#/$1$2 #/gm;
-    
     # don't have completely empty lines after start of brace block
     s/\{\n\n/\{\n/g;
     
