@@ -142,8 +142,6 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
         return 1;
     }
     
-    use Inline C => <<'END_C';
-
 =head2 qual_to_ints
 
  Title   : qual_to_ints
@@ -155,6 +153,8 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
  Args    : quality string
 
 =cut
+    
+    use Inline C => <<'END_C';
 
 void qual_to_ints(SV* obj, char* str) {
     Inline_Stack_Vars;

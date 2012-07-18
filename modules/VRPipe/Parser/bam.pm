@@ -179,8 +179,6 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
         }
     }
     
-    use Inline C => <<'END_C';
-
 =head2 is_sequencing_paired
 
  Title   : is_sequencing_paired
@@ -190,10 +188,6 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
  Args    : int (the flag recieved from $parsed_record->{FLAG})
 
 =cut
-
-int is_sequencing_paired(SV* self, int flag) {
-    return (flag & 0x0001) > 0 ? 1 : 0;
-}
 
 =head2 is_mapped_paired
 
@@ -205,10 +199,6 @@ int is_sequencing_paired(SV* self, int flag) {
 
 =cut
 
-int is_mapped_paired(SV* self, int flag) {
-    return (flag & 0x0002) > 0 ? 1 : 0;
-}
-
 =head2 is_mapped
 
  Title   : is_mapped
@@ -218,10 +208,6 @@ int is_mapped_paired(SV* self, int flag) {
  Args    : int (the flag recieved from $parsed_record->{FLAG})
 
 =cut
-
-int is_mapped(SV* self, int flag) {
-    return (flag & 0x0004) == 0 ? 1 : 0;
-}
 
 =head2 is_mate_mapped
 
@@ -233,10 +219,6 @@ int is_mapped(SV* self, int flag) {
 
 =cut
 
-int is_mate_mapped(SV* self, int flag) {
-    return (flag & 0x0008) == 0 ? 1 : 0;
-}
-
 =head2 is_reverse_strand
 
  Title   : is_reverse_strand
@@ -246,10 +228,6 @@ int is_mate_mapped(SV* self, int flag) {
  Args    : int (the flag recieved from $parsed_record->{FLAG})
 
 =cut
-
-int is_reverse_strand(SV* self, int flag) {
-    return (flag & 0x0010) > 0 ? 1 : 0;
-}
 
 =head2 is_mate_reverse_strand
 
@@ -262,10 +240,6 @@ int is_reverse_strand(SV* self, int flag) {
 
 =cut
 
-int is_mate_reverse_strand(SV* self, int flag) {
-    return (flag & 0x0020) > 0 ? 1 : 0;
-}
-
 =head2 is_first
 
  Title   : is_first
@@ -275,10 +249,6 @@ int is_mate_reverse_strand(SV* self, int flag) {
  Args    : int (the flag recieved from $parsed_record->{FLAG})
 
 =cut
-
-int is_first(SV* self, int flag) {
-    return (flag & 0x0040) > 0 ? 1 : 0;
-}
 
 =head2 is_second
 
@@ -290,10 +260,6 @@ int is_first(SV* self, int flag) {
 
 =cut
 
-int is_second(SV* self, int flag) {
-    return (flag & 0x0080) > 0 ? 1 : 0;
-}
-
 =head2 is_primary
 
  Title   : is_primary
@@ -303,10 +269,6 @@ int is_second(SV* self, int flag) {
  Args    : int (the flag recieved from $parsed_record->{FLAG})
 
 =cut
-
-int is_primary(SV* self, int flag) {
-    return (flag & 0x0100) == 0 ? 1 : 0;
-}
 
 =head2 passes_qc
 
@@ -318,10 +280,6 @@ int is_primary(SV* self, int flag) {
 
 =cut
 
-int passes_qc(SV* self, int flag) {
-    return (flag & 0x0200) == 0 ? 1 : 0;
-}
-
 =head2 is_duplicate
 
  Title   : is_duplicate
@@ -331,6 +289,48 @@ int passes_qc(SV* self, int flag) {
  Args    : int (the flag recieved from $parsed_record->{FLAG})
 
 =cut
+    
+    use Inline C => <<'END_C';
+
+int is_sequencing_paired(SV* self, int flag) {
+    return (flag & 0x0001) > 0 ? 1 : 0;
+}
+
+int is_mapped_paired(SV* self, int flag) {
+    return (flag & 0x0002) > 0 ? 1 : 0;
+}
+
+int is_mapped(SV* self, int flag) {
+    return (flag & 0x0004) == 0 ? 1 : 0;
+}
+
+int is_mate_mapped(SV* self, int flag) {
+    return (flag & 0x0008) == 0 ? 1 : 0;
+}
+
+int is_reverse_strand(SV* self, int flag) {
+    return (flag & 0x0010) > 0 ? 1 : 0;
+}
+
+int is_mate_reverse_strand(SV* self, int flag) {
+    return (flag & 0x0020) > 0 ? 1 : 0;
+}
+
+int is_first(SV* self, int flag) {
+    return (flag & 0x0040) > 0 ? 1 : 0;
+}
+
+int is_second(SV* self, int flag) {
+    return (flag & 0x0080) > 0 ? 1 : 0;
+}
+
+int is_primary(SV* self, int flag) {
+    return (flag & 0x0100) == 0 ? 1 : 0;
+}
+
+int passes_qc(SV* self, int flag) {
+    return (flag & 0x0200) == 0 ? 1 : 0;
+}
 
 int is_duplicate(SV* self, int flag) {
     return (flag & 0x0400) > 0 ? 1 : 0;
