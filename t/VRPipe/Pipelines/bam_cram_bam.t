@@ -25,16 +25,16 @@ my $ref_dir = dir($output_dir, 'ref');
 $pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'human_g1k_v37.chr20.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
-my $pipelinesetup = VRPipe::PipelineSetup->create(name => 'bam_to_cram_to_bam',
-                                               datasource => VRPipe::DataSource->create(type => 'fofn',
-                                                                                     method => 'all',
-                                                                                     source => file(qw(t data hs_chr20.qc.bam.fofn)),
-                                                                                     options => { }),
-                                               output_root => $output_dir,
-                                               pipeline => $pipeline,
-                                               options => { reference_fasta => $ref_fa });
+my $pipelinesetup = VRPipe::PipelineSetup->create(name       => 'bam_to_cram_to_bam',
+                                                  datasource => VRPipe::DataSource->create(type    => 'fofn',
+                                                                                           method  => 'all',
+                                                                                           source  => file(qw(t data hs_chr20.qc.bam.fofn)),
+                                                                                           options => {}),
+                                                  output_root => $output_dir,
+                                                  pipeline    => $pipeline,
+                                                  options     => { reference_fasta => $ref_fa });
 
-my @output_files = ( file($output_dir, 'ref', 'human_g1k_v37.chr20.fa.fai') );
+my @output_files = (file($output_dir, 'ref', 'human_g1k_v37.chr20.fa.fai'));
 
 my @files = ('hs_chr20.a.bam', 'hs_chr20.b.bam', 'hs_chr20.c.bam', 'hs_chr20.d.bam');
 my $element_id = 0;

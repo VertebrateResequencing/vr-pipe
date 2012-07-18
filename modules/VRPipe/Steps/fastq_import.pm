@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::fastq_import - a step
@@ -37,33 +38,35 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
     use Net::FTP::Robust;
     
     method options_definition {
-        return { };
+        return {};
     }
+    
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq',
-                                                              description => 'fastq files',
-                                                              max_files => -1,
-                                                              metadata => {remote_path => 'the complete remote location of the file',
-                                                                           expected_md5 => 'the md5 checksum the file is supposed to have',
-                                                                           optional => ['remote_path', 'expected_md5']},
-                                                              check_existence => 0) };
+        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
+                                                                 description => 'fastq files',
+                                                                 max_files   => -1,
+                                                                 metadata    => {
+                                                                               remote_path  => 'the complete remote location of the file',
+                                                                               expected_md5 => 'the md5 checksum the file is supposed to have',
+                                                                               optional     => ['remote_path', 'expected_md5'] },
+                                                                 check_existence => 0) };
     }
+    
     method body_sub {
         return sub {
             my $self = shift;
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            foreach my $fq_file (@{$self->inputs->{fastq_files}}) {
+            foreach my $fq_file (@{ $self->inputs->{fastq_files} }) {
                 my $ifile = $fq_file->path;
                 
-                my $meta = $fq_file->metadata;
+                my $meta        = $fq_file->metadata;
                 my $remote_path = $meta->{remote_path};
                 if ($remote_path && $remote_path ne $ifile) {
                     # download to the path of our input file, which doesn't
                     # exist yet
                     $self->output_file(output_key => 'local_fastq_files', output_dir => $ifile->dir, basename => $ifile->basename, type => 'fq', metadata => $fq_file->metadata);
-                    $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_import; VRPipe::Steps::fastq_import->download_fastq(source => q[$remote_path], dest => q[$ifile]);],
-                                               $req);
+                    $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_import; VRPipe::Steps::fastq_import->download_fastq(source => q[$remote_path], dest => q[$ifile]);], $req);
                 }
                 else {
                     # symlink our existing input file to the pipeline output dir
@@ -75,36 +78,40 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
             }
         };
     }
+    
     method outputs_definition {
-        return { local_fastq_files => VRPipe::StepIODefinition->create(type => 'fq',
-                                                                    description => 'a fastq file on a local disc',
-                                                                    max_files => -1) };
+        return { local_fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
+                                                                       description => 'a fastq file on a local disc',
+                                                                       max_files   => -1) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "If fastq files in the datasource are on an external ftp site, downloads them to local disc";
     }
+    
     method max_simultaneous {
         return 50;
     }
     
     method download_fastq (ClassName|Object $self: Str :$source!, Str|File :$dest!) {
-        my $fq_file = VRPipe::File->get(path => $dest);
-        my $meta = $fq_file->meta;
+        my $fq_file      = VRPipe::File->get(path => $dest);
+        my $meta         = $fq_file->meta;
         my $expected_md5 = $meta->{expected_md5};
-        my $local_dir = $fq_file->dir;
-        my $out_file = $fq_file->path;
+        my $local_dir    = $fq_file->dir;
+        my $out_file     = $fq_file->path;
         
         $fq_file->disconnect;
         
-        my $ff = File::Fetch->new(uri => $source);
-        my $scheme = $ff->scheme;
-        my $host = $ff->host;
-        my $path = $ff->path;
-        my $basename = $ff->file;
-        my $full_path = $path.$basename;
+        my $ff        = File::Fetch->new(uri => $source);
+        my $scheme    = $ff->scheme;
+        my $host      = $ff->host;
+        my $path      = $ff->path;
+        my $basename  = $ff->file;
+        my $full_path = $path . $basename;
         
         if ($scheme eq 'ftp') {
             # use Net::FTP::Robust, since it's potentially better
@@ -122,7 +129,7 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
                 
                 unless ($ok) {
                     my $tries = 0;
-                    while (! $ok) {
+                    while (!$ok) {
                         $fq_file->unlink;
                         
                         $fq_file->disconnect;

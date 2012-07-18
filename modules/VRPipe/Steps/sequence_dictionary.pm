@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::sequence_dictionary - a step
@@ -41,51 +42,57 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
     }
     
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to fasta file'),
+        return { reference_fasta         => VRPipe::StepOption->create(description => 'absolute path to fasta file'),
                  reference_assembly_name => VRPipe::StepOption->create(description => 'public name of the assembly, eg. NCBI37; defaults to being excluded', optional => 1),
-                 reference_public_url => VRPipe::StepOption->create(description => 'public url that the reference_fasta can be accessed from; defaults to reference_fasta path', optional => 1),
-                 reference_species => VRPipe::StepOption->create(description => 'species of the reference genome; defaults to being excluded', optional => 1)};
+                 reference_public_url    => VRPipe::StepOption->create(description => 'public url that the reference_fasta can be accessed from; defaults to reference_fasta path', optional => 1),
+                 reference_species       => VRPipe::StepOption->create(description => 'species of the reference genome; defaults to being excluded', optional => 1) };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref     = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $dict_file = $self->output_file(output_key => 'reference_dict', output_dir => $ref->dir->stringify, basename => $ref->basename.'.dict', type => 'txt')->path;
-            my $ur = $options->{reference_public_url} || 'file:'.$ref;
+            my $dict_file = $self->output_file(output_key => 'reference_dict', output_dir => $ref->dir->stringify, basename => $ref->basename . '.dict', type => 'txt')->path;
+            my $ur = $options->{reference_public_url} || 'file:' . $ref;
             my $as = $options->{reference_assembly_name};
             my $sp = $options->{reference_species};
             
-            my @constants = ('UR:'.$ur);
-            push(@constants, 'AS:'.$as) if $as;
-            push(@constants, 'SP:'.$sp) if $sp;
+            my @constants = ('UR:' . $ur);
+            push(@constants, 'AS:' . $as) if $as;
+            push(@constants, 'SP:' . $sp) if $sp;
             my $constants = join("\t", @constants);
             
             my $code = qq[use VRPipe::Steps::sequence_dictionary; VRPipe::Steps::sequence_dictionary->dicter(ref => q[$ref], dict => q[$dict_file], constants => q[$constants]);];
             
-            $self->dispatch_vrpipecode($code, $self->new_requirements(memory => 2000, time => 1), {block_and_skip_if_ok => 1});
+            $self->dispatch_vrpipecode($code, $self->new_requirements(memory => 2000, time => 1), { block_and_skip_if_ok => 1 });
         };
     }
+    
     method outputs_definition {
         return { reference_dict => VRPipe::StepIODefinition->create(type => 'txt', description => '.dict file') };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Creates a sequence dictionary (.dict file) from a fasta file, suitable for use by Picard/GATK and for forming good bam headers";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method dicter (ClassName|Object $self: Str|File :$ref!, Str|File :$dict!, Str :$constants?) {
-        my $pars = VRPipe::Parser->create('fasta', {file => $ref});
+        my $pars = VRPipe::Parser->create('fasta', { file => $ref });
         
         my $dict_file = VRPipe::File->get(path => $dict);
         $dict_file->disconnect;
@@ -94,17 +101,17 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
         
         my $pr = $pars->parsed_record();
         while ($pars->next_record()) {
-            my $sn = 'SN:'.$pr->[0];
+            my $sn = 'SN:' . $pr->[0];
             
             my $seq = uc($pr->[1]);
             $seq =~ s/\s//g;
-            my $ln = 'LN:'.length($seq);
-            my $m5 = 'M5:'.md5_hex($seq);
+            my $ln = 'LN:' . length($seq);
+            my $m5 = 'M5:' . md5_hex($seq);
             
             my @fields = ('@SQ', $sn, $ln, $m5);
             push(@fields, $constants) if ($constants && $constants =~ /\S/);
             
-            $dict_content .= join("\t", @fields)."\n";
+            $dict_content .= join("\t", @fields) . "\n";
         }
         
         my $write = 1;
@@ -119,10 +126,10 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
             # Instead we'll compare to what the existing .dict file contains and
             # fail/succeed accordingly
             sleep(5);
-            my $ifh = $dict_file->openr;
+            my $ifh             = $dict_file->openr;
             my $current_content = $dict_file->slurp;
             unless ($current_content eq $dict_content) {
-                $self->warn("A dict file with different content already exists at '".$dict_file->path."'; was it made by a different pipeline with different settings? I will not overwrite it");
+                $self->warn("A dict file with different content already exists at '" . $dict_file->path . "'; was it made by a different pipeline with different settings? I will not overwrite it");
                 $write = 0;
             }
         }

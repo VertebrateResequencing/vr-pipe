@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_substitution_rate - a step
@@ -37,49 +38,57 @@ class VRPipe::Steps::bam_substitution_rate with VRPipe::StepRole {
     
     method options_definition {
         return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
-                 samtools_exe => VRPipe::StepOption->create(description => 'path to samtools executable', 
-							 optional => 1, 
-							 default_value => 'samtools') };
+                 samtools_exe    => VRPipe::StepOption->create(
+                                                            description   => 'path to samtools executable',
+                                                            optional      => 1,
+                                                            default_value => 'samtools') };
     }
+    
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam',
-                                                            max_files => -1,
-                                                            description => '1 or more bam files',
-                                                            metadata => {mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
-                                                                         optional => ['mapped_fastqs']}),
-                 dict_file => VRPipe::StepIODefinition->create(type => 'txt',
-                                                            description => 'a sequence dictionary file for your reference fasta') };
+        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                               max_files   => -1,
+                                                               description => '1 or more bam files',
+                                                               metadata    => {
+                                                                             mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
+                                                                             optional      => ['mapped_fastqs'] }),
+                 dict_file => VRPipe::StepIODefinition->create(type        => 'txt',
+                                                               description => 'a sequence dictionary file for your reference fasta') };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref     = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $samtools_exe = $options->{samtools_exe};
-            my ($dict_file) = @{$self->inputs->{dict_file}};
-            my $dict_path = $dict_file->path->stringify;
-            my $req = $self->new_requirements(memory => 3000, time => 1);
+            my ($dict_file)  = @{ $self->inputs->{dict_file} };
+            my $dict_path    = $dict_file->path->stringify;
+            my $req          = $self->new_requirements(memory => 3000, time => 1);
             
-            foreach my $bam_file (@{$self->inputs->{bam_files}}) {
+            foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
                 my $bam_path = $bam_file->path->stringify;
                 my $this_cmd = qq[$samtools_exe mpileup -q 20 -uf $ref $bam_path | bcftools view -cgvI - | grep -vc \\#];
                 $self->dispatch_vrpipecode("use VRPipe::Steps::bam_substitution_rate; VRPipe::Steps::bam_substitution_rate->calculate_substitution_rate(snp_count_from => q[$this_cmd], dict_file => q[$dict_path], bam_path => q[$bam_path ]);", $req);
             }
         };
     }
+    
     method outputs_definition {
-        return { };
+        return {};
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Calculates the substitution rate given a mapped bam, storing the result as metadata on the bam (and and source bam/fastqs it was made from).";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method calculate_substitution_rate (ClassName|Object $self: Str :$snp_count_from!, Str|File :$dict_file!, Str|File :$bam_path!) {
@@ -94,17 +103,17 @@ class VRPipe::Steps::bam_substitution_rate with VRPipe::StepRole {
         }
         close($cmd_fh);
         
-        my $pars = VRPipe::Parser->create('dict', {file => $dict_file});
+        my $pars = VRPipe::Parser->create('dict', { file => $dict_file });
         my $ref_bases = $pars->total_length;
         
         my $substitution_rate = sprintf("%0.3f", $snps / $ref_bases);
         
-        $bam_file->add_metadata({substitution_rate => $substitution_rate});
+        $bam_file->add_metadata({ substitution_rate => $substitution_rate });
         my $bam_meta = $bam_file->metadata;
         foreach my $key (qw(source_bam source_fastq mapped_fastqs)) {
             my @source_paths = split(',', $bam_meta->{$key} || next);
             foreach my $path (@source_paths) {
-                VRPipe::File->get(path => $path)->add_metadata({substitution_rate => $substitution_rate});
+                VRPipe::File->get(path => $path)->add_metadata({ substitution_rate => $substitution_rate });
             }
         }
     }

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepBehaviour - specify actions to take after a Pipeline Step completes
@@ -49,48 +50,48 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepBehaviour extends VRPipe::Persistent {
-    has 'pipeline' => (is => 'rw',
-                       isa => Persistent,
-                       coerce => 1,
-                       traits => ['VRPipe::Persistent::Attributes'],
-                       is_key => 1,
+    has 'pipeline' => (is         => 'rw',
+                       isa        => Persistent,
+                       coerce     => 1,
+                       traits     => ['VRPipe::Persistent::Attributes'],
+                       is_key     => 1,
                        belongs_to => 'VRPipe::Pipeline');
     
-    has 'after_step' => (is => 'rw',
-                         isa => IntSQL[4],
+    has 'after_step' => (is     => 'rw',
+                         isa    => IntSQL [4],
                          traits => ['VRPipe::Persistent::Attributes'],
                          is_key => 1);
     
-    has 'behaviour' => (is => 'ro',
-                        isa => Varchar[64],
-                        traits => ['VRPipe::Persistent::Attributes'],
-                        is_key => 1,
+    has 'behaviour' => (is      => 'ro',
+                        isa     => Varchar [64],
+                        traits  => ['VRPipe::Persistent::Attributes'],
+                        is_key  => 1,
                         default => 'delete_outputs');
     
-    has 'behaviour_array' => (is => 'rw',
-                              isa => 'ArrayRef',
-                              traits => ['VRPipe::Persistent::Attributes'],
+    has 'behaviour_array' => (is      => 'rw',
+                              isa     => 'ArrayRef',
+                              traits  => ['VRPipe::Persistent::Attributes'],
                               default => sub { [] });
     
-    has 'regulated_by' => (is => 'rw',
-                           isa => Varchar[64],
-                           traits => ['VRPipe::Persistent::Attributes'],
+    has 'regulated_by' => (is      => 'rw',
+                           isa     => Varchar [64],
+                           traits  => ['VRPipe::Persistent::Attributes'],
                            default => '');
     
-    has 'default_regulation' => (is => 'rw',
-                                 isa => 'Bool',
-                                 traits => ['VRPipe::Persistent::Attributes'],
+    has 'default_regulation' => (is      => 'rw',
+                                 isa     => 'Bool',
+                                 traits  => ['VRPipe::Persistent::Attributes'],
                                  default => 0);
     
-    has 'dataelement' => (is => 'rw',
+    has 'dataelement' => (is  => 'rw',
                           isa => 'VRPipe::DataElement');
-    has 'pipelinesetup' => (is => 'rw',
+    has 'pipelinesetup' => (is  => 'rw',
                             isa => 'VRPipe::PipelineSetup');
     
     __PACKAGE__->make_persistent();
     
     method behave (VRPipe::DataElement :$data_element!, VRPipe::PipelineSetup :$pipeline_setup!) {
-        my $go_ahead = 0;
+        my $go_ahead     = 0;
         my $regulated_by = $self->regulated_by;
         if ($regulated_by) {
             my $options = $pipeline_setup->options;
@@ -119,7 +120,8 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
             if ($method eq 'delete_inputs') {
                 $self->throw('delete_inputs is a special behaviour that only operate on step 0, i.e. files from the datasource') unless (@steps == 1 && $steps[0] == 0);
                 $self->$method;
-            } else {
+            }
+            else {
                 return $self->$method($self->step_numbers_to_states(\@steps));
             }
         }
@@ -127,14 +129,14 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     
     method step_numbers_to_states (ArrayRef[PositiveInt] $steps) {
         my $pipeline = $self->pipeline;
-        my $de = $self->dataelement;
-        my $ps = $self->pipelinesetup;
+        my $de       = $self->dataelement;
+        my $ps       = $self->pipelinesetup;
         
         my %step_nums = map { $_ => 1 } @$steps;
         
         my @states;
         foreach my $stepm ($pipeline->step_members) {
-            if (exists $step_nums{$stepm->step_number}) {
+            if (exists $step_nums{ $stepm->step_number }) {
                 push(@states, VRPipe::StepState->get(stepmember => $stepm, pipelinesetup => $ps, dataelement => $de));
             }
         }
@@ -156,8 +158,8 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     
     method delete_inputs {
         my $data_element = $self->dataelement;
-        my $result = $data_element->result;
-        my $paths = $result->{paths} || $self->throw("data element ".$data_element->id." gave a result with no paths");
+        my $result       = $data_element->result;
+        my $paths        = $result->{paths} || $self->throw("data element " . $data_element->id . " gave a result with no paths");
         foreach my $path (@$paths) {
             VRPipe::File->get(path => file($path)->absolute)->unlink;
         }

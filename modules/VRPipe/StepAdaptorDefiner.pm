@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepAdaptorDefiner - a non-persistent definer of StepAdaptors
@@ -10,8 +11,8 @@ VRPipe::StepAdaptorDefiner - a non-persistent definer of StepAdaptors
 
 L<VRPipe::StepAdaptor>s are Persistent objects stored in the database, and are
 also a bit difficult to specify in code. This class makes it easy to define one
-in a C<VRPipe::Pipeline::[pipeline_name]> module file, and it will automatically
-be made into a real StepAdaptor.
+in a C<VRPipe::Pipeline::[pipeline_name]> module file, and it will
+automatically be made into a real StepAdaptor.
 
 *** more documentation to come
 
@@ -42,19 +43,19 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepAdaptorDefiner {
-    has 'from_step' => (is => 'ro',
+    has 'from_step' => (is  => 'ro',
                         isa => 'Int');
     
-    has 'to_step' => (is => 'ro',
-                      isa => PositiveInt,
+    has 'to_step' => (is     => 'ro',
+                      isa    => PositiveInt,
                       coerce => 1);
     
-    has 'from_key' => (is => 'ro',
-                       isa => 'Str',
+    has 'from_key' => (is      => 'ro',
+                       isa     => 'Str',
                        builder => '_from_key_builder',
-                       lazy => 1);
+                       lazy    => 1);
     
-    has 'to_key' => (is => 'ro',
+    has 'to_key' => (is  => 'ro',
                      isa => 'Str');
     
     method _from_key_builder {
@@ -69,7 +70,7 @@ class VRPipe::StepAdaptorDefiner {
     method define (Persistent|VRPipe::Pipeline $pipeline) {
         my $sa = VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => $self->to_step);
         my $adaptor_hash = $sa->adaptor_hash;
-        $adaptor_hash->{$self->to_key}->{$self->from_key} = $self->from_step;
+        $adaptor_hash->{ $self->to_key }->{ $self->from_key } = $self->from_step;
         $sa->adaptor_hash($adaptor_hash);
         $sa->update;
         return $sa;

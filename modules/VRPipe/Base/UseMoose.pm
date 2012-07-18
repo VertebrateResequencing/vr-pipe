@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Base::UseMoose - getting VRPipe to use Moose

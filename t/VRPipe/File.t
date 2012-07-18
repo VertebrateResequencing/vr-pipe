@@ -8,7 +8,7 @@ BEGIN {
     use VRPipeTest;
 }
 
-my $vrobj = VRPipe::Manager->get;
+my $vrobj   = VRPipe::Manager->get;
 my $tmp_dir = $vrobj->tempdir;
 
 my $input_path = file($tmp_dir, 'input.txt');
@@ -16,16 +16,16 @@ open(my $fh, '>', $input_path) or die "Could not write to $input_path\n";
 print $fh "line1\nline2\n";
 close($fh);
 
-ok my $vrfile = VRPipe::File->create(path => $input_path, type => 'txt', metadata => {foo => 'bar'}), 'created a File using create()';
+ok my $vrfile = VRPipe::File->create(path => $input_path, type => 'txt', metadata => { foo => 'bar' }), 'created a File using create()';
 undef($vrfile);
 $vrfile = VRPipe::File->get(id => 1);
-$vrfile->add_metadata({baz => 'loman'});
-is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, {foo => 'bar', baz => 'loman'}, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
+$vrfile->add_metadata({ baz => 'loman' });
+is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, { foo => 'bar', baz => 'loman' }, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
 cmp_ok $vrfile->s, '>=', 5, 'file has some size';
 
 ok my $orig_mtime = $vrfile->mtime, 'got mtime';
 sleep(2);
-system("touch ".$vrfile->path);
+system("touch " . $vrfile->path);
 my $new_mtime = $vrfile->mtime;
 is $orig_mtime, $new_mtime, 'mtime unchanged in db';
 $vrfile->update_stats_from_disc;
@@ -95,10 +95,10 @@ $vrdest3->symlink($vrdest4);
 is_deeply [$vrsource->e, $vrdest1->e, $vrdest2->e, $vrdest3->e, $vrdest4->e, $vrdest4->s], [0, 0, 1, 1, 1, $vrdest2->s], 'file existance and sizes are correct after moves';
 is_deeply [$vrdest2->metadata->{test}, $vrdest4->metadata->{test}], ['meta', 'meta'], 'both final moved file and symlink have source metadata';
 my $real_fileid = $vrdest2->id;
-is $vrdest4->resolve->id, $real_fileid, 'the symlink resolves to the real file';
+is $vrdest4->resolve->id,  $real_fileid, 'the symlink resolves to the real file';
 is $vrsource->resolve->id, $real_fileid, 'the source resolves to the final move destination';
 
-$vrdest4->add_metadata({test2 => 'meta2'});
+$vrdest4->add_metadata({ test2 => 'meta2' });
 is $vrdest2->metadata->{test2}, 'meta2', 'changing metadata on a symlink changes the source file as well';
 $ofh = $vrdest4->open('>>');
 print $ofh "bar\n";

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::java - a step
@@ -35,16 +36,16 @@ use VRPipe::Base;
 class VRPipe::Steps::java with VRPipe::StepRole {
     use POSIX qw(ceil);
     
-    has 'java_exe' => (is => 'rw',
+    has 'java_exe' => (is  => 'rw',
                        isa => 'Str');
     
-    has 'memory_multiplier' => (is => 'ro',
-                                isa => 'Num',
+    has 'memory_multiplier' => (is      => 'ro',
+                                isa     => 'Num',
                                 default => 0.9);
     
-    has 'standard_options' => (is => 'ro',
-                               isa => 'ArrayRef',
-                               lazy => 1,
+    has 'standard_options' => (is      => 'ro',
+                               isa     => 'ArrayRef',
+                               lazy    => 1,
                                builder => '_build_standard_options');
     
     method _build_smaller_recommended_requirements_override {
@@ -63,40 +64,45 @@ class VRPipe::Steps::java with VRPipe::StepRole {
         
         my $temp_dir = '';
         if ($dir) {
-            $temp_dir = ' -Djava.io.tmpdir='.$self->tempdir(DIR => $dir);
+            $temp_dir = ' -Djava.io.tmpdir=' . $self->tempdir(DIR => $dir);
         }
         return qq[-Xmx${java_mem}m -Xms${java_mem}m$temp_dir -server -XX:+UseSerialGC];
     }
     
     method handle_standard_options (HashRef $options) {
-        foreach my $method (@{$self->standard_options}) {
+        foreach my $method (@{ $self->standard_options }) {
             next unless defined $options->{$method};
             $self->$method($options->{$method});
         }
     }
     
     method options_definition {
-        return { java_exe => VRPipe::StepOption->create(description => 'path to your java executable', optional => 1, default_value => 'java'),
-                 tmp_dir => VRPipe::StepOption->create(description => 'location for tmp directories; defaults to working directory', optional => 1),
-                };
+        return { java_exe => VRPipe::StepOption->create(description => 'path to your java executable',                                optional => 1, default_value => 'java'),
+                 tmp_dir  => VRPipe::StepOption->create(description => 'location for tmp directories; defaults to working directory', optional => 1), };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub { return 1; };
     }
+    
     method outputs_definition {
-        return { };
+        return {};
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Generic step for steps using java";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;                 # meaning unlimited
     }
 }
 

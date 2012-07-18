@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::fqc - parse fastqcheck files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying a fastqcheck file
@@ -55,31 +56,31 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::fqc with VRPipe::ParserRole {
-    has 'num_sequences' => (is => 'ro',
-                            isa => PositiveInt,
+    has 'num_sequences' => (is     => 'ro',
+                            isa    => PositiveInt,
                             coerce => 1,
                             writer => '_num_sequences');
     
-    has 'total_length' => (is => 'ro',
-                           isa => PositiveInt,
+    has 'total_length' => (is     => 'ro',
+                           isa    => PositiveInt,
                            coerce => 1,
                            writer => '_total_length');
     
-    has 'avg_length' => (is => 'ro',
-                         isa => 'Num',
+    has 'avg_length' => (is     => 'ro',
+                         isa    => 'Num',
                          writer => '_avg_length');
     
-    has 'max_length' => (is => 'ro',
-                         isa => PositiveInt,
+    has 'max_length' => (is     => 'ro',
+                         isa    => PositiveInt,
                          coerce => 1,
                          writer => '_max_length');
     
-    has 'standard_deviations' => (is => 'ro',
-                                  isa => 'ArrayRef',
+    has 'standard_deviations' => (is     => 'ro',
+                                  isa    => 'ArrayRef',
                                   writer => '_standard_deviations');
-    
-=head2 parsed_record
 
+=head2 parsed_record
+ 
  Title   : parsed_record
  Usage   : my $parsed_record= $obj->parsed_record()
  Function: Get the data structure that will hold the last parsed record
@@ -98,9 +99,9 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-    
-=head2 next_record
 
+=head2 next_record
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next line from the fastqcheck file.
@@ -109,6 +110,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record {
         # just return if no file set
         my $fh = $self->fh() || return;
@@ -122,7 +124,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
         my $pr = $self->parsed_record;
         
         my $r = 0;
-        for my $i (0..$#data) {
+        for my $i (0 .. $#data) {
             my $datum = $data[$i];
             if ($i == 0) {
                 next if $datum eq 'base';
@@ -133,9 +135,9 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
         
         return 1;
     }
-    
-=head2 num_sequences
 
+=head2 num_sequences
+ 
  Title   : num_sequences
  Usage   : my $num_of_sequences = $obj->num_sequences();
  Function: Get the number of sequences that the fastqcheck file is summarising.
@@ -143,8 +145,9 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-=head2 total_length
 
+=head2 total_length
+ 
  Title   : total_length
  Usage   : my $total_length_of_all_sequences = $obj->total_length();
  Function: Get the total length of sequences that the fastqcheck file is
@@ -153,8 +156,9 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-=head2 avg_length
 
+=head2 avg_length
+ 
  Title   : avg_length
  Usage   : my $average_length_of_a_sequence = $obj->avg_length();
  Function: Get the average length of a sequence.
@@ -162,8 +166,9 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-=head2 max_length
 
+=head2 max_length
+ 
  Title   : max_length
  Usage   : my $length_of_longest_sequence = $obj->max_length();
  Function: Get the length of the longest sequence.
@@ -172,8 +177,9 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
                 filename or filehandle)
 
 =cut
-=head2 standard_deviations
 
+=head2 standard_deviations
+ 
  Title   : standard_deviations
  Usage   : my ($total_sd, $per_base_sd) = @{$obj->standard_deviations()};
  Function: Get the standard deviations at 0.25; total and per-base.
@@ -210,11 +216,11 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
             return 1;
         }
         
-        $self->throw("Unable to parse header before first result - is this a fastqcheck file?")
+        $self->throw("Unable to parse header before first result - is this a fastqcheck file?");
     }
 
 =head2 avg_base_quals
-
+ 
  Title   : avg_base_quals
  Usage   : my ($bases, $quals) = $pars->avg_base_quals();
  Function: Get the average qualities for each base.
@@ -222,6 +228,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method avg_base_quals {
         $self->_save_position || return;
         $self->_seek_first_record();
@@ -241,7 +248,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
     }
 
 =head2 avg_qual
-
+ 
  Title   : avg_qual
  Usage   : my $avg_qual = $pars->avg_qual();
  Function: Get the average quality of all bases.
@@ -249,6 +256,7 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method avg_qual {
         $self->_save_position || return;
         $self->_seek_first_record();
@@ -261,16 +269,16 @@ class VRPipe::Parser::fqc with VRPipe::ParserRole {
         
         return $avg_qual;
     }
-
+    
     method _avg_base_qual {
         my $rh = $self->parsed_record();
         
         my $sum    = 0;
         my $nvals  = 0;
         my $nquals = $#{$rh} - 1;
-        for my $i (6..$nquals) {
+        for my $i (6 .. $nquals) {
             $nvals += $rh->[$i];
-            $sum   += $rh->[$i] * ($i-6);
+            $sum += $rh->[$i] * ($i - 6);
         }
         my $avg_qual = $nvals ? $sum / $nvals : 0;
         

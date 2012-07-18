@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataElementState - tracks the state of a DataElement for a given Setup
@@ -41,23 +42,23 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::DataElementState extends VRPipe::Persistent {
-    has 'pipelinesetup' => (is => 'rw',
-                            isa => Persistent,
-                            coerce => 1,
-                            traits => ['VRPipe::Persistent::Attributes'],
-                            is_key => 1,
+    has 'pipelinesetup' => (is         => 'rw',
+                            isa        => Persistent,
+                            coerce     => 1,
+                            traits     => ['VRPipe::Persistent::Attributes'],
+                            is_key     => 1,
                             belongs_to => 'VRPipe::PipelineSetup');
     
-    has 'dataelement' => (is => 'rw',
-                          isa => Persistent,
-                          coerce => 1,
-                          traits => ['VRPipe::Persistent::Attributes'],
-                          is_key => 1,
+    has 'dataelement' => (is         => 'rw',
+                          isa        => Persistent,
+                          coerce     => 1,
+                          traits     => ['VRPipe::Persistent::Attributes'],
+                          is_key     => 1,
                           belongs_to => 'VRPipe::DataElement');
     
-    has 'completed_steps' => (is => 'rw',
-                              isa => IntSQL[4],
-                              traits => ['VRPipe::Persistent::Attributes'],
+    has 'completed_steps' => (is      => 'rw',
+                              isa     => IntSQL [4],
+                              traits  => ['VRPipe::Persistent::Attributes'],
                               default => 0);
     
     __PACKAGE__->make_persistent();
@@ -77,7 +78,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         # get all the stepstates made for our dataelement and pipeline and
         # start_over() them
         foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id }, { prefetch => 'stepmember' })) {
-            next unless exists $step_numbers{$ss->stepmember->step_number};
+            next unless exists $step_numbers{ $ss->stepmember->step_number };
             $ss->start_over();
         }
         
@@ -102,13 +103,13 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         my %ss_ids;
         foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id })) {
             push(@step_states, $ss);
-            $ss_ids{$ss->id} = 1;
+            $ss_ids{ $ss->id } = 1;
         }
         
         my %step_nums;
         foreach my $ss (@step_states) {
             my @ofiles = $ss->_output_files;
-            my $ours = 1;
+            my $ours   = 1;
             # go through all the output files of our step state
             foreach my $sof (@ofiles) {
                 next if $sof->output_key eq 'temp';
@@ -116,10 +117,10 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
                 # check that all other step states that output this same file
                 # are also our own step states
                 my $pager = VRPipe::StepOutputFile->search_paged({ file => $sof->file->id }, { prefetch => 'stepstate' });
-                PLOOP: while (my $other_sofs = $pager->next) {
+              PLOOP: while (my $other_sofs = $pager->next) {
                     foreach my $other_sof (@$other_sofs) {
                         my $other_ss = $other_sof->stepstate;
-                        unless (exists $ss_ids{$other_ss->id}) {
+                        unless (exists $ss_ids{ $other_ss->id }) {
                             $ours = 0;
                             last PLOOP;
                         }
@@ -130,7 +131,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             }
             
             $ours || next;
-            $step_nums{$ss->stepmember->step_number} = 1;
+            $step_nums{ $ss->stepmember->step_number } = 1;
         }
         
         my @step_nums = sort { $a <=> $b } keys %step_nums;

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::gatk - a step
@@ -33,18 +34,18 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::gatk extends VRPipe::Steps::java {
-    has 'gatk_path' => (is => 'rw',
-                        isa => Dir,
+    has 'gatk_path' => (is     => 'rw',
+                        isa    => Dir,
                         coerce => 1);
     
     around _build_standard_options {
-        return [@{$self->$orig}, 'gatk_path'];
+        return [@{ $self->$orig }, 'gatk_path'];
     }
     
     our %GATK_VERSIONS;
-    has 'gatk_version' => (is => 'ro',
-                           isa => 'Str',
-                           lazy => 1,
+    has 'gatk_version' => (is      => 'ro',
+                           isa     => 'Str',
+                           lazy    => 1,
                            builder => 'determine_gatk_version');
     
     method jar (ClassName|Object $self:) {
@@ -62,28 +63,33 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
     }
     
     around options_definition {
-        return { %{$self->$orig},
+        return { %{ $self->$orig },
                  reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
-                 gatk_path => VRPipe::StepOption->create(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"),
-                };
+                 gatk_path       => VRPipe::StepOption->create(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"), };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub { return 1; };
     }
+    
     method outputs_definition {
-        return { };
+        return {};
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Generic step for using the GenomeAnalysisToolkit (GATK)";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;                 # meaning unlimited
     }
 }
 

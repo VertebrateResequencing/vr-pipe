@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::bas - parse bas files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying bas file
@@ -55,9 +56,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::bas with VRPipe::ParserRole {
-    
 =head2 parsed_record
-
+ 
  Title   : parsed_record
  Usage   : my $parsed_record= $obj->parsed_record()
  Function: Get the data structure that will hold the last parsed record
@@ -87,9 +87,9 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-    
-=head2 next_record
 
+=head2 next_record
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next line from the bas file
@@ -98,6 +98,7 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record {
         # just return if no file set
         my $fh = $self->fh() || return;
@@ -113,13 +114,13 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
         # have bam filename in column 1, and newest gained a 20 and 21 column
         my $pr = $self->parsed_record;
         if (@data == 19 || @data == 20 || @data == 21) {
-            for my $i (0..$#data) {
+            for my $i (0 .. $#data) {
                 $pr->[$i] = $data[$i];
             }
         }
         elsif (@data == 18) {
             my $j = 0;
-            for my $i (0..$#data) {
+            for my $i (0 .. $#data) {
                 if ($i == 1) {
                     $j++;
                 }
@@ -129,13 +130,13 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
         }
         elsif (@data == 17) {
             my $j = 2;
-            for my $i (0..$#data) {
+            for my $i (0 .. $#data) {
                 $pr->[$j] = $data[$i];
                 $j++;
             }
         }
         else {
-            $self->throw("Unexpected number of columns (".scalar(@data)."); is this really a bas file?\n$line");
+            $self->throw("Unexpected number of columns (" . scalar(@data) . "); is this really a bas file?\n$line");
         }
         
         # header?
@@ -143,10 +144,10 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
             # initialise everything to unknown/0 so that if user looks at pr
             # without checking that next_record returned true, they don't
             # get the header values
-            for my $i (0..6) {
+            for my $i (0 .. 6) {
                 $pr->[$i] = 'unknown';
             }
-            for my $i (7..20) {
+            for my $i (7 .. 20) {
                 $pr->[$i] = 0;
             }
             $self->_set_header_parsed() unless $self->_header_parsed();
@@ -155,9 +156,9 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
         
         return 1;
     }
-    
-=head2 total_reads
 
+=head2 total_reads
+ 
  Title   : total_reads
  Usage   : my $total_reads = $obj->total_reads();
  Function: Get the total reads of all readgroups reported in the bas file.
@@ -165,6 +166,7 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method total_reads {
         return $self->_total(9);
     }
@@ -176,7 +178,7 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
         $self->_seek_first_record();
         
         my $total = 0;
-        my $pr = $self->parsed_record;
+        my $pr    = $self->parsed_record;
         while ($self->next_record) {
             $total += $pr->[$index];
         }
@@ -185,9 +187,9 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
         
         return $total;
     }
-    
-=head2 mapped_reads
 
+=head2 mapped_reads
+ 
  Title   : mapped_reads
  Usage   : my $mapped_reads = $obj->mapped_reads();
  Function: Get the total mapped reads of all readgroups reported in the bas
@@ -196,12 +198,13 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method mapped_reads {
         return $self->_total(10);
     }
-    
-=head2 total_bases
 
+=head2 total_bases
+ 
  Title   : total_bases
  Usage   : my $total_bases = $obj->total_bases();
  Function: Get the total bases of all readgroups reported in the bas
@@ -210,12 +213,13 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method total_bases {
         return $self->_total(7);
     }
-    
-=head2 mapped_bases
 
+=head2 mapped_bases
+ 
  Title   : mapped_bases
  Usage   : my $mapped_bases = $obj->mapped_bases();
  Function: Get the total mappedbases of all readgroups reported in the bas
@@ -224,12 +228,13 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method mapped_bases {
         return $self->_total(8);
     }
-    
-=head2 percent_mapped
 
+=head2 percent_mapped
+ 
  Title   : percent_mapped
  Usage   : my $percent_mapped = $obj->percent_mapped();
  Function: Get the percent of mapped reads across all readgroups reported in
@@ -238,14 +243,15 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method percent_mapped {
-        my $total = $self->total_reads;
+        my $total  = $self->total_reads;
         my $mapped = $self->mapped_reads;
         return (100 / $total) * $mapped;
     }
-    
-=head2 duplicate_reads
 
+=head2 duplicate_reads
+ 
  Title   : duplicate_reads
  Usage   : my $duplicate_reads= $obj->duplicate_reads();
  Function: Get the total number of duplicate reads of all readgroups reported in
@@ -254,12 +260,13 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method duplicate_reads {
         return $self->_total(19);
     }
-    
-=head2 duplicate_bases
 
+=head2 duplicate_bases
+ 
  Title   : duplicate_bases
  Usage   : my $duplicate_bases = $obj->duplicate_bases();
  Function: Get the total duplicate bases of all readgroups reported in the bas
@@ -268,6 +275,7 @@ class VRPipe::Parser::bas with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method duplicate_bases {
         return $self->_total(20);
     }

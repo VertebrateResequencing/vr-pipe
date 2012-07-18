@@ -1,10 +1,11 @@
+
 =head1 NAME
 
-VRPipe::Persistent::Schema - the frontend for connecting to and getting at
-                             persistently stored objects
+VRPipe::Persistent::Schema - the frontend for connecting to and getting at     
+                        persistently stored objects
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Persistent::Schema;
     
     my $schema = VRPipe::Persistent::Schema->connect();
@@ -26,7 +27,8 @@ and lets you search for/create particular instances. The details of which
 database to connect to are automatically determined from the site-wide
 configuration.
 
-See L<http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSet.pm>.
+See
+L<http://search.cpan.org/~abraxxa/DBIx-Class-0.08127/lib/DBIx/Class/ResultSet.pm>.
 
 =head1 AUTHOR
 
@@ -59,47 +61,48 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::ConverterFactory;
     
     our $VERSION = 22;
-    __PACKAGE__->load_classes({'VRPipe' => [qw/Step Scheduler Job Requirements
-                                               DataSource DataElement Pipeline
-                                               StepCmdSummary StepMember File
-                                               PipelineSetup StepBehaviour
-                                               StepState Submission StepAdaptor
-                                               PersistentArray StepOption
-                                               PersistentArrayMember Manager
-                                               StepIODefinition StepOutputFile
-                                               DataElementState DataElementLink
-                                               LocalSchedulerJob
-                                               LocalSchedulerJobState
-                                               StepStats/]});
+    __PACKAGE__->load_classes({
+           'VRPipe' => [
+               qw/Step Scheduler Job Requirements
+                 DataSource DataElement Pipeline
+                 StepCmdSummary StepMember File
+                 PipelineSetup StepBehaviour
+                 StepState Submission StepAdaptor
+                 PersistentArray StepOption
+                 PersistentArrayMember Manager
+                 StepIODefinition StepOutputFile
+                 DataElementState DataElementLink
+                 LocalSchedulerJob
+                 LocalSchedulerJobState
+                 StepStats/] });
     
     # deploy method overridden in order to add indexes in a db-dependent manner
     sub deploy {
         my ($self, $sqltargs, $dir) = @_;
-	
+        
         $self->throw_exception("Can't deploy without storage") unless $self->storage;
         $self->storage->deploy($self, undef, $sqltargs, $dir);
-	
+        
         my $idx_cmds = $self->get_idx_sql('create');
         if ($idx_cmds) {
             $self->storage->dbh_do(
                 sub {
                     my ($storage, $dbh, $idx_cmds) = @_;
                     foreach my $cmd (@{$idx_cmds}) {
-                       $dbh->do($cmd);
+                        $dbh->do($cmd);
                     }
                 },
-                $idx_cmds
-            );
+                $idx_cmds);
         }
     }
     
     sub get_idx_sql {
         my ($self, $mode) = @_;
-	$mode = 'create' unless $mode;
-	
+        $mode = 'create' unless $mode;
+        
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
-	
+        
         return $converter->index_statements($self, $mode);
     }
 }

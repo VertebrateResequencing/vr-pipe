@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Submission - holds state for Jobs that need to be run
@@ -8,14 +9,14 @@ VRPipe::Submission - holds state for Jobs that need to be run
 
 =head1 DESCRIPTION
 
-A L<VRPipe::Job> holds a command line that needs to be executed, but to
-execute it it must be passed to the system's job scheduler, which usually would
-like to know the memory and time (etc.) requirements (L<VRPipe::Requirements>).
+A L<VRPipe::Job> holds a command line that needs to be executed, but to execute
+it it must be passed to the system's job scheduler, which usually would like to
+know the memory and time (etc.) requirements (L<VRPipe::Requirements>).
 
-Submission associates Job with Requirements, and tracks scheduler-related state.
-We have here the methods to retry a failed Job, and increase memory and time
-requirements (associating with the Submission a new Requirements object) if
-necessary.
+Submission associates Job with Requirements, and tracks scheduler-related
+state. We have here the methods to retry a failed Job, and increase memory and
+time requirements (associating with the Submission a new Requirements object)
+if necessary.
 
 *** more documentation to come
 
@@ -50,79 +51,80 @@ class VRPipe::Submission extends VRPipe::Persistent {
     use DateTime;
     use VRPipe::Parser;
     
-    has 'job' => (is => 'rw',
-                  isa => Persistent,
-                  coerce => 1,
-                  traits => ['VRPipe::Persistent::Attributes'],
-                  is_key => 1,
+    has 'job' => (is         => 'rw',
+                  isa        => Persistent,
+                  coerce     => 1,
+                  traits     => ['VRPipe::Persistent::Attributes'],
+                  is_key     => 1,
                   belongs_to => 'VRPipe::Job');
     
-    has 'stepstate' => (is => 'rw',
-                        isa => Persistent,
-                        coerce => 1,
-                        traits => ['VRPipe::Persistent::Attributes'],
-                        is_key => 1,
+    has 'stepstate' => (is         => 'rw',
+                        isa        => Persistent,
+                        coerce     => 1,
+                        traits     => ['VRPipe::Persistent::Attributes'],
+                        is_key     => 1,
                         belongs_to => 'VRPipe::StepState');
     
-    has 'requirements' => (is => 'rw',
-                           isa => Persistent,
-                           coerce => 1,
-                           required => 1, # even though we're not a key
-                           traits => ['VRPipe::Persistent::Attributes'],
-                           # handles => [qw(memory time cpu tmp_space local_space custom)]), *** doesn't work for some reason, and we need them read-only anyway
-                           belongs_to => 'VRPipe::Requirements');
+    has 'requirements' => (
+        is       => 'rw',
+        isa      => Persistent,
+        coerce   => 1,
+        required => 1,                                 # even though we're not a key
+        traits   => ['VRPipe::Persistent::Attributes'],
+        # handles => [qw(memory time cpu tmp_space local_space custom)]), *** doesn't work for some reason, and we need them read-only anyway
+        belongs_to => 'VRPipe::Requirements');
     
-    has 'scheduler' => (is => 'rw',
-                        isa => Persistent,
-                        coerce => 1,
-                        required => 1,
-                        builder => '_build_default_scheduler',
-                        traits => ['VRPipe::Persistent::Attributes'],
+    has 'scheduler' => (is         => 'rw',
+                        isa        => Persistent,
+                        coerce     => 1,
+                        required   => 1,
+                        builder    => '_build_default_scheduler',
+                        traits     => ['VRPipe::Persistent::Attributes'],
                         belongs_to => 'VRPipe::Scheduler');
     
-    has '_sid' => (is => 'rw',
-                   isa => IntSQL[8],
-                   traits => ['VRPipe::Persistent::Attributes'],
+    has '_sid' => (is          => 'rw',
+                   isa         => IntSQL [8],
+                   traits      => ['VRPipe::Persistent::Attributes'],
                    is_nullable => 1);
     
-    has '_hid' => (is => 'rw',
-                   isa => IntSQL[8],
-                   traits => ['VRPipe::Persistent::Attributes'],
+    has '_hid' => (is          => 'rw',
+                   isa         => IntSQL [8],
+                   traits      => ['VRPipe::Persistent::Attributes'],
                    is_nullable => 1);
     
-    has '_aid' => (is => 'rw',
-                   isa => IntSQL[8],
-                   traits => ['VRPipe::Persistent::Attributes'],
+    has '_aid' => (is          => 'rw',
+                   isa         => IntSQL [8],
+                   traits      => ['VRPipe::Persistent::Attributes'],
                    is_nullable => 1);
     
-    has 'retries' => (is => 'rw',
-                      isa => IntSQL[4],
-                      traits => ['VRPipe::Persistent::Attributes'],
+    has 'retries' => (is      => 'rw',
+                      isa     => IntSQL [4],
+                      traits  => ['VRPipe::Persistent::Attributes'],
                       default => 0);
     
-    has '_scheduled' => (is => 'rw',
-                         isa => Datetime,
-                         coerce => 1,
-                         traits => ['VRPipe::Persistent::Attributes'],
+    has '_scheduled' => (is          => 'rw',
+                         isa         => Datetime,
+                         coerce      => 1,
+                         traits      => ['VRPipe::Persistent::Attributes'],
                          is_nullable => 1);
     
-    has '_claim' => (is => 'rw',
-                     isa => 'Bool',
-                     traits => ['VRPipe::Persistent::Attributes'],
+    has '_claim' => (is      => 'rw',
+                     isa     => 'Bool',
+                     traits  => ['VRPipe::Persistent::Attributes'],
                      default => 0);
     
-    has '_own_claim' => (is => 'rw',
-                         isa => 'Bool',
+    has '_own_claim' => (is      => 'rw',
+                         isa     => 'Bool',
                          default => 0);
     
-    has '_done' => (is => 'rw',
-                    isa => 'Bool',
-                    traits => ['VRPipe::Persistent::Attributes'],
+    has '_done' => (is      => 'rw',
+                    isa     => 'Bool',
+                    traits  => ['VRPipe::Persistent::Attributes'],
                     default => 0);
     
-    has '_failed' => (is => 'rw',
-                      isa => 'Bool',
-                      traits => ['VRPipe::Persistent::Attributes'],
+    has '_failed' => (is      => 'rw',
+                      isa     => 'Bool',
+                      traits  => ['VRPipe::Persistent::Attributes'],
                       default => 0);
     
     method _build_default_scheduler {
@@ -195,7 +197,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method update_status {
         $self->reselect_values_from_db;
-        $self->throw("Cannot call update_status when the job ".$self->job->id." is not finished") unless $self->job->finished;
+        $self->throw("Cannot call update_status when the job " . $self->job->id . " is not finished") unless $self->job->finished;
         return if $self->done || $self->failed;
         
         if ($self->job->ok) {
@@ -245,7 +247,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # assume that if its been more than a minute since the job ended, the
         # scheduler must have generated its output by now, so we don't have to
         # ask the scheduler about this sid
-        my $job = $self->job;
+        my $job      = $self->job;
         my $end_time = $self->job->end_time;
         if ($end_time && (time() - $end_time->epoch > 60)) {
             return;
@@ -266,12 +268,12 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $count++;
             my ($source, $dest, $add_marker) = @$toa;
             next unless ($source && $dest);
-            if (! ref($dest)) {
-                $self->throw("toa $count had dest $dest compared to source ".$source->path);
+            if (!ref($dest)) {
+                $self->throw("toa $count had dest $dest compared to source " . $source->path);
             }
             $self->concatenate($source, $dest,
                                unlink_source => 1,
-                               add_marker => $add_marker); 
+                               add_marker    => $add_marker);
         }
     }
     
@@ -287,7 +289,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         if ($job->running) {
             $scheduler = $self->scheduler;
             my $current_queue = $scheduler->determine_queue($self->requirements);
-            my $new_queue = $scheduler->determine_queue($new_req);
+            my $new_queue     = $scheduler->determine_queue($new_req);
             if ($new_queue ne $current_queue) {
                 $switch_queue = $new_queue;
             }
@@ -302,7 +304,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         while (my $to_extras = $pager->next) {
             foreach my $to_extra (@$to_extras) {
                 if ($first && $switch_queue && $to_extra->sid) {
-                    $self->debug("calling switch_queues(".$to_extra->sid.", $switch_queue)");
+                    $self->debug("calling switch_queues(" . $to_extra->sid . ", $switch_queue)");
                     $scheduler->switch_queue($to_extra->sid, $switch_queue);
                 }
                 $first = 0;
@@ -320,13 +322,14 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method memory {
         return $self->requirements->memory;
     }
+    
     method extra_memory (Int $extra?) {
         unless ($extra) {
             # increase by 1GB or 30%, whichever is greater
-            my $minimum_memory_increase = 1000;
+            my $minimum_memory_increase    = 1000;
             my $memory_increase_percentage = 0.3;
-            my $current_mem = $self->memory;
-            my $updated_memory_limit = $current_mem * (1 + $memory_increase_percentage);
+            my $current_mem                = $self->memory;
+            my $updated_memory_limit       = $current_mem * (1 + $memory_increase_percentage);
             if ($updated_memory_limit < $current_mem + $minimum_memory_increase) {
                 $updated_memory_limit = $current_mem + $minimum_memory_increase;
             }
@@ -339,6 +342,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method time {
         return $self->requirements->time;
     }
+    
     method extra_time (Int $extra = 1) {
         $self->_add_extra('time', $extra);
     }
@@ -346,6 +350,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method cpu {
         return $self->requirements->cpu;
     }
+    
     method extra_cpu (Int $extra = 1) {
         $self->_add_extra('cpu', $extra);
     }
@@ -353,6 +358,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method tmp_space {
         return $self->requirements->tmp_space;
     }
+    
     method extra_tmp_space (Int $extra = 4000) {
         $self->_add_extra('tmp_space', $extra);
     }
@@ -360,6 +366,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method local_space {
         return $self->requirements->local_space;
     }
+    
     method extra_local_space (Int $extra = 4000) {
         $self->_add_extra('local_space', $extra);
     }
@@ -378,7 +385,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method close_to_time_limit (Int $minutes = 30) {
         my $seconds = $minutes * 60;
-        my $job = $self->job;
+        my $job     = $self->job;
         return $job->wall_time > (($self->requirements->time * 60 * 60) - $seconds);
     }
     
@@ -410,7 +417,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $std_io_file = $self->scheduler->$method($std_dir);
             my (undef, $index) = $self->_for($orig);
             if ($index) {
-                $std_io_file .= '.'.$index;
+                $std_io_file .= '.' . $index;
             }
         }
         else {
@@ -419,16 +426,20 @@ class VRPipe::Submission extends VRPipe::Persistent {
         
         return VRPipe::File->create(path => $std_io_file, type => $type);
     }
+    
     method scheduler_stdout_file (Bool :$orig = 0) {
         return $self->_scheduler_std_file('scheduler_output_file', substr($self->scheduler->type, 0, 3), $orig);
     }
+    
     method scheduler_stderr_file (Bool :$orig = 0) {
         return $self->_scheduler_std_file('scheduler_error_file', 'cat', $orig);
     }
+    
     method _std_parser (VRPipe::File $file, Str $type) {
         $file->s || return;
-        return VRPipe::Parser->create($type, {file => $file->path}); # in case $file is not type $type, we send the path, not the object
+        return VRPipe::Parser->create($type, { file => $file->path }); # in case $file is not type $type, we send the path, not the object
     }
+    
     method scheduler_stdout {
         my $file = $self->scheduler_stdout_file || return;
         unless ($file->s) {
@@ -436,6 +447,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
         return $self->_std_parser($file, lc(substr($self->scheduler->type, 0, 3)));
     }
+    
     method scheduler_stderr {
         my $file = $self->scheduler_stderr_file || return;
         unless ($file->s) {
@@ -448,14 +460,17 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # this is where we want the job stdo/e to be archived to, not where the
         # job initially spits it out to
         my $std_dir = $self->std_dir || return;
-        return VRPipe::File->create(path => file($std_dir, 'job_std'.$kind), type => 'cat');
+        return VRPipe::File->create(path => file($std_dir, 'job_std' . $kind), type => 'cat');
     }
+    
     method job_stdout_file {
         return $self->_job_std_file('out');
     }
+    
     method job_stderr_file {
         return $self->_job_std_file('err');
     }
+    
     method job_stdout {
         my $file = $self->job_stdout_file || return;
         unless ($file->s) {
@@ -463,6 +478,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
         return $self->_std_parser($file, 'cat');
     }
+    
     method job_stderr {
         my $file = $self->job_stderr_file || return;
         unless ($file->s) {
@@ -473,10 +489,10 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method pend_time {
         my $job = $self->job;
-        my $scheduled_time = $self->_scheduled || $self->throw("called pend_time, yet submission ".$self->id." has not been scheduled!");
+        my $scheduled_time = $self->_scheduled || $self->throw("called pend_time, yet submission " . $self->id . " has not been scheduled!");
         $scheduled_time = $scheduled_time->epoch;
         if ($job->running || $job->finished) {
-            return $job->start_time->epoch -$scheduled_time;
+            return $job->start_time->epoch - $scheduled_time;
         }
         else {
             return time() - $scheduled_time;
@@ -484,8 +500,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method unschedule_if_not_pending {
-        my $sid = $self->sid || return;
-        my $aid = $self->_aid;
+        my $sid       = $self->sid || return;
+        my $aid       = $self->_aid;
         my $scheduler = $self->scheduler;
         
         my $status = $scheduler->sid_status($sid, $aid);

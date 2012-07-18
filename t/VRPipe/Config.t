@@ -25,12 +25,12 @@ is $vrp_config->config_module_path, File::Spec->catfile($temp_path, 'TestConfig.
 
 ok my $option = $vrp_config->next_option, 'got an option from next_option';
 isa_ok $option, 'VRPipe::Base::Configuration::Option';
-is $option->question, 'First question?', 'option has correct question';
-is $option->question_number, 1, 'also has a question number';
-is $option->key, 'first_key', 'key is correct';
+is $option->question,        'First question?', 'option has correct question';
+is $option->question_number, 1,                 'also has a question number';
+is $option->key,             'first_key',       'key is correct';
 is $option->value, $vrp_config->first_key, '$option->key is the same as $config->$key_name()';
 is $option->value, 'foo', 'value defaults to its specified default';
-is $option->value('bar'), 'bar', 'value could be set to bar';
+is $option->value('bar'),   'bar', 'value could be set to bar';
 is $option->value('undef'), undef, 'value can be set to string undef to return actual undef';
 is_deeply $option->valid, [qw(foo bar make_second_skip)], 'valid contains allowed values';
 throws_ok { $option->value('baz') } qr/not a valid value/, 'value throws if supplied an invalid value';
@@ -55,10 +55,11 @@ is $option->value, undef, 'value defaults to undef';
 }
 
 $vrp_config = reload();
-$vrp_config->next_option; $vrp_config->next_option;
+$vrp_config->next_option;
+$vrp_config->next_option;
 ok $option = $vrp_config->next_option, 'got a third option from next_option';
 is $option->question, 'third_key?', 'option has correct question';
-is $option->value, undef, 'value defaults to undef';
+is $option->value,    undef,        'value defaults to undef';
 {
     local $ENV{TVRPIPE_THIRDKEY} = 'foo';
     $vrp_config = reload();
@@ -85,7 +86,7 @@ is $option->value, undef, 'value defaults to undef';
 
 # skipping questions and changing defaults based on past answers
 $vrp_config = reload();
-$option = $vrp_config->next_option;
+$option     = $vrp_config->next_option;
 is $option->key, 'first_key', 'after a reload we start with the first option again...';
 $option->value('make_second_skip');
 $option = $vrp_config->next_option;
@@ -108,10 +109,10 @@ is $option->value, 'based on skipped second key', 'the third option got a specia
 # security
 $vrp_config = reload(1);
 my $injected_first_option = $vrp_config->next_option;
-is $injected_first_option->question_number, 0, 'when we have secure options, a 0th option is injected';
-is $injected_first_option->key, 'encryption_key_file', 'the 0th option has the correct key';
-is $injected_first_option->question, 'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)', 'the 0th option asks about the key file';
-is $injected_first_option->value, undef, 'key file has no default';
+is $injected_first_option->question_number, 0,                                                                                                                                   'when we have secure options, a 0th option is injected';
+is $injected_first_option->key,             'encryption_key_file',                                                                                                               'the 0th option has the correct key';
+is $injected_first_option->question,        'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)', 'the 0th option asks about the key file';
+is $injected_first_option->value,           undef,                                                                                                                               'key file has no default';
 my $secret_option = $vrp_config->option(key => 'secret_key');
 ok $secret_option->secure, 'got the secret_key option which advertises itself as secure';
 is $secret_option->value('foo'), 'foo', 'a secret option can be set without a key file...';

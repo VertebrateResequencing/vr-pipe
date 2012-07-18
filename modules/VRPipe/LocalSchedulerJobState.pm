@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::LocalSchedulerJobState - job tracking for the local scheduler
@@ -39,57 +40,57 @@ use VRPipe::Base;
 class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
     use Sys::Hostname;
     
-    has 'localschedulerjob' => (is => 'rw',
-                                isa => Persistent,
-                                coerce => 1,
+    has 'localschedulerjob' => (is         => 'rw',
+                                isa        => Persistent,
+                                coerce     => 1,
                                 belongs_to => 'VRPipe::LocalSchedulerJob',
-                                traits => ['VRPipe::Persistent::Attributes'],
-                                is_key => 1);
+                                traits     => ['VRPipe::Persistent::Attributes'],
+                                is_key     => 1);
     
-    has 'aid' => (is => 'rw',
-                  isa => IntSQL[8],
+    has 'aid' => (is     => 'rw',
+                  isa    => IntSQL [8],
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
-    has 'o_file' => (is => 'rw',
-                     isa => File,
+    has 'o_file' => (is     => 'rw',
+                     isa    => File,
                      coerce => 1,
                      traits => ['VRPipe::Persistent::Attributes']);
     
-    has 'e_file' => (is => 'rw',
-                     isa => File,
+    has 'e_file' => (is     => 'rw',
+                     isa    => File,
                      coerce => 1,
                      traits => ['VRPipe::Persistent::Attributes']);
     
-    has 'start_time' => (is => 'rw',
-                         isa => Datetime,
-                         coerce => 1,
-                         traits => ['VRPipe::Persistent::Attributes'],
+    has 'start_time' => (is          => 'rw',
+                         isa         => Datetime,
+                         coerce      => 1,
+                         traits      => ['VRPipe::Persistent::Attributes'],
                          is_nullable => 1);
     
-    has 'end_time' => (is => 'rw',
-                       isa => Datetime,
-                       coerce => 1,
-                       traits => ['VRPipe::Persistent::Attributes'],
+    has 'end_time' => (is          => 'rw',
+                       isa         => Datetime,
+                       coerce      => 1,
+                       traits      => ['VRPipe::Persistent::Attributes'],
                        is_nullable => 1);
     
-    has 'exit_code' => (is => 'rw',
-                        isa => IntSQL[5],
-                        traits => ['VRPipe::Persistent::Attributes'],
+    has 'exit_code' => (is          => 'rw',
+                        isa         => IntSQL [5],
+                        traits      => ['VRPipe::Persistent::Attributes'],
                         is_nullable => 1);
     
-    has 'host' => (is => 'rw',
-                   isa => Varchar[64],
-                   traits => ['VRPipe::Persistent::Attributes'],
+    has 'host' => (is          => 'rw',
+                   isa         => Varchar [64],
+                   traits      => ['VRPipe::Persistent::Attributes'],
                    is_nullable => 1);
     
-    has 'user' => (is => 'rw',
-                   isa => Varchar[64],
+    has 'user' => (is     => 'rw',
+                   isa    => Varchar [64],
                    traits => ['VRPipe::Persistent::Attributes']);
     
-    has 'pid' => (is => 'rw',
-                  isa => IntSQL[6],
-                  traits => ['VRPipe::Persistent::Attributes'],
+    has 'pid' => (is          => 'rw',
+                  isa         => IntSQL [6],
+                  traits      => ['VRPipe::Persistent::Attributes'],
                   is_nullable => 1);
     
     __PACKAGE__->make_persistent();
@@ -118,8 +119,8 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         $self->exit_code(undef);
         $self->update;
         
-        my $cwd = $self->localschedulerjob->cwd;
-        my $aid = $self->aid;
+        my $cwd         = $self->localschedulerjob->cwd;
+        my $aid         = $self->aid;
         my $stdout_file = $self->o_file;
         my $stderr_file = $self->e_file;
         $stdout_file =~ s/\%I/$aid/g;
@@ -127,7 +128,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         
         $self->disconnect;
         my $cmd_pid = fork();
-        if (! defined $cmd_pid) {
+        if (!defined $cmd_pid) {
             $self->throw("attempt to fork cmd failed: $!");
         }
         elsif ($cmd_pid) {
@@ -143,10 +144,10 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             # get all info from db and disconnect before using the info below
             my $cmd = $self->localschedulerjob->cmd;
             $stdout_file->dir->mkpath;
-            my $sid = $self->localschedulerjob->id;
+            my $sid        = $self->localschedulerjob->id;
             my $start_time = $self->start_time;
-            my $host = $self->host;
-            my $user = $self->user;
+            my $host       = $self->host;
+            my $user       = $self->user;
             $self->disconnect;
             
             chdir($cwd);
@@ -180,7 +181,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             }
         }
         else {
-            $exit_code = -1;
+            $exit_code    = -1;
             $exit_meaning = 'lost track of PID';
         }
         
@@ -201,7 +202,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         
         my $pid = $self->pid;
         if ($pid) {
-            if (! $self->end_time) {
+            if (!$self->end_time) {
                 kill(9, $pid);
             }
         }

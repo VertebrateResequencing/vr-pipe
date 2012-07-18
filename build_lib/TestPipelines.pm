@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 TestPipelines - test methods for use when testing pipelines
 
 =head1 SYNOPSIS
-
+    
     BEGIN {
         use Test::Most tests => 3;
         use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
@@ -72,11 +73,11 @@ sub get_output_dir {
 }
 
 sub handle_pipeline {
-    my $give_up = 3600;
+    my $give_up     = 3600;
     my $max_retries = VRPipeTest::max_retries();
-    my $debug = VRPipeTest::debug();
+    my $debug       = VRPipeTest::debug();
     $manager->set_verbose_global(1) if $debug;
-    my $gave_up = 0;
+    my $gave_up    = 0;
     my $retriggers = 0;
     while (1) {
         $manager->trigger;
@@ -119,9 +120,9 @@ sub handle_pipeline {
 }
 
 sub output_subdirs {
-    my $de_id = shift;
+    my $de_id    = shift;
     my $setup_id = shift || 1;
-    my $setup = $setups{$setup_id};
+    my $setup    = $setups{$setup_id};
     unless ($setup) {
         $setup = VRPipe::PipelineSetup->get(id => $setup_id);
         $setup->datasource->incomplete_element_states($setup); # create all dataelements et al.
@@ -129,9 +130,9 @@ sub output_subdirs {
     }
     my $pipeline_root = $setup->output_root;
     
-    my $des_id = VRPipe::DataElementState->get(dataelement => $de_id, pipelinesetup => $setup)->id;
-    my $hashing_string = 'VRPipe::DataElementState::'.$des_id;
-    my @subdirs = $manager->hashed_dirs($hashing_string);
+    my $des_id         = VRPipe::DataElementState->get(dataelement => $de_id, pipelinesetup => $setup)->id;
+    my $hashing_string = 'VRPipe::DataElementState::' . $des_id;
+    my @subdirs        = $manager->hashed_dirs($hashing_string);
     
     return ($pipeline_root, @subdirs, $de_id);
 }
@@ -139,9 +140,9 @@ sub output_subdirs {
 sub create_single_step_pipeline {
     my ($step_name, $input_key) = @_;
     
-    my $step = VRPipe::Step->get(name => $step_name) || die "Could not create a step named '$step_name'\n";
-    my $pipeline_name = $step_name.'_pipeline';
-    my $pipeline = VRPipe::Pipeline->create(name => $pipeline_name, description => 'test pipeline for the '.$step_name.' step');
+    my $step          = VRPipe::Step->get(name => $step_name) || die "Could not create a step named '$step_name'\n";
+    my $pipeline_name = $step_name . '_pipeline';
+    my $pipeline      = VRPipe::Pipeline->create(name => $pipeline_name, description => 'test pipeline for the ' . $step_name . ' step');
     VRPipe::StepMember->create(step => $step, pipeline => $pipeline, step_number => 1);
     VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 1, adaptor_hash => { $input_key => { data_element => 0 } });
     
@@ -164,8 +165,8 @@ sub all_pipelines_finished {
     
     my @setups = $manager->setups;
     foreach my $setup (@setups) {
-        my $setup_id = $setup->id;
-        my $pipeline = $setup->pipeline;
+        my $setup_id  = $setup->id;
+        my $pipeline  = $setup->pipeline;
         my $num_steps = $pipeline->step_members;
         
         my $not_done = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0, completed_steps => { '!=' => $num_steps } }, { join => 'dataelement' });
@@ -176,16 +177,16 @@ sub all_pipelines_finished {
 }
 
 sub get_bam_header {
-    my $bam = shift;
+    my $bam      = shift;
     my $bam_path = $bam->absolute;
-    my $header = `samtools view -H $bam_path`;
+    my $header   = `samtools view -H $bam_path`;
     return split /\n/, $header;
 }
 
 sub get_bam_records {
-    my $bam = shift;
+    my $bam      = shift;
     my $bam_path = $bam->absolute;
-    my $records = `samtools view $bam_path`;
+    my $records  = `samtools view $bam_path`;
     return split /\n/, $records;
 }
 

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Job - state tracking for a command line that must be executed
@@ -13,17 +14,17 @@ executed. It tracks state related to the execution of its command line, along
 with methods to actually run it and get its stdout and stderr.
 
 You do not normally create Job objects yourself directly. A L<VRPipe::Step>
-uses one of the C<dispatch*()> methods, and internally this will result in a
-a Job being created along with a L<VRPipe::Submission> pointing to it. The
+uses one of the C<dispatch*()> methods, and internally this will result in a a
+Job being created along with a L<VRPipe::Submission> pointing to it. The
 Submission will be submitted to the system's job scheduler, and eventually a
 command will run on a node of the compute cluster which gets the Submission,
 from which it extracts the Job and calls C<run()> on it.
 
-While a Job executes its command line, it also has another process that emits
-a heartbeat, so that B<VRPipe> knows that a Job is running and still healthy.
-If something goes wrong on the node and somehow the command fails without the
-exit state and fact of completion being recorded normally, the lack of a
-heartbeat for a long time will cause B<VRPipe> to consider the Job failed.
+While a Job executes its command line, it also has another process that emits a
+heartbeat, so that B<VRPipe> knows that a Job is running and still healthy. If
+something goes wrong on the node and somehow the command fails without the exit
+state and fact of completion being recorded normally, the lack of a heartbeat
+for a long time will cause B<VRPipe> to consider the Job failed.
 
 *** more documentation to come
 
@@ -59,84 +60,84 @@ class VRPipe::Job extends VRPipe::Persistent {
     use Sys::Hostname;
     use Net::SSH qw(ssh);
     
-    has 'cmd' => (is => 'rw',
-                  isa => Text,
+    has 'cmd' => (is     => 'rw',
+                  isa    => Text,
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
-    has 'dir' => (is => 'rw',
-                  isa => Dir,
+    has 'dir' => (is     => 'rw',
+                  isa    => Dir,
                   coerce => 1,
                   traits => ['VRPipe::Persistent::Attributes'],
                   is_key => 1);
     
-    has 'block_and_skip_if_ok' => (is => 'rw',
-                                   isa => 'Bool',
-                                   traits => ['VRPipe::Persistent::Attributes'],
+    has 'block_and_skip_if_ok' => (is      => 'rw',
+                                   isa     => 'Bool',
+                                   traits  => ['VRPipe::Persistent::Attributes'],
                                    default => 0);
     
-    has 'running' => (is => 'rw',
-                      isa => 'Bool',
-                      traits => ['VRPipe::Persistent::Attributes'],
+    has 'running' => (is      => 'rw',
+                      isa     => 'Bool',
+                      traits  => ['VRPipe::Persistent::Attributes'],
                       default => 0);
     
-    has 'finished' => (is => 'rw',
-                       isa => 'Bool',
-                       traits => ['VRPipe::Persistent::Attributes'],
+    has 'finished' => (is      => 'rw',
+                       isa     => 'Bool',
+                       traits  => ['VRPipe::Persistent::Attributes'],
                        default => 0);
     
-    has 'exit_code' => (is => 'rw',
-                        isa => IntSQL[5],
-                        traits => ['VRPipe::Persistent::Attributes'],
+    has 'exit_code' => (is          => 'rw',
+                        isa         => IntSQL [5],
+                        traits      => ['VRPipe::Persistent::Attributes'],
                         is_nullable => 1);
     
-    has 'pid' => (is => 'rw',
-                  isa => IntSQL[6],
-                  traits => ['VRPipe::Persistent::Attributes'],
+    has 'pid' => (is          => 'rw',
+                  isa         => IntSQL [6],
+                  traits      => ['VRPipe::Persistent::Attributes'],
                   is_nullable => 1);
     
-    has 'host' => (is => 'rw',
-                   isa => Varchar[64],
-                   traits => ['VRPipe::Persistent::Attributes'],
+    has 'host' => (is          => 'rw',
+                   isa         => Varchar [64],
+                   traits      => ['VRPipe::Persistent::Attributes'],
                    is_nullable => 1);
     
-    has 'user' => (is => 'rw',
-                   isa => Varchar[64],
-                   traits => ['VRPipe::Persistent::Attributes'],
+    has 'user' => (is          => 'rw',
+                   isa         => Varchar [64],
+                   traits      => ['VRPipe::Persistent::Attributes'],
                    is_nullable => 1);
     
-    has 'heartbeat' => (is => 'rw',
-                        isa => Datetime,
-                        coerce => 1,
-                        traits => ['VRPipe::Persistent::Attributes'],
+    has 'heartbeat' => (is          => 'rw',
+                        isa         => Datetime,
+                        coerce      => 1,
+                        traits      => ['VRPipe::Persistent::Attributes'],
                         is_nullable => 1);
     
-    has 'heartbeat_interval' => (is => 'rw',
-                                 isa => PositiveInt,
-                                 lazy => 1,
+    has 'heartbeat_interval' => (is      => 'rw',
+                                 isa     => PositiveInt,
+                                 lazy    => 1,
                                  builder => '_build_default_heartbeat_interval');
     
-    has 'creation_time' => (is => 'rw',
-                            isa => Datetime,
-                            coerce => 1,
-                            traits => ['VRPipe::Persistent::Attributes'],
+    has 'creation_time' => (is      => 'rw',
+                            isa     => Datetime,
+                            coerce  => 1,
+                            traits  => ['VRPipe::Persistent::Attributes'],
                             default => sub { DateTime->now() });
     
-    has 'start_time' => (is => 'rw',
-                         isa => Datetime,
-                         coerce => 1,
-                         traits => ['VRPipe::Persistent::Attributes'],
+    has 'start_time' => (is          => 'rw',
+                         isa         => Datetime,
+                         coerce      => 1,
+                         traits      => ['VRPipe::Persistent::Attributes'],
                          is_nullable => 1);
     
-    has 'end_time' => (is => 'rw',
-                       isa => Datetime,
-                       coerce => 1,
-                       traits => ['VRPipe::Persistent::Attributes'],
+    has 'end_time' => (is          => 'rw',
+                       isa         => Datetime,
+                       coerce      => 1,
+                       traits      => ['VRPipe::Persistent::Attributes'],
                        is_nullable => 1);
     
-    has 'output_files' => (is => 'rw',
-                           isa => ArrayRefOfPersistent,
-                           traits => ['VRPipe::Persistent::Attributes'],
+    has 'output_files' => (is      => 'rw',
+                           isa     => ArrayRefOfPersistent,
+                           traits  => ['VRPipe::Persistent::Attributes'],
                            default => sub { [] });
     
     __PACKAGE__->make_persistent();
@@ -162,24 +163,26 @@ class VRPipe::Job extends VRPipe::Persistent {
             }
         }
     }
+    
     around get (ClassName|Object $self: %args) {
         $self->_get_args(\%args);
         return $self->$orig(%args);
     }
+    
     around create (ClassName|Object $self: %args) {
         $self->_get_args(\%args);
         return $self->$orig(%args);
     }
     
     method ok {
-        if ($self->finished && ! $self->exit_code) {
+        if ($self->finished && !$self->exit_code) {
             return 1;
         }
         return 0;
     }
     
     method pending {
-        return ! ($self->running || $self->finished);
+        return !($self->running || $self->finished);
     }
     
     method wall_time {
@@ -197,7 +200,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     
     method run (VRPipe::StepState :$stepstate?) {
         # check we're allowed to run, in a transaction to avoid race condition
-        my $do_return = 0;
+        my $do_return   = 0;
         my $transaction = sub {
             unless ($self->pending) {
                 if ($self->block_and_skip_if_ok) {
@@ -224,10 +227,10 @@ class VRPipe::Job extends VRPipe::Persistent {
                 }
                 elsif ($self->ok) {
                     $do_return = 1;
-                    return; # out of the txn_do
+                    return;             # out of the txn_do
                 }
                 else {
-                    $self->throw("Job ".$self->id." could not be run because it was not in the pending state");
+                    $self->throw("Job " . $self->id . " could not be run because it was not in the pending state");
                 }
             }
             
@@ -245,13 +248,13 @@ class VRPipe::Job extends VRPipe::Persistent {
         $self->disconnect;
         my $cmd_pid = fork();
         my $heartbeat_pid;
-        if (! defined $cmd_pid) {
+        if (!defined $cmd_pid) {
             $self->throw("attempt to fork cmd failed: $!");
         }
         elsif ($cmd_pid) {
             # parent, start a heartbeat process to monitor the cmd
             $heartbeat_pid = fork();
-            if (! defined $heartbeat_pid) {
+            if (!defined $heartbeat_pid) {
                 $self->throw("attempt to fork for heartbeat failed: $!");
             }
             elsif ($heartbeat_pid == 0) {
@@ -278,8 +281,8 @@ class VRPipe::Job extends VRPipe::Persistent {
             $self->update;
             
             # get all info from db and disconnect before using the info below
-            my $dir = $self->dir;
-            my $cmd = $self->cmd;
+            my $dir         = $self->dir;
+            my $cmd         = $self->cmd;
             my $stdout_file = $self->stdout_file->path; #*** call here in child, then below in parent, creating 2 identical rows in db?... should not be possible!
             $stdout_file->dir->mkpath;
             my $stderr_file = $self->stderr_file->path; #*** but only 1 copy of the e?!
@@ -321,13 +324,15 @@ class VRPipe::Job extends VRPipe::Persistent {
     method stdout_file {
         my $dir = $self->dir;
         my $file = $self->_std_file || return;
-        return VRPipe::File->create(path => file($dir, $file.'.o'), type => 'txt');
+        return VRPipe::File->create(path => file($dir, $file . '.o'), type => 'txt');
     }
+    
     method stderr_file {
         my $dir = $self->dir;
         my $file = $self->_std_file || return;
-        return VRPipe::File->create(path => file($dir, $file.'.e'), type => 'txt');
+        return VRPipe::File->create(path => file($dir, $file . '.e'), type => 'txt');
     }
+    
     method _std_file {
         my $pid = $self->pid || return;
         my $host = $self->host;
@@ -360,14 +365,14 @@ class VRPipe::Job extends VRPipe::Persistent {
             #}
         }
         else {
-            my $identifier = "child process $pid for command [".$self->cmd."]";
+            my $identifier = "child process $pid for command [" . $self->cmd . "]";
             $self->warn("$identifier disappeared!");
         }
     }
     
     method time_since_heartbeat {
         return unless $self->running;
-        my $heartbeat = $self->heartbeat || $self->start_time || $self->throw("job ".$self->id." is running, yet has neither a heartbeat nor a start time");
+        my $heartbeat = $self->heartbeat || $self->start_time || $self->throw("job " . $self->id . " is running, yet has neither a heartbeat nor a start time");
         my $t = time();
         return $t - $heartbeat->epoch;
     }
@@ -403,7 +408,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                 local $SIG{ALRM} = sub { die "ssh timed out\n" };
                 alarm(15);
                 ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
-                                                     #    Net::SSH::Perl is able to always log us in, but can take over a minute!
+                #    Net::SSH::Perl is able to always log us in, but can take over a minute!
                 # *** we need to do something if the kill fails...
                 alarm(0);
             };

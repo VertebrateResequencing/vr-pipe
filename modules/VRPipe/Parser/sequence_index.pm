@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::sequence_index - parse sequence.index files from the DCC
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying sequence.index file or filehandle
@@ -26,8 +27,8 @@ VRPipe::Parser::sequence_index - parse sequence.index files from the DCC
 
 =head1 DESCRIPTION
 
-sequence.index files contain metadata describing fastq files, used for the
-1000 genomes project and described here: L<http://www.1000genomes.org/formats>.
+sequence.index files contain metadata describing fastq files, used for the 1000
+genomes project and described here: L<http://www.1000genomes.org/formats>.
 
 =head1 AUTHOR
 
@@ -56,43 +57,43 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
-    our %field_to_index = (FASTQ_FILE => 0,
-                           MD5 => 1,
-                           RUN_ID => 2,
-                           STUDY_ID => 3,
-                           STUDY_NAME => 4,
-                           CENTER_NAME => 5,
-                           SUBMISSION_ID => 6,
-                           SUBMISSION_DATE => 7,
-                           SAMPLE_ID => 8,
-                           SAMPLE_NAME => 9,
-                           POPULATION => 10,
-                           EXPERIMENT_ID => 11,
+    our %field_to_index = (FASTQ_FILE          => 0,
+                           MD5                 => 1,
+                           RUN_ID              => 2,
+                           STUDY_ID            => 3,
+                           STUDY_NAME          => 4,
+                           CENTER_NAME         => 5,
+                           SUBMISSION_ID       => 6,
+                           SUBMISSION_DATE     => 7,
+                           SAMPLE_ID           => 8,
+                           SAMPLE_NAME         => 9,
+                           POPULATION          => 10,
+                           EXPERIMENT_ID       => 11,
                            INSTRUMENT_PLATFORM => 12,
-                           INSTRUMENT_MODEL => 13,
-                           LIBRARY_NAME => 14,
-                           RUN_NAME => 15,
-                           RUN_BLOCK_NAME => 16,
-                           INSERT_SIZE => 17,
-                           LIBRARY_LAYOUT => 18,
-                           PAIRED_FASTQ => 19,
-                           WITHDRAWN => 20,
-                           WITHDRAWN_DATE => 21,
-                           COMMENT => 22,
-                           READ_COUNT => 23,
-                           BASE_COUNT => 24,
-                           ANALYSIS_GROUP => 25);
+                           INSTRUMENT_MODEL    => 13,
+                           LIBRARY_NAME        => 14,
+                           RUN_NAME            => 15,
+                           RUN_BLOCK_NAME      => 16,
+                           INSERT_SIZE         => 17,
+                           LIBRARY_LAYOUT      => 18,
+                           PAIRED_FASTQ        => 19,
+                           WITHDRAWN           => 20,
+                           WITHDRAWN_DATE      => 21,
+                           COMMENT             => 22,
+                           READ_COUNT          => 23,
+                           BASE_COUNT          => 24,
+                           ANALYSIS_GROUP      => 25);
     
-    has '_saw_last_line' => (is => 'rw',
-                             isa => 'Bool',
+    has '_saw_last_line' => (is      => 'rw',
+                             isa     => 'Bool',
                              default => 0);
     
-    has '_lane_tells' => (is => 'rw',
-                          isa => 'HashRef',
+    has '_lane_tells' => (is      => 'rw',
+                          isa     => 'HashRef',
                           default => sub { {} });
-    
-=head2 parsed_record
 
+=head2 parsed_record
+ 
  Title   : parsed_record
  Usage   : my $parsed_record= $obj->parsed_record()
  Function: Get the data structure that will hold the last parsed record
@@ -127,9 +128,9 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-    
-=head2 next_record
 
+=head2 next_record
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next line from the sequence.index file
@@ -138,6 +139,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record {
         # just return if no file set
         my $fh = $self->fh() || return;
@@ -153,7 +155,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
         my @data = split(/\t/, $line);
         chomp($data[-1]);
         if (@data != 26 && @data != 25) {
-            $self->warn("Expected 26 or 25 columns, got " . scalar @data . ": " . join(",", @data) ."\n");
+            $self->warn("Expected 26 or 25 columns, got " . scalar @data . ": " . join(",", @data) . "\n");
             return;
         }
         
@@ -161,18 +163,18 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
             $self->throw("got RUN_ID!");
         }
         
-        $self->_lane_tells->{$data[2]}->{$tell} = 1;
+        $self->_lane_tells->{ $data[2] }->{$tell} = 1;
         
         my $pr = $self->parsed_record;
-        for my $i (0..$#data) {
+        for my $i (0 .. $#data) {
             $pr->[$i] = $data[$i];
         }
         
         return 1;
     }
-    
-=head2 lane_info
 
+=head2 lane_info
+ 
  Title   : lane_info
  Usage   : my $sample_name = $obj->lane_info('SRR005864', 'sample_name');
  Function: Get a particular bit of info for a particular lane (run_id).
@@ -182,6 +184,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
            field names)
 
 =cut
+    
     method lane_info (Str $lane, Str $field) {
         $field = uc($field);
         my $index = $field_to_index{$field};
@@ -198,17 +201,17 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
             }
         }
         my $lane_tells = $self->_lane_tells;
-        if (! defined $lane_tells->{$lane}) {
+        if (!defined $lane_tells->{$lane}) {
             $self->warn("'$lane' wasn't a run_id in your sequence.index file");
             return;
         }
         
         my %answers;
         my $pr = $self->parsed_record;
-        foreach my $tell (keys %{$lane_tells->{$lane}}) {
+        foreach my $tell (keys %{ $lane_tells->{$lane} }) {
             seek($fh, $tell, 0);
             $self->next_record;
-            $answers{$pr->[$index]}++;
+            $answers{ $pr->[$index] }++;
         }
         
         $self->_restore_position;
@@ -222,16 +225,16 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
             my $highest_count = 0;
             while (my ($answer, $count) = each %answers) {
                 if ($count > $highest_count) {
-                    $highest_count = $count;
+                    $highest_count      = $count;
                     $most_common_answer = $answer;
                 }
             }
             return $most_common_answer;
         }
     }
-    
-=head2 get_lanes
 
+=head2 get_lanes
+ 
  Title   : get_lanes
  Usage   : my @lanes = $obj->get_lanes(sample_name => 'NA11994');
  Function: Get all the lane ids with a given property.
@@ -239,7 +242,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
  Args    : none for all lanes, or a single key => value pair to get lanes under
            that key, eg. sample_name => 'NA11994' to get all lanes of that
            sample.
-
+           
            optionally, you can add one or more key value pairs where keys are
            valid field names (see result_holder() for the list) prefixed with
            'ignore_' and values are what should should be ignored (a regex).
@@ -247,6 +250,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
            ignore_withdrawn => 1
 
 =cut
+    
     method get_lanes (%args) {
         $self->_save_position || return;
         
@@ -256,7 +260,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
         while (my ($key, $val) = each %args) {
             if ($key =~ /^ignore_(\S+)/i) {
                 my $ignore = uc($1);
-                my $index = $field_to_index{$ignore};
+                my $index  = $field_to_index{$ignore};
                 $self->throw("'$ignore' wasn't a valid field name") unless defined $index;
                 $ignores{$index} = $val;
                 $do_ignores = 1;
@@ -277,7 +281,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
         
         # parse the whole file
         $self->_seek_first_record();
-        RESULT: while ($self->next_record) {
+      RESULT: while ($self->next_record) {
             if ($do_ignores) {
                 keys %ignores; # reset the iterator, since we may have nexted out
                 while (my ($index, $regex) = each %ignores) {
@@ -287,11 +291,11 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
             
             if (defined $index) {
                 if ($pr->[$index] eq $value) {
-                    $lanes{$pr->[2]} = 1;
+                    $lanes{ $pr->[2] } = 1;
                 }
             }
             else {
-                $lanes{$pr->[2]} = 1;
+                $lanes{ $pr->[2] } = 1;
             }
         }
         
@@ -327,7 +331,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
                     last;
                 }
                 else {
-                    $self->warn("This file has no header line, and has ".scalar(@a)." columns instead of 25 or 26");
+                    $self->warn("This file has no header line, and has " . scalar(@a) . " columns instead of 25 or 26");
                     last;
                 }
             }
@@ -338,7 +342,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
             return 1;
         }
         
-        $self->throw("Unable to parse header before first result - is this a sequence.index file?")
+        $self->throw("Unable to parse header before first result - is this a sequence.index file?");
     }
 }
 

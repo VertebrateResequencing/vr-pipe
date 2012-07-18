@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::cram - cram filetype
@@ -8,8 +9,9 @@ VRPipe::FileType::cram - cram filetype
 
 =head1 DESCRIPTION
 
-The CRAM format is described here: L<http://www.ebi.ac.uk/ena/about/cram_toolkit>
-It is used to hold aligned sequence data in a highly compressed form.
+The CRAM format is described here:
+L<http://www.ebi.ac.uk/ena/about/cram_toolkit> It is used to hold aligned
+sequence data in a highly compressed form.
 
 *** more documentation to come
 
@@ -49,14 +51,14 @@ class VRPipe::FileType::cram extends VRPipe::FileType::bin {
     }
     
     method num_header_lines (ClassName|Object $self: Str|File :$reference_fasta!) {
-        my $path = $self->file;
-        my $headers = `java -Dreference=$reference_fasta -cp $ENV{CRAMTOOLS}/cramtools.jar net.sf.picard.sam.ViewSam INPUT=$path | samtools view -SH -`;
+        my $path         = $self->file;
+        my $headers      = `java -Dreference=$reference_fasta -cp $ENV{CRAMTOOLS}/cramtools.jar net.sf.picard.sam.ViewSam INPUT=$path | samtools view -SH -`;
         my @header_lines = split(/\n/, $headers);
         return scalar(@header_lines);
     }
     
     method num_records (ClassName|Object $self: Str|File :$reference_fasta!) {
-        my $path = $self->file;
+        my $path    = $self->file;
         my $records = `java -Dreference=$reference_fasta -cp $ENV{CRAMTOOLS}/cramtools.jar net.sf.picard.sam.ViewSam INPUT=$path | samtools view -Sc -`;
         ($records) = $records =~ /^(\d+)/m;
         $records ||= 0;

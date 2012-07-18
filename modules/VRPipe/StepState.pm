@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepState - track Step completion for a particualar setup and element
@@ -10,10 +11,10 @@ VRPipe::StepState - track Step completion for a particualar setup and element
 
 Multiple different L<VRPipe::PipelineSetup>s can use the same
 L<VRPipe::DataSource>, and even the same L<VRPipe::Pipeline>, and so the same
-L<VRPipe::Step>s could be processing the same input files specified by the
-same L<VRPipe::DataElement>s. StepState lets B<VRPipe> keep track of when a
-Step successfully completes its work on a particular DataElement for a
-particular PipelineSetup.
+L<VRPipe::Step>s could be processing the same input files specified by the same
+L<VRPipe::DataElement>s. StepState lets B<VRPipe> keep track of when a Step
+successfully completes its work on a particular DataElement for a particular
+PipelineSetup.
 
 =head1 AUTHOR
 
@@ -42,47 +43,46 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepState extends VRPipe::Persistent {
-    has 'stepmember' => (is => 'rw',
-                         isa => Persistent,
-                         coerce => 1,
-                         traits => ['VRPipe::Persistent::Attributes'],
-                         is_key => 1,
+    has 'stepmember' => (is         => 'rw',
+                         isa        => Persistent,
+                         coerce     => 1,
+                         traits     => ['VRPipe::Persistent::Attributes'],
+                         is_key     => 1,
                          belongs_to => 'VRPipe::StepMember');
     
-    has 'dataelement' => (is => 'rw',
-                          isa => Persistent,
-                          coerce => 1,
-                          traits => ['VRPipe::Persistent::Attributes'],
-                          is_key => 1,
+    has 'dataelement' => (is         => 'rw',
+                          isa        => Persistent,
+                          coerce     => 1,
+                          traits     => ['VRPipe::Persistent::Attributes'],
+                          is_key     => 1,
                           belongs_to => 'VRPipe::DataElement');
     
-    has 'pipelinesetup' => (is => 'rw',
-                            isa => Persistent,
-                            coerce => 1,
-                            traits => ['VRPipe::Persistent::Attributes'],
-                            is_key => 1,
+    has 'pipelinesetup' => (is         => 'rw',
+                            isa        => Persistent,
+                            coerce     => 1,
+                            traits     => ['VRPipe::Persistent::Attributes'],
+                            is_key     => 1,
                             belongs_to => 'VRPipe::PipelineSetup');
     
-    has 'cmd_summary' => (is => 'rw',
-                          isa => Persistent,
-                          coerce => 1,
-                          traits => ['VRPipe::Persistent::Attributes'],
+    has 'cmd_summary' => (is          => 'rw',
+                          isa         => Persistent,
+                          coerce      => 1,
+                          traits      => ['VRPipe::Persistent::Attributes'],
                           is_nullable => 1,
-                          belongs_to => 'VRPipe::StepCmdSummary');
+                          belongs_to  => 'VRPipe::StepCmdSummary');
     
-    has 'complete' => (is => 'rw',
-                       isa => 'Bool',
-                       traits => ['VRPipe::Persistent::Attributes'],
+    has 'complete' => (is      => 'rw',
+                       isa     => 'Bool',
+                       traits  => ['VRPipe::Persistent::Attributes'],
                        default => 0);
     
-    __PACKAGE__->make_persistent(has_many => [[submissions => 'VRPipe::Submission'],
-                                              ['_output_files' => 'VRPipe::StepOutputFile']]);
+    __PACKAGE__->make_persistent(has_many => [[submissions => 'VRPipe::Submission'], ['_output_files' => 'VRPipe::StepOutputFile']]);
     
     method output_files (PersistentFileHashRef $new_hash?) {
         my @current_sofiles = VRPipe::StepOutputFile->search({ stepstate => $self->id, output_key => { '!=' => 'temp' } }, { prefetch => 'file' });
         my %hash;
         foreach my $sof (@current_sofiles) {
-            push(@{$hash{$sof->output_key}}, $sof->file);
+            push(@{ $hash{ $sof->output_key } }, $sof->file);
         }
         
         if ($new_hash) {
@@ -91,7 +91,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 my @current_file_ids = map { $_->id } @$files;
                 my @files_to_forget;
                 if (exists $new_hash->{$key}) {
-                    my %new_file_ids = map { $_->id => 1 } @{$new_hash->{$key}};
+                    my %new_file_ids = map { $_->id => 1 } @{ $new_hash->{$key} };
                     foreach my $id (@current_file_ids) {
                         unless (exists $new_file_ids{$id}) {
                             push(@files_to_forget, $id);
@@ -150,7 +150,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         else {
             return [map { VRPipe::File->get(id => $_) } @file_ids];
         }
-        
+    
     }
     
     method output_files_list {
@@ -177,13 +177,13 @@ class VRPipe::StepState extends VRPipe::Persistent {
     }
     
     method unlink_temp_files {
-        foreach my $vrfile (@{$self->temp_files}) {
+        foreach my $vrfile (@{ $self->temp_files }) {
             $vrfile->unlink;
         }
     }
     
     method start_over {
-        $self->debug("start_over called for stepstate ".$self->id);
+        $self->debug("start_over called for stepstate " . $self->id);
         
         # first reset all associated submissions in order to reset their jobs
         my @sub_ids;

@@ -12,32 +12,24 @@ BEGIN {
 package VRPipe::Test;
 use VRPipe::Base;
 class VRPipe::Test {
-    has 'foo' => (
-        is  => 'rw',
-        isa => 'Str',
-    );
+    has 'foo' => (is  => 'rw',
+                  isa => 'Str',);
     
-    has 'file' => (
-        is  => 'rw',
-        isa => File,
-        coerce => 1
-    );
+    has 'file' => (is     => 'rw',
+                   isa    => File,
+                   coerce => 1);
     
-    has 'optional_file' => (
-        is  => 'rw',
-        isa => MaybeFile,
-        coerce => 1
-    );
+    has 'optional_file' => (is     => 'rw',
+                            isa    => MaybeFile,
+                            coerce => 1);
 }
 1;
 
 package VRPipe::Test2;
 use VRPipe::Base;
 class VRPipe::Test2 {
-    has 'foogu' => (
-        is  => 'rw',
-        isa => 'Str',
-    );
+    has 'foogu' => (is  => 'rw',
+                    isa => 'Str',);
 }
 1;
 
@@ -48,11 +40,11 @@ is $base->foo, 'bar', 'args sent to new are set in the corresponding method';
 
 # verbose and warn testing
 is $base->verbose, 0, 'default verbose value';
-warning_is { $base->warn('simple msg') } { carped => 'simple msg' }, 'verbose 0 warning is simple carp';
+warning_is { $base->warn('simple msg') }{ carped => 'simple msg' }, 'verbose 0 warning is simple carp';
 is $base->verbose(-1), -1, 'verbose -1 could be set';
 warning_is { $base->warn('simple msg') } '', 'no warning when verbose -1';
 is $base->verbose(1), 1, 'verbose 1 could be set';
-warning_is { $base->warn('simple msg') } { carped => 'simple msg' }, 'verbose 1 warning is a cluck';
+warning_is { $base->warn('simple msg') }{ carped => 'simple msg' }, 'verbose 1 warning is a cluck';
 is $base->verbose(2), 2, 'verbose 2 could be set';
 throws_ok { $base->warn('thrown msg') } qr/thrown msg/, 'verbose 2 warning is a throw';
 is $base->verbose(0), 0, 'verbose 0 could be set';
@@ -60,7 +52,7 @@ is $base->verbose(0), 0, 'verbose 0 could be set';
 $base->verbose(1);
 my $base2 = VRPipe::Test->new(foo => 'bar', verbose => 2);
 is $base2->verbose, 2, 'verbose can be set via new';
-is $base->verbose, 1, 'verbose on an instance is not set for the whole class';
+is $base->verbose,  1, 'verbose on an instance is not set for the whole class';
 my $v = VRPipe::Test->set_verbose_global(-1);
 is $v, -1, 'verbose could be set on the class';
 is $base->verbose, -1, 'the class set affects instances';
@@ -88,7 +80,7 @@ my $fobj = $base->file($fname)->as_foreign('Win32');
 is "$fobj", 'foo\bar\baz.txt', "'$fname' passed the file constraint (converting to $fobj for Win32)";
 is $fobj->basename, 'baz.txt', 'file() returned an object we could get the correct basename from';
 $fname = [qw(foo bar baz.txt)];
-$fobj = $base->file($fname);
+$fobj  = $base->file($fname);
 like "$fobj", qr/^foo.bar.baz\.txt$/, "[@{$fname}] as array ref passed the file constraint (converting to $fobj for this platform)";
 is $fobj->basename, 'baz.txt', 'basename also works given array ref input';
 throws_ok { $base->file(undef) } qr/no file specified/, "undef fails the file constraint";
@@ -101,7 +93,7 @@ like $default_log_file, qr/VRPipe.log$/, 'default log file has correct name';
 is $base->log_file($tfile1), $tfile1, 'log file location could be changed';
 is $base->write_logs, 0, 'logging off by default';
 $base->log('message');
-ok ! -s $tfile1, 'logging while logging is off does nothing';
+ok !-s $tfile1, 'logging while logging is off does nothing';
 is $base->write_logs(1), 1, 'logging could be turned on';
 $base->log('message');
 my $log_size = -s $tfile1;

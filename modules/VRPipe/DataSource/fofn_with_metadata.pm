@@ -1,6 +1,8 @@
+
 =head1 NAME
 
-VRPipe::DataSource::fofn_with_metadata - get pipeline input and meta from a fofn
+VRPipe::DataSource::fofn_with_metadata - get pipeline input and meta from a
+fofn
 
 =head1 SYNOPSIS
 
@@ -15,12 +17,11 @@ first line of the file should have the metadata key names. The first column
 should always be 'path'.
 
 For example, to use bam files in most pipelines that can process them, the
-first line should have the columns:
-path center_name study sample platform library lane
+first line should have the columns: path center_name study sample platform
+library lane
 
 This DataSource can also be used to group multiple files together into a single
-L<VRPipe::DataElement>, which is essential for 'reduce'/merging type
-pipelines.
+L<VRPipe::DataElement>, which is essential for 'reduce'/merging type pipelines.
 
 *** more documentation to come
 
@@ -49,14 +50,16 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 use VRPipe::Base;
-    
+
 class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimited {
     method description {
         return "Use information in a tab-delimited text file which specifies file paths and metadata to apply to that file.";
     }
+    
     method source_description {
         return "The path to a tab-delimeted text file where the first line has columns 'path' and then metadata key names, and subsequent lines have the absolute path to a file and the corresponding metadata key values. For example, to use bam files in most pipelines, the first line should have the columns: path center_name study sample platform library lane.";
     }
+    
     method method_description (Str $method) {
         if ($method eq 'all') {
             return "Each element will consist of a single file given in the first column of the source; subsequent columns are applied as metadata to the file (overriding any existing metadata).";
@@ -72,7 +75,7 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
         my @element_args;
         my $did = $self->_datasource_id;
         foreach my $result ($self->_all_results(handle => $handle)) {
-            push(@element_args, { datasource => $did, result => {paths => $result->{paths}} });
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths} } });
         }
         $self->_create_elements(\@element_args);
     }
@@ -83,7 +86,7 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
         foreach my $result ($self->$orig(handle => $handle, delimiter => "\t", path_columns => [1])) {
             unless (keys %col_to_key) {
                 delete $result->{paths};
-                foreach my $col (sort {$a <=> $b} keys %$result) {
+                foreach my $col (sort { $a <=> $b } keys %$result) {
                     $col_to_key{$col} = $result->{$col};
                 }
                 unless (keys %col_to_key) {
@@ -101,7 +104,7 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
             my $file = VRPipe::File->create(path => $path);
             $file->add_metadata($metadata, replace_data => 1);
             
-            push(@results, {paths => [$path], metadata => $metadata});
+            push(@results, { paths => [$path], metadata => $metadata });
         }
         
         return @results;
@@ -114,12 +117,12 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
         foreach my $result ($self->_all_results(handle => $handle)) {
             my @group_keys;
             foreach my $key (@meta_keys) {
-                $self->throw("Metadata key $key not present for file ".$result->{paths}->[0]) unless (exists $result->{metadata}->{$key});
+                $self->throw("Metadata key $key not present for file " . $result->{paths}->[0]) unless (exists $result->{metadata}->{$key});
                 push @group_keys, $result->{metadata}->{$key};
             }
             
             my $group_key = join '|', @group_keys;
-            push(@{$group_hash->{$group_key}->{paths}}, @{$result->{paths}});
+            push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
         }
         
         my $did = $self->_datasource_id;

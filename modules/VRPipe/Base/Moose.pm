@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Base::Moose - adds base roles

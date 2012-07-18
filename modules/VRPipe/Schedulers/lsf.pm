@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Schedulers::lsf - interface to LSF
@@ -8,7 +9,8 @@ VRPipe::Schedulers::lsf - interface to LSF
 
 =head1 DESCRIPTION
 
-This class provides L<LSF Platform|http://www.platform.com/workload-management/high-performance-computing>-specific
+This class provides L<LSF
+Platform|http://www.platform.com/workload-management/high-performance-computing>-specific
 command lines for use by L<VRPipe::Scheduler>.
 
 Currently it is unable to start or stop LSF; it is assumed LSF is always up and
@@ -46,6 +48,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     method start_command {
         return 'bjobs'; #*** actually, I've no idea how to start lsf
     }
+    
     method stop_command {
         return 'bjobs'; #*** actually, I've no idea how to stop lsf
     }
@@ -59,19 +62,19 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         # time, cpu etc.
         my $queue = $self->determine_queue($requirements);
         # *** ...
-        my $megabytes = $requirements->memory;
-        my $m = $megabytes * 1000;
+        my $megabytes          = $requirements->memory;
+        my $m                  = $megabytes * 1000;
         my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
         
         # work out the scheduler output locations and how to pass on the
         # scheduler array index to the perl cmd
         my $index_spec = '';
-        my $array_def = '';
+        my $array_def  = '';
         my $output_string;
         if ($array) {
-            $index_spec = ''; #*** something that gives the index to be shifted into perl -e; for LSF we leave it empty and will pick up an env var elsewhere instead
+            $index_spec    = '';                                   #*** something that gives the index to be shifted into perl -e; for LSF we leave it empty and will pick up an env var elsewhere instead
             $output_string = "-o $stdo_file.\%I -e $stde_file.\%I";
-            my $size = $array->size;
+            my $size    = $array->size;
             my $uniquer = $array->id;
             $array_def = qq{-J "vrpipe$uniquer\[1-$size]" };
         }
@@ -93,10 +96,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             # parse bqueues -l to figure out what usable queues we have
             open(my $bqlfh, 'bqueues -l |') || $self->throw("Could not open a pipe to bqueues -l");
             my $queue;
-            my $next_is_prio = 0;
+            my $next_is_prio        = 0;
             my $looking_at_defaults = 0;
-            my $next_is_memlimit = 0;
-            my $next_is_runlimit = 0;
+            my $next_is_memlimit    = 0;
+            my $next_is_runlimit    = 0;
             while (<$bqlfh>) {
                 if (/^QUEUE: (\S+)/) {
                     $queue = $1;
@@ -109,8 +112,8 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 }
                 elsif ($next_is_prio) {
                     my ($prio, undef, undef, $max, $max_user) = split;
-                    $queues{$queue}->{prio} = $prio;
-                    $queues{$queue}->{max} = $max eq '-' ? 1000000 : $max;
+                    $queues{$queue}->{prio}     = $prio;
+                    $queues{$queue}->{max}      = $max eq '-' ? 1000000 : $max;
                     $queues{$queue}->{max_user} = $max_user eq '-' ? 1000000 : $max;
                     
                     $next_is_prio = 0;
@@ -122,7 +125,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 elsif (/^MAXIMUM LIMITS:|^SCHEDULING PARAMETERS/) {
                     $looking_at_defaults = 0;
                 }
-                elsif (! $looking_at_defaults) {
+                elsif (!$looking_at_defaults) {
                     if (/MEMLIMIT/) {
                         my $field = 0;
                         foreach my $word (split(/\s+/, $_)) {
@@ -184,20 +187,19 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         
         # pick a queue, preferring ones that are more likely to run our job
         # the soonest
-        my $seconds = ($requirements->time * 60 * 60); #*** there's an issue here that VRPipe::Requirements->time is in hrs, so we will never choose a queue with a runlimit less than 1 hr...
+        my $seconds   = ($requirements->time * 60 * 60); #*** there's an issue here that VRPipe::Requirements->time is in hrs, so we will never choose a queue with a runlimit less than 1 hr...
         my $megabytes = $requirements->memory;
         my $chosen_queue;
-        foreach my $queue (sort { $queues{$b}->{hosts} <=> $queues{$a}->{hosts}
-                                   ||
-                                  $queues{$b}->{max_user} <=> $queues{$a}->{max_user}
-                                   ||
-                                  $queues{$b}->{max} <=> $queues{$a}->{max}
-                                   ||
-                                  $queues{$b}->{prio} <=> $queues{$a}->{prio}
-                                   ||
-                                  $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit} # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
-                                   ||
-                                  $queues{$a}->{memlimit} <=> $queues{$b}->{memlimit} } keys %queues) {
+        foreach my $queue (
+            sort {
+                     $queues{$b}->{hosts} <=> $queues{$a}->{hosts}
+                  || $queues{$b}->{max_user} <=> $queues{$a}->{max_user}
+                  || $queues{$b}->{max} <=> $queues{$a}->{max}
+                  || $queues{$b}->{prio} <=> $queues{$a}->{prio}
+                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit} # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
+                  || $queues{$a}->{memlimit} <=> $queues{$b}->{memlimit}
+            } keys %queues
+          ) {
             my $mem_limit = $queues{$queue}->{memlimit};
             next if $mem_limit && $mem_limit < $megabytes;
             my $time_limit = $queues{$queue}->{runlimit};
@@ -260,7 +262,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             close($bfh);
         }
         
-        return $status || 'UNKNOWN'; # *** needs to return a word in a defined vocabulary suitable for all schedulers
+        return $status || 'UNKNOWN';               # *** needs to return a word in a defined vocabulary suitable for all schedulers
     }
 }
 

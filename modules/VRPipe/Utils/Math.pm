@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Utils::Math - math utility functions
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Utils::Math;
     
     my $math_util = VRPipe::Utils::Math->new();
@@ -44,7 +45,7 @@ class VRPipe::Utils::Math {
     use List::Util qw(sum);
 
 =head2 histogram_median
-
+ 
  Title   : histogram_median
  Usage   : my $median = $obj->histogram_median($histogram_hash_ref);
  Function: Get the median bin of a histogram.
@@ -53,6 +54,7 @@ class VRPipe::Utils::Math {
            NB: assumes equal sized bins
 
 =cut
+    
     method histogram_median (HashRef $hash) {
         # find the half-way frequency
         my $total = 0;
@@ -62,7 +64,7 @@ class VRPipe::Utils::Math {
         my $half = sprintf("%0.0f", $total / 2);
         
         # find the corresponding bin
-        my $median = 0; 
+        my $median  = 0;
         my $current = 0;
         foreach my $bin (sort { $a <=> $b } keys %{$hash}) {
             $current += $hash->{$bin};
@@ -76,7 +78,7 @@ class VRPipe::Utils::Math {
     }
 
 =head2 histogram_quartiles
-
+ 
  Title   : histogram_quartiles
  Usage   : my $median = $obj->histogram_median($histogram_hash_ref);
  Function: Get the quartliles of a histogram.
@@ -85,6 +87,7 @@ class VRPipe::Utils::Math {
            NB: assumes equal sized bins
 
 =cut
+    
     method histogram_quartiles (HashRef $hash) {
         my %quartiles;
         my $total_freq = sum 0, values %{$hash};
@@ -92,7 +95,7 @@ class VRPipe::Utils::Math {
         foreach my $key (sort { $a <=> $b } keys %{$hash}) {
             $freq += $hash->{$key};
             
-            if ($freq >= 0.75 * $total_freq ){ 
+            if ($freq >= 0.75 * $total_freq) {
                 $quartiles{q3} = $key;
                 $quartiles{q2} = $key unless defined $quartiles{q2};
                 $quartiles{q1} = $key unless defined $quartiles{q1};
@@ -106,12 +109,12 @@ class VRPipe::Utils::Math {
                 $quartiles{q1} = $key;
             }
         }
-     
+        
         return %quartiles;
     }
 
 =head2 histogram_mean
-
+ 
  Title   : histogram_mean
  Usage   : my $mean = $obj->histogram_mean($histogram_hash_ref);
  Function: Get the mean of a histogram
@@ -120,6 +123,7 @@ class VRPipe::Utils::Math {
            NB: assumes equal sized bins
 
 =cut
+    
     method histogram_mean (HashRef $hash) {
         my ($total, $count);
         
@@ -127,12 +131,12 @@ class VRPipe::Utils::Math {
             $total += $k * $v;
             $count += $v;
         }
-    
+        
         return defined $count ? $total / $count : undef;
     }
 
 =head2 histogram_stats
-
+ 
  Title   : histogram_stats
  Usage   : my $mean = $obj->histogram_stats($histogram_hash_ref, $mean);
  Function: Get the standard deviation of a histogram
@@ -143,9 +147,10 @@ class VRPipe::Utils::Math {
            Optional mean of histogram, to save calculating it.
 
 =cut
+    
     method histogram_stats (HashRef $hash, Num $mean?) {
         my %stats;
-        my $sd = 0;
+        my $sd    = 0;
         my $total = 0;
         $mean = $self->histogram_mean($hash) unless $mean;
         return undef unless defined $mean;
@@ -154,21 +159,21 @@ class VRPipe::Utils::Math {
         # we use the formula
         # sd^2 = sum( (x_i - mean)^2 ) / n
         while (my ($num, $freq) = each %{$hash}) {
-            $sd += $freq * ( ($mean - $num) ** 2);
+            $sd += $freq * (($mean - $num)**2);
             $total += $freq;
         }
         
-        $stats{standard_deviation} = ($sd / $total) ** 0.5;
-        $stats{total} = $total;
+        $stats{standard_deviation} = ($sd / $total)**0.5;
+        $stats{total}              = $total;
         my %quartiles = $self->histogram_quartiles($hash);
-        foreach (qw[q1 q2 q3]){
+        foreach (qw[q1 q2 q3]) {
             $stats{$_} = $quartiles{$_};
         }
         return %stats;
     }
 
 =head2 compare_hash_keys
-
+ 
  Title   : compare_hash_keys
  Usage   : my $same = $obj->compare_hash_keys($hash1, $hash2);
  Function: See if two hashes have the same set of keys.
@@ -176,6 +181,7 @@ class VRPipe::Utils::Math {
  Args    : 2 hash refs
 
 =cut
+    
     method compare_hash_keys (HashRef $hash1, HashRef $hash2) {
         my %hash1 = %{$hash1};
         my %hash2 = %{$hash2};

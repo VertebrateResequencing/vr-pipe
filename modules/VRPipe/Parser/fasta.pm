@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::fasta - parse fasta files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying fasta file
@@ -49,12 +50,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::fasta with VRPipe::ParserRole {
-    has '_saw_last_line' => (is => 'rw',
-                             isa => 'Bool',
+    has '_saw_last_line' => (is      => 'rw',
+                             isa     => 'Bool',
                              default => 0);
-    
-=head2 parsed_record
 
+=head2 parsed_record
+ 
  Title   : parsed_record
  Usage   : my $parsed_record= $obj->parsed_record()
  Function: Get the data structure that will hold the last parsed record
@@ -65,9 +66,9 @@ class VRPipe::Parser::fasta with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-    
-=head2 next_record
 
+=head2 next_record
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next line from the fasta file
@@ -76,6 +77,7 @@ class VRPipe::Parser::fasta with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record {
         # just return if no file set
         my $fh = $self->fh() || return;

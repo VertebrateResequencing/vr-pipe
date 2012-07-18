@@ -1,12 +1,16 @@
+
 =head1 NAME
 
 VRPipe::Pipelines::vcf_vep_annotate - a pipeline
 
 =head1 DESCRIPTION
 
-Pipeline to Annotate VCF files with consequences using the Ensembl Variant Effect Predictor, VEP. Performs the following steps:
-  1. vep_analysis - Accepts VCF files as imput and analyses them using Variant Effect Predictor, generating analysis output text file
-  2. vcf_vep_consequences - Generates an annotated version of the input vcf files with the consequence predictions from step 1
+Pipeline to Annotate VCF files with consequences using the Ensembl Variant
+Effect Predictor, VEP. Performs the following steps:   1. vep_analysis -
+Accepts VCF files as imput and analyses them using Variant Effect Predictor,
+generating analysis output text file   2. vcf_vep_consequences - Generates an
+annotated version of the input vcf files with the consequence predictions from
+step 1
 
 =head1 AUTHOR
 
@@ -38,25 +42,26 @@ class VRPipe::Pipelines::vcf_vep_annotate with VRPipe::PipelineRole {
     method name {
         return 'vcf_vep_annotate';
     }
+    
     method _num_steps {
         return 2;
     }
+    
     method description {
         return 'Annotate VCF files with consequences using VEP';
     }
+    
     method steps {
         $self->throw("steps cannot be called on this non-persistent object");
     }
     
     method _step_list {
-        return ([ VRPipe::Step->get(name => 'vep_analysis'), 
-                  VRPipe::Step->get(name => 'vcf_vep_consequences') ],
-                 
-                 [ VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vep_txt', to_key => 'vep_txt'),
-                   VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'vcf_files') ],
-                 
-                 [ VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1) ]);
+        return (
+            [VRPipe::Step->get(name => 'vep_analysis'), VRPipe::Step->get(name => 'vcf_vep_consequences')],
+            
+            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vep_txt', to_key => 'vep_txt'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'vcf_files')],
+            
+            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]);
     }
 }
 

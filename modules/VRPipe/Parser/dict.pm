@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::dict - parse sequence dictionary files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying equence dictionary file
@@ -59,16 +60,16 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::dict with VRPipe::ParserRole {
-    has '_saw_last_line' => (is => 'rw',
-                             isa => 'Bool',
+    has '_saw_last_line' => (is      => 'rw',
+                             isa     => 'Bool',
                              default => 0);
     
-    has 'parsed_record' => (is => 'ro',
-                            isa => 'HashRef',
+    has 'parsed_record' => (is      => 'ro',
+                            isa     => 'HashRef',
                             default => sub { {} });
-    
-=head2 parsed_record
 
+=head2 parsed_record
+ 
  Title   : parsed_record
  Usage   : my $parsed_record = $obj->parsed_record()
  Function: Get the data structure that will hold the last record requested by
@@ -86,7 +87,7 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
 =cut
 
 =head2 next_record
-
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next record from the dict file.
@@ -95,6 +96,7 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record () {
         # just return if no file set
         my $fh = $self->fh() || return;
@@ -129,9 +131,9 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
         
         return 1;
     }
-    
-=head2 seq_lengths
 
+=head2 seq_lengths
+ 
  Title   : seq_lengths
  Usage   : my %seq_lengths = $obj->seq_lengths;
  Function: Get all the sequence lengths.
@@ -139,6 +141,7 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method seq_lengths {
         my %seq_lengths;
         
@@ -147,7 +150,7 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
         
         my $pr = $self->parsed_record;
         while ($self->next_record) {
-            $seq_lengths{$pr->{SN}} = $pr->{LN};
+            $seq_lengths{ $pr->{SN} } = $pr->{LN};
         }
         
         $self->_restore_position();
@@ -155,7 +158,7 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
     }
 
 =head2 seq_ids
-
+ 
  Title   : seq_ids
  Usage   : my @seq_ids = $obj->seq_ids;
  Function: Get all the sequence ids.
@@ -163,6 +166,7 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method seq_ids {
         my @seq_ids;
         
@@ -177,9 +181,9 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
         $self->_restore_position();
         return @seq_ids;
     }
-    
-=head2 total_length
 
+=head2 total_length
+ 
  Title   : total_length
  Usage   : my $total_length = $obj->total_length;
  Function: Get the total length of all sequences in the dict file
@@ -187,12 +191,13 @@ class VRPipe::Parser::dict with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method total_length {
         $self->_save_position;
         $self->_seek_first_record;
         
-        my $pr = $self->parsed_record;
-        my $length = 0;;
+        my $pr     = $self->parsed_record;
+        my $length = 0;
         while ($self->next_record) {
             $length += $pr->{LN} || 0;
         }

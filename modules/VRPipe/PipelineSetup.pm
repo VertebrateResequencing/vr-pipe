@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::PipelineSetup - set up a pipeline
@@ -8,11 +9,11 @@ VRPipe::PipelineSetup - set up a pipeline
 
 =head1 DESCRIPTION
 
-The main thing that users want to do is "run a pipeline" on a given set of data.
-Pipelines are modelled by L<VRPipe::Pipline> objects, and the set of data is
-modelled by a L<VRPipe::DataSource>. A PipelineSetup relates the two and also
-stores the user configuration of both, resulting in a named object defining what
-the user wants to happen.
+The main thing that users want to do is "run a pipeline" on a given set of
+data. Pipelines are modelled by L<VRPipe::Pipline> objects, and the set of data
+is modelled by a L<VRPipe::DataSource>. A PipelineSetup relates the two and
+also stores the user configuration of both, resulting in a named object
+defining what the user wants to happen.
 
 So users "set up" pipelines and get back a PipelineSetup. They, and the
 B<VRPipe> system itself, look to these PipelineSetups to see what is supposed
@@ -52,51 +53,51 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::PipelineSetup extends VRPipe::Persistent {
-    has 'name' => (is => 'rw',
-                   isa => Varchar[64],
+    has 'name' => (is     => 'rw',
+                   isa    => Varchar [64],
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1);
     
-    has 'datasource' => (is => 'rw',
-                         isa => Persistent,
-                         coerce => 1,
-                         traits => ['VRPipe::Persistent::Attributes'],
-                         is_key => 1,
+    has 'datasource' => (is         => 'rw',
+                         isa        => Persistent,
+                         coerce     => 1,
+                         traits     => ['VRPipe::Persistent::Attributes'],
+                         is_key     => 1,
                          belongs_to => 'VRPipe::DataSource');
     
-    has 'pipeline' => (is => 'rw',
-                       isa => Persistent,
-                       coerce => 1,
-                       traits => ['VRPipe::Persistent::Attributes'],
-                       is_key => 1,
+    has 'pipeline' => (is         => 'rw',
+                       isa        => Persistent,
+                       coerce     => 1,
+                       traits     => ['VRPipe::Persistent::Attributes'],
+                       is_key     => 1,
                        belongs_to => 'VRPipe::Pipeline');
     
-    has 'output_root' => (is => 'rw',
-                          isa => Dir,
+    has 'output_root' => (is     => 'rw',
+                          isa    => Dir,
                           coerce => 1,
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_key => 1);
     
-    has 'options' => (is => 'rw',
-                      isa => 'HashRef',
-                      traits => ['VRPipe::Persistent::Attributes'],
-                      default => sub { {} },
+    has 'options' => (is                   => 'rw',
+                      isa                  => 'HashRef',
+                      traits               => ['VRPipe::Persistent::Attributes'],
+                      default              => sub { {} },
                       allow_key_to_default => 1,
-                      is_key => 1);
+                      is_key               => 1);
     
-    has 'description' => (is => 'rw',
-                         isa => Text,
-                         traits => ['VRPipe::Persistent::Attributes'],
-                         is_nullable => 1);
+    has 'description' => (is          => 'rw',
+                          isa         => Text,
+                          traits      => ['VRPipe::Persistent::Attributes'],
+                          is_nullable => 1);
     
-    has 'active' => (is => 'rw',
-                     isa => 'Bool',
-                     traits => ['VRPipe::Persistent::Attributes'],
+    has 'active' => (is      => 'rw',
+                     isa     => 'Bool',
+                     traits  => ['VRPipe::Persistent::Attributes'],
                      default => 1);
     
-    has 'user' => (is => 'rw',
-                   isa => Varchar[64],
-                   traits => ['VRPipe::Persistent::Attributes'],
+    has 'user' => (is      => 'rw',
+                   isa     => Varchar [64],
+                   traits  => ['VRPipe::Persistent::Attributes'],
                    default => 'vrpipe');
     
     __PACKAGE__->make_persistent(has_many => [states => 'VRPipe::StepState']);
@@ -107,9 +108,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         my $self = shift;
         return ({ pipelinesetup => $self->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement', prefetch => 'dataelement' });
     }
+    
     method dataelementstates_pager {
         return VRPipe::DataElementState->search_paged($self->_des_search_args);
     }
+    
     method dataelementstates {
         return VRPipe::DataElementState->search($self->_des_search_args);
     }

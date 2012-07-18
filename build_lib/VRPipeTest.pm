@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipeTest - for use by all test scripts
 
 =head1 SYNOPSIS
-
+    
     BEGIN {
         use Test::Most tests => 3;
         use VRPipeTest (required_env => [qw(RUN_AUTHOR_TESTS)],
@@ -58,12 +59,12 @@ VRPipe::Persistent::SchemaBase->database_deployment('testing'); # do not change 
 use constant WIN32 => $^O eq 'MSWin32';
 my $quote = WIN32 ? q/"/ : q/'/;
 our $max_retries = 3;
-our $debug = 0;
+our $debug       = 0;
 
 sub import {
     my $class  = shift;
     my $caller = caller(0);
-    my %args = @_;
+    my %args   = @_;
     
     # skip if required_env or required_exe not satisfied
     while (my ($key, $val) = each %args) {
@@ -85,18 +86,17 @@ sub import {
     # copy/pasted  Test::DBIx::Class to get the exports
     my ($schema_manager, $merged_config, @exports) = $class->_initialize();
     my $exporter = Sub::Exporter::build_exporter({
-        exports => [
-            Schema => sub {
-                return sub {
-                    return $schema_manager->schema;
-                }
-            },
-            get_elements => sub {
-                return \&get_elements;
-            }
-        ],
-        into_level => 1,    
-    });
+           exports => [
+               Schema => sub {
+                   return sub {
+                       return $schema_manager->schema;
+                     }
+               },
+               get_elements => sub {
+                   return \&get_elements;
+                 }
+           ],
+           into_level => 1, });
     
     $class->$exporter(qw/Schema get_elements/, @exports);
 }
@@ -104,13 +104,14 @@ sub import {
 sub _initialize_schema {
     my $class = shift;
     
-    my $config  = { schema_class => 'VRPipe::Persistent::Schema',
-                    force_drop_table => 1,
-                    keep_db => 1,
-                    connect_info => [VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password] };
+    my $config = { schema_class     => 'VRPipe::Persistent::Schema',
+                   force_drop_table => 1,
+                   keep_db          => 1,
+                   connect_info     => [VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password] };
     
     return $class->SUPER::_initialize_schema($config);
 }
+
 
 
 # following methods were stolen and slightly modified from
@@ -133,21 +134,21 @@ sub skip_all_unless_exists {
         my $skip_all = sub {
             my $builder = __PACKAGE__->builder;
             
-            if ( not defined $builder->has_plan ) {
+            if (not defined $builder->has_plan) {
                 $builder->skip_all(@_);
             }
-            elsif ( $builder->has_plan eq 'no_plan' ) {
+            elsif ($builder->has_plan eq 'no_plan') {
                 $builder->skip(@_);
-                if ( $builder->can('parent') && $builder->parent ) {
+                if ($builder->can('parent') && $builder->parent) {
                     die bless {} => 'Test::Builder::Exception';
                 }
                 exit 0;
             }
             else {
-                for ( 1 .. $builder->has_plan ) {
+                for (1 .. $builder->has_plan) {
                     $builder->skip(@_);
                 }
-                if ( $builder->can('parent') && $builder->parent ) {
+                if ($builder->can('parent') && $builder->parent) {
                     die bless {} => 'Test::Builder::Exception';
                 }
                 exit 0;
@@ -195,13 +196,14 @@ sub is_file_path {
 sub debug {
     return $debug;
 }
+
 sub max_retries {
     return $max_retries;
 }
 
 sub get_elements {
-    my $ds = shift;
-    my $pager = $ds->elements;
+    my $ds       = shift;
+    my $pager    = $ds->elements;
     my @elements = ();
     while (my $elements = $pager->next) {
         push(@elements, @$elements);

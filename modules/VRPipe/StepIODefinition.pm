@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepIODefinition - define inputs and outputs of a Step
@@ -47,50 +48,50 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepIODefinition extends VRPipe::Persistent {
-    has 'type' => (is => 'rw',
-                   isa => FileType,
+    has 'type' => (is     => 'rw',
+                   isa    => FileType,
                    coerce => 1,
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1);
     
-    has 'min_files' => (is => 'rw',
-                        isa => IntSQL[4],
-                        traits => ['VRPipe::Persistent::Attributes'],
-                        is_key => 1,
-                        default => 1,
+    has 'min_files' => (is                   => 'rw',
+                        isa                  => IntSQL [4],
+                        traits               => ['VRPipe::Persistent::Attributes'],
+                        is_key               => 1,
+                        default              => 1,
                         allow_key_to_default => 1);
     
-    has 'max_files' => (is => 'rw',
-                        isa => IntSQL[4],
-                        traits => ['VRPipe::Persistent::Attributes'],
-                        is_key => 1,
-                        default => 1, # -1 means no maximum
+    has 'max_files' => (is                   => 'rw',
+                        isa                  => IntSQL [4],
+                        traits               => ['VRPipe::Persistent::Attributes'],
+                        is_key               => 1,
+                        default              => 1,                                 # -1 means no maximum
                         allow_key_to_default => 1);
     
-    has 'metadata' => (is => 'rw',
-                       isa => 'HashRef',
-                       traits => ['VRPipe::Persistent::Attributes'],
-                       is_key => 1,
-                       default => sub { {} },
+    has 'metadata' => (is                   => 'rw',
+                       isa                  => 'HashRef',
+                       traits               => ['VRPipe::Persistent::Attributes'],
+                       is_key               => 1,
+                       default              => sub { {} },
                        allow_key_to_default => 1);
     
-    has 'check_existence' => (is => 'rw',
-                              isa => 'Bool',
-                              traits => ['VRPipe::Persistent::Attributes'],
-                              is_key => 1,
-                              default => 1,
+    has 'check_existence' => (is                   => 'rw',
+                              isa                  => 'Bool',
+                              traits               => ['VRPipe::Persistent::Attributes'],
+                              is_key               => 1,
+                              default              => 1,
                               allow_key_to_default => 1);
     
-    has 'description' => (is => 'rw',
-                          isa => Varchar[255],
+    has 'description' => (is     => 'rw',
+                          isa    => Varchar [255],
                           traits => ['VRPipe::Persistent::Attributes'],
                           is_key => 1);
     
     __PACKAGE__->make_persistent();
     
     method required_metadata_keys {
-        my %metadata = %{$self->metadata}; # copy it so we don't alter original on next line, letting us reuse this same instance safely
-        my %optional = map { $_ => 1 } @{delete $metadata{optional} || []};
+        my %metadata = %{ $self->metadata };                                 # copy it so we don't alter original on next line, letting us reuse this same instance safely
+        my %optional = map { $_ => 1 } @{ delete $metadata{optional} || [] };
         
         my @required;
         foreach my $key (sort keys %metadata) {

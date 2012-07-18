@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::gatk_recalibrate_variants - a step
@@ -47,66 +48,70 @@ use VRPipe::Base;
 
 class VRPipe::Steps::gatk_recalibrate_variants extends VRPipe::Steps::gatk {
     around options_definition {
-        return { %{$self->$orig},
+        return { %{ $self->$orig },
                  reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
-                 var_recal_opts => VRPipe::StepOption->create(description => 'options for GATK VariantRecalibrator, excluding reference genome, input and output'),
-               };
+                 var_recal_opts  => VRPipe::StepOption->create(description => 'options for GATK VariantRecalibrator, excluding reference genome, input and output'), };
     }
-
+    
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'one or more tabixed vcf files for variant recalibration'),
-		};
+        return { vcf_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'one or more tabixed vcf files for variant recalibration'), };
     }
-
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
-	    $self->handle_standard_options($options);
-	    
-			my $reference_fasta = $options->{reference_fasta};
-            my $var_recal_opts = $options->{var_recal_opts};
-
+            $self->handle_standard_options($options);
+            
+            my $reference_fasta = $options->{reference_fasta};
+            my $var_recal_opts  = $options->{var_recal_opts};
+            
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
-
-            foreach my $vcf (@{$self->inputs->{vcf_files}}) {
+            
+            foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
                 my $vcf_path = $vcf->path;
-				my $basename = $vcf->basename;
-				if ($basename =~ /\.vcf.gz$/) {
-					$basename =~ s/\.vcf.gz$/.recal.csv/;
-				}
-				else {
-					$basename =~ s/\.vcf$/.recal.csv/;
-				}
-
-				my $recal_file = $self->output_file(output_key => 'recal_files', basename => $basename, type => 'txt',
-													metadata => {source_vcf => $vcf->path->stringify});
-				my $recal_path = $recal_file->path;
-				$basename =~ s/recal\.csv/tranches/;
-				my $tranches_file = $self->output_file(output_key => 'tranches_files', basename => $basename, type => 'txt',
-													metadata => {source_vcf => $vcf->path->stringify});
-				my $tranches_path = $tranches_file->path;
-
-				my $cmd = $self->java_exe.qq[ $jvm_args -jar ].$self->jar.qq[ -T VariantRecalibrator -R $reference_fasta -input $vcf_path -recalFile $recal_path -tranchesFile $tranches_path $var_recal_opts ];
-				$self->dispatch([$cmd, $req, {output_files => [$recal_file, $tranches_file]}]); 
-			}
+                my $basename = $vcf->basename;
+                if ($basename =~ /\.vcf.gz$/) {
+                    $basename =~ s/\.vcf.gz$/.recal.csv/;
+                }
+                else {
+                    $basename =~ s/\.vcf$/.recal.csv/;
+                }
+                
+                my $recal_file = $self->output_file(output_key => 'recal_files',
+                                                    basename   => $basename,
+                                                    type       => 'txt',
+                                                    metadata   => { source_vcf => $vcf->path->stringify });
+                my $recal_path = $recal_file->path;
+                $basename =~ s/recal\.csv/tranches/;
+                my $tranches_file = $self->output_file(output_key => 'tranches_files',
+                                                       basename   => $basename,
+                                                       type       => 'txt',
+                                                       metadata   => { source_vcf => $vcf->path->stringify });
+                my $tranches_path = $tranches_file->path;
+                
+                my $cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T VariantRecalibrator -R $reference_fasta -input $vcf_path -recalFile $recal_path -tranchesFile $tranches_path $var_recal_opts ];
+                $self->dispatch([$cmd, $req, { output_files => [$recal_file, $tranches_file] }]);
+            }
         };
     }
+    
     method outputs_definition {
-        return {
-			recal_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a recalibration table file in CSV format for each input vcf'),
-			tranches_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a tranches file for each vcf used by ApplyRecalibration'),
-		};
+        return { recal_files    => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a recalibration table file in CSV format for each input vcf'),
+                 tranches_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a tranches file for each vcf used by ApplyRecalibration'), };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Run gatk VariantRecalibrator on vcf files, generating recalibration files for use by ApplyRecalibration walker";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
 

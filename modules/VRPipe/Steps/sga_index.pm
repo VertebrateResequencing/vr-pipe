@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::sga_index - a step
@@ -32,7 +33,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 # Usage: sga index [OPTION] ... READSFILE
 # Index the reads in READSFILE using a suffixarray/bwt
-# 
+#
 #   -v, --verbose                        display verbose output
 #       --help                           display this help and exit
 #   -a, --algorithm=STR                  BWT construction algorithm. STR must be SAIS (induced copying, the default) or BCR (Bauer-Cox-Rosone)
@@ -58,56 +59,62 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_index with VRPipe::StepRole {
     method options_definition {
-        return { sga_index_options => VRPipe::StepOption->create(description => 'options to sga index', optional => 1, default_value => '--no-reverse'),
-                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_index_options => VRPipe::StepOption->create(description => 'options to sga index',        optional => 1, default_value => '--no-reverse'),
+                 sga_exe           => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
+    
     method inputs_definition {
         return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'sequence files to be indexed') };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
             
-            my $sga_exe = $options->{sga_exe};
+            my $sga_exe  = $options->{sga_exe};
             my $sga_opts = $options->{sga_index_options};
             if ($sga_opts =~ /index/) {
                 $self->throw("sga_index_options should not include the index subcommand");
             }
-            my $cmd = $sga_exe.' index '.$sga_opts;
+            my $cmd = $sga_exe . ' index ' . $sga_opts;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga index '.$sga_opts.' $reads_file'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga index ' . $sga_opts . ' $reads_file'));
             
             my $req = $self->new_requirements(memory => 3900, time => 1);
-            foreach my $fq (@{$self->inputs->{fastq_files}}) {
+            foreach my $fq (@{ $self->inputs->{fastq_files} }) {
                 my $prefix = $fq->basename;
                 $prefix =~ s/\.(fq|fastq)(\.gz)?//;
                 my @outfiles;
                 unless ($sga_opts =~ '--no-forward') {
                     push @outfiles, $self->output_file(output_key => 'sga_index_binary_files', output_dir => $fq->dir->stringify, basename => "$prefix.bwt", type => 'bin');
-                    push @outfiles, $self->output_file(output_key => 'sga_index_text_files', output_dir => $fq->dir->stringify, basename => "$prefix.sai", type => 'txt');
+                    push @outfiles, $self->output_file(output_key => 'sga_index_text_files',   output_dir => $fq->dir->stringify, basename => "$prefix.sai", type => 'txt');
                 }
                 unless ($sga_opts =~ '--no-reverse') {
                     push @outfiles, $self->output_file(output_key => 'sga_index_binary_files', output_dir => $fq->dir->stringify, basename => "$prefix.rbwt", type => 'bin');
-                    push @outfiles, $self->output_file(output_key => 'sga_index_text_files', output_dir => $fq->dir->stringify, basename => "$prefix.rsai", type => 'txt');
+                    push @outfiles, $self->output_file(output_key => 'sga_index_text_files',   output_dir => $fq->dir->stringify, basename => "$prefix.rsai", type => 'txt');
                 }
-                my $this_cmd = "$cmd ".$fq->path;
-                $self->dispatch([$this_cmd, $req, {output_files => \@outfiles}]);
+                my $this_cmd = "$cmd " . $fq->path;
+                $self->dispatch([$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
     }
+    
     method outputs_definition {
         return { sga_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the binary files produced by sga index', max_files => -1),
-                 sga_index_text_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the text files produced by sga index', max_files => -1) };
+                 sga_index_text_files   => VRPipe::StepIODefinition->create(type => 'txt', description => 'the text files produced by sga index',   max_files => -1) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Build the BWT and FM-index for a set of reads";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
 

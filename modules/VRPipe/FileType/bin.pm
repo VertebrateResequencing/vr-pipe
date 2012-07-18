@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::bin - binary filetype
@@ -45,6 +46,7 @@ class VRPipe::FileType::bin with VRPipe::FileTypeRole {
     method num_header_lines {
         return 0;
     }
+    
     method num_records {
         return 0;
     }

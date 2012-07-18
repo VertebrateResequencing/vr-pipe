@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::sga_merge - a step
@@ -31,9 +32,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 
+
 # Usage: sga merge [OPTION] ... READS1 READS2
 # Merge the sequence files READS1, READS2 into a single file/index
-# 
+#
 #   -v, --verbose                        display verbose output
 #       --help                           display this help and exit
 #   -t, --threads=NUM                    use NUM threads to merge the indices (default: 1)
@@ -52,31 +54,33 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_merge with VRPipe::StepRole {
     method options_definition {
-        return { sga_merge_options => VRPipe::StepOption->create(description => 'options to sga index', optional => 1, default_value => ''),
-                 sga_exe => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_merge_options => VRPipe::StepOption->create(description => 'options to sga index',        optional => 1, default_value => ''),
+                 sga_exe           => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
+    
     method inputs_definition {
         return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'fastq files to be merged') };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
             
-            my $sga_exe = $options->{sga_exe};
+            my $sga_exe  = $options->{sga_exe};
             my $sga_opts = $options->{sga_merge_options};
             if ($sga_opts =~ /merge|-p|--prefix/) {
                 $self->throw("sga_merge_options should not include the merge subcommand or --prefix (-p) option");
             }
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga merge '.$sga_opts.' $fastq_file_1 $fastq_file_2'));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga merge ' . $sga_opts . ' $fastq_file_1 $fastq_file_2'));
             
             my $req = $self->new_requirements(memory => 3900, time => 1);
-            my @fastqs = sort { $a->s <=> $b->s  } @{$self->inputs->{fastq_files}};
+            my @fastqs = sort { $a->s <=> $b->s } @{ $self->inputs->{fastq_files} };
             my $id = 1;
             while (@fastqs) {
                 my @fqs;
                 # merge the largest file with the smallest file
-                push(@fqs, shift @fastqs); 
+                push(@fqs, shift @fastqs);
                 push(@fqs, pop @fastqs) if @fastqs;
                 my @basenames;
                 my $popidx;
@@ -89,40 +93,45 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
                 my $fq_meta = $self->common_metadata(\@fqs);
                 my $basename = join '_', @basenames;
                 my @outfiles;
-                push @outfiles, $self->output_file(output_key => 'merged_fastq_files', basename => "$basename.$id.fq", type => 'fq', metadata => $fq_meta);
-                push @outfiles, $self->output_file(output_key => 'merged_bwt_files', basename => "$basename.$id.bwt", type => 'bin', metadata => $fq_meta);
-                push @outfiles, $self->output_file(output_key => 'merged_sai_files', basename => "$basename.$id.sai", type => 'txt', metadata => $fq_meta);
+                push @outfiles, $self->output_file(output_key => 'merged_fastq_files', basename => "$basename.$id.fq",  type => 'fq',  metadata => $fq_meta);
+                push @outfiles, $self->output_file(output_key => 'merged_bwt_files',   basename => "$basename.$id.bwt", type => 'bin', metadata => $fq_meta);
+                push @outfiles, $self->output_file(output_key => 'merged_sai_files',   basename => "$basename.$id.sai", type => 'txt', metadata => $fq_meta);
                 if ($popidx) {
                     push @outfiles, $self->output_file(output_key => 'merged_popidx_files', basename => "$basename.$id.popidx", type => 'txt', metadata => $fq_meta);
                 }
                 ++$id;
                 my $prefix = $outfiles[0]->path;
                 $prefix =~ s/\.fq$//;
-                my $cmd = qq[$sga_exe merge $sga_opts --prefix $prefix ].join(' ', map { $_->path } @fqs);
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::sga_merge', 'merge_and_check', [$cmd, $req, {output_files => \@outfiles}]);
+                my $cmd = qq[$sga_exe merge $sga_opts --prefix $prefix ] . join(' ', map { $_->path } @fqs);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::sga_merge', 'merge_and_check', [$cmd, $req, { output_files => \@outfiles }]);
             }
         };
     }
+    
     method outputs_definition {
-        return { merged_fastq_files => VRPipe::StepIODefinition->create(type => 'fq', description => 'the files produced by sga index', max_files => -1),
-                 merged_bwt_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the files produced by sga index', max_files => -1),
-                 merged_sai_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', max_files => -1),
+        return { merged_fastq_files  => VRPipe::StepIODefinition->create(type => 'fq',  description => 'the files produced by sga index', max_files => -1),
+                 merged_bwt_files    => VRPipe::StepIODefinition->create(type => 'bin', description => 'the files produced by sga index', max_files => -1),
+                 merged_sai_files    => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', max_files => -1),
                  merged_popidx_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', min_files => 0, max_files => -1) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Merge the sequence files READS1, READS2 into a single file/index";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
+    
     method merge_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($prefix, $in_paths) = $cmd_line =~ /--prefix (\S+) (.+)$/;
         my @in_paths = split ' ', $in_paths;
         @in_paths || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $prefix || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $prefix   || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
         my (@in_fastqs, @in_bwts, @in_sais, @in_popidxs);
         my $popidx;
@@ -139,13 +148,13 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
                 push @in_popidxs, VRPipe::File->create(path => $in_popidx);
             }
         }
-        my $out_fq = VRPipe::File->create(path => $prefix.'.fq');
-        my $out_fa = VRPipe::File->create(path => $prefix.'.fa');
-        my $out_bwt = VRPipe::File->create(path => $prefix.'.bwt');
-        my $out_sai = VRPipe::File->create(path => $prefix.'.sai');
+        my $out_fq  = VRPipe::File->create(path => $prefix . '.fq');
+        my $out_fa  = VRPipe::File->create(path => $prefix . '.fa');
+        my $out_bwt = VRPipe::File->create(path => $prefix . '.bwt');
+        my $out_sai = VRPipe::File->create(path => $prefix . '.sai');
         my $out_popidx;
         if ($popidx) {
-            $out_popidx = VRPipe::File->create(path => $prefix.'.popidx');
+            $out_popidx = VRPipe::File->create(path => $prefix . '.popidx');
         }
         
         if (scalar @in_paths == 1) {
@@ -175,7 +184,7 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
         my $actual_reads = $out_fq->num_records;
         
         if ($actual_reads == $reads) {
-            $out_fq->add_metadata({reads => $actual_reads});
+            $out_fq->add_metadata({ reads => $actual_reads });
             return 1;
         }
         else {

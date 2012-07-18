@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_merge - a step
@@ -34,34 +35,35 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
     around options_definition {
-        return { %{$self->$orig},
-                 merge_sam_files_options => VRPipe::StepOption->create(description => 'options for picard MergeSamFiles', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT'),
-                 bam_merge_keep_single_paired_separate => VRPipe::StepOption->create(description => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
-                                                                                  optional => 1,
-                                                                                  default_value => 1),
+        return { %{ $self->$orig },
+                 merge_sam_files_options               => VRPipe::StepOption->create(description => 'options for picard MergeSamFiles', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT'),
+                 bam_merge_keep_single_paired_separate => VRPipe::StepOption->create(description   => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
+                                                                                     optional      => 1,
+                                                                                     default_value => 1),
                  bam_merge_maximum_files => VRPipe::StepOption->create(description => 'set the maximum number of files to merge in one go; eg. if there are 100 bams to merge and you set this to 40, 3 output bams will result, being merges of 40, 40 and 20 of the input bams (defaults to infinity)',
-                                                                    optional => 1) };
+                                                                       optional    => 1) };
     }
+    
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
-                                                            max_files => -1, 
-                                                            description => '1 or more bam files',
-                                                            metadata => {lane => 'lane name, or comma separated list of lane names if merged',
-                                                                         library => 'library name, or comma separated list of library names if merged',
-                                                                         sample => 'sample name, or comma separated list of sample names if merged',
-                                                                         center_name => 'center name, or comma separated list of center names if merged',
-                                                                         platform => 'sequencing platform, or comma separated list of platform names if merged',
-                                                                         study => 'name of the study, or comma separated list of study names if merged',
-                                                                         bases => 'total number of base pairs',
-                                                                         reads => 'total number of reads (sequences)',
-                                                                         paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                         optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases']}
-                                                            ),
-                };
+        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                               max_files   => -1,
+                                                               description => '1 or more bam files',
+                                                               metadata    => {
+                                                                             lane        => 'lane name, or comma separated list of lane names if merged',
+                                                                             library     => 'library name, or comma separated list of library names if merged',
+                                                                             sample      => 'sample name, or comma separated list of sample names if merged',
+                                                                             center_name => 'center name, or comma separated list of center names if merged',
+                                                                             platform    => 'sequencing platform, or comma separated list of platform names if merged',
+                                                                             study       => 'name of the study, or comma separated list of study names if merged',
+                                                                             bases       => 'total number of base pairs',
+                                                                             reads       => 'total number of reads (sequences)',
+                                                                             paired      => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                                                                             optional    => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases'] }), };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
             $self->handle_standard_options($options);
             my $merge_jar = $self->jar('MergeSamFiles.jar');
@@ -73,17 +75,17 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
             
             my %paired_groups;
             my $paired = 0;
-            foreach my $bam (@{$self->inputs->{bam_files}}) {
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $meta = $bam->metadata;
                 $paired ||= $meta->{paired};
                 my $ended = $meta->{paired} ? 'pe' : 'se';
-                push @{$paired_groups{$ended}}, $bam;
+                push @{ $paired_groups{$ended} }, $bam;
             }
             
             # merge single and paired end bams unless option says not to
             unless ($options->{bam_merge_keep_single_paired_separate}) {
                 if ($paired && exists $paired_groups{se}) {
-                    push @{$paired_groups{pe}}, @{delete $paired_groups{se}};
+                    push @{ $paired_groups{pe} }, @{ delete $paired_groups{se} };
                 }
             }
             
@@ -97,7 +99,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                     foreach my $bam (@$bam_files) {
                         push(@these_bams, $bam);
                         if (@these_bams == $max_bams_per_group) {
-                            $merge_groups{$ended}->{$chunk++} = [@these_bams];
+                            $merge_groups{$ended}->{ $chunk++ } = [@these_bams];
                             @these_bams = ();
                         }
                     }
@@ -110,56 +112,59 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                 }
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'picard', 
-                                   version => $self->picard_version(),
-                                   summary => 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam '.$opts));
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
+                                                                  version => $self->picard_version(),
+                                                                  summary => 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam ' . $opts));
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
             while (my ($ended, $chunks) = each %merge_groups) {
                 while (my ($chunk, $bam_files) = each %$chunks) {
                     my $merge_file = $self->output_file(output_key => 'merged_bam_files',
-                                                        basename => "$ended.$chunk.bam",
-                                                        type => 'bam',
-                                                        metadata => $self->common_metadata($bam_files)
-                                                        );
+                                                        basename   => "$ended.$chunk.bam",
+                                                        type       => 'bam',
+                                                        metadata   => $self->common_metadata($bam_files));
                     
                     my $temp_dir = $options->{tmp_dir} || $merge_file->dir;
                     my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                     
                     my $in_bams = join ' INPUT=', map { $_->path } @$bam_files;
-                    $in_bams = ' INPUT='.$in_bams;
-                    my $this_cmd = $self->java_exe.qq[ $jvm_args -jar $merge_jar$in_bams OUTPUT=].$merge_file->path.qq[ $opts];
-                    $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_merge', 'merge_and_check', [$this_cmd, $req, {output_files => [$merge_file]}]);
+                    $in_bams = ' INPUT=' . $in_bams;
+                    my $this_cmd = $self->java_exe . qq[ $jvm_args -jar $merge_jar$in_bams OUTPUT=] . $merge_file->path . qq[ $opts];
+                    $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_merge', 'merge_and_check', [$this_cmd, $req, { output_files => [$merge_file] }]);
                 }
             }
         };
     }
+    
     method outputs_definition {
-        return { merged_bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
-                                                                   max_files => -1, 
-                                                                   description => '1 or more bam merged bam files',
-                                                                   metadata => {lane => 'lane name, or comma separated list of lane names if merged',
-                                                                                library => 'library name, or comma separated list of library names if merged',
-                                                                                sample => 'sample name, or comma separated list of sample names if merged',
-                                                                                center_name => 'center name, or comma separated list of center names if merged',
-                                                                                platform => 'sequencing platform, or comma separated list of platform names if merged',
-                                                                                study => 'name of the study, or comma separated list of study names if merged',
-                                                                                bases => 'total number of base pairs',
-                                                                                reads => 'total number of reads (sequences)',
-                                                                                paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                                optional => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases']}
-                                                                    ),
-               };
+        return { merged_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                                      max_files   => -1,
+                                                                      description => '1 or more bam merged bam files',
+                                                                      metadata    => {
+                                                                                    lane        => 'lane name, or comma separated list of lane names if merged',
+                                                                                    library     => 'library name, or comma separated list of library names if merged',
+                                                                                    sample      => 'sample name, or comma separated list of sample names if merged',
+                                                                                    center_name => 'center name, or comma separated list of center names if merged',
+                                                                                    platform    => 'sequencing platform, or comma separated list of platform names if merged',
+                                                                                    study       => 'name of the study, or comma separated list of study names if merged',
+                                                                                    bases       => 'total number of base pairs',
+                                                                                    reads       => 'total number of reads (sequences)',
+                                                                                    paired      => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                                                                                    optional    => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'bases'] }), };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Merges bam files using Picard MergeSamFiles";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;          # meaning unlimited
     }
+    
     method merge_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($out_path) = $cmd_line =~ /OUTPUT=(\S+)/;
         my @in_paths = $cmd_line =~ /INPUT=(\S+)/g;
@@ -183,8 +188,8 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         
         $out_file->update_stats_from_disc(retries => 3);
         
-        my $reads = 0;
-        my $bases = 0;
+        my $reads  = 0;
+        my $bases  = 0;
         my $paired = 0;
         foreach my $in_file (@in_files) {
             my $meta = $in_file->metadata;
@@ -196,8 +201,8 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
         
         if ($actual_reads == $reads) {
             my %new_meta;
-            $new_meta{reads} = $actual_reads;
-            $new_meta{bases} = $bases if $bases;
+            $new_meta{reads}  = $actual_reads;
+            $new_meta{bases}  = $bases if $bases;
             $new_meta{paired} = $paired;
             $out_file->add_metadata(\%new_meta);
             return 1;

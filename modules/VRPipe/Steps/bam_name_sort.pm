@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_name_sort - a step
@@ -34,30 +35,32 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
-                                                         optional => 1,
-                                                         default_value => 'samtools'),
-                 samtools_sort_options => VRPipe::StepOption->create(description => 'command line options for samtools sort, excluding -n and -o', optional => 1)  };
+        return { samtools_exe => VRPipe::StepOption->create(description   => 'path to your samtools executable',
+                                                            optional      => 1,
+                                                            default_value => 'samtools'),
+                 samtools_sort_options => VRPipe::StepOption->create(description => 'command line options for samtools sort, excluding -n and -o', optional => 1) };
     }
+    
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
-                                                            max_files => -1, 
-                                                            description => '1 or more bam files') };
-        
+        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                               max_files   => -1,
+                                                               description => '1 or more bam files') };
+    
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self    = shift;
             my $options = $self->options;
             
             my $samtools = $options->{samtools_exe};
             
-            my $opts = "sort -n";
+            my $opts      = "sort -n";
             my $user_opts = $options->{samtools_sort_options};
-            my $mem = 768; # the samtools sort default
+            my $mem       = 768;                              # the samtools sort default
             if ($user_opts) {
                 $user_opts =~ s/-o//;
-                $opts .= ' '.$user_opts;
+                $opts .= ' ' . $user_opts;
                 if ($user_opts =~ /-m (\d+)([KMG])/) {
                     $mem = $1;
                     my $m_unit = $2;
@@ -70,11 +73,11 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
                 }
             }
             
-            my $req = $self->new_requirements(memory => $mem == 768 ? 3000 : (4*$mem), time => 2); # in some cases samtools can use way more than the -m specified, and is very segfault happy
+            my $req = $self->new_requirements(memory => $mem == 768 ? 3000 : (4 * $mem), time => 2); # in some cases samtools can use way more than the -m specified, and is very segfault happy
             my $memory = $req->memory;
             
-            foreach my $bam (@{$self->inputs->{bam_files}}) {
-                my $in_base = $bam->basename;
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
+                my $in_base  = $bam->basename;
                 my $out_base = $in_base;
                 $out_base =~ s/\.bam$//;
                 $out_base .= '.name_sorted.bam';
@@ -83,33 +86,37 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
                 
                 my $out_prefix = $sort_bam_file->path;
                 $out_prefix =~ s/\.bam$//;
-                my $this_cmd = "$samtools $opts ".$bam->path." $out_prefix";
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_name_sort', 'sort_and_check', [$this_cmd, $req, {output_files => [$sort_bam_file]}]);
+                my $this_cmd = "$samtools $opts " . $bam->path . " $out_prefix";
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_name_sort', 'sort_and_check', [$this_cmd, $req, { output_files => [$sort_bam_file] }]);
             }
         };
     }
+    
     method outputs_definition {
-        return { name_sorted_bam_files => VRPipe::StepIODefinition->create(type => 'bam', 
-                                                                        max_files => -1, 
-                                                                        description => 'a name-sorted bam file') };
+        return { name_sorted_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                                           max_files   => -1,
+                                                                           description => 'a name-sorted bam file') };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Name-sorts a bam file, producing a new bam file";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method sort_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($in_path, $out_path) = $cmd_line =~ /(\S+) (\S+)$/;
-        $in_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $in_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path .= '.bam';
         
-        my $in_file = VRPipe::File->get(path => $in_path);
+        my $in_file  = VRPipe::File->get(path => $in_path);
         my $out_file = VRPipe::File->get(path => $out_path);
         
         $in_file->disconnect;
