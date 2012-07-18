@@ -6,10 +6,8 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES)],
-        #required_exe => [qw(samtools bamcheck)]
-    );
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_EXE BISMARK_GENOME_FOLDER TRIMMOMATIC)],
+                    required_exe => [qw(fastqc)]);
     use TestPipelines;
 }
 my $output_dir = get_output_dir('bis_seq_bismark-test');
