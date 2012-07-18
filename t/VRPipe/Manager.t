@@ -237,7 +237,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
     
     ok handle_pipeline(@ofiles), 'pipeline with a step that fails twice before working ran successfully';
     
-    my $rs = Schema->resultset("Submission")->search({ 'stepstate.pipelinesetup' => $ps_id }, { order_by => { -asc => 'id' }, join => ['stepstate'] });
+    my $rs = Schema->resultset("Submission")->search({ 'stepstate.pipelinesetup' => $ps_id }, { order_by => { -asc => 'me.id' }, join => ['stepstate'] });
     my $sched_oks = 0;
     my %job_std;
     while (my $sub = $rs->next) {
