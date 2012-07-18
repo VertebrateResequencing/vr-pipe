@@ -49,7 +49,7 @@ class VRPipe::FrontEnd {
                           isa => 'Str',
                           required => 1);
     
-    has 'opt_spec' => (is => 'rw',,
+    has 'opt_spec' => (is => 'rw',
                        isa => 'ArrayRef[ArrayRef]',
                        lazy => 1,
                        builder => '_default_opt_spec');

@@ -80,8 +80,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return 15;
     }
     
-    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq',
-                                 Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!) {
+    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!) {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -129,8 +128,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return $md5;
     }
     
-    method get_file (ClassName|Object $self: Str :$source!, VRPipe::File :$dest_file!,
-                     Str|File :$iget!, Str|File :$ichksum!) {
+    method get_file (ClassName|Object $self: Str :$source!, VRPipe::File :$dest_file!, Str|File :$iget!, Str|File :$ichksum!) {
         my $dest = $dest_file->path;
         $dest_file->disconnect;
 

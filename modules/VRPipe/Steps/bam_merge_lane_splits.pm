@@ -160,7 +160,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                                                                                 center_name => 'center name',
                                                                                 platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                                                                                 study => 'name of the study, put in the DS field of the RG header line',
-                                                                                insert_size => 'expected (mean) insert size if paired',,
+                                                                                insert_size => 'expected (mean) insert size if paired',
                                                                                 analysis_group => 'project analysis group',
                                                                                 population => 'sample population',
                                                                                 bases => 'total number of base pairs',
