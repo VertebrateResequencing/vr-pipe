@@ -40,11 +40,11 @@ class VRPipe::Pipelines::bis_seq_bismark with VRPipe::PipelineRole {
     }
     
     method _num_steps {
-        return 10;
+        return 4;
     }
     
     method description {
-        return 'Bisulphite Sequencing Pipeline employing Bismakr tools to gain methylation calls.';
+        return 'Bisulphite Sequencing Pipeline employing Bismark tools to gain methylation calls.';
     }
     
     method steps {
@@ -53,19 +53,15 @@ class VRPipe::Pipelines::bis_seq_bismark with VRPipe::PipelineRole {
     
     method _step_list {
         return ([
-             VRPipe::Step->get(name => 'fastqc_quality_report'), #1
-             VRPipe::Step->get(name => 'trimmomatic'), #2
-             VRPipe::Step->get(name => 'bismark')                   #3
+             VRPipe::Step->get(name => 'fastqc_quality_report'),           #1
+             VRPipe::Step->get(name => 'trimmomatic'),                     #2
+             VRPipe::Step->get(name => 'bismark'),                         #3
+             VRPipe::Step->get(name => 'bismark_methylation_extractor')    #4
             ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'trimmed_files', to_key => 'fastq_files')],
+            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'trimmed_files', to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'bismark_sam', to_key => 'sam_file')],
             [
             
-            ]
-        
-        );
-
-    
-
+            ]);
     }
 }
 1;
