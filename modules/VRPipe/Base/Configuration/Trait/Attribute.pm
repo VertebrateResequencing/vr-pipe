@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Base::Configuration::Trait::Attribute - config attributes
@@ -39,7 +40,7 @@ use VRPipe::Base;
 role VRPipe::Base::Configuration::Trait::Attribute {
     around interpolate_class ($class: HashRef $options) {
         $options->{traits} ||= [];
-        push @{$options->{traits}}, 'VRPipe::Base::Configuration::Trait::Attribute::ConfigKey';
+        push @{ $options->{traits} }, 'VRPipe::Base::Configuration::Trait::Attribute::ConfigKey';
         return $class->$orig($options);
     }
 }

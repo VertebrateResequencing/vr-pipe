@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Requirements - describes what system resources are needed to run a Job
@@ -11,8 +12,8 @@ VRPipe::Requirements - describes what system resources are needed to run a Job
 In order to execute a command line on a compute cluster, some job scheduling
 system (like LSF) will be in place to select the node on which to run the job,
 and to choose which job gets run first. For optimal efficiency the scheduler
-should be told the likely amount of memory, time and other system resources
-the job will need.
+should be told the likely amount of memory, time and other system resources the
+job will need.
 
 This Requirements class holds these scheduling hints. A L<VRPipe::Submission>
 then ties a Requirements to a L<VRPipe::Job>.
@@ -46,42 +47,42 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Requirements extends VRPipe::Persistent {
-    has 'memory' => (is => 'rw',
-                     isa => IntSQL[5],
+    has 'memory' => (is     => 'rw',
+                     isa    => IntSQL [5],
                      traits => ['VRPipe::Persistent::Attributes'],
                      is_key => 1);
     
-    has 'time' => (is => 'rw',
-                   isa => IntSQL[3],
+    has 'time' => (is     => 'rw',
+                   isa    => IntSQL [3],
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1);
     
-    has 'cpus' => (is => 'rw',
-                   isa => IntSQL[5],
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   default => 1,
-                   is_key => 1,
+    has 'cpus' => (is                   => 'rw',
+                   isa                  => IntSQL [5],
+                   traits               => ['VRPipe::Persistent::Attributes'],
+                   default              => 1,
+                   is_key               => 1,
                    allow_key_to_default => 1);
     
-    has 'tmp_space' => (is => 'rw',
-                        isa => IntSQL[5],
-                        traits => ['VRPipe::Persistent::Attributes'],
-                        default => 0,
-                        is_key => 1,
+    has 'tmp_space' => (is                   => 'rw',
+                        isa                  => IntSQL [5],
+                        traits               => ['VRPipe::Persistent::Attributes'],
+                        default              => 0,
+                        is_key               => 1,
                         allow_key_to_default => 1);
     
-    has 'local_space' => (is => 'rw',
-                          isa => IntSQL[5],
-                          traits => ['VRPipe::Persistent::Attributes'],
-                          default => 0,
-                          is_key => 1,
+    has 'local_space' => (is                   => 'rw',
+                          isa                  => IntSQL [5],
+                          traits               => ['VRPipe::Persistent::Attributes'],
+                          default              => 0,
+                          is_key               => 1,
                           allow_key_to_default => 1);
     
-    has 'custom' => (is => 'rw',
-                     isa => 'HashRef',
-                     traits => ['VRPipe::Persistent::Attributes'],
-                     default => sub { {} },
-                     is_key => 1,
+    has 'custom' => (is                   => 'rw',
+                     isa                  => 'HashRef',
+                     traits               => ['VRPipe::Persistent::Attributes'],
+                     default              => sub { {} },
+                     is_key               => 1,
                      allow_key_to_default => 1);
     
     __PACKAGE__->make_persistent();

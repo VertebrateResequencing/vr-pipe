@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::irods - a step
@@ -33,9 +34,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::irods with VRPipe::StepRole {
-    has 'irods_exes' => (is => 'ro',
-                         isa => 'HashRef',
-                         lazy => 1,
+    has 'irods_exes' => (is      => 'ro',
+                         isa     => 'HashRef',
+                         lazy    => 1,
                          builder => '_build_irods_exes');
     
     method _build_irods_exes {
@@ -45,7 +46,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
     method handle_exes (HashRef $options) {
         my $irods_exes = $self->irods_exes;
         foreach my $exe (keys %{$irods_exes}) {
-            my $method = $exe.'_exe';
+            my $method = $exe . '_exe';
             next unless defined $options->{$method};
             $irods_exes->{$exe} = $options->{$method};
         }
@@ -56,32 +57,37 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         
         my $irods_exes = $self->irods_exes;
         foreach my $exe (keys %{$irods_exes}) {
-            $opts{$exe.'_exe'} = VRPipe::StepOption->create(description => "path to your irods '$exe' executable", optional => 1, default_value => $irods_exes->{$exe} || $exe);
+            $opts{ $exe . '_exe' } = VRPipe::StepOption->create(description => "path to your irods '$exe' executable", optional => 1, default_value => $irods_exes->{$exe} || $exe);
         }
         
         return \%opts;
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub { return 1; };
     }
+    
     method outputs_definition {
-        return { };
+        return {};
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Generic step for steps using irods";
     }
+    
     method max_simultaneous {
         return 15;
     }
     
-    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq',
-                                 Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!) {
+    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!) {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -95,22 +101,22 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             # COLL_NAME = /seq/5150
             # DATA_NAME = 5150_1#1.bam
             # -------------------------
-            # 
+            #
             # or an error is thrown, and only:
             # Zone is seq
             # is output
             
-            if (/^COLL_NAME = (.+)$/){
+            if (/^COLL_NAME = (.+)$/) {
                 $path = $1;
             }
-            if (/^DATA_NAME = (.+)$/){
+            if (/^DATA_NAME = (.+)$/) {
                 $filename = $1;
             }
         }
         close $irods;
         
         if ($path && $filename) {
-            unless ($filename eq $basename){
+            unless ($filename eq $basename) {
                 $self->throw("$filename should be the same as $basename");
             }
             my $irods_file = join('/', ($path, $filename));
@@ -125,15 +131,14 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
     method get_file_md5 (ClassName|Object $self: Str :$file!, Str|File :$ichksum!) {
         my $md5 = `$ichksum $file`;
         chomp $md5;
-        $md5 =~s/.*\s//;
+        $md5 =~ s/.*\s//;
         return $md5;
     }
     
-    method get_file (ClassName|Object $self: Str :$source!, VRPipe::File :$dest_file!,
-                     Str|File :$iget!, Str|File :$ichksum!) {
+    method get_file (ClassName|Object $self: Str :$source!, VRPipe::File :$dest_file!, Str|File :$iget!, Str|File :$ichksum!) {
         my $dest = $dest_file->path;
         $dest_file->disconnect;
-
+        
         # before we go fetch a file, check the md5 matches what we're expecting
         my $irodschksum = $self->get_file_md5(file => $source, ichksum => $ichksum);
         my $expected_md5 = $dest_file->metadata->{expected_md5} || $irodschksum;

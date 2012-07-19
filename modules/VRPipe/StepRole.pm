@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepRole - methods required of and useful for writing Steps
@@ -8,8 +9,8 @@ VRPipe::StepRole - methods required of and useful for writing Steps
 
 =head1 DESCRIPTION
 
-This Role must be used with all C<VRPipe::Steps::*> modules. It also provides
-a host of useful methods that Steps should take advantage of in their
+This Role must be used with all C<VRPipe::Steps::*> modules. It also provides a
+host of useful methods that Steps should take advantage of in their
 C<body_sub>s and elsewhere.
 
 *** more documentation to come
@@ -58,87 +59,87 @@ role VRPipe::StepRole {
     requires 'max_simultaneous';
     
     # these may be needed by body_sub and post_process_sub
-    has 'step_state' => (is => 'rw',
-                         isa => 'VRPipe::StepState',
+    has 'step_state' => (is      => 'rw',
+                         isa     => 'VRPipe::StepState',
                          trigger => \&_rebuild);
     
-    has 'data_element' => (is => 'ro',
-                           isa => 'VRPipe::DataElement',
+    has 'data_element' => (is      => 'ro',
+                           isa     => 'VRPipe::DataElement',
                            builder => '_build_data_element',
-                           lazy => 1,
+                           lazy    => 1,
                            clearer => '_clear_data_element');
     
-    has 'output_root' => (is => 'ro',
-                          isa => Dir,
-                          coerce => 1,
+    has 'output_root' => (is      => 'ro',
+                          isa     => Dir,
+                          coerce  => 1,
                           builder => '_build_output_root',
-                          lazy => 1,
+                          lazy    => 1,
                           clearer => '_clear_output_root');
     
-    has 'options' => (is => 'ro',
-                      isa => 'HashRef',
+    has 'options' => (is      => 'ro',
+                      isa     => 'HashRef',
                       builder => '_resolve_options',
-                      lazy => 1,
+                      lazy    => 1,
                       clearer => '_clear_options');
     
-    has 'inputs' => (is => 'ro',
-                     isa => PersistentFileHashRef,
+    has 'inputs' => (is      => 'ro',
+                     isa     => PersistentFileHashRef,
                      builder => '_resolve_inputs',
-                     lazy => 1,
+                     lazy    => 1,
                      clearer => '_clear_inputs');
     
-    has 'outputs' => (is => 'ro',
-                      isa => PersistentFileHashRef,
+    has 'outputs' => (is      => 'ro',
+                      isa     => PersistentFileHashRef,
                       builder => '_build_outputs',
-                      lazy => 1,
+                      lazy    => 1,
                       clearer => '_clear_outputs');
-    has 'temps' => (is => 'ro',
-                    isa => ArrayRefOfPersistent,
+    has 'temps' => (is      => 'ro',
+                    isa     => ArrayRefOfPersistent,
                     builder => '_build_temps',
-                    lazy => 1,
+                    lazy    => 1,
                     clearer => '_clear_temps');
     
-    has 'previous_step_outputs' => (is => 'rw',
-                                    isa => PreviousStepOutput,
+    has 'previous_step_outputs' => (is      => 'rw',
+                                    isa     => PreviousStepOutput,
                                     trigger => sub { shift->_clear_inputs });
     
-    has 'allow_smaller_recommended_requirements_override' => (is => 'rw',
-                                                              isa => 'Bool',
-                                                              lazy => 1,
+    has 'allow_smaller_recommended_requirements_override' => (is      => 'rw',
+                                                              isa     => 'Bool',
+                                                              lazy    => 1,
                                                               builder => '_build_smaller_recommended_requirements_override');
     
     # when parse is called, we'll store our dispatched refs here
-    has 'dispatched' => (is => 'ro',
+    has 'dispatched' => (is      => 'ro',
                          traits  => ['Array'],
                          isa     => 'ArrayRef',
                          lazy    => 1,
                          default => sub { [] },
-                         handles => { _dispatch => 'push',
-                                      num_dispatched  => 'count' },
-                         writer => '_set_dispatched',
+                         handles => { _dispatch      => 'push',
+                                      num_dispatched => 'count' },
+                         writer  => '_set_dispatched',
                          clearer => '_clear_dispatched');
     
     # and we'll also store all the output files the body_sub makes
-    has '_output_files' => (is => 'ro',
+    has '_output_files' => (is      => 'ro',
                             traits  => ['Hash'],
                             isa     => 'HashRef',
                             lazy    => 1,
                             default => sub { {} },
                             handles => { _remember_output_files => 'set' },
-                            writer => '_set_output_files',
+                            writer  => '_set_output_files',
                             clearer => '_clear_output_files');
-    has '_temp_files' => (is => 'ro',
+    has '_temp_files' => (is      => 'ro',
                           traits  => ['Array'],
                           isa     => 'ArrayRef',
                           lazy    => 1,
                           default => sub { [] },
                           handles => { _remember_temp_file => 'push' },
-                          writer => '_set_temp_files',
+                          writer  => '_set_temp_files',
                           clearer => '_clear_temp_files');
-    has '_last_output_dir' => (is => 'rw',
-                               isa => Dir,
-                               lazy => 1,
-                               coerce => 1,
+    has '_last_output_dir' => (is      => 'rw',
+                               isa     => Dir,
+                               lazy    => 1,
+                               coerce  => 1,
                                builder => '_build_last_output_dir',
                                clearer => '_clear_last_output_dir');
     
@@ -159,29 +160,33 @@ role VRPipe::StepRole {
         my $step_state = $self->step_state || $self->throw("Cannot get data element without step state");
         return $step_state->dataelement;
     }
+    
     method _build_output_root {
         my $step_state = $self->step_state || $self->throw("Cannot get output root without step state");
         my $pipeline_root = $step_state->pipelinesetup->output_root;
         
-        my $de_id = $step_state->dataelement->id;
-        my $des_id = VRPipe::DataElementState->get(dataelement => $de_id, pipelinesetup => $step_state->pipelinesetup)->id;
-        my $hashing_string = 'VRPipe::DataElementState::'.$des_id;
-        my @subdirs = $self->hashed_dirs($hashing_string);
+        my $de_id          = $step_state->dataelement->id;
+        my $des_id         = VRPipe::DataElementState->get(dataelement => $de_id, pipelinesetup => $step_state->pipelinesetup)->id;
+        my $hashing_string = 'VRPipe::DataElementState::' . $des_id;
+        my @subdirs        = $self->hashed_dirs($hashing_string);
         
-        return dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number.'_'.$self->name);
+        return dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number . '_' . $self->name);
     }
+    
     method _build_last_output_dir {
         return $self->output_root;
     }
+    
     method _build_outputs {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
-        my $outs = $step_state->output_files;
-        my $temps = $step_state->temp_files;
+        my $outs       = $step_state->output_files;
+        my $temps      = $step_state->temp_files;
         foreach my $temp (@$temps) {
-            push(@{$outs->{temp}}, $temp);
+            push(@{ $outs->{temp} }, $temp);
         }
         return $outs;
     }
+    
     method _build_temps {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
         return $step_state->temp_files;
@@ -193,8 +198,8 @@ role VRPipe::StepRole {
     
     method _resolve_options {
         my $step_state = $self->step_state || $self->throw("Cannot get options without step state");
-        my $user_opts = $step_state->pipelinesetup->options;
-        my $hash = $self->options_definition;
+        my $user_opts  = $step_state->pipelinesetup->options;
+        my $hash       = $self->options_definition;
         
         my %return;
         while (my ($key, $val) = each %$hash) {
@@ -215,7 +220,7 @@ role VRPipe::StepRole {
                         $return{$key} = $user_val;
                     }
                 }
-                elsif (! $val->optional) {
+                elsif (!$val->optional) {
                     $self->throw("the option '$key' is required");
                 }
                 else {
@@ -226,16 +231,16 @@ role VRPipe::StepRole {
                 }
             }
             else {
-                $self->throw("invalid class ".ref($val)." supplied for option '$key' definition");
+                $self->throw("invalid class " . ref($val) . " supplied for option '$key' definition");
             }
         }
         
         # add in requirements overrides that pertain to us
         my $name = $self->name;
         foreach my $resource (qw(memory time cpus tmp_space local_space custom)) {
-            my $user_key = $name.'_'.$resource;
+            my $user_key = $name . '_' . $resource;
             if (defined $user_opts->{$user_key}) {
-                $return{$resource.'_override'} = $user_opts->{$user_key};
+                $return{ $resource . '_override' } = $user_opts->{$user_key};
             }
         }
         
@@ -243,7 +248,7 @@ role VRPipe::StepRole {
     }
     
     method _resolve_inputs {
-        my $hash = $self->inputs_definition;
+        my $hash     = $self->inputs_definition;
         my $step_num = $self->step_state->stepmember->step_number;
         my ($step_adaptor) = VRPipe::StepAdaptor->search({ pipeline => $self->step_state->stepmember->pipeline->id, to_step => $step_num });
         return {} unless $step_adaptor;
@@ -264,24 +269,24 @@ role VRPipe::StepRole {
                     # input key?
                     $results = $step_adaptor->adapt(input_key => $key, pso => $pso);
                 }
-                if (! $results) {
+                if (!$results) {
                     # can our StepAdaptor translate our dataelement into a file
                     # for this key?
                     $results = $step_adaptor->adapt(input_key => $key, data_element => $self->data_element);
                 }
-                if (! $results) {
+                if (!$results) {
                     my $opts = $self->options;
                     if ($opts && defined $opts->{$key}) {
                         $results = [VRPipe::File->get(path => $opts->{$key})];
                     }
                 }
                 
-                if (! $results) {
+                if (!$results) {
                     if ($val->min_files == 0) {
                         next;
                     }
                     else {
-                        $self->throw("the input file(s) for '$key' of stepstate ".$self->step_state->id." could not be resolved");
+                        $self->throw("the input file(s) for '$key' of stepstate " . $self->step_state->id . " could not be resolved");
                     }
                 }
                 
@@ -295,7 +300,7 @@ role VRPipe::StepRole {
                     $min_allowed = $num_results;
                 }
                 unless ($num_results >= $min_allowed && $num_results <= $max_allowed) {
-                    $self->throw("there were $num_results input file(s) for '$key' of stepstate ".$self->step_state->id.", which does not fit the allowed range $min_allowed..$max_allowed");
+                    $self->throw("there were $num_results input file(s) for '$key' of stepstate " . $self->step_state->id . ", which does not fit the allowed range $min_allowed..$max_allowed");
                 }
                 
                 my @vrfiles;
@@ -311,13 +316,13 @@ role VRPipe::StepRole {
                         my $has_size = 0;
                         if ($resolved->s) {
                             $has_size = 1;
-                            my $type = VRPipe::FileType->create($wanted_type, {file => $resolved->path});
+                            my $type = VRPipe::FileType->create($wanted_type, { file => $resolved->path });
                             unless ($type->check_type) {
                                 # the type check will fail if the file doesn't
                                 # really exist, so make sure
                                 $resolved->update_stats_from_disc;
                                 if ($resolved->s) {
-                                    push(@skip_reasons, "file ".$result->path." was not the correct type ($wanted_type)");
+                                    push(@skip_reasons, "file " . $result->path . " was not the correct type ($wanted_type)");
                                     next;
                                 }
                                 else {
@@ -329,7 +334,7 @@ role VRPipe::StepRole {
                         unless ($has_size) {
                             my $db_type = $result->type;
                             if ($db_type && $wanted_type ne $db_type) {
-                                push(@skip_reasons, "file ".$result->path." was not the correct type, expected type $wanted_type and got type $db_type");
+                                push(@skip_reasons, "file " . $result->path . " was not the correct type, expected type $wanted_type and got type $db_type");
                                 next;
                             }
                         }
@@ -337,25 +342,25 @@ role VRPipe::StepRole {
                     
                     push(@vrfiles, $result);
                 }
-                if (! @vrfiles && @skip_reasons) {
-                    $self->throw("none of the input files had a suitable type:\n".join("\n", @skip_reasons));
+                if (!@vrfiles && @skip_reasons) {
+                    $self->throw("none of the input files had a suitable type:\n" . join("\n", @skip_reasons));
                 }
                 
                 $return{$key} = [map { $_->e ? $_ : $_->resolve } @vrfiles];
             }
             else {
-                $self->throw("invalid class ".ref($val)." supplied for input '$key' value definition");
+                $self->throw("invalid class " . ref($val) . " supplied for input '$key' value definition");
             }
         }
         
         return \%return;
     }
     
-    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {        
+    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {
         my @missing;
         # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
-            my $def = $defs->{$key};
+            my $def     = $defs->{$key};
             my $check_s = 1;
             if ($def && $def->isa('VRPipe::StepIODefinition')) {
                 $check_s = $def->check_existence;
@@ -364,7 +369,7 @@ role VRPipe::StepRole {
             foreach my $file (@$val) {
                 $file->reselect_values_from_db;
                 my $resolved = $file->resolve;
-                if ($check_s && ! $resolved->s) {
+                if ($check_s && !$resolved->s) {
                     # double-check incase the step did not update_stats_from_disc
                     $resolved->update_stats_from_disc(retries => 3);
                     unless ($resolved->s) {
@@ -379,9 +384,9 @@ role VRPipe::StepRole {
                     
                     # check the filetype is correct
                     if ($check_s) {
-                        my $type = VRPipe::FileType->create($resolved->type, {file => $resolved->path});
+                        my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
                         unless ($type->check_type) {
-                            $self->warn($resolved->path." exists, but is the wrong type!");
+                            $self->warn($resolved->path . " exists, but is the wrong type!");
                             $bad = 1;
                         }
                     }
@@ -393,7 +398,7 @@ role VRPipe::StepRole {
                             my $meta = $file->metadata;
                             foreach my $key (@needed) {
                                 unless (exists $meta->{$key}) {
-                                    $self->warn($file->path." exists, but lacks metadata key $key, needed by def ".$def->id."!");
+                                    $self->warn($file->path . " exists, but lacks metadata key $key, needed by def " . $def->id . "!");
                                     $bad = 1;
                                 }
                             }
@@ -435,10 +440,10 @@ role VRPipe::StepRole {
     }
     
     method output_file (Str :$output_key?, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
-        if (! $temporary && ! $output_key) {
+        if (!$temporary && !$output_key) {
             $self->throw("output_key is required");
         }
-        if (! $temporary && $output_key eq 'temp') {
+        if (!$temporary && $output_key eq 'temp') {
             $self->throw("'temp' is a reserved output_key");
         }
         
@@ -496,7 +501,7 @@ role VRPipe::StepRole {
                 
                 if ($count == 1) {
                     $with_recourse++;
-                    push(@{$states_to_restart{$state->id}}, $resolved->path);
+                    push(@{ $states_to_restart{ $state->id } }, $resolved->path);
                 }
             }
             
@@ -506,7 +511,7 @@ role VRPipe::StepRole {
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
-                        $self->debug("to regenerate needed input files (@$files) for stepstate ".$self->step_state->id.", will start stepstate $state_id over again");
+                        $self->debug("to regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", will start stepstate $state_id over again");
                         $state->start_over;
                     }
                 }
@@ -514,7 +519,7 @@ role VRPipe::StepRole {
             }
             else {
                 my $step_state = $self->step_state;
-                $self->throw("Required input files are missing for step ".$self->name." (for data element ".$self->data_element->id.", pipelinesetup ".$step_state->pipelinesetup->id.", stepstate ".$step_state->id."): [@missing]");
+                $self->throw("Required input files are missing for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "): [@missing]");
             }
         }
         
@@ -564,9 +569,9 @@ role VRPipe::StepRole {
     }
     
     method post_process {
-        my $ok = $self->_run_coderef('post_process_sub');
-        my $stepstate = $self->step_state;
-        my $debug_desc = "step ".$self->name." failed for data element ".$self->data_element->id." and pipelinesetup ".$self->step_state->pipelinesetup->id." (stepstate ".$stepstate->id.")";
+        my $ok         = $self->_run_coderef('post_process_sub');
+        my $stepstate  = $self->step_state;
+        my $debug_desc = "step " . $self->name . " failed for data element " . $self->data_element->id . " and pipelinesetup " . $self->step_state->pipelinesetup->id . " (stepstate " . $stepstate->id . ")";
         
         if ($ok) {
             my @missing = $self->missing_output_files;
@@ -590,8 +595,8 @@ role VRPipe::StepRole {
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
         # get the current mean+2sd memory and time of past runs of this step
-        my $ssu = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : VRPipe::Step->get(name => $self->name));
-        my $rec_mem = $ssu->recommended_memory;
+        my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : VRPipe::Step->get(name => $self->name));
+        my $rec_mem  = $ssu->recommended_memory;
         my $rec_time = $ssu->recommended_time;
         
         # if we have recommendations, override the settings passed in from the
@@ -600,7 +605,7 @@ role VRPipe::StepRole {
         if ($rec_mem && ($allow_override ? 1 : $rec_mem > $memory)) {
             $memory = $rec_mem;
         }
-        if ($rec_time && ($allow_override ? 1 : $rec_time > $time )) {
+        if ($rec_time && ($allow_override ? 1 : $rec_time > $time)) {
             $time = $rec_time;
         }
         
@@ -614,12 +619,13 @@ role VRPipe::StepRole {
         }
         #*** and the other resources?...
         
-        return VRPipe::Requirements->create(memory => $memory,
-                                            time => $time,
-                                            $cpus ? (cpus => $cpus) : (),
-                                            $tmp_space ? (tmp_space => $tmp_space) : (),
-                                            $local_space ? (local_space => $local_space) : (),
-                                            $custom ? (custom => $custom) : ());
+        return
+          VRPipe::Requirements->create(memory => $memory,
+                                       time   => $time,
+                                       $cpus        ? (cpus        => $cpus)        : (),
+                                       $tmp_space   ? (tmp_space   => $tmp_space)   : (),
+                                       $local_space ? (local_space => $local_space) : (),
+                                       $custom      ? (custom      => $custom)      : ());
     }
     
     method dispatch (ArrayRef $aref) {
@@ -635,14 +641,14 @@ role VRPipe::StepRole {
         # use lib for anything that has been added to INC, but only if we're
         # testing, since production cannot (must not) work with temp altered INC
         my $use_lib = '';
-        my $deploy = '';
+        my $deploy  = '';
         if ($deployment eq 'testing') {
             use lib;
             my %orig_inc = map { $_ => 1 } @lib::ORIG_INC;
             my %new_lib;
             foreach my $inc (@INC) {
                 unless (exists $orig_inc{$inc}) {
-                    $new_lib{file($inc)->absolute} = 1;
+                    $new_lib{ file($inc)->absolute } = 1;
                 }
             }
             my @new_lib = keys %new_lib;
@@ -662,12 +668,10 @@ role VRPipe::StepRole {
         my $req = $self->new_requirements(memory => 500, time => 1);
         
         if ($expected_md5) {
-            return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); if (Digest::MD5->new->addfile(*FILE)->hexdigest eq q[$expected_md5]) { VRPipe::File->get(path => q[$path], md5 => q[$expected_md5]); } else { die q[md5sum of $path does not match expected value] }],
-                                              $req);
+            return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); if (Digest::MD5->new->addfile(*FILE)->hexdigest eq q[$expected_md5]) { VRPipe::File->get(path => q[$path], md5 => q[$expected_md5]); } else { die q[md5sum of $path does not match expected value] }], $req);
         }
         else {
-            return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); VRPipe::File->get(path => q[$path], md5 => Digest::MD5->new->addfile(*FILE)->hexdigest);],
-                                              $req);
+            return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); VRPipe::File->get(path => q[$path], md5 => Digest::MD5->new->addfile(*FILE)->hexdigest);], $req);
         }
     }
     
@@ -691,16 +695,15 @@ role VRPipe::StepRole {
         my %meta;
         foreach my $file (@$files) {
             my $file_meta = $file->metadata;
-            foreach my $key (keys %$file_meta)
-            {
-                $meta{$key}->{$$file_meta{$key}} += 1;
+            foreach my $key (keys %$file_meta) {
+                $meta{$key}->{ $$file_meta{$key} } += 1;
             }
         }
         # Only keep metadata common to all files
         my $common_meta = {};
         foreach my $key (keys %meta) {
-            my @vals = keys %{$meta{$key}};
-            next unless (@vals == 1 && $meta{$key}->{$vals[0]} == @$files);
+            my @vals = keys %{ $meta{$key} };
+            next unless (@vals == 1 && $meta{$key}->{ $vals[0] } == @$files);
             $common_meta->{$key} = $vals[0];
         }
         return $common_meta;

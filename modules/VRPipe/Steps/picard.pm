@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::picard - a step
@@ -33,20 +34,20 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::picard extends VRPipe::Steps::java {
-    has 'picard_path' => (is => 'rw',
-                          isa => Dir,
+    has 'picard_path' => (is     => 'rw',
+                          isa    => Dir,
                           coerce => 1);
     
     has '+memory_multiplier' => (default => 0.7);
     
     around _build_standard_options {
-        return [@{$self->$orig}, 'picard_path'];
+        return [@{ $self->$orig }, 'picard_path'];
     }
     
     our %PICARD_VERSIONS;
-    has 'picard_version' => (is => 'ro',
-                             isa => 'Str',
-                             lazy => 1,
+    has 'picard_version' => (is      => 'ro',
+                             isa     => 'Str',
+                             lazy    => 1,
                              builder => 'determine_picard_version');
     
     method determine_picard_version (ClassName|Object $self:) {
@@ -54,10 +55,8 @@ class VRPipe::Steps::picard extends VRPipe::Steps::java {
         unless (defined $PICARD_VERSIONS{$picard_path}) {
             my $version = 0;
             opendir(my $dh, $picard_path) || $self->throw("Could not open picard directory $picard_path");
-            foreach (readdir $dh) 
-            {
-                if (/^picard-([\d\.]+)\.jar/)
-                {
+            foreach (readdir $dh) {
+                if (/^picard-([\d\.]+)\.jar/) {
                     $version = $1;
                     last;
                 }
@@ -73,27 +72,31 @@ class VRPipe::Steps::picard extends VRPipe::Steps::java {
     }
     
     around options_definition {
-        return { %{$self->$orig},
-                 picard_path => VRPipe::StepOption->create(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"),
-                };
+        return { %{ $self->$orig }, picard_path => VRPipe::StepOption->create(description => 'path to Picard jar files', optional => 1, default_value => "$ENV{PICARD}"), };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub { return 1; };
     }
+    
     method outputs_definition {
-        return { };
+        return {};
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Generic step for using Picard";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
 

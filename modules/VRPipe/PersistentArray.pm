@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::PersistentArray - store lists of VRPipe::Persistent objects
@@ -42,6 +43,7 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
     around get (ClassName|Object $self: Persistent :$id!) {
         return $self->$orig(id => $id);
     }
+    
     around create (ClassName|Object $self: ArrayRefOfPersistent :$members!) {
         # create a new row, then use the new id to create new
         # PersistentArrayMember rows for each supplied member
@@ -63,7 +65,7 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
         }
         
         my ($pam) = VRPipe::PersistentArrayMember->search({ persistentarray => $self->id, array_index => $index });
-        $pam || $self->throw("PersistentArray ".$self->id." does not have a member with index $index");
+        $pam || $self->throw("PersistentArray " . $self->id . " does not have a member with index $index");
         
         my $class = $pam->class;
         return $class->get(id => $pam->class_id);

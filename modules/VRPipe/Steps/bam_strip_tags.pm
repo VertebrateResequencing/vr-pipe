@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_strip_tags - a step
@@ -36,9 +37,11 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
     method options_definition {
         return { bam_tags_to_strip => VRPipe::StepOption->create(description => 'Tags to strip from the BAM files. Give tags separated by spaces.', optional => 1, default_value => 'OQ XM XG XO') };
     }
+    
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to strip tags from') };
     }
+    
     method body_sub {
         return sub {
             my $self = shift;
@@ -47,31 +50,36 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
             my @tags_to_strip = split(/\s+/, $options->{bam_tags_to_strip});
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            foreach my $bam (@{$self->inputs->{bam_files}}) {
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $tag_strip_bam = $self->output_file(output_key => 'tag_stripped_bam_files',
-                                                       basename => $bam->basename,
-                                                       type => 'bam',
-                                                       metadata => $bam->metadata);
+                                                       basename   => $bam->basename,
+                                                       type       => 'bam',
+                                                       metadata   => $bam->metadata);
                 
-                my $bam_path = $bam->path;
+                my $bam_path           = $bam->path;
                 my $tag_strip_bam_path = $tag_strip_bam->path;
-                my $this_cmd = "use VRPipe::Steps::bam_strip_tags; VRPipe::Steps::bam_strip_tags->tag_strip(q[$bam_path], q[$tag_strip_bam_path], tags_to_strip => [qw(@tags_to_strip)]);";
-                $self->dispatch_vrpipecode($this_cmd, $req, {output_files => [$tag_strip_bam]});
+                my $this_cmd           = "use VRPipe::Steps::bam_strip_tags; VRPipe::Steps::bam_strip_tags->tag_strip(q[$bam_path], q[$tag_strip_bam_path], tags_to_strip => [qw(@tags_to_strip)]);";
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$tag_strip_bam] });
             }
         };
     }
+    
     method outputs_definition {
         return { tag_stripped_bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => 'bam files with tags stripped out') };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Strips tags from bam files";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
+    
     method tag_strip (ClassName|Object $self: Str|File $in_bam!, Str|File $out_bam!, ArrayRef[Str] :$tags_to_strip!) {
         @{$tags_to_strip} > 0 || $self->throw("You must supply tags to be strippped");
         
@@ -82,7 +90,7 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
             $out_bam = VRPipe::File->get(path => file($out_bam));
         }
         
-        my $bp = VRPipe::Parser->create('bam', {file => $in_bam});
+        my $bp = VRPipe::Parser->create('bam', { file => $in_bam });
         $bp->ignore_tags_on_write(@{$tags_to_strip});
         
         my $out_bam_path = $out_bam->path->stringify;
@@ -104,7 +112,7 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
         }
         else {
             $out_bam->unlink;
-            $self->throw("tag strip of ".$in_bam->path." to ".$out_bam->path." failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
+            $self->throw("tag strip of " . $in_bam->path . " to " . $out_bam->path . " failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
         }
     }
 }

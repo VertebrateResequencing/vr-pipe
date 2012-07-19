@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::txt - text filetype

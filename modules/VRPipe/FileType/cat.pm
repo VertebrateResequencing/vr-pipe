@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::cat - cat filetype

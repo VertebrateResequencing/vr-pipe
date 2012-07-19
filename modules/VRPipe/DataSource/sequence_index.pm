@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataSource::sequence_index - get pipeline inputs from a sequence.index
@@ -8,8 +9,8 @@ VRPipe::DataSource::sequence_index - get pipeline inputs from a sequence.index
 
 =head1 DESCRIPTION
 
-sequence.index files contain metadata describing fastq files, used for the
-1000 genomes project and described here: L<http://www.1000genomes.org/formats>.
+sequence.index files contain metadata describing fastq files, used for the 1000
+genomes project and described here: L<http://www.1000genomes.org/formats>.
 
 *** more documentation to come
 
@@ -38,16 +39,18 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 use VRPipe::Base;
-    
+
 class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
     use VRPipe::Parser;
     
     method description {
         return "Use fastq files specified in a DCC sequence.index file, associating all the metadata available";
     }
+    
     method source_description {
         return "The path to a DCC sequence.index file; format details can be found here: http://www.1000genomes.org/formats#IndexFiles";
     }
+    
     method method_description (Str $method) {
         if ($method eq 'lane_fastqs') {
             return "An element will comprise all the fastqs for a single lane (read group - column 3), and the fastq files will have metadata from the other columns associated with them.";
@@ -58,15 +61,15 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
     
     method _open_source {
         my $file = $self->source_file;
-        return VRPipe::Parser->create('sequence_index', {file => $file});
+        return VRPipe::Parser->create('sequence_index', { file => $file });
     }
     
     method lane_fastqs (Defined :$handle!, Bool :$ignore_withdrawn = 1, Str|Dir :$remote_root_dir?, Str|Dir :$local_root_dir?, Bool :$require_fastqs?, Str :$platform?, Str :$analysis_group?) {
-        if ($remote_root_dir && ! $local_root_dir) {
+        if ($remote_root_dir && !$local_root_dir) {
             $self->throw("when remote_root_dir is specified, local_root_dir is required");
         }
         
-        if (! defined $require_fastqs) {
+        if (!defined $require_fastqs) {
             $require_fastqs = $remote_root_dir ? 0 : 1;
         }
         
@@ -104,7 +107,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             }
             
             my $paired = 0;
-            my $mate = $pr->[19];
+            my $mate   = $pr->[19];
             if ($mate) {
                 if ($local_root_dir) {
                     $mate = file($local_root_dir, $mate)->stringify;
@@ -134,27 +137,27 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             }
             
             my $new_metadata = { $pr->[1] ? (expected_md5 => $pr->[1]) : (),
-                                 lane => $pr->[2],
-                                 study => $pr->[3],
-                                 study_name => $pr->[4],
-                                 center_name => uc($pr->[5]),
-                                 sample_id => $pr->[8],
-                                 sample => $pr->[9],
-                                 population => $pr->[10],
-                                 platform => $pr->[12],
-                                 library => $pr->[14],
-                                 insert_size => $pr->[17],
-                                 withdrawn => $pr->[20],
-                                 reads => $pr->[23],
-                                 bases => $pr->[24],
+                                 lane           => $pr->[2],
+                                 study          => $pr->[3],
+                                 study_name     => $pr->[4],
+                                 center_name    => uc($pr->[5]),
+                                 sample_id      => $pr->[8],
+                                 sample         => $pr->[9],
+                                 population     => $pr->[10],
+                                 platform       => $pr->[12],
+                                 library        => $pr->[14],
+                                 insert_size    => $pr->[17],
+                                 withdrawn      => $pr->[20],
+                                 reads          => $pr->[23],
+                                 bases          => $pr->[24],
                                  analysis_group => $pr->[25],
-                                 paired => $paired,
-                                 $mate ? (mate => $mate) : (),
+                                 paired         => $paired,
+                                 $mate        ? (mate        => $mate)        : (),
                                  $remote_path ? (remote_path => $remote_path) : () };
             
-            my $vrfile = VRPipe::File->create(path => $fastq, type => 'fq');
+            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
             my $current_metadata = $vrfile->metadata;
-            my $changed = 0;
+            my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
                 foreach my $meta (qw(expected_md5 reads bases)) {
                     next unless $new_metadata->{$meta};
@@ -178,14 +181,14 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
-            push(@{$lanes_hash->{$pr->[2]}->{paths}}, $fastq);
+            push(@{ $lanes_hash->{ $pr->[2] }->{paths} }, $fastq);
             if ($changed) {
-                push(@{$lanes_hash->{$pr->[2]}->{changed}}, [$vrfile, $new_metadata]);
+                push(@{ $lanes_hash->{ $pr->[2] }->{changed} }, [$vrfile, $new_metadata]);
             }
         }
         
         my @element_args = ();
-        my $did = $self->_datasource_id;
+        my $did          = $self->_datasource_id;
         foreach my $lane (sort keys %$lanes_hash) {
             my $hash_ref = $lanes_hash->{$lane};
             my $result_hash = { paths => $hash_ref->{paths}, lane => $lane };
@@ -199,7 +202,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 
                 # only now that we've started from scratch do we we alter the
                 # metadata
-                foreach my $fm (@{$hash_ref->{changed}}) {
+                foreach my $fm (@{ $hash_ref->{changed} }) {
                     my ($vrfile, $new_metadata) = @$fm;
                     $vrfile->add_metadata($new_metadata, replace_data => 1);
                 }

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepNonPersistentFactory - a factory for Steps defined in files
@@ -8,11 +9,11 @@ VRPipe::StepNonPersistentFactory - a factory for Steps defined in files
 
 =head1 DESCRIPTION
 
-L<VRPipe::Step>s are objects stored in the B<VRPipe> database. But Steps
-can also be defined in Perl module files. These non-persistent versions are read
+L<VRPipe::Step>s are objects stored in the B<VRPipe> database. But Steps can
+also be defined in Perl module files. These non-persistent versions are read
 from the .pm files and converted into Persistent objects as necessary. In this
-way we can can create .pm files and also create Steps on the fly using
-the Persistent API, and both seem to behave the same way.
+way we can can create .pm files and also create Steps on the fly using the
+Persistent API, and both seem to behave the same way.
 
 *** more documentation to come
 
@@ -44,6 +45,6 @@ package VRPipe::StepNonPersistentFactory;
 use MooseX::AbstractFactory;
 
 implementation_does qw/VRPipe::StepRole/;
-implementation_class_via sub { 'VRPipe::Steps::'.shift };
+implementation_class_via sub { 'VRPipe::Steps::' . shift };
 
 1;

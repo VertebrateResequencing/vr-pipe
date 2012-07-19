@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::loc - parse VRPipe local scheduler output
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying a local scheduler file
@@ -29,8 +30,9 @@ VRPipe::Parser::loc - parse VRPipe local scheduler output
 
 =head1 DESCRIPTION
 
-When the B<VRPipe> local scheduler is used to schedule and run jobs, it produces
-messages when the job completes. This parser is for those report files.
+When the B<VRPipe> local scheduler is used to schedule and run jobs, it
+produces messages when the job completes. This parser is for those report
+files.
 
 =head1 AUTHOR
 
@@ -60,9 +62,9 @@ use VRPipe::Base;
 
 class VRPipe::Parser::loc with VRPipe::ParserRole {
     our $date_regex = qr/(\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+)/;
-    
-=head2 parsed_record
 
+=head2 parsed_record
+ 
  Title   : parsed_record
  Usage   : my $parsed_record= $obj->parsed_record()
  Function: Get the data structure that will hold the last parsed record
@@ -76,9 +78,9 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
-    
-=head2 next_record
 
+=head2 next_record
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next report from the local file, starting with the last and
@@ -88,6 +90,7 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record {
         # just return if no file set
         my $fh = $self->fh() || return;
@@ -123,15 +126,15 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
             }
             
             if ($found_report_end) {
-                if (/^# Started at: (\S+)$/) { $started = $1; }
-                elsif (/^# Job: (\d+)(?:\[(\d+)\])?/) { $sid = $1; $aid = $2 if $2; }
-                elsif (/^# Finished at: (\S+)$/) { $finished = $1; }
-                elsif (/^# Cmd: (.+)\n/) { $cmd = $1; }
+                if    (/^# Started at: (\S+)$/)       { $started  = $1; }
+                elsif (/^# Job: (\d+)(?:\[(\d+)\])?/) { $sid      = $1; $aid = $2 if $2; }
+                elsif (/^# Finished at: (\S+)$/)      { $finished = $1; }
+                elsif (/^# Cmd: (.+)\n/)              { $cmd      = $1; }
                 elsif (/^# Exit code:/) {
-                    if (/OK/) { $status = 'OK'; }
+                    if    (/OK/)                      { $status = 'OK'; }
                     elsif (/dumped|exited with code/) { $status = 'exited'; }
-                    elsif (/killed/) { $status = 'killed'; }
-                    else { $status = 'unknown'; }
+                    elsif (/killed/)                  { $status = 'killed'; }
+                    else                              { $status = 'unknown'; }
                 }
             }
         }
@@ -141,18 +144,18 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
             return;
         }
         unless ($status) {
-            $self->warn("a status was not parsed out of a result in ".$self->file);
+            $self->warn("a status was not parsed out of a result in " . $self->file);
         }
         
         chomp($cmd) if $cmd;
         
         # calculate wall time and idle factor
-        my ($sy, $smo, $sd, $sh, $sm, $ss) = $started =~ /$date_regex/;
+        my ($sy, $smo, $sd, $sh, $sm, $ss) = $started  =~ /$date_regex/;
         my ($ey, $emo, $ed, $eh, $em, $es) = $finished =~ /$date_regex/;
         my $dt = DateTime->new(year => $sy, month => $smo, day => $sd, hour => $sh, minute => $sm, second => $ss);
         my $st = $dt->epoch;
         $dt = DateTime->new(year => $ey, month => $emo, day => $ed, hour => $eh, minute => $em, second => $es);
-        my $et = $dt->epoch;
+        my $et   = $dt->epoch;
         my $wall = $et - $st;
         
         # fill in the parsed_record
@@ -165,9 +168,9 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
         
         return 1;
     }
-    
-=head2 status
 
+=head2 status
+ 
  Title   : status
  Usage   : my $status = $obj->status();
  Function: Get the status of the current record, or the last record if
@@ -176,6 +179,7 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method status {
         return $self->_get_result(1);
     }
@@ -187,9 +191,9 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
         }
         return $pr->[$index];
     }
-    
-=head2 time
 
+=head2 time
+ 
  Title   : time
  Usage   : my $time = $obj->time();
  Function: Get the wall-time of the current record, or the last record if
@@ -198,6 +202,7 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method time {
         return $self->_get_result(2);
     }
@@ -205,9 +210,9 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
     method memory {
         return 0;
     }
-    
-=head2 cmd
 
+=head2 cmd
+ 
  Title   : cmd
  Usage   : my $cmd = $obj->cmd();
  Function: Get the command-line of the current record, or the last record if
@@ -216,12 +221,13 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method cmd {
         return $self->_get_result(0);
     }
-    
-=head2 sid
 
+=head2 sid
+ 
  Title   : sid
  Usage   : my $sid = $obj->sid();
  Function: Get the submission id of the current record, or the last record if
@@ -230,12 +236,13 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method sid {
         return $self->_get_result(3);
     }
-    
-=head2 aid
 
+=head2 aid
+ 
  Title   : aid
  Usage   : my $aid = $obj->aid();
  Function: Get the array index of the current record, or the last record if
@@ -244,6 +251,7 @@ class VRPipe::Parser::loc with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method aid {
         return $self->_get_result(4);
     }

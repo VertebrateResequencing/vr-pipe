@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataSource::fofn - get pipeline input from a file of filenames
@@ -8,10 +9,9 @@ VRPipe::DataSource::fofn - get pipeline input from a file of filenames
 
 =head1 DESCRIPTION
 
-'fofn' stands for 'file of filenames', ie. the source should be a text file with
-an absolute file path on each line. Each of these will become a
-L<VRPipe::DataElement>.
-*** more documentation to come
+'fofn' stands for 'file of filenames', ie. the source should be a text file
+with an absolute file path on each line. Each of these will become a
+L<VRPipe::DataElement>. *** more documentation to come
 
 =head1 AUTHOR
 
@@ -43,9 +43,11 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
     method description {
         return "Use a simple list of absolute file paths (file-of-file-names) in a file as your source.";
     }
+    
     method source_description {
         return "The path to a file with one absolute file path per line.";
     }
+    
     method method_description (Str $method) {
         if ($method eq 'all') {
             return "Each element will correspond to a single file from the file.";

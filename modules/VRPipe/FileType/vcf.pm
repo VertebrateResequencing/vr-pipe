@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::vcf - VCF filetype
@@ -49,10 +50,10 @@ class VRPipe::FileType::vcf extends VRPipe::FileType::txt {
     }
     
     method num_header_lines {
-        my $path = $self->file;
+        my $path   = $self->file;
         my $vrfile = VRPipe::File->create(path => $path);
-        my $fh = $vrfile->openr;
-        my $count = 0;
+        my $fh     = $vrfile->openr;
+        my $count  = 0;
         while (<$fh>) {
             if (/^#/) {
                 $count++;
@@ -64,8 +65,9 @@ class VRPipe::FileType::vcf extends VRPipe::FileType::txt {
         $vrfile->close;
         return $count;
     }
+    
     around num_records {
-        my $total_lines = $self->$orig();
+        my $total_lines  = $self->$orig();
         my $header_lines = $self->num_header_lines;
         return $total_lines - $header_lines;
     }

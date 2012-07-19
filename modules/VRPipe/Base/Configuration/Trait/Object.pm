@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Base::Configuration::Trait::Object - config object methods
@@ -43,47 +44,35 @@ role VRPipe::Base::Configuration::Trait::Object {
     use Crypt::CBC;
     use Digest::MD5 qw(md5_hex);
     
-    has config_module => (
-        is      => 'ro',
-        isa     => 'Str',
-        lazy    => 1,
-        builder => '_build_config_module'
-    );
+    has config_module => (is      => 'ro',
+                          isa     => 'Str',
+                          lazy    => 1,
+                          builder => '_build_config_module');
     
-    has config_module_path => (
-        is      => 'ro',
-        isa     => File,
-        coerce  => 1,
-        lazy    => 1,
-        builder => '_build_config_path'
-    );
+    has config_module_path => (is      => 'ro',
+                               isa     => File,
+                               coerce  => 1,
+                               lazy    => 1,
+                               builder => '_build_config_path');
     
-    has _key_file => (
-        is      => 'rw',
-        isa     => MaybeFile,
-        coerce  => 1,
-        lazy    => 1,
-        builder => '_build_key_file'
-    );
+    has _key_file => (is      => 'rw',
+                      isa     => MaybeFile,
+                      coerce  => 1,
+                      lazy    => 1,
+                      builder => '_build_key_file');
     
-    has _raw_config => (
-        is      => 'ro',
-        isa     => 'HashRef',
-        lazy    => 1,
-        builder => '_build_raw_config'
-    );
+    has _raw_config => (is      => 'ro',
+                        isa     => 'HashRef',
+                        lazy    => 1,
+                        builder => '_build_raw_config');
     
-    has _options_list => (
-        is      => 'ro',
-        isa     => 'ArrayRef',
-        builder => '_build_options_list'
-    );
+    has _options_list => (is      => 'ro',
+                          isa     => 'ArrayRef',
+                          builder => '_build_options_list');
     
-    has _next_option_index => (
-        is      => 'rw',
-        isa     => 'Int',
-        default => 0
-    );
+    has _next_option_index => (is      => 'rw',
+                               isa     => 'Int',
+                               default => 0);
     
     method _build_config_module {
         return 'VRPipe::SiteConfig';
@@ -126,8 +115,7 @@ role VRPipe::Base::Configuration::Trait::Object {
     method _build_raw_config {
         my $config_module = $self->config_module;
         try { eval "require $config_module"; die $@ if $@; } # require $config_module; with no eval does not work
-        catch { return {} }
-        my $config = $config_module->get_config() || {};
+        catch { return {} } my $config = $config_module->get_config() || {};
         
         # decrypt any encrypted values
         my $key_file;
@@ -135,9 +123,9 @@ role VRPipe::Base::Configuration::Trait::Object {
             $key_file = $self->_key_file($config->{encryption_key_file});
         }
         while (my ($key, $value) = each %{$config}) {
-            if ($value =~ /^Salted__/) { #*** How stable is this 'Salted__' string? Should probably check to see if the corresponding attribute is secure instead
+            if ($value =~ /^Salted__/) {                     #*** How stable is this 'Salted__' string? Should probably check to see if the corresponding attribute is secure instead
                 if ($key_file && -s $key_file) {
-                    my $fh = $key_file->openr();
+                    my $fh             = $key_file->openr();
                     my $decryption_key = <$fh>;
                     $fh->close;
                     chomp($decryption_key);
@@ -158,15 +146,15 @@ role VRPipe::Base::Configuration::Trait::Object {
     }
     
     method _from_config_or_env (Str $name, Str $env_key) {
-        my $hash = $self->_raw_config();
+        my $hash  = $self->_raw_config();
         my $value = $hash->{$name};
         return $value if (defined $value && (ref($value) || $value ne '')); # $value may be an Env object which stringifies to '', which is allowed
         
         my $env;
-        if (defined $ENV{lc $env_key}) {
+        if (defined $ENV{ lc $env_key }) {
             $env = lc $env_key;
         }
-        elsif (defined $ENV{uc $env_key}) {
+        elsif (defined $ENV{ uc $env_key }) {
             $env = uc $env_key;
         }
         if ($env) {
@@ -182,14 +170,14 @@ role VRPipe::Base::Configuration::Trait::Object {
     method write_config_module {
         my $config_module_path = $self->config_module_path();
         
-        my $values = {};
+        my $values            = {};
         my $next_option_index = $self->_next_option_index;
         $self->_next_option_index(0);
         while (my $option = $self->next_option) {
             my $value = $option->value();
             next unless defined $value;
             
-            if ($option->secure && ! ref($value)) {
+            if ($option->secure && !ref($value)) {
                 my $key_file = $self->_key_file;
                 unless ($key_file) {
                     $self->throw("Secure config options cannot be set without the encryption_key_file option being set");
@@ -220,7 +208,7 @@ role VRPipe::Base::Configuration::Trait::Object {
                 $value = $cipher->encrypt($value);
             }
             
-            $values->{$option->key} = $value;
+            $values->{ $option->key } = $value;
         }
         $self->_next_option_index($next_option_index);
         
@@ -263,10 +251,10 @@ END_HERE
             # add a question about where the encryption key should be stored
             $meta->make_mutable;
             my $new_attr = $meta->add_attribute('encryption_key_file',
-                                                accessor => 'encryption_key_file',
-                                                is => 'rw',
-                                                trigger => sub { shift->_key_file(shift); },
-                                                question => 'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)',
+                                                accessor        => 'encryption_key_file',
+                                                is              => 'rw',
+                                                trigger         => sub { shift->_key_file(shift); },
+                                                question        => 'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)',
                                                 question_number => 0);
             $meta->make_immutable;
             unshift(@ck_attrs, $new_attr);
@@ -277,14 +265,14 @@ END_HERE
     
     method next_option {
         my $next_option_index = $self->_next_option_index;
-        my $attrs = $self->_options_list;
-        my $max = $#$attrs;
+        my $attrs             = $self->_options_list;
+        my $max               = $#$attrs;
         if ($next_option_index > $max) {
             return;
         }
         
         my $attr;
-        while (! defined $attr) {
+        while (!defined $attr) {
             $attr = $attrs->[$next_option_index++];
             if ($attr->has_skip) {
                 my $skip_method = $attr->skip;

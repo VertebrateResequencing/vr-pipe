@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FrontEnd - shared methods of all cmd-line frontend scripts
@@ -45,44 +46,42 @@ class VRPipe::FrontEnd {
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
     
-    has 'description' => (is => 'rw',
-                          isa => 'Str',
+    has 'description' => (is       => 'rw',
+                          isa      => 'Str',
                           required => 1);
     
-    has 'opt_spec' => (is => 'rw',,
-                       isa => 'ArrayRef[ArrayRef]',
-                       lazy => 1,
+    has 'opt_spec' => (is      => 'rw',
+                       isa     => 'ArrayRef[ArrayRef]',
+                       lazy    => 1,
                        builder => '_default_opt_spec');
     
-    has '_opts_hash' => (is => 'ro',
-                         isa => 'HashRef',
+    has '_opts_hash' => (is      => 'ro',
+                         isa     => 'HashRef',
                          default => sub { {} },
-                         writer => '_set_opts',
-                         traits => ['Hash'],
-                         handles => { opts => 'get',
+                         writer  => '_set_opts',
+                         traits  => ['Hash'],
+                         handles => { opts           => 'get',
                                       option_was_set => 'defined',
-                                      '_set_opt' => 'set' });
+                                      '_set_opt'     => 'set' });
     
-    has 'usage' => (is => 'ro',
-                    isa => 'Str',
+    has 'usage' => (is     => 'ro',
+                    isa    => 'Str',
                     writer => '_set_usage');
     
-    has 'schema' => (is => 'ro',
-                     isa => 'VRPipe::Persistent::Schema',
-                     lazy => 1,
+    has 'schema' => (is      => 'ro',
+                     isa     => 'VRPipe::Persistent::Schema',
+                     lazy    => 1,
                      builder => '_build_schema');
     
-    has '_multiple_setups' => (is => 'rw',
+    has '_multiple_setups' => (is  => 'rw',
                                isa => 'Bool');
     
-    has 'no_user_option' => (is => 'ro',
-                             isa => 'Bool',
+    has 'no_user_option' => (is      => 'ro',
+                             isa     => 'Bool',
                              default => 0);
     
     method _default_opt_spec {
-        return [ [ 'deployment=s', 'Use the production or testing database', { default => 'production' } ],
-                 [ 'env|e=s', 'Use options stored in an environment variable' ],
-                 [ 'help|h', 'Print this usage message and exit' ] ];
+        return [['deployment=s', 'Use the production or testing database', { default => 'production' }], ['env|e=s', 'Use options stored in an environment variable'], ['help|h', 'Print this usage message and exit']];
     }
     
     method _build_schema {
@@ -109,24 +108,24 @@ class VRPipe::FrontEnd {
                         if ($type eq 's@') {
                             unless ($self->no_user_option) {
                                 $default->[4] = $default->[2];
-                                $default->[2] = [ 'user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' } ];
-                                $default->[3] = [ 'deactivated', 'Also show deactivated PipelineSetups', { default => 0 } ];
+                                $default->[2] = ['user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' }];
+                                $default->[3] = ['deactivated', 'Also show deactivated PipelineSetups', { default => 0 }];
                             }
                             $self->_multiple_setups(1);
                         }
                     }
                 }
             }
-            push(@$opt_spec, [], [ 'General options:' ], @$default);
+            push(@$opt_spec, [], ['General options:'], @$default);
         }
         
         my @opts;
         my %defaults;
         my %convert_to_persistent;
         my $script_name = file($0)->basename;
-        my $usage = '';
+        my $usage       = '';
         my (@shorts, $has_long);
-        foreach my $opt_spec (@{$self->opt_spec}) {
+        foreach my $opt_spec (@{ $self->opt_spec }) {
             my ($def, $help, $extra) = @$opt_spec;
             if ($help) {
                 push(@opts, $def);
@@ -134,7 +133,7 @@ class VRPipe::FrontEnd {
                 my ($name, $req_or_opt, $type) = split(/([=:])/, $def);
                 
                 my ($long, $short) = length($name) == 1 ? (undef, $name) : (split(/\|/, $name));
-                if (! $short && length($long) == 1) {
+                if (!$short && length($long) == 1) {
                     $short = $long;
                     undef($long);
                 }
@@ -144,23 +143,23 @@ class VRPipe::FrontEnd {
                 my $option = '';
                 if ($short) {
                     push(@shorts, $short);
-                    $option .= ' -'.$short;
+                    $option .= ' -' . $short;
                 }
                 if ($long) {
                     $has_long = 1;
-                    $option .= ' --'.$long;
+                    $option .= ' --' . $long;
                 }
                 
                 if ($extra) {
                     my $default = $extra->{default};
                     if (defined $default) {
-                        $defaults{$long || $short} = $default;
-                        $help = "[$default] ".$help;
+                        $defaults{ $long || $short } = $default;
+                        $help = "[$default] " . $help;
                     }
                     
                     my $persistent_class = $extra->{persistent_object};
                     if ($persistent_class) {
-                        $convert_to_persistent{$long || $short} = $persistent_class;
+                        $convert_to_persistent{ $long || $short } = $persistent_class;
                     }
                     
                     next if $extra->{hidden};
@@ -191,12 +190,12 @@ class VRPipe::FrontEnd {
         }
         my $o = '';
         if (@shorts) {
-            $o .= ' [-'.join('', sort @shorts).']';
+            $o .= ' [-' . join('', sort @shorts) . ']';
         }
         if ($has_long) {
             $o .= ' [long options...]';
         }
-        $usage = $self->description."\n$script_name$o\n".$usage;
+        $usage = $self->description . "\n$script_name$o\n" . $usage;
         $self->_set_usage($usage);
         
         my %opts;
@@ -215,7 +214,7 @@ class VRPipe::FrontEnd {
             $self->_set_opt($opt => $val);
         }
         
-        my $help = $self->opts('help');
+        my $help       = $self->opts('help');
         my $deployment = $self->opts('deployment');
         unless ($deployment eq 'production' || $deployment eq 'testing') {
             $self->error("--deployment must be <production|testing>");
@@ -228,8 +227,8 @@ class VRPipe::FrontEnd {
         
         while (my ($opt, $class) = each %convert_to_persistent) {
             next unless $self->option_was_set($opt);
-            my $val = $self->opts($opt);
-            my @desired = ref($val) eq 'ARRAY' ? @$val : ($val);
+            my $val        = $self->opts($opt);
+            my @desired    = ref($val) eq 'ARRAY' ? @$val : ($val);
             my $full_class = "VRPipe::$class";
             
             my @found;
@@ -267,7 +266,7 @@ class VRPipe::FrontEnd {
     }
     
     method get_pipelinesetups (Bool :$inactive?) {
-        my @requested_setups = $self->option_was_set('setup') ? ($self->_multiple_setups ? @{$self->opts('setup')} : ($self->opts('setup'))) : ();
+        my @requested_setups = $self->option_was_set('setup') ? ($self->_multiple_setups ? @{ $self->opts('setup') } : ($self->opts('setup'))) : ();
         
         my @setups;
         if (@requested_setups) {
@@ -281,7 +280,7 @@ class VRPipe::FrontEnd {
             @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) });
         }
         
-        if ($self->_multiple_setups && ! @setups) {
+        if ($self->_multiple_setups && !@setups) {
             $self->die_with_error("No PipelineSetups match your settings (did you remember to specifiy --user?)");
         }
         
@@ -292,6 +291,7 @@ class VRPipe::FrontEnd {
         chomp($messages[-1]);
         print @messages, "\n";
     }
+    
     method error (@messages) {
         chomp($messages[-1]);
         warn @messages, "\n";
@@ -303,7 +303,7 @@ class VRPipe::FrontEnd {
     }
     
     method display_hash (Str $name, HashRef $hash, ArrayRef[Str] $key_order?) {
-        $key_order ||= [ sort { $a cmp $b } keys %$hash ];
+        $key_order ||= [sort { $a cmp $b } keys %$hash];
         $self->output("$name:");
         my ($extra_tabs) = $name =~ /^(\t+)/;
         $extra_tabs ||= '';
@@ -337,24 +337,24 @@ class VRPipe::FrontEnd {
     
     method ask_for_object (Str :$question!, Str :$class!, Str :$column!) {
         $self->make_all_objects($class);
-        my @things = "VRPipe::$class"->search({});
-        my %things = map { $_->$column => $_ } @things;
+        my @things     = "VRPipe::$class"->search({});
+        my %things     = map { $_->$column => $_ } @things;
         my @thing_keys = sort keys %things;
         $self->output("\n");
         my %num_to_key;
-        foreach my $i (0..$#thing_keys) {
+        foreach my $i (0 .. $#thing_keys) {
             my $num = $i + 1;
             my $key = $thing_keys[$i];
             $num_to_key{$num} = $key;
             my $output = "$num. $key";
-            my $obj = $things{$key};
+            my $obj    = $things{$key};
             if ($obj->can('description')) {
-                $output .= ' ['.$obj->description.']';
+                $output .= ' [' . $obj->description . ']';
             }
             $self->output($output);
         }
         my $chosen_num = $self->pick_number(question => $question, max => scalar(@thing_keys));
-        return $things{$num_to_key{$chosen_num}};
+        return $things{ $num_to_key{$chosen_num} };
     }
     
     method already_exists (Str $class!, Str $key!, Str $value!) {
@@ -397,7 +397,7 @@ class VRPipe::FrontEnd {
                 }
                 
                 unless ($valid) {
-                    if (defined $default && ! $answer) {
+                    if (defined $default && !$answer) {
                         $answer = $default;
                     }
                     else {
@@ -407,7 +407,7 @@ class VRPipe::FrontEnd {
                     }
                 }
             }
-            elsif (! $answer && "$answer" ne "0") {
+            elsif (!$answer && "$answer" ne "0") {
                 if (defined $default) {
                     $answer = $default;
                 }
@@ -426,14 +426,13 @@ class VRPipe::FrontEnd {
                     print STDERR "Your answer isn't allowed because $reason. Try again: ";
                 }
             }
-        }
-        while (! defined $answer);
+        } while (!defined $answer);
         
         return $answer;
     }
     
     method pick_number (Str :$question!, PositiveInt :$max!, PositiveInt :$default?) {
-        return $self->ask_question(question => $question, possibles => [1..$max], required => 1, $default ? (default => $default) : ());
+        return $self->ask_question(question => $question, possibles => [1 .. $max], required => 1, $default ? (default => $default) : ());
     }
 }
 

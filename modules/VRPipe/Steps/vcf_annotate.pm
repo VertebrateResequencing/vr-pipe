@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::vcf_annotate - a step
@@ -34,70 +35,76 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf-annotate_options' => VRPipe::StepOption->create(description => 'vcf-annotate pass 1 options'),
+        return { 'vcf-annotate_options'   => VRPipe::StepOption->create(description => 'vcf-annotate pass 1 options'),
                  'vcf-annotate_2_options' => VRPipe::StepOption->create(description => 'vcf-annotate pass 2 options'),
-                 'vcf-annotate_exe' => VRPipe::StepOption->create(description => 'path to your vcf-annotate executable',
-                                                               optional => 1,
-                                                               default_value => 'vcf-annotate') };
+                 'vcf-annotate_exe'       => VRPipe::StepOption->create(
+                                                                  description   => 'path to your vcf-annotate executable',
+                                                                  optional      => 1,
+                                                                  default_value => 'vcf-annotate') };
     }
+    
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf',
-                                                            description => 'vcf files',
-                                                            max_files => -1) };
+        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
+                                                               description => 'vcf files',
+                                                               max_files   => -1) };
     }
+    
     method body_sub {
         return sub {
             my $self = shift;
             
-	    my $options = $self->options;
-            my $an_exe = $options->{'vcf-annotate_exe'};
-            my $an_opts = $options->{'vcf-annotate_options'};
+            my $options   = $self->options;
+            my $an_exe    = $options->{'vcf-annotate_exe'};
+            my $an_opts   = $options->{'vcf-annotate_options'};
             my $an_2_opts = $options->{'vcf-annotate_2_options'};
-			my $cat_exe;
-	    
+            my $cat_exe;
+            
             my $req = $self->new_requirements(memory => 500, time => 1);
-            foreach my $vcf_file (@{$self->inputs->{vcf_files}}) {
+            foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $basename = $vcf_file->basename;
                 if ($basename =~ /\.vcf.gz$/) {
                     $basename =~ s/\.vcf.gz$/.annot.vcf.gz/;
-					$cat_exe = 'zcat';
+                    $cat_exe = 'zcat';
                 }
                 else {
                     $basename =~ s/\.vcf$/.annot.vcf/;
-					$cat_exe = 'cat';
+                    $cat_exe = 'cat';
                 }
                 my $annotated_vcf = $self->output_file(output_key => 'annotated_vcf', basename => $basename, type => 'vcf');
-				if ($vcf_file->metadata) {
-					$annotated_vcf->add_metadata($vcf_file->metadata);
-				}
+                if ($vcf_file->metadata) {
+                    $annotated_vcf->add_metadata($vcf_file->metadata);
+                }
                 
-                my $input_path = $vcf_file->path;
+                my $input_path  = $vcf_file->path;
                 my $output_path = $annotated_vcf->path;
                 
-				# Two-pass annotation
+                # Two-pass annotation
                 my $this_cmd = "$cat_exe $input_path | $an_exe $an_opts | $an_exe $an_2_opts | bgzip -c > $output_path";
-		
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_annotate', 'annotate_vcf', [$this_cmd, $req, {output_files => [$annotated_vcf]}]);
+                
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_annotate', 'annotate_vcf', [$this_cmd, $req, { output_files => [$annotated_vcf] }]);
             }
         };
     }
+    
     method outputs_definition {
-        return { annotated_vcf => VRPipe::StepIODefinition->create(type => 'vcf',
-                                                               description => 'annotated vcf file',
-                                                               max_files => -1) };
+        return { annotated_vcf => VRPipe::StepIODefinition->create(type        => 'vcf',
+                                                                   description => 'annotated vcf file',
+                                                                   max_files   => -1) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Annotate VCF files";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method annotate_vcf (ClassName|Object $self: Str $cmd_line) {
-
         my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* (\S[^;]+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         
@@ -112,7 +119,7 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
         
         unless ($output_recs == $input_recs) {
             $output_file->unlink;
-			$self->throw("Output VCF has different number of data lines from input (input $input_recs, output $output_recs)");
+            $self->throw("Output VCF has different number of data lines from input (input $input_recs, output $output_recs)");
         }
         else {
             return 1;

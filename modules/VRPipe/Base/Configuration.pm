@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Base::Configuration - provides configuration mechanics
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Base;
     
     class VRPipe::Config {
@@ -43,7 +44,7 @@ VRPipe::Base::Configuration - provides configuration mechanics
             question_number => ++$question_number
         );
     }
-
+    
     package main;
     my $config = VRPipe::Config->new();
     
@@ -97,11 +98,7 @@ use warnings;
 
 use Moose::Exporter;
 
-Moose::Exporter->setup_import_methods(
-    class_metaroles => {
-        attribute => ['VRPipe::Base::Configuration::Trait::Attribute'],
-    },
-    base_class_roles => ['VRPipe::Base::Configuration::Trait::Object'],
-);
+Moose::Exporter->setup_import_methods(class_metaroles  => { attribute => ['VRPipe::Base::Configuration::Trait::Attribute'], },
+                                      base_class_roles => ['VRPipe::Base::Configuration::Trait::Object'],);
 
 1;

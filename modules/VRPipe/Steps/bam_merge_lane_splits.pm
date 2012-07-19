@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_merge_lane_splits - a step
@@ -34,54 +35,57 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
     method options_definition {
-        return { bam_merge_keep_single_paired_separate => VRPipe::StepOption->create(description => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
-                                                                                  optional => 1,
-                                                                                  default_value => 1),
-                 samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
-                                                         optional => 1,
-                                                         default_value => 'samtools') };
+        return { bam_merge_keep_single_paired_separate => VRPipe::StepOption->create(description   => 'when merging bam files, separately merges single ended bam files and paired-end bam files, resulting in 2 merged bam files',
+                                                                                     optional      => 1,
+                                                                                     default_value => 1),
+                 samtools_exe => VRPipe::StepOption->create(description   => 'path to your samtools executable',
+                                                            optional      => 1,
+                                                            default_value => 'samtools') };
     }
+    
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam',
-                                                            max_files => -1,
-                                                            description => '1 or more bam files to merge',
-                                                            metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                         library => 'library name',
-                                                                         sample => 'sample name',
-                                                                         center_name => 'center name',
-                                                                         platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                         study => 'name of the study',
-                                                                         insert_size => 'expected (mean) insert size if paired',
-                                                                         analysis_group => 'project analysis group',
-                                                                         population => 'sample population',
-                                                                         bases => 'total number of base pairs',
-                                                                         reads => 'total number of reads (sequences)',
-                                                                         paired => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                         mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
-                                                                         chunk => 'mapped_fastq(s) are this chunk of original fastq(s)',
-                                                                         optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}),
-                 dict_file => VRPipe::StepIODefinition->create(type => 'txt',
-                                                            description => 'a sequence dictionary file for your reference fasta') };
+        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                               max_files   => -1,
+                                                               description => '1 or more bam files to merge',
+                                                               metadata    => {
+                                                                             lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                                                                             library        => 'library name',
+                                                                             sample         => 'sample name',
+                                                                             center_name    => 'center name',
+                                                                             platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                                                                             study          => 'name of the study',
+                                                                             insert_size    => 'expected (mean) insert size if paired',
+                                                                             analysis_group => 'project analysis group',
+                                                                             population     => 'sample population',
+                                                                             bases          => 'total number of base pairs',
+                                                                             reads          => 'total number of reads (sequences)',
+                                                                             paired         => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                                                                             mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
+                                                                             chunk          => 'mapped_fastq(s) are this chunk of original fastq(s)',
+                                                                             optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study'] }),
+                 dict_file => VRPipe::StepIODefinition->create(type        => 'txt',
+                                                               description => 'a sequence dictionary file for your reference fasta') };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
-            my $options = $self->options;
-            my $samtools = $options->{samtools_exe};
-            my $separate = $options->{bam_merge_keep_single_paired_separate};
+            my $self      = shift;
+            my $options   = $self->options;
+            my $samtools  = $options->{samtools_exe};
+            my $separate  = $options->{bam_merge_keep_single_paired_separate};
             my $dict_path = $self->inputs->{dict_file}->[0]->path;
             
             my ($lane, %bams, %metas);
-            foreach my $bam (@{$self->inputs->{bam_files}}) {
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $this_path = $bam->path;
                 
-                my $meta = $bam->metadata;
+                my $meta      = $bam->metadata;
                 my $this_lane = $meta->{lane};
                 $lane ||= $this_lane;
                 $self->throw("Not all the input bams were for the same lane") if $this_lane ne $lane;
                 
                 my $paired = $meta->{paired};
-                push(@{$bams{$paired}}, $this_path);
+                push(@{ $bams{$paired} }, $this_path);
                 
                 unless (defined $metas{$paired}) {
                     $metas{$paired} = {};
@@ -107,7 +111,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
             
             unless ($separate) {
                 if (keys %bams == 2) {
-                    push(@{$bams{2}}, @{$bams{0}}, @{$bams{1}});
+                    push(@{ $bams{2} }, @{ $bams{0} }, @{ $bams{1} });
                     delete $bams{0};
                     delete $bams{1};
                     
@@ -128,20 +132,20 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 }
                 $basename .= '.bam';
                 my $merge_file = $self->output_file(output_key => 'merged_lane_bams',
-                                                    basename => $basename,
-                                                    type => 'bam',
-                                                    metadata => $metas{$paired});
+                                                    basename   => $basename,
+                                                    type       => 'bam',
+                                                    metadata   => $metas{$paired});
                 my $merge_path = $merge_file->path;
                 
-                $self->output_file(basename => $basename.'.header',
-                                   type => 'txt',
+                $self->output_file(basename  => $basename . '.header',
+                                   type      => 'txt',
                                    temporary => 1);
                 
                 if (@$in_bams == 1) {
                     my $sam_file = $basename;
                     $sam_file =~ s/\.bam$/.sam/;
-                    $self->output_file(basename => $sam_file,
-                                       type => 'txt',
+                    $self->output_file(basename  => $sam_file,
+                                       type      => 'txt',
                                        temporary => 1);
                 }
                 
@@ -150,40 +154,45 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
             }
         };
     }
+    
     method outputs_definition {
-        return { merged_lane_bams => VRPipe::StepIODefinition->create(type => 'bam',
-                                                                   max_files => 2,
-                                                                   description => 'a merged bam file for each library layout (single ended vs paired)',
-                                                                   metadata => {lane => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                                library => 'library name',
-                                                                                sample => 'sample name',
-                                                                                center_name => 'center name',
-                                                                                platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                                study => 'name of the study, put in the DS field of the RG header line',
-                                                                                insert_size => 'expected (mean) insert size if paired',,
-                                                                                analysis_group => 'project analysis group',
-                                                                                population => 'sample population',
-                                                                                bases => 'total number of base pairs',
-                                                                                reads => 'total number of reads (sequences)',
-                                                                                paired => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
-                                                                                mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
-                                                                                optional => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']}) };
+        return { merged_lane_bams => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                                      max_files   => 2,
+                                                                      description => 'a merged bam file for each library layout (single ended vs paired)',
+                                                                      metadata    => {
+                                                                                    lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                                                                                    library        => 'library name',
+                                                                                    sample         => 'sample name',
+                                                                                    center_name    => 'center name',
+                                                                                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                                                                                    study          => 'name of the study, put in the DS field of the RG header line',
+                                                                                    insert_size    => 'expected (mean) insert size if paired',
+                                                                                    analysis_group => 'project analysis group',
+                                                                                    population     => 'sample population',
+                                                                                    bases          => 'total number of base pairs',
+                                                                                    reads          => 'total number of reads (sequences)',
+                                                                                    paired         => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
+                                                                                    mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
+                                                                                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study'] }) };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Merges multiple bam files for the same lane (mapped from splits of the same fastq pair) into a single bam file (per library layout). Also ensures the header has complete sequence information, a good RG line, and chained PG lines"; #*** , and that all records have an RG tag
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;                                                                                                                                                                                                                                      # meaning unlimited
     }
     
     method merge_and_check (ClassName|Object $self: Str|File :$samtools!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, ArrayRef[Str|File] :$bams!) {
         # make a nice sam header
-        my $header_file = VRPipe::File->get(path => $output.'.header');
+        my $header_file = VRPipe::File->get(path => $output . '.header');
         my $header_path = $header_file->path;
-        my $hfh = $header_file->openw;
+        my $hfh         = $header_file->openw;
         
         my $header_lines = 0;
         print $hfh "\@HD\tVN:1.0\tSO:coordinate\n";
@@ -226,22 +235,23 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         # construct a chain of PG lines for the header by looking at previous
         # steps in our pipeline
         my $this_step_state = VRPipe::StepState->get(id => $step_state);
-        my $pipelinesetup = $this_step_state->pipelinesetup;
-        my $dataelement = $this_step_state->dataelement;
-        my $stepmember = $this_step_state->stepmember;
-        my $this_stepm_id = $stepmember->id;
-        my $pipeline = $stepmember->pipeline;
+        my $pipelinesetup   = $this_step_state->pipelinesetup;
+        my $dataelement     = $this_step_state->dataelement;
+        my $stepmember      = $this_step_state->stepmember;
+        my $this_stepm_id   = $stepmember->id;
+        my $pipeline        = $stepmember->pipeline;
         my $pp;
         my %step_name_counts;
+        
         foreach my $stepm ($pipeline->step_members) {
             last if $stepm->id == $this_stepm_id;
             
             my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary || next;
             
             my $step_name = $stepm->step->name;
-            my $snc = ++$step_name_counts{$step_name};
+            my $snc       = ++$step_name_counts{$step_name};
             if ($snc > 1) {
-                $step_name .= '.'.$snc;
+                $step_name .= '.' . $snc;
             }
             print $hfh "\@PG\tID:$step_name\tPN:", $cmd_summary->exe, "\t";
             if ($pp) {

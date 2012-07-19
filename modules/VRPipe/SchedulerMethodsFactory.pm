@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::SchedulerMethodsFactory - a job scheduler factory
@@ -42,6 +43,6 @@ package VRPipe::SchedulerMethodsFactory;
 use MooseX::AbstractFactory;
 
 implementation_does qw/VRPipe::SchedulerMethodsRole/;
-implementation_class_via sub { 'VRPipe::Schedulers::'.shift };
+implementation_class_via sub { 'VRPipe::Schedulers::' . shift };
 
 1;

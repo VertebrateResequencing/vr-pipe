@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataSource::delimited - get pipeline input from a delimited text file
@@ -37,14 +38,16 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 use VRPipe::Base;
-    
+
 class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
     method description {
         return "Use information in a delimited text file.";
     }
+    
     method source_description {
         return "The path to a delimited text file.";
     }
+    
     method method_description (Str $method) {
         if ($method eq 'all') {
             return "Each element will consist of a list of all the fields on a single line.";
@@ -64,7 +67,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
     
     method all (Defined :$handle!, Str :$delimiter!, ArrayRef :$path_columns?) {
         my @element_args;
-        foreach my $result ($self->_all_results(handle => $handle, delimiter => $delimiter, $path_columns ? ( path_columns => $path_columns) : ())) {
+        foreach my $result ($self->_all_results(handle => $handle, delimiter => $delimiter, $path_columns ? (path_columns => $path_columns) : ())) {
             push(@element_args, { datasource => $self->_datasource_id, result => $result });
         }
         $self->_create_elements(\@element_args);
@@ -80,9 +83,9 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
             my @split = split($delimiter, $result->{line});
             
             my $del_result;
-            for my $key (1..@split) {
+            for my $key (1 .. @split) {
                 if ($columns_are_paths || exists $path_cols{$key}) {
-                    push(@{$del_result->{paths}}, VRPipe::File->create(path => file($split[$key - 1])->absolute)->path->stringify); # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
+                    push(@{ $del_result->{paths} }, VRPipe::File->create(path => file($split[$key - 1])->absolute)->path->stringify); # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
                 }
                 else {
                     $del_result->{$key} = $split[$key - 1];
@@ -107,7 +110,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
     method all_columns (Defined :$handle!, Str :$delimiter!) {
         my @element_args;
         foreach my $hash_ref ($self->_all_results(handle => $handle, delimiter => $delimiter, columns_are_paths => 1)) {
-            push(@element_args, { datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths} }});
+            push(@element_args, { datasource => $self->_datasource_id, result => { paths => $hash_ref->{paths} } });
         }
         $self->_create_elements(\@element_args);
     }
@@ -115,7 +118,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
     method grouped_single_column (Defined :$handle!, Str :$delimiter!, PositiveInt :$column!, PositiveInt :$group_by!, Bool :$column_is_path = 1) {
         my $group_hash;
         foreach my $hash_ref ($self->_all_results(handle => $handle, delimiter => $delimiter, $column_is_path ? (path_columns => [$column]) : ())) {
-            push(@{$group_hash->{$hash_ref->{$group_by}}}, $column_is_path ? @{$hash_ref->{paths}} : $hash_ref->{$column});
+            push(@{ $group_hash->{ $hash_ref->{$group_by} } }, $column_is_path ? @{ $hash_ref->{paths} } : $hash_ref->{$column});
         }
         
         my $key_name = $column_is_path ? 'paths' : $column;

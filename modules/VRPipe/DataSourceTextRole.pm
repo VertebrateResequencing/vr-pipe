@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataSourceTextRole - a role for DataSources that work with text files
@@ -37,10 +38,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::DataSourceTextRole with VRPipe::DataSourceRole {
-    has 'source_file' => => (is => 'ro',
-                             isa => 'VRPipe::File',
-                             lazy => 1,
-                             builder => '_build_source_file');
+    has 'source_file' => (is      => 'ro',
+                          isa     => 'VRPipe::File',
+                          lazy    => 1,
+                          builder => '_build_source_file');
     
     method _build_source_file {
         my $source = file($self->source)->absolute;
@@ -49,7 +50,7 @@ role VRPipe::DataSourceTextRole with VRPipe::DataSourceRole {
     
     method _has_changed {
         my $old_md5 = $self->_changed_marker || return 1;
-        my $file = $self->source_file;
+        my $file    = $self->source_file;
         my $new_md5 = $self->file_md5($file);
         if ($new_md5 ne $old_md5) {
             $file->update_md5($new_md5);
@@ -62,7 +63,7 @@ role VRPipe::DataSourceTextRole with VRPipe::DataSourceRole {
     
     method _update_changed_marker {
         my $file = $self->source_file;
-        my $md5 = $self->file_md5($file);
+        my $md5  = $self->file_md5($file);
         $file->update_md5($md5);
         $self->_changed_marker($md5);
     }

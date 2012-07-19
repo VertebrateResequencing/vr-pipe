@@ -7,7 +7,7 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 8;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-		    required_exe => [qw(gunzip)]);
+                    required_exe => [qw(gunzip)]);
     use TestPipelines;
     
     use_ok('VRPipe::Steps::fastq_decompress');
@@ -34,12 +34,13 @@ ok $out_file, 'got output fq file object';
 is $out_file->num_records, 50, 'expected number of records in output fq';
 
 
+
 # test as part of a pipeline
-my $setup = VRPipe::PipelineSetup->create(name => 'fq_setup',
-                                       datasource => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data decompress_datasource.fofn))->absolute),
-                                       output_root => $output_dir,
-                                       pipeline => $pipeline,
-                                       options => {});
+my $setup = VRPipe::PipelineSetup->create(name        => 'fq_setup',
+                                          datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data decompress_datasource.fofn))->absolute),
+                                          output_root => $output_dir,
+                                          pipeline    => $pipeline,
+                                          options     => {});
 
 ok handle_pipeline(), 'single-step pipeline ran ok';
 

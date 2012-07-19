@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataElementLink - a link between data elements in different setups
@@ -9,8 +10,7 @@ VRPipe::DataElementLink - a link between data elements in different setups
 =head1 DESCRIPTION
 
 Used in the vrpipe DataSource to figure out the chaining of different pipeline
-setups.
-*** more documentation to come
+setups. *** more documentation to come
 
 =head1 AUTHOR
 
@@ -39,26 +39,25 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::DataElementLink extends VRPipe::Persistent {
-
-    has 'pipelinesetup' => (is => 'rw',
-                            isa => Persistent,
-                            coerce => 1,
-                            traits => ['VRPipe::Persistent::Attributes'],
-                            is_key => 1,
+    has 'pipelinesetup' => (is         => 'rw',
+                            isa        => Persistent,
+                            coerce     => 1,
+                            traits     => ['VRPipe::Persistent::Attributes'],
+                            is_key     => 1,
                             belongs_to => 'VRPipe::PipelineSetup');
     
-    has 'parent' => (is => 'rw',
-                     isa => Persistent,
-                     coerce => 1,
-                     traits => ['VRPipe::Persistent::Attributes'],
-                     is_key => 1,
+    has 'parent' => (is         => 'rw',
+                     isa        => Persistent,
+                     coerce     => 1,
+                     traits     => ['VRPipe::Persistent::Attributes'],
+                     is_key     => 1,
                      belongs_to => 'VRPipe::DataElement');
     
-    has 'child' => (is => 'rw',
-                    isa => Persistent,
-                    coerce => 1,
-                    traits => ['VRPipe::Persistent::Attributes'],
-                    is_key => 1,
+    has 'child' => (is         => 'rw',
+                    isa        => Persistent,
+                    coerce     => 1,
+                    traits     => ['VRPipe::Persistent::Attributes'],
+                    is_key     => 1,
                     belongs_to => 'VRPipe::DataElement');
     
     __PACKAGE__->make_persistent();

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Schedulers::local - interface to the Local scheduler
@@ -42,6 +43,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     method start_command {
         return 'vrpipe-local_scheduler start';
     }
+    
     method stop_command {
         return 'vrpipe-local_scheduler stop';
     }
@@ -68,6 +70,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     method determine_queue (VRPipe::Requirements $requirements) {
         return 'local';
     }
+    
     method switch_queue (PositiveInt $sid, Str $new_queue) {
         return;
     }
@@ -117,7 +120,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             close($bfh);
         }
         
-        return $status || 'UNKNOWN'; # *** needs to return a word in a defined vocabulary suitable for all schedulers
+        return $status || 'UNKNOWN';               # *** needs to return a word in a defined vocabulary suitable for all schedulers
     }
 }
 

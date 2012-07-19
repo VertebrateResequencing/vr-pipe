@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser - a factory for parsers
 
 =head1 SYNOPSIS
-
+    
     my $parser = VRPipe::Parser->create($type, { file => $path });
 
 =head1 DESCRIPTION

@@ -13,6 +13,9 @@
 --backup-and-modify-in-place
 --noblanks-before-comments
 --keep-old-blank-lines=2
+--minimum-space-to-comment=1
+--fixed-position-side-comment=0
+--nohanging-side-comments
 # all other options explictly listed with their default values
 # (or the values as modified by above options)
 --add-newlines
@@ -49,7 +52,6 @@
 --format="tidy"
 --format-skipping
 --fuzzy-line-length
---hanging-side-comments
 --nohtml
 --html-entities
 --html-table-of-contents
@@ -61,7 +63,6 @@
 --look-for-selfloader
 --maximum-consecutive-blank-lines=1
 --maximum-fields-per-table=0
---minimum-space-to-comment=4
 --outdent-labels
 --outdent-long-comments
 --outdent-long-quotes

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::StepAdaptor - connect the output of a step to the input of another
@@ -41,21 +42,21 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepAdaptor extends VRPipe::Persistent {
-    has 'pipeline' => (is => 'rw',
-                       isa => Persistent,
-                       coerce => 1,
-                       traits => ['VRPipe::Persistent::Attributes'],
-                       is_key => 1,
+    has 'pipeline' => (is         => 'rw',
+                       isa        => Persistent,
+                       coerce     => 1,
+                       traits     => ['VRPipe::Persistent::Attributes'],
+                       is_key     => 1,
                        belongs_to => 'VRPipe::Pipeline');
     
-    has 'to_step' => (is => 'rw',
-                      isa => IntSQL[4],
+    has 'to_step' => (is     => 'rw',
+                      isa    => IntSQL [4],
                       traits => ['VRPipe::Persistent::Attributes'],
                       is_key => 1);
     
-    has 'adaptor_hash' => (is => 'rw',
-                           isa => 'HashRef',
-                           traits => ['VRPipe::Persistent::Attributes'],
+    has 'adaptor_hash' => (is      => 'rw',
+                           isa     => 'HashRef',
+                           traits  => ['VRPipe::Persistent::Attributes'],
                            default => sub { {} });
     
     __PACKAGE__->make_persistent();
@@ -75,7 +76,7 @@ class VRPipe::StepAdaptor extends VRPipe::Persistent {
                 if ($data_element) {
                     if ($key eq 'data_element' && $from_step == 0) {
                         my $result = $data_element->result;
-                        my $paths = $result->{paths} || $self->throw("data element ".$data_element->id." gave a result with no paths");
+                        my $paths = $result->{paths} || $self->throw("data element " . $data_element->id . " gave a result with no paths");
                         foreach my $path (@$paths) {
                             push(@results, VRPipe::File->get(path => file($path)->absolute));
                         }

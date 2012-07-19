@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Parser::fastq - parse fastq files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Parser;
     
     # create object, supplying fastq file
@@ -57,12 +58,12 @@ use VRPipe::Base;
 class VRPipe::Parser::fastq with VRPipe::ParserRole {
     use Inline C => Config => FILTERS => 'Strip_POD';
     
-    has '_saw_last_line' => (is => 'rw',
-                             isa => 'Bool',
+    has '_saw_last_line' => (is      => 'rw',
+                             isa     => 'Bool',
                              default => 0);
-    
-=head2 parsed_record
 
+=head2 parsed_record
+ 
  Title   : parsed_record
  Usage   : my $parsed_record = $obj->parsed_record()
  Function: Get the data structure that will hold the last record requested by
@@ -76,7 +77,7 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
 =cut
 
 =head2 next_record
-
+ 
  Title   : next_record
  Usage   : while ($obj->next_record()) { # look in parsed_record }
  Function: Parse the next record from the fastq file.
@@ -85,6 +86,7 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
  Args    : n/a
 
 =cut
+    
     method next_record () {
         # just return if no file set
         my $fh = $self->fh() || return;
@@ -141,11 +143,9 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
         
         return 1;
     }
-    
-    use Inline C => <<'END_C';
 
 =head2 qual_to_ints
-
+ 
  Title   : qual_to_ints
  Usage   : my @qualities = $obj->qual_to_ints($quality_string);
  Function: Convert the quality string of a fastq sequence into quality integers.
@@ -155,6 +155,8 @@ class VRPipe::Parser::fastq with VRPipe::ParserRole {
  Args    : quality string
 
 =cut
+    
+    use Inline C => <<'END_C';
 
 void qual_to_ints(SV* obj, char* str) {
     Inline_Stack_Vars;

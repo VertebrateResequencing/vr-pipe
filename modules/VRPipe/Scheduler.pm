@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Scheduler - a generic interface to job scheduling systems
@@ -9,10 +10,10 @@ VRPipe::Scheduler - a generic interface to job scheduling systems
 =head1 DESCRIPTION
 
 In order to manage the execution of command lines across the many nodes of a
-compute cluster, some job scheduling system should be in place. Examples include
-LSF and Grid Engine. B<VRPipe> submits the work it wants done to a scheduler;
-this Scheduler provides a single consistent interface to all the possible
-schedulers.
+compute cluster, some job scheduling system should be in place. Examples
+include LSF and Grid Engine. B<VRPipe> submits the work it wants done to a
+scheduler; this Scheduler provides a single consistent interface to all the
+possible schedulers.
 
 Currently only LSF is supported. Support for other shedulers can be added by
 creating a C<VRPipe::Schedulers::[name]> class that implements the
@@ -56,37 +57,37 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::SchedulerMethodsFactory;
     
-    has 'type' => (is => 'rw',
-                   isa => Varchar[64],
-                   builder => 'default_type',
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   is_key => 1,
+    has 'type' => (is                   => 'rw',
+                   isa                  => Varchar [64],
+                   builder              => 'default_type',
+                   traits               => ['VRPipe::Persistent::Attributes'],
+                   is_key               => 1,
                    allow_key_to_default => 1);
     
-    has 'output_root' => (is => 'ro',
-                          isa => Dir,
-                          coerce => 1,
+    has 'output_root' => (is      => 'ro',
+                          isa     => Dir,
+                          coerce  => 1,
                           builder => 'default_output_root',
-                          lazy => 1);
+                          lazy    => 1);
     
     method default_type (ClassName|Object $self:) {
-        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment.'_scheduler';
-        my $type = $vrp_config->$method_name();
+        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_scheduler';
+        my $type        = $vrp_config->$method_name();
         return lc($type);
     }
     
     method default_output_root (ClassName|Object $self:) {
-        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment.'_scheduler_output_root';
-        my $root = $vrp_config->$method_name();
-        return "$root"; # stringify what could be a VRPipe::Base::Configuration::Env
+        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_scheduler_output_root';
+        my $root        = $vrp_config->$method_name();
+        return "$root";       # stringify what could be a VRPipe::Base::Configuration::Env
     }
     
     # VRPipe::Schedulers::[type] classes will provide scheduler-specific
     # methods
-    has 'scheduler_instance' => (is => 'ro',
-                                 isa => 'Object',
+    has 'scheduler_instance' => (is      => 'ro',
+                                 isa     => 'Object',
                                  builder => '_instantiate_method_class',
-                                 lazy => 1,
+                                 lazy    => 1,
                                  handles => 'VRPipe::SchedulerMethodsRole');
     
     method _instantiate_method_class (ClassName|Object $self:) {
@@ -97,13 +98,14 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $cmd = $self->start_command;
         system("$cmd > /dev/null 2> /dev/null");
     }
+    
     method stop_scheduler {
         my $cmd = $self->stop_command;
         system("$cmd > /dev/null 2> /dev/null");
     }
-    
-=head2 submit
 
+=head2 submit
+ 
  Title   : submit
  Usage   : my $scheduled_id = $obj->submit(submission => $VRPipe_submission);
            $scheduled_id = $obj->submit(array => $VRPipe_persistentarray,
@@ -114,11 +116,12 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
            -OR-
            array => VRPipe::PersistentArray | [VRPipe::Submission instances]
            requirements => VRPipe::Requirements instance
-
+           
            optionally:
            heartbeat_interval => int (seconds between heartbeats)
 
 =cut
+    
     method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, ArrayRefOfPersistent :$array?, PositiveInt :$heartbeat_interval?) {
         #my $scheduled_id = $sch->submit(submission => $VRPipe_jobmanager_submission);
         # this gets requirements from the Submission object. It also auto-sets
@@ -151,10 +154,10 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $aid++;
             $submissions = $array;
             
-            if (! $requirements) {
+            if (!$requirements) {
                 my %req_ids;
                 foreach my $sub (@$submissions) {
-                    $req_ids{$sub->requirements->id} = 1;
+                    $req_ids{ $sub->requirements->id } = 1;
                 }
                 if (keys %req_ids == 1) {
                     $requirements = $submissions->[0]->requirements;
@@ -165,13 +168,13 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         
         # generate a command line that will submit to the scheduler
         my $cmd_line = $self->build_command_line(requirements => $requirements,
-                                                 for => $for,
+                                                 for          => $for,
                                                  $heartbeat_interval ? (heartbeat_interval => $heartbeat_interval) : ());
         
         # claim all submission objects, associating them with the hashing id,
         # then attempt the submit and set their sid on success or release on
         # failure
-        my $for_id = $for->id;
+        my $for_id      = $for->id;
         my $transaction = sub {
             my $all_claimed = 1;
             foreach my $sub (@$submissions) {
@@ -254,20 +257,23 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $node_run_args .= ", heartbeat_interval => $heartbeat_interval";
         }
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
-        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->create(id => $self_id)->run_on_node($node_run_args);"];
+        my $cmd        = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->create(id => $self_id)->run_on_node($node_run_args);"];
         
-        return join(' ', $self->submit_command, $self->submit_args(requirements => $requirements,
-                                                                   stdo_file => $self->scheduler_output_file($output_dir),
-                                                                   stde_file => $self->scheduler_error_file($output_dir),
-                                                                   cmd => $cmd,
-                                                                   $for->isa('VRPipe::PersistentArray') ? (array => $for) : ()));
+        return
+          join(' ',
+               $self->submit_command,
+               $self->submit_args(requirements => $requirements,
+                                  stdo_file    => $self->scheduler_output_file($output_dir),
+                                  stde_file    => $self->scheduler_error_file($output_dir),
+                                  cmd          => $cmd,
+                                  $for->isa('VRPipe::PersistentArray') ? (array => $for) : ()));
     }
     
     method output_dir (PersistentObject $for) {
         my $root_dir = $self->output_root;
         
-        my $hashing_string = ref($for).'::'.$for->id;
-        my @subdirs = $self->hashed_dirs($hashing_string);
+        my $hashing_string = ref($for) . '::' . $for->id;
+        my @subdirs        = $self->hashed_dirs($hashing_string);
         
         $hashing_string =~ s/\:/_/g;
         my $output_dir = dir($root_dir, @subdirs, $hashing_string);
@@ -279,6 +285,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     method scheduler_output_file (Dir $output_dir) {
         return file($output_dir, 'scheduler_stdout');
     }
+    
     method scheduler_error_file (Dir $output_dir) {
         return file($output_dir, 'scheduler_stderr');
     }
@@ -287,7 +294,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         $self->throw("submission or array must be supplied") unless $submission || $array;
         my $input_args = '';
         if ($array) {
-            $index = $self->get_1based_index($index);
+            $index      = $self->get_1based_index($index);
             $submission = VRPipe::PersistentArray->get(id => $array)->member($index); # *** or avoid possible mismatches by directly getting the Submission with the appropriate _hid and _aid?
             $input_args = "array => $array (index $index)";
         }

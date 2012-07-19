@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataSource - define pipeline input from arbitrary sources
@@ -11,8 +12,8 @@ VRPipe::DataSource - define pipeline input from arbitrary sources
 A DataSource defines the inputs you want to supply to one or more
 L<VRPipe::PipelineSetup>s. There are a number of different types of DataSource.
 Each type understands a different kind of source. For example the 'fofn' type
-understands text files that list file paths. The 'vrtrack' type understands
-the contents of a VRTrack database.
+understands text files that list file paths. The 'vrtrack' type understands the
+contents of a VRTrack database.
 
 Each type has one or more methods, and each method can have options. For
 example, you could use the 'fofn' type with the 'all' method and no options,
@@ -23,11 +24,12 @@ PipelineSetup using this DataSource.
 For example, consider a L<VRPipe::Pipeline> with 2 steps. The first step takes
 a txt file as input, copies it, and appends a line of text to the copy, then
 outputs the new text file. The second step takes the output of the first, makes
-a copy of it, and removes the first line before outputting this altered version.
+a copy of it, and removes the first line before outputting this altered
+version.
 
 Now let's say we make a DataSource of type 'fofn', method 'all', source
 '/abs/that/to/my.fofn', where the contents of /abs/that/to/my.fofn are:
-
+    
     /abs/path/to/file.1
     /abs/path/to/file.2
 
@@ -42,8 +44,8 @@ and DataSource. What will happen is this:
 
 In a certain working directory, /abs/path/to/file.1 is input into the first
 step. At the same time, in a different working directory, /abs/path/to/file.2
-is input into the first step. In parallel the code of the first step us run
-on the inputs, and in the first working directory a file 11 lines long is made,
+is input into the first step. In parallel the code of the first step us run on
+the inputs, and in the first working directory a file 11 lines long is made,
 and in the second working directory a file of 6 lines long is made.
 
 Soon after the 11 line long file is made, it is passed to the second step.
@@ -89,52 +91,54 @@ class VRPipe::DataSource extends VRPipe::Persistent {
     use DateTime;
     use VRPipe::DataSourceFactory;
     
-    has 'type' => (is => 'rw',
-                   isa => Varchar[64],
+    has 'type' => (is     => 'rw',
+                   isa    => Varchar [64],
                    traits => ['VRPipe::Persistent::Attributes'],
                    is_key => 1);
     
-    has 'method' => (is => 'rw',
-                     isa => Varchar[64],
+    has 'method' => (is     => 'rw',
+                     isa    => Varchar [64],
                      traits => ['VRPipe::Persistent::Attributes'],
                      is_key => 1);
     
-    has 'source' => (is => 'rw',
-                     isa => Text,
+    has 'source' => (is     => 'rw',
+                     isa    => Text,
                      coerce => 1,
                      traits => ['VRPipe::Persistent::Attributes'],
                      is_key => 1);
     
-    has 'options' => (is => 'rw',
-                      isa => 'HashRef',
-                      traits => ['VRPipe::Persistent::Attributes'],
-                      default => sub { {} },
+    has 'options' => (is                   => 'rw',
+                      isa                  => 'HashRef',
+                      traits               => ['VRPipe::Persistent::Attributes'],
+                      default              => sub { {} },
                       allow_key_to_default => 1,
-                      is_key => 1);
+                      is_key               => 1);
     
-    has '_lock' => (is => 'rw',
-                    isa => Datetime,
-                    traits => ['VRPipe::Persistent::Attributes'],
+    has '_lock' => (is          => 'rw',
+                    isa         => Datetime,
+                    traits      => ['VRPipe::Persistent::Attributes'],
                     is_nullable => 1);
     
-    has '_changed_marker' => (is => 'rw',
-                             isa => Varchar[255],
-                             traits => ['VRPipe::Persistent::Attributes'],
-                             is_nullable => 1);
+    has '_changed_marker' => (is          => 'rw',
+                              isa         => Varchar [255],
+                              traits      => ['VRPipe::Persistent::Attributes'],
+                              is_nullable => 1);
     
-    has '_source_instance' => (is => 'rw',
-                               isa => 'Defined',
-                               lazy => 1,
+    has '_source_instance' => (is      => 'rw',
+                               isa     => 'Defined',
+                               lazy    => 1,
                                builder => '_build_source',
                                handles => [qw(description source_description method_description)]);
     
     method _build_source {
         my $changed_marker = $self->_changed_marker;
-        return VRPipe::DataSourceFactory->create($self->type, {method => $self->method,
-                                                               source => $self->source,
-                                                               options => $self->options,
-                                                               $changed_marker ? ('_changed_marker' => $changed_marker) : (),
-                                                               '_datasource_id' => $self->id});
+        return
+          VRPipe::DataSourceFactory->create($self->type,
+                                            {  method  => $self->method,
+                                               source  => $self->source,
+                                               options => $self->options,
+                                               $changed_marker ? ('_changed_marker' => $changed_marker) : (),
+                                               '_datasource_id' => $self->id });
     }
     
     __PACKAGE__->make_persistent(has_many => [elements => 'VRPipe::DataElement']);
@@ -151,11 +155,10 @@ class VRPipe::DataSource extends VRPipe::Persistent {
     method incomplete_element_states (VRPipe::PipelineSetup $setup) {
         $self->_prepare_elements_and_states || return;
         
-        my $pipeline = $setup->pipeline;
+        my $pipeline  = $setup->pipeline;
         my $num_steps = $pipeline->step_members;
         
-        return VRPipe::DataElementState->search_paged({ pipelinesetup => $setup->id, completed_steps => {'<', $num_steps}, 'dataelement.withdrawn' => 0 },
-                                                      { join => 'dataelement', prefetch => 'dataelement' });
+        return VRPipe::DataElementState->search_paged({ pipelinesetup => $setup->id, completed_steps => { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { join => 'dataelement', prefetch => 'dataelement' });
     }
     
     method _prepare_elements_and_states (Bool $status_messages = 0) {
@@ -167,7 +170,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             # we must not go through and update the dataelements more than
             # once simultaneously, and we must not return elements in a
             # partially updated state, so we lock/block at this point
-            my $block = 0;
+            my $block    = 0;
             my $continue = 1;
             do {
                 $self->reselect_values_from_db;
@@ -194,7 +197,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                     # likely that the datasource is now up to date and we don't
                     # have to do anything
                     if ($block) {
-                        $block = 0;
+                        $block    = 0;
                         $continue = $source->_has_changed;
                     }
                     
@@ -212,9 +215,9 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             # lock being left open, so we have to re-claim the lock every 15s
             # so that the above blocking code doesn't ignore the lock. We do
             # this by spawning a lock process
-            my $my_pid = $$;
+            my $my_pid   = $$;
             my $lock_pid = fork();
-            if (! defined $lock_pid) {
+            if (!defined $lock_pid) {
                 $self->throw("attempt to fork for lock failed: $!");
             }
             elsif ($lock_pid == 0) {

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::DataSource::list - get pipeline input from a text file
@@ -10,8 +11,8 @@ VRPipe::DataSource::list - get pipeline input from a text file
 
 This DataSource will be of limited use. Each resulting L<VRPipe::DataElement>
 will consist of a line from the source text file, but they will not be
-considered paths; most pipelines need file paths to work with.
-*** more documentation to come
+considered paths; most pipelines need file paths to work with. *** more
+documentation to come
 
 =head1 AUTHOR
 
@@ -43,9 +44,11 @@ class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
     method description {
         return "Use a simple list of items in a file as your source.";
     }
+    
     method source_description {
         return "The path to a file with one item per line.";
     }
+    
     method method_description (Str $method) {
         if ($method eq 'all') {
             return "Each element will correspond to a single line from the file.";

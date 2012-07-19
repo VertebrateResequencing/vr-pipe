@@ -1,10 +1,11 @@
+
 =head1 NAME
 
-VRPipe::Persistent::SchemaBase - the backend for connecting to the correct
-                                 database used for Persistent objects
+VRPipe::Persistent::SchemaBase - the backend for connecting to the correct     
+                            database used for Persistent objects
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Base;
     
     class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
@@ -14,12 +15,13 @@ VRPipe::Persistent::SchemaBase - the backend for connecting to the correct
 
 =head1 DESCRIPTION
 
-This is a subclass of DBIx::Class::Schema that can default connection details to
-site-wide configuration values (from L<VRPipe::Config>).
+This is a subclass of DBIx::Class::Schema that can default connection details
+to site-wide configuration values (from L<VRPipe::Config>).
 
 To choose between using the production or testing database that has been
-configured, call C<VRPipe::Persistent::SchemaBase->database_deployment('testing')>
-prior to calling C<connect()> on a subclass of this class.
+configured, call
+C<VRPipe::Persistent::SchemaBase->database_deployment('testing')> prior to
+calling C<connect()> on a subclass of this class.
 
 =head1 AUTHOR
 
@@ -69,18 +71,18 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
         
         my $thing = shift;
         if (ref $thing) {
-            $dsn = $thing->{dsn};
+            $dsn  = $thing->{dsn};
             $user = $thing->{user} || $class->get_user;
             $pass = $thing->{password} || $class->get_password;
         }
         else {
-            $dsn = $thing || $class->get_dsn;
-            $user = shift || $class->get_user;
-            $pass = shift || $class->get_password;
+            $dsn  = $thing || $class->get_dsn;
+            $user = shift  || $class->get_user;
+            $pass = shift  || $class->get_password;
         }
         
         my $args = shift || { AutoCommit => 1, RaiseError => 1, PrintError => 0 };
-
+        
         my $dbtype = $class->get_dbtype;
         $args->{sqlite_use_immediate_transaction} = 1 if $dbtype =~ /sqlite/i;
         
@@ -102,7 +104,7 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
     method get_dsn (ClassName $class:) {
         my %details;
         foreach my $detail (qw(dbtype dbname dbhost dbport)) {
-            my $method_name = $DATABASE_DEPLOYMENT.'_'.$detail;
+            my $method_name = $DATABASE_DEPLOYMENT . '_' . $detail;
             $details{$detail} = $vrp_config->$method_name();
         }
         
@@ -142,8 +144,8 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
     }
     
     method get_dbtype (ClassName $class:) {
-        my $method_name = $DATABASE_DEPLOYMENT.'_dbtype';
-        my $dbtype = $vrp_config->$method_name();
+        my $method_name = $DATABASE_DEPLOYMENT . '_dbtype';
+        my $dbtype      = $vrp_config->$method_name();
         $dbtype = "$dbtype";
         
         # correct capitlisation for the benefit of DBIx::Class::DeploymentHandler
@@ -163,15 +165,15 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
     }
     
     method get_user (ClassName $class:) {
-        my $method_name = $DATABASE_DEPLOYMENT.'_username';
-        my $user = $vrp_config->$method_name();
-        return "$user"; # incase $user is an Env object, force the stringification
+        my $method_name = $DATABASE_DEPLOYMENT . '_username';
+        my $user        = $vrp_config->$method_name();
+        return "$user";  # incase $user is an Env object, force the stringification
     }
     
     method get_password (ClassName $class:) {
-        my $method_name = $DATABASE_DEPLOYMENT.'_password';
-        my $pass = $vrp_config->$method_name();
-        return "$pass"; # incase $pass is an Env object, force the stringification
+        my $method_name = $DATABASE_DEPLOYMENT . '_password';
+        my $pass        = $vrp_config->$method_name();
+        return "$pass";  # incase $pass is an Env object, force the stringification
     }
 }
 

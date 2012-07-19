@@ -1,9 +1,10 @@
+
 =head1 NAME
 
 VRPipe::Base::FileMethods - commonly used methods for dealing with files
 
 =head1 SYNOPSIS
-
+    
     use VRPipe::Base;
     
     class VRPipe::MyClass with (VRPipe::Base::FileMethods) {
@@ -19,8 +20,8 @@ VRPipe::Base::FileMethods - commonly used methods for dealing with files
 
 Provides a grab-bag of very commonly used file-related methods from external
 (CPAN or CORE) modules, so you can call $self->common_method instead of { use
-external::module; external::module->common_method }. Also adds some wrapping
-to make error handling consistent for all the methods.
+external::module; external::module->common_method }. Also adds some wrapping to
+make error handling consistent for all the methods.
 
 Allows for the possibilty to reimplement these methods here, to reduce the
 number of external dependencies.
@@ -64,19 +65,15 @@ role VRPipe::Base::FileMethods {
     # File::Temp will auto-delete temporary files and dirs when our instance is
     # destroyed, but we need to keep a reference to them until then to stop
     # them being deleted too early
-    has _file_temps => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[File::Temp::Dir|File::Temp::File]',
-        lazy    => 1,
-        default => sub { [] },
-        handles => {
-            _remember_file_temp => 'push'
-        }
-    );
-    
-=head2 cwd
+    has _file_temps => (traits  => ['Array'],
+                        is      => 'ro',
+                        isa     => 'ArrayRef[File::Temp::Dir|File::Temp::File]',
+                        lazy    => 1,
+                        default => sub { [] },
+                        handles => { _remember_file_temp => 'push' });
 
+=head2 cwd
+ 
  Title   : cwd
  Usage   : my $path = $obj->cwd(); 
  Function: Get the current working directory.
@@ -84,12 +81,13 @@ role VRPipe::Base::FileMethods {
  Args    : n/a
 
 =cut
+    
     method cwd () {
         return Dir(Cwd::cwd);
     }
-    
-=head2 make_path
 
+=head2 make_path
+ 
  Title   : make_path (alias mkpath)
  Usage   : $obj->make_path($path);
  Function: Make directories, like mkdir -p. An alias to File::Path::make_path,
@@ -98,6 +96,7 @@ role VRPipe::Base::FileMethods {
  Args    : as per File::Path::make_path
 
 =cut
+    
     method make_path (Dir $path, @args) {
         my $args;
         if (@args && ref($args[-1])) {
@@ -131,9 +130,9 @@ role VRPipe::Base::FileMethods {
         }
     }
     alias mkpath => 'make_path';
-    
-=head2 remove_tree
 
+=head2 remove_tree
+ 
  Title   : remove_tree (alias rmtree)
  Usage   : $obj->remove_tree($path);
  Function: Remove a directory structe, like rm -rf. An alias to
@@ -143,6 +142,7 @@ role VRPipe::Base::FileMethods {
  Args    : as per File::Path::make_path
 
 =cut
+    
     method remove_tree (Dir $path, @args) {
         my $args;
         if (@args && ref($args[-1])) {
@@ -181,7 +181,7 @@ role VRPipe::Base::FileMethods {
     alias rmtree => 'remove_tree';
 
 =head2 tempfile
-
+ 
  Title   : tempfile
  Usage   : my ($handle, $tempfile) = $obj->tempfile(); 
  Function: Get a temporary filename and a handle opened for writing and
@@ -190,6 +190,7 @@ role VRPipe::Base::FileMethods {
  Args    : as per File::Temp::tempfile
 
 =cut
+    
     method tempfile {
         my $ft = File::Temp->new(@_);
         $self->_remember_file_temp($ft);
@@ -198,7 +199,7 @@ role VRPipe::Base::FileMethods {
     alias tmpfile => 'tempfile';
 
 =head2 tempdir
-
+ 
  Title   : tempdir
  Usage   : my $tempdir = $obj->tempdir(); 
  Function: Creates and returns the name of a new temporary directory. Just an
@@ -207,6 +208,7 @@ role VRPipe::Base::FileMethods {
  Args    : as per File::Temp::newdir
 
 =cut
+    
     method tempdir {
         shift;
         my $ft = File::Temp->newdir(@_);
@@ -214,9 +216,9 @@ role VRPipe::Base::FileMethods {
         return Path::Class::Dir->new($ft->dirname);
     }
     alias tmpdir => 'tempdir';
-    
-=head2 concatenate
 
+=head2 concatenate
+ 
  Title   : concatenate
  Usage   : $obj->concatenate($source, $destination,
                              unlink_source => 1,
@@ -232,6 +234,7 @@ role VRPipe::Base::FileMethods {
            upto half this value from the end of the source)
 
 =cut
+    
     method concatenate (VRPipe::File $source, VRPipe::File $destination, Bool :$unlink_source = 0, PositiveInt :$max_lines?, Bool :$add_marker = 1) {
         my $copy_over = $source->s;
         if ($destination->s) {
@@ -243,16 +246,16 @@ role VRPipe::Base::FileMethods {
             }
         }
         elsif ($unlink_source) {
-                $source->move($destination) if $source->e;
-                $copy_over = 0;
-                $unlink_source = 0;
+            $source->move($destination) if $source->e;
+            $copy_over     = 0;
+            $unlink_source = 0;
         }
         
         if ($copy_over) {
-            my $ifh = $source->open('<', backwards => 0);
-            my $ofh = $destination->open('>>');
-            my $copied_lines = 0;
-            my $first_half_limit = int($max_lines / 2) if $max_lines;
+            my $ifh               = $source->open('<', backwards => 0);
+            my $ofh               = $destination->open('>>');
+            my $copied_lines      = 0;
+            my $first_half_limit  = int($max_lines / 2) if $max_lines;
             my $second_half_limit = $max_lines - $first_half_limit if $max_lines;
             
             my @buffer;
@@ -329,7 +332,7 @@ role VRPipe::Base::FileMethods {
         $dmd5->add($hashing_string);
         my $md5 = $dmd5->hexdigest;
         my @chars = split("", $md5);
-        return @chars[0..$levels - 1];
+        return @chars[0 .. $levels - 1];
     }
 }
 

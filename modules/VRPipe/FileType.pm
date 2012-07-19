@@ -1,15 +1,17 @@
+
 =head1 NAME
 
 VRPipe::FileType - a factory for FileTypes
 
 =head1 SYNOPSIS
-
+    
     my $filetype = VRPipe::FileType->create($type, { file => $path });
 
 =head1 DESCRIPTION
 
-A FileType provides some essential infomation and methods for dealing with files
-of that type without having to know about the format of those files yourself.
+A FileType provides some essential infomation and methods for dealing with
+files of that type without having to know about the format of those files
+yourself.
 
 For example, you can find out how many header lines are in a file using
 C<num_header_lines()>, without knowing anything about the file, as long as its

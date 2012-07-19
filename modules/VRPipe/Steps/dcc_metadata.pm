@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::dcc_metadata - a step
@@ -35,69 +36,79 @@ use VRPipe::Base;
 class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
     method options_definition {
         return { sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index'),
-                 release_date => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date (YYYYMMDD)'), };
+                 release_date   => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date (YYYYMMDD)'), };
     }
+    
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', description => 'bam files', max_files => -1,
-                                                            metadata => {sample => 'sample name',
-                                                                         center_name => 'center name',
-                                                                         library => 'library name',
-                                                                         platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                         study => 'name of the study, put in the DS field of the RG header line',
-                                                                         population => 'sample population',
-                                                                         analysis_group => 'project analysis group',
-                                                                         split_sequence => 'chromosomal split',
-                                                                         reads => 'total number of reads (sequences)',
-                                                                         optional => ['library', 'study', 'center_name', 'split_sequence'] }) };
+        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                               description => 'bam files',
+                                                               max_files   => -1,
+                                                               metadata    => {
+                                                                             sample         => 'sample name',
+                                                                             center_name    => 'center name',
+                                                                             library        => 'library name',
+                                                                             platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                                                                             study          => 'name of the study, put in the DS field of the RG header line',
+                                                                             population     => 'sample population',
+                                                                             analysis_group => 'project analysis group',
+                                                                             split_sequence => 'chromosomal split',
+                                                                             reads          => 'total number of reads (sequences)',
+                                                                             optional       => ['library', 'study', 'center_name', 'split_sequence'] }) };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
-            my $options = $self->options;
+            my $self           = shift;
+            my $options        = $self->options;
             my $sequence_index = $options->{sequence_index};
-            my $release_date = $options->{release_date};
-            unless ( $release_date =~ /^\d{8}$/ ) {
+            my $release_date   = $options->{release_date};
+            unless ($release_date =~ /^\d{8}$/) {
                 $self->throw("Release date ($release_date) not of the correct form (YYYYMMDD).");
             }
-            foreach my $bam (@{$self->inputs->{bam_files}}) {
-                $bam->add_metadata({release_date => $release_date}, replace_data => 0);
-                my $in_path = $bam->path;
-                my $ofile = $self->output_file(output_key => 'dcc_ready_bam_files', basename => $bam->basename, type => 'bam', metadata => $bam->metadata);
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
+                $bam->add_metadata({ release_date => $release_date }, replace_data => 0);
+                my $in_path  = $bam->path;
+                my $ofile    = $self->output_file(output_key => 'dcc_ready_bam_files', basename => $bam->basename, type => 'bam', metadata => $bam->metadata);
                 my $out_path = $ofile->path;
-                my $req = $self->new_requirements(memory => 500, time => 1);
+                my $req      = $self->new_requirements(memory => 500, time => 1);
                 my $this_cmd = "use VRPipe::Steps::dcc_metadata; VRPipe::Steps::dcc_metadata->check_dcc_metadata(q[$in_path], q[$out_path], sequence_index => q[$sequence_index]);";
-                $self->dispatch_vrpipecode($this_cmd, $req, {output_files => [$ofile]});
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$ofile] });
             }
         };
     }
+    
     method outputs_definition {
-        return { dcc_ready_bam_files => VRPipe::StepIODefinition->create(type => 'bam',
-                                                                      description => 'a bam file with associated metadata',
-                                                                      max_files => -1,
-                                                                      metadata => {sample => 'sample name',
-                                                                                   center_name => 'center name',
-                                                                                   library => 'library name',
-                                                                                   platform => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                                   study => 'name of the study, put in the DS field of the RG header line',
-                                                                                   population => 'sample population',
-                                                                                   analysis_group => 'project analysis group',
-                                                                                   split_sequence => 'chromosomal split',
-                                                                                   reads => 'total number of reads (sequences)',
-                                                                                   release_date => 'DCC sequence index release date',
-                                                                                   optional => ['library', 'study', 'center_name', 'split_sequence'] }) };
+        return { dcc_ready_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                                         description => 'a bam file with associated metadata',
+                                                                         max_files   => -1,
+                                                                         metadata    => {
+                                                                                       sample         => 'sample name',
+                                                                                       center_name    => 'center name',
+                                                                                       library        => 'library name',
+                                                                                       platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                                                                                       study          => 'name of the study, put in the DS field of the RG header line',
+                                                                                       population     => 'sample population',
+                                                                                       analysis_group => 'project analysis group',
+                                                                                       split_sequence => 'chromosomal split',
+                                                                                       reads          => 'total number of reads (sequences)',
+                                                                                       release_date   => 'DCC sequence index release date',
+                                                                                       optional       => ['library', 'study', 'center_name', 'split_sequence'] }) };
     }
+    
     method post_process_sub {
         return sub {
             return 1;
         };
     }
+    
     method description {
         return "Check the metadata in the bam header, vrpipe and the sequence index are all in agreement and the bam has the expected number of reads.";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;          # meaning unlimited
     }
-
+    
     method check_dcc_metadata (ClassName|Object $self: Str|File $bam!, Str|File $symlink!, Str|File :$sequence_index!) {
         unless (ref($bam) && ref($bam) eq 'VRPipe::File') {
             $bam = VRPipe::File->get(path => file($bam));
@@ -107,27 +118,27 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         }
         my $meta = $bam->metadata;
         
-        my $bp = VRPipe::Parser->create('bam', {file => $bam});
+        my $bp = VRPipe::Parser->create('bam', { file => $bam });
         my %readgroup_info = $bp->readgroup_info();
         $bp->close;
         
         $bam->disconnect;
         
-        my $sip = VRPipe::Parser->create('sequence_index', {file => $sequence_index});
+        my $sip = VRPipe::Parser->create('sequence_index', { file => $sequence_index });
         my $parsed_record = $sip->parsed_record();
         
         my %si_lanes;
         while ($sip->next_record()) {
             next if ($parsed_record->[20]);
-            next unless ($parsed_record->[9] eq $meta->{sample});
+            next unless ($parsed_record->[9]  eq $meta->{sample});
             next unless ($parsed_record->[12] eq $meta->{platform});
             next unless ($parsed_record->[25] eq $meta->{analysis_group});
-            $si_lanes{$parsed_record->[2]} = 1;
+            $si_lanes{ $parsed_record->[2] } = 1;
         }
         
         my @fails;
         unless (scalar keys %readgroup_info == scalar keys %si_lanes) {
-            push @fails, "Number of expected lanes in the sequence index (".scalar(keys %si_lanes).") not equal to the number of readgroups in the bam header (".scalar(keys %readgroup_info).")";
+            push @fails, "Number of expected lanes in the sequence index (" . scalar(keys %si_lanes) . ") not equal to the number of readgroups in the bam header (" . scalar(keys %readgroup_info) . ")";
         }
         while (my ($rg, $info) = each %readgroup_info) {
             unless (exists $si_lanes{$rg}) {
@@ -135,11 +146,11 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             }
             my $sample = $sip->lane_info($rg, 'SAMPLE_NAME');
             my $center = uc($sip->lane_info($rg, 'CENTER_NAME'));
-            my $platform = $sip->lane_info($rg, 'INSTRUMENT_PLATFORM');
-            my $library = $sip->lane_info($rg, 'LIBRARY_NAME');
-            my $study = $sip->lane_info($rg, 'STUDY_ID');
+            my $platform   = $sip->lane_info($rg, 'INSTRUMENT_PLATFORM');
+            my $library    = $sip->lane_info($rg, 'LIBRARY_NAME');
+            my $study      = $sip->lane_info($rg, 'STUDY_ID');
             my $population = $sip->lane_info($rg, 'POPULATION');
-            my $ag = $sip->lane_info($rg, 'ANALYSIS_GROUP');
+            my $ag         = $sip->lane_info($rg, 'ANALYSIS_GROUP');
             
             unless ($meta->{sample} eq $info->{SM} && $meta->{sample} eq $sample) {
                 push @fails, "sample metadata in db, bam header and sequence index do not agree: $$meta{sample}, $$info{SM}, $sample";
@@ -165,15 +176,16 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         }
         
         my $expected_reads = $meta->{reads};
-        my $actual_reads = $bam->num_records;
+        my $actual_reads   = $bam->num_records;
         
         unless ($expected_reads == $actual_reads) {
-            push @fails, "Expected reads $expected_reads not equal to actual reads $actual_reads for file ".$bam->path;
+            push @fails, "Expected reads $expected_reads not equal to actual reads $actual_reads for file " . $bam->path;
         }
         
         if (@fails) {
             $self->throw(join "\n", @fails);
-        } else {
+        }
+        else {
             $bam->symlink($symlink);
             return 1;
         }

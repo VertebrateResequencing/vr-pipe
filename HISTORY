@@ -1,3 +1,5 @@
+0.83    Further critical fixes to the new PerlTidy module. All Perl code has now
+        been tidied.
 0.82    Critical fix to the new PerlTidy module so that it does not break
         classes when tidying. Critical fix for VRPipe::File to revert to
         previous behaviour of keeping file metadata even after file deletion.

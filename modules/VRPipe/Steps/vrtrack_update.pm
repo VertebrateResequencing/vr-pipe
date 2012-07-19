@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::vrtrack_update - a step
@@ -40,27 +41,33 @@ class VRPipe::Steps::vrtrack_update with VRPipe::StepRole {
     method options_definition {
         return { vrtrack_db => VRPipe::StepOption->create(description => 'the name of your VRTrack database (other connection settings are taken from the standard VRTrack environment variables)') };
     }
+    
     method inputs_definition {
-        return { };
+        return {};
     }
+    
     method body_sub {
         return sub { };
     }
+    
     method outputs_definition {
-    	return { };
+        return {};
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Empty shell step for basing other vrtrack-related steps on";
     }
+    
     method max_simultaneous {
         return 75;
     }
     
     method get_vrtrack (ClassName|Object $self: Str :$db!, Str :$mode = 'rw') {
-	return VRTrack::Factory->instantiate(database => $db, mode => $mode) || $self->throw("Could not connect to the database '$db'");
+        return VRTrack::Factory->instantiate(database => $db, mode => $mode) || $self->throw("Could not connect to the database '$db'");
     }
 }
 

@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileType::loc - loc filetype
@@ -8,8 +9,9 @@ VRPipe::FileType::loc - loc filetype
 
 =head1 DESCRIPTION
 
-When the B<VRPipe> local scheduler is used to schedule and run jobs, it produces
-messages when the job completes. This filetype is for those report files.
+When the B<VRPipe> local scheduler is used to schedule and run jobs, it
+produces messages when the job completes. This filetype is for those report
+files.
 
 =head1 AUTHOR
 

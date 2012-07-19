@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::FileTypeRole - a role that must be used by all FileTypes
@@ -39,27 +40,27 @@ use VRPipe::Base;
 role VRPipe::FileTypeRole {
     use VRPipe::Parser;
     
-    has 'file' => (is => 'rw',
-                   isa => File,
-                   coerce => 1,
+    has 'file' => (is       => 'rw',
+                   isa      => File,
+                   coerce   => 1,
                    required => 1);
     
-    has 'type' => (is => 'ro',
-                   isa => FileType,
-                   lazy => 1,
+    has 'type' => (is      => 'ro',
+                   isa     => FileType,
+                   lazy    => 1,
                    builder => '_build_type');
     
-    has 'record_separator' => (is => 'ro',
-                               isa => 'Maybe[Str]',
+    has 'record_separator' => (is      => 'ro',
+                               isa     => 'Maybe[Str]',
                                builder => '_build_record_separator');
     
-    has 'read_backwards' => (is => 'ro',
-                             isa => 'Bool',
+    has 'read_backwards' => (is      => 'ro',
+                             isa     => 'Bool',
                              builder => '_build_read_backwards');
     
-    has 'parser' => (is => 'ro',
-                     does => 'VRPipe::ParserRole',
-                     lazy => 1,
+    has 'parser' => (is      => 'ro',
+                     does    => 'VRPipe::ParserRole',
+                     lazy    => 1,
                      builder => '_build_parser');
     
     method _build_type {
@@ -77,7 +78,7 @@ role VRPipe::FileTypeRole {
     }
     
     method _build_parser {
-        return VRPipe::Parser->create($self->type, {file => $self->file});
+        return VRPipe::Parser->create($self->type, { file => $self->file });
     }
     
     method check_type {
@@ -97,6 +98,7 @@ role VRPipe::FileTypeRole {
     method num_header_lines {
         return 0;
     }
+    
     method num_records {
         my $path = $self->file;
         my $cat = $path =~ /\.gz$/ ? 'zcat' : 'cat';

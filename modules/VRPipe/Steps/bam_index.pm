@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Steps::bam_index - a step
@@ -34,45 +35,52 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_index with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->create(description => 'path to your samtools executable',
-                                                         optional => 1,
-                                                         default_value => 'samtools') };
+        return { samtools_exe => VRPipe::StepOption->create(description   => 'path to your samtools executable',
+                                                            optional      => 1,
+                                                            default_value => 'samtools') };
     }
+    
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to index') };
     }
+    
     method body_sub {
         return sub {
-            my $self = shift;
-            my $options = $self->options;
+            my $self     = shift;
+            my $options  = $self->options;
             my $samtools = $options->{samtools_exe};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            foreach my $bam (@{$self->inputs->{bam_files}}) {
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $bam_path = $bam->path;
                 my $bai_file = $self->output_file(output_key => 'bai_files',
-                                              output_dir => $bam->dir,
-                                              basename => $bam->basename.'.bai',
-                                              type => 'bin',
-                                              metadata => $bam->metadata);
+                                                  output_dir => $bam->dir,
+                                                  basename   => $bam->basename . '.bai',
+                                                  type       => 'bin',
+                                                  metadata   => $bam->metadata);
                 my $bai_path = $bai_file->path;
-                my $cmd = qq[$samtools index $bam_path $bai_path];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_index', 'index_and_check', [$cmd, $req, {output_files => [$bai_file]}]); 
+                my $cmd      = qq[$samtools index $bam_path $bai_path];
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_index', 'index_and_check', [$cmd, $req, { output_files => [$bai_file] }]);
             }
         };
     }
+    
     method outputs_definition {
         return { bai_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a .bai file for each input bam file') };
     }
+    
     method post_process_sub {
         return sub { return 1; };
     }
+    
     method description {
         return "Indexes bam files using samtools";
     }
+    
     method max_simultaneous {
-        return 0; # meaning unlimited
+        return 0;            # meaning unlimited
     }
+    
     method index_and_check (ClassName|Object $self: Str $cmd_line) {
         my ($bam_path, $bai_path) = $cmd_line =~ /index (\S+) (\S+)/;
         $bam_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");

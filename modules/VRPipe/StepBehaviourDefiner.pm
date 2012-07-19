@@ -1,6 +1,7 @@
+
 =head1 NAME
 
-VRPipe::StepBehaviourDefiner - non-Persistent definition of StepBehaviours 
+VRPipe::StepBehaviourDefiner - non-Persistent definition of StepBehaviours
 
 =head1 SYNOPSIS
 
@@ -9,12 +10,13 @@ VRPipe::StepBehaviourDefiner - non-Persistent definition of StepBehaviours
 =head1 DESCRIPTION
 
 A L<VRPipe::StepBehaviour> is a Persistent object stored in the database. This
-class makes it possible to define one in a C<VRPipe::Pipelines::[pipeline_name]>
-module file. It will automatically become a real StepBehaviour.
+class makes it possible to define one in a
+C<VRPipe::Pipelines::[pipeline_name]> module file. It will automatically become
+a real StepBehaviour.
 
 It is necessary because a real StepBehaviour can't be created without the real
-Pipeline already existing in the database, which obviously isn't the case for
-a new Pipeline you're defining in .pm file.
+Pipeline already existing in the database, which obviously isn't the case for a
+new Pipeline you're defining in .pm file.
 
 *** more documentation to come
 
@@ -47,27 +49,27 @@ use VRPipe::Base;
 class VRPipe::StepBehaviourDefiner {
     use Data::Compare;
     
-    has 'after_step' => (is => 'ro',
+    has 'after_step' => (is  => 'ro',
                          isa => PositiveInt);
     
-    has 'behaviour' => (is => 'ro',
+    has 'behaviour' => (is  => 'ro',
                         isa => 'Str');
     
-    has 'act_on_steps' => (is => 'ro',
+    has 'act_on_steps' => (is  => 'ro',
                            isa => 'ArrayRef');
     
-    has 'regulated_by' => (is => 'ro',
+    has 'regulated_by' => (is  => 'ro',
                            isa => 'Str');
     
-    has 'default_regulation' => (is => 'ro',
+    has 'default_regulation' => (is  => 'ro',
                                  isa => 'Bool');
     
     method define (Persistent|VRPipe::Pipeline $pipeline) {
         my $sb = VRPipe::StepBehaviour->create(pipeline => $pipeline, after_step => $self->after_step, behaviour => $self->behaviour);
         my $array = $sb->behaviour_array;
         
-        my $behaviour = $self->behaviour;
-        my @steps = sort { $a <=> $b } @{$self->act_on_steps};
+        my $behaviour    = $self->behaviour;
+        my @steps        = sort { $a <=> $b } @{ $self->act_on_steps };
         my $already_have = 0;
         foreach my $existing (@$array) {
             my ($this_b, @these_steps) = @$existing;

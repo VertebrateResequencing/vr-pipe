@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 VRPipe::Persistent::ConverterFactory - a factory for SQL converteres
@@ -38,6 +39,6 @@ package VRPipe::Persistent::ConverterFactory;
 use MooseX::AbstractFactory;
 
 implementation_does qw/VRPipe::Persistent::ConverterRole/;
-implementation_class_via sub { 'VRPipe::Persistent::Converter::'.shift };
+implementation_class_via sub { 'VRPipe::Persistent::Converter::' . shift };
 
 1;
