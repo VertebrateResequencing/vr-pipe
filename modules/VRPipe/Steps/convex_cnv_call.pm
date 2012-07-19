@@ -42,7 +42,8 @@ class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
                  'swt_del'             => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
                  'swt_dup'             => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
                  'dv'                  => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
-                 'rscript_path'        => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'), };
+                 'rscript_path'        => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+                 'r_libs'              => VRPipe::StepOption->create(description => 'Full path to CoNVex R libs installation'), };
     }
     
     method inputs_definition {
@@ -62,6 +63,7 @@ class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
             my $swt_dup             = $options->{'swt_dup'};
             my $dv                  = $options->{'dv'};
             my $rscript_path        = $options->{'rscript_path'};
+            my $r_libs              = $options->{'r_libs'};
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
             
@@ -75,7 +77,7 @@ class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
                 my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt');
                 my $cnv_dir = $cnv_file->dir;
                 
-                my $cmd = "R --vanilla --slave --args '$sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$sample,$centromere_reg_file,$cnv_dir,$sw_exec' < $rscript_path/SWCNVCall.R";
+                my $cmd = "export R_LIBS=$r_libs; R --vanilla --slave --args '$sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$sample,$centromere_reg_file,$cnv_dir,$sw_exec' < $rscript_path/SWCNVCall.R";
                 $self->dispatch([$cmd, $req, { output_files => [$cnv_file] }]);
             }
         };

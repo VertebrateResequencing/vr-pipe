@@ -39,6 +39,7 @@ class VRPipe::Steps::convex_breakpoints with VRPipe::StepRole {
         return {
             'rd_sample_file_name' => VRPipe::StepOption->create(description => 'Full path to a specific sample Read Depth file from which to generate breakpoints', optional => 1),
             'rscript_path'        => VRPipe::StepOption->create(description => 'Full path to CoNVex R scripts'),
+            'r_libs'              => VRPipe::StepOption->create(description => 'Full path to CoNVex R libs installation'),
             'max_bin_size' => VRPipe::StepOption->create(description => 'Maximum bin size', optional => 1, default_value => 1000),
             'bp_file_name' => VRPipe::StepOption->create(description => 'Full path to the output Breakpoints file'), };
     }
@@ -54,6 +55,7 @@ class VRPipe::Steps::convex_breakpoints with VRPipe::StepRole {
             my $options             = $self->options;
             my $rd_sample_file_name = $options->{'rd_sample_file_name'};
             my $rscript_path        = $options->{'rscript_path'};
+            my $r_libs              = $options->{'r_libs'};
             my $max_bin_size        = $options->{'max_bin_size'};
             my $bp_file_name        = $options->{'bp_file_name'};
             
@@ -72,7 +74,7 @@ class VRPipe::Steps::convex_breakpoints with VRPipe::StepRole {
             my $bp_file = Path::Class::File->new($bp_file_name);
             $self->throw("bp_file_name must be absolute path") unless $bp_file->is_absolute;
             
-            my $cmd = "R --vanilla --slave --args '$rd_sample_file_name,$max_bin_size,$bp_file_name' < $rscript_path/BreakpointsCall.R";
+            my $cmd = "export R_LIBS=$r_libs; R --vanilla --slave --args '$rd_sample_file_name,$max_bin_size,$bp_file_name' < $rscript_path/BreakpointsCall.R";
             $self->dispatch([$cmd, $req]);
         };
     }
