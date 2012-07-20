@@ -5,7 +5,7 @@ VRPipe::Steps::breakdancer_sv_detection - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the Breakdancer SV detection program using a pre-generated config file
 
 =head1 AUTHOR
 
