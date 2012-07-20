@@ -5,7 +5,7 @@ VRPipe::Steps::vcf_consequences - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the old vcf2consequences program aganinst one or more VCF files to generate VCFs annotated with consequence, Superceded by vep_analysis / vcf2consequences_vep, which uses the Ensembl VEP and is much quicker.[Should probably get rid of this Step]
 
 =head1 AUTHOR
 
