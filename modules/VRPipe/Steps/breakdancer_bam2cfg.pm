@@ -5,7 +5,7 @@ VRPipe::Steps::breakdancer_bam2cfg - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Generates a breakdancer config file for one or more bams
 
 =head1 AUTHOR
 
