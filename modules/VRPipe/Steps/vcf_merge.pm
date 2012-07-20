@@ -5,7 +5,7 @@ VRPipe::Steps::vcf_merge - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Run vcf-isec to merge a set of  VCFs, creating a single output VCF
 
 =head1 AUTHOR
 

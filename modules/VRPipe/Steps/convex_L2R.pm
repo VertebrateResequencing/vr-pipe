@@ -39,6 +39,7 @@ class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
     method options_definition {
         return { 'regions_file' => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
                  'rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+                 'r_libs'       => VRPipe::StepOption->create(description => 'Full path to CoNVex R libs installation'),
                  'includeChrX'  => VRPipe::StepOption->create(description => 'indicates whether to include Chr X in calulation', optional => 1, default_value => 1), };
     }
     
@@ -53,6 +54,7 @@ class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
             my $options      = $self->options;
             my $regions_file = $options->{'regions_file'};
             my $rscript_path = $options->{'rscript_path'};
+            my $r_libs       = $options->{'r_libs'};
             my $includeChrX  = $options->{'includeChrX'};
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
@@ -88,7 +90,7 @@ class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
             my $features_file_path = $features_file->path;
             push(@l2r_files, $features_file);
             
-            my $cmd = "R --vanilla --slave --args '$sample_info_path,$regions_file,$features_file_path,$includeChrX' < $rscript_path/SampleLogRatioCall.R";
+            my $cmd = "export R_LIBS=$r_libs; R --vanilla --slave --args '$sample_info_path,$regions_file,$features_file_path,$includeChrX' < $rscript_path/SampleLogRatioCall.R";
             
             $self->dispatch([$cmd, $req, { output_files => \@l2r_files }]);
         

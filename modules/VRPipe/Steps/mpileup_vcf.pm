@@ -5,7 +5,7 @@ VRPipe::Steps::mpileup_vcf - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs samtools mpileup and bcftools for one or more BAMS, generating one VCF without an intermediate BCF
 
 =head1 AUTHOR
 

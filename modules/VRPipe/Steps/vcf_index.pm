@@ -5,7 +5,7 @@ VRPipe::Steps::vcf_index - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs tabix to index VCF files
 
 =head1 AUTHOR
 

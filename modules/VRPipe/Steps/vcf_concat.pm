@@ -5,7 +5,7 @@ VRPipe::Steps::vcf_concat - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs vcf-concat against an input set of VCFs, each containing a sequence number as metadata for sorting purposes, generating one concatenated VCF
 
 =head1 AUTHOR
 

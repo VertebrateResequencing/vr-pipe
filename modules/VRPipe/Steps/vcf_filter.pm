@@ -5,7 +5,7 @@ VRPipe::Steps::vcf_filter - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the vcf-filter program using the provided parameters file for one or more input VCFs, creating a soft-filtered output VCF 
 
 =head1 AUTHOR
 

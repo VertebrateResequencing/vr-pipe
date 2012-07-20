@@ -50,6 +50,10 @@ test; this is ok and you can manually use 'cpan' to:
 MooseX::Types::Parameterizable fails its tests. In that case you can manually
 use 'cpan' to install an earlier version that should work:
 'install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz'.
+Version 0.08198 of DBIx::Class has a prefetch-related bug which prevents VRPipe
+from working. Please use an earlier version like 0.08196, or any higher version
+that claims to have fixed https://rt.cpan.org/Ticket/Display.html?id=78456 :
+'force install ARODLAND/DBIx-Class-0.08196.tar.gz'.
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is

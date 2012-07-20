@@ -5,7 +5,7 @@ VRPipe::Steps::vcf_stats - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Generate stats file using vcf-stats for each input VCF
 
 =head1 AUTHOR
 

@@ -5,7 +5,7 @@ VRPipe::Steps::vcf_vep_consequences - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the vcf2consequences_vep program, which applies Consequence annotations generated using the Ensembl VEP to VCF files, and optionally Grantham Matrix and GERP scores.
 
 =head1 AUTHOR
 
@@ -119,7 +119,7 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
     }
     
     method description {
-        return "VCF annotated files with VEP consequences";
+        return "Generates VCF files annotated with VEP consequences";
     }
     
     method max_simultaneous {
