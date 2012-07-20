@@ -5,7 +5,11 @@ VRPipe::Steps::population_bam_list - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Creates a seperate FOFN from a set of BAMS, for each population group, as defined using a perl hash definition, eg
+
+{AMR=>[qw(MXL CLM PUR)],AFR=>[qw(YRI LWK ASW)],ASN=>[qw(CHB CHS JPT)],EUR=>[qw(CEU TSI FIN GBR IBS)],}
+
+Can be run optionally to split FOFNs by chromosome
 
 =head1 AUTHOR
 
