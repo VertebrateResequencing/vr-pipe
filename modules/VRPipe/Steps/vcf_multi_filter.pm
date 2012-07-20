@@ -5,7 +5,13 @@ VRPipe::Steps::vcf_multi_filter - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Soft-filters input VCFs in parallel from a multi-column datasource, using multiple filter programs and option files for each VCF. 
+The filter programs and their accociated option files are each provided as parameters delimited by '#'. 
+
+vcf-filter#vcf-annotate
+vcf_filter_opt_file#vcf_annotate_opt_file
+
+There needs to be one program and filter options file for each column in the datasource.
 
 =head1 AUTHOR
 
