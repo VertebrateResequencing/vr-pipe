@@ -5,7 +5,7 @@ VRPipe::Steps::gatk_recalibrate_variants - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the GATK VariantRecalibrator walker on VCF files, generating recalibration and tranches files for use by ApplyRecalibration walker
 
 =head1 AUTHOR
 
