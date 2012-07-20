@@ -5,7 +5,7 @@ VRPipe::Steps::retroseq_discover - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the Retroseek -discover option for input BAMs, generating Retroseq Transposable Element candidates supporting read pairs in BED format
 
 =head1 AUTHOR
 
