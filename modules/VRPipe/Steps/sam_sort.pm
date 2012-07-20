@@ -5,7 +5,13 @@ VRPipe::Steps::sam_sort - a step
 
 =head1 DESCRIPTION
 
+Sort a sam file.
+
+Currently this step sorts a sam file by co-oridinate.
+
 *** more documentation to come
+
+
 
 =head1 AUTHOR
 

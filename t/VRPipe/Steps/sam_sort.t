@@ -2,9 +2,10 @@
 use strict;
 use warnings;
 use Path::Class;
+use File::Slurp;
 
 BEGIN {
-    use Test::Most tests => 3;
+    use Test::Most tests => 4;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)] # require bismark path
     );
     use TestPipelines;
@@ -13,6 +14,10 @@ BEGIN {
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('sam_sort', 'sam_file');
 is_deeply [$step->id, $step->description], [1, "Sort a sam file using - grep '^\@' file_to_sort.sam > sorted_file.sam; grep-v '^\@' file_to_sort.sam | sort -k 3,3 -k4,4n >> sorted_file.sam"], 'Sort sam step created and has correct description';
+
+
+
+
 
 
 
@@ -32,3 +37,8 @@ my $outputfile_1 = file(@output_subdirs, '1_sam_sort', "2822_6_1.fastq_bismark_p
 my @outputfiles;
 push @outputfiles, $outputfile_1;
 ok handle_pipeline(@outputfiles), 'bismark methylation extractor pipeline ran ok, generating the expected file';
+
+# is it sorted
+my $testfilecontents   = read_file(file(qw( t data 2822_6_1.fastq_bismark_pe.sorted.sam ))->stringify);
+my $outputfilecontents = read_file($outputfile_1->stringify);
+is($testfilecontents, $outputfilecontents, 'file is correctly sorted by co-ordinate');
