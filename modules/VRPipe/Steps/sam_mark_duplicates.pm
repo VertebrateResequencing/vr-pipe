@@ -35,9 +35,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
     around options_definition {
-        return { %{ $self->$orig },
-                 markdup_options => VRPipe::StepOption->create(description => 'command line options for Picard MarkDuplicates', optional => 1, default_value => 'ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'),
-                 memory          => VRPipe::StepOption->create(description => 'memory required for Picard MarkDuplicates',      optional => 1, default_value => '5800') };
+        return { %{ $self->$orig }, markdup_options => VRPipe::StepOption->create(description => 'command line options for Picard MarkDuplicates', optional => 1, default_value => 'ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'), };
     }
     
     method inputs_definition {
@@ -49,17 +47,14 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
             my $self    = shift;
             my $options = $self->options;
             $self->handle_standard_options($options);
-            my $markdup_jar = $self->jar('MarkDuplicates.jar');
-            
+            my $markdup_jar  = $self->jar('MarkDuplicates.jar');
             my $markdup_opts = $options->{markdup_options};
-            my $memory_req   = $options->{memory};
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
                                                                   version => $self->picard_version(),
                                                                   summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$sam_file OUTPUT=$markdup_sam_file ' . $markdup_opts));
             
-            #my $req = $self->new_requirements(memory => 5800, time => 2);
-            my $req = $self->new_requirements(memory => $memory_req, time => 2);
+            my $req = $self->new_requirements(memory => 5800, time => 2);
             foreach my $sam (@{ $self->inputs->{sam_files} }) {
                 my $sam_base     = $sam->basename;
                 my $sam_meta     = $sam->metadata;
@@ -74,8 +69,7 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $this_cmd = $self->java_exe . " $jvm_args -jar $markdup_jar INPUT=" . $sam->path . " OUTPUT=" . $markdup_sam_file->path . " $markdup_opts";
-                warn $this_cmd; ####
-                #   This had probs, so doing a normal dispatch
+                #   Doing a normal dispatch for now as issue with below
                 #   $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_mark_duplicates', 'markdup_and_check', [$this_cmd, $req, { output_files => [$markdup_sam_file] }]);
                 $self->dispatch([qq[$this_cmd], $req, { output_files => [$markdup_sam_file] }]);
             }
@@ -95,7 +89,7 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
     }
     
     method max_simultaneous {
-        return 0;               # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method markdup_and_check (ClassName|Object $self: Str $cmd_line) {
@@ -108,7 +102,7 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
         my $out_file = VRPipe::File->get(path => $out_path);
         
         $in_file->disconnect;
-        warn $cmd_line;         ########
+        warn $cmd_line;      ########
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $out_file->update_stats_from_disc(retries => 3);
