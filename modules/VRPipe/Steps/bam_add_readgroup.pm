@@ -37,7 +37,9 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
     use VRPipe::Parser;
     
     around options_definition {
-        return { %{ $self->$orig }, picard_add_readgroups_options => VRPipe::StepOption->create(description => 'options for picard AddOrReplaceReadGroups', optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'), };
+        return { %{ $self->$orig },
+                 picard_add_readgroups_options  => VRPipe::StepOption->create(description => 'options for picard AddOrReplaceReadGroups',                                                                                             optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
+                 readgroup_sm_from_metadata_key => VRPipe::StepOption->create(description => 'The SM of the readgroup will come from metadata associated with the bam; this option chooses which metadata key to get the value from', optional => 1, default_value => 'sample') };
     }
     
     method inputs_definition {
@@ -63,8 +65,9 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
             $self->handle_standard_options($options);
             my $picard_jar = $self->jar('AddOrReplaceReadGroups.jar');
             
-            my $opts   = $options->{picard_add_readgroups_options};
-            my $rginfo = 'RGID=$lane RGLB=$library RGPL=$platform RGPU=$platform_unit RGSM=$sample RGCN=$centre RGDS=$study';
+            my $sample_key = $options->{readgroup_sm_from_metadata_key};
+            my $opts       = $options->{picard_add_readgroups_options};
+            my $rginfo     = 'RGID=$lane RGLB=$library RGPL=$platform RGPU=$platform_unit RGSM=$' . $sample_key . ' RGCN=$centre RGDS=$study';
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
                                                                   version => $self->picard_version(),
                                                                   summary => 'java $jvm_args -jar AddOrReplaceReadGroups.jar INPUT=$bam_file OUTPUT=$rg_added_bam_file' . " $rginfo $opts"));
@@ -82,7 +85,7 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                 $rginfo_cmd .= " RGPL=$platform";
                 my $platform_unit = $self->command_line_safe_string($meta->{platform_unit} || $meta->{lane});
                 $rginfo_cmd .= " RGPU=$platform_unit";
-                my $sample = $self->command_line_safe_string($meta->{sample} || 'unknown_sample');
+                my $sample = $self->command_line_safe_string($meta->{$sample_key} || $meta->{sample} || 'unknown_sample');
                 $rginfo_cmd .= " RGSM=$sample";
                 my $centre = $self->command_line_safe_string($meta->{centre_name} || 'unknown_centre');
                 $rginfo_cmd .= " RGCN=$centre";

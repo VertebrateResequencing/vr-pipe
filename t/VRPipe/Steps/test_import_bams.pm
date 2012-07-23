@@ -17,7 +17,8 @@ class VRPipe::Steps::test_import_bams with VRPipe::StepRole {
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $local_bam = $self->output_file(output_key => 'local_bam_files',
                                                    basename   => $bam->basename,
-                                                   type       => 'bam');
+                                                   type       => 'bam',
+                                                   metadata   => $bam->metadata);
                 
                 my ($bam_path, $local_bam_path) = ($bam->path, $local_bam->path);
                 my $this_cmd = "cp $bam_path $local_bam_path";
