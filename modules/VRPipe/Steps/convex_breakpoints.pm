@@ -76,7 +76,6 @@ class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
             
             my $cmd =  $self->rscript_cmd_prefix . " $convex_rscript_path/BreakpointsCall.R $rd_sample_file_name,$max_bin_size,$bp_file_name";
 
-            $self->warn($cmd);
             $self->dispatch([$cmd, $req]);
         };
     }

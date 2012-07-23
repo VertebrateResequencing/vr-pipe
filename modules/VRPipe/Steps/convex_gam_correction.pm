@@ -97,11 +97,9 @@ class VRPipe::Steps::convex_gam_correction with VRPipe::StepRole {
     }
     
     method run_gam_correction (ClassName|Object $self: Str $cmd_line) {
-        $self->warn($cmd_line);
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my ($output_path) = $cmd_line =~ /'\S+,\S+,(\S+),\S+,\S+'/;
-        $self->warn($output_path);
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;

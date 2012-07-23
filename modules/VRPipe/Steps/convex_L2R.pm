@@ -93,7 +93,6 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             
             my $cmd =  $self->rscript_cmd_prefix . " $convex_rscript_path/SampleLogRatioCall.R $sample_info_path,$regions_file,$features_file_path,$includeChrX";
             
-            $self->warn($cmd);
             $self->dispatch([$cmd, $req, { output_files => \@l2r_files }]);
         
         };
