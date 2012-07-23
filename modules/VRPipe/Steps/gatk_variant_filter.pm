@@ -5,7 +5,7 @@ VRPipe::Steps::gatk_variant_filter - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the GATK VariantFiltration walker on VCF files, generating 'hard-filtered' VCFs according to the filter expressions provided. "Records are hard-filtered by changing the value in the FILTER field to something other than PASS".
 
 =head1 AUTHOR
 

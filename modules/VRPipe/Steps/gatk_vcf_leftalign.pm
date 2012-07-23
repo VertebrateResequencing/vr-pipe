@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::gatk_vcf_leftalign - a step
+Runs the GATK UnifiedGenotyper INDEL left-aligner against VCF files
 
 =head1 DESCRIPTION
 

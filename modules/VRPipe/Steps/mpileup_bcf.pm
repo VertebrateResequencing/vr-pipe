@@ -5,7 +5,7 @@ VRPipe::Steps::mpileup_bcf - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs samtools mpileup for one or more BAMs, generating one BCF file per set of BAMs
 
 =head1 AUTHOR
 

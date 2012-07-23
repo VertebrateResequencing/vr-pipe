@@ -38,7 +38,8 @@ class VRPipe::Steps::convex_gam_correction with VRPipe::StepRole {
     method options_definition {
         return { 'features_file'    => VRPipe::StepOption->create(description => 'features file form L2R calculation step'),
                  'breakpoints_file' => VRPipe::StepOption->create(description => 'breakpoints file'),
-                 'rscript_path'     => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'), };
+                 'convex_rscript_path'     => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+                 'r_libs'           => VRPipe::StepOption->create(description => 'Full path to CoNVex R libs installation'), };
     }
     
     method inputs_definition {
@@ -52,7 +53,8 @@ class VRPipe::Steps::convex_gam_correction with VRPipe::StepRole {
             my $options          = $self->options;
             my $features_file    = $options->{'features_file'};
             my $breakpoints_file = $options->{'breakpoints_file'};
-            my $rscript_path     = $options->{'rscript_path'};
+            my $convex_rscript_path     = $options->{'convex_rscript_path'};
+            my $r_libs           = $options->{'r_libs'};
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
             
@@ -72,7 +74,7 @@ class VRPipe::Steps::convex_gam_correction with VRPipe::StepRole {
                 
                 $l2r_path =~ s/\.rd\.txt$/.l2r.txt/; # L2R file in same dir as RD file
                 
-                my $cmd = "R --vanilla --slave --args '$l2r_path,$features_file,$gam_path,$rd_path,$breakpoints_file' < $rscript_path/GAMCorrectionPerSample.R";
+                my $cmd = "export R_LIBS=$r_libs; R --vanilla --slave --args '$l2r_path,$features_file,$gam_path,$rd_path,$breakpoints_file' < $convex_rscript_path/GAMCorrectionPerSample.R";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::convex_gam_correction', 'run_gam_correction', [$cmd, $req, { output_files => [$gam_file] }]);
             }
         };
@@ -95,11 +97,9 @@ class VRPipe::Steps::convex_gam_correction with VRPipe::StepRole {
     }
     
     method run_gam_correction (ClassName|Object $self: Str $cmd_line) {
-        $self->warn($cmd_line);
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my ($output_path) = $cmd_line =~ /'\S+,\S+,(\S+),\S+,\S+'/;
-        $self->warn($output_path);
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;

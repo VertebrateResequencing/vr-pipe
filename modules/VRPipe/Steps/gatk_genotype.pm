@@ -5,7 +5,7 @@ VRPipe::Steps::gatk_genotype - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Run the GATK UnifiedGenotyper for one or more BAMs. Generates either one compressed VCF per set of BAMs, or if a chunked_regions_file parameter is provided, a chunk set of VCFs per BAM
 
 =head1 AUTHOR
 

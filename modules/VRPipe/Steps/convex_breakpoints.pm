@@ -34,11 +34,11 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::convex_breakpoints with VRPipe::StepRole {
-    method options_definition {
-        return {
+class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
+    around options_definition {
+        return { %{ $self->$orig },
             'rd_sample_file_name' => VRPipe::StepOption->create(description => 'Full path to a specific sample Read Depth file from which to generate breakpoints', optional => 1),
-            'rscript_path'        => VRPipe::StepOption->create(description => 'Full path to CoNVex R scripts'),
+            'convex_rscript_path' => VRPipe::StepOption->create(description => 'Full path to CoNVex R scripts'),
             'max_bin_size' => VRPipe::StepOption->create(description => 'Maximum bin size', optional => 1, default_value => 1000),
             'bp_file_name' => VRPipe::StepOption->create(description => 'Full path to the output Breakpoints file'), };
     }
@@ -51,9 +51,11 @@ class VRPipe::Steps::convex_breakpoints with VRPipe::StepRole {
         return sub {
             my $self = shift;
             
-            my $options             = $self->options;
+            my $options = $self->options;
+            $self->handle_standard_options($options);
+
             my $rd_sample_file_name = $options->{'rd_sample_file_name'};
-            my $rscript_path        = $options->{'rscript_path'};
+            my $convex_rscript_path = $options->{'convex_rscript_path'};
             my $max_bin_size        = $options->{'max_bin_size'};
             my $bp_file_name        = $options->{'bp_file_name'};
             
@@ -72,7 +74,8 @@ class VRPipe::Steps::convex_breakpoints with VRPipe::StepRole {
             my $bp_file = Path::Class::File->new($bp_file_name);
             $self->throw("bp_file_name must be absolute path") unless $bp_file->is_absolute;
             
-            my $cmd = "R --vanilla --slave --args '$rd_sample_file_name,$max_bin_size,$bp_file_name' < $rscript_path/BreakpointsCall.R";
+            my $cmd =  $self->rscript_cmd_prefix . " $convex_rscript_path/BreakpointsCall.R $rd_sample_file_name,$max_bin_size,$bp_file_name";
+
             $self->dispatch([$cmd, $req]);
         };
     }

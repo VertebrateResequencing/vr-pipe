@@ -5,7 +5,8 @@ VRPipe::Steps::vcf_split - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Uses tabix to split indexed, compressed VCF files into genomic regions, as defied by a file of chomosome region chunks
+[we could implement other split strategies]
 
 =head1 AUTHOR
 

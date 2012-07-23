@@ -5,7 +5,7 @@ VRPipe::Steps::chunk_genomic_region - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Generate a chromosomal regions file, split according to chunk size parameter, from either a fasta reference index file or a specific regions file
 
 =head1 AUTHOR
 

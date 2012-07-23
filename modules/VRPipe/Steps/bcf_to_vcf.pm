@@ -5,7 +5,7 @@ VRPipe::Steps::bcf_to_vcf - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Generates a compressed VCF from a BCF file using bcftools view, optionally restricting output on samples or sites
 
 =head1 AUTHOR
 

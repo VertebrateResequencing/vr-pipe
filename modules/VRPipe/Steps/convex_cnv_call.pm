@@ -34,15 +34,17 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
-    method options_definition {
-        return { 'centromere_reg_file' => VRPipe::StepOption->create(description => 'Centromere regions file'),
+class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
+    around options_definition {
+        return { %{ $self->$orig },
+                 'centromere_reg_file' => VRPipe::StepOption->create(description => 'Centromere regions file'),
                  'sw_exec'             => VRPipe::StepOption->create(description => 'Full path to Smith-Waterman execution binary'),
                  'sw_pval'             => VRPipe::StepOption->create(description => 'p value for Smith-Waterman algorithm', optional => 1, default_value => 2),
                  'swt_del'             => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
                  'swt_dup'             => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
                  'dv'                  => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
-                 'rscript_path'        => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'), };
+                 'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+                 'r_libs'              => VRPipe::StepOption->create(description => 'Full path to CoNVex R libs installation'), };
     }
     
     method inputs_definition {
@@ -54,6 +56,7 @@ class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
             my $self = shift;
             
             my $options = $self->options;
+            $self->handle_standard_options($options);
             
             my $centromere_reg_file = $options->{'centromere_reg_file'};
             my $sw_exec             = $options->{'sw_exec'};
@@ -61,7 +64,7 @@ class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
             my $swt_del             = $options->{'swt_del'};
             my $swt_dup             = $options->{'swt_dup'};
             my $dv                  = $options->{'dv'};
-            my $rscript_path        = $options->{'rscript_path'};
+            my $convex_rscript_path = $options->{'convex_rscript_path'};
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
             
@@ -75,7 +78,7 @@ class VRPipe::Steps::convex_cnv_call with VRPipe::StepRole {
                 my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt');
                 my $cnv_dir = $cnv_file->dir;
                 
-                my $cmd = "R --vanilla --slave --args '$sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$sample,$centromere_reg_file,$cnv_dir,$sw_exec' < $rscript_path/SWCNVCall.R";
+                 my $cmd =  $self->rscript_cmd_prefix . " $convex_rscript_path/SWCNVCall.R $sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$basename,$sample,$centromere_reg_file,$cnv_dir,$sw_exec";
                 $self->dispatch([$cmd, $req, { output_files => [$cnv_file] }]);
             }
         };

@@ -5,7 +5,8 @@ VRPipe::Steps::vcf_annotate - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Generates Annotated VCF files from one or more input VCFs from two sets of annotation options, using two passes of vcf-annotate. 
+[Should be amended to make the second annotation optional.]
 
 =head1 AUTHOR
 

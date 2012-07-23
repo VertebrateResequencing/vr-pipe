@@ -5,7 +5,7 @@ VRPipe::Steps::retroseq_call - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Generates a VCF of Transposable Element calls from BAM files and their TE Paired End read candidates in BED format, as generated using Retroseq discovery
 
 =head1 AUTHOR
 

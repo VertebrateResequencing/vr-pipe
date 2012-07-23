@@ -35,10 +35,11 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
-    method options_definition {
-        return { 'regions_file' => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
-                 'rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
+    around options_definition {
+        return { %{ $self->$orig },
+                 'regions_file' => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
+                 'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
                  'includeChrX'  => VRPipe::StepOption->create(description => 'indicates whether to include Chr X in calulation', optional => 1, default_value => 1), };
     }
     
@@ -51,8 +52,10 @@ class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
             my $self = shift;
             
             my $options      = $self->options;
+            $self->handle_standard_options($options);
+
             my $regions_file = $options->{'regions_file'};
-            my $rscript_path = $options->{'rscript_path'};
+            my $convex_rscript_path = $options->{'convex_rscript_path'};
             my $includeChrX  = $options->{'includeChrX'};
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
@@ -88,7 +91,7 @@ class VRPipe::Steps::convex_L2R with VRPipe::StepRole {
             my $features_file_path = $features_file->path;
             push(@l2r_files, $features_file);
             
-            my $cmd = "R --vanilla --slave --args '$sample_info_path,$regions_file,$features_file_path,$includeChrX' < $rscript_path/SampleLogRatioCall.R";
+            my $cmd =  $self->rscript_cmd_prefix . " $convex_rscript_path/SampleLogRatioCall.R $sample_info_path,$regions_file,$features_file_path,$includeChrX";
             
             $self->dispatch([$cmd, $req, { output_files => \@l2r_files }]);
         
