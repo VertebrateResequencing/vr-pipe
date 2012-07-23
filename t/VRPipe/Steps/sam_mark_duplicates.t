@@ -22,13 +22,15 @@ my $setup = VRPipe::PipelineSetup->create(name       => 'sam_mark_duplicates',
                                                                                    source  => file(qw(t data sam_mark_dup_datasource.fofn))->absolute),
                                           output_root => $output_dir,
                                           pipeline    => $pipeline,
-                                          options     => { memory => '1000' });
+                                          options     => {});
 my @output_subdirs = output_subdirs(1);
 my $outputfile_1 = file(@output_subdirs, '1_sam_mark_duplicates', "2822_6_1.fastq_bismark_pe.sorted.markdup.sam");
 my @outputfiles;
 push @outputfiles, $outputfile_1;
 warn $outputfile_1;
 ok handle_pipeline(@outputfiles), 'sam_mark_duplicates pipeline ran ok, generating the expected file';
+
+
 
 
 
