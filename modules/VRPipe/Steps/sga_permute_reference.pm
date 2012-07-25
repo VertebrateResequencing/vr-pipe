@@ -71,8 +71,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_permute_reference with VRPipe::StepRole {
     method options_definition {
-        return { sga_permute_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '--permute-ambiguous'),
-                 sga_exe                       => VRPipe::StepOption->create(description => 'path to your sga executable',                            optional => 1, default_value => 'sga'),
+        return { sga_permute_reference_options => VRPipe::StepOption->create(description => 'options to sga preprocess to permute ambiguous base calls in a reference file', optional => 1, default_value => '--permute-ambiguous'),
+                 sga_exe                       => VRPipe::StepOption->create(description => 'path to your sga executable',                                                   optional => 1, default_value => 'sga'),
                  reference_fasta               => VRPipe::StepOption->create(description => 'Absolute path to reference fasta file') };
     }
     
@@ -105,7 +105,7 @@ class VRPipe::Steps::sga_permute_reference with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { permuted_reference_fasta => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', max_files => 1) };
+        return { permuted_reference_fasta => VRPipe::StepIODefinition->create(type => 'txt', description => 'reference fasta file with permuted ambiguous base calls', max_files => 1) };
     }
     
     method post_process_sub {
