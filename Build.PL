@@ -23,7 +23,7 @@ use lib 'build_lib';
 use VRPipeBuild;
 
 my $build = VRPipeBuild->new(module_name          => 'VRPipe',
-                             dist_version         => 0.83,
+                             dist_version         => 0.85,
                              dist_author          => 'Vertebrate Resequencing group at the Sanger Institute',
                              dist_abstract        => 'A system for setting up, running and tracking many jobs in pipelines on a compute farm.',
                              license              => 'gpl',
