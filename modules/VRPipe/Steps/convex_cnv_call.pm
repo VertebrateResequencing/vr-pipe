@@ -72,8 +72,8 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
                 my $gam_path = $gam_file->path;
                 my $sample   = $gam_file->metadata->{sample};
                 
-                # CNV call filename example: CoNVex_MOPD5095428_p2_tdel5_tdup5_dv0.5_.txt
-                my $basename = "CoNVex_${sample}_p${sw_pval}_tdel${swt_del}_tdup${swt_dup}_dv${dv}_.txt";
+                my $basename = $gam_file->basename;
+                $basename =~ s/gam\.txt$/cnv_calls.txt/;
                 
                 my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt');
                 my $cnv_dir = $cnv_file->dir;
