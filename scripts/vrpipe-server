@@ -1,0 +1,127 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use EV;
+use AnyEvent;
+use VRPipe::Interface::BackEnd;
+
+# we must be told what port to bind to
+my $port = shift;
+
+# initialize the VRPipe backend
+my $backend = VRPipe::Interface::BackEnd->new(port => $port);
+
+# setup the page events we'll respond to
+my $httpd = $backend->httpd;
+$httpd->reg_cb(
+    '/' => sub {
+        my ($httpd, $req) = @_;
+        
+        $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
+    },
+    '/status' => \&status,
+    '/exit'   => sub {
+        my ($httpd, $req) = @_;
+        
+        $req->respond({ content => ['text/html', "<html><body><h1>Turning off server</h1>" . "</body></html>"] });
+        
+        EV::unloop;
+    },
+    '' => sub {
+        my ($httpd, $req) = @_;
+        $req->respond([404, 'not found', { 'Content-Type' => 'text/plain' }, '404: requested page (' . $req->url . ') is not valid']);
+    });
+
+# run the event loop
+EV::run;
+
+warn "The daemon for VRPipe interface port $port is exiting!\n";
+exit;
+
+
+
+# "page" subs
+sub status {
+    my ($httpd, $req) = @_;
+    
+    my $opts = $backend->req_to_opts($req, ['setup!PipelineSetup']);
+    $opts->{'_multiple_setups'} = 1;
+    my $list            = $opts->{list};
+    my $incomplete_only = $opts->{incomplete};
+    my $brief           = $opts->{brief};
+    
+    my $xml = '<interface><title>PipelineSetups</title><options><bool></bool></options>';
+    
+    my @setups = $backend->get_pipelinesetups($opts);
+    if (@setups) {
+        my @items;
+        foreach my $setup (@setups) {
+            my $item;
+            foreach my $col (qw(id name user active)) {
+                $item .= "<$col>" . $setup->$col() . "</$col>";
+            }
+            
+            if ($list) {
+                push(@items, $item);
+                next;
+            }
+            
+            my $datasource = $setup->datasource;
+            my $num_elements;
+            my $incomplete_pager;
+            eval {
+                $num_elements = VRPipe::DataElement->search({ datasource => $datasource->id, withdrawn => 0 });
+                $incomplete_pager = $datasource->incomplete_element_states($setup, 0);
+            };
+            my $ds_error = $@;
+            if ($ds_error || !$incomplete_pager) {
+                $ds_error ||= 'Could not create a incomplete_element_states pager for setup ' . $setup->id;
+                $item .= '<datasource>' . "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n" . '</datasource>';
+                push(@items, $item);
+                next;
+            }
+            
+            my $num_incomplete = $incomplete_pager->total_entries;
+            next if $incomplete_only && !$num_incomplete;
+            
+            my $pipeline     = $setup->pipeline;
+            my $step_members = $pipeline->step_members;
+            unless ($brief) {
+                #$frontend->output('Pipeline: ', $pipeline->name, ' | ', $step_members, ' steps | ', $pipeline->description);
+                #my $ps_opts = $setup->options;
+                #if (keys %$ps_opts) {
+                #    $frontend->display_hash('PipelineSetup options', $ps_opts);
+                #}
+                #else {
+                #    $frontend->output("(used with default/no options)");
+                #}
+                #$frontend->output('PipelineSetup output root: ', $setup->output_root);
+                #
+                #$frontend->output('Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source);
+                #my $ds_opts = $datasource->options;
+                #if (keys %$ds_opts) {
+                #    $frontend->display_hash('Datasource options', $ds_opts);
+                #}
+                #else {
+                #    $frontend->output("(used with default/no options)");
+                #}
+                #
+                #$frontend->output("\n");
+            }
+            
+            #...
+            
+            push(@items, $item);
+        }
+        
+        if (@items) {
+            $xml .= '<table><headings><heading>Id</heading><heading>Name</heading><heading>User</heading><heading>Active</heading></headings>';
+            $xml .= join('', map { '<row><type>PipelineSetup</type>' . $_ . '</row>' } @items) . '</table>';
+        }
+    }
+    
+    $xml .= '</interface>';
+    
+    $backend->output($req, $xml, $opts->{display_format});
+}

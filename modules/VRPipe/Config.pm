@@ -158,6 +158,16 @@ class VRPipe::Config {
                                           default         => sub { File::Spec->tmpdir() },
                                           question_number => ++$question_number);
     
+    has production_interface_port => (is              => 'rw',
+                                      question        => 'What port will the VRPipe interface be accessible on, when accessing your production database?',
+                                      default         => 9090,
+                                      question_number => ++$question_number);
+    
+    has testing_interface_port => (is              => 'rw',
+                                   question        => 'What port will the VRPipe interface be accessible on, when accessing your testing database?',
+                                   default         => 9091,
+                                   question_number => ++$question_number);
+    
     method _get_dbtype (Str $prefix) {
         my $method = $prefix . '_dbtype';
         return $self->$method();

@@ -50,6 +50,8 @@ use base qw(Module::Build Exporter);
 
 sub required_modules {
     return { perl                             => '5.8.8',
+             'AnyEvent'                       => 0,
+             'AnyEvent::HTTPD'                => 0,
              'B::Deparse'                     => 0,
              'Class::Unload'                  => 0,
              'Crypt::CBC'                     => 0,
@@ -63,6 +65,7 @@ sub required_modules {
              'DBIx::Class::DeploymentHandler' => 0,
              'Devel::GlobalDestruction'       => 0,
              'Digest::MD5'                    => 0,
+             'EV'                             => 0,
              'File::Copy'                     => 0,
              'File::Fetch'                    => 0,
              'File::HomeDir'                  => 0,
@@ -96,11 +99,14 @@ sub required_modules {
              'Storable'                       => 0,
              'Sys::CPU'                       => 0,
              'Sys::Hostname'                  => 0,
+             'Sys::Hostname::Long'            => 0,
              'Test::DBIx::Class'              => 0,
              'Test::Most'                     => 0,
              'Test::Strict'                   => 0,
              'Time::Format'                   => 0,
-             'TryCatch'                       => 0 };
+             'TryCatch'                       => 0,
+             'XML::LibXML'                    => 0,
+             'XML::LibXSLT'                   => 0 };
 }
 
 our %do_not_use = ('perl'                           => 1,
