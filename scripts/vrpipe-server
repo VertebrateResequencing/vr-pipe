@@ -9,29 +9,32 @@ use VRPipe::Interface::BackEnd;
 # we must be told what port to bind to
 my $port = shift;
 
-# initialize the VRPipe backend
-my $backend = VRPipe::Interface::BackEnd->new(port => $port);
-
-# setup the page events we'll respond to
-my $httpd = $backend->httpd;
-$httpd->reg_cb(
-    '/' => sub {
-        my ($httpd, $req) = @_;
-        
-        $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
-    },
-    '/status' => \&status,
-    '/exit'   => sub {
-        my ($httpd, $req) = @_;
-        
-        $req->respond({ content => ['text/html', "<html><body><h1>Turning off server</h1>" . "</body></html>"] });
-        
-        EV::unloop;
-    },
-    '' => sub {
-        my ($httpd, $req) = @_;
-        $req->respond([404, 'not found', { 'Content-Type' => 'text/plain' }, '404: requested page (' . $req->url . ') is not valid']);
-    });
+my $backend;
+if ($port) {
+    # initialize the VRPipe backend
+    $backend = VRPipe::Interface::BackEnd->new(port => $port);
+    
+    # setup the page events we'll respond to
+    my $httpd = $backend->httpd;
+    $httpd->reg_cb(
+        '/' => sub {
+            my ($httpd, $req) = @_;
+            
+            $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
+        },
+        '/status' => \&status,
+        '/exit'   => sub {
+            my ($httpd, $req) = @_;
+            
+            $req->respond({ content => ['text/html', "<html><body><h1>Turning off server</h1>" . "</body></html>"] });
+            
+            EV::unloop;
+        },
+        '' => sub {
+            my ($httpd, $req) = @_;
+            $req->respond([404, 'not found', { 'Content-Type' => 'text/plain' }, '404: requested page (' . $req->url . ') is not valid']);
+        },);
+}
 
 # run the event loop
 EV::run;
@@ -51,19 +54,21 @@ sub status {
     my $incomplete_only = $opts->{incomplete};
     my $brief           = $opts->{brief};
     
-    my $xml = '<interface><title>PipelineSetups</title><options><bool></bool></options>';
+    my $xml = '<interface><title>Current status of PipelineSetups</title>';
+    
+    # $xml .= '<options><bool></bool></options>';
     
     my @setups = $backend->get_pipelinesetups($opts);
     if (@setups) {
-        my @items;
+        my @objects;
         foreach my $setup (@setups) {
-            my $item;
-            foreach my $col (qw(id name user active)) {
-                $item .= "<$col>" . $setup->$col() . "</$col>";
+            my $object;
+            foreach my $attr (qw(id name user active)) {
+                $object .= qq[<attribute name="$attr">] . $setup->$attr() . "</attribute>";
             }
             
             if ($list) {
-                push(@items, $item);
+                push(@objects, $object);
                 next;
             }
             
@@ -76,9 +81,9 @@ sub status {
             };
             my $ds_error = $@;
             if ($ds_error || !$incomplete_pager) {
-                $ds_error ||= 'Could not create a incomplete_element_states pager for setup ' . $setup->id;
-                $item .= '<datasource>' . "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n" . '</datasource>';
-                push(@items, $item);
+                $ds_error ||= 'Could not create an incomplete_element_states pager for setup ' . $setup->id;
+                $object .= q[<attribute name="datasource">] . "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n" . '</attribute>';
+                push(@objects, $object);
                 next;
             }
             
@@ -112,12 +117,12 @@ sub status {
             
             #...
             
-            push(@items, $item);
+            push(@objects, $object);
         }
         
-        if (@items) {
-            $xml .= '<table><headings><heading>Id</heading><heading>Name</heading><heading>User</heading><heading>Active</heading></headings>';
-            $xml .= join('', map { '<row><type>PipelineSetup</type>' . $_ . '</row>' } @items) . '</table>';
+        if (@objects) {
+            my $mode = $list ? 'list' : ($brief ? 'brief' : 'full');
+            $xml .= '<objects>' . join('', map { qq[<object class="PipelineSetup" display_mode="$mode">] . $_ . '</object>' } @objects) . '</objects>';
         }
     }
     

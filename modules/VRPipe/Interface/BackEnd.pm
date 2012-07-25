@@ -13,6 +13,10 @@ VRPipe::Interface::BackEnd - methods for the server to handle user interaction
 
 
 
+
+
+
+
 *** more documentation to come
 
 =head1 AUTHOR
@@ -51,68 +55,62 @@ class VRPipe::Interface::BackEnd {
     use XML::LibXSLT;
     use XML::LibXML;
     
-    my $xsl_html = <<XSL;
+    my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
-<xsl:stylesheet version="1.0"
-xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<xsl:output method="html"/>
 
 <xsl:template match="/">
 <html>
+    <head>
+        <title><xsl:value-of select="/interface/title"/></title>
+    </head>
     <body>
         <xsl:apply-templates/>  
     </body>
 </html>
 </xsl:template>
 
-<xsl:template match="title">
-    <h2><xsl:value-of select="."/></h2>
+<xsl:template match="/interface/title">
+    <h1><xsl:value-of select="."/></h1>
 </xsl:template>
 
-<xsl:template match="table">
+<xsl:template match="objects">
     <table border="1">
-        <xsl:apply-templates select="headings"/>  
-        <xsl:apply-templates select="row"/>
+        <thead>
+            <tr bgcolor="#9acd32">
+                <xsl:for-each select="./object[1]/attribute">
+                    <th><xsl:value-of select="@name"/></th>
+                </xsl:for-each>
+            </tr>
+        </thead>
+        <tbody>
+            <xsl:apply-templates select="object"/>
+        </tbody>
     </table>
 </xsl:template>
 
-<xsl:template match="headings">
-    <tr bgcolor="#9acd32">
-        <xsl:apply-templates select="heading"/>  
-    </tr>
-</xsl:template>
-
-<xsl:template match="heading">
-    <th><xsl:value-of select="."/></th>
-</xsl:template>
-
-<xsl:template match="row">
+<xsl:template match="object[@class='PipelineSetup']">
     <tr>
         <xsl:choose>
-            <xsl:when test="type = 'PipelineSetup'">
-                <xsl:choose>
-                    <xsl:when test="active = 0">
-                        <td style="color:#cccccc"><xsl:value-of select="id"/></td>
-                        <td style="color:#cccccc"><xsl:value-of select="name"/></td>
-                        <td style="color:#cccccc"><xsl:value-of select="user"/></td>
-                        <td style="color:#cccccc"><xsl:value-of select="active"/></td>
-                    </xsl:when>
-                    <xsl:otherwise>
-                        <td><xsl:value-of select="id"/></td>
-                        <td><xsl:value-of select="name"/></td>
-                        <td><xsl:value-of select="user"/></td>
-                        <td><xsl:value-of select="active"/></td>
-                    </xsl:otherwise>
-                </xsl:choose>
+            <xsl:when test="./attribute[@name='active'] = 0">
+                <xsl:for-each select="./attribute">
+                    <td style="color:#cccccc"><xsl:value-of select="."/></td>
+                </xsl:for-each>
             </xsl:when>
             <xsl:otherwise>
-                <td>unsuported type</td>
+                <xsl:for-each select="./attribute">
+                    <td><xsl:value-of select="."/></td>
+                </xsl:for-each>
             </xsl:otherwise>
         </xsl:choose>
     </tr>
 </xsl:template>
+
 </xsl:stylesheet>
 XSL
-    my $xsl_plain = <<XSL;
+    
+    my $xsl_plain = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 <xsl:output method="text"/>
@@ -121,39 +119,35 @@ XSL
     <xsl:apply-templates/>
 </xsl:template>
 
-<xsl:template match="title">
-    <xsl:text></xsl:text>
+<xsl:template match="/interface/title"></xsl:template>
+
+<xsl:template match="objects">
+    <xsl:apply-templates select="object"/>
 </xsl:template>
 
-<xsl:template match="table">
-    <xsl:apply-templates select="headings"/>  
-    <xsl:apply-templates select="row"/>
-</xsl:template>
+<xsl:template match="object[@class='PipelineSetup']">
+    <xsl:text> --- Pipeline Setup '</xsl:text>
+    <xsl:value-of select="./attribute[@name='name']"/>
+    <xsl:text>' (id </xsl:text>
+    <xsl:value-of select="./attribute[@name='id']"/>
+    <xsl:text> for user </xsl:text>
+    <xsl:value-of select="./attribute[@name='user']"/>
+    <xsl:text>)</xsl:text>
+    <xsl:if test="./attribute[@name='active'] = 0">
+        <xsl:text> currently DEACTIVATED</xsl:text>
+    </xsl:if>
+    <xsl:text> ---
+</xsl:text>
+    <xsl:if test="@display_mode!='list'">
+        <xsl:text>------
 
-<xsl:template match="headings">
-    <xsl:apply-templates select="heading"/><xsl:text>\n</xsl:text>
-</xsl:template>
-
-<xsl:template match="heading">
-    <xsl:value-of select="."/><xsl:text>\t</xsl:text>
-</xsl:template>
-
-<xsl:template match="row">
-    <xsl:choose>
-        <xsl:when test="type = 'PipelineSetup'">
-            <xsl:value-of select="id"/><xsl:text>\t</xsl:text>
-            <xsl:value-of select="name"/><xsl:text>\t</xsl:text>
-            <xsl:value-of select="user"/><xsl:text>\t</xsl:text>
-            <xsl:value-of select="active"/><xsl:text>\t\n</xsl:text>
-        </xsl:when>
-        <xsl:otherwise>
-            <xsl:text>unsuported type\n</xsl:text>
-        </xsl:otherwise>
-    </xsl:choose>
+</xsl:text>
+    </xsl:if>
 </xsl:template>
 
 </xsl:stylesheet>
 XSL
+    # --- Pipeline Setup 'myeloma-realign-bams' (id 185 for user tk2) ---
     our %display_format_to_xsl = (html  => $xsl_html,
                                   plain => $xsl_plain);
     
