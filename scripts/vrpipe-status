@@ -11,7 +11,7 @@ my $t1       = time();
 my $response = $interface->server_get('/status');
 $interface->output($response);
 my $e = time() - $t1;
-warn "server_get and output took $e seconds\n";
+#warn "server_get and output took $e seconds\n";
 exit;
 
 =pod

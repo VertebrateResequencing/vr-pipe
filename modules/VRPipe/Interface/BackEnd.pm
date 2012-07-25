@@ -11,6 +11,8 @@ VRPipe::Interface::BackEnd - methods for the server to handle user interaction
 
 
 
+
+
 *** more documentation to come
 
 =head1 AUTHOR
@@ -119,10 +121,13 @@ XSL
     <xsl:apply-templates/>
 </xsl:template>
 
+<xsl:template match="title">
+    <xsl:text></xsl:text>
+</xsl:template>
+
 <xsl:template match="table">
     <xsl:apply-templates select="headings"/>  
     <xsl:apply-templates select="row"/>
-    <xsl:text>\n</xsl:text>
 </xsl:template>
 
 <xsl:template match="headings">
