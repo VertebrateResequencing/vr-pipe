@@ -9,14 +9,6 @@ VRPipe::Interface::BackEnd - methods for the server to handle user interaction
 
 =head1 DESCRIPTION
 
-
-
-
-
-
-
-
-
 *** more documentation to come
 
 =head1 AUTHOR
@@ -61,14 +53,34 @@ class VRPipe::Interface::BackEnd {
 <xsl:output method="html"/>
 
 <xsl:template match="/">
-<html>
-    <head>
-        <title><xsl:value-of select="/interface/title"/></title>
-    </head>
-    <body>
-        <xsl:apply-templates/>  
-    </body>
-</html>
+    <html>
+        <head>
+            <title><xsl:value-of select="/interface/title"/></title>
+            
+            <style type="text/css">
+                dl {
+                    font-size: 9pt
+                }
+                dl dt {
+                    background:#99CCFF;
+                    color:#fff;
+                    float:left;
+                    font-weight:bold;
+                    margin-right:10px;
+                    padding:5px;
+                    width:65px;
+                }
+                dl dd {
+                    margin:2px 0;
+                    padding:5px 0;
+                }
+            </style>
+        </head>
+        
+        <body>
+            <xsl:apply-templates/>  
+        </body>
+    </html>
 </xsl:template>
 
 <xsl:template match="/interface/title">
@@ -90,21 +102,58 @@ class VRPipe::Interface::BackEnd {
     </table>
 </xsl:template>
 
-<xsl:template match="object[@class='PipelineSetup']">
+<xsl:template match="object">
     <tr>
-        <xsl:choose>
-            <xsl:when test="./attribute[@name='active'] = 0">
-                <xsl:for-each select="./attribute">
-                    <td style="color:#cccccc"><xsl:value-of select="."/></td>
-                </xsl:for-each>
-            </xsl:when>
-            <xsl:otherwise>
-                <xsl:for-each select="./attribute">
-                    <td><xsl:value-of select="."/></td>
-                </xsl:for-each>
-            </xsl:otherwise>
-        </xsl:choose>
+        <xsl:apply-templates select="attribute"/>
     </tr>
+</xsl:template>
+
+<xsl:template match="attribute[object]">
+    <td>
+        <dl class="object_attribs">
+            <xsl:for-each select="./object/attribute">
+                <dt><xsl:value-of select="@name"/></dt>
+                <dd>
+                    <xsl:choose>
+                        <xsl:when test="./object">
+                            <xsl:value-of select="./object/attribute[@name='id']"/>
+                        </xsl:when>
+                        <xsl:when test="./hash">
+                            <xsl:for-each select="./hash/pair">
+                                <b><xsl:value-of select="@key"/>: </b><xsl:value-of select="."/><br/>
+                            </xsl:for-each>
+                        </xsl:when>
+                        <xsl:otherwise>
+                            <xsl:value-of select="."/>
+                        </xsl:otherwise>
+                    </xsl:choose>
+                </dd>
+            </xsl:for-each>
+        </dl>
+    </td>
+</xsl:template>
+
+<xsl:template match="attribute[hash]">
+    <td>
+        <xsl:apply-templates select="hash"/>
+    </td>
+</xsl:template>
+
+<xsl:template match="attribute">
+    <td>
+        <xsl:value-of select="."/>
+    </td>
+</xsl:template>
+
+<xsl:template match="hash">
+    <dl class="hash">
+        <xsl:apply-templates select="pair"/>
+    </dl>
+</xsl:template>
+
+<xsl:template match="pair">
+    <dt><xsl:value-of select="@key"/></dt>
+    <dd><xsl:value-of select="."/></dd>
 </xsl:template>
 
 </xsl:stylesheet>
@@ -119,7 +168,7 @@ XSL
     <xsl:apply-templates/>
 </xsl:template>
 
-<xsl:template match="/interface/title"></xsl:template>
+<xsl:template match="/interface/title"/>
 
 <xsl:template match="objects">
     <xsl:apply-templates select="object"/>
@@ -138,18 +187,121 @@ XSL
     </xsl:if>
     <xsl:text> ---
 </xsl:text>
+    
     <xsl:if test="@display_mode!='list'">
+        <xsl:if test="@display_mode='full'">
+            <xsl:text>Pipeline: </xsl:text>
+            <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='name']"/>
+            <xsl:text> | </xsl:text>
+            <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='num_steps']"/>
+            <xsl:text> steps | </xsl:text>
+            <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='description']"/>
+            <xsl:text>
+</xsl:text>
+            <xsl:text>PipelineSetup options:
+</xsl:text>
+            <xsl:choose>
+                <xsl:when test="./attribute[@name='options']/hash">
+                    <xsl:apply-templates select="./attribute[@name='options']/hash/pair"/>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select="./attribute[@name='options']"/>
+                    <xsl:text>
+</xsl:text>
+                </xsl:otherwise>
+            </xsl:choose>
+            <xsl:text>PipelineSetup output root: </xsl:text>
+            <xsl:value-of select="./attribute[@name='output_root']"/>
+            <xsl:text>
+</xsl:text>
+            <xsl:text>DataSource: </xsl:text>
+            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='id']"/>
+            <xsl:text> | </xsl:text>
+            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='type']"/>
+            <xsl:text> | </xsl:text>
+            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='method']"/>
+            <xsl:text> | </xsl:text>
+            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='source']"/>
+            <xsl:text>
+</xsl:text>
+            <xsl:choose>
+                <xsl:when test="./attribute[@name='datasource']/object/attribute[@name='options']/hash">
+                    <xsl:apply-templates select="./attribute[@name='datasource']/object/attribute[@name='options']/hash/pair"/>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='options']"/>
+                    <xsl:text>
+</xsl:text>
+                </xsl:otherwise>
+            </xsl:choose>
+            
+            <xsl:text>
+</xsl:text>
+        </xsl:if>
+        
+        <xsl:text>There are a total of </xsl:text>
+        <xsl:value-of select="./attribute[@name='elements_total']"/>
+        <xsl:text> Data Elements in the datasource to work on, and </xsl:text>
+        <xsl:value-of select="./attribute[@name='elements_incomplete']"/>
+        <xsl:text> elements are incomplete
+</xsl:text>
+        <xsl:choose>
+            <xsl:when test="./attribute[@name='steps_completed']">
+                <xsl:text>Breakdown:
+</xsl:text>
+                <xsl:for-each select="./attribute[@name='steps_completed']/hash/pair">
+                    <xsl:text>    </xsl:text>
+                    <xsl:value-of select="@key"/>
+                    <xsl:text> steps completed => </xsl:text>
+                    <xsl:value-of select="."/>
+                    <xsl:text>
+</xsl:text>
+                </xsl:for-each>
+                <xsl:value-of select="./attribute[@name='completion']/@explanation"/>
+                
+                <xsl:if test="./attribute[@name='submission_state']">
+                    <xsl:text>
+                    
+Current submission state:
+</xsl:text>
+                    <xsl:apply-templates select="./attribute[@name='submission_state']/hash/pair"/>
+                </xsl:if>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:value-of select="./attribute[@name='completion']/@explanation"/>
+                <xsl:text>
+</xsl:text>
+            </xsl:otherwise>
+        </xsl:choose>
+        
+        <xsl:if test="./attribute[@name='problems']">
+            <xsl:value-of select="./attribute[@name='problems']"/>
+            <xsl:text>
+</xsl:text>
+        </xsl:if>
+        
         <xsl:text>------
 
 </xsl:text>
     </xsl:if>
 </xsl:template>
 
+<xsl:template match="pair">
+    <xsl:text>    </xsl:text>
+    <xsl:value-of select="@key"/>
+    <xsl:text> => </xsl:text>
+    <xsl:value-of select="."/>
+    <xsl:text>
+</xsl:text>
+</xsl:template>
+
 </xsl:stylesheet>
 XSL
-    # --- Pipeline Setup 'myeloma-realign-bams' (id 185 for user tk2) ---
-    our %display_format_to_xsl = (html  => $xsl_html,
-                                  plain => $xsl_plain);
+    
+    my $parser = XML::LibXML->new();
+    my $xslt   = XML::LibXSLT->new();
+    our %display_format_to_stylesheet = (html  => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_html)),
+                                         plain => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_plain)));
     
     has 'port' => (is       => 'ro',
                    isa      => PositiveInt,
@@ -246,35 +398,30 @@ XSL
             }
         }
         
-        unless (defined $opts{display_format}) {
-            $opts{display_format} = 'html';
-        }
-        
         return \%opts;
     }
     
-    method output ($req, $xml, $format) {
-        my $parser = XML::LibXML->new();
-        my $xslt   = XML::LibXSLT->new();
+    method output ($req, $xml) {
+        my $format = $req->parm('display_format');
+        $format ||= 'html';
         
         my $source = $parser->load_xml(string => '<?xml version="1.0" encoding="ISO-8859-1"?>' . $xml);
-        my $style_doc = $parser->load_xml(string => $display_format_to_xsl{$format} || $self->throw("invalid display_format '$format'"));
+        my $stylesheet = $display_format_to_stylesheet{$format} || $self->throw("invalid display_format '$format'");
+        my $result = $stylesheet->transform($source);
         
-        my $stylesheet = $xslt->parse_stylesheet($style_doc);
-        my $results    = $stylesheet->transform($source);
-        
-        $req->respond({ content => ["text/$format", $stylesheet->output_string($results)] });
+        $req->respond({ content => ["text/$format", $stylesheet->output_as_chars($result)] });
     }
     
-    method display_hash (Str $name, HashRef $hash, ArrayRef[Str] $key_order?) {
+    method hash_to_xml (HashRef $hash, ArrayRef[Str] $key_order?) {
         $key_order ||= [sort { $a cmp $b } keys %$hash];
-        my $xml = "$name:";
-        my ($extra_tabs) = $name =~ /^(\t+)/;
-        $extra_tabs ||= '';
+        
+        my $xml = '<hash>';
         foreach my $key (@$key_order) {
             next unless defined $hash->{$key};
-            $xml .= "$extra_tabs\t" . $key . ' => ' . $hash->{$key};
+            $xml .= qq[<pair key="$key"><![CDATA[$hash->{$key}]]></pair>];
         }
+        $xml .= '</hash>';
+        
         return $xml;
     }
     

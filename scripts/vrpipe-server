@@ -20,7 +20,7 @@ if ($port) {
         '/' => sub {
             my ($httpd, $req) = @_;
             
-            $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
+            $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
         },
         '/status' => \&status,
         '/exit'   => sub {
@@ -33,7 +33,7 @@ if ($port) {
         '' => sub {
             my ($httpd, $req) = @_;
             $req->respond([404, 'not found', { 'Content-Type' => 'text/plain' }, '404: requested page (' . $req->url . ') is not valid']);
-        },);
+        });
 }
 
 # run the event loop
@@ -64,7 +64,7 @@ sub status {
         foreach my $setup (@setups) {
             my $object;
             foreach my $attr (qw(id name user active)) {
-                $object .= qq[<attribute name="$attr">] . $setup->$attr() . "</attribute>";
+                $object .= qq{<attribute name="$attr"><![CDATA[} . $setup->$attr() . ']]></attribute>';
             }
             
             if ($list) {
@@ -82,7 +82,7 @@ sub status {
             my $ds_error = $@;
             if ($ds_error || !$incomplete_pager) {
                 $ds_error ||= 'Could not create an incomplete_element_states pager for setup ' . $setup->id;
-                $object .= q[<attribute name="datasource">] . "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n" . '</attribute>';
+                $object .= q{<attribute name="problems"><![CDATA[} . "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n" . ']]></attribute>';
                 push(@objects, $object);
                 next;
             }
@@ -93,29 +93,94 @@ sub status {
             my $pipeline     = $setup->pipeline;
             my $step_members = $pipeline->step_members;
             unless ($brief) {
-                #$frontend->output('Pipeline: ', $pipeline->name, ' | ', $step_members, ' steps | ', $pipeline->description);
-                #my $ps_opts = $setup->options;
-                #if (keys %$ps_opts) {
-                #    $frontend->display_hash('PipelineSetup options', $ps_opts);
-                #}
-                #else {
-                #    $frontend->output("(used with default/no options)");
-                #}
-                #$frontend->output('PipelineSetup output root: ', $setup->output_root);
-                #
-                #$frontend->output('Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source);
-                #my $ds_opts = $datasource->options;
-                #if (keys %$ds_opts) {
-                #    $frontend->display_hash('Datasource options', $ds_opts);
-                #}
-                #else {
-                #    $frontend->output("(used with default/no options)");
-                #}
-                #
-                #$frontend->output("\n");
+                # pipeline details
+                $object .= '<attribute name="pipeline"><object class="Pipeline" display_mode="full">';
+                foreach my $attr (qw(id name description)) {
+                    $object .= qq{<attribute name="$attr"><![CDATA[} . $pipeline->$attr() . ']]></attribute>';
+                }
+                $object .= '<attribute name="num_steps"><![CDATA[' . $step_members . ']]></attribute>';
+                $object .= '</object></attribute>';
+                
+                # setup options and output root
+                my $ps_opts = $setup->options;
+                $object .= '<attribute name="options">';
+                if (keys %$ps_opts) {
+                    $object .= $backend->hash_to_xml($ps_opts);
+                }
+                else {
+                    $object .= '<![CDATA[(used with default/no options)]]>';
+                }
+                $object .= '</attribute>';
+                $object .= '<attribute name="output_root"><![CDATA[' . $setup->output_root . ']]></attribute>';
+                
+                # datasource details
+                $object .= '<attribute name="datasource"><object class="DataSource" display_mode="full">';
+                foreach my $attr (qw(id type method source)) {
+                    $object .= qq{<attribute name="$attr"><![CDATA[} . $datasource->$attr() . ']]></attribute>';
+                }
+                my $ds_opts = $datasource->options;
+                $object .= '<attribute name="options">';
+                if (keys %$ds_opts) {
+                    $object .= $backend->hash_to_xml($ds_opts);
+                }
+                else {
+                    $object .= '<![CDATA[(used with default/no options)]]>';
+                }
+                $object .= '</attribute>';
+                $object .= '</object></attribute>';
             }
             
-            #...
+            $object .= '<attribute name="elements_total"><![CDATA[' . $num_elements . ']]></attribute>';
+            $object .= '<attribute name="elements_incomplete"><![CDATA[' . $num_incomplete . ']]></attribute>';
+            if ($num_incomplete) {
+                my %status_hash;
+                my $fully_complete = $num_elements - $num_incomplete;
+                $status_hash{$step_members} = $fully_complete;
+                my $num_steps_complete = $fully_complete * $step_members;
+                while (my $incompletes = $incomplete_pager->next) {
+                    foreach my $es (@$incompletes) {
+                        my $completed_steps = $es->completed_steps;
+                        $num_steps_complete += $completed_steps;
+                        $status_hash{$completed_steps}++;
+                    }
+                }
+                $object .= '<attribute name="steps_completed">' . $backend->hash_to_xml(\%status_hash, [sort { my ($ay) = $a =~ /^(\d+)/; my ($be) = $b =~ /^(\d+)/; $ay <=> $be } keys %status_hash]) . '</attribute>';
+                
+                my $steps_to_complete = $num_elements * $step_members;
+                my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
+                $object .= '<attribute name="completion" explanation="' . "Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)" . '"><![CDATA[' . "$percent_complete\%" . ']]></attribute>';
+                
+                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
+                
+                my %sub_stats;
+                while (my $subs = $pager->next) {
+                    foreach my $sub (@$subs) {
+                        my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+                        if ($sub_state eq 'scheduled') {
+                            my $job = $sub->job;
+                            $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
+                        }
+                        $sub_stats{$sub_state}++;
+                    }
+                }
+                if (keys %sub_stats) {
+                    $object .= '<attribute name="submission_state">' . $backend->hash_to_xml(\%sub_stats, [qw(running processing pending failed)]) . '</attribute>';
+                    if (keys %sub_stats == 1 && exists $sub_stats{failed}) {
+                        my $failed = $sub_stats{failed};
+                        if ($failed >= $num_incomplete) {
+                            $object .= q{<attribute name="problems"><![CDATA[} . "WARNING! It looks like this setup may be STALLED due to repeated failures.\nInvestigate using: vrpipe-submissions --setup " . $setup->id . " --failed" . ']]></attribute>';
+                        }
+                    }
+                }
+            }
+            else {
+                if ($num_elements == 0) {
+                    $object .= '<attribute name="completion" explanation="Pipeline has no inputs to work on (yet?), so has done nothing."><![CDATA[n/a]]></attribute>';
+                }
+                else {
+                    $object .= '<attribute name="completion" explanation="Pipeline currently 100% complete!"><![CDATA[100%]]></attribute>';
+                }
+            }
             
             push(@objects, $object);
         }
@@ -128,5 +193,5 @@ sub status {
     
     $xml .= '</interface>';
     
-    $backend->output($req, $xml, $opts->{display_format});
+    $backend->output($req, $xml);
 }
