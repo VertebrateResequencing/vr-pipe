@@ -20,13 +20,13 @@ my $setup = VRPipe::PipelineSetup->create(name       => 'gsnap',
                                           datasource => VRPipe::DataSource->create(type    => 'delimited',
                                                                                    method  => 'all_columns',
                                                                                    options => { delimiter => "\t" },
-                                                                                   source  => file(qw(t data gsnap_datasource.fofn))->absolute),
+                                                                                   source  => file(qw(t data gsnap_datasource_se.fofn))->absolute),
                                           output_root => $output_dir,
                                           pipeline    => $pipeline,
-                                          options     => { paired_end => 1 });
+                                          options     => { paired_end => 0 });
 
 my @output_subdirs = output_subdirs(1);
-my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'ERR032995_160_lines_1.concordant_uniq');
+my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'ERR032995_160_lines_1.unpaired_uniq');
 my @outputfiles;
 push(@outputfiles, $outputfile_1);
 warn $outputfile_1;

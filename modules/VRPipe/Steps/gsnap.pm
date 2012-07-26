@@ -55,34 +55,57 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             my $options         = $self->options;
             my $gsnap_exe       = $options->{gsnap_exe};
             my $gsnap_db_folder = $options->{gsnap_db_folder};
+            my $paired          = $options->{paired_end};
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gsnap', version => VRPipe::StepCmdSummary->determine_version($gsnap_exe . ' --version', 'GSNAP version  (.+) c'), summary => 'gsnap -d gsnap_db_folder input_file'));
             my $req = $self->new_requirements(memory => 8000, time => 1); # more? 16GB RAM? Could be 8GB?
             my @input_file = @{ $self->inputs->{fastq_files} };
             my ($name) = fileparse($input_file[0]->basename, ('.fastq'));
-            my ($cmd, $output_file_1, $output_file_2);
+            my ($cmd, $output_file_1, $output_file_2, $inputs);
+            my $output_file_dir;
+            my @outputfiles;
+
             
-            #
-            $output_file_1 = $self->output_file(
-                output_key => 'gsnap_concordant_uniq_sam',
-                #basename   => $name . "/$name.concordant_uniq",
-                basename => $name . ".concordant_uniq",
-                type     => 'txt',
-                metadata => $input_file[0]->metadata);
-            my $output_file_dir   = $output_file_1->dir->stringify;
-            my $input_file_path_1 = $input_file[0]->path;
-            my $input_file_path_2 = $input_file[1]->path;
-            # deal with gunzip
-            $cmd = "$gsnap_exe $input_file_path_1 $input_file_path_2 -d $gsnap_db_folder -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
+
+            # create command
+            if ($paired) {
+                $self->throw("Expecting two input files for paired end processing") unless @input_file == 2;
+                $inputs = $input_file[0]->path . " " . $input_file[1]->path;
+                
+                $output_file_1 = $self->output_file(output_key => 'gsnap_uniq_sam',
+                                                    basename   => $name . ".concordant_uniq",
+                                                    type       => 'txt',
+                                                    metadata   => $input_file[0]->metadata);
+                $output_file_dir = $output_file_1->dir->stringify;
+            }
+            
+            if (!$paired) {
+                # should only be one file
+                $self->throw("Expecting one input file for single end processing") unless @input_file == 1;
+                $inputs = $input_file[0]->path;
+                
+                $output_file_1 = $self->output_file(output_key => 'gsnap_uniq_sam',
+                                                    basename   => $name . ".unpaired_uniq",
+                                                    type       => 'txt',
+                                                    metadata   => $input_file[0]->metadata);
+                $output_file_dir = $output_file_1->dir->stringify;
+            }
+            
+            # deal with other options such as gunzip
+            
+            #construct command
+            $cmd = "$gsnap_exe $inputs -d $gsnap_db_folder -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
             
             $self->dispatch([qq[$cmd], $req, { output_files => [$output_file_1] }]);
         };
     
     }
 
+
     
 
+
     method outputs_definition {
-        return { gsnap_concordant_uniq_sam => VRPipe::StepIODefinition->create(type => 'txt', description => 'gsnap mapped sequences files in sam format'), };
+        return { gsnap_uniq_sam => VRPipe::StepIODefinition->create(type => 'txt', description => 'gsnap mapped sequences files in sam format'), };
     }
     
     method description {
