@@ -81,7 +81,7 @@ class VRPipe::Steps::sga_index with VRPipe::StepRole {
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga index ' . $sga_opts . ' $reads_file'));
             
-            my $req = $self->new_requirements(memory => 3900, time => 1);
+            my $req = $self->new_requirements(memory => 8900, time => 1);
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
                 my $prefix = $fq->basename;
                 $prefix =~ s/\.(fq|fastq)(\.gz)?//;
