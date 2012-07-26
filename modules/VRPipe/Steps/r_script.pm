@@ -42,28 +42,18 @@ class VRPipe::Steps::r_script with VRPipe::StepRole {
     has 'r_libs' => (is  => 'rw',
                        isa => 'Str');
     
-    has 'is_csh' => (is  => 'rw',
-                       isa => 'Bool');
-    
     has 'standard_options' => (is      => 'ro',
                                isa     => 'ArrayRef',
                                lazy    => 1,
                                builder => '_build_standard_options');
     
     method _build_standard_options {
-        return ['rscript_cmd', 'r_libs', 'is_csh'];
+        return ['rscript_cmd', 'r_libs'];
     }
     
     method rscript_cmd_prefix {
         my $options = $self->options;
-        my $setenv;
-        if ($self->is_csh) {
-            $setenv = "setenv R_LIBS " . $self->r_libs . ";";
-        }
-        else {
-            $setenv = "export R_LIBS=" . $self->r_libs . ";";
-        }
-        return $setenv . $self->rscript_cmd;
+        return "setenv R_LIBS " . $self->r_libs . ";" . $self->rscript_cmd;
     }
     
     method handle_standard_options (HashRef $options) {
@@ -75,7 +65,6 @@ class VRPipe::Steps::r_script with VRPipe::StepRole {
     
     method options_definition {
         return { rscript_cmd => VRPipe::StepOption->create(description => 'path to your Rscript executable and default arguments', optional => 1, default_value => 'Rscript --vanilla'),
-                 is_csh => VRPipe::StepOption->create(description => 'Command will run in csh or tcsh shell, so set enviromomental variables with setenv', optional => 1, default_value => 0),
                  r_libs => VRPipe::StepOption->create(description => 'R libraries path set', optional => 1, default_value => "$ENV{R_LIBS}"), };
     }
     
