@@ -35,6 +35,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 
 
+
+
+
+
 # Usage: sga merge [OPTION] ... READS1 READS2
 # Merge the sequence files READS1, READS2 into a single file/index
 #
@@ -137,21 +141,23 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
         
         my (@in_fastqs, @in_bwts, @in_sais, @in_popidxs);
         my $popidx;
+        my $compress = '';
         foreach my $in_path (@in_paths) {
             push @in_fastqs, VRPipe::File->create(path => $in_path);
-            my ($in_bwt, $in_sai, $in_popidx) = ($in_path, $in_path, $in_path);
-            $in_bwt =~ s/\.(fq|fastq)/.bwt/;
-            push @in_bwts, VRPipe::File->create(path => $in_bwt);
-            $in_sai =~ s/\.(fq|fastq)/.sai/;
-            push @in_sais, VRPipe::File->create(path => $in_sai);
-            $in_popidx =~ s/\.(fq|fastq)/.popidx/;
-            if (-s $in_popidx) {
+            my $base = $in_path;
+            $base =~ s/\.(fq|fastq)(\.gz)?//;
+            if ($2) {
+                $compress = '.gz';
+            }
+            push @in_bwts, VRPipe::File->create(path => "$base.bwt");
+            push @in_sais, VRPipe::File->create(path => "$base.sai");
+            if (-s "$base.popidx") {
                 ++$popidx;
-                push @in_popidxs, VRPipe::File->create(path => $in_popidx);
+                push @in_popidxs, VRPipe::File->create(path => "$base.popidx");
             }
         }
-        my $out_fq  = VRPipe::File->create(path => $prefix . '.fq');
-        my $out_fa  = VRPipe::File->create(path => $prefix . '.fa');
+        my $out_fq  = VRPipe::File->create(path => $prefix . '.fq' . $compress);
+        my $out_fa  = VRPipe::File->create(path => $prefix . '.fa' . $compress);
         my $out_bwt = VRPipe::File->create(path => $prefix . '.bwt');
         my $out_sai = VRPipe::File->create(path => $prefix . '.sai');
         my $out_popidx;

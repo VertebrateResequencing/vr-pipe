@@ -49,9 +49,10 @@ VRPipe::PipelineSetup->create(name       => 'sga calling test',
                               output_root => $calling_dir,
                               pipeline    => $sga_pipeline,
                               options     => {
-                                           reference_fasta => $ref_fa,
-                                           sga_exe         => 'sga',
-                                           cleanup         => 0 });
+                                           reference_fasta                      => $ref_fa,
+                                           sga_exe                              => 'sga',
+                                           fastq_merge_and_index_compress_fastq => 0,
+                                           cleanup                              => 0 });
 
 ok handle_pipeline(), 'sga_prepare_fastq and sga_variant_calling pipelines ran ok';
 
@@ -64,7 +65,7 @@ while (my ($sample, $element_id) = each %samples) {
         push(@input_files, file(@output_subdirs, '1_bam_split_by_sequence', qq[chrom$chrom.$sample.bam]));
         push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_$id.1.fastq]));
         push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_$id.2.fastq]));
-        push(@input_files, file(@output_subdirs, '4_sga_preprocess',        qq[chrom$chrom.${sample}_$id.processed.fq]));
+        push(@input_files, file(@output_subdirs, '4_sga_preprocess',        qq[chrom$chrom.${sample}_$id.processed.fq.gz]));
         $id++;
     }
 }

@@ -37,7 +37,7 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return {};
+        return { fastq_merge_and_index_compress_fastq => VRPipe::StepOption->create(description => 'compress the fastq output of fastq_merge_and_index (boolean)', optional => 1, default_value => 1) };
     }
     
     method inputs_definition {
@@ -49,13 +49,18 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self    = shift;
-            my $options = $self->options;
+            my $self     = shift;
+            my $options  = $self->options;
+            my $compress = $options->{fastq_merge_and_index_compress_fastq};
             
             my @fq_paths = map { $_->path } @{ $self->inputs->{fastq_files} };
             my $fq_meta = $self->common_metadata($self->inputs->{fastq_files});
             
-            my $merged_fastq_file = $self->output_file(output_key => 'merged_fastq_file', basename => 'merged.fq',     type => 'fq',  metadata => $fq_meta);
+            my $fq_basename = 'merged.fq';
+            if ($compress) {
+                $fq_basename .= '.gz';
+            }
+            my $merged_fastq_file = $self->output_file(output_key => 'merged_fastq_file', basename => $fq_basename,    type => 'fq',  metadata => $fq_meta);
             my $index_file        = $self->output_file(output_key => 'index_file',        basename => 'merged.popidx', type => 'txt', metadata => $fq_meta);
             
             my $merged_fastq_path = $merged_fastq_file->path;
