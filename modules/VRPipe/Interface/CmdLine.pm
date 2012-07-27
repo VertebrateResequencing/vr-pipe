@@ -307,7 +307,7 @@ class VRPipe::Interface::CmdLine {
         }
         else {
             if ($response->code == 500) {
-                warn "Can't connect to VRPiper server at $base_url, will attempt to auto-start it...\n";
+                $self->error("Can't connect to VRPiper server at $base_url, will attempt to auto-start it...");
                 system('vrpipe-server --deployment ' . $self->opts('deployment') . ' start');
                 
                 # the vrpipe-server call returns ~instantly, but may take some
