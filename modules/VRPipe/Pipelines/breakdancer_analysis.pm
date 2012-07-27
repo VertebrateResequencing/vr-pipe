@@ -5,7 +5,7 @@ VRPipe::Pipelines::breakdancer_analysis - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs breakdancer structural variant detection for a bam datasource.
 
 =head1 AUTHOR
 

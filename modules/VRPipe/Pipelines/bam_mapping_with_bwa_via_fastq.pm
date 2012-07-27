@@ -5,7 +5,7 @@ VRPipe::Pipelines::bam_mapping_with_bwa_via_fastq - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Maps reads in a bam file datasource to a reference genome using bwa fastq alignment. For this the bams are first converted to fastq format, then converted back after the alignment.
 
 =head1 AUTHOR
 
