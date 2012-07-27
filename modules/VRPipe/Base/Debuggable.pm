@@ -199,7 +199,7 @@ role VRPipe::Base::Debuggable {
         }
         
         my $throw_message = "\n-----------------------------------------------------------------------------\n";
-        $throw_message .= $first_line . "\n" . $message . "\n\n" . join("\n", @confess);
+        $throw_message .= $first_line . "\n\n" . $message . "\n\n" . join("\n", @confess);
         $throw_message .= "\n-----------------------------------------------------------------------------\n\n";
         
         $self->log($throw_message, 2);
