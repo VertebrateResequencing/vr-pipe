@@ -9,17 +9,16 @@ use VRPipe::Interface::BackEnd;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(description => "Start the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
-                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground']]);
+                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]);
 
 my $deployment = $cmdline->opts('deployment');
 my $foreground = $cmdline->opts('foreground');
 
-# daemonize unless we're not supposed to
-unless ($foreground) {
-}
-
 # initialize the VRPipe backend
 my $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+
+# daemonize unless we're not supposed to
+my $orig_dir = $backend->daemonize unless $foreground;
 
 # setup the page events we'll respond to
 my $httpd = $backend->httpd;
@@ -51,6 +50,10 @@ EV::run;
 
 warn "The server for VRPipe ($deployment deployment) is exiting!\n";
 exit;
+
+
+
+
 
 
 

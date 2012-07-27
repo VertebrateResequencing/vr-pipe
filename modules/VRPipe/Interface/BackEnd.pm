@@ -46,6 +46,8 @@ class VRPipe::Interface::BackEnd {
     use VRPipe::Config;
     use XML::LibXSLT;
     use XML::LibXML;
+    use POSIX qw(setsid setuid);
+    use Cwd qw(chdir getcwd);
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -320,6 +322,18 @@ XSL
                      lazy    => 1,
                      builder => '_build_schema');
     
+    has 'umask' => (is     => 'ro',
+                    isa    => 'Int',
+                    writer => '_set_umask');
+    
+    has 'uid' => (is     => 'ro',
+                  isa    => 'Int',
+                  writer => '_set_uid');
+    
+    has 'logging_directory' => (is     => 'ro',
+                                isa    => 'Str',
+                                writer => '_set_logging_directory');
+    
     has 'httpd' => (is      => 'ro',
                     isa     => 'AnyEvent::HTTPD',
                     lazy    => 1,
@@ -349,11 +363,82 @@ XSL
         unless ($port) {
             $self->throw("VRPipe SiteConfig had no port specified for $method_name");
         }
-        $self->_set_port($port);
+        $self->_set_port("$port"); # values retrieved from Config might be env vars, so we must force stringification
+        
+        my $umask = $vrp_config->server_umask;
+        $self->_set_umask("$umask");
+        my $uid = $vrp_config->server_uid;
+        $self->_set_uid("$uid");
+        
+        $method_name = $deployment . '_scheduler_output_root';
+        my $log_dir = $vrp_config->$method_name();
+        $self->_set_logging_directory("$log_dir");
         
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);
         $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
         require VRPipe::Persistent::Schema;
+    }
+    
+    # mostly based on http://www.perlmonks.org/?node_id=374409, and used instead
+    # of Proc::Daemon because we have slightly unusual requirements and have to
+    # do things in our own special snow-flake way
+    method daemonize {
+        # -parent-
+        
+        # we fork and later exit the parent. That makes the launching process
+        # think we're done and also makes sure we're not a process group leader
+        my $pid = fork;
+        if (defined $pid && $pid == 0) {
+            # -first child-
+            
+            # we change directory to the root of all. That is a courtesy to the
+            # system, which without it would be prevented from unmounting the
+            # filesystem we started in. However, when testing we have to allow
+            # for the possiblity of relative paths in fofn datasources, and so
+            # will need to know the original directory we were in
+            my $orig_dir = getcwd();
+            chdir '/' or die $!;
+            
+            # we set the user-configured permissions mask for file creation
+            umask $self->umask;
+            
+            # we call setsid() which does three things. We become leader of a
+            # new session, group leader of a new process group, and become
+            # detached from any terminal. We do the fork dance again to shuck
+            # session leadership, which guarantees we never get a controlling
+            # terminal.
+            die "Cannot detach from controlling terminal" if setsid() < 0;
+            $pid = fork;
+            exit 0 if $pid;            # first child does not have to have to wait for the second child
+            exit 1 if not defined $pid;
+            
+            # -second child-
+            
+            # we close unwanted filehandles we have inherited from the parent
+            # process. That is another courtesy to the system, as well as being
+            # sparing of our own process resources
+            close $_ for (*STDIN, *STDOUT, *STDERR);
+            
+            # in production (when we might be running as root) set the real user
+            # identifier and the effective user identifier for the daemon
+            # process before opening files
+            setuid($self->uid) if $self->deployment eq 'production';
+            
+            # reopen STDERR for logging purposes
+            my $log_dir      = $self->logging_directory;
+            my $log_basename = $self->dsn;
+            $log_basename =~ s/\W/_/g;
+            open(STDERR, '>>', file($log_dir, 'vrpipe-server.' . $log_basename . '.log'));
+            
+            return $orig_dir;
+        }
+        
+        # -parent-
+        
+        # a child that terminates, but has not been waited for becomes a zombie.
+        # So we wait for the first child to exit
+        waitpid($pid, 0);
+        exit 0;
     }
     
     method req_to_opts ($req, ArrayRef $ctp_array?) {

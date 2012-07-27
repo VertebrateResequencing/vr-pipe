@@ -90,6 +90,16 @@ class VRPipe::Interface::CmdLine {
                   isa    => 'Str',
                   writer => '_set_dsn');
     
+    has 'server_ok' => (is      => 'ro',
+                        isa     => 'Bool',
+                        lazy    => 1,
+                        builder => '_check_server');
+    
+    has '_ua_port_baseurl' => (is      => 'ro',
+                               isa     => 'ArrayRef',
+                               lazy    => 1,
+                               builder => '_build_ua_port_baseurl');
+    
     method _default_opt_spec {
         return [['deployment=s', 'Use the production or testing database', { default => 'production' }], ['env|e=s', 'Use options stored in an environment variable'], ['help|h', 'Print this usage message and exit']];
     }
@@ -270,17 +280,16 @@ class VRPipe::Interface::CmdLine {
         die "\n";
     }
     
-    method server_get (Str $page, HashRef $opts?) {
-        $opts ||= {};
-        $opts->{display_format} = 'plain';
-        
+    method _build_ua_port_baseurl {
         my $ua       = $self->_ua;
         my $port     = $self->port;
         my $base_url = 'http://' . hostname_long . ':' . $port;
+        return [$ua, $port, $base_url];
+    }
+    
+    method _check_server {
+        my ($ua, $port, $base_url) = @{ $self->_ua_port_baseurl };
         
-        # first we need to make sure that the server bound to the port we
-        # configured for our database is actually connected to our database
-        # (and we'll auto-start the server if it isn't running at all)
         my @post_args = ($base_url . '/dsn');
         my $response  = $ua->post(@post_args);
         my $server_dsn;
@@ -290,23 +299,45 @@ class VRPipe::Interface::CmdLine {
         else {
             if ($response->code == 500) {
                 warn "Can't connect to VRPiper server at $base_url, will attempt to auto-start it...\n";
-                #*** ...
-                $response = $ua->post(@post_args);
-                if ($response->is_success) {
-                    $server_dsn = $response->decoded_content;
+                system("vrpipe-server --deployment " . $self->opts('deployment'));
+                
+                # the vrpipe-server call returns instantly, but may take some
+                # time before the server is actually ready to connect to; keep
+                # trying for the next 20 seconds
+                my $seconds = 20;
+                while ($seconds--) {
+                    $response = $ua->post(@post_args);
+                    if ($response->is_success) {
+                        $server_dsn = $response->decoded_content;
+                        last;
+                    }
+                    sleep(1);
                 }
             }
-            $self->die_with_error($response->status_line);
+            $self->die_with_error($response->status_line) unless $server_dsn;
         }
         my $expected_dsn = $self->dsn;
         unless ($server_dsn eq $expected_dsn) {
-            $self->die_with_error("There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all. Its reported dsn was:\n$server_dsn\n");
+            $self->die_with_error("There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all.\nIts reported dsn was:\n$server_dsn\n");
         }
         
-        # now we'll handle the desired request
-        @post_args = ($base_url . $page, [$self->_deref_hash($self->_opts_hash), '_multiple_setups' => $self->_multiple_setups, $self->_deref_hash($opts)]);
+        return 1;
+    }
+    
+    method server_get (Str $page, HashRef $opts?) {
+        $opts ||= {};
+        $opts->{display_format} = 'plain';
         
-        $response = $ua->post(@post_args);
+        # first we need to make sure that the server bound to the port we
+        # configured for our database is actually connected to our database
+        # (and we'll auto-start the server if it isn't running at all)
+        $self->die_with_error("Can't connect to server.") unless $self->server_ok;
+        
+        # now we'll handle the desired request
+        my ($ua, undef, $base_url) = @{ $self->_ua_port_baseurl };
+        my @post_args = ($base_url . $page, [$self->_deref_hash($self->_opts_hash), '_multiple_setups' => $self->_multiple_setups, $self->_deref_hash($opts)]);
+        
+        my $response = $ua->post(@post_args);
         if ($response->is_success) {
             return $response->decoded_content;
         }

@@ -168,6 +168,16 @@ class VRPipe::Config {
                                    default         => 9091,
                                    question_number => ++$question_number);
     
+    has server_umask => (is              => 'rw',
+                         question        => 'When the VRPipe server runs, what should its file creation mask (umask) be?',
+                         default         => 0,
+                         question_number => ++$question_number);
+    
+    has server_uid => (is              => 'rw',
+                       question        => 'When the VRPipe server runs, what user id should it run as?',
+                       default         => $<,
+                       question_number => ++$question_number);
+    
     method _get_dbtype (Str $prefix) {
         my $method = $prefix . '_dbtype';
         return $self->$method();
