@@ -52,6 +52,9 @@ class VRPipe::Interface::CmdLine {
                           isa      => 'Str',
                           required => 1);
     
+    has 'extra_args' => (is  => 'rw',
+                         isa => 'Str');
+    
     has 'opt_spec' => (is      => 'rw',
                        isa     => 'ArrayRef[ArrayRef]',
                        lazy    => 1,
@@ -93,7 +96,7 @@ class VRPipe::Interface::CmdLine {
     has 'server_ok' => (is      => 'ro',
                         isa     => 'Bool',
                         lazy    => 1,
-                        builder => '_check_server');
+                        builder => 'check_server');
     
     has '_ua_port_baseurl' => (is      => 'ro',
                                isa     => 'ArrayRef',
@@ -215,6 +218,8 @@ class VRPipe::Interface::CmdLine {
         if ($has_long) {
             $o .= ' [long options...]';
         }
+        my $extra_args = $self->extra_args;
+        $o .= ' ' . $extra_args if $extra_args;
         $usage = $self->description . "\n$script_name$o\n" . $usage;
         $self->_set_usage($usage);
         
@@ -287,21 +292,25 @@ class VRPipe::Interface::CmdLine {
         return [$ua, $port, $base_url];
     }
     
-    method _check_server {
+    method check_server (Bool $no_auto_start_or_die = 0) {
         my ($ua, $port, $base_url) = @{ $self->_ua_port_baseurl };
         
+        # try and get a response from the port
         my @post_args = ($base_url . '/dsn');
         my $response  = $ua->post(@post_args);
         my $server_dsn;
         if ($response->is_success) {
             $server_dsn = $response->decoded_content;
         }
+        elsif ($no_auto_start_or_die) {
+            return 0;
+        }
         else {
             if ($response->code == 500) {
                 warn "Can't connect to VRPiper server at $base_url, will attempt to auto-start it...\n";
-                system("vrpipe-server --deployment " . $self->opts('deployment'));
+                system('vrpipe-server --deployment ' . $self->opts('deployment') . ' start');
                 
-                # the vrpipe-server call returns instantly, but may take some
+                # the vrpipe-server call returns ~instantly, but may take some
                 # time before the server is actually ready to connect to; keep
                 # trying for the next 20 seconds
                 my $seconds = 20;
@@ -316,9 +325,16 @@ class VRPipe::Interface::CmdLine {
             }
             $self->die_with_error($response->status_line) unless $server_dsn;
         }
+        
+        # make sure the response is valid
         my $expected_dsn = $self->dsn;
         unless ($server_dsn eq $expected_dsn) {
-            $self->die_with_error("There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all.\nIts reported dsn was:\n$server_dsn\n");
+            if ($no_auto_start_or_die) {
+                return -1;
+            }
+            else {
+                $self->die_with_error("There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all.\nIts reported dsn was:\n$server_dsn\n");
+            }
         }
         
         return 1;

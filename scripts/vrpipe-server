@@ -8,56 +8,147 @@ use VRPipe::Interface::CmdLine;
 use VRPipe::Interface::BackEnd;
 
 # handle options
-my $cmdline = VRPipe::Interface::CmdLine->new(description => "Start the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
+my $cmdline = VRPipe::Interface::CmdLine->new(description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
+                                              extra_args  => 'start|stop|restart|status',
                                               opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]);
-
+my $backend;
 my $deployment = $cmdline->opts('deployment');
 my $foreground = $cmdline->opts('foreground');
 
-# initialize the VRPipe backend
-my $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+my $command = shift;
+unless ($command) {
+    $cmdline->error("a command is required");
+    $cmdline->help;
+}
 
-# daemonize unless we're not supposed to
-my $orig_dir = $backend->daemonize unless $foreground;
+# act on the given command
+my $status = $cmdline->check_server(1);
+my (undef, $port, $url) = @{ $cmdline->_ua_port_baseurl };
+my $exit = 0;
+if ($command eq 'status') {
+    if ($status == 1) {
+        $cmdline->output("Server is running at $url");
+    }
+    elsif ($status == 0) {
+        $cmdline->output("Server is not running");
+    }
+    elsif ($status == -1) {
+        $cmdline->output("A server is listening on port $port, but is not responding correctly");
+    }
+}
+elsif ($command eq 'stop') {
+    my $stopped = stop();
+    $exit = !$stopped;
+}
+elsif ($command eq 'start') {
+    my $started = start();
+    $exit = !$started;
+}
+elsif ($command eq 'restart') {
+    $cmdline->output("Restarting server...");
+    my $stopped = stop();
+    my $started = 0;
+    if ($stopped) {
+        my $started = start();
+    }
+    $exit = !$started;
+}
+else {
+    $cmdline->die_with_error("$command is an invalid command");
+}
 
-# setup the page events we'll respond to
-my $httpd = $backend->httpd;
-$httpd->reg_cb(
-    '/' => sub {
-        my ($httpd, $req) = @_;
-        
-        $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
-    },
-    '/status' => \&status,
-    '/dsn'    => sub {
-        my ($httpd, $req) = @_;
-        $req->respond({ content => ['text/plain', $backend->dsn] });
-    },
-    '/exit' => sub {
-        my ($httpd, $req) = @_;
-        
-        $req->respond({ content => ['text/plain', 'Turning off server'] });
-        
-        EV::unloop;
-    },
-    '' => sub {
-        my ($httpd, $req) = @_;
-        $req->respond([404, 'not found', { 'Content-Type' => 'text/plain' }, '404: requested page (' . $req->url . ') is not valid']);
-    });
+exit $exit;
 
-# run the event loop
-EV::run;
+sub stop {
+    if ($status == 1) {
+        my $response = $cmdline->server_get('/stop');
+        if ($response eq 'Stopping server') {
+            # the server responded that it would stop; give it up to 5 seconds
+            # to actually do that
+            my $seconds = 5;
+            while ($seconds--) {
+                $status = $cmdline->check_server(1);
+                last if $status == 0;
+                sleep(1);
+            }
+            
+            if ($status == 0) {
+                $cmdline->output("Server was stopped");
+                return 1;
+            }
+            else {
+                $cmdline->output("Server claimed it would stop, but it still seems to be running");
+                return 0;
+            }
+        }
+        else {
+            $cmdline->output("Failed to stop server (it responded: '$response')");
+            return 0;
+        }
+    }
+    elsif ($status == 0) {
+        $cmdline->output("Server was not running");
+        return 1;
+    }
+    elsif ($status == -1) {
+        $cmdline->output("Will not attempt to stop the server listening on port $port, since it does not seem to be ours");
+        return 0;
+    }
+}
 
-warn "The server for VRPipe ($deployment deployment) is exiting!\n";
-exit;
+sub start {
+    if ($status == 1) {
+        $cmdline->output("Server is already running");
+        return 1;
+    }
+    elsif ($status == 0) {
+        $cmdline->output("Will start server at $url");
+        start_server();
+    }
+    elsif ($status == -1) {
+        $cmdline->output("Will not attempt to start, since another incompatible server is already listening on port $port");
+        return 0;
+    }
+}
 
-
-
-
-
-
-
-
+sub start_server {
+    # initialize the VRPipe backend
+    $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+    
+    # daemonize unless we're not supposed to
+    my $orig_dir = $backend->daemonize unless $foreground;
+    
+    # setup the page events we'll respond to
+    my $httpd = $backend->httpd;
+    $httpd->reg_cb(
+        '/' => sub {
+            my ($httpd, $req) = @_;
+            
+            $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
+        },
+        '/status' => \&status,
+        '/dsn'    => sub {
+            my ($httpd, $req) = @_;
+            $req->respond({ content => ['text/plain', $backend->dsn] });
+        },
+        '/stop' => sub {
+            my ($httpd, $req) = @_;
+            
+            $req->respond({ content => ['text/plain', 'Stopping server'] });
+            
+            EV::unloop;
+        },
+        '' => sub {
+            my ($httpd, $req) = @_;
+            $req->respond([404, 'not found', { 'Content-Type' => 'text/plain' }, '404: requested page (' . $req->url . ') is not valid']);
+        });
+    
+    # run the event loop
+    EV::run;
+    
+    warn "The server for VRPipe ($deployment deployment) is exiting!\n";
+    exit 0;
+}
 
 # "page" subs
 sub status {
