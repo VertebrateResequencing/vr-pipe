@@ -1,15 +1,15 @@
 
 =head1 NAME
 
-VRPipe::Persistent::ConverterFactory - a factory for SQL converteres
+VRPipe::Persistent::ConverterFactory - a factory for SQL converters
 
 =head1 SYNOPSIS
 
-*** more documentation to come
+        my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {}); # eg mysql
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+A Factory for SQL Converters, which allow the Schema to be implemented in a database independent way.
 
 =head1 AUTHOR
 
