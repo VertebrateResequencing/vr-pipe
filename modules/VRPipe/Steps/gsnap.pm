@@ -38,9 +38,9 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
     use Data::Dumper;
     
     method options_definition {
-        return { gsnap_exe       => VRPipe::StepOption->create(description => 'path to your bismark executable',                                    optional => 1, default_value => $ENV{GSNAP_EXE}),
+        return { gsnap_exe       => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                      optional => 1, default_value => $ENV{GSNAP_EXE}),
                  paired_end      => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.', optional => 1, default_value => '0'),
-                 gsnap_db_folder => VRPipe::StepOption->create(description => 'path to your bismark genome folder',                                 optional => 1, default_value => $ENV{GSNAP_DB_FOLDER}) };
+                 gsnap_db_folder => VRPipe::StepOption->create(description => 'path to your gsnap db folder',                                       optional => 1, default_value => $ENV{GSNAP_DB_FOLDER}) };
     }
     
     method inputs_definition {
@@ -64,7 +64,9 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             my $output_file_dir;
             my @outputfiles;
 
+
             
+
 
             # create command
             if ($paired) {
@@ -101,7 +103,11 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
     }
 
 
+
+
     
+
+
 
 
     method outputs_definition {
