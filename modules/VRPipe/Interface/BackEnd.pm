@@ -303,9 +303,17 @@ XSL
     our %display_format_to_stylesheet = (html  => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_html)),
                                          plain => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_plain)));
     
-    has 'port' => (is       => 'ro',
-                   isa      => PositiveInt,
-                   required => 1);
+    has 'deployment' => (is       => 'ro',
+                         isa      => 'Str',
+                         required => 1);
+    
+    has 'port' => (is     => 'ro',
+                   isa    => PositiveInt,
+                   writer => '_set_port');
+    
+    has 'dsn' => (is     => 'ro',
+                  isa    => 'Str',
+                  writer => '_set_dsn');
     
     has 'schema' => (is      => 'ro',
                      isa     => 'VRPipe::Persistent::Schema',
@@ -333,23 +341,18 @@ XSL
         
         # the idea is (per host) we'll have 1 daemon with 1 BackEnd instance per
         # dsn, and each dsn is supposed to have its own port associated with it.
-        # we look at the port and figure out if it corresponds to the current
-        # user's production or testing database; if neither, we die
-        my $port       = $self->port;
-        my $vrp_config = VRPipe::Config->new();
-        my $deployment;
-        foreach my $dep (qw(production testing)) {
-            my $method_name = $dep . '_interface_port';
-            my $this_port   = $vrp_config->$method_name();
-            if ($this_port == $port) {
-                $deployment = $dep;
-            }
+        # we figure these out based on deployment
+        my $deployment  = $self->deployment;
+        my $vrp_config  = VRPipe::Config->new();
+        my $method_name = $deployment . '_interface_port';
+        my $port        = $vrp_config->$method_name();
+        unless ($port) {
+            $self->throw("VRPipe SiteConfig had no port specified for $method_name");
         }
-        unless ($deployment) {
-            $self->throw("VRPipe interface port $port did not correspond to a deployment");
-        }
+        $self->_set_port($port);
         
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);
+        $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
         require VRPipe::Persistent::Schema;
     }
     

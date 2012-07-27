@@ -46,6 +46,7 @@ class VRPipe::Interface::CmdLine {
     use LWP::UserAgent;
     use Sys::Hostname::Long;
     use VRPipe::Config;
+    use VRPipe::Persistent::SchemaBase;
     
     has 'description' => (is       => 'rw',
                           isa      => 'Str',
@@ -81,10 +82,13 @@ class VRPipe::Interface::CmdLine {
                   lazy    => 1,
                   builder => '_build_ua');
     
-    has 'port' => (is      => 'ro',
-                   isa     => PositiveInt,
-                   lazy    => 1,
-                   builder => '_build_port');
+    has 'port' => (is     => 'ro',
+                   isa    => PositiveInt,
+                   writer => '_set_port');
+    
+    has 'dsn' => (is     => 'ro',
+                  isa    => 'Str',
+                  writer => '_set_dsn');
     
     method _default_opt_spec {
         return [['deployment=s', 'Use the production or testing database', { default => 'production' }], ['env|e=s', 'Use options stored in an environment variable'], ['help|h', 'Print this usage message and exit']];
@@ -93,14 +97,6 @@ class VRPipe::Interface::CmdLine {
     method _build_ua {
         my $ua = LWP::UserAgent->new(timeout => 10, agent => 'VRPipe-Client');
         return $ua;
-    }
-    
-    method _build_port {
-        # we pick port based on deployment
-        my $deployment  = $self->opts('deployment');
-        my $vrp_config  = VRPipe::Config->new();
-        my $method_name = $deployment . '_interface_port';
-        return $vrp_config->$method_name();
     }
     
     sub BUILD {
@@ -243,6 +239,16 @@ class VRPipe::Interface::CmdLine {
             $help = 1;
         }
         $self->help if $help;
+        
+        my $vrp_config  = VRPipe::Config->new();
+        my $method_name = $deployment . '_interface_port';
+        my $port        = $vrp_config->$method_name();
+        unless ($port) {
+            $self->throw("VRPipe SiteConfig had no port specified for $method_name");
+        }
+        $self->_set_port($port);
+        VRPipe::Persistent::SchemaBase->database_deployment($deployment); # this does not access the db, just lets get_dsn method work
+        $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
     }
     
     method help {
@@ -268,24 +274,44 @@ class VRPipe::Interface::CmdLine {
         $opts ||= {};
         $opts->{display_format} = 'plain';
         
-        my $ua        = $self->_ua;
-        my $base_url  = 'http://' . hostname_long . ':' . $self->port;
-        my @post_args = ($base_url . $page, [$self->_deref_hash($self->_opts_hash), '_multiple_setups' => $self->_multiple_setups, $self->_deref_hash($opts)]);
+        my $ua       = $self->_ua;
+        my $port     = $self->port;
+        my $base_url = 'http://' . hostname_long . ':' . $port;
         
-        my $response = $ua->post(@post_args);
+        # first we need to make sure that the server bound to the port we
+        # configured for our database is actually connected to our database
+        # (and we'll auto-start the server if it isn't running at all)
+        my @post_args = ($base_url . '/dsn');
+        my $response  = $ua->post(@post_args);
+        my $server_dsn;
+        if ($response->is_success) {
+            $server_dsn = $response->decoded_content;
+        }
+        else {
+            if ($response->code == 500) {
+                warn "Can't connect to VRPiper server at $base_url, will attempt to auto-start it...\n";
+                #*** ...
+                $response = $ua->post(@post_args);
+                if ($response->is_success) {
+                    $server_dsn = $response->decoded_content;
+                }
+            }
+            $self->die_with_error($response->status_line);
+        }
+        my $expected_dsn = $self->dsn;
+        unless ($server_dsn eq $expected_dsn) {
+            $self->die_with_error("There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all. Its reported dsn was:\n$server_dsn\n");
+        }
+        
+        # now we'll handle the desired request
+        @post_args = ($base_url . $page, [$self->_deref_hash($self->_opts_hash), '_multiple_setups' => $self->_multiple_setups, $self->_deref_hash($opts)]);
+        
+        $response = $ua->post(@post_args);
         if ($response->is_success) {
             return $response->decoded_content;
         }
         else {
-            if ($response->code == 500) {
-                warn "Can't connect to daemon at $base_url, will attempt to auto-start it...\n";
-                #*** ...
-                $response = $ua->post(@post_args);
-                if ($response->is_success) {
-                    return $response->decoded_content;
-                }
-            }
-            $self->throw($response->status_line);
+            $self->die_with_error($response->status_line);
         }
     }
     
