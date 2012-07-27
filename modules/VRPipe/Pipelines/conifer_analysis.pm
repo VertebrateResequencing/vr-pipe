@@ -5,7 +5,7 @@ VRPipe::Pipelines::conifer_analysis - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs Conifer Copy Number Variant detection for a datasource of exome bams, generating a SVD-ZRPKM values file, CNV calls and associated plots for each bam in the group.
 
 =head1 AUTHOR
 
