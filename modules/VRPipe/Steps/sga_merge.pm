@@ -39,6 +39,14 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 
 
+
+
+
+
+
+
+
+
 # Usage: sga merge [OPTION] ... READS1 READS2
 # Merge the sequence files READS1, READS2 into a single file/index
 #
@@ -90,24 +98,28 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
                 push(@fqs, pop @fastqs) if @fastqs;
                 my @basenames;
                 my $popidx;
+                my $compress = '';
                 foreach my $fq (@fqs) {
                     my $prefix = $fq->basename;
-                    $prefix =~ s/\.(fq|fastq)(\.gz)?//;
+                    if ($prefix =~ m/\.gz$/) {
+                        $compress = '.gz';
+                    }
+                    $prefix =~ s/\.(fq|fastq)(\.gz)?$//;
                     push @basenames, $prefix;
                     ++$popidx if (-s file($fq->dir, "$prefix.popidx"));
                 }
                 my $fq_meta = $self->common_metadata(\@fqs);
                 my $basename = join '_', @basenames;
                 my @outfiles;
-                push @outfiles, $self->output_file(output_key => 'merged_fastq_files', basename => "$basename.$id.fq",  type => 'fq',  metadata => $fq_meta);
-                push @outfiles, $self->output_file(output_key => 'merged_bwt_files',   basename => "$basename.$id.bwt", type => 'bin', metadata => $fq_meta);
-                push @outfiles, $self->output_file(output_key => 'merged_sai_files',   basename => "$basename.$id.sai", type => 'txt', metadata => $fq_meta);
+                push @outfiles, $self->output_file(output_key => 'merged_fastq_files', basename => "${basename}_$id.fastq$compress", type => 'fq',  metadata => $fq_meta);
+                push @outfiles, $self->output_file(output_key => 'merged_bwt_files',   basename => "${basename}_$id.bwt",            type => 'bin', metadata => $fq_meta);
+                push @outfiles, $self->output_file(output_key => 'merged_sai_files',   basename => "${basename}_$id.sai",            type => 'txt', metadata => $fq_meta);
                 if ($popidx) {
-                    push @outfiles, $self->output_file(output_key => 'merged_popidx_files', basename => "$basename.$id.popidx", type => 'txt', metadata => $fq_meta);
+                    push @outfiles, $self->output_file(output_key => 'merged_popidx_files', basename => "${basename}_$id.popidx", type => 'txt', metadata => $fq_meta);
                 }
                 ++$id;
                 my $prefix = $outfiles[0]->path;
-                $prefix =~ s/\.fq$//;
+                $prefix =~ s/\.(fq|fastq)(\.gz)?$//;
                 my $cmd = qq[$sga_exe merge $sga_opts --prefix $prefix ] . join(' ', map { $_->path } @fqs);
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::sga_merge', 'merge_and_check', [$cmd, $req, { output_files => \@outfiles }]);
             }
@@ -145,8 +157,8 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
         foreach my $in_path (@in_paths) {
             push @in_fastqs, VRPipe::File->create(path => $in_path);
             my $base = $in_path;
-            $base =~ s/\.(fq|fastq)(\.gz)?//;
-            if ($2) {
+            $base =~ s/\.(fq|fastq)(\.gz)?$//;
+            if ($in_path =~ m/\.gz$/) {
                 $compress = '.gz';
             }
             push @in_bwts, VRPipe::File->create(path => "$base.bwt");
@@ -156,8 +168,7 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
                 push @in_popidxs, VRPipe::File->create(path => "$base.popidx");
             }
         }
-        my $out_fq  = VRPipe::File->create(path => $prefix . '.fq' . $compress);
-        my $out_fa  = VRPipe::File->create(path => $prefix . '.fa' . $compress);
+        my $out_fq  = VRPipe::File->create(path => $prefix . '.fastq' . $compress);
         my $out_bwt = VRPipe::File->create(path => $prefix . '.bwt');
         my $out_sai = VRPipe::File->create(path => $prefix . '.sai');
         my $out_popidx;
@@ -178,10 +189,6 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
             $out_fq->disconnect;
             system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         }
-        $out_fa->update_stats_from_disc(retries => 3);
-        $out_fa->disconnect;
-        
-        $out_fa->move($out_fq);
         $out_fq->update_stats_from_disc(retries => 3);
         
         my $reads = 0;

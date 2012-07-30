@@ -49,10 +49,9 @@ VRPipe::PipelineSetup->create(name       => 'sga calling test',
                               output_root => $calling_dir,
                               pipeline    => $sga_pipeline,
                               options     => {
-                                           reference_fasta                      => $ref_fa,
-                                           sga_exe                              => 'sga',
-                                           fastq_merge_and_index_compress_fastq => 0,
-                                           cleanup                              => 0 });
+                                           reference_fasta => $ref_fa,
+                                           sga_exe         => 'sga',
+                                           cleanup         => 0 });
 
 ok handle_pipeline(), 'sga_prepare_fastq and sga_variant_calling pipelines ran ok';
 
@@ -78,10 +77,10 @@ foreach my $suffix (qw(fa sai rsai bwt rbwt ssa)) {
 my @calling_files;
 foreach my $element_id (7 .. 12) {
     my @output_subdirs = output_subdirs($element_id, 2);
-    foreach my $suffix (qw(fq popidx bwt sai)) {
+    foreach my $suffix (qw(fq.gz popidx bwt sai)) {
         push(@calling_files, file(@output_subdirs, '4_fastq_merge_and_index', 'merged.' . $suffix));
     }
-    foreach my $suffix (qw(base.vcf variant.vcf)) {
+    foreach my $suffix (qw(base.vcf calls.vcf variant.vcf)) {
         push(@calling_files, file(@output_subdirs, '6_sga_reference_based_calling', 'merged.' . $suffix));
     }
 }
