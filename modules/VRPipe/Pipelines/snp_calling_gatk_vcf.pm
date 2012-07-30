@@ -5,7 +5,7 @@ VRPipe::Pipelines::snp_calling_gatk_vcf - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the GATK universal genotyper, followed by soft-filtering using the GATK VariantFiltration walker and recalibration of the variants using the GATK VariantRecalibrator walker, generating indexed VCF files from a BAM datasource.
 
 =head1 AUTHOR
 

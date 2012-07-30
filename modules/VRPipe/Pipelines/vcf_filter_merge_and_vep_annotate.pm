@@ -5,7 +5,7 @@ VRPipe::Pipelines::vcf_filter_merge_and_vep_annotate - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Pipeline to filter, merge and annotate VCF files with consequences. The datasource will be a delimited datsource, each element consting of two bam files. These are initially filtered indepenedently, then merged using vcf-isec, and annotated using vcf-annotate. The vcfs are then annotated with consequences using the Ensembl Variant Effect Predictor, VEP, and stats are generated for the final vcfs.
 
 =head1 AUTHOR
 

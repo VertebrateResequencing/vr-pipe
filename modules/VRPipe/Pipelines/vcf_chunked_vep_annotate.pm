@@ -5,7 +5,7 @@ VRPipe::Pipelines::vcf_chunked_vep_annotate - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Pipeline to Annotate VCF files with consequences using the Ensembl Variant Effect Predictor, VEP. Uses chunking of the VCFs to distribute the processing, so suitable for 'large' vcfs.
 
 =head1 AUTHOR
 
