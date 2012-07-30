@@ -118,7 +118,14 @@ sub start_server {
     # daemonize unless we're not supposed to
     my $orig_dir = $backend->daemonize unless $foreground;
     
-    # setup the page events we'll respond to
+    # setup the signals we'll react to
+    $SIG{HUP}  = 'IGNORE';
+    $SIG{PIPE} = 'IGNORE';
+    my $sigterm_watcher = EV::signal 'TERM', sub { shutdown_server("SIGTERM received"); };
+    my $sigint_watcher  = EV::signal 'INT',  sub { shutdown_server("SIGINT received"); };
+    my $sigquit_watcher = EV::signal 'QUIT', sub { shutdown_server("SIGQUIT received"); };
+    
+    # setup the http page requests we'll respond to
     my $httpd = $backend->httpd;
     $httpd->reg_cb(
         '/' => sub {
@@ -135,9 +142,7 @@ sub start_server {
             my ($httpd, $req) = @_;
             
             $req->respond({ content => ['text/plain', 'Stopping server'] });
-            $backend->log("Received the stop command, will shut down.");
-            
-            EV::unloop;
+            shutdown_server("Received the stop command");
         },
         '' => sub {
             my ($httpd, $req) = @_;
@@ -145,11 +150,17 @@ sub start_server {
         });
     
     # run the event loop
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is starting.");
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started.");
     EV::run;
     
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!");
     exit 0;
+}
+
+sub shutdown_server {
+    my $msg = shift;
+    $backend->log($msg . ", will gracefully shut down server.");
+    EV::unloop;
 }
 
 # "page" subs
