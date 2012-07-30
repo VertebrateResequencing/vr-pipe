@@ -126,7 +126,7 @@ sub start_server {
             
             $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
         },
-        '/status' => \&status,
+        '/status' => sub { $backend->handle_httpd_event(\&status, @_); },
         '/dsn'    => sub {
             my ($httpd, $req) = @_;
             $req->respond({ content => ['text/plain', $backend->dsn] });
@@ -135,6 +135,7 @@ sub start_server {
             my ($httpd, $req) = @_;
             
             $req->respond({ content => ['text/plain', 'Stopping server'] });
+            $backend->log("Received the stop command, will shut down.");
             
             EV::unloop;
         },
@@ -144,15 +145,16 @@ sub start_server {
         });
     
     # run the event loop
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is starting.");
     EV::run;
     
-    warn "The server for VRPipe ($deployment deployment) is exiting!\n";
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!");
     exit 0;
 }
 
 # "page" subs
 sub status {
-    my ($httpd, $req) = @_;
+    my $req = shift;
     
     my $opts = $backend->req_to_opts($req, ['setup!PipelineSetup']);
     $opts->{'_multiple_setups'} = 1;
@@ -160,7 +162,7 @@ sub status {
     my $incomplete_only = $opts->{incomplete};
     my $brief           = $opts->{brief};
     
-    my $xml = '<interface><title>Current status of PipelineSetups</title>';
+    my $xml = '<title>Current status of PipelineSetups</title>';
     
     # $xml .= '<options><bool></bool></options>';
     
@@ -297,7 +299,5 @@ sub status {
         }
     }
     
-    $xml .= '</interface>';
-    
-    $backend->output($req, $xml);
+    return $xml;
 }

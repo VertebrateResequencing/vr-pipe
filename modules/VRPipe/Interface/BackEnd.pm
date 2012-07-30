@@ -48,6 +48,7 @@ class VRPipe::Interface::BackEnd {
     use XML::LibXML;
     use POSIX qw(setsid setuid);
     use Cwd qw(chdir getcwd);
+    use Time::Format;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -85,8 +86,18 @@ class VRPipe::Interface::BackEnd {
     </html>
 </xsl:template>
 
+<xsl:template match="/interface/error">
+    <p style="color:red"><xsl:value-of select="."/></p>
+</xsl:template>
+
+<xsl:template match="/interface/warning"/>
+
 <xsl:template match="/interface/title">
     <h1><xsl:value-of select="."/></h1>
+    
+    <xsl:for-each select="/interface/warning">
+        <p><span style="background-color:yellow"><xsl:value-of select="."/></span></p>
+    </xsl:for-each>
 </xsl:template>
 
 <xsl:template match="objects">
@@ -170,7 +181,17 @@ XSL
     <xsl:apply-templates/>
 </xsl:template>
 
+<xsl:template match="/interface/error">
+    <xsl:value-of select="."/><xsl:text>
+</xsl:text>
+</xsl:template>
+
 <xsl:template match="/interface/title"/>
+
+<xsl:template match="/interface/warning">
+    <xsl:value-of select="."/><xsl:text>
+</xsl:text>
+</xsl:template>
 
 <xsl:template match="objects">
     <xsl:apply-templates select="object"/>
@@ -339,6 +360,13 @@ XSL
                     lazy    => 1,
                     builder => '_build_httpd');
     
+    has '_warnings' => (is      => 'ro',
+                        isa     => 'ArrayRef',
+                        default => sub { [] },
+                        traits  => ['Array'],
+                        handles => { user_warning   => 'push',
+                                     '_get_warning' => 'shift' });
+    
     method _build_schema {
         my $m = VRPipe::Manager->get;
         return $m->result_source->schema;
@@ -346,7 +374,6 @@ XSL
     
     method _build_httpd {
         my $port = $self->port;
-        warn "The web interface can be reached at http://", hostname_long, ":$port/\n";
         return AnyEvent::HTTPD->new(port => $port); # host `uname -n`; parse the ip address, use as host? Currently defaults to 0.0.0.0
     }
     
@@ -361,7 +388,7 @@ XSL
         my $method_name = $deployment . '_interface_port';
         my $port        = $vrp_config->$method_name();
         unless ($port) {
-            $self->throw("VRPipe SiteConfig had no port specified for $method_name");
+            die "VRPipe SiteConfig had no port specified for $method_name\n";
         }
         $self->_set_port("$port"); # values retrieved from Config might be env vars, so we must force stringification
         
@@ -462,13 +489,13 @@ XSL
                     if ($desired =~ /^\d+$/) {
                         ($found) = $full_class->search({ id => $desired });
                         unless ($found) {
-                            $self->die_with_error("$desired is not a valid $class id");
+                            die "$desired is not a valid $class id\n";
                         }
                     }
                     else {
                         ($found) = $full_class->search({ name => $desired });
                         unless ($found) {
-                            $self->die_with_error("$desired is not a valid $class name");
+                            die "$desired is not a valid $class name\n";
                         }
                     }
                     push(@found, $found);
@@ -480,7 +507,7 @@ XSL
                 else {
                     $opts{$opt} = $found[0];
                     if (@found > 1) {
-                        $self->error("--$opt @desired resulted in more than one $class object; only using the first");
+                        $self->user_warning("--$opt @desired resulted in more than one $class object; only using the first");
                     }
                 }
             }
@@ -489,15 +516,39 @@ XSL
         return \%opts;
     }
     
+    method handle_httpd_event ($sub, $httpd, $req) {
+        my $xml;
+        try {
+            $xml = &{$sub}($req);
+        }
+        catch ($err) {
+            chomp($err);
+            $xml = '<error><![CDATA[' . $err . ']]></error>';
+            $self->log("fatal event captured responding to " . $req->url . " for " . $req->client_host . ": " . $err);
+        }
+        
+        my $warnings = '';
+        while (my $warning = $self->_get_warning) {
+            $warnings .= '<warning><![CDATA[' . $warning . ']]></warning>';
+        }
+        
+        $self->output($req, $warnings . $xml);
+    }
+    
     method output ($req, $xml) {
         my $format = $req->parm('display_format');
         $format ||= 'html';
         
-        my $source = $parser->load_xml(string => '<?xml version="1.0" encoding="ISO-8859-1"?>' . $xml);
-        my $stylesheet = $display_format_to_stylesheet{$format} || $self->throw("invalid display_format '$format'");
+        my $source = $parser->load_xml(string => '<?xml version="1.0" encoding="ISO-8859-1"?><interface>' . $xml . '</interface>');
+        my $stylesheet = $display_format_to_stylesheet{$format} || $display_format_to_stylesheet{html};
         my $result = $stylesheet->transform($source);
         
         $req->respond({ content => ["text/$format", $stylesheet->output_as_chars($result)] });
+    }
+    
+    method log (Str $msg) {
+        chomp($msg);
+        warn "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
     }
     
     method hash_to_xml (HashRef $hash, ArrayRef[Str] $key_order?) {
@@ -530,7 +581,7 @@ XSL
         }
         
         if ($multi_setups && !@setups) {
-            $self->die_with_error("No PipelineSetups match your settings (did you remember to specifiy --user?)");
+            die "No PipelineSetups match your settings (did you remember to specifiy --user?)\n";
         }
         
         return $multi_setups ? @setups : $setups[0];
