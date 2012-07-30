@@ -1,3 +1,8 @@
+0.86    Minor bug fix for getting file md5s. When the system has created
+        symlinks (eg. vrpipe-output was used) and the source file of a symlink
+        is moved, all symlinks are automatically corrected. The LSF scheduler
+        now implements the cpus requirement. SGA steps bug fixed and now have
+        support for gzipped fastq files.
 0.85    bam_add_readgroup step now allows you to choose what metadata key SM is
         set from, eg. you could have it come from individual instead of sample
 0.84    Critical fix for the VRTrack datasource, so that it copes with metadata

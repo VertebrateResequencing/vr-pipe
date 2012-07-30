@@ -67,7 +67,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
                 
                 my $split_dir       = $self->output_root->absolute->stringify;
                 my $bam_path        = $bam->path->stringify;
-                my $args            = "q[$bam_path], split_dir => q[$split_dir], ignore => q[$$options{split_bam_ignore}], non_chrom => $$options{split_bam_non_chrom}, merge => $$options{split_bam_merge}, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => q[$$options{split_bam_only}], include_mate => q[$$options{split_bam_include_mate}]";
+                my $args            = "q[$bam_path], split_dir => q[$split_dir], ignore => q[$$options{split_bam_ignore}], non_chrom => $$options{split_bam_non_chrom}, merge => $$options{split_bam_merge}, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => q[$$options{split_bam_only}], include_mate => $$options{split_bam_include_mate}";
                 my $split_bam_files = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($bam_path, split_dir => $split_dir, ignore => $$options{split_bam_ignore}, non_chrom => $$options{split_bam_non_chrom}, merge => $merge, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => $$options{split_bam_only}, include_mate => $$options{split_bam_include_mate}, pretend => 1);
                 my @output_files;
                 while (my ($split, $split_bam_path) = each %$split_bam_files) {
@@ -166,7 +166,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
             $skip_mate_mapped = $all_unmapped ? 0 : 1;
         }
         if ($include_mate) {
-            push(@get_fields, 'RNEXT');
+            push(@get_fields, 'MRNM');
         }
         
         if ($pretend) {
@@ -180,15 +180,24 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         $pb->get_fields(@get_fields);
         my %counts;
         while ($pb->next_record) {
-            my $out_bams = $seq_to_bam{ $parsed_record->{RNAME} };
-            if ($include_mate && defined $parsed_record->{RNEXT} && defined $seq_to_bam{ $parsed_record->{RNEXT} }) {
-                my $mate_out_bams = $seq_to_bam{ $parsed_record->{RNEXT} };
-                if ($mate_out_bams) {
-                    push @$out_bams, @$mate_out_bams;
+            my $seq_name = $parsed_record->{RNAME};
+            my %out_bams;
+            if (exists $seq_to_bam{"$seq_name"}) {
+                foreach my $out_bam (@{ $seq_to_bam{"$seq_name"} }) {
+                    $out_bams{$out_bam} = 1;
                 }
             }
-            if ($out_bams) {
-                foreach my $out_bam (@{$out_bams}) {
+            if ($include_mate) {
+                my $mate_seq_name = $parsed_record->{MRNM};
+                if (exists $seq_to_bam{"$mate_seq_name"}) {
+                    foreach my $out_bam (@{ $seq_to_bam{"$mate_seq_name"} }) {
+                        $out_bams{$out_bam} = 1;
+                    }
+                }
+            }
+            
+            if (keys %out_bams) {
+                foreach my $out_bam (keys %out_bams) {
                     $pb->write_result($out_bam . '.unchecked.bam');
                     $counts{$out_bam}++;
                 }

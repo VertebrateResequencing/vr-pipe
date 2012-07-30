@@ -38,10 +38,11 @@ my $setup = VRPipe::PipelineSetup->create(name        => 'btq_setup',
                                           options     => {});
 
 my @fastqs;
+my %bases = (1 => '2822_6.pe_0', 2 => '2822_6.improved.pe_0');
 for my $j (1, 2) {
     foreach my $i (1, 2) {
         my @output_subdirs = output_subdirs($j);
-        push(@fastqs, file(@output_subdirs, '1_bam_to_fastq', "2822_6.$i.fastq"));
+        push(@fastqs, file(@output_subdirs, '1_bam_to_fastq', "$bases{$j}.$i.fastq"));
     }
 }
 ok handle_pipeline(@fastqs), 'bam_to_fastq pipeline ran ok, generating the expected fastqs';

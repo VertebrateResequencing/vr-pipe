@@ -5,8 +5,7 @@ VRPipe::Steps::vep_analysis - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
-Runs the Ensembl Variant Effect Predictor for one or more VCFS, geenrating a txt files of VEP Consequence Annotations
+Runs the Ensembl Variant Effect Predictor for one or more VCFS, generating a txt file of VEP Consequence Annotations
 
 =head1 AUTHOR
 

@@ -5,7 +5,7 @@ VRPipe::Pipelines::snp_calling_chunked_mpileup_vcf - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Run samtools mpileup for a bam datasource, with bams chunked according to either a fasta reference index file or a specific regions file, generating vcf files.
 
 =head1 AUTHOR
 

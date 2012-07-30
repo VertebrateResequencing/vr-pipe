@@ -5,11 +5,12 @@ VRPipe::Persistent::Converter::mysql - a converter for MySQL
 
 =head1 SYNOPSIS
 
-*** more documentation to come
+        my $converter = VRPipe::Persistent::ConverterFactory->create('mysql', {});
+        ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+A Converter implementation for the MySQL database.
 
 =head1 AUTHOR
 

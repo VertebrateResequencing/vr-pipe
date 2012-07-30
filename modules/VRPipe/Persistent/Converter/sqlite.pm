@@ -1,15 +1,16 @@
 
 =head1 NAME
 
-VRPipe::Persistent::Converter::mysql - a converter for MySQL
+VRPipe::Persistent::Converter::mysql - a converter for SQLite
 
 =head1 SYNOPSIS
 
-*** more documentation to come
+        my $converter = VRPipe::Persistent::ConverterFactory->create('sqlite', {});
+        ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+A Converter implementation for the SQLite database.
 
 =head1 AUTHOR
 
