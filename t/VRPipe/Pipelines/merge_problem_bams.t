@@ -27,6 +27,13 @@ my $output_dir = get_output_dir('merge_lanes_and_fix_rgs');
 # matching header and record RGs.
 my $poor_dir = dir(qw(t data poor_rg_bams))->absolute;
 
+# we'll test the readgroup_sm_from_metadata_key option by setting individual
+# metadata for one of the bam pairs
+foreach my $basename ('7662_6#5.bam', '7662_7#5.bam') {
+    my $bam = VRPipe::File->create(path => file($poor_dir, $basename));
+    $bam->add_metadata({ individual => 'overriden_sample' });
+}
+
 my $ref_fa_source = file($poor_dir, 'chr1_truncated.fa');
 my $ref_dir = dir($output_dir, 'ref');
 $merge_lanes_pipeline->make_path($ref_dir);
@@ -54,6 +61,7 @@ VRPipe::PipelineSetup->create(name       => 'test merge lanes',
                               pipeline    => $merge_lanes_pipeline,
                               options     => {
                                            bam_tags_to_strip                     => 'OQ XM XG XO',
+                                           readgroup_sm_from_metadata_key        => 'individual',
                                            bam_merge_keep_single_paired_separate => 1,
                                            bam_merge_memory                      => 200,
                                            cleanup                               => 1 });
@@ -79,8 +87,12 @@ ok handle_pipeline(), 'pipelines ran ok';
 
 
 
+
+
 #*** needs proper tests; so far only manually confirmed that all 3 resulting
 #    sample bams have the expected RGs, and record RG tags match RGs in header
+
+
 
 
 

@@ -5,7 +5,7 @@ Runs the GATK UnifiedGenotyper INDEL left-aligner against VCF files
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the GATK LeftAlignVariants walker to left-align the INDELS in VCF files.
 
 =head1 AUTHOR
 

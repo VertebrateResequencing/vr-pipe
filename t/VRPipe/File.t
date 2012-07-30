@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 36;
+    use Test::Most tests => 39;
     use VRPipeTest;
 }
 
@@ -118,7 +118,21 @@ is_deeply [$vrdest2->md5, $vrdest2->lines], ['f47c75614087a8dd938ba4acff252494',
 
 my $vrdest6 = VRPipe::File->create(path => file($tmp_dir, 'dest6.txt'));
 $vrdest4->move($vrdest6);
+ok -l $vrdest6->path, 'moved symlink is a symlink';
 is_deeply [$vrdest6->resolve->id, $vrdest4->resolve->id], [$real_fileid, $real_fileid], 'even a move of a symlink still resolves correctly for both source and dest';
+
+my $vrdest7 = VRPipe::File->create(path => file($tmp_dir, 'dest7.txt'));
+my $vrdest8 = VRPipe::File->create(path => file($tmp_dir, 'dest8.txt'));
+$vrdest2->symlink($vrdest7);
+unlink $vrdest7->path;
+$vrdest2->move($vrdest8);
+$real_fileid = $vrdest8->id;
+$vrdest6->reselect_values_from_db;
+my $vrdest6_path = $vrdest6->path;
+while (-l $vrdest6_path) { $vrdest6_path = readlink $vrdest6_path; }
+is_deeply [$vrdest6_path, $vrdest6->resolve->id], [$vrdest8->path, $real_fileid], 'symlinks were updated to point the the new location of a moved file';
+$vrdest7->reselect_values_from_db;
+is_deeply [$vrdest7->e, $vrdest7->parent], [0, undef], 'symlink deleted outside of vrpipe was not recreated and existence was updated in db';
 
 my $source_id = $vrsource->id;
 undef $vrsource;

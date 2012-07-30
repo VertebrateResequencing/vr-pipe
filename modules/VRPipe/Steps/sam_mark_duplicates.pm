@@ -47,8 +47,7 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
             my $self    = shift;
             my $options = $self->options;
             $self->handle_standard_options($options);
-            my $markdup_jar = $self->jar('MarkDuplicates.jar');
-            
+            my $markdup_jar  = $self->jar('MarkDuplicates.jar');
             my $markdup_opts = $options->{markdup_options};
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
@@ -70,8 +69,9 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $this_cmd = $self->java_exe . " $jvm_args -jar $markdup_jar INPUT=" . $sam->path . " OUTPUT=" . $markdup_sam_file->path . " $markdup_opts";
-                warn $this_cmd; ####
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_mark_duplicates', 'markdup_and_check', [$this_cmd, $req, { output_files => [$markdup_sam_file] }]);
+                #   Doing a normal dispatch for now as issue with below
+                #   $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_mark_duplicates', 'markdup_and_check', [$this_cmd, $req, { output_files => [$markdup_sam_file] }]);
+                $self->dispatch([qq[$this_cmd], $req, { output_files => [$markdup_sam_file] }]);
             }
         };
     }
@@ -89,7 +89,7 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
     }
     
     method max_simultaneous {
-        return 0;               # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method markdup_and_check (ClassName|Object $self: Str $cmd_line) {
@@ -102,7 +102,7 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
         my $out_file = VRPipe::File->get(path => $out_path);
         
         $in_file->disconnect;
-        warn $cmd_line;         ########
+        warn $cmd_line;      ########
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $out_file->update_stats_from_disc(retries => 3);

@@ -5,7 +5,7 @@ VRPipe::Pipelines::gatk_genotype - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the GATK universal genotyper, generating indexed VCF files from a BAM datasource.
 
 =head1 AUTHOR
 

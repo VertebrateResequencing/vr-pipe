@@ -66,6 +66,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
+            my $bam_id = 0;
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $meta   = $bam->metadata;
                 my $paired = $meta->{paired};
@@ -78,18 +79,23 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     }
                 }
                 
+                my $basename = $bam->basename;
+                $basename =~ s/\.bam//;
+                $basename = "${basename}_$bam_id";
+                $bam_id++;
+                
                 my $out_spec;
                 my @fastqs;
                 if ($paired) {
                     my $fastq = $self->output_file(output_key => 'fastq_files',
-                                                   basename   => "$fastq_meta->{lane}.1.fastq",
+                                                   basename   => "$basename.1.fastq",
                                                    type       => 'fq',
                                                    metadata   => {
                                                                  %$fastq_meta,
                                                                  reads  => $meta->{forward_reads},
                                                                  paired => 1 });
                     my $reverse = $self->output_file(output_key => 'fastq_files',
-                                                     basename   => "$fastq_meta->{lane}.2.fastq",
+                                                     basename   => "$basename.2.fastq",
                                                      type       => 'fq',
                                                      metadata   => {
                                                                    %$fastq_meta,
@@ -104,7 +110,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 }
                 else {
                     my $fastq = $self->output_file(output_key => 'fastq_files',
-                                                   basename   => "$fastq_meta->{lane}.0.fastq",
+                                                   basename   => "$basename.0.fastq",
                                                    type       => 'fq',
                                                    metadata   => {
                                                                  %$fastq_meta,

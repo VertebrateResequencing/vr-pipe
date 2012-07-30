@@ -5,7 +5,7 @@ VRPipe::Pipelines::upload_ega - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Uploads files into the EGA dropbox using the EGA upload client application.
 
 =head1 AUTHOR
 

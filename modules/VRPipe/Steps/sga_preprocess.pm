@@ -71,8 +71,9 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
     method options_definition {
-        return { sga_preprocess_options => VRPipe::StepOption->create(description => 'options to sga preprocess',   optional => 1, default_value => '--min-length=75'),
-                 sga_exe                => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return { sga_preprocess_options        => VRPipe::StepOption->create(description => 'options to sga preprocess',                             optional => 1, default_value => '--min-length=75'),
+                 sga_exe                       => VRPipe::StepOption->create(description => 'path to your sga executable',                           optional => 1, default_value => 'sga'),
+                 sga_preprocess_compress_fastq => VRPipe::StepOption->create(description => 'compress the fastq output of sga preprocess (boolean)', optional => 1, default_value => 1) };
     }
     
     method inputs_definition {
@@ -86,6 +87,7 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
             
             my $sga_exe  = $options->{sga_exe};
             my $sga_opts = $options->{sga_preprocess_options};
+            my $compress = $options->{sga_preprocess_compress_fastq};
             if ($sga_opts =~ /preprocess/) {
                 $self->throw("sga_preprocess_options should not include the preprocess subcommand");
             }
@@ -98,6 +100,9 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
                 next unless $meta->{paired};
                 my $basename = $fq->basename;
                 $basename =~ s/\.(1|2)\.(fq|fastq)(\.gz)?$/\.processed.fq/;
+                if ($compress) {
+                    $basename .= '.gz';
+                }
                 if ($meta->{paired} == 1) {
                     unshift @{ $fastqs{$basename} }, $fq;
                 }
@@ -111,7 +116,8 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
                 my @fqs          = map { $_->path } @{ $fastqs{$fq} };
                 my $meta         = $self->common_metadata($fastqs{$fq});
                 my $processed_fq = $self->output_file(output_key => 'preprocessed_fastq_files', basename => $fq, type => 'fq', metadata => $meta);
-                my $cmd          = qq[$sga_exe preprocess $sga_opts ] . join(' ', @fqs) . ' > ' . $processed_fq->path;
+                my $write_to     = $compress ? '| gzip -c >' : '>';
+                my $cmd          = qq[$sga_exe preprocess $sga_opts ] . join(' ', @fqs) . " $write_to " . $processed_fq->path;
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::sga_preprocess', 'preprocess_and_check', [$cmd, $req, { output_files => [$processed_fq] }]);
             }
         };

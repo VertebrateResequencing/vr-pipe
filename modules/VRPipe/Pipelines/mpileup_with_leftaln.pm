@@ -5,7 +5,7 @@ VRPipe::Pipelines::mpileup_with_leftaln - a pipeline
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Runs the GATK universal genotyper followed by the left-align walker, generating VCF files with left-aligned INDELs from a BAM datasource.
 
 =head1 AUTHOR
 

@@ -17,7 +17,7 @@ foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
 
-is_deeply \@s_names, [qw(fastqc_quality_report trimmomatic bismark bismark_methylation_extractor)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(fastqc_quality_report trimmomatic bismark sam_sort sam_mark_duplicates bismark_methylation_extractor)], 'the pipeline has the correct steps';
 
 my $pipelinesetup = VRPipe::PipelineSetup->create(name       => 'bis_seq_bismark_test',
                                                   datasource => VRPipe::DataSource->create(type    => 'fofn',
@@ -33,9 +33,9 @@ my @output_subdirs = output_subdirs(1);
 # my $outputfile_1   = file(@output_subdirs, '3_bismark', "2822_6_1.trim", "2822_6_1.trim.fastq_Bismark_mapping_report.txt");
 # my $outputfile_2   = file(@output_subdirs, '3_bismark', "2822_6_1.trim", "2822_6_1.trim.fastq_bismark.sam");
 
-my $outputfile_1 = file(@output_subdirs, '4_bismark_methylation_extractor', "CHG_context_2822_6_1.trim.fastq_bismark.sam.txt");
-my $outputfile_2 = file(@output_subdirs, '4_bismark_methylation_extractor', "CpG_context_2822_6_1.trim.fastq_bismark.sam.txt");
-my $outputfile_3 = file(@output_subdirs, '4_bismark_methylation_extractor', "CHH_context_2822_6_1.trim.fastq_bismark.sam.txt");
+my $outputfile_1 = file(@output_subdirs, '6_bismark_methylation_extractor', "CHG_context_2822_6_1.trim.fastq_bismark.sam.sort.markdup.sam.txt");
+my $outputfile_2 = file(@output_subdirs, '6_bismark_methylation_extractor', "CpG_context_2822_6_1.trim.fastq_bismark.sam.sort.markdup.sam.txt");
+my $outputfile_3 = file(@output_subdirs, '6_bismark_methylation_extractor', "CHH_context_2822_6_1.trim.fastq_bismark.sam.sort.markdup.sam.txt");
 
 my @outputfiles;
 push(@outputfiles, $outputfile_1, $outputfile_2, $outputfile_3);
