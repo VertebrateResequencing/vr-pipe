@@ -53,7 +53,7 @@ class VRPipe::Steps::r_script with VRPipe::StepRole {
     
     method rscript_cmd_prefix {
         my $options = $self->options;
-        return "setenv R_LIBS " . $self->r_libs . ";" . $self->rscript_cmd;
+        return "export R_LIBS=" . $self->r_libs . ";" . $self->rscript_cmd;
     }
     
     method handle_standard_options (HashRef $options) {

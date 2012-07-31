@@ -291,9 +291,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 $lib_status = $status ? 'passed' : 'failed';
             }
         }
-
         
-
         # overlapping base duplicate percent
         # calculate the proportion of mapped bases duplicated e.g. if a fragment
         # is 160bp - then 40bp out of 200bp sequenced (or 20% of bases sequenced
@@ -353,6 +351,8 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         }
         
         # write results to the VRTrack database
+        my @objs_to_check = ($vrlane);
+        push(@objs_to_check, $lib_to_update) if $lib_to_update;
         my $worked = $vrtrack->transaction(
             sub {
                 if ($lib_to_update) {
@@ -393,7 +393,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 $vrlane->update();
             },
             undef,
-            [$lib_to_update, $vrlane]);
+            [@objs_to_check]);
         
         # for some bizarre reason, at this point $lib_to_update->auto_qc_status
         # can report the desired status, yet the database has not actually been
