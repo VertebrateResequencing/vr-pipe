@@ -51,6 +51,7 @@ use base qw(Module::Build Exporter);
 sub required_modules {
     return { perl                             => '5.8.8',
              'AnyEvent'                       => 0,
+             'AnyEvent::ForkManager'          => 0,
              'AnyEvent::HTTPD'                => 0,
              'B::Deparse'                     => 0,
              'Class::Unload'                  => 0,
@@ -84,7 +85,6 @@ sub required_modules {
              'Moose'                          => 0,
              'MooseX::AbstractFactory'        => 0,
              'MooseX::Aliases'                => 0,
-             'MooseX::Daemonize'              => 0,
              'MooseX::Declare'                => 0,
              'MooseX::NonMoose'               => 0,
              'MooseX::StrictConstructor'      => 0,
@@ -111,8 +111,7 @@ sub required_modules {
 
 our %do_not_use = ('perl'                           => 1,
                    'DBIx::Class::DeploymentHandler' => 1,
-                   'Inline::C'                      => 1,
-                   'MooseX::Daemonize'              => 1);
+                   'Inline::C'                      => 1);
 
 sub create_site_config {
     my $self = shift;
