@@ -395,6 +395,11 @@ class VRPipe::File extends VRPipe::Persistent {
                 $dest->parent($parent);
                 $dest->update;
             }
+            # if this file was the destination of any symlinks, update these
+            # symlinks to point to the new location
+            foreach my $symlink (VRPipe::File->search({ parent => $self->id })) {
+                $dest->update_symlink($symlink);
+            }
             
             $self->remove; # to update stats and _lines and actually delete us
             $self->moved_to($dest);
@@ -439,6 +444,24 @@ class VRPipe::File extends VRPipe::Persistent {
             $dest->parent($self);
             $dest->update;
         }
+    }
+    
+    method update_symlink (VRPipe::File $dest) {
+        # if the symlink was removed from disk by a outside of
+        # vrpipe, then don't replace the non-existant
+        # file with a new symlink.
+        # don't check $dest->e because the destination of the
+        # symlink has moved and does not exist
+        unless (-l $dest->path) {
+            $dest->update_stats_from_disc;
+            $dest->parent(undef);
+            $dest->update;
+            return;
+        }
+        
+        # otherwise update the symlink
+        $dest->remove;
+        $self->symlink($dest);
     }
 
 =head2 resolve

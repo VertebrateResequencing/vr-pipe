@@ -65,6 +65,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         my $megabytes          = $requirements->memory;
         my $m                  = $megabytes * 1000;
         my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
+        my $cpus               = $requirements->cpus;
+        if ($cpus > 1) {
+            $requirments_string .= " -n$cpus -R 'span[hosts=1]'";
+        }
         
         # work out the scheduler output locations and how to pass on the
         # scheduler array index to the perl cmd

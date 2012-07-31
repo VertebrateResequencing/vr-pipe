@@ -37,25 +37,30 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return {};
+        return { fastq_merge_and_index_compress_fastq => VRPipe::StepOption->create(description => 'compress the fastq output of fastq_merge_and_index (boolean)', optional => 1, default_value => 1) };
     }
     
     method inputs_definition {
         return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
                                                                  max_files   => -1,
-                                                                 description => 'fastq files to be indexed',
+                                                                 description => 'fastq files to be merged',
                                                                  metadata    => { sample => 'sample name' }) };
     }
     
     method body_sub {
         return sub {
-            my $self    = shift;
-            my $options = $self->options;
+            my $self     = shift;
+            my $options  = $self->options;
+            my $compress = $options->{fastq_merge_and_index_compress_fastq};
             
             my @fq_paths = map { $_->path } @{ $self->inputs->{fastq_files} };
             my $fq_meta = $self->common_metadata($self->inputs->{fastq_files});
             
-            my $merged_fastq_file = $self->output_file(output_key => 'merged_fastq_file', basename => 'merged.fq',     type => 'fq',  metadata => $fq_meta);
+            my $fq_basename = 'merged.fq';
+            if ($compress) {
+                $fq_basename .= '.gz';
+            }
+            my $merged_fastq_file = $self->output_file(output_key => 'merged_fastq_file', basename => $fq_basename,    type => 'fq',  metadata => $fq_meta);
             my $index_file        = $self->output_file(output_key => 'index_file',        basename => 'merged.popidx', type => 'txt', metadata => $fq_meta);
             
             my $merged_fastq_path = $merged_fastq_file->path;
@@ -68,8 +73,8 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { merged_fastq_file => VRPipe::StepIODefinition->create(type => 'fq',  description => 'the files produced by sga index', max_files => 1),
-                 index_file        => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by sga index', max_files => 1) };
+        return { merged_fastq_file => VRPipe::StepIODefinition->create(type => 'fq',  description => 'the merged fastq file',                        max_files => 1),
+                 index_file        => VRPipe::StepIODefinition->create(type => 'txt', description => 'popidx file to map sequences back to samples', max_files => 1) };
     }
     
     method post_process_sub {

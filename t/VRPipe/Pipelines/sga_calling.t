@@ -59,13 +59,13 @@ my @input_files;
 my %samples = ('NA20340' => 1, 'HG02449' => 2, 'NA20281' => 3, 'HG01958' => 4, 'NA19381' => 5, 'NA19334' => 6);
 while (my ($sample, $element_id) = each %samples) {
     my @output_subdirs = output_subdirs($element_id, 1);
+    my $id = 0;
     foreach my $chrom (qw(11 20)) {
         push(@input_files, file(@output_subdirs, '1_bam_split_by_sequence', qq[chrom$chrom.$sample.bam]));
-        my $bam_file = VRPipe::File->create(path => $input_files[-1]);
-        my $md5 = $bam_file->md5;
-        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',   qq[$md5.1.fastq]));
-        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',   qq[$md5.2.fastq]));
-        push(@input_files, file(@output_subdirs, '4_sga_preprocess', qq[$md5.processed.fq]));
+        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_$id.1.fastq]));
+        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_$id.2.fastq]));
+        push(@input_files, file(@output_subdirs, '4_sga_preprocess',        qq[chrom$chrom.${sample}_$id.processed.fq.gz]));
+        $id++;
     }
 }
 
@@ -77,10 +77,10 @@ foreach my $suffix (qw(fa sai rsai bwt rbwt ssa)) {
 my @calling_files;
 foreach my $element_id (7 .. 12) {
     my @output_subdirs = output_subdirs($element_id, 2);
-    foreach my $suffix (qw(fq popidx bwt sai)) {
+    foreach my $suffix (qw(fq.gz popidx bwt sai)) {
         push(@calling_files, file(@output_subdirs, '4_fastq_merge_and_index', 'merged.' . $suffix));
     }
-    foreach my $suffix (qw(base.vcf variant.vcf)) {
+    foreach my $suffix (qw(base.vcf calls.vcf variant.vcf)) {
         push(@calling_files, file(@output_subdirs, '6_sga_reference_based_calling', 'merged.' . $suffix));
     }
 }

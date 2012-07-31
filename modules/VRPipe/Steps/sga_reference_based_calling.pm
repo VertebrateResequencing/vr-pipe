@@ -49,14 +49,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
     method options_definition {
-        return { sga_graph_diff_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '--debruijn --low-coverage -k 51'),
-                 sga_exe                => VRPipe::StepOption->create(description => 'path to your sga executable',                            optional => 1, default_value => 'sga') };
+        return { sga_graph_diff_options => VRPipe::StepOption->create(description => 'options to sga graph-diff',   optional => 1, default_value => '--debruijn --low-coverage -k 61'),
+                 sga_exe                => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
     }
     
     method inputs_definition {
         return { sga_indexed_variant_reads => VRPipe::StepIODefinition->create(type => 'fq',  max_files => -1, description => 'file with variant reads'),
-                 reference_fasta           => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'reference fasta file') },
-          ;
+                 reference_fasta           => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'reference fasta file') };
     }
     
     method body_sub {
@@ -73,24 +72,29 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga graph-diff ' . $sga_opts . ' --variant $variant_fastq --reference $reference_fasta'));
             
-            my $req = $self->new_requirements(memory => 16000, time => 1);
+            my ($cpus) = $sga_opts =~ m/-t\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $sga_opts =~ m/--threads (\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 16000, time => 1, $cpus ? (cpus => $cpus) : ());
             foreach my $fq (@{ $self->inputs->{sga_indexed_variant_reads} }) {
                 my $prefix = $fq->basename;
                 $prefix =~ s/\.(fq|fastq)(\.gz)?$//;
                 my $base_vcf      = $self->output_file(output_key => 'sga_base_vcf_files',      basename => qq[$prefix.base.vcf],    type => 'vcf', metadata => $fq->metadata);
                 my $variant_vcf   = $self->output_file(output_key => 'sga_variant_vcf_files',   basename => qq[$prefix.variant.vcf], type => 'vcf', metadata => $fq->metadata);
+                my $calls_vcf     = $self->output_file(output_key => 'sga_calls_vcf_files',     basename => qq[$prefix.calls.vcf],   type => 'vcf', metadata => $fq->metadata);
                 my $strings_fasta = $self->output_file(output_key => 'sga_strings_fasta_files', basename => qq[$prefix.strings.fa],  type => 'txt', metadata => $fq->metadata);
                 my $cmd           = qq[$sga_exe graph-diff $sga_opts -p $prefix --variant ] . $fq->path . qq[ --reference ] . $ref_file->path;
-                $self->dispatch([$cmd, $req, { output_files => [$base_vcf, $variant_vcf, $strings_fasta] }]);
-                # $self->dispatch([$cmd, $req, {output_files => [$base_vcf,$variant_vcf]}]);
+                $self->dispatch([$cmd, $req, { output_files => [$base_vcf, $variant_vcf, $calls_vcf, $strings_fasta] }]);
             }
         };
     }
     
     method outputs_definition {
-        return { sga_base_vcf_files      => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
-                 sga_variant_vcf_files   => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff', max_files => -1),
-                 sga_strings_fasta_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'variant calls made by sga graph-diff', max_files => -1, check_existence => 0) };
+        return { sga_base_vcf_files      => VRPipe::StepIODefinition->create(type => 'vcf', description => 'base variant calls made by sga graph-diff', max_files => -1),
+                 sga_variant_vcf_files   => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff',      max_files => -1),
+                 sga_calls_vcf_files     => VRPipe::StepIODefinition->create(type => 'vcf', description => 'calls made by sga graph-diff',              max_files => -1),
+                 sga_strings_fasta_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'strings fasta made by sga graph-diff',      max_files => -1, check_existence => 0) };
     }
     
     method post_process_sub {
