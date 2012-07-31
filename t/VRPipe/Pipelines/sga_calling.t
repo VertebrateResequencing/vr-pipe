@@ -39,6 +39,7 @@ VRPipe::PipelineSetup->create(name       => 'sga prepare fastq test',
                                            split_bam_include_mate => 1,
                                            sga_preprocess_options => '--min-length=50',
                                            sga_exe                => 'sga',
+                                           ignore_read_ordering   => 1,
                                            cleanup                => 0, });
 
 VRPipe::PipelineSetup->create(name       => 'sga calling test',
