@@ -54,21 +54,23 @@ Version 0.08198 of DBIx::Class has a prefetch-related bug which prevents VRPipe
 from working. Please use an earlier version like 0.08196, or any higher version
 that claims to have fixed https://rt.cpan.org/Ticket/Display.html?id=78456 :
 'force install ARODLAND/DBIx-Class-0.08196.tar.gz'.
+If you find that AnyEvent::ForkManager fails tests and emmits errors mentioning
+WNOHANG, you will have to cd to the cpan build directory and edit line 11 of
+blib/lib/AnyEvent/ForkManager.pm to read "use POSIX qw(WNOHANG);" (without the
+quotes). Then you can do "make test" and "make install".
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is
 recommended to use a stand-alone relational database such as MySQL. The pipeline
 functionality requires such a database, but if you're only using code such as a
-parser or the bas function you can use sqlite, supplying a file path for the
+parser or the bas function you can use SQLite, supplying a file path for the
 database name.
 
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
 
-If you choose to use the local scheduler, you will need to add the scripts
-directory to your PATH prior to running tests. Note that the local scheduler
-currently doesn't work well with an sqlite database, so some tests are likely
-to fail with that combination.
+Note that the local scheduler currently doesn't work well with an SQLite
+database, so some tests are likely to fail with that combination.
 
 
 To test the code prior to using it:
