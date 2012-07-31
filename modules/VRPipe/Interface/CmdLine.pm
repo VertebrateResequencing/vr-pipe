@@ -47,6 +47,7 @@ class VRPipe::Interface::CmdLine {
     use Sys::Hostname::Long;
     use VRPipe::Config;
     use VRPipe::Persistent::SchemaBase;
+    use Config;
     
     has 'description' => (is       => 'rw',
                           isa      => 'Str',
@@ -308,7 +309,27 @@ class VRPipe::Interface::CmdLine {
         else {
             if ($response->code == 500) {
                 $self->error("Can't connect to VRPiper server at $base_url, will attempt to auto-start it...");
-                system('vrpipe-server --deployment ' . $self->opts('deployment') . ' start');
+                my $deployment = $self->opts('deployment');
+                my $script     = 'vrpipe-server';
+                if ($deployment eq 'testing') {
+                    # we might not have vrpipe-server in our PATH, and the
+                    # modules it needs might not be in our PERL5LIB, so allow
+                    # us to still work if we're running from the git repo root
+                    # dir (eg. during testing prior to an install). In fact, for
+                    # testing purposes, we prefer this to some version of the
+                    # files installed elsewhere.
+                    my $local_script = file('scripts', 'vrpipe-server');
+                    my $modules_dir = dir('modules');
+                    if (-x $local_script && -d $modules_dir) {
+                        my $thisperl = $Config{perlpath};
+                        if ($^O ne 'VMS') {
+                            $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
+                        }
+                        $script = "$thisperl -I$modules_dir $local_script";
+                    }
+                }
+                my $cmd = $script . ' --deployment ' . $deployment . ' start'; # (this confuses perltidy if put directly in the system() call)
+                system($cmd);
                 
                 # the vrpipe-server call returns ~instantly, but may take some
                 # time before the server is actually ready to connect to; keep
