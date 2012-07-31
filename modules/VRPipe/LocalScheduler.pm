@@ -172,17 +172,6 @@ class VRPipe::LocalScheduler {
         
         my $fm = AnyEvent::ForkManager->new(max_workers => $self->cpus);
         
-        $fm->on_start(
-            sub {
-                my ($fm, $pid, $lsjs) = @_;
-                warn "lsjs ", $lsjs->id, " with pid $pid started\n";
-            });
-        $fm->on_finish(
-            sub {
-                my ($fm, $pid, $status, $lsjs) = @_;
-                warn "lsjs ", $lsjs->id, " with pid $pid finished\n";
-            });
-        
         foreach my $lsjs (@lsjss) {
             $fm->start(
                 cb => sub {
