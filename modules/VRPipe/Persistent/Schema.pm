@@ -105,6 +105,13 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
         
         return $converter->index_statements($self, $mode);
     }
+
+    sub get_db_schema_version {
+        my ($self) = @_;
+        my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
+        my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
+        return $converter->get_db_schema_version($self);
+    }
 }
 
 1;

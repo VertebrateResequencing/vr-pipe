@@ -5,11 +5,16 @@ VRPipe::Persistent::ConverterRole - a role required of all SQL converters
 
 =head1 SYNOPSIS
 
-*** more documentation to come
+        my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {}); # eg mysql
+
+        $idx_sql = $converter->index_statements($self, $mode);
+
+        ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
+        $cname = $converter->get_boolean_type();
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Converters are required for each supported database, and implement various methods to allow Persistent objects to be created, and the Schema to be deployed, in a database independent way.
 
 =head1 AUTHOR
 
@@ -62,6 +67,20 @@ role VRPipe::Persistent::ConverterRole {
             }
         }
         return \@idx_cmds;
+    }
+    
+    method get_db_schema_version (VRPipe::Persistent::Schema $schema) {
+        
+        my $db_version;
+        my $rc = $schema->storage->dbh_do(
+            sub {
+                my ($storage, $dbh) = @_;
+                my $res = $dbh->selectall_arrayref("select version from dbix_class_deploymenthandler_versions order by id desc");
+                $db_version = $res->[0][0];
+            }
+            );
+        
+        return $db_version;
     }
 }
 

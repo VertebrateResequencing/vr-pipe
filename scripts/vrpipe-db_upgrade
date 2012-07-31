@@ -34,18 +34,19 @@ use VRPipe::Persistent::SchemaBase;
 use VRPipe::Persistent::ConverterFactory;
 
 my $to = PS->VERSION;
-my $from = $to - 1;
+my $s = PS->connect;
+my $from = $s->get_db_schema_version;
 my $help = 0;
-GetOptions("from=i" => \$from,
-           "to=i" => \$to,
-           "help" => \$help);
+GetOptions( "help" => \$help);
 
 if ($help) {
-    print "Upgrade VRPipe schema for your production database:\nvrpipe-db_upgrade --from $from --to $to\n";
+    print "Upgrade VRPipe schema for your production database:\nvrpipe-db_upgrade\n";
     exit;
 }
-
-my $s = PS->connect;
+if ($from eq $to) {
+    print "Database is already up to date\n";
+    exit;
+}
 
 my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
 my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
