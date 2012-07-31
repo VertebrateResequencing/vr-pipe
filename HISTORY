@@ -1,3 +1,6 @@
+0.88    bam_to_fastq step can now take an option to allow it to not care about
+        keeping the forward and reverse fastq files "in-sync", which helps with
+        the SGA-related steps.
 0.87    vrpipe-db_upgrade no longer takes --from and --to options, but instead
         will correctly upgrade the database from its current version to the
         latest, avoiding user-error. Bug-fix for vrpipe-elements so that -f
