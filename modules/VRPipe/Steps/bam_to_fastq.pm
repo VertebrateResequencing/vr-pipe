@@ -37,13 +37,13 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return {};
+        return { ignore_read_ordering => VRPipe::StepOption->create(description => 'Do not require the input BAM to be name sorted. Output paired fastq are not necessarily in the same order nor guaranteed to have equal number of reads.', optional => 1, default_value => 0) };
     }
     
     method inputs_definition {
         return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
                                                                max_files   => -1,
-                                                               description => '1 or more name sorted bam files',
+                                                               description => '1 or more BAM files. If the ignore_read_ordering option not set (the default) then BAMs must be name sorted.',
                                                                metadata    => {
                                                                              lane             => 'lane name (a unique identifer for this sequencing run, aka read group)',
                                                                              bases            => 'total number of base pairs',
@@ -62,7 +62,9 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self                 = shift;
+            my $options              = $self->options;
+            my $ignore_read_ordering = $options->{ignore_read_ordering};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
@@ -123,7 +125,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     $out_spec = 'single => q[' . $fastq->path . ']';
                 }
                 
-                my $this_cmd = "use VRPipe::Steps::bam_to_fastq; VRPipe::Steps::bam_to_fastq->bam_to_fastq(bam => q[$source_bam], $out_spec);";
+                my $this_cmd = "use VRPipe::Steps::bam_to_fastq; VRPipe::Steps::bam_to_fastq->bam_to_fastq(bam => q[$source_bam], $out_spec, ignore_read_ordering => $ignore_read_ordering);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@fastqs });
             }
         };
@@ -163,7 +165,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method bam_to_fastq (ClassName|Object $self: Str|File :$bam!, Str|File :$forward?, Str|File :$reverse?, Str|File :$single?) {
+    method bam_to_fastq (ClassName|Object $self: Str|File :$bam!, Str|File :$forward?, Str|File :$reverse?, Str|File :$single?, Bool :$ignore_read_ordering = 0) {
         if ((defined $forward ? 1 : 0) + (defined $reverse ? 1 : 0) == 1) {
             $self->throw("When forward is used, reverse is required, and vice versa");
         }
@@ -188,7 +190,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         my $pr = $pars->parsed_record();
         $pars->get_fields('QNAME', 'FLAG', 'SEQ', 'QUAL', 'OQ');
         my %pair_data;
-        my ($pair_count, $single_count, $total_reads_parsed) = (0, 0, 0);
+        my ($pair_count, $single_count, $total_reads_parsed, $forward_count, $reverse_count) = (0, 0, 0, 0, 0);
         while ($pars->next_record()) {
             my $qname = $pr->{QNAME};
             my $flag  = $pr->{FLAG};
@@ -202,7 +204,19 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 $qual = reverse($qual);
             }
             
-            if ($forward && $pars->is_sequencing_paired($flag)) {
+            if ($forward && $pars->is_sequencing_paired($flag) && $ignore_read_ordering) {
+                my $first = $pars->is_first($flag);
+                my $fh = $first ? $out_fhs[0] : $out_fhs[1];
+                if ($first) {
+                    print $fh '@', $qname, "/1\n", $seq, "\n+\n", $qual, "\n";
+                    $forward_count++;
+                }
+                else {
+                    print $fh '@', $qname, "/2\n", $seq, "\n+\n", $qual, "\n";
+                    $reverse_count++;
+                }
+            }
+            elsif ($forward && $pars->is_sequencing_paired($flag)) {
                 my $key = $pars->is_first($flag) ? 'forward' : 'reverse';
                 $pair_data{$key} = [$qname, $seq, $qual];
                 my $f = $pair_data{forward} || [''];
@@ -268,6 +282,9 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             # Instead we just confirm that the number of reads we wanted to
             # write out could actually be read back again
             my $expected_reads = $fq_meta->{paired} ? $pair_count : $single_count;
+            if ($fq_meta->{paired} && $ignore_read_ordering) {
+                $expected_reads = $fq_meta->{paired} == 1 ? $forward_count : $reverse_count;
+            }
             unless ($expected_reads == $these_reads) {
                 $self->throw("Made fastq file " . $out_file->path . " but there were only $these_reads reads instead of $expected_reads");
             }
