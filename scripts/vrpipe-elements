@@ -29,31 +29,22 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::FrontEnd;
 
 my $frontend = VRPipe::FrontEnd->new(description => "See details related to incomplete element states.",
-                                     opt_spec => [ [ 'element=i', 'Show details for this single element state only', { persistent_object => 'DataElementState' } ],
-                                                   [ 'setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'failed|f', q[Only show elements that have have stalled in a pipeline due to repeated failures that couldn't be overcome automatically] ],
-                                                   [ 'retries|r=i', q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default => 3 } ],
-                                                   [ 'all|a', q[Normally only details of incomplete elements are given; this shows even ones that are done (may be very slow)] ],
-                                                   [],
-                                                   [ q[After the above options have been used to filter the list of all elements, and their details have been printed to screen, the following options will let you take action on those elements (after a confirmation prompt):] ],
-                                                   [ 'start_from_scratch', q[For each pipeline you will be asked for a list of steps, and these will be fully reset so it is as if those steps had never been run for all the element states that went through that pipeline] ],
-                                                   [ 'no_report', q[Don't print out full details of each element, just start_from_scratch as fast as possible] ],
-                                                   [ 'force_with_all', q[Force --start_from_scratch to work with --all], { hidden => 1 } ] ]);
+                                     opt_spec    => [['element=i', 'Show details for this single element state only', { persistent_object => 'DataElementState' }], ['setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }], ['failed|f', q[Only show elements that have have stalled in a pipeline due to repeated failures that couldn't be overcome automatically]], ['retries|r=i', q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default => 3 }], ['all|a', q[Normally only details of incomplete elements are given; this shows even ones that are done (may be very slow)]], [], [q[After the above options have been used to filter the list of all elements, and their details have been printed to screen, the following options will let you take action on those elements (after a confirmation prompt):]], ['start_from_scratch', q[For each pipeline you will be asked for a list of steps, and these will be fully reset so it is as if those steps had never been run for all the element states that went through that pipeline]], ['no_report', q[Don't print out full details of each element, just start_from_scratch as fast as possible]], ['force_with_all', q[Force --start_from_scratch to work with --all], { hidden => 1 }]]);
 
-my $desired_ele = $frontend->option_was_set('element');
-my $failed = $frontend->opts('failed');
-my $retries = $frontend->opts('retries');
-my $all = $frontend->opts('all');
+my $desired_ele        = $frontend->option_was_set('element');
+my $failed             = $frontend->opts('failed');
+my $retries            = $frontend->opts('retries');
+my $all                = $frontend->opts('all');
 my $start_from_scratch = $frontend->opts('start_from_scratch');
-my $no_report = $frontend->opts('no_report');
-my $force_with_all = $frontend->opts('force_with_all');
+my $no_report          = $frontend->opts('no_report');
+my $force_with_all     = $frontend->opts('force_with_all');
 
 if ($all && $failed) {
     $frontend->error("--all and --failed don't make sense togother; ignoring --all");
     undef $all;
 }
 
-if ($all && ! $force_with_all && $start_from_scratch) {
+if ($all && !$force_with_all && $start_from_scratch) {
     $frontend->die_with_error("Sorry, --all combined with --start_from_scratch seems like a really bad idea. Use --force_with_all if you're really really sure");
 }
 
@@ -93,7 +84,7 @@ else {
                         next;
                     }
                     
-                    my ($found) = VRpipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
+                    my ($found) = VRPipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
                     if ($found) {
                         #*** can we combine all the above into one big search search query with multiple joins?...
                         push(@element_states, $estate);
@@ -111,22 +102,22 @@ my $count = 0;
 my %summary;
 my %for_scratching;
 foreach my $estate (@element_states) {
-    my $setup = $estate->pipelinesetup;
-    my $pipeline = $setup->pipeline;
-    my @stepms = $pipeline->step_members;
-    my $num_steps = @stepms;
-    my $pipe_name = $pipeline->name." ($num_steps steps)";
+    my $setup           = $estate->pipelinesetup;
+    my $pipeline        = $setup->pipeline;
+    my @stepms          = $pipeline->step_members;
+    my $num_steps       = @stepms;
+    my $pipe_name       = $pipeline->name . " ($num_steps steps)";
     my $completed_steps = $estate->completed_steps;
-    my $last_step_name = 'no_steps_complete';
+    my $last_step_name  = 'no_steps_complete';
     foreach my $stepm (@stepms) {
         next unless $stepm->step_number == $completed_steps;
         my $step = $stepm->step;
-        $last_step_name = $stepm->step->name." (step $completed_steps)";
+        $last_step_name = $stepm->step->name . " (step $completed_steps)";
     }
     
     $count++;
     $summary{$pipe_name}->{$last_step_name}++;
-    push(@{$for_scratching{$pipeline->id}}, $estate);
+    push(@{ $for_scratching{ $pipeline->id } }, $estate);
     
     next if $no_report;
     
@@ -183,10 +174,10 @@ foreach my $estate (@element_states) {
         }
         my $subs_desc;
         if (@subs_desc) {
-            $subs_desc = '(submission breakdown = '.join(', ', @subs_desc).')';
+            $subs_desc = '(submission breakdown = ' . join(', ', @subs_desc) . ')';
         }
         else {
-            $subs_desc = '(no submissons created for step state '.$sstate->id.' yet)';
+            $subs_desc = '(no submissons created for step state ' . $sstate->id . ' yet)';
         }
         
         $step_desc = ": currently $status on $current_step_name $subs_desc";
@@ -210,9 +201,9 @@ unless ($desired_ele) {
 
 if ($count > 0 && $start_from_scratch) {
     while (my ($pipeline_id, $estates) = each %for_scratching) {
-        my $count = @$estates;
+        my $count    = @$estates;
         my $pipeline = VRPipe::Pipeline->get(id => $pipeline_id);
-        my $answer = $frontend->ask_question(question => "Are you sure you want to start $count data element states over from scratch for steps (that you'll choose next) in pipeline?", possibles => [qw(y n)], default => 'n');
+        my $answer   = $frontend->ask_question(question => "Are you sure you want to start $count data element states over from scratch for steps (that you'll choose next) in pipeline?", possibles => [qw(y n)], default => 'n');
         if ($answer eq 'y') {
             # give the user a step list to choose from, and provide them a
             # reasonable default
@@ -225,14 +216,14 @@ if ($count > 0 && $start_from_scratch) {
             foreach my $estate (@$estates) {
                 my $completed = $estate->completed_steps;
                 if ($completed >= $furthest) {
-                    $furthest = $completed;
+                    $furthest        = $completed;
                     $furthest_estate = $estate;
                 }
             }
             my @default_steps = $furthest_estate->our_step_numbers;
             
             my $max = $pipeline->_num_steps;
-            $answer = $frontend->ask_question(question => "Step numbers", default => join(' ', @default_steps), required => 1, possibles => [1..$max], allow_multiple => ' ');
+            $answer = $frontend->ask_question(question => "Step numbers", default => join(' ', @default_steps), required => 1, possibles => [1 .. $max], allow_multiple => ' ');
             my @desired_steps = sort { $a <=> $b } grep { $_ =~ /^\d+$/ && $_ >= 1 && $_ <= $max } split(/\s+/, $answer);
             $frontend->output("Will redo steps ", join(', ', @desired_steps));
             
