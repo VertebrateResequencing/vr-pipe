@@ -100,6 +100,10 @@ class VRPipe::Interface::BackEnd {
     </xsl:for-each>
 </xsl:template>
 
+<xsl:template match="/interface/response_line">
+    <p><xsl:value-of select="."/></p>
+</xsl:template>
+
 <xsl:template match="objects">
     <table border="1">
         <thead>
@@ -189,6 +193,11 @@ XSL
 <xsl:template match="/interface/title"/>
 
 <xsl:template match="/interface/warning">
+    <xsl:value-of select="."/><xsl:text>
+</xsl:text>
+</xsl:template>
+
+<xsl:template match="/interface/response_line">
     <xsl:value-of select="."/><xsl:text>
 </xsl:text>
 </xsl:template>
@@ -338,6 +347,10 @@ XSL
                   isa    => 'Str',
                   writer => '_set_dsn');
     
+    has 'scheduler' => (is     => 'ro',
+                        isa    => 'Str',
+                        writer => '_set_scheduler');
+    
     has 'schema' => (is      => 'ro',
                      isa     => 'VRPipe::Persistent::Schema',
                      lazy    => 1,
@@ -396,6 +409,10 @@ XSL
         $self->_set_umask("$umask");
         my $uid = $vrp_config->server_uid;
         $self->_set_uid("$uid");
+        
+        $method_name = $deployment . '_scheduler';
+        my $scheduler = $vrp_config->$method_name();
+        $self->_set_scheduler("$scheduler");
         
         $method_name = $deployment . '_scheduler_output_root';
         my $log_dir = $vrp_config->$method_name();
@@ -516,20 +533,21 @@ XSL
         return \%opts;
     }
     
-    method handle_httpd_event ($sub, $httpd, $req) {
+    sub handle_httpd_event {
+        my ($self, $sub, $httpd, $req, @others) = @_;
         my $xml;
         try {
-            $xml = &{$sub}($req);
+            $xml = &{$sub}($req, @others);
         }
         catch ($err) {
             chomp($err);
-            $xml = '<error><![CDATA[' . $err . ']]></error>';
+            $xml = $self->xml_tag('error', $err);
             $self->log("fatal event captured responding to " . $req->url . " for " . $req->client_host . ": " . $err);
         }
         
         my $warnings = '';
         while (my $warning = $self->_get_warning) {
-            $warnings .= '<warning><![CDATA[' . $warning . ']]></warning>';
+            $warnings .= $self->xml_tag('warning', $warning);
         }
         
         $self->output($req, $warnings . $xml);
@@ -551,13 +569,19 @@ XSL
         warn "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
     }
     
+    method xml_tag (Str $tag, Str $cdata, Str $attribs?) {
+        $attribs ||= '';
+        $attribs &&= ' ' . $attribs;
+        return '<' . $tag . $attribs . '><![CDATA[' . $cdata . ']]></' . $tag . '>';
+    }
+    
     method hash_to_xml (HashRef $hash, ArrayRef[Str] $key_order?) {
         $key_order ||= [sort { $a cmp $b } keys %$hash];
         
         my $xml = '<hash>';
         foreach my $key (@$key_order) {
             next unless defined $hash->{$key};
-            $xml .= qq[<pair key="$key"><![CDATA[$hash->{$key}]]></pair>];
+            $xml .= $self->xml_tag('pair', $hash->{$key}, qq[key="$key"]);
         }
         $xml .= '</hash>';
         
