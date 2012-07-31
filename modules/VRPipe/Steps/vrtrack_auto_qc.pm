@@ -291,11 +291,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 $lib_status = $status ? 'passed' : 'failed';
             }
         }
-
-
         
-
-
         # overlapping base duplicate percent
         # calculate the proportion of mapped bases duplicated e.g. if a fragment
         # is 160bp - then 40bp out of 200bp sequenced (or 20% of bases sequenced
