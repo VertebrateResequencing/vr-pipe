@@ -45,7 +45,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepStatsUtil {
-    use POSIX;
+    use POSIX qw(ceil);
     
     our %means;
     our %percentiles;
@@ -134,7 +134,7 @@ class VRPipe::StepStatsUtil {
         my ($count, $percentile) = $self->_percentile($method, 95, $pipelinesetup ? ($pipelinesetup) : ());
         if ($count >= 3) {
             if ($percentile % 100) {
-                return (1 + int($percentile / 100)) * 100;
+                return ceil($percentile / 100) * 100;
             }
             else {
                 return $percentile;

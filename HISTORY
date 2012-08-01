@@ -1,3 +1,5 @@
+0.89    Fixed critical bug in Submission reserved memory calculation that could
+        prevent certain pipelines from proceeding when a step ran out of memory.
 0.88    bam_to_fastq step can now take an option to allow it to not care about
         keeping the forward and reverse fastq files "in-sync", which helps with
         the SGA-related steps.
