@@ -1,3 +1,5 @@
+0.90    Upgraded irods step to make it compatible with latest version of
+        ichksum (critical fix for any irods-related pipeline).
 0.89    Fixed critical bug in Submission reserved memory calculation that could
         prevent certain pipelines from proceeding when a step ran out of memory.
 0.88    bam_to_fastq step can now take an option to allow it to not care about
