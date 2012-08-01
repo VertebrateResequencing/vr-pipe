@@ -50,6 +50,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     use Devel::GlobalDestruction;
     use DateTime;
     use VRPipe::Parser;
+    use POSIX qw(ceil);
     
     has 'job' => (is         => 'rw',
                   isa        => Persistent,
@@ -325,7 +326,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method extra_memory (Int $extra?) {
         unless ($extra) {
-            # increase by 1GB or 30%, whichever is greater
+            # increase by 1GB or 30%, whichever is greater, and round up to
+            # nearest 100
             my $minimum_memory_increase    = 1000;
             my $memory_increase_percentage = 0.3;
             my $current_mem                = $self->memory;
@@ -336,6 +338,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $extra = $updated_memory_limit - $current_mem;
         }
         
+        $extra = ceil($extra / 100) * 100;
         $self->_add_extra('memory', $extra);
     }
     
