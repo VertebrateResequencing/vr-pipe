@@ -40,6 +40,8 @@ package VRPipeBuild;
 BEGIN { unshift(@INC, './modules') }
 use base qw(Module::Build Exporter);
 @EXPORT = qw(get_pm_files required_modules);
+use Config;
+use File::Spec;
 
 # we're in the odd position of wanting to call the code we're trying to install
 # during the install process. If we're missing module dependencies
@@ -181,6 +183,32 @@ sub ACTION_realclean {
     }
     
     $self->SUPER::ACTION_realclean(@_);
+}
+
+sub ACTION_test {
+    my $self = shift;
+    
+    # it's not strictly necessary and would happen automatically anyway, but
+    # we start vrpipe-server before testing:
+    my $local_script = File::Spec->catfile('scripts', 'vrpipe-server');
+    my $modules_dir = 'modules';
+    my $server;
+    if (-x $local_script && -d $modules_dir) {
+        my $thisperl = $Config{perlpath};
+        if ($^O ne 'VMS') {
+            $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
+        }
+        $server = "$thisperl -I$modules_dir $local_script --deployment testing";
+    }
+    system("$server start");
+    warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
+    
+    $self->SUPER::ACTION_test(@_);
+    
+    # and then stop it afterwards. This is the real point of this override:
+    # the testing server might stay alive on the users system until their next
+    # reboot, which is wasteful if they never do any development or testing!
+    system("$server stop");
 }
 
 # this method, called by create_build_script(), is just annoying and we don't
