@@ -76,7 +76,7 @@ class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
             
             my $cmd =  $self->rscript_cmd_prefix . " $convex_rscript_path/BreakpointsCall.R $rd_sample_file_name,$max_bin_size,$bp_file_name";
 
-            $self->dispatch([$cmd, $req]);
+            $self->dispatch_wrapped_cmd('VRPipe::Steps::convex_breakpoints', 'run_bp_script', [$cmd, $req ]);
         };
     }
     
@@ -94,6 +94,11 @@ class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
     
     method max_simultaneous {
         return 1;            # should only run once
+    }
+
+    method run_bp_script (ClassName|Object $self: Str $cmd_line) {
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        return 1;
     }
 }
 
