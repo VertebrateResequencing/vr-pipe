@@ -109,7 +109,7 @@ class VRPipe::Interface::CmdLine {
     }
     
     method _build_ua {
-        my $ua = LWP::UserAgent->new(timeout => 10, agent => 'VRPipe-Client');
+        my $ua = LWP::UserAgent->new(timeout => 20, agent => 'VRPipe-Client');
         return $ua;
     }
     
@@ -379,7 +379,7 @@ class VRPipe::Interface::CmdLine {
             return $response->decoded_content;
         }
         else {
-            $self->die_with_error($response->status_line);
+            $self->die_with_error("Failed to get $post_args[0] (@{$post_args[1]}):" . $response->status_line);
         }
     }
     
