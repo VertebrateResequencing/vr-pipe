@@ -415,8 +415,9 @@ sub local_scheduler {
         my $o   = $opts->{out} || die "the out option is required when submitting\n";
         my $e   = $opts->{err} || die "the err option is required when submitting\n";
         my $a   = $opts->{a};
+        my $env = $opts->{env} || {};
         my $ls = VRPipe::LocalScheduler->new(o => $o, e => $e, $a ? (a => $a) : ());
-        $xml .= $backend->xml_tag('response_line', $ls->submit($cmd));
+        $xml .= $backend->xml_tag('response_line', $ls->submit($cmd, $env));
     }
     elsif ($mode eq 'jobs') {
         $xml = '<title>Jobs in the Local Scheduler</title>';

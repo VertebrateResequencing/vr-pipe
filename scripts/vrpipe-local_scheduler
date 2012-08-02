@@ -42,6 +42,7 @@ my $params = { mode => $command };
 if ($command eq 'submit') {
     my $cmd = $others[0] || $cmdline->die_with_error('submit must be supplied a command to run');
     $params->{cmd} = $cmd;
+    $params->{env} = {%ENV};
 }
 elsif ($command eq 'jobs' || $command eq 'kill') {
     if ($command eq 'kill') {

@@ -71,7 +71,7 @@ class VRPipe::LocalScheduler {
                 documentation => 'to specify a job array give the size of the array (default 1)',
                 default       => 1);
     
-    method submit (Str $cmd) {
+    method submit (Str $cmd, HashRef $env) {
         my $o_file = $self->o;
         my $e_file = $self->e;
         unless ($o_file && $e_file) {
@@ -79,7 +79,7 @@ class VRPipe::LocalScheduler {
         }
         
         my $array_size = $self->a;
-        my $lsj = VRPipe::LocalSchedulerJob->create(cmd => $cmd, array_size => $array_size, cwd => cwd());
+        my $lsj = VRPipe::LocalSchedulerJob->create(cmd => $cmd, array_size => $array_size, cwd => cwd(), env => $env);
         
         my $user = getlogin || getpwuid($<);
         my @lsjs_args;
