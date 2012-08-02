@@ -28,6 +28,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use EV;
 use AnyEvent;
+use AnyEvent::Util qw(fork_call);
 use VRPipe::Interface::CmdLine;
 use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
@@ -143,9 +144,41 @@ sub start_server {
     # daemonize unless we're not supposed to
     my $orig_dir = $backend->daemonize unless $foreground;
     
+    # some events we respond to are done in an async fork so that we, the
+    # parent, remain responsive to other events. Here we set the max number of
+    # forks allowed at once. Sadly, httpd blocks until our callback returns
+    # something for the page, so we can't do those asyncronously
+    $AnyEvent::Util::MAX_FORKS = 1;
+    
     # setup the timer for the local scheduler to process its queue
-    my $ls = VRPipe::LocalScheduler->new;
-    my $ls_watcher = EV::timer_ns 0, $deployment eq 'production' ? 30 : 5, sub { $ls->process_queue; };
+    my $ls                         = VRPipe::LocalScheduler->new;
+    my $time_of_last_process_queue = time();
+    my $timer_interval             = $deployment eq 'production' ? 30 : 5;
+    my $ls_watcher                 = EV::timer_ns 0, $timer_interval, sub {
+        # don't do this more than once per x seconds
+        return unless time() - $time_of_last_process_queue >= $timer_interval;
+        
+        # we want to run process_queue every x seconds, but it may take
+        # longer than x seconds to run and we don't want to wait, so we do
+        # our own async fork (in order to call something that in turn will
+        # do further async forks...). It doesn't seem to matter that our
+        # children (presumably) have all our watchers running.
+        fork_call { $ls->process_queue; return; } sub {
+            $time_of_last_process_queue = time();
+            my $err = $@ || return;
+            
+            # when testing, we likely start the server and call
+            # process_queue before the VRPipe database has been created,
+            # so we make a nicer error message
+            if (ref($err)) {
+                $err = "$err"; # try and stringify it
+            }
+            if ($err =~ /no such table/) {
+                $err = 'VRPipe database not created yet, cannot process_queue for the local scheduler';
+            }
+            $backend->log($err);
+        };
+    };
     
     # automatically start the local scheduler if we're supposed to be using the
     # local scheduler
@@ -186,7 +219,7 @@ sub start_server {
     my $sigquit_watcher = EV::signal 'QUIT', sub { shutdown_server("SIGQUIT received"); };
     
     # run the event loop
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started.");
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started (pid $$).");
     EV::run;
     
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!");
