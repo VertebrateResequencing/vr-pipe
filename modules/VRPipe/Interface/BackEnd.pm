@@ -530,6 +530,13 @@ XSL
             }
         }
         
+        foreach my $key (keys %opts) {
+            if ($key =~ /^(.+)\:hashderef\:(.+)$/) {
+                my $val = delete $opts{$key};
+                $opts{$1}->{$2} = $val;
+            }
+        }
+        
         return \%opts;
     }
     

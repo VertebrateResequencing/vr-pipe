@@ -393,6 +393,11 @@ class VRPipe::Interface::CmdLine {
                         push(@list, $key, $subval);
                     }
                 }
+                elsif ($ref eq 'HASH') {
+                    while (my ($sub_key, $subval) = each %{$val}) {
+                        push(@list, "$key:hashderef:$sub_key", $subval);
+                    }
+                }
                 else {
                     $self->throw("Can't cope with values of type $ref as post args");
                 }
