@@ -38,6 +38,8 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
                             isa     => 'ArrayRef',
                             builder => '_build_meta_to_check');
     
+    my $core_samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
+    
     around options_definition {
         my $options = $self->$orig;
         # we ignore bamcheck options, since bam_metadata is used to get the
@@ -94,7 +96,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
     }
     
     method store_pg_chain (ClassName|Object $self: Str|File :$bam!) {
-        my $open = "samtools view -H $bam |";
+        my $open = "$core_samtools_exe view -H $bam |";
         open(my $fh, $open) || $self->throw("Couldn't open '$open': $!");
         my $pg_chain;
         while (<$fh>) {
