@@ -67,7 +67,6 @@ class VRPipe::Steps::sam_sort with VRPipe::StepRole {
             my $outfile_path = $outfile->path;
             my $req          = $self->new_requirements(memory => 1500, time => 1);
             my $cmd          = qq{ grep '^\@' $infile_path > $outfile_path; grep -v '^\@' $infile_path | sort -k 3,3V -k 4,4n >> $outfile_path; };
-            warn $cmd;
             $self->dispatch([qq[$cmd], $req, { output_files => [$outfile] }]);
           }
     }
