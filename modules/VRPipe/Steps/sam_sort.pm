@@ -13,6 +13,8 @@ Currently this step sorts a sam file by co-oridinate.
 
 
 
+
+
 =head1 AUTHOR
 
 NJWalker <nw11@sanger.ac.uk>.
@@ -64,7 +66,7 @@ class VRPipe::Steps::sam_sort with VRPipe::StepRole {
             my $infile_path  = $infile->path;
             my $outfile_path = $outfile->path;
             my $req          = $self->new_requirements(memory => 1500, time => 1);
-            my $cmd          = qq{ grep '^\@' $infile_path > $outfile_path; grep -v '^\@' $infile_path | sort -k 3,3 -k 4,4n >> $outfile_path; };
+            my $cmd          = qq{ grep '^\@' $infile_path > $outfile_path; grep -v '^\@' $infile_path | sort -k 3,3V -k 4,4n >> $outfile_path; };
             $self->dispatch([qq[$cmd], $req, { output_files => [$outfile] }]);
           }
     }
