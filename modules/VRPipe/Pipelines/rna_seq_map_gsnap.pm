@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::rna_seq_bismark - a pipeline
+VRPipe::Pipelines::rna_seq_map_gsnap - a pipeline
 
 =head1 DESCRIPTION
 
