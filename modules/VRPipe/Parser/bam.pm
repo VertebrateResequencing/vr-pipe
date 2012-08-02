@@ -114,6 +114,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
     use Devel::GlobalDestruction;
     
     use Inline C => Config => FILTERS => 'Strip_POD' => INC => "-I$ENV{SAMTOOLS}" => LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" => CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
+    my $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
     
     our %flags = (paired_tech   => 0x0001,
                   paired_map    => 0x0002,
@@ -163,7 +164,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
             $self->{_filename} = $filename;
             
             # set up the open command which is just for the header
-            my $open = "samtools view -H $filename |";
+            my $open = "$samtools_exe view -H $filename |";
             open(my $fh, $open) || $self->throw("Couldn't open '$open': $!");
             
             # open in the C API

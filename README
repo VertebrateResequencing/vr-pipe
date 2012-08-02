@@ -23,12 +23,13 @@ INSTALLATION
 
 You will need the source version of samtools compiled with -fPIC and -m64 in the
 CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
-(which should now contain bam.h and libbam.a). Samtools can be downloaded from
-here: http://sourceforge.net/projects/samtools/files/samtools/
-Furthermore, it is required that a samtools executable be in your PATH. (Note
-that tests use the samtools in your PATH, not samtools in your SAMTOOlS dir;
-production pipelines will use the samtools at the absolute path you configure
-them with during setup - the default will be the first one in your PATH.)
+(which should now contain bam.h and libbam.a, and MUST contain the samtools
+executable). Samtools can be downloaded from here:
+http://sourceforge.net/projects/samtools/files/samtools/
+(Note that tests use the samtools in your PATH, not the samtools in your
+SAMTOOLS dir; production pipelines will use the samtools at the absolute path
+you configure them with during setup - the default will be the first one in your
+PATH.)
 
 It is also recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and
 create that directory.
