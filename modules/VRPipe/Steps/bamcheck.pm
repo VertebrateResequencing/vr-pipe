@@ -195,6 +195,31 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 unless (defined $existing_meta->{study}) { $new_meta->{study} = $info->{DS} if $info->{DS}; }
                 else                                     { $new_meta->{study} = $existing_meta->{study} }
             }
+            else {
+                # Add metadata if same for all RGs
+                my %rg_items = ( PU => 'lane', LB => 'library', SM => 'sample', CN => 'center_name', PL => 'platform', DS => 'study',);
+
+                foreach my $rg_k (keys %rg_items ) {
+                    my $rg_item = $rg_items{$rg_k};
+                    unless (defined $existing_meta->{$rg_item}) {
+                        foreach my $i (0..$#rgs) {
+                            my $info = $rg_info{ $rgs[$i] };
+                            if ($info->{$rg_k}) {
+                                if ($new_meta->{$rg_item}) {
+                                    if ($info->{$rg_k} ne $new_meta->{$rg_item}) {
+                                        delete $new_meta->{$rg_item};
+                                        last;
+                                    }
+                                }
+                                else {
+                                    $new_meta->{$rg_item} = $info->{$rg_k};
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (@rgs != 1 || "$new_meta->{lane}" eq "1") {
                 # call the name something we can be most sure is maximally
                 # unique
