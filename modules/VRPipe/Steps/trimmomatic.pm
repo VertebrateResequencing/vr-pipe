@@ -100,7 +100,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                                                         type       => 'fq',
                                                         metadata   => $pair[0]->metadata);
                     
-                    my $out_file_2 = $self->output_file(output_key => 'trimmed_files',
+                    my $out_file_2 = $self->output_file(output_key => 'unpaired_trimmed_files',
                                                         basename   => $name1 . '.unpaired.trim.fastq',
                                                         type       => 'fq',
                                                         metadata   => $pair[0]->metadata);
@@ -111,7 +111,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                                                         type       => 'fq',
                                                         metadata   => $pair[1]->metadata);
                     
-                    my $out_file_4 = $self->output_file(output_key => 'trimmed_files',
+                    my $out_file_4 = $self->output_file(output_key => 'unpaired_trimmed_files',
                                                         basename   => $name2 . '.unpaired.trim.fastq',
                                                         type       => 'fq',
                                                         metadata   => $pair[1]->metadata);
@@ -132,8 +132,10 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
     }
     
     method outputs_definition {
-        return { trimmed_files   => VRPipe::StepIODefinition->create(type => 'fq',  max_files   => -1, description => 'trimmomatic trimmed file output'),
-                 trimmomatic_log => VRPipe::StepIODefinition->create(type => 'txt', description => 'trimmomatic log file') };
+        return {
+            trimmed_files          => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, min_files => 0, description     => 'trimmomatic trimmed file output'),
+            unpaired_trimmed_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, min_files => 0, check_existence => 0, description => 'trimmomatic trimmed file output'),
+            trimmomatic_log => VRPipe::StepIODefinition->create(type => 'txt', description => 'trimmomatic log file') };
     }
     
     method post_process_sub {

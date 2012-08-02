@@ -5,7 +5,7 @@ VRPipe::Steps::bam_metadata_with_sex - a step
 
 =head1 DESCRIPTION
 
-Extends bam_metadata to add Sample Gender meta-data to bam files
+Extends bam_metadata to add Sample Gender meta-data to bam files. Assumes bams have sample meta-data and are therefore single-sample.
 
 =head1 AUTHOR
 
@@ -68,6 +68,7 @@ class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
                 my $meta = $bamfile->metadata;
                 unless (defined $meta->{sex}) {
                     my $bam_sample = $meta->{sample};
+                    $self->throw("Failed to get sample meta for " . $bamfile->path) unless $bam_sample;
                     
                     my $bam_sex;
                     if ($sample_sex{$bam_sample}) {
@@ -90,7 +91,7 @@ class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
     }
     
     method description {
-        return "Extends bam_metadata to Add Sample Gender meta-data to bam files";
+        return "Extends bam_metadata to Add Sample Gender meta-data to single-sample bam files";
     }
 
 }
