@@ -196,20 +196,24 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 else                                     { $new_meta->{study} = $existing_meta->{study} }
             }
             else {
-                # Add sample meta if all RG samples are the same
+                # Add metadata if same for all RGs
+                my %rg_items = ( PU => 'lane', LB => 'library', SM => 'sample', CN => 'center_name', PL => 'platform', DS => 'study',);
 
-                unless (defined $existing_meta->{sample}) {
-                    foreach my $i (0..$#rgs) {
-                        my $info = $rg_info{ $rgs[$i] };
-                        if ($info->{SM}) {
-                            if ($new_meta->{sample}) {
-                                if ($info->{SM} ne $new_meta->{sample}) {
-                                    delete $new_meta->{sample};
-                                    last;
+                foreach my $rg_k (keys %rg_items ) {
+                    my $rg_item = $rg_items{$rg_k};
+                    unless (defined $existing_meta->{$rg_item}) {
+                        foreach my $i (0..$#rgs) {
+                            my $info = $rg_info{ $rgs[$i] };
+                            if ($info->{$rg_k}) {
+                                if ($new_meta->{$rg_item}) {
+                                    if ($info->{$rg_k} ne $new_meta->{$rg_item}) {
+                                        delete $new_meta->{$rg_item};
+                                        last;
+                                    }
                                 }
-                            }
-                            else {
-                                $new_meta->{sample} = $info->{SM};
+                                else {
+                                    $new_meta->{$rg_item} = $info->{$rg_k};
+                                }
                             }
                         }
                     }
