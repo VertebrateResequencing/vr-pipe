@@ -161,19 +161,12 @@ else {
     @allowed_step_members = (@step_members);
 }
 
-# loop through completed elements
-my $pipeline_length = @step_members;
-my $estates_pager   = $setup->dataelementstates_pager;
-my $count           = 0;
-my $incomplete      = 0;
+# loop through elements
+my $estates_pager = $setup->dataelementstates_pager;
+my $count         = 0;
 my %done_outputs;
 while (my $estates = $estates_pager->next) {
     foreach my $element_state (@$estates) {
-        unless ($element_state->completed_steps == $pipeline_length) {
-            $incomplete++;
-            next;
-        }
-        
         my $element = $element_state->dataelement;
         my $eident  = "DataElement " . $element->id;
         
@@ -203,7 +196,9 @@ while (my $estates = $estates_pager->next) {
         my $filtered_files = 0;
         my $total_files    = 0;
         foreach my $stepm (@allowed_step_members) {
-            my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
+            my ($stepstate) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup, complete => 1 });
+            $stepstate || next;
+            
             my $step_outs = $stepstate->output_files;
             my $smid      = $stepm->id;
             my $force     = exists $allowed_kinds{$smid}->{all};
@@ -422,8 +417,6 @@ while (my $estates = $estates_pager->next) {
         }
     }
 }
-
-$frontend->error("$incomplete incomplete data elements were ignored") if $incomplete;
 
 exit;
 
