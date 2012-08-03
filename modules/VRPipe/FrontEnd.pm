@@ -302,6 +302,15 @@ class VRPipe::FrontEnd {
         die "\n";
     }
     
+    method progress_indicator (Bool $end?) {
+        if ($end) {
+            print STDERR "\n";
+        }
+        else {
+            print STDERR '. ';
+        }
+    }
+    
     method display_hash (Str $name, HashRef $hash, ArrayRef[Str] $key_order?) {
         $key_order ||= [sort { $a cmp $b } keys %$hash];
         $self->output("$name:");
