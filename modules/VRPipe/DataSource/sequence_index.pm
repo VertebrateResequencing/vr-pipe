@@ -195,7 +195,8 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                my $element = VRPipe::DataElement->get(datasource => $did, result => $result_hash);
+                my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
+                $element || next;
                 foreach my $estate ($element->element_states) {
                     $estate->start_from_scratch;
                 }
