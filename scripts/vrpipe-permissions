@@ -94,7 +94,10 @@ while (my $estates = $estates_pager->next) {
         my $element = $element_state->dataelement;
         $num_elements++;
         foreach my $stepm (@allowed_step_members) {
-            my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
+            my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
+            $step_state || next;
+            
+            my $step_outs = $step_state->output_files;
             my $smid      = $stepm->id;
             my $force     = exists $allowed_kinds{$smid}->{all};
             
