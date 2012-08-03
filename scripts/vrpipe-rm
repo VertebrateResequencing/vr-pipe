@@ -91,25 +91,18 @@ if ($setup) {
         push(@allowed_step_members, $stepm);
     }
     
-    # loop through completed elements
-    my $pipeline_length   = @step_members;
-    my $deleted           = 0;
-    my $complete_elements = 0;
-    my $incomplete        = 0;
-    my $estates_pager     = $setup->dataelementstates_pager;
+    # loop through all elements
+    my $deleted       = 0;
+    my $num_elements  = 0;
+    my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
     my %done_files;
     while (my $estates = $estates_pager->next) {
         foreach my $element_state (@$estates) {
-            unless ($element_state->completed_steps == $pipeline_length) {
-                $incomplete++;
-                next;
-            }
-            $complete_elements++;
-            
             # delete outputs
             my $element = $element_state->dataelement;
+            $num_elements++;
             foreach my $stepm (@allowed_step_members) {
-                my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
+                my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files(undef, only_unique_to_us => 1);
                 my $smid      = $stepm->id;
                 my $force     = exists $allowed_kinds{$smid}->{all};
                 
@@ -136,7 +129,7 @@ if ($setup) {
         }
     }
     
-    $frontend->output("$incomplete incomplete data elements were ignored, and $deleted files ", ($pretend ? "would have been" : "were"), " deleted for $complete_elements complete elements") if $verbose;
+    $frontend->output("$deleted files ", ($pretend ? "would have been" : "were"), " deleted for $num_elements elements") if $verbose;
 }
 
 my %protected_dirs;
