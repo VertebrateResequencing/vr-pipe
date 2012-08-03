@@ -186,9 +186,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         $self->debug("start_over called for stepstate " . $self->id);
         
         # first reset all associated submissions in order to reset their jobs
-        my @sub_ids;
         foreach my $sub ($self->submissions) {
-            push(@sub_ids, $sub->id);
             $sub->start_over;
             
             # delete any stepstats there might be for us
