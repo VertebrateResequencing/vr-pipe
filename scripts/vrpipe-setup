@@ -90,6 +90,7 @@ if ($setup) {
         # delete all related rows in the db
         my @step_members = $setup->pipeline->steps;
         my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+        my @jobs_to_delete;
         while (my $estates = $estates_pager->next) {
             foreach my $element_state (@$estates) {
                 $frontend->progress_indicator;
@@ -123,7 +124,7 @@ if ($setup) {
                         }
                         
                         $sub->delete;
-                        $job->delete if $all_mine;
+                        push(@jobs_to_delete, $job) if $all_mine;
                     }
                     
                     # delete output files not also created by some other setup
@@ -142,8 +143,13 @@ if ($setup) {
         }
         $frontend->progress_indicator(1);
         
-        # also delete the pipeline setup itself if in delete mode
+        foreach my $job (@jobs_to_delete) {
+            $job->delete;
+        }
+        
+        # also delete the pipelinesetup and links if in delete mode
         if ($delete) {
+            VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
             $setup->delete;
             $frontend->output("Setup $setup_id has been reset and deleted.");
         }
