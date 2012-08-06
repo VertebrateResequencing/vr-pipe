@@ -1,3 +1,6 @@
+0.92    vrpipe-setup script can now --reset or --delete an existing
+        PipelineSetups, to completely wipe out all progress on them. Fixed
+        critical bug in the sequence_index DataSource.
 0.91    When VRPipe counts the number of records in a bam, it now uses the
         samtools executable in the $SAMTOOLS directory, not the first one in the
         $PATH.

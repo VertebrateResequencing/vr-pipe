@@ -78,11 +78,19 @@ class VRPipe::StepState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent(has_many => [[submissions => 'VRPipe::Submission'], ['_output_files' => 'VRPipe::StepOutputFile']]);
     
-    method output_files (PersistentFileHashRef $new_hash?) {
+    method output_files (Maybe[PersistentFileHashRef] $new_hash?, Bool :$only_unique_to_us?) {
+        $only_unique_to_us = 0 if $new_hash;
         my @current_sofiles = VRPipe::StepOutputFile->search({ stepstate => $self->id, output_key => { '!=' => 'temp' } }, { prefetch => 'file' });
         my %hash;
         foreach my $sof (@current_sofiles) {
-            push(@{ $hash{ $sof->output_key } }, $sof->file);
+            my $file = $sof->file;
+            
+            if ($only_unique_to_us) {
+                my $others = VRPipe::StepOutputFile->search({ file => $file->id, output_key => { '!=' => 'temp' }, stepstate => { '!=' => $self->id } });
+                next if $others;
+            }
+            
+            push(@{ $hash{ $sof->output_key } }, $file);
         }
         
         if ($new_hash) {
@@ -153,8 +161,8 @@ class VRPipe::StepState extends VRPipe::Persistent {
     
     }
     
-    method output_files_list {
-        my $outputs = $self->output_files;
+    method output_files_list (Bool :$only_unique_to_us = 0) {
+        my $outputs = $self->output_files(undef, only_unique_to_us => $only_unique_to_us);
         my @files;
         if ($outputs) {
             foreach my $val (values %$outputs) {
@@ -170,8 +178,8 @@ class VRPipe::StepState extends VRPipe::Persistent {
         }
     }
     
-    method unlink_output_files {
-        foreach my $file ($self->output_files_list) {
+    method unlink_output_files (Bool :$only_unique_to_us = 1) {
+        foreach my $file ($self->output_files_list(only_unique_to_us => $only_unique_to_us)) {
             $file->unlink;
         }
     }
@@ -186,9 +194,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         $self->debug("start_over called for stepstate " . $self->id);
         
         # first reset all associated submissions in order to reset their jobs
-        my @sub_ids;
         foreach my $sub ($self->submissions) {
-            push(@sub_ids, $sub->id);
             $sub->start_over;
             
             # delete any stepstats there might be for us
@@ -204,7 +210,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
         
         # now reset self
-        $self->unlink_output_files;
+        $self->unlink_output_files(only_unique_to_us => 1);
         $self->complete(0);
         $self->update;
         

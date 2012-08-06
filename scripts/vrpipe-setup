@@ -29,36 +29,26 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::FrontEnd;
 
 my $frontend = VRPipe::FrontEnd->new(description => "Setup a new pipeline, or alter the configuration of an existing one.",
-                                     opt_spec => [ [],
-                                                   [ q[Run with no options to create a new PipelineSetup.] ],
-                                                   [ 'based_on=s', 'Provide the name or id of an existing PipelineSetup to create a new PipelineSetup based on it', { persistent_object => 'PipelineSetup' } ],
-                                                   [],
-                                                   [ q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:] ],
-                                                   [ 'list|l', 'Just list out the setup names and ids, so you can subsequently rerun using --setup' ],
-                                                   [ 'user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => getlogin || getpwuid($<) } ],
-                                                   [],
-                                                   [ q[To alter an existing PipelineSetup:] ],
-                                                   [ 'setup=s', 'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously] ],
-                                                   [ 'deactivate', 'Turn off the given --setup' ],
-                                                   [ 'reactivate', 'Turn on the given --setup' ] ]);
+                                     opt_spec    => [[], [q[Run with no options to create a new PipelineSetup.]], ['based_on=s', 'Provide the name or id of an existing PipelineSetup to create a new PipelineSetup based on it', { persistent_object => 'PipelineSetup' }], [], [q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:]], ['list|l', 'Just list out the setup names and ids, so you can subsequently rerun using --setup'], ['user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => getlogin || getpwuid($<) }], [], [q[To alter an existing PipelineSetup:]], ['setup=s', 'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' }], ['extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]], ['deactivate', 'Turn off the given --setup'], ['reactivate', 'Turn on the given --setup'], ['reset', 'Wipe out all progress on the --setup, returning everything to the state it was just after you first created the setup, and leaves it in a deactivated state'], ['delete', 'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it']]);
 
-my $user = $frontend->opts('user');
-my $setup = $frontend->get_pipelinesetups();
+my $user          = $frontend->opts('user');
+my $setup         = $frontend->get_pipelinesetups();
 my $extra_options = $frontend->opts('extra_options');
-my $deactivate = $frontend->opts('deactivate');
-my $reactivate = $frontend->opts('reactivate');
-my $list = $frontend->opts('list');
-my $based_on = $frontend->opts('based_on');
+my $deactivate    = $frontend->opts('deactivate');
+my $reactivate    = $frontend->opts('reactivate');
+my $reset         = $frontend->opts('reset');
+my $delete        = $frontend->opts('delete');
+my $list          = $frontend->opts('list');
+my $based_on      = $frontend->opts('based_on');
 
 if ($setup && $list) {
     $frontend->error("--setup and --list don't make sense together; ignoring --list");
     $list = 0;
 }
-if ($user eq 'all' && ! $list) {
+if ($user eq 'all' && !$list) {
     $frontend->die_with_error("--user all when not listing with --list don't make sense; when creating a new setup set a real user name with --user, or leave it to the default");
 }
-if (($extra_options || $deactivate || $reactivate) && ! $setup) {
+if (($extra_options || $deactivate || $reactivate) && !$setup) {
     $frontend->error("--extra_options, --deactivate and --activate only make sense when given a --setup; ignoring them");
     undef $extra_options;
     undef $deactivate;
@@ -83,6 +73,90 @@ if ($setup) {
         
         $frontend->output("The 'active' state of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") is now $active");
     }
+    elsif ($reset || $delete) {
+        my $go_ahead = $frontend->ask_question(question => "Are you really sure you want to wipe out all progress on this setup? All output files will be deleted!", possibles => [qw(y n)], required => 1);
+        if ($go_ahead eq 'n') {
+            $frontend->output("Abandoning this request, no harm done");
+            exit;
+        }
+        
+        my $setup_id = $setup->id;
+        $frontend->output("Working on wiping out all trace of setup $setup_id...");
+        
+        # deactivate it first
+        $setup->active(0);
+        $setup->update;
+        
+        # delete all related rows in the db
+        my @step_members = $setup->pipeline->steps;
+        my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+        my @jobs_to_delete;
+        while (my $estates = $estates_pager->next) {
+            foreach my $element_state (@$estates) {
+                $frontend->progress_indicator;
+                
+                my $element = $element_state->dataelement;
+                foreach my $stepm (@step_members) {
+                    my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
+                    $step_state || next;
+                    
+                    # delete all the step_state's submissions, and their job if
+                    # not also used by some other setup
+                    foreach my $sub ($step_state->submissions) {
+                        my $job = $sub->job;
+                        
+                        my @job_subs = VRPipe::Submission->search({ job => $job->id }, { prefetch => { stepstate => 'pipelinesetup' } });
+                        my $all_mine = 1;
+                        foreach my $other_sub (@job_subs) {
+                            if ($other_sub->stepstate->pipelinesetup->id != $setup_id) {
+                                $all_mine = 0;
+                                last;
+                            }
+                        }
+                        
+                        if ($all_mine) {
+                            $job->kill_job unless $job->finished;
+                        }
+                        
+                        # delete any stepstats for the submission
+                        foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
+                            $ss->delete;
+                        }
+                        
+                        $sub->delete;
+                        push(@jobs_to_delete, $job) if $all_mine;
+                    }
+                    
+                    # delete output files not also created by some other setup
+                    $step_state->unlink_output_files(only_unique_to_us => 1);
+                    
+                    # delete sofs
+                    foreach my $sof ($step_state->_output_files) {
+                        $sof->delete;
+                    }
+                    
+                    $step_state->delete;
+                }
+                
+                $element_state->delete;
+            }
+        }
+        $frontend->progress_indicator(1);
+        
+        foreach my $job (@jobs_to_delete) {
+            $job->delete;
+        }
+        
+        # also delete the pipelinesetup and links if in delete mode
+        if ($delete) {
+            VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
+            $setup->delete;
+            $frontend->output("Setup $setup_id has been reset and deleted.");
+        }
+        else {
+            $frontend->output("Setup $setup_id has been reset and is now deactivated.");
+        }
+    }
     else {
         # allow the user to change pipeline setup options
         
@@ -92,7 +166,7 @@ if ($setup) {
         my @options;
         my $pipeline = $setup->pipeline;
         foreach my $stepm ($pipeline->step_members) {
-            my $step = $stepm->step;
+            my $step        = $stepm->step;
             my $option_defs = $step->options_definition;
             foreach my $key (sort keys %$option_defs) {
                 next if exists $option_names{$key};
@@ -108,7 +182,7 @@ if ($setup) {
                 # for this step
                 my $step_name = $step->name;
                 foreach my $resource (qw(memory time cpus tmp_space)) { # local_space custom
-                    my $key = $step_name.'_'.$resource;
+                    my $key = $step_name . '_' . $resource;
                     next if exists $option_names{$key};
                     $option_num++;
                     $option_names{$key} = $option_num;
@@ -117,7 +191,7 @@ if ($setup) {
                 
                 # and an option to limit the number of simultanous jobs for this
                 # step
-                my $key = $step_name.'_max_simultaneous';
+                my $key = $step_name . '_max_simultaneous';
                 unless (exists $option_names{$key}) {
                     $option_num++;
                     $option_names{$key} = $option_num;
@@ -139,12 +213,12 @@ if ($setup) {
             }
             my @steps = sort { $a <=> $b } keys %steps;
             
-            my @defaults = keys %{$reg->{$regulator}->{defaults}};
+            my @defaults = keys %{ $reg->{$regulator}->{defaults} };
             my $default = @defaults == 1 ? $defaults[0] : 'mixed';
             
             $option_num++;
             $option_names{$regulator} = $option_num;
-            $options[$option_num] = [$regulator, "Turn the behaviours (".join(', ', @methods).") of steps (".join(', ', @steps).") on (1) of off (0)", 1, "$default" ne 'mixed' ? $default : '', [0, 1]];
+            $options[$option_num] = [$regulator, "Turn the behaviours (" . join(', ', @methods) . ") of steps (" . join(', ', @steps) . ") on (1) of off (0)", 1, "$default" ne 'mixed' ? $default : '', [0, 1]];
         }
         
         if ($option_num) {
@@ -154,8 +228,8 @@ if ($setup) {
             # change an option, then repeat until they choose to finish
             while (1) {
                 my $current_opts = $setup->options;
-                foreach my $i (1..$option_num) {
-                    my ($key, $desc, $optional, $default, $allowed) = @{$options[$i]};
+                foreach my $i (1 .. $option_num) {
+                    my ($key, $desc, $optional, $default, $allowed) = @{ $options[$i] };
                     my $current = defined $current_opts->{$key} ? $current_opts->{$key} : '[not set]';
                     my $comment = $optional ? 'optional' : 'REQUIRED';
                     $frontend->output("$i. $key ($comment) => $current");
@@ -172,7 +246,7 @@ if ($setup) {
                 my $chosen_key = $options[$choice]->[0];
                 my $val = $frontend->ask_question(question => "Provide a new value for '$chosen_key'",
                                                   required => $options[$choice]->[2] ? 0 : 1,
-                                                  $options[$choice]->[3] ? (default => $options[$choice]->[3]) : (),
+                                                  $options[$choice]->[3] ? (default   => $options[$choice]->[3]) : (),
                                                   $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ());
                 $current_opts->{$chosen_key} = $val;
                 $setup->options($current_opts);
@@ -226,7 +300,7 @@ else {
         my $hash = $adaptor->adaptor_hash;
         while (my ($kind, $ins_hash) = each %$hash) {
             if (exists $ins_hash->{data_element}) {
-                push(@{$source_input_step_num_to_kind{$adaptor->to_step}}, $kind);
+                push(@{ $source_input_step_num_to_kind{ $adaptor->to_step } }, $kind);
             }
         }
     }
@@ -238,13 +312,13 @@ else {
     my %source_input_steps;
     foreach my $sm (@sms) {
         my $step_number = $sm->step_number;
-        my @kinds = @{$source_input_step_num_to_kind{$step_number} || next};
+        my @kinds = @{ $source_input_step_num_to_kind{$step_number} || next };
         foreach my $kind (@kinds) {
-            $source_input_steps{$step_number.'#'.$kind} = $sm->step;
+            $source_input_steps{ $step_number . '#' . $kind } = $sm->step;
         }
     }
     $frontend->output("Your chosen pipeline takes DataSource input during step(s):");
-    foreach my $snk (sort { my ($n1, $s1) = split('#', $a); my ($n2, $s2) = split('#', $b); $n1 <=> $n2  || $s1 cmp $s2 } keys %source_input_steps) {
+    foreach my $snk (sort { my ($n1, $s1) = split('#', $a); my ($n2, $s2) = split('#', $b); $n1 <=> $n2 || $s1 cmp $s2 } keys %source_input_steps) {
         my $source_input_step = $source_input_steps{$snk};
         my ($source_input_step_num, $source_input_step_kind) = split('#', $snk);
         my $source_input_io_def = $source_input_step->inputs_definition->{$source_input_step_kind};
@@ -258,9 +332,9 @@ else {
     $frontend->output("\n");
     my ($based_on_ds, $based_on_ds_type, $based_on_ds_type_num, $based_on_ds_method, $based_on_ds_method_num, $based_on_ds_options);
     if ($based_on) {
-        $based_on_ds = $based_on->datasource;
-        $based_on_ds_type = $based_on_ds->type;
-        $based_on_ds_method = $based_on_ds->method;
+        $based_on_ds         = $based_on->datasource;
+        $based_on_ds_type    = $based_on_ds->type;
+        $based_on_ds_method  = $based_on_ds->method;
         $based_on_ds_options = $based_on_ds->options;
     }
     foreach my $ds_type ($frontend->sub_modules('DataSource')) {
@@ -289,7 +363,7 @@ else {
     
     # get the source
     my $ds_module = "VRPipe::DataSource::$chosen_ds_type";
-    my $ds = $ds_module->new;
+    my $ds        = $ds_module->new;
     $frontend->output("$chosen_ds_type DataSources have a source described as:\n", $ds->source_description);
     my $ds_source = $frontend->ask_question(question => "Supply the source", required => 1, $based_on_ds ? (default => $based_on_ds->source) : ());
     
@@ -347,14 +421,14 @@ else {
     my $soo_i = 0;
     foreach my $step (@steps) {
         my $step_name = $step->name;
-        my $def = $step->options_definition;
+        my $def       = $step->options_definition;
         while (my ($key, $vso) = each %$def) {
             unless (exists $step_options{$key}) {
                 $soo_i++;
                 $step_option_order{$soo_i} = $key;
             }
             
-            push(@{$step_options{$key}->{steps}}, $step_name);
+            push(@{ $step_options{$key}->{steps} }, $step_name);
             # *** how do we better handle different steps having the same option
             #     key but different vsos? Ignored for now; we just use the last
             $step_options{$key}->{vso} = $vso;
@@ -368,9 +442,9 @@ else {
     if (keys %step_options) {
         $frontend->output("\nPlease provide options for the '", $pipeline->name, "' pipeline:");
         foreach my $soo_i (sort { $a <=> $b } keys %step_option_order) {
-            my $key = $step_option_order{$soo_i};
-            my @steps = @{$step_options{$key}->{steps}};
-            my $vso = $step_options{$key}->{vso};
+            my $key     = $step_option_order{$soo_i};
+            my @steps   = @{ $step_options{$key}->{steps} };
+            my $vso     = $step_options{$key}->{vso};
             my $comment = $vso->optional ? 'optional' : 'REQUIRED';
             $comment .= ', used by step';
             $comment .= 's' if @steps > 1;
@@ -381,7 +455,7 @@ else {
             else {
                 $default = $vso->default_value;
             }
-            my $arg = $frontend->ask_question(question => "\t$key ($comment ".join(", ", @steps).")\n\t".$vso->description, possibles => $vso->allowed_values, default => $default, required => ! $vso->optional); #*** could vso be altered so that it could actually validate the answer right away?...
+            my $arg = $frontend->ask_question(question => "\t$key ($comment " . join(", ", @steps) . ")\n\t" . $vso->description, possibles => $vso->allowed_values, default => $default, required => !$vso->optional); #*** could vso be altered so that it could actually validate the answer right away?...
             if (defined $arg && "$arg" ne '') {
                 $pipeline_args{$key} = $arg;
             }
@@ -403,9 +477,9 @@ else {
             my $methods = $reg->{$regulator}->{methods};
             while (my ($method, $steps) = each %$methods) {
                 my @steps = sort { $a <=> $b } keys %$steps;
-                $frontend->output("\t\t'$method' - acts on steps ".join(', ', @steps));
+                $frontend->output("\t\t'$method' - acts on steps " . join(', ', @steps));
             }
-            my @defaults = keys %{$reg->{$regulator}->{defaults}};
+            my @defaults = keys %{ $reg->{$regulator}->{defaults} };
             my $default;
             if ($based_on_options && defined $based_on_options->{$regulator}) {
                 $default = $based_on_options->{$regulator};
@@ -427,7 +501,7 @@ else {
     $frontend->output("\nWe've now gathered all information; here's what you've asked for:");
     $frontend->output("\tPipelineSetup name: $setup_name (for user $user)");
     $frontend->display_hash("\tDataSource: $chosen_ds_type\->$chosen_method with source $ds_source", \%chosen_method_args);
-    $frontend->display_hash("\tPipeline: ".$pipeline->name." (outputting to $output_root)", \%pipeline_args);
+    $frontend->display_hash("\tPipeline: " . $pipeline->name . " (outputting to $output_root)",      \%pipeline_args);
     
     my $correct = $frontend->ask_question(question => "Is all of this correct?", possibles => [qw(y n)], required => 1);
     
@@ -457,7 +531,7 @@ sub describe_io_def {
     my $metadata = $io_def->metadata;
     if (keys %$metadata) {
         $frontend->output("\t\tFiles must also have the following metadata associated with them (so be sure to pick a DataSource capable of adding this metadata):");
-        my %optional = map { $_ => 1 } @{delete $metadata->{optional} || []};
+        my %optional = map { $_ => 1 } @{ delete $metadata->{optional} || [] };
         foreach my $key (sort keys %$metadata) {
             my $val = $metadata->{$key};
             my $comment = exists $optional{$key} ? 'optional' : 'REQUIRED';
@@ -468,7 +542,7 @@ sub describe_io_def {
 
 sub get_pipeline_behaviours {
     my $pipeline = shift;
-    return VRPipe::StepBehaviour->search( { pipeline => $pipeline->id } );
+    return VRPipe::StepBehaviour->search({ pipeline => $pipeline->id });
 }
 
 sub behaviours_to_regulators {
@@ -482,7 +556,7 @@ sub behaviours_to_regulators {
                 $reg{$regulator}->{methods}->{$method}->{$step} = 1;
             }
         }
-        $reg{$regulator}->{defaults}->{$b->default_regulation} = 1;
+        $reg{$regulator}->{defaults}->{ $b->default_regulation } = 1;
     }
     
     return \%reg;

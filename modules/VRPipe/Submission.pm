@@ -304,7 +304,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         my $first = 1;
         while (my $to_extras = $pager->next) {
             foreach my $to_extra (@$to_extras) {
-                if ($first && $switch_queue && $to_extra->sid) {
+                if ($first && $switch_queue && $to_extra->sid && !$to_extra->done) {
                     $self->debug("calling switch_queues(" . $to_extra->sid . ", $switch_queue)");
                     $scheduler->switch_queue($to_extra->sid, $switch_queue);
                 }

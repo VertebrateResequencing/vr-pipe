@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 use Path::Class;
-use File::Slurp;
 # NOTE: GSNAP_DB_FOLDER something like mm9 does not require full path
 #       gsnap already knows this from installation.
 
@@ -32,8 +31,8 @@ push(@outputfiles, $outputfile_1);
 warn $outputfile_1;
 ok handle_pipeline(@outputfiles), 'gsnap pipeline ran ok, generating the expected output file';
 
-#my $testfilecontents   = read_file(file( qw(t data ERR032995.concordant_uniq) )->stringify);
-#my $outputfilecontents = read_file($outputfile_1->stringify);
+#my $testfilecontents   = file( qw(t data ERR032995.concordant_uniq) )->slurp;
+#my $outputfilecontents = $outputfile_1->slurp;
 #warn $outputfilecontents;
 #is($testfilecontents, $outputfilecontents, "output file contain expected data");
 finish;
