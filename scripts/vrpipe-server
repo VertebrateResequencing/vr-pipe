@@ -265,7 +265,7 @@ sub status {
             my $incomplete_pager;
             eval {
                 $num_elements = VRPipe::DataElement->search({ datasource => $datasource->id, withdrawn => 0 });
-                $incomplete_pager = $datasource->incomplete_element_states($setup, 0);
+                $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
             };
             my $ds_error = $@;
             if ($ds_error || !$incomplete_pager) {

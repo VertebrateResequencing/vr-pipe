@@ -31,20 +31,10 @@ use Path::Class;
 use File::Find;
 
 my $frontend = VRPipe::FrontEnd->new(description => "Run chmod, chgrp and chown on all the files output by a VRPipe PipelineSetup.",
-                                     opt_spec => [ [ 'setup=s', 'Pipeline setup (id or name) - REQUIRED', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times] ],
-                                                   [],
-                                                   [ q[To change the group on the files:] ],
-                                                   [ 'chgrp=s', q[Supply the string you would give to the unix 'chgrp' command (excluding options and path)] ],
-                                                   [],
-                                                   [ q[To change the mode on the files:] ],
-                                                   [ 'chmod=s', q[Supply the string you would give to the unix 'chmod' command (excluding options and path)] ],
-                                                   [],
-                                                   [ q[To change the owner of the files (you will need to have root permissions for this to work):] ],
-                                                   [ 'chown=s', q[Supply the string you would give to the unix 'chown' command (excluding options and path)] ] ]);
+                                     opt_spec    => [['setup=s', 'Pipeline setup (id or name) - REQUIRED', { persistent_object => 'PipelineSetup' }], ['steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]], [], [q[To change the group on the files:]], ['chgrp=s', q[Supply the string you would give to the unix 'chgrp' command (excluding options and path)]], [], [q[To change the mode on the files:]], ['chmod=s', q[Supply the string you would give to the unix 'chmod' command (excluding options and path)]], [], [q[To change the owner of the files (you will need to have root permissions for this to work):]], ['chown=s', q[Supply the string you would give to the unix 'chown' command (excluding options and path)]]]);
 
 my $setup = $frontend->get_pipelinesetups();
-my @steps = $frontend->option_was_set('steps') ? @{$frontend->opts('steps')} : ();
+my @steps = $frontend->option_was_set('steps') ? @{ $frontend->opts('steps') } : ();
 unless ($setup) {
     $frontend->die_with_error("--setup is required");
 }
@@ -69,71 +59,64 @@ my @allowed_step_members;
 my %allowed_kinds;
 if (@steps) {
     foreach my $stepm (@step_members) {
-        my $smid = $stepm->id;
+        my $smid      = $stepm->id;
         my $step_name = $stepm->step->name;
         if (exists $desired_steps{names}->{$step_name}) {
-            foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
+            foreach my $kind (keys %{ $desired_steps{names}->{$step_name} }) {
                 $allowed_kinds{$smid}->{$kind} = 1;
             }
         }
         my $step_num = $stepm->step_number;
         if (exists $desired_steps{numbers}->{$step_num}) {
-            foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
+            foreach my $kind (keys %{ $desired_steps{numbers}->{$step_num} }) {
                 $allowed_kinds{$smid}->{$kind} = 1;
             }
         }
-        next unless keys %{$allowed_kinds{$smid}};
+        next unless keys %{ $allowed_kinds{$smid} };
         
         push(@allowed_step_members, $stepm);
     }
 }
 else {
     foreach my $stepm (@step_members) {
-        $allowed_kinds{$stepm->id}->{all} = 1;
+        $allowed_kinds{ $stepm->id }->{all} = 1;
         push(@allowed_step_members, $stepm);
     }
 }
 
-# loop through completed elements, getting the list of file paths to work with
-my $pipeline_length = @step_members;
-my $estates_pager = $setup->dataelementstates_pager;
-my $complete_elements = 0;
-my $incomplete = 0;
+# loop through elements, getting the list of file paths to work with
+my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+my $num_elements = 0;
 my %paths;
 while (my $estates = $estates_pager->next) {
     foreach my $element_state (@$estates) {
-        unless ($element_state->completed_steps == $pipeline_length) {
-            $incomplete++;
-            next;
-        }
-        $complete_elements++;
-        
         # collect outputs
         my $element = $element_state->dataelement;
+        $num_elements++;
         foreach my $stepm (@allowed_step_members) {
-            my $step_outs = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup)->output_files;
-            my $smid = $stepm->id;
-            my $force = exists $allowed_kinds{$smid}->{all};
+            my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
+            $step_state || next;
+            
+            my $step_outs = $step_state->output_files;
+            my $smid      = $stepm->id;
+            my $force     = exists $allowed_kinds{$smid}->{all};
             
             while (my ($kind, $files) = each %$step_outs) {
                 unless ($force) {
                     next unless exists $allowed_kinds{$smid}->{$kind};
                 }
-                my @files = grep { $_->e } @$files;
-                next unless @files;
                 
-                my @file_data;
-                foreach my $file (@files) {
-                    $paths{$file->path->stringify} = 1;
+                foreach my $file (grep { $_->e } @$files) {
+                    $paths{ $file->path->stringify } = 1;
                 }
             }
         }
     }
 }
 
-my @paths = keys %paths;
+my @paths   = keys %paths;
 my $changed = @paths;
-$frontend->output("$incomplete incomplete data elements were ignored, and $changed files were selected for alteration for $complete_elements complete elements...");
+$frontend->output("$changed files were selected for alteration for $num_elements elements...");
 
 # actually change the permissions on the files
 if (@paths) {
@@ -153,7 +136,7 @@ if (@paths) {
         my $dir = file($path)->dir;
         $dirs{$dir} = 1;
         my $num_parents = $dir->dir_list;
-        for (1..$num_parents) {
+        for (1 .. $num_parents) {
             $dir = $dir->parent;
             $dirs{$dir} = 1;
         }

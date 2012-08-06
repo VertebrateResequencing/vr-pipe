@@ -105,16 +105,17 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     # because lots of frontends get the dataelementstates for a particular
     # pipelinesetup
     sub _des_search_args {
-        my $self = shift;
-        return ({ pipelinesetup => $self->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement', prefetch => 'dataelement' });
+        my $self              = shift;
+        my $include_withdrawn = shift;
+        return ({ pipelinesetup => $self->id, $include_withdrawn ? () : ('dataelement.withdrawn' => 0) }, { prefetch => 'dataelement' });
     }
     
-    method dataelementstates_pager {
-        return VRPipe::DataElementState->search_paged($self->_des_search_args);
+    method dataelementstates_pager (Bool :$include_withdrawn = 0) {
+        return VRPipe::DataElementState->search_paged($self->_des_search_args($include_withdrawn));
     }
     
-    method dataelementstates {
-        return VRPipe::DataElementState->search($self->_des_search_args);
+    method dataelementstates (Bool :$include_withdrawn = 0) {
+        return VRPipe::DataElementState->search($self->_des_search_args($include_withdrawn));
     }
 }
 
