@@ -187,28 +187,18 @@ sub start_server {
     }
     
     # setup the http page requests we'll respond to
-    my $httpd = $backend->httpd;
-    $httpd->reg_cb(
+    $backend->resigster_psgi_pages(
         '/' => sub {
-            my ($httpd, $req) = @_;
-            
-            $req->respond({ content => ['text/html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>"] });
+            $backend->psgi_text_response(200, 'html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>", shift);
         },
-        '/status'          => sub { $backend->handle_httpd_event(\&status,          @_); },
-        '/local_scheduler' => sub { $backend->handle_httpd_event(\&local_scheduler, @_, $ls_watcher); },
+        '/status'          => sub { $backend->psgi_nonblocking_xml_response(\&status,          shift); },
+        '/local_scheduler' => sub { $backend->psgi_nonblocking_xml_response(\&local_scheduler, shift, $ls_watcher); },
         '/dsn' => sub {
-            my ($httpd, $req) = @_;
-            $req->respond({ content => ['text/plain', $backend->dsn] });
+            $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
         },
         '/stop' => sub {
-            my ($httpd, $req) = @_;
-            
-            $req->respond({ content => ['text/plain', 'Stopping server'] });
             shutdown_server("Received the stop command");
-        },
-        '' => sub {
-            my ($httpd, $req) = @_;
-            $req->respond([404, 'not found', { 'Content-Type' => 'text/plain' }, '404: requested page (' . $req->url . ') is not valid']);
+            $backend->psgi_text_response(200, 'plain', 'Stopping server', shift);
         });
     
     # setup the signals we'll react to

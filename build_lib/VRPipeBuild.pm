@@ -54,7 +54,6 @@ sub required_modules {
     return { perl                             => '5.8.8',
              'AnyEvent'                       => 0,
              'AnyEvent::ForkManager'          => 0,
-             'AnyEvent::HTTPD'                => 0,
              'B::Deparse'                     => 0,
              'Class::Unload'                  => 0,
              'Crypt::CBC'                     => 0,
@@ -107,6 +106,7 @@ sub required_modules {
              'Test::Most'                     => 0,
              'Test::Strict'                   => 0,
              'Time::Format'                   => 0,
+             'Twiggy'                         => 0,
              'TryCatch'                       => 0,
              'XML::LibXML'                    => 0,
              'XML::LibXSLT'                   => 0 };

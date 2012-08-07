@@ -41,7 +41,8 @@ class VRPipe::Interface::BackEnd {
     use Perl6::Form;
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
-    use AnyEvent::HTTPD;
+    use Twiggy::Server;
+    use Plack::Request;
     use Sys::Hostname::Long;
     use VRPipe::Config;
     use XML::LibXSLT;
@@ -368,10 +369,10 @@ XSL
                                 isa    => 'Str',
                                 writer => '_set_logging_directory');
     
-    has 'httpd' => (is      => 'ro',
-                    isa     => 'AnyEvent::HTTPD',
-                    lazy    => 1,
-                    builder => '_build_httpd');
+    has 'psgi_server' => (is      => 'ro',
+                          isa     => 'Object',
+                          lazy    => 1,
+                          builder => '_build_psgi_server');
     
     has '_warnings' => (is      => 'ro',
                         isa     => 'ArrayRef',
@@ -385,9 +386,9 @@ XSL
         return $m->result_source->schema;
     }
     
-    method _build_httpd {
+    method _build_psgi_server {
         my $port = $self->port;
-        return AnyEvent::HTTPD->new(port => $port); # host `uname -n`; parse the ip address, use as host? Currently defaults to 0.0.0.0
+        return Twiggy::Server->new(port => $port); # host `uname -n`; parse the ip address, use as host? Currently defaults to 0.0.0.0
     }
     
     sub BUILD {
@@ -485,8 +486,90 @@ XSL
         exit 0;
     }
     
-    method req_to_opts ($req, ArrayRef $ctp_array?) {
-        my %opts = $req->vars;
+    sub resigster_psgi_pages {
+        my ($self, %pages) = @_;
+        my $four_oh_four = sub {
+            my $req = shift;
+            $self->psgi_text_response(404, 'plain', '404: requested page (' . $req->request_uri . ') is not valid', $req);
+        };
+        my $app = sub {
+            my $env = shift;                    # PSGI env
+            my $req = Plack::Request->new($env);
+            
+            my $page = $req->path_info;
+            my $sub = $pages{$page} || $four_oh_four;
+            
+            my $content;
+            eval { $content = &{$sub}($req); };
+            if ($@) {
+                my $err = $@;
+                chomp($err);
+                my $message = "fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err;
+                $self->log($message);
+                my $res = $req->new_response(500);
+                $res->content_type('text/plain');
+                $res->body('500: ' . $message);
+                return $res->finalize;
+            }
+            
+            my $res;
+            if (ref $content) {
+                $res = $content;
+            }
+            else {
+                $res = $req->new_response(200);
+                my $format = $req->param('display_format');
+                $format ||= 'html';
+                $res->content_type('text/' . $format);
+                $res->body($content);
+            }
+            
+            return $res->finalize;
+        };
+        $self->psgi_server->register_service($app);
+    }
+    
+    method psgi_text_response (Int $code, Str $format, Str $content, Object $req) {
+        my $res = $req->new_response($code);
+        $res->content_type('text/' . $format);
+        $res->body($content);
+        return $res;
+    }
+    
+    sub psgi_nonblocking_xml_response {
+        my ($self, $sub, $req, @others) = @_;
+        
+        my $xml;
+        try {
+            $xml = &{$sub}($req, @others);
+        }
+        catch ($err) {
+            chomp($err);
+            $xml = $self->xml_tag('error', $err);
+            $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
+        }
+        
+        my $warnings = '';
+        while (my $warning = $self->_get_warning) {
+            $warnings .= $self->xml_tag('warning', $warning);
+        }
+        
+        return $self->transform_xml($req, $warnings . $xml);
+    }
+    
+    method transform_xml (Object $req, Str $xml) {
+        my $format = $req->param('display_format');
+        $format ||= 'html';
+        
+        my $source = $parser->load_xml(string => '<?xml version="1.0" encoding="ISO-8859-1"?><interface>' . $xml . '</interface>');
+        my $stylesheet = $display_format_to_stylesheet{$format} || $display_format_to_stylesheet{html};
+        my $result = $stylesheet->transform($source);
+        
+        return $stylesheet->output_as_chars($result);
+    }
+    
+    method req_to_opts (Object $req, ArrayRef $ctp_array?) {
+        my %opts = %{ $req->parameters->mixed || {} };
         
         my $convert_to_persistent = delete $opts{convert_to_persistent} || $ctp_array;
         if ($convert_to_persistent) {
@@ -538,37 +621,6 @@ XSL
         }
         
         return \%opts;
-    }
-    
-    sub handle_httpd_event {
-        my ($self, $sub, $httpd, $req, @others) = @_;
-        my $xml;
-        try {
-            $xml = &{$sub}($req, @others);
-        }
-        catch ($err) {
-            chomp($err);
-            $xml = $self->xml_tag('error', $err);
-            $self->log("fatal event captured responding to " . $req->url . " for " . $req->client_host . ": " . $err);
-        }
-        
-        my $warnings = '';
-        while (my $warning = $self->_get_warning) {
-            $warnings .= $self->xml_tag('warning', $warning);
-        }
-        
-        $self->output($req, $warnings . $xml);
-    }
-    
-    method output ($req, $xml) {
-        my $format = $req->parm('display_format');
-        $format ||= 'html';
-        
-        my $source = $parser->load_xml(string => '<?xml version="1.0" encoding="ISO-8859-1"?><interface>' . $xml . '</interface>');
-        my $stylesheet = $display_format_to_stylesheet{$format} || $display_format_to_stylesheet{html};
-        my $result = $stylesheet->transform($source);
-        
-        $req->respond({ content => ["text/$format", $stylesheet->output_as_chars($result)] });
     }
     
     method log (Str $msg) {

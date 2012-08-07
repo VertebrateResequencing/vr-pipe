@@ -59,9 +59,8 @@ If you find that AnyEvent::ForkManager fails tests and emmits errors mentioning
 WNOHANG, you will have to cd to the cpan build directory and edit line 11 of
 blib/lib/AnyEvent/ForkManager.pm to read "use POSIX qw(WNOHANG);" (without the
 quotes). Then you can do "make test" and "make install".
-AnyEvent::HTTPD may fail tests due to issues with your proxy/webcache. Just
-force install it in that case:
-'force install AnyEvent::HTTPD'.
+Twiggy may fail its disconnect.t test. This is safe to ignore; just:
+'force install Twiggy'.
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is
