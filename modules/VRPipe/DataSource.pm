@@ -156,6 +156,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         if ($prepare) {
             $self->_prepare_elements_and_states || return;
         }
+        
         my $pipeline  = $setup->pipeline;
         my $num_steps = $pipeline->step_members;
         
