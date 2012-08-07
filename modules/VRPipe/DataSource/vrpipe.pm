@@ -56,6 +56,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         elsif ($method eq 'group_by_metadata') {
             return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
         }
+        elsif ($method eq 'group_all') {
+            return "All output files in the vrpipe datasource will be grouped into a single element. The filter option is a string of the form 'metadata_key#regex' which will select only files metadata matching the regex.";
+        }
         
         return '';
     }
@@ -108,9 +111,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                     $desired_steps{names}->{ $stepm->step->name }->{all} = 1;
                 }
             }
-
             
-
             my $max_step = 0;
             my $final_smid;
             foreach my $stepm (@step_members) {
@@ -181,6 +182,27 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         while (my ($res, $linkargs) = each %result_to_linkargs) {
             my $child = $result_to_eid{$res} || $self->throw("No DataElement was created for result $res?");
             push(@link_args, { %$linkargs, child => $child });
+        }
+        VRPipe::DataElementLink->bulk_create_or_update(@link_args);
+    }
+    
+    method group_all (Defined :$handle!, Str :$filter?) {
+        my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => 0, complete_elements => 1);
+        if ($filter) {
+            $args{filter} = $filter;
+        }
+        my (@paths, @parents);
+        foreach my $result (@{ $self->_all_results(%args) }) {
+            push @paths,   @{ $result->{paths} };
+            push @parents, $result->{parent};
+        }
+        $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
+        
+        # create corresponding dataelementlinks
+        my $child = VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => \@paths });
+        my @link_args;
+        foreach my $parent (@parents) {
+            push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child->id });
         }
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
