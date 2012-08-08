@@ -708,6 +708,17 @@ role VRPipe::StepRole {
         }
         return $common_meta;
     }
+    
+    method create_fofn (VRPipe::File $fofn!, ArrayRef['VRPipe::File'] $files!) {
+        my $ofh = $fofn->openw;
+        foreach my $file (@$files) {
+            my $file_path = $file->path;
+            print $ofh "$file_path\n";
+        }
+        $ofh->close;
+        $fofn->update_stats_from_disc(retries => 3);
+        $self->throw("fofn " . $fofn->path . " does not contain all input files") unless ($fofn->lines == scalar @$files);
+    }
 }
 
 1;
