@@ -57,6 +57,9 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
         if ($method eq 'all') {
             return "Each element will correspond to a single file from the file.";
         }
+        elsif ($method eq 'group_all') {
+            return "All files in the file will be grouped into a single element.";
+        }
         
         return '';
     }
@@ -68,6 +71,14 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
             push(@element_args, { datasource => $self->_datasource_id, result => $result, withdrawn => $withdraw });
         }
         $self->_create_elements(\@element_args);
+    }
+    
+    method group_all (Defined :$handle!) {
+        my @paths;
+        foreach my $result ($self->_all_results(handle => $handle, skip_comments => 1, line_is_path => 1)) {
+            push @paths, @{ $result->{paths} };
+        }
+        $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
     }
 }
 
