@@ -47,7 +47,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { bcf_files => VRPipe::StepIODefinition->create(type        => 'bin',
+        return { bcf_files => VRPipe::StepIODefinition->create(type        => 'bcf',
                                                                max_files   => -1,
                                                                description => 'bcf files for genotyping',
                                                                metadata    => {
