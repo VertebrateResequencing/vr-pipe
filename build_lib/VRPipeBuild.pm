@@ -76,6 +76,7 @@ sub required_modules {
              'File::Spec'                     => 0,
              'File::Temp'                     => 0,
              'Filesys::DfPortable'            => 0,
+             'HTTP::Parser::XS'               => 0,
              'Inline::C'                      => 0,
              'Inline::Filters'                => 0,
              'IO::Capture::Stderr'            => 0,
