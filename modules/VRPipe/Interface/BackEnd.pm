@@ -41,12 +41,13 @@ class VRPipe::Interface::BackEnd {
     use Perl6::Form;
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
+    use VRPipe::Config;
+    use AnyEvent::ForkManager;
     use Twiggy::Server;
     use Plack::Request;
-    use Sys::Hostname::Long;
-    use VRPipe::Config;
     use XML::LibXSLT;
     use XML::LibXML;
+    use Sys::Hostname::Long;
     use POSIX qw(setsid setuid);
     use Cwd qw(chdir getcwd);
     use Time::Format;
@@ -499,8 +500,8 @@ XSL
             my $page = $req->path_info;
             my $sub = $pages{$page} || $four_oh_four;
             
-            my $content;
-            eval { $content = &{$sub}($req); };
+            my $return;
+            eval { $return = &{$sub}($req); };
             if ($@) {
                 my $err = $@;
                 chomp($err);
@@ -513,15 +514,18 @@ XSL
             }
             
             my $res;
-            if (ref $content) {
-                $res = $content;
+            if (ref $return) {
+                if (ref $return eq 'CODE') {
+                    return $return;
+                }
+                $res = $return;
             }
             else {
                 $res = $req->new_response(200);
                 my $format = $req->param('display_format');
                 $format ||= 'html';
                 $res->content_type('text/' . $format);
-                $res->body($content);
+                $res->body($return);
             }
             
             return $res->finalize;
@@ -539,32 +543,48 @@ XSL
     sub psgi_nonblocking_xml_response {
         my ($self, $sub, $req, @others) = @_;
         
-        my $xml;
-        try {
-            $xml = &{$sub}($req, @others);
-        }
-        catch ($err) {
-            chomp($err);
-            $xml = $self->xml_tag('error', $err);
-            $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
-        }
-        
-        my $warnings = '';
-        while (my $warning = $self->_get_warning) {
-            $warnings .= $self->xml_tag('warning', $warning);
-        }
-        
-        return $self->transform_xml($req, $warnings . $xml);
+        return sub {
+            my $responder = shift;
+            
+            # (we use AnyEvent::ForkManager instead of AnyEvent::Util::fork_call
+            #  because the latter doesn't seem to actually fork or do anything
+            #  async)
+            my $pm = AnyEvent::ForkManager->new(max_workers => 1);
+            
+            $pm->start(
+                cb => sub {
+                    my $xml;
+                    try {
+                        $xml = &{$sub}($req, @others);
+                    }
+                    catch ($err) {
+                        chomp($err);
+                        $xml = $self->xml_tag('error', $err);
+                        $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
+                    }
+                    
+                    my $warnings = '';
+                    while (my $warning = $self->_get_warning) {
+                        $warnings .= $self->xml_tag('warning', $warning);
+                    }
+                    
+                    my $format = $req->param('display_format');
+                    $format ||= 'html';
+                    my $content = $self->transform_xml($warnings . $xml, $format);
+                    
+                    my $res = $req->new_response(200);
+                    $res->content_type('text/' . $format);
+                    $res->body($content);
+                    $responder->($res->finalize);
+                });
+            $pm->wait_all_children;
+        };
     }
     
-    method transform_xml (Object $req, Str $xml) {
-        my $format = $req->param('display_format');
-        $format ||= 'html';
-        
+    method transform_xml (Str $xml, Str $format) {
         my $source = $parser->load_xml(string => '<?xml version="1.0" encoding="ISO-8859-1"?><interface>' . $xml . '</interface>');
         my $stylesheet = $display_format_to_stylesheet{$format} || $display_format_to_stylesheet{html};
         my $result = $stylesheet->transform($source);
-        
         return $stylesheet->output_as_chars($result);
     }
     
