@@ -67,13 +67,11 @@ questions such as the details of your production and testing databases. It is
 recommended to use a stand-alone relational database such as MySQL. The pipeline
 functionality requires such a database, but if you're only using code such as a
 parser or the bas function you can use SQLite, supplying a file path for the
-database name.
+database name. Note that the local scheduler currently doesn't work well with an
+SQLite database, so some tests are likely to fail with that combination.
 
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
-
-Note that the local scheduler currently doesn't work well with an SQLite
-database, so some tests are likely to fail with that combination.
 
 
 To test the code prior to using it:
