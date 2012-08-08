@@ -144,13 +144,8 @@ sub start_server {
     # daemonize unless we're not supposed to
     my $orig_dir = $backend->daemonize unless $foreground;
     
-    # some events we respond to are done in an async fork so that we, the
-    # parent, remain responsive to other events. Here we set the max number of
-    # forks allowed at once. Sadly, httpd blocks until our callback returns
-    # something for the page, so we can't do those asyncronously
-    $AnyEvent::Util::MAX_FORKS = 1;
-    
     # setup the timer for the local scheduler to process its queue
+    $AnyEvent::Util::MAX_FORKS = 1;
     my $ls                         = VRPipe::LocalScheduler->new;
     my $time_of_last_process_queue = time();
     my $timer_interval             = $deployment eq 'production' ? 30 : 5;
