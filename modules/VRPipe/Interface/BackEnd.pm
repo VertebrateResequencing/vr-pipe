@@ -44,6 +44,8 @@ class VRPipe::Interface::BackEnd {
     use VRPipe::Config;
     use AnyEvent::ForkManager;
     use Twiggy::Server;
+    use Continuity;
+    use Continuity::Adapt::PSGI;
     use Plack::Request;
     use XML::LibXSLT;
     use XML::LibXML;
@@ -375,6 +377,14 @@ XSL
                           lazy    => 1,
                           builder => '_build_psgi_server');
     
+    has 'continuations' => (is      => 'ro',
+                            isa     => 'HashRef',
+                            default => sub { {} },
+                            traits  => ['Hash'],
+                            handles => { store_continuation       => 'set',
+                                         continuation_for_page    => 'get',
+                                         continuation_page_stored => 'exists' });
+    
     has '_warnings' => (is      => 'ro',
                         isa     => 'ArrayRef',
                         default => sub { [] },
@@ -489,19 +499,16 @@ XSL
     
     sub resigster_psgi_pages {
         my ($self, %pages) = @_;
-        my $four_oh_four = sub {
-            my $req = shift;
-            $self->psgi_text_response(404, 'plain', '404: requested page (' . $req->request_uri . ') is not valid', $req);
-        };
+        
         my $app = sub {
-            my $env = shift;                    # PSGI env
-            my $req = Plack::Request->new($env);
+            my $env = shift; # PSGI env
             
+            my $req  = Plack::Request->new($env);
             my $page = $req->path_info;
-            my $sub = $pages{$page} || $four_oh_four;
+            my $sub  = $pages{$page} || sub { $self->psgi_text_response(404, 'plain', '404: requested page (' . $req->request_uri . ') is not valid', $env); };
             
             my $return;
-            eval { $return = &{$sub}($req); };
+            eval { $return = &{$sub}($env); };
             if ($@) {
                 my $err = $@;
                 chomp($err);
@@ -514,26 +521,29 @@ XSL
             }
             
             my $res;
-            if (ref $return) {
-                if (ref $return eq 'CODE') {
+            my $ref = ref($return);
+            if ($ref) {
+                if ($ref eq 'CODE') {
                     return $return;
                 }
                 $res = $return;
             }
             else {
-                $res = $req->new_response(200);
-                my $format = $req->param('display_format');
-                $format ||= 'html';
-                $res->content_type('text/' . $format);
-                $res->body($return);
+                $res = $req->new_response(500);
+                $res->content_type('text/plain');
+                my $message = "page $page unexpectedly returned a non-reference";
+                $self->log($message);
+                $res->body('500: ' . $message);
             }
             
             return $res->finalize;
         };
+        
         $self->psgi_server->register_service($app);
     }
     
-    method psgi_text_response (Int $code, Str $format, Str $content, Object $req) {
+    method psgi_text_response (Int $code, Str $format, Str $content, HashRef $env) {
+        my $req = Plack::Request->new($env);
         my $res = $req->new_response($code);
         $res->content_type('text/' . $format);
         $res->body($content);
@@ -541,7 +551,8 @@ XSL
     }
     
     sub psgi_nonblocking_xml_response {
-        my ($self, $sub, $req, @others) = @_;
+        my ($self, $sub, $env, @others) = @_;
+        my $req = Plack::Request->new($env);
         
         return sub {
             my $responder = shift;
@@ -579,6 +590,19 @@ XSL
                 });
             $pm->wait_all_children;
         };
+    }
+    
+    method continuation_response (CodeRef $sub, HashRef $env) {
+        my $page = $env->{PATH_INFO};
+        
+        my $app;
+        unless ($self->continuation_page_stored($page)) {
+            my $adapt = Continuity::Adapt::PSGI->new;
+            my $continuity = Continuity->new(port => $self->port, adapter => $adapt, callback => $sub);
+            $self->store_continuation($page => $adapt->loop_hook);
+        }
+        
+        return &{ $self->continuation_for_page($page) }($env);
     }
     
     method transform_xml (Str $xml, Str $format) {

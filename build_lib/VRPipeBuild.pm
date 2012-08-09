@@ -56,6 +56,7 @@ sub required_modules {
              'AnyEvent::ForkManager'          => 0,
              'B::Deparse'                     => 0,
              'Class::Unload'                  => 0,
+             'Continuity'                     => 0,
              'Crypt::CBC'                     => 0,
              'Crypt::Blowfish'                => 0,
              'Cwd'                            => 0,
