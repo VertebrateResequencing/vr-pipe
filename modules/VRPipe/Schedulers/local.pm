@@ -40,31 +40,55 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
+    use Config;
+    use VRPipe::Persistent::Schema;
+    my $deployment = VRPipe::Persistent::Schema->database_deployment;
+    
+    my $ls_script = 'vrpipe-local_scheduler';
+    if ($deployment eq 'testing') {
+        # we might not have vrpipe-local_scheduler in our PATH, and the
+        # modules it needs might not be in our PERL5LIB, so allow
+        # us to still work if we're running from the git repo root
+        # dir (eg. during testing prior to an install). In fact, for
+        # testing purposes, we prefer this to some version of the
+        # files installed elsewhere.
+        my $local_script = file('scripts', 'vrpipe-local_scheduler');
+        my $modules_dir = dir('modules');
+        if (-x $local_script && -d $modules_dir) {
+            my $thisperl = $Config{perlpath};
+            if ($^O ne 'VMS') {
+                $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
+            }
+            $ls_script = "$thisperl -I$modules_dir $local_script";
+        }
+    }
+    $ls_script .= ' --deployment ' . $deployment;
+    
     method start_command {
-        return 'vrpipe-local_scheduler start';
+        return "$ls_script start";
     }
     
     method stop_command {
-        return 'vrpipe-local_scheduler stop';
+        return "$ls_script stop";
     }
     
     method submit_command {
-        return 'vrpipe-local_scheduler submit';
+        return $ls_script;
     }
     
     method submit_args (VRPipe::Requirements :$requirements!, File :$stdo_file!, File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
         my $array_def = '';
         my $output_string;
         if ($array) {
-            $output_string = "-o $stdo_file.\%I -e $stde_file.\%I";
+            $output_string = "--out $stdo_file.\%I --err $stde_file.\%I";
             my $size = $array->size;
             $array_def = "-a $size ";
         }
         else {
-            $output_string = "-o $stdo_file -e $stde_file";
+            $output_string = "--out $stdo_file --err $stde_file";
         }
         
-        return qq[$array_def$output_string '$cmd'];
+        return qq[$array_def$output_string submit '$cmd'];
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
@@ -100,7 +124,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             my $status = $self->sid_status($sid, $aid);
             last if ($status eq 'UNKNOWN' || $status eq 'DONE' || $status eq 'EXIT');
             
-            system("vrpipe-local_scheduler kill $id");
+            system("$ls_script kill $id");
             
             sleep(1);
         }
@@ -109,7 +133,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     
     method sid_status (PositiveInt $sid, Int $aid) {
         my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
-        open(my $bfh, "vrpipe-local_scheduler jobs $id |") || $self->warn("Could not call vrpipe-local_scheduler jobs $id");
+        open(my $bfh, "$ls_script jobs $id |") || $self->warn("Could not call vrpipe-local_scheduler jobs $id");
         my $status;
         if ($bfh) {
             while (<$bfh>) {

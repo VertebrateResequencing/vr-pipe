@@ -11,7 +11,12 @@ VRPipe::DataSource::fofn - get pipeline input from a file of filenames
 
 'fofn' stands for 'file of filenames', ie. the source should be a text file
 with an absolute file path on each line. Each of these will become a
-L<VRPipe::DataElement>. *** more documentation to come
+L<VRPipe::DataElement>.
+
+The paths must exist on disc; if they do not, the DataElements created will be
+withdrawn (and so ignored by the system).
+
+*** more documentation to come
 
 =head1 AUTHOR
 
@@ -52,6 +57,9 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
         if ($method eq 'all') {
             return "Each element will correspond to a single file from the file.";
         }
+        elsif ($method eq 'group_all') {
+            return "All files in the file will be grouped into a single element.";
+        }
         
         return '';
     }
@@ -63,6 +71,14 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
             push(@element_args, { datasource => $self->_datasource_id, result => $result, withdrawn => $withdraw });
         }
         $self->_create_elements(\@element_args);
+    }
+    
+    method group_all (Defined :$handle!) {
+        my @paths;
+        foreach my $result ($self->_all_results(handle => $handle, skip_comments => 1, line_is_path => 1)) {
+            push @paths, @{ $result->{paths} };
+        }
+        $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
     }
 }
 

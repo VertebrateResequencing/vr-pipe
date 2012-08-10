@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 45;
+    use Test::Most tests => 49;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -46,6 +46,18 @@ foreach my $element (@{ get_elements($ds) }) {
     push(@results, $element->result);
 }
 is_deeply \@results, [{ paths => [file('t', 'data', 'file.bam')->absolute] }, { paths => [file('t', 'data', 'file.cat')->absolute] }, { paths => [file('t', 'data', 'file.txt')->absolute] }], 'got correct results for fofn all';
+
+ok $ds = VRPipe::DataSource->create(type    => 'fofn',
+                                    method  => 'group_all',
+                                    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+                                    options => {}),
+  'could create a fofn datasource with group_all method';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{ paths => [file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute] }], 'got correct results for fofn group_all';
 
 # delimited
 ok $ds = VRPipe::DataSource->create(type    => 'delimited',
@@ -95,6 +107,18 @@ foreach my $element (@{ get_elements($ds) }) {
     push(@results, $element->result);
 }
 is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata, VRPipe::File->get(path => $fwm_paths[2])->metadata], [{ paths => [$fwm_paths[0]] }, { paths => [$fwm_paths[1]] }, { paths => [$fwm_paths[2]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }, { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata all, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->create(type    => 'fofn_with_metadata',
+                                    method  => 'group_all',
+                                    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+                                    options => {}),
+  'could create a fofn_with_metadata datasource with group_all method';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, $element->result);
+}
+is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata, VRPipe::File->get(path => $fwm_paths[2])->metadata], [{ paths => [$fwm_paths[0], $fwm_paths[1], $fwm_paths[2]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }, { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata group_all, and the metadata on the files was correct';
 
 ok $ds = VRPipe::DataSource->create(type    => 'fofn_with_metadata',
                                     method  => 'grouped_by_metadata',
@@ -217,8 +241,6 @@ SKIP: {
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
 
-    
-
     ## tests for _has_changed
     ok(!$ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change');
     
@@ -307,9 +329,7 @@ SKIP: {
     $lane_to_add_file_for->raw_bases(1473337566);
     $lane_to_add_file_for->is_withdrawn(0);
     $lane_to_add_file_for->update;
-
     
-
     # lane_fastqs tests
     ok $ds = VRPipe::DataSource->create(type    => 'vrtrack',
                                         method  => 'lane_fastqs',

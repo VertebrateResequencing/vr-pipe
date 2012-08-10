@@ -60,7 +60,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     
-    our $VERSION = 22;
+    our $VERSION = 23;
     __PACKAGE__->load_classes({
            'VRPipe' => [
                qw/Step Scheduler Job Requirements
@@ -105,7 +105,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
         
         return $converter->index_statements($self, $mode);
     }
-
+    
     sub get_db_schema_version {
         my ($self) = @_;
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
