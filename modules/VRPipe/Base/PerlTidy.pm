@@ -63,7 +63,7 @@ sub postfilter {
     s/\n(\s*)sub (\S+) \{ +\#__ADDMETHOD(.*?)\n(.+?)\n(\s*)\} +\#__ENDMETHOD\n/\n${1}\$meta->add_method\('$2' => sub \{ $3\n$4\n$5\}\);\n/gs;
     
     # restore try/catch
-    #s/\n(\s*)if \(1\) \{ +\#__TRY(.+)?\}(\s+)else \{ +\#__CATCH ([^\n]*) __ENDCATCH\n/\n${1}try \{$2\}${3}catch $4\{\n/gs;
+    s/\n(\s*)if \(1\) \{ +\#__TRY(.+)?\}(\s+)else \{ +\#__CATCH ([^\n]*) __ENDCATCH\n/\n${1}try \{$2\}${3}catch $4\{\n/gs;
     
     # don't have completely empty lines after start of brace block
     s/\{\n\n/\{\n/g;
