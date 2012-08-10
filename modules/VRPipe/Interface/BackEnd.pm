@@ -592,7 +592,7 @@ XSL
         };
     }
     
-    method continuation_response (CodeRef $sub, HashRef $env) {
+    method psgi_continuation_response (CodeRef $sub, HashRef $env) {
         my $page = $env->{PATH_INFO};
         
         my $app;

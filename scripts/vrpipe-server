@@ -188,7 +188,7 @@ sub start_server {
         },
         '/status'            => sub { $backend->psgi_nonblocking_xml_response(\&status,          shift); },
         '/local_scheduler'   => sub { $backend->psgi_nonblocking_xml_response(\&local_scheduler, shift, $ls_watcher); },
-        '/continuation_test' => sub { $backend->continuation_response(\&continuation_test,       shift); },
+        '/continuation_test' => sub { $backend->psgi_continuation_response(\&continuation_test,  shift); },
         '/dsn' => sub {
             $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
         },
