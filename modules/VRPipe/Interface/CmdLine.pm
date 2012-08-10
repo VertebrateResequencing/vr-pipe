@@ -262,7 +262,7 @@ class VRPipe::Interface::CmdLine {
         unless ($port) {
             $self->throw("VRPipe SiteConfig had no port specified for $method_name");
         }
-        $self->_set_port($port);
+        $self->_set_port("$port");                                        # values retrieved from Config might be env vars, so we must force stringification
         VRPipe::Persistent::SchemaBase->database_deployment($deployment); # this does not access the db, just lets get_dsn method work
         $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
     }
