@@ -5,7 +5,9 @@ VRPipe::Pipelines::snp_calling_mpileup_vcf - a pipeline
 
 =head1 DESCRIPTION
 
-Runs samtools mpileup followed by bcftools view, generating vcf files for a bam datasource. Run the snp_calling_mpileup_vcf pipeline instead if you need to keep the intermediate bcfs.
+Runs samtools mpileup followed by bcftools view, generating vcf files for a bam
+datasource. Run the snp_calling_mpileup_vcf pipeline instead if you need to
+keep the intermediate bcfs.
 
 =head1 AUTHOR
 
@@ -39,7 +41,7 @@ class VRPipe::Pipelines::snp_calling_mpileup_vcf with VRPipe::PipelineRole {
     }
     
     method _num_steps {
-        return 1;
+        return 2;
     }
     
     method description {
@@ -51,7 +53,7 @@ class VRPipe::Pipelines::snp_calling_mpileup_vcf with VRPipe::PipelineRole {
     }
     
     method _step_list {
-        return ([VRPipe::Step->get(name => 'mpileup_vcf')], [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files')], []);
+        return ([VRPipe::Step->get(name => 'mpileup_vcf'), VRPipe::Step->get(name => 'vcf_index')], [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vcf_files', to_key => 'vcf_files')], []);
     }
 }
 
