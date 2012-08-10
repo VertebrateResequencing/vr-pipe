@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 18;
+    use Test::Most tests => 21;
     use VRPipeTest (required_exe => [qw(cat)]);
     use TestPipelines;
 }
@@ -77,8 +77,6 @@ my $test_pipelinesetup_3 = VRPipe::PipelineSetup->create(name       => 'vrpipe d
                                                                       all_option => 'foo',
                                                                       one_option => 75,
                                                                       cleanup    => 0 });
-
-
 
 # check the three pipelines ran as expected
 my (@base_files, @link_files, @link_merge_files, @step_four_base_files);
@@ -161,7 +159,35 @@ foreach my $element (@{ get_elements($ds_test) }) {
 }
 is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for "all" vrpipe datasource method worked as expected';
 
+$ds_test = VRPipe::DataSource->create(type    => 'vrpipe',
+                                      method  => 'all',
+                                      source  => '1[0]',
+                                      options => {});
+@results = ();
+foreach my $element (@{ get_elements($ds_test) }) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{ paths => [file(qw(t data file.txt))->absolute->stringify] }, { paths => [file(qw(t data file2.txt))->absolute->stringify] }, { paths => [file(qw(t data file3.txt))->absolute->stringify] }], 'getting vrpipe datasource from step 0 worked';
 
+$ds_test = VRPipe::DataSource->create(type    => 'vrpipe',
+                                      method  => 'group_all',
+                                      source  => '1[4]',
+                                      options => {});
+@results = ();
+foreach my $element (@{ get_elements($ds_test) }) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{ paths => \@step_four_base_files }], 'vrpipe datasource group_all method worked as expected';
+
+$ds_test = VRPipe::DataSource->create(type    => 'vrpipe',
+                                      method  => 'group_all',
+                                      source  => '1[4]',
+                                      options => { filter => 'three_meta#StepOption_default_decided_three_option' });
+@results = ();
+foreach my $element (@{ get_elements($ds_test) }) {
+    push(@results, $element->result);
+}
+is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'vrpipe datasource group_all with filter option worked as expected';
 
 # change fofn datasource
 my $fh       = $ds->openr;
@@ -193,7 +219,6 @@ ok handle_pipeline(@new_files), 'new merge files all exist after changing dataso
 my $element1 = VRPipe::DataElement->create(datasource => 2, result => { paths => [$base_files[2]->stringify] });
 my $element2 = VRPipe::DataElement->create(datasource => 3, result => { paths => [map { $_->stringify } @base_files[1, 5, 9]], group => '50' });
 is_deeply [$element1->withdrawn, $element2->withdrawn], [1, 1], 'elements correctly withdrawn after changing datasource';
-
 
 
 # test that a child pipeline that deletes its input does not delete until the
@@ -265,7 +290,6 @@ foreach my $path (@not_expected_files) {
 # each parent element completes the pipeline before child starts, then no steps
 # get repeated, and parent step 1 output remains deleted.
 is $deleted, 4, 'the files that should have gotten deleted were deleted';
-
 
 
 # # change metadata and detect changes

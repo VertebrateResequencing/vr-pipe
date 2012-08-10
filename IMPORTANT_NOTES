@@ -1,3 +1,13 @@
+# version 0.93:
+This version features a schema change, so be sure to run vrpipe-db_upgrade.
+There are also new SiteConfig options, so be sure to go through and answer all
+the questions of 'perl Build.PL'.
+This version introduces vrpipe-server, which needs a port to bind to. It is safe
+for multiple different people with their own VRPipe installs and databases to
+run the server on the same machine, but you will encounter errors if you attempt
+to use a port that someone else is using: pick a port number (during
+'perl Build.PL') unique to your own install.
+
 # version 0.81:
 This version increments the schema version, so be sure to run vrpipe-db_upgrade
 if you used a previous version of VRPipe.

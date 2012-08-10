@@ -119,10 +119,11 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         $self->exit_code(undef);
         $self->update;
         
-        my $cwd         = $self->localschedulerjob->cwd;
-        my $aid         = $self->aid;
-        my $stdout_file = $self->o_file;
-        my $stderr_file = $self->e_file;
+        my $cwd            = $self->localschedulerjob->cwd;
+        my $submitters_env = $self->localschedulerjob->env;
+        my $aid            = $self->aid;
+        my $stdout_file    = $self->o_file;
+        my $stderr_file    = $self->e_file;
         $stdout_file =~ s/\%I/$aid/g;
         $stderr_file =~ s/\%I/$aid/g;
         
@@ -156,6 +157,9 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             
             print STDOUT "#--- vrpipe-local_scheduler report start ---\n# Job: ${sid}[$aid]\n# Started at: $start_time\n# Running on: $host for user: $user in working dir: $cwd\n# Cmd: $cmd\n# STDERR from this Cmd, if any, appears in $stderr_file\n# STDOUT from this Cmd, if any, appears below\n#---\n";
             
+            while (my ($key, $val) = each %$submitters_env) {
+                $ENV{$key} = $val;
+            }
             $ENV{VRPIPE_LOCAL_JOBINDEX} = $aid;
             
             exec($cmd);
