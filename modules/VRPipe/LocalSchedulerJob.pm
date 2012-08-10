@@ -47,6 +47,10 @@ class VRPipe::LocalSchedulerJob extends VRPipe::Persistent {
                   coerce => 1,
                   traits => ['VRPipe::Persistent::Attributes']);
     
+    has 'env' => (is     => 'rw',
+                  isa    => 'HashRef',
+                  traits => ['VRPipe::Persistent::Attributes']);
+    
     has 'array_size' => (is      => 'rw',
                          isa     => IntSQL [8],
                          traits  => ['VRPipe::Persistent::Attributes'],
