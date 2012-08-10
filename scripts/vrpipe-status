@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -26,128 +26,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
-use VRPipe::FrontEnd;
+use VRPipe::Interface::CmdLine;
 
-my $frontend = VRPipe::FrontEnd->new(description => "See the overall state of active pipeline setups.",
-                                     opt_spec => [ [ 'setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'incomplete|i', 'Only show details of PipelineSetups that are incomplete (does not affect --list mode)' ],
-                                                   [ 'brief|b', 'Do not show full config details of each PipelineSetup, just the completion state summary' ],
-                                                   [ 'list|l', 'Just list out the setup names and ids without details' ] ]);
+my $cmdline = VRPipe::Interface::CmdLine->new(description => "See the overall state of active pipeline setups.",
+                                              opt_spec    => [['setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }], ['incomplete|i', 'Only show details of PipelineSetups that are incomplete (does not affect --list mode)'], ['brief|b', 'Do not show full config details of each PipelineSetup, just the completion state summary'], ['list|l', 'Just list out the setup names and ids without details']]);
 
-my $list = $frontend->opts('list');
-my $incomplete_only = $frontend->opts('incomplete');
-my $brief = $frontend->opts('brief');
-
-my @setups = $frontend->get_pipelinesetups();
-
-foreach my $setup (@setups) {
-    my $active = $setup->active;
-    my $note = '';
-    unless ($active) {
-        $note = 'currently DEACTIVATED ';
-    }
-    if ($list) {
-        $frontend->output("--- Pipeline Setup '", $setup->name, "' (id ", $setup->id, " for user ", $setup->user, ") $note---");
-        next;
-    }
-    
-    my $datasource = $setup->datasource;
-    my $num_elements;
-    my $incomplete_pager;
-    eval {
-        $num_elements = $datasource->elements(1)->total_entries;
-        $incomplete_pager = $datasource->incomplete_element_states($setup);
-    };
-    my $ds_error = $@;
-    my $banner = "--- Pipeline Setup '".$setup->name."' (id ".$setup->id." for user ".$setup->user.") $note---";
-    if ($ds_error || ! $incomplete_pager) {
-        $frontend->output($banner);
-        $ds_error ||= 'Could not create a incomplete_element_states pager for setup '.$setup->id;
-        $frontend->output("There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n");
-        next;
-    }
-    my $num_incomplete = $incomplete_pager->total_entries;
-    next if $incomplete_only && ! $num_incomplete;
-    $frontend->output($banner);
-    
-    my $pipeline = $setup->pipeline;
-    my $step_members = $pipeline->steps;
-    unless ($brief) {
-        $frontend->output('Pipeline: ', $pipeline->name, ' | ', $step_members, ' steps | ', $pipeline->description);
-        my $ps_opts = $setup->options;
-        if (keys %$ps_opts) {
-            $frontend->display_hash('PipelineSetup options', $ps_opts);
-        }
-        else {
-            $frontend->output("(used with default/no options)");
-        }
-        $frontend->output('PipelineSetup output root: ', $setup->output_root);
-        
-        $frontend->output('Datasource: ', $datasource->type, ' | ', $datasource->method, ' | ', $datasource->source);
-        my $ds_opts = $datasource->options;
-        if (keys %$ds_opts) {
-            $frontend->display_hash('Datasource options', $ds_opts);
-        }
-        else {
-            $frontend->output("(used with default/no options)");
-        }
-        
-        $frontend->output("\n");
-    }
-    
-    $frontend->output("There are a total of $num_elements Data Elements in the datasource to work on, and $num_incomplete elements are incomplete");
-    if ($num_incomplete) {
-        my %status_hash;
-        my $fully_complete = $num_elements - $num_incomplete;
-        $status_hash{"$step_members steps completed"} = $fully_complete;
-        my $num_steps_complete = $fully_complete * $step_members;
-        while (my $incompletes = $incomplete_pager->next) {
-            foreach my $es (@$incompletes) {
-                my $completed_steps = $es->completed_steps;
-                $num_steps_complete += $completed_steps;
-                $status_hash{"$completed_steps steps completed"}++;
-            }
-        }
-        $frontend->display_hash('Breakdown', \%status_hash, [sort { my ($ay) = $a =~ /^(\d+)/; my ($be) = $b =~ /^(\d+)/; $ay <=> $be } keys %status_hash]);
-        
-        my $steps_to_complete = $num_elements * $step_members;
-        my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
-        $frontend->output("Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)");
-        
-        my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id },
-                                                     { join => ['stepstate'], prefetch => 'job' });
-        
-        my %sub_stats;
-        while (my $subs = $pager->next) {
-            foreach my $sub (@$subs) {
-                my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
-                if ($sub_state eq 'scheduled') {
-                    my $job = $sub->job;
-                    $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
-                }
-                $sub_stats{$sub_state}++;
-            }
-        }
-        if (keys %sub_stats) {
-            $frontend->display_hash("\nCurrent submission state", \%sub_stats, [qw(running processing pending failed)]);
-            if (keys %sub_stats == 1 && exists $sub_stats{failed}) {
-                my $failed = $sub_stats{failed};
-                if ($failed >= $num_incomplete) {
-                    $frontend->output("WARNING! It looks like this setup may be STALLED due to repeated failures.\nInvestigate using: vrpipe-submissions --setup ".$setup->id." --failed");
-                }
-            }
-        }
-    }
-    else {
-        if ($num_elements == 0) {
-            $frontend->output("Pipeline has no inputs to work on (yet?), so has done nothing.");
-        }
-        else {
-            $frontend->output("Pipeline currently 100\% complete!");
-        }
-    }
-    
-    $frontend->output("------\n\n");
-}
+my $response = $cmdline->server_get('/status');
+$cmdline->output($response);
 
 exit;

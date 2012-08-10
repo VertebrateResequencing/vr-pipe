@@ -183,7 +183,6 @@ role VRPipe::Base::Debuggable {
         $capture->stop();
         
         my @confess;
-        my $line_length = length($first_line);
         foreach my $read ($capture->read) {
             foreach my $line (split(/\n/, $read)) {
                 $line =~ s/\t/    /g;
@@ -195,27 +194,13 @@ role VRPipe::Base::Debuggable {
                     next;
                 }
                 
-                if (length($line) > $line_length) {
-                    $line_length = length($line);
-                }
                 push(@confess, $line);
             }
         }
         
-        my $line = '-' x ($line_length + 4);
-        my $throw_message = "\n$line\n";
-        
-        my @message;
-        foreach my $message_line (split(/\n/, $message)) {
-            $message_line =~ s/\s+$//;
-            push(@message, $message_line);
-        }
-        
-        foreach my $line ($first_line, '', @message, '', @confess) {
-            my $this_length = length($line);
-            $throw_message .= "| $line" . (' ' x ($line_length - $this_length)) . " |\n";
-        }
-        $throw_message .= $line . "\n\n";
+        my $throw_message = "\n-----------------------------------------------------------------------------\n";
+        $throw_message .= $first_line . "\n\n" . $message . "\n\n" . join("\n", @confess);
+        $throw_message .= "\n-----------------------------------------------------------------------------\n\n";
         
         $self->log($throw_message, 2);
         

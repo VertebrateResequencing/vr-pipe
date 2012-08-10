@@ -11,7 +11,12 @@ VRPipe::DataSource::fofn - get pipeline input from a file of filenames
 
 'fofn' stands for 'file of filenames', ie. the source should be a text file
 with an absolute file path on each line. Each of these will become a
-L<VRPipe::DataElement>. *** more documentation to come
+L<VRPipe::DataElement>.
+
+The paths must exist on disc; if they do not, the DataElements created will be
+withdrawn (and so ignored by the system).
+
+*** more documentation to come
 
 =head1 AUTHOR
 

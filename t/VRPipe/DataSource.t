@@ -241,10 +241,6 @@ SKIP: {
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
 
-
-    
-
-
     ## tests for _has_changed
     ok(!$ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change');
     
@@ -333,11 +329,7 @@ SKIP: {
     $lane_to_add_file_for->raw_bases(1473337566);
     $lane_to_add_file_for->is_withdrawn(0);
     $lane_to_add_file_for->update;
-
-
     
-
-
     # lane_fastqs tests
     ok $ds = VRPipe::DataSource->create(type    => 'vrtrack',
                                         method  => 'lane_fastqs',

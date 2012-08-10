@@ -78,14 +78,6 @@ my $test_pipelinesetup_3 = VRPipe::PipelineSetup->create(name       => 'vrpipe d
                                                                       one_option => 75,
                                                                       cleanup    => 0 });
 
-
-
-
-
-
-
-
-
 # check the three pipelines ran as expected
 my (@base_files, @link_files, @link_merge_files, @step_four_base_files);
 my $element_id = 0;
@@ -229,13 +221,6 @@ my $element2 = VRPipe::DataElement->create(datasource => 3, result => { paths =>
 is_deeply [$element1->withdrawn, $element2->withdrawn], [1, 1], 'elements correctly withdrawn after changing datasource';
 
 
-
-
-
-
-
-
-
 # test that a child pipeline that deletes its input does not delete until the
 # parent has finished with that file
 my $output_dir_parent  = get_output_dir('parent_test_pipeline');
@@ -305,13 +290,6 @@ foreach my $path (@not_expected_files) {
 # each parent element completes the pipeline before child starts, then no steps
 # get repeated, and parent step 1 output remains deleted.
 is $deleted, 4, 'the files that should have gotten deleted were deleted';
-
-
-
-
-
-
-
 
 
 # # change metadata and detect changes
