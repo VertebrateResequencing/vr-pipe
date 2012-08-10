@@ -38,9 +38,9 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
     use Data::Dumper;
     
     method options_definition {
-        return { gsnap_exe       => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                      optional => 1, default_value => $ENV{GSNAP_EXE}),
-                 paired_end      => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.', optional => 1, default_value => '0'),
-                 gsnap_db_folder => VRPipe::StepOption->create(description => 'path to your gsnap db folder',                                       optional => 1, default_value => $ENV{GSNAP_DB_FOLDER}) };
+        return { gsnap_exe       => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                            optional => 0, default_value => $ENV{GSNAP_EXE}),
+                 paired_end      => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.',       optional => 1, default_value => '0'),
+                 gsnap_db_folder => VRPipe::StepOption->create(description => 'gsnap db folder that gsnap already knows about e.g. mm9, mm10, hg19, etc', optional => 0, default_value => $ENV{GSNAP_DB_FOLDER}) };
     }
     
     method inputs_definition {
@@ -63,11 +63,6 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             my ($cmd, $output_file_1, $output_file_2, $inputs);
             my $output_file_dir;
             my @outputfiles;
-
-
-            
-
-
             # create command
             if ($paired) {
                 $self->throw("Expecting two input files for paired end processing") unless @input_file == 2;
@@ -105,7 +100,15 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
 
 
 
+
+
+
+
     
+
+
+
+
 
 
 

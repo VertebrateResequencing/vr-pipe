@@ -24,7 +24,7 @@ my $setup = VRPipe::PipelineSetup->create(name       => 'bismark',
                                                                                    source  => file(qw(t data bismark_datasource_pe.fofn))->absolute),
                                           output_root => $output_dir,
                                           pipeline    => $pipeline,
-                                          options     => { paired_end => 1 });
+                                          options     => { bismark_exe => $ENV{BISMARK_EXE}, bismark_genome_folder => $ENV{BISMARK_GENOME_FOLDER}, paired_end => 1 });
 
 my @output_subdirs = output_subdirs(1);
 my $outputfile_1   = file(@output_subdirs, '1_bismark', "2822_6_1", "2822_6_1.fastq_Bismark_paired-end_mapping_report.txt");

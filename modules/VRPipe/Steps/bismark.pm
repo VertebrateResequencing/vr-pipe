@@ -38,9 +38,9 @@ class VRPipe::Steps::bismark with VRPipe::StepRole {
     use Data::Dumper;
     
     method options_definition {
-        return { bismark_exe           => VRPipe::StepOption->create(description => 'path to your bismark executable',                                    optional => 1, default_value => $ENV{BISMARK_EXE}),
+        return { bismark_exe           => VRPipe::StepOption->create(description => 'path to your bismark executable',                                    optional => 0, default_value => $ENV{BISMARK_EXE}),
                  paired_end            => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for singel end.', optional => 1, default_value => '0'),
-                 bismark_genome_folder => VRPipe::StepOption->create(description => 'path to your bismark genome folder',                                 optional => 1, default_value => $ENV{BISMARK_GENOME_FOLDER}) };
+                 bismark_genome_folder => VRPipe::StepOption->create(description => 'path to your bismark genome folder',                                 optional => 0, default_value => $ENV{BISMARK_GENOME_FOLDER}) };
     }
     
     method inputs_definition {
@@ -81,7 +81,7 @@ class VRPipe::Steps::bismark with VRPipe::StepRole {
             } #end if not paired
             
             if ($paired) {
-                $self->throw("One input file expected") unless (@input_file == 2);
+                $self->throw("Two input files expected") unless (@input_file == 2);
                 $output_file_1 = $self->output_file(output_key => 'bismark_report',
                                                     basename   => $name . "/$name.fastq_Bismark_paired-end_mapping_report.txt",
                                                     type       => 'txt',

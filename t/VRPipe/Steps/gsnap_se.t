@@ -22,10 +22,10 @@ my $setup = VRPipe::PipelineSetup->create(name       => 'gsnap',
                                                                                    source  => file(qw(t data gsnap_datasource_se.fofn))->absolute),
                                           output_root => $output_dir,
                                           pipeline    => $pipeline,
-                                          options     => { paired_end => 0 });
+                                          options     => { gsnap_exe => $ENV{GSNAP_EXE}, gsnap_db_folder => $ENV{GSNAP_DB_FOLDER}, paired_end => 0 });
 
 my @output_subdirs = output_subdirs(1);
-my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'ERR032995_160_lines_1.unpaired_uniq');
+my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'SRR514151_160_lines.unpaired_uniq');
 my @outputfiles;
 push(@outputfiles, $outputfile_1);
 warn $outputfile_1;
