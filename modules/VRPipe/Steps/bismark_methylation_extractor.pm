@@ -39,7 +39,7 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
     
     method options_definition {
         return {
-            bismark_meth_extractor_exe => VRPipe::StepOption->create(description => 'path to your bismark methylation extractor executable',                          optional => 0, default_value => $ENV{BISMARK_METH_EXR_EXE}),
+            bismark_meth_extractor_exe => VRPipe::StepOption->create(description => 'path to your bismark methylation extractor executable',                          optional => 1, default_value => 'methylation_extractor'),
             paired_end                 => VRPipe::StepOption->create(description => 'Run on files generated with paired end data (default is to run on single end).', optional => 1, default_value => 0)
         
         };
