@@ -5,7 +5,8 @@ VRPipe::Steps::vcf_concat - a step
 
 =head1 DESCRIPTION
 
-Runs vcf-concat against an input set of VCFs, each containing a sequence number as metadata for sorting purposes, generating one concatenated VCF
+Runs vcf-concat against an input set of VCFs, each containing a sequence number
+as metadata for sorting purposes, generating one concatenated VCF
 
 =head1 AUTHOR
 
@@ -35,7 +36,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
     method options_definition {
-        return { vcf_concat_exe => VRPipe::StepOption->create(description => 'path to vcf-concat executable', optional => 1, default_value => 'vcf-concat') };
+        return { vcf_concat_exe        => VRPipe::StepOption->create(description => 'path to vcf-concat executable',                                   optional => 1, default_value => 'vcf-concat'),
+                 vcf_concat_sites_only => VRPipe::StepOption->create(description => 'do not output genotype information to the concatenated vcf file', optional => 1, default_value => 0) };
     }
     
     method inputs_definition {
@@ -50,6 +52,7 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             my $self           = shift;
             my $options        = $self->options;
             my $vcf_concat_exe = $options->{vcf_concat_exe};
+            my $sites_only     = $options->{vcf_concat_sites_only};
             
             # create temporary fofn of files to merge
             my %vcfs;
@@ -85,7 +88,8 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             # run command
             my $merge_list_path = $merge_list->path;
             my $concat_vcf_path = $concat_vcf->path;
-            my $cmd             = qq[$vcf_concat_exe -f $merge_list_path | bgzip -c > $concat_vcf_path];
+            my $cut             = $sites_only ? ' | cut -f 1-8' : '';
+            my $cmd             = qq[$vcf_concat_exe -f $merge_list_path$cut | bgzip -c > $concat_vcf_path];
             my $req             = $self->new_requirements(memory => 500, time => 1);
             $self->dispatch([$cmd, $req, { output_files => [$concat_vcf, $merge_list] }]);
         };
