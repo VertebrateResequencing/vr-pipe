@@ -7,7 +7,8 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES GSNAP_EXE GSNAP_DB_FOLDER)]);
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+                    required_exe => [qw(gsnap)]);
     use TestPipelines;
     use_ok('VRPipe::Steps::gsnap');
 }
@@ -22,13 +23,12 @@ my $setup = VRPipe::PipelineSetup->create(name       => 'gsnap',
                                                                                    source  => file(qw(t data gsnap_datasource.fofn))->absolute),
                                           output_root => $output_dir,
                                           pipeline    => $pipeline,
-                                          options     => { paired_end => 1 });
+                                          options     => { gsnap_db => 'mm9', paired_end => 1 });
 
 my @output_subdirs = output_subdirs(1);
 my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'ERR032995_160_lines_1.concordant_uniq');
 my @outputfiles;
 push(@outputfiles, $outputfile_1);
-warn $outputfile_1;
 ok handle_pipeline(@outputfiles), 'gsnap pipeline ran ok, generating the expected output file';
 
 #my $testfilecontents   = file( qw(t data ERR032995.concordant_uniq) )->slurp;

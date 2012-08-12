@@ -47,6 +47,118 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Usage: sga merge [OPTION] ... READS1 READS2
 # Merge the sequence files READS1, READS2 into a single file/index
 #
@@ -88,7 +200,11 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
             }
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga merge ' . $sga_opts . ' $fastq_file_1 $fastq_file_2'));
             
-            my $req = $self->new_requirements(memory => 3900, time => 1);
+            my ($cpus) = $sga_opts =~ m/-t\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $sga_opts =~ m/--threads (\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 8900, time => 1, $cpus ? (cpus => $cpus) : ());
             my @fastqs = sort { $a->s <=> $b->s } @{ $self->inputs->{fastq_files} };
             my $id = 1;
             while (@fastqs) {
