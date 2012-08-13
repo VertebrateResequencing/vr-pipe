@@ -1,12 +1,12 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::snp_calling_mpileup_vcf - a pipeline
+VRPipe::Pipelines::snp_calling_mpileup - a pipeline
 
 =head1 DESCRIPTION
 
 Runs samtools mpileup followed by bcftools view, generating vcf files for a bam
-datasource. Run the snp_calling_mpileup_vcf pipeline instead if you need to
+datasource. Run the snp_calling_mpileup_via_bcf pipeline instead if you need to
 keep the intermediate bcfs.
 
 =head1 AUTHOR
@@ -35,9 +35,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::snp_calling_mpileup_vcf with VRPipe::PipelineRole {
+class VRPipe::Pipelines::snp_calling_mpileup with VRPipe::PipelineRole {
     method name {
-        return 'snp_calling_mpileup_vcf';
+        return 'snp_calling_mpileup';
     }
     
     method _num_steps {
