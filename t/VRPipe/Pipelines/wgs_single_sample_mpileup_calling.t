@@ -20,13 +20,31 @@ my $original_ref_fa = VRPipe::File->create(path => file(qw(t data S_suis_P17.fa)
 my $ref_fa = VRPipe::File->create(path => file($calling_dir, 'S_suis_P17.fa')->absolute);
 $original_ref_fa->copy($ref_fa);
 
-my $fofn          = file(qw(t data wgs_single_sample_calling_datasource.fofn))->absolute->stringify;
 my $override_file = file(qw(t data wgs_calling_override_options))->absolute->stringify;
+
+# copy input bams to the output dir, since we will create .bai files and don't
+# want them in the t/data directory
+my $orig_fofn_file = VRPipe::File->create(path => file(qw(t data wgs_single_sample_calling_datasource.fofn))->absolute);
+my $fofn_file = VRPipe::File->create(path => file($calling_dir, 'wgs_single_sample_calling_datasource.fofn'));
+my $ifh = $orig_fofn_file->openr;
+my $ofh = $fofn_file->openw;
+print $ofh scalar <$ifh>;
+while (<$ifh>) {
+    chomp;
+    my ($source_path, @meta) = split(/\t/, $_);
+    my $source = file($source_path);
+    my $dest = file($calling_dir, $source->basename);
+    copy($source, $dest);
+    print $ofh join("\t", $dest, @meta);
+    print $ofh "\n";
+}
+$orig_fofn_file->close;
+$fofn_file->close;
 
 VRPipe::PipelineSetup->create(name       => 'wgs test single-sample calling',
                               datasource => VRPipe::DataSource->create(type    => 'fofn_with_metadata_with_genome_chunking',
                                                                        method  => 'grouped_by_metadata',
-                                                                       source  => $fofn,
+                                                                       source  => $fofn_file->path,
                                                                        options => { reference_dict      => file(qw(t data S_suis_P17.fa.dict))->absolute->stringify,
                                                                                     chrom_list          => 'fake_chr1 fake_chr2',
                                                                                     chunk_size          => 100000,
@@ -42,7 +60,7 @@ VRPipe::PipelineSetup->create(name       => 'wgs test single-sample calling',
 VRPipe::PipelineSetup->create(name       => 'vcf-concat test',
                               datasource => VRPipe::DataSource->create(type    => 'vrpipe',
                                                                        method  => 'group_by_metadata',
-                                                                       source  => '1[1]',
+                                                                       source  => '1[2]',
                                                                        options => { metadata_keys => 'sample' }),
                               output_root => $calling_dir,
                               pipeline    => $concat_pipeline,
@@ -56,8 +74,8 @@ foreach my $sample (qw(1 2)) {
     foreach my $chunk (@$chunks) {
         my @output_subdirs = output_subdirs($element_id, 1);
         my $region = "$$chunk{chrom}_$$chunk{from}-$$chunk{to}";
-        push(@calling_files, file(@output_subdirs, '1_mpileup_vcf', qq[$region.mpileup.vcf.gz]));
-        push(@calling_files, file(@output_subdirs, '1_mpileup_vcf', qq[$region.mpileup.vcf.gz.tbi]));
+        push(@calling_files, file(@output_subdirs, '2_mpileup_vcf', qq[$region.mpileup.vcf.gz]));
+        push(@calling_files, file(@output_subdirs, '2_mpileup_vcf', qq[$region.mpileup.vcf.gz.tbi]));
         ++$element_id;
     }
 }
@@ -74,7 +92,7 @@ foreach my $sample (qw(1 2)) {
 
 ok handle_pipeline(@calling_files, @concat_files), 'all expected calling and concat files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 1, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -DSV -C50 -m2 -F0.0005 -d 10000 -ug -r $region -f $reference_fasta $bam_files | bcftools view -p 0.99 -vcgN -s $samples_file - | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -DSV -C50 -m2 -F0.0005 -d 10000 -ug -r $region -f $reference_fasta $bam_files | bcftools view -p 0.99 -vcgN -s $samples_file - | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
 
 # check final vcfs have metadata
 is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->get(path => $concat_files[2])->metadata],

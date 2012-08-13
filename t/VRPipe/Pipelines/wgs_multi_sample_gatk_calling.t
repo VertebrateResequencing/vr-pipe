@@ -30,12 +30,27 @@ my $override_file = file(qw(t data wgs_calling_override_options))->absolute->str
 
 # copy input bams to the output dir, since we will create .bai files and don't
 # want them in the t/data directory
-my $fofn_file = file(qw(t data calling_datasource.fofn))->absolute->stringify;
+my $orig_fofn_file = VRPipe::File->create(path => file(qw(t data calling_datasource.fofn))->absolute);
+my $fofn_file = VRPipe::File->create(path => file($calling_dir, 'calling_datasource.fofn'));
+my $ifh = $orig_fofn_file->openr;
+my $ofh = $fofn_file->openw;
+print $ofh scalar <$ifh>;
+while (<$ifh>) {
+    chomp;
+    my ($source_path, @meta) = split(/\t/, $_);
+    my $source = file($source_path);
+    my $dest = file($calling_dir, $source->basename);
+    copy($source, $dest);
+    print $ofh join("\t", $dest, @meta);
+    print $ofh "\n";
+}
+$orig_fofn_file->close;
+$fofn_file->close;
 
 VRPipe::PipelineSetup->create(name       => 'wgs test multi-sample calling',
                               datasource => VRPipe::DataSource->create(type    => 'fofn_with_metadata_with_genome_chunking',
                                                                        method  => 'group_all',
-                                                                       source  => $fofn_file,
+                                                                       source  => $fofn_file->path,
                                                                        options => { reference_dict      => file(qw(t data human_g1k_v37.fasta.dict))->absolute->stringify,
                                                                                     chrom_list          => '11 20',
                                                                                     chunk_size          => 10000000,
@@ -53,7 +68,7 @@ VRPipe::PipelineSetup->create(name       => 'wgs test multi-sample calling',
 VRPipe::PipelineSetup->create(name       => 'vcf-concat test',
                               datasource => VRPipe::DataSource->create(type    => 'vrpipe',
                                                                        method  => 'group_by_metadata',
-                                                                       source  => '1[3]',
+                                                                       source  => '1[4]',
                                                                        options => { metadata_keys => 'chrom' }),
                               output_root => $calling_dir,
                               pipeline    => $concat_pipeline,
@@ -68,8 +83,8 @@ my @calling_files;
 foreach my $chunk (@$chunks) {
     my @output_subdirs = output_subdirs($element_id, 1);
     my $region = "$$chunk{chrom}_$$chunk{from}-$$chunk{to}";
-    push(@calling_files, file(@output_subdirs, '3_gatk_unified_genotyper', qq[$region.gatk.vcf.gz]));
-    push(@calling_files, file(@output_subdirs, '3_gatk_unified_genotyper', qq[$region.gatk.vcf.gz.tbi]));
+    push(@calling_files, file(@output_subdirs, '4_gatk_unified_genotyper', qq[$region.gatk.vcf.gz]));
+    push(@calling_files, file(@output_subdirs, '4_gatk_unified_genotyper', qq[$region.gatk.vcf.gz.tbi]));
     ++$element_id;
 }
 
@@ -83,7 +98,7 @@ foreach my $chrom (qw(11 20)) {
 
 ok handle_pipeline(@calling_files, @concat_files), 'all output files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary], ['java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file -L $region --genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0 -baq RECALCULATE'], 'cmd summaries for the major steps were as expected';
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary], ['java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file -L $region --genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0 -baq RECALCULATE'], 'cmd summaries for the major steps were as expected';
 
 # check final vcfs have metadata
 is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->get(path => $concat_files[2])->metadata],
