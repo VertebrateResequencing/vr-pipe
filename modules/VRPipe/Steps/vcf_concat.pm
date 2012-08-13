@@ -55,35 +55,13 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             my $sites_only     = $options->{vcf_concat_sites_only};
             
             # create temporary fofn of files to merge
-            my %vcfs;
-            my %orig_meta;
-            foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
-                my $vcf_meta = $vcf->metadata;
-                my $seq_no   = $vcf_meta->{seq_no};
-                $vcfs{$seq_no} = $vcf->path;
-                foreach my $key (keys %$vcf_meta) {
-                    $orig_meta{$key}->{ $vcf_meta->{$key} } = 1;
-                }
-            }
-            
-            # Only keep unique metadata
-            my %new_meta;
-            foreach my $key (keys %orig_meta) {
-                my @vals = keys %{ $orig_meta{$key} };
-                next unless @vals == 1;
-                $new_meta{$key} = $vals[0];
-            }
-            
             my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
-            my $ofh = $merge_list->openw;
-            foreach my $seq (sort { $a <=> $b } keys(%vcfs)) {
-                print $ofh $vcfs{$seq}, "\n";
-            }
-            $merge_list->close;
-            ($merge_list->lines == scalar keys %vcfs && $merge_list->lines == scalar @{ $self->inputs->{vcf_files} }) || $self->throw("merge list does not contain all input files");
+            my @sorted_vcf_files = sort { $a->metadata->{seq_no} <=> $b->metadata->{seq_no} } @{ $self->inputs->{vcf_files} };
+            $self->create_fofn($merge_list, \@sorted_vcf_files);
             
             # define output file
-            my $concat_vcf = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => \%new_meta);
+            my $concat_meta = $self->common_metadata($self->inputs->{vcf_files});
+            my $concat_vcf = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => $concat_meta);
             
             # run command
             my $merge_list_path = $merge_list->path;

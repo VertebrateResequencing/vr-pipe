@@ -60,15 +60,10 @@ class VRPipe::Steps::vcf_stats with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.vcf.gz$/) {
-                    $cat_exe = 'zcat';
-                }
-                else {
-                    $cat_exe = 'cat';
-                }
+                my $cat_exe = $basename =~ /\.vcf.gz$/ ? 'zcat' : 'cat';
                 $basename .= '.stats';
                 
-                my $stats_file = $self->output_file(output_key => 'stats_file', basename => $basename, type => 'txt');
+                my $stats_file = $self->output_file(output_key => 'stats_file', basename => $basename, type => 'txt', metadata => $vcf_file->metadata);
                 
                 my $input_path  = $vcf_file->path;
                 my $output_path = $stats_file->path;

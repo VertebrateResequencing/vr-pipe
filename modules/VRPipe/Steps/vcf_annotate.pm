@@ -5,8 +5,9 @@ VRPipe::Steps::vcf_annotate - a step
 
 =head1 DESCRIPTION
 
-Generates Annotated VCF files from one or more input VCFs from two sets of annotation options, using two passes of vcf-annotate. 
-[Should be amended to make the second annotation optional.]
+Generates Annotated VCF files from one or more input VCFs from two sets of
+annotation options, using two passes of vcf-annotate.  [Should be amended to
+make the second annotation optional.]
 
 =head1 AUTHOR
 
@@ -58,23 +59,14 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
             my $an_exe    = $options->{'vcf-annotate_exe'};
             my $an_opts   = $options->{'vcf-annotate_options'};
             my $an_2_opts = $options->{'vcf-annotate_2_options'};
-            my $cat_exe;
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.vcf.gz$/) {
-                    $basename =~ s/\.vcf.gz$/.annot.vcf.gz/;
-                    $cat_exe = 'zcat';
-                }
-                else {
-                    $basename =~ s/\.vcf$/.annot.vcf/;
-                    $cat_exe = 'cat';
-                }
-                my $annotated_vcf = $self->output_file(output_key => 'annotated_vcf', basename => $basename, type => 'vcf');
-                if ($vcf_file->metadata) {
-                    $annotated_vcf->add_metadata($vcf_file->metadata);
-                }
+                my $cat_exe = $basename =~ /\.vcf.gz$/ ? 'zcat' : 'cat';
+                $basename =~ s/\.vcf(.gz)?$/.annot.vcf.gz/;
+                
+                my $annotated_vcf = $self->output_file(output_key => 'annotated_vcf', basename => $basename, type => 'vcf', metadata => $vcf_file->metadata);
                 
                 my $input_path  = $vcf_file->path;
                 my $output_path = $annotated_vcf->path;
@@ -106,7 +98,7 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
     }
     
     method annotate_vcf (ClassName|Object $self: Str $cmd_line) {
-        my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* (\S[^;]+)$/;
+        my ($input_path, $output_path) = $cmd_line =~ /^\S+ (\S+) .* bgzip -c > (\S+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         
         my $input_recs = $input_file->num_records;

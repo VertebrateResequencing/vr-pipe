@@ -17,7 +17,7 @@ my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(vcf_multi_filter vcf_merge vcf_annotate vep_analysis vcf_vep_consequences vcf_stats);
+my @expected_step_names = qw(vcf_multi_filter vcf_index vcf_merge vcf_index vcf_annotate vcf_index vep_analysis vcf_vep_consequences vcf_index vcf_stats);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 my $filter_opt_file_1 = file(qw(t data uk10k_gatk_20110715.filter))->absolute->stringify;
@@ -52,12 +52,14 @@ my $element_id = 0;
 foreach my $in ('test1', 'test2') {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
-    push(@output_files, file(@output_subdirs, '2_vcf_merge',            "${in}.filt.${in}a.filt.merged.vcf.gz"));
-    push(@output_files, file(@output_subdirs, '2_vcf_merge',            "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
-    push(@output_files, file(@output_subdirs, '3_vcf_annotate',         "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
-    push(@final_files,  file(@output_subdirs, '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
-    push(@final_files,  file(@output_subdirs, '5_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
-    push(@final_files,  file(@output_subdirs, '6_vcf_stats',            "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.stats"));
+    push(@output_files, file(@output_subdirs, '3_vcf_merge',            "${in}.filt.${in}a.filt.merged.vcf.gz"));
+    push(@output_files, file(@output_subdirs, '3_vcf_merge',            "${in}.filt.${in}a.filt.merged.vcf.gz.tbi"));
+    push(@output_files, file(@output_subdirs, '5_vcf_annotate',         "${in}.filt.${in}a.filt.merged.annot.vcf.gz"));
+    push(@output_files, file(@output_subdirs, '5_vcf_annotate',         "${in}.filt.${in}a.filt.merged.annot.vcf.gz.tbi"));
+    push(@final_files,  file(@output_subdirs, '7_vep_analysis',         "${in}.filt.${in}a.filt.merged.annot.conseq.vep.txt"));
+    push(@final_files,  file(@output_subdirs, '8_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz"));
+    push(@final_files,  file(@output_subdirs, '8_vcf_vep_consequences', "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.tbi"));
+    push(@final_files,  file(@output_subdirs, '10_vcf_stats',           "${in}.filt.${in}a.filt.merged.annot.conseq.vcf.gz.stats"));
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 
