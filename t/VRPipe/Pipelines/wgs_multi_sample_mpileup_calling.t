@@ -6,7 +6,7 @@ use Path::Class;
 use Vcf;
 
 BEGIN {
-    use Test::Most tests => 14;
+    use Test::Most tests => 15;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
                     required_exe => [qw(samtools bcftools)]);
     use TestPipelines;
@@ -125,6 +125,14 @@ VRPipe::PipelineSetup->create(name       => 'wgs test annotation',
 
 
 
+
+
+
+
+
+
+
+
 VRPipe::PipelineSetup->create(name       => 'concat vcfs',
                               datasource => VRPipe::DataSource->create(type    => 'vrpipe',
                                                                        method  => 'group_by_metadata',
@@ -174,6 +182,14 @@ is_deeply [VRPipe::File->get(path => $final_files[0])->metadata, VRPipe::File->g
 
 
 
+
+
+
+
+
+
+
+
 # Call on subsets - EUR, ASN
 my $ceu_samples_file = file(qw(t data wgs_calling_ceu.samples))->absolute->stringify;
 my $asn_samples_file = file(qw(t data wgs_calling_asn.samples))->absolute->stringify;
@@ -193,17 +209,6 @@ VRPipe::PipelineSetup->create(
                  sample_sex_file => $ceu_samples_file,
                  cleanup         => 0, });
 
-VRPipe::PipelineSetup->create(name       => 'concat CEU vcfs',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'group_by_metadata',
-                                                                       source  => '4[1]',
-                                                                       options => { metadata_keys => 'analysis_group|chrom' },),
-                              output_root => $calling_dir,
-                              pipeline    => $concat_pipeline,
-                              options     => {
-                                           vcf_concat_sites_only => 1,
-                                           cleanup               => 0 });
-
 VRPipe::PipelineSetup->create(
     name       => 'wgs test ASN calling',
     datasource => VRPipe::DataSource->create(type    => 'vrpipe',
@@ -217,40 +222,30 @@ VRPipe::PipelineSetup->create(
                  sample_sex_file => $asn_samples_file,
                  cleanup         => 0, });
 
-VRPipe::PipelineSetup->create(name       => 'concat ASN vcfs',
+# Recall on merged site list
+ok my $merge_pipeline = VRPipe::Pipeline->get(name => 'merge_vcfs_to_site_list_and_recall_from_bcf'), 'able to get the merge_vcfs_to_site_list pipeline';
+
+VRPipe::PipelineSetup->create(
+    name       => 'merge continental vcfs and recall from merged list',
+    datasource => VRPipe::DataSource->create(type    => 'vrpipe',
+                                             method  => 'group_by_metadata',
+                                             source  => '1[2]|4[1]|5[1]',                                  # bcf files, continental vcf files
+                                             options => { metadata_keys => 'analysis_group|chrom|from|to' }),
+    output_root => $calling_dir,
+    pipeline    => $merge_pipeline,
+    options     => {
+                 reference_fasta => $ref_fa,
+                 sample_sex_file => $all_samples_file,
+                 cleanup         => 0 });
+
+VRPipe::PipelineSetup->create(name       => 'concat vcfs',
                               datasource => VRPipe::DataSource->create(type    => 'vrpipe',
                                                                        method  => 'group_by_metadata',
-                                                                       source  => '6[1]',
+                                                                       source  => '6[2]',
                                                                        options => { metadata_keys => 'analysis_group|chrom' },),
                               output_root => $calling_dir,
                               pipeline    => $concat_pipeline,
-                              options     => {
-                                           vcf_concat_sites_only => 1,
-                                           cleanup               => 0 });
-
-# Recall on merged site list
-# ok my $merge_pipeline = VRPipe::Pipeline->get(name => 'merge_vcfs_to_site_list'), 'able to get the merge_vcfs_to_site_list pipeline';
-#
-# VRPipe::PipelineSetup->create(name => 'merge continental vcfs',
-#                            datasource => VRPipe::DataSource->create(type => 'vrpipe',
-#                                                                  method => 'group_by_metadata',
-#                                                                  source => '5[1]|7[1]',
-#                                                                  options => { metadata_keys => 'analysis_group|chrom' },),
-#                            output_root => $calling_dir,
-#                            pipeline => $merge_pipeline,
-#                            options => { cleanup => 0 });
-#
-# VRPipe::PipelineSetup->create(name => 'wgs recall from merged list',
-#                            datasource => VRPipe::DataSource->create(type => 'vrpipe',
-#                                                                     method => 'all',
-#                                                                     source => '1[2]|9[1]', # bcf files, and merged site list
-#                                                                     options => {  },),
-#                            output_root => $calling_dir,
-#                            pipeline => $bcf_calling_pipeline,
-#                            options => { reference_fasta => $ref_fa,
-#                                         sample_sex_file => $all_samples_file,
-#                                         cleanup => 0,
-#                                       });
+                              options     => { cleanup => 0 });
 
 ok handle_pipeline(), 'continental calling and recalling on merged sites ran okay';
 
