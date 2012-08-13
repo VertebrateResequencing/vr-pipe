@@ -77,7 +77,8 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
                 my $to     = $element_meta->{to};
                 my $region = "${chrom}_${from}-${to}";
                 $$bcf_meta{chrom}  = $chrom;
-                $$bcf_meta{region} = $region;
+                $$bcf_meta{from}   = $from;
+                $$bcf_meta{to}     = $to;
                 $$bcf_meta{seq_no} = $element_meta->{chunk_id};
                 my $override_file = $element_meta->{chunk_override_file};
                 my $override      = do $override_file;

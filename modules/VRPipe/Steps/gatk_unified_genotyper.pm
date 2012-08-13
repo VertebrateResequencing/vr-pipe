@@ -87,7 +87,8 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
                 my $to     = $element_meta->{to};
                 my $region = "${chrom}_${from}-${to}";
                 $$vcf_meta{chrom}  = $chrom;
-                $$vcf_meta{region} = $region;
+                $$vcf_meta{from}   = $from;
+                $$vcf_meta{to}     = $to;
                 $$vcf_meta{seq_no} = $element_meta->{chunk_id};
                 my $override_file = $element_meta->{chunk_override_file};
                 my $override      = do $override_file;

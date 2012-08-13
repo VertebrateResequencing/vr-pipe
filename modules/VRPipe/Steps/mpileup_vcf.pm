@@ -88,7 +88,8 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
                 $male_ploidy   = $element_meta->{male_ploidy}   if defined $element_meta->{male_ploidy};
                 my $region = "${chrom}_${from}-${to}";
                 $$vcf_meta{chrom}  = $chrom;
-                $$vcf_meta{region} = $region;
+                $$vcf_meta{from}   = $from;
+                $$vcf_meta{to}     = $to;
                 $$vcf_meta{seq_no} = $element_meta->{chunk_id};
                 my $override_file = $element_meta->{chunk_override_file};
                 my $override      = do $override_file;
