@@ -12,7 +12,7 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $calling_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup_bcf'), 'able to get the snp_calling_mpileup_bcf pipeline';
+ok my $calling_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup_via_bcf'), 'able to get the snp_calling_mpileup_via_bcf pipeline';
 
 my $calling_dir = get_output_dir('wgs_multi_sample_mpileup_calling_test');
 
@@ -121,6 +121,10 @@ VRPipe::PipelineSetup->create(name       => 'wgs test annotation',
 
 
 
+
+
+
+
 VRPipe::PipelineSetup->create(name       => 'concat vcfs',
                               datasource => VRPipe::DataSource->create(type    => 'vrpipe',
                                                                        method  => 'group_by_metadata',
@@ -161,6 +165,10 @@ is_deeply [VRPipe::File->get(path => $final_files[0])->metadata, VRPipe::File->g
        analysis_group => 'low_coverage',
        caller         => 'samtools_mpileup_bcftools' }],
   'final merged vcfs have correct metadata';
+
+
+
+
 
 
 

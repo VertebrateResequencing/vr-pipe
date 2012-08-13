@@ -43,14 +43,14 @@ ok handle_pipeline(), 'pipeline ran';
 #*** needs proper tests
 
 $output_dir = get_output_dir('gatk_snp_calling_and_filter');
-ok $pipeline = VRPipe::Pipeline->create(name => 'gatk_variant_calling_and_filter_vcf'), 'able to get the gatk_variant_calling_and_filter_vcf pipeline';
+ok $pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_unified_genotyper_and_filter_vcf'), 'able to get the snp_calling_gatk_unified_genotyper_and_filter_vcf pipeline';
 
 @s_names = ();
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
 
-@expected_step_names = qw(bam_index gatk_genotype vcf_index gatk_variant_filter vcf_index);
+@expected_step_names = qw(fasta_index sequence_dictionary bam_index gatk_unified_genotyper vcf_index gatk_variant_filter vcf_index);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 my $ds = VRPipe::DataSource->create(type    => 'vrpipe',
@@ -63,10 +63,10 @@ VRPipe::PipelineSetup->create(name        => 'snp call and filter',
                               output_root => $output_dir,
                               pipeline    => $pipeline,
                               options     => {
-                                           delete_unfiltered_vcfs => 0,
-                                           reference_fasta        => $ref_fa,
-                                           genotyper_opts         => '-rf BadCigar -glm SNP --output_mode EMIT_ALL_SITES -stand_call_conf 30.0 -stand_emit_conf 10.0 --annotation DepthOfCoverage --annotation QualByDepth --annotation BaseQualityRankSumTest --annotation MappingQualityRankSumTest --annotation FisherStrand --annotation HaplotypeScore --annotation MappingQualityRankSumTest --annotation MappingQualityZero --annotation RMSMappingQuality',
-                                           var_filter_opts        => '--filterExpression "QUAL <= 150" --filterName "QUALfilt" --filterExpression "ADalt <= 18" --filterName "ADaltfil" --filterExpression "Dels > 0.00" --filterName "Delsfilt" --filterExpression "PLalt >= 41" --filterName "PLaltfilt" --filterExpression "ADpropalt <= 0.37" --filterName "ADpropaltfilt" --filterExpression "QD <= 0.45" --filterName "QDfilt" --filterExpression "MQ <= 5.90" --filterName "MQfilt" --filterExpression "SB > -0.01" --filterName "SBfilt" --missingValuesInExpressionsShouldEvaluateAsFailing' });
+                                           delete_unfiltered_vcfs    => 0,
+                                           reference_fasta           => $ref_fa,
+                                           unified_genotyper_options => '-rf BadCigar -glm SNP --output_mode EMIT_ALL_SITES -stand_call_conf 30.0 -stand_emit_conf 10.0 --annotation DepthOfCoverage --annotation QualByDepth --annotation BaseQualityRankSumTest --annotation MappingQualityRankSumTest --annotation FisherStrand --annotation HaplotypeScore --annotation MappingQualityRankSumTest --annotation MappingQualityZero --annotation RMSMappingQuality',
+                                           variant_filter_opts       => '--filterExpression "QUAL <= 150" --filterName "QUALfilt" --filterExpression "ADalt <= 18" --filterName "ADaltfil" --filterExpression "Dels > 0.00" --filterName "Delsfilt" --filterExpression "PLalt >= 41" --filterName "PLaltfilt" --filterExpression "ADpropalt <= 0.37" --filterName "ADpropaltfilt" --filterExpression "QD <= 0.45" --filterName "QDfilt" --filterExpression "MQ <= 5.90" --filterName "MQfilt" --filterExpression "SB > -0.01" --filterName "SBfilt" --missingValuesInExpressionsShouldEvaluateAsFailing' });
 
 $output_dir = get_output_dir('gatk_indel_calling_and_filter');
 VRPipe::PipelineSetup->create(name        => 'indel call and filter',
@@ -74,10 +74,10 @@ VRPipe::PipelineSetup->create(name        => 'indel call and filter',
                               output_root => $output_dir,
                               pipeline    => $pipeline,
                               options     => {
-                                           delete_unfiltered_vcfs => 0,
-                                           reference_fasta        => $ref_fa,
-                                           genotyper_opts         => '-rf BadCigar -glm INDEL --output_mode EMIT_ALL_SITES -stand_call_conf 30.0 -stand_emit_conf 10.0 --annotation DepthOfCoverage --annotation QualByDepth --annotation BaseQualityRankSumTest --annotation MappingQualityRankSumTest --annotation FisherStrand --annotation HaplotypeScore --annotation MappingQualityRankSumTest --annotation MappingQualityZero --annotation RMSMappingQuality',
-                                           var_filter_opts        => '--filterExpression "QUAL < 894" --filterName "QUALfilt" --filterExpression "ADpropalt <  0.04" --filterName "ADpropaltfilt" --filterExpression "GQ < 42.1" --filterName "QDfilt" --filterExpression "MQ < 50.5" --filterName "MQfilt" --filterExpression "ADref > 56" --filterName "ADaltfil" --filterExpression "SB > -0.01" --filterName "SBfilt" --missingValuesInExpressionsShouldEvaluateAsFailing' });
+                                           delete_unfiltered_vcfs    => 0,
+                                           reference_fasta           => $ref_fa,
+                                           unified_genotyper_options => '-rf BadCigar -glm INDEL --output_mode EMIT_ALL_SITES -stand_call_conf 30.0 -stand_emit_conf 10.0 --annotation DepthOfCoverage --annotation QualByDepth --annotation BaseQualityRankSumTest --annotation MappingQualityRankSumTest --annotation FisherStrand --annotation HaplotypeScore --annotation MappingQualityRankSumTest --annotation MappingQualityZero --annotation RMSMappingQuality',
+                                           variant_filter_opts       => '--filterExpression "QUAL < 894" --filterName "QUALfilt" --filterExpression "ADpropalt <  0.04" --filterName "ADpropaltfilt" --filterExpression "GQ < 42.1" --filterName "QDfilt" --filterExpression "MQ < 50.5" --filterName "MQfilt" --filterExpression "ADref > 56" --filterName "ADaltfil" --filterExpression "SB > -0.01" --filterName "SBfilt" --missingValuesInExpressionsShouldEvaluateAsFailing' });
 
 ok handle_pipeline(), 'pipeline ran';
 
