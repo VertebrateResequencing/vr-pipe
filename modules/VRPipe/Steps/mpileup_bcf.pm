@@ -65,7 +65,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             
             my $bams_list = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1);
             my $bams_list_path = $bams_list->path;
-            $self->create_fofn($bams_list, $self->inputs->{bam_files});
+            $bams_list->create_fofn($self->inputs->{bam_files});
             my @input_ids = map { $_->id } @{ $self->inputs->{bam_files} };
             my $bcf_meta = $self->common_metadata($self->inputs->{bam_files});
             

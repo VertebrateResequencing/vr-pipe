@@ -75,7 +75,7 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
             
             my $bams_list = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1);
             my $bams_list_path = $bams_list->path;
-            $self->create_fofn($bams_list, $self->inputs->{bam_files});
+            $bams_list->create_fofn($self->inputs->{bam_files});
             my $vcf_meta = $self->common_metadata($self->inputs->{bam_files});
             $vcf_meta->{caller} = 'GATK_UnifiedGenotyper';
             

@@ -71,7 +71,7 @@ class VRPipe::Steps::gatk_variant_annotator extends VRPipe::Steps::gatk {
             my $bams_list;
             if ($self->inputs->{bam_files}) {
                 $bams_list = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1);
-                $self->create_fofn($bams_list, $self->inputs->{bam_files});
+                $bams_list->create_fofn($self->inputs->{bam_files});
             }
             
             foreach my $vcf (@{ $self->inputs->{vcf_files} }) {

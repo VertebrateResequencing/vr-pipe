@@ -57,7 +57,7 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             # create temporary fofn of files to merge
             my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
             my @sorted_vcf_files = sort { $a->metadata->{seq_no} <=> $b->metadata->{seq_no} } @{ $self->inputs->{vcf_files} };
-            $self->create_fofn($merge_list, \@sorted_vcf_files);
+            $merge_list->create_fofn(\@sorted_vcf_files);
             
             # define output file
             my $concat_meta = $self->common_metadata($self->inputs->{vcf_files});
