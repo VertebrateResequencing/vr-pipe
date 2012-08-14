@@ -96,39 +96,7 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
         };
     
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     method outputs_definition {
         return { gsnap_uniq_sam => VRPipe::StepIODefinition->create(type => 'txt', description => 'gsnap mapped sequences files in sam format'), };
     }

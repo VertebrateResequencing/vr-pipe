@@ -35,7 +35,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
     use File::Basename;
-    use Data::Dumper;
+    use File::Which;
     
     method options_definition {
         return {
@@ -58,6 +58,9 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
             my ($infile) = @{ $self->inputs->{sam_file} };
             my $name     = $infile->basename;
             
+            my $exe_path = $exe;
+            $exe_path = which($exe) unless file($exe)->is_absolute;
+            
             my $outfile1 = $self->output_file(output_key => 'meth_calls_CHH',
                                               basename   => 'CHH_context_' . $name . '.txt',
                                               type       => 'txt',
@@ -76,7 +79,8 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
             
             my $req = $self->new_requirements(memory => 1500, time => 1);
             
-            my $cmd = $paired ? $exe . " -p --comprehensive $infile_path" : $exe . " -s --comprehensive $infile_path"; #> $outfile_path";
+            my $interpreter_and_exe_path = "perl $exe_path";
+            my $cmd = $paired ? $interpreter_and_exe_path . " -p --comprehensive $infile_path" : $interpreter_and_exe_path . " -s --comprehensive $infile_path"; #> $outfile_path";
             $self->dispatch([qq[$cmd], $req, { output_files => [$outfile1, $outfile2, $outfile3] }]);
           }
     }
@@ -96,6 +100,6 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;                                                                                                      # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
