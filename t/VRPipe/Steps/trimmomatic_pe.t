@@ -5,7 +5,7 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH TRIMMOMATIC_LOG_PATH)],
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH)],
                     required_exe => [qw(java)]);
     use TestPipelines;
     use_ok('VRPipe::Steps::trimmomatic');
