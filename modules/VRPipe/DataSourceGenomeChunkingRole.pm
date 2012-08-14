@@ -44,10 +44,10 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
                      lazy    => 1,
                      builder => '_build_chunks');
     
-    has 'reference_dict' => (is      => 'rw',
-                             isa     => 'Str',
-                             lazy    => 1,
-                             builder => 'options');
+    has 'reference_index' => (is      => 'rw',
+                              isa     => 'Str',
+                              lazy    => 1,
+                              builder => 'options');
     
     has 'chunk_override_file' => (is      => 'rw',
                                   isa     => 'Str',
@@ -76,7 +76,7 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
     
     around method_description (Str $method) {
         my $description = $self->$orig($method);
-        return $description . q[ Each dataelement will be duplicated in chunks across the genome. The option 'reference_dict' is the absolute path to the sequence dictionary file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.];
+        return $description . q[ Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.];
     }
     
     around _create_elements (ArrayRef $e_args!) {
@@ -121,7 +121,7 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
     
     around options {
         my $options = $self->$orig();
-        $self->reference_dict(delete $options->{reference_dict});
+        $self->reference_index(delete $options->{reference_index});
         $self->chunk_override_file(delete $options->{chunk_override_file});
         $self->chunk_size(delete $options->{chunk_size})       if (exists $options->{chunk_size});
         $self->chunk_overlap(delete $options->{chunk_overlap}) if (exists $options->{chunk_overlap});
@@ -143,20 +143,20 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         return @return;
     }
     
-    method _with_genome_chunking (Defined :$handle!, Str|File :$reference_dict!, Str|File :$chunk_override_file!, Int :$chunk_size! = 1000000, Int :$chunk_overlap! = 0, Str :$chrom_list?, Str|File :$ploidy?) {
+    method _with_genome_chunking (Defined :$handle!, Str|File :$reference_index!, Str|File :$chunk_override_file!, Int :$chunk_size! = 1000000, Int :$chunk_overlap! = 0, Str :$chrom_list?, Str|File :$ploidy?) {
         return;
     }
     
     method _build_chunks {
-        my $reference_dict = $self->reference_dict;
-        my $chunk_size     = $self->chunk_size;
-        my $chunk_overlap  = $self->chunk_overlap;
-        my $chrom_list     = $self->chrom_list;
-        my $ploidy_regions = $self->ploidy;
+        my $reference_index = $self->reference_index;
+        my $chunk_size      = $self->chunk_size;
+        my $chunk_overlap   = $self->chunk_overlap;
+        my $chrom_list      = $self->chrom_list;
+        my $ploidy_regions  = $self->ploidy;
         
         my $ploidy_default = $$ploidy_regions{default} || 2;
         
-        my $pars = VRPipe::Parser->create('dict', { file => $reference_dict });
+        my $pars = VRPipe::Parser->create('fai', { file => $reference_index });
         my $parsed_record = $pars->parsed_record();
         
         my @chroms = @$chrom_list;

@@ -57,7 +57,7 @@ VRPipe::PipelineSetup->create(name       => 'wgs test multi-sample mpileup calli
                                                                        method  => 'grouped_by_metadata',
                                                                        source  => $fofn_file->path,
                                                                        options => { metadata_keys       => 'analysis_group|chrom',
-                                                                                    reference_dict      => file(qw(t data human_g1k_v37.fasta.dict))->absolute->stringify,
+                                                                                    reference_index     => file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify,
                                                                                     chrom_list          => '11 20',
                                                                                     chunk_size          => 10000000,
                                                                                     chunk_overlap       => 0,
@@ -149,6 +149,38 @@ VRPipe::PipelineSetup->create(name       => 'wgs test annotation',
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 VRPipe::PipelineSetup->create(name       => 'concat vcfs',
                               datasource => VRPipe::DataSource->create(type    => 'vrpipe',
                                                                        method  => 'group_by_metadata',
@@ -191,6 +223,38 @@ is_deeply [VRPipe::File->get(path => $final_files[0])->metadata, VRPipe::File->g
        chunk_override_file => $override_file->path->stringify,
        caller              => 'samtools_mpileup_bcftools' }],
   'final merged vcfs have correct metadata';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
