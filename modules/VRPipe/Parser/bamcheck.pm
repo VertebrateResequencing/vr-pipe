@@ -96,289 +96,204 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
-    has 'sequences' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_sequences'
-    );
+    has 'sequences' => (is     => 'ro',
+                        isa    => 'Int',
+                        writer => '_sequences');
     
-    has 'is_paired' => (
-        is     => 'ro',
-        isa    => 'Bool',
-        writer => '_is_paired'
-    );
+    has 'is_paired' => (is     => 'ro',
+                        isa    => 'Bool',
+                        writer => '_is_paired');
     
-    has 'is_sorted' => (
-        is     => 'ro',
-        isa    => 'Bool',
-        writer => '_is_sorted'
-    );
+    has 'is_sorted' => (is     => 'ro',
+                        isa    => 'Bool',
+                        writer => '_is_sorted');
     
-    has 'first_fragments' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_first_fragments'
-    );
+    has 'first_fragments' => (is     => 'ro',
+                              isa    => 'Int',
+                              writer => '_first_fragments');
     
-    has 'last_fragments' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_last_fragments'
-    );
+    has 'last_fragments' => (is     => 'ro',
+                             isa    => 'Int',
+                             writer => '_last_fragments');
     
-    has 'reads_mapped' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_reads_mapped'
-    );
+    has 'reads_mapped' => (is     => 'ro',
+                           isa    => 'Int',
+                           writer => '_reads_mapped');
     
-    has 'reads_unmapped' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_reads_unmapped'
-    );
+    has 'reads_unmapped' => (is     => 'ro',
+                             isa    => 'Int',
+                             writer => '_reads_unmapped');
     
-    has 'reads_unpaired' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_reads_unpaired'
-    );
+    has 'reads_unpaired' => (is     => 'ro',
+                             isa    => 'Int',
+                             writer => '_reads_unpaired');
     
-    has 'reads_paired' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_reads_paired'
-    );
+    has 'reads_paired' => (is     => 'ro',
+                           isa    => 'Int',
+                           writer => '_reads_paired');
     
-    has 'reads_duplicated' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_reads_duplicated'
-    );
+    has 'reads_duplicated' => (is     => 'ro',
+                               isa    => 'Int',
+                               writer => '_reads_duplicated');
     
-    has 'reads_mq0' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_reads_mq0'
-    );
+    has 'reads_mq0' => (is     => 'ro',
+                        isa    => 'Int',
+                        writer => '_reads_mq0');
     
-    has 'total_length' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_total_length'
-    );
+    has 'total_length' => (is     => 'ro',
+                           isa    => 'Int',
+                           writer => '_total_length');
     
-    has 'bases_mapped' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_bases_mapped'
-    );
+    has 'bases_mapped' => (is     => 'ro',
+                           isa    => 'Int',
+                           writer => '_bases_mapped');
     
-    has 'bases_mapped_cigar' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_bases_mapped_cigar'
-    );
+    has 'bases_mapped_cigar' => (is     => 'ro',
+                                 isa    => 'Int',
+                                 writer => '_bases_mapped_cigar');
     
-    has 'bases_trimmed' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_bases_trimmed'
-    );
+    has 'bases_trimmed' => (is     => 'ro',
+                            isa    => 'Int',
+                            writer => '_bases_trimmed');
     
-    has 'bases_duplicated' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_bases_duplicated'
-    );
+    has 'bases_duplicated' => (is     => 'ro',
+                               isa    => 'Int',
+                               writer => '_bases_duplicated');
     
-    has 'mismatches' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_mismatches'
-    );
+    has 'mismatches' => (is     => 'ro',
+                         isa    => 'Int',
+                         writer => '_mismatches');
     
-    has 'error_rate' => (
-        is     => 'ro',
-        isa    => 'Num',
-        writer => '_error_rate'
-    );
+    has 'error_rate' => (is     => 'ro',
+                         isa    => 'Num',
+                         writer => '_error_rate');
     
-    has 'average_length' => (
-        is     => 'ro',
-        isa    => 'Num',
-        writer => '_average_length'
-    );
+    has 'average_length' => (is     => 'ro',
+                             isa    => 'Num',
+                             writer => '_average_length');
     
-    has 'maximum_length' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_maximum_length'
-    );
+    has 'maximum_length' => (is     => 'ro',
+                             isa    => 'Int',
+                             writer => '_maximum_length');
     
-    has 'average_quality' => (
-        is     => 'ro',
-        isa    => 'Num',
-        writer => '_average_quality'
-    );
+    has 'average_quality' => (is     => 'ro',
+                              isa    => 'Num',
+                              writer => '_average_quality');
     
-    has 'insert_size_average' => (
-        is     => 'ro',
-        isa    => 'Num',
-        writer => '_insert_size_average'
-    );
+    has 'insert_size_average' => (is     => 'ro',
+                                  isa    => 'Num',
+                                  writer => '_insert_size_average');
     
-    has 'insert_size_standard_deviation' => (
-        is     => 'ro',
-        isa    => 'Num',
-        writer => '_insert_size_standard_deviation'
-    );
+    has 'insert_size_standard_deviation' => (is     => 'ro',
+                                             isa    => 'Num',
+                                             writer => '_insert_size_standard_deviation');
     
-    has 'inward_oriented_pairs' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_inward_oriented_pairs'
-    );
+    has 'inward_oriented_pairs' => (is     => 'ro',
+                                    isa    => 'Int',
+                                    writer => '_inward_oriented_pairs');
     
-    has 'outward_oriented_pairs' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_outward_oriented_pairs'
-    );
+    has 'outward_oriented_pairs' => (is     => 'ro',
+                                     isa    => 'Int',
+                                     writer => '_outward_oriented_pairs');
     
-    has 'pairs_with_other_orientation' => (
-        is     => 'ro',
-        isa    => 'Int',
-        writer => '_pairs_with_other_orientation'
-    );
+    has 'pairs_with_other_orientation' => (is     => 'ro',
+                                           isa    => 'Int',
+                                           writer => '_pairs_with_other_orientation');
     
-    has '_coverage' => (
-        traits  => ['Hash'],
-        is      => 'ro',
-        isa     => 'HashRef[Str]',
-        default => sub { {} },
-        handles => {
-            '_set_coverage' => 'set',
-            coverage        => 'get'
-        }
-    );
+    has '_coverage' => (traits  => ['Hash'],
+                        is      => 'ro',
+                        isa     => 'HashRef[Str]',
+                        default => sub { {} },
+                        handles => { '_set_coverage' => 'set',
+                                     coverage        => 'get' });
     
-    has '_cum_coverage' => (
-        traits  => ['Hash'],
-        is      => 'ro',
-        isa     => 'HashRef[Str]',
-        default => sub { {} },
-        handles => { cumulative_coverage => 'get' }
-    );
+    has '_cum_coverage' => (traits  => ['Hash'],
+                            is      => 'ro',
+                            isa     => 'HashRef[Str]',
+                            default => sub { {} },
+                            handles => { cumulative_coverage => 'get' });
     
-    has 'mean_coverage' => (
-        is     => 'ro',
-        isa    => 'Num',
-        writer => '_mean_coverage'
-    );
+    has 'mean_coverage' => (is     => 'ro',
+                            isa    => 'Num',
+                            writer => '_mean_coverage');
     
-    our %mapping = (
-        FFQ => 'first_fragment_qualities',
-        LFQ => 'last_fragment_qualities',
-        GCF => 'first_fragment_gc',
-        GCL => 'last_fragment_gc',
-        IC  => 'indel_cycles',
-        ID  => 'indel_dist',
-        IS  => 'insert_size',
-        GCD => 'gc_depth',
-        MPC => 'mismatches_per_cycle',
-        GCC => 'gc_content_per_cycle',
-        RL  => 'read_lengths'
-      )
-      ; # we don't actually use this mapping except to confirm what sections we understand
+    our %mapping = (FFQ => 'first_fragment_qualities',
+                    LFQ => 'last_fragment_qualities',
+                    GCF => 'first_fragment_gc',
+                    GCL => 'last_fragment_gc',
+                    IC  => 'indel_cycles',
+                    ID  => 'indel_dist',
+                    IS  => 'insert_size',
+                    GCD => 'gc_depth',
+                    MPC => 'mismatches_per_cycle',
+                    GCC => 'gc_content_per_cycle',
+                    RL  => 'read_lengths'); # we don't actually use this mapping except to confirm what sections we understand
     
-    has 'first_fragment_qualities' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_FFQ' => 'push' }
-    );
+    has 'first_fragment_qualities' => (traits  => ['Array'],
+                                       is      => 'ro',
+                                       isa     => 'ArrayRef[ArrayRef[Str]]',
+                                       default => sub { [] },
+                                       handles => { '_push_FFQ' => 'push' });
     
-    has 'last_fragment_qualities' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_LFQ' => 'push' }
-    );
+    has 'last_fragment_qualities' => (traits  => ['Array'],
+                                      is      => 'ro',
+                                      isa     => 'ArrayRef[ArrayRef[Str]]',
+                                      default => sub { [] },
+                                      handles => { '_push_LFQ' => 'push' });
     
-    has 'first_fragment_gc' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_GCF' => 'push' }
-    );
+    has 'first_fragment_gc' => (traits  => ['Array'],
+                                is      => 'ro',
+                                isa     => 'ArrayRef[ArrayRef[Str]]',
+                                default => sub { [] },
+                                handles => { '_push_GCF' => 'push' });
     
-    has 'last_fragment_gc' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_GCL' => 'push' }
-    );
+    has 'last_fragment_gc' => (traits  => ['Array'],
+                               is      => 'ro',
+                               isa     => 'ArrayRef[ArrayRef[Str]]',
+                               default => sub { [] },
+                               handles => { '_push_GCL' => 'push' });
     
-    has 'indel_cycles' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_IC' => 'push' }
-    );
+    has 'indel_cycles' => (traits  => ['Array'],
+                           is      => 'ro',
+                           isa     => 'ArrayRef[ArrayRef[Str]]',
+                           default => sub { [] },
+                           handles => { '_push_IC' => 'push' });
     
-    has 'indel_dist' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_ID' => 'push' }
-    );
+    has 'indel_dist' => (traits  => ['Array'],
+                         is      => 'ro',
+                         isa     => 'ArrayRef[ArrayRef[Str]]',
+                         default => sub { [] },
+                         handles => { '_push_ID' => 'push' });
     
-    has 'insert_size' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_IS' => 'push' }
-    );
+    has 'insert_size' => (traits  => ['Array'],
+                          is      => 'ro',
+                          isa     => 'ArrayRef[ArrayRef[Str]]',
+                          default => sub { [] },
+                          handles => { '_push_IS' => 'push' });
     
-    has 'gc_depth' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_GCD' => 'push' }
-    );
+    has 'gc_depth' => (traits  => ['Array'],
+                       is      => 'ro',
+                       isa     => 'ArrayRef[ArrayRef[Str]]',
+                       default => sub { [] },
+                       handles => { '_push_GCD' => 'push' });
     
-    has 'mismatches_per_cycle' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_MPC' => 'push' }
-    );
+    has 'mismatches_per_cycle' => (traits  => ['Array'],
+                                   is      => 'ro',
+                                   isa     => 'ArrayRef[ArrayRef[Str]]',
+                                   default => sub { [] },
+                                   handles => { '_push_MPC' => 'push' });
     
-    has 'gc_content_per_cycle' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_GCC' => 'push' }
-    );
+    has 'gc_content_per_cycle' => (traits  => ['Array'],
+                                   is      => 'ro',
+                                   isa     => 'ArrayRef[ArrayRef[Str]]',
+                                   default => sub { [] },
+                                   handles => { '_push_GCC' => 'push' });
     
-    has 'read_lengths' => (
-        traits  => ['Array'],
-        is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef[Str]]',
-        default => sub { [] },
-        handles => { '_push_RL' => 'push' }
-    );
+    has 'read_lengths' => (traits  => ['Array'],
+                           is      => 'ro',
+                           isa     => 'ArrayRef[ArrayRef[Str]]',
+                           default => sub { [] },
+                           handles => { '_push_RL' => 'push' });
 
 =head2 parsed_record
  
@@ -426,63 +341,56 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                 $method = 'first_fragments' if $method eq '1st_fragments';
                 $method = 'bases_mapped_cigar'
                   if $method eq 'bases_mapped_(cigar)';
-                $method = lc( '_' . $method );
-                unless ( $self->can($method) ) {
+                $method = lc('_' . $method);
+                unless ($self->can($method)) {
                     $self->warn("unexpected SN line $orig_method");
                     next;
                 }
                 $self->$method($value);
                 $saw++;
             }
-            elsif ( my ( $range, $cov, $count ) =
-                $_ =~ /^COV\s+(\S+)\s+(\d+)\s+(\d+)/ )
-            {
-                if ( $range eq '[1000<]' ) {
+            elsif (my ($range, $cov, $count) = $_ =~ /^COV\s+(\S+)\s+(\d+)\s+(\d+)/) {
+                if ($range eq '[1000<]') {
                     $cov = 1001;
                 }
-                $self->_set_coverage( $cov => $count );
+                $self->_set_coverage($cov => $count);
                 
-                if ( $cov > 0 ) {
+                if ($cov > 0) {
                     # sum to get mean coverage, ignoring the >1000 outliers
-                    if ( $cov <= 1000 ) {
+                    if ($cov <= 1000) {
                         $cov_count += $count;
                         $cov_total += $count * $cov;
                     }
                     
                     # build up the cumulative coverage
-                    foreach my $past_cov ( 1 .. $cov ) {
+                    foreach my $past_cov (1 .. $cov) {
                         $cum_cov->{$past_cov} += $count;
                     }
                 }
             }
             else {
-                my ( $key, @items ) = split( /\t/, $_ );
-                $self->throw(
-"'$key' sections are not understood! Is this really a bamcheck file?"
-                ) unless exists $mapping{$key};
+                my ($key, @items) = split(/\t/, $_);
+                $self->throw("'$key' sections are not understood! Is this really a bamcheck file?") unless exists $mapping{$key};
                 
                 my $method = "_push_$key";
-                chomp( $items[-1] );
-                $self->$method( \@items );
+                chomp($items[-1]);
+                $self->$method(\@items);
             }
         }
         
-        if ( $cov_count > 0 ) {
-            $self->_mean_coverage(
-                sprintf( "%0.2f", $cov_total / $cov_count ) );
+        if ($cov_count > 0) {
+            $self->_mean_coverage(sprintf("%0.2f", $cov_total / $cov_count));
         }
-        else {    # no cov if unmapped bam
+        else { # no cov if unmapped bam
             $self->_mean_coverage(0);
         }
         
-        if ( $saw >= 22 ) {
+        if ($saw >= 22) {
             $self->_set_header_parsed();
             return 1;
         }
         
-        $self->throw(
-"Unable to parse all SN lines (only saw $saw) - is this a bamcheck file?"
-        );
+        $self->throw("Unable to parse all SN lines (only saw $saw) - is this a bamcheck file?");
     }
 }
 
