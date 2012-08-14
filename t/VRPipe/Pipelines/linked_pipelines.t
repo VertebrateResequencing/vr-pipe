@@ -222,8 +222,6 @@ is_deeply [$element1->withdrawn, $element2->withdrawn], [1, 1], 'elements correc
 
 
 
-
-
 # test that a child pipeline that deletes its input does not delete until the
 # parent has finished with that file
 my $output_dir_parent  = get_output_dir('parent_test_pipeline');
@@ -293,10 +291,6 @@ foreach my $path (@not_expected_files) {
 # each parent element completes the pipeline before child starts, then no steps
 # get repeated, and parent step 1 output remains deleted.
 is $deleted, 4, 'the files that should have gotten deleted were deleted';
-
-
-
-
 
 # # change metadata and detect changes
 # VRPipe::File->create(path => $base_files[5]->stringify)->add_metadata({one_meta => '20'}, replace_data => 1);

@@ -5,10 +5,8 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH TRIMMOMATIC_LOG_PATH)] #require env TRIMMOMATIC ?
-          #required_exe => [qw(fastqc)]
-    );
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH)],
+                    required_exe => [qw(java)]);
     use TestPipelines;
     use_ok('VRPipe::Steps::trimmomatic');
 }
@@ -32,38 +30,6 @@ my $outputfile1 = file(@output_subdirs, '1_trimmomatic', "2822_6_1.paired.trim.f
 my $outputfile2 = file(@output_subdirs, '1_trimmomatic', "2822_6_1.unpaired.trim.fastq");
 my $outputfile3 = file(@output_subdirs, '1_trimmomatic', "2822_6_2.paired.trim.fastq");
 my $outputfile4 = file(@output_subdirs, '1_trimmomatic', "2822_6_2.unpaired.trim.fastq");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 my $logfile = file(@output_subdirs, '1_trimmomatic', "trimmomatic.log");
 push(@outfiles, $outputfile1, $outputfile2, $outputfile3, $outputfile4, $logfile);

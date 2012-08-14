@@ -6,7 +6,7 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH TRIMMOMATIC_LOG_PATH)] #require env TRIMMOMATIC ?
+        required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH)] #require env TRIMMOMATIC ?
           #required_exe => [qw(fastqc)]
     );
     use TestPipelines;
@@ -15,22 +15,6 @@ BEGIN {
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('trimmomatic', 'fastq_files');
 is_deeply [$step->id, $step->description], [1, 'Step for the Trimmomatic Read Trimmer'], 'trimmomatic step created and has correct description';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # run trimmomatic on a fastq file.
 my $setup = VRPipe::PipelineSetup->create(name        => 'trimmomatic',

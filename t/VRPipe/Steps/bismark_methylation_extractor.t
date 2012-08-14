@@ -5,8 +5,8 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_METH_EXR_EXE)] # require bismark path
-    );
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)], # require bismark path
+                    required_exe => [qw(methylation_extractor)]);
     use TestPipelines;
     use_ok('VRPipe::Steps::bismark_methylation_extractor');
 }
@@ -30,4 +30,3 @@ my $outputfile_3   = file(@output_subdirs, '1_bismark_methylation_extractor', "C
 my @outputfiles;
 push @outputfiles, $outputfile_1, $outputfile_2, $outputfile_3;
 ok handle_pipeline(@outputfiles), 'bismark methylation extractor pipeline ran ok, generating the expected file';
-
