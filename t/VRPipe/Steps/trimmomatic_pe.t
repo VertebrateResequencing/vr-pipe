@@ -6,7 +6,7 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC)] #require env TRIMMOMATIC ?
+        required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH TRIMMOMATIC_LOG_PATH)] #require env TRIMMOMATIC ?
           #required_exe => [qw(fastqc)]
     );
     use TestPipelines;
@@ -24,7 +24,7 @@ my $setup = VRPipe::PipelineSetup->create(name       => 'trimmomatic',
                                                                                    source  => file(qw(t data trimmomatic_datasource_pe.fofn))->absolute),
                                           output_root => $output_dir,
                                           pipeline    => $pipeline,
-                                          options     => { paired_end => 1 });
+                                          options     => { trimmomatic_jar_path => $ENV{TRIMMOMATIC_JAR_PATH}, trimmomatic_step_options => 'LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36', log_file => $ENV{TRIMMOMATIC_LOG_PATH}, paired_end => 1 });
 
 my @output_subdirs = output_subdirs(1);
 my @outfiles;
@@ -32,6 +32,12 @@ my $outputfile1 = file(@output_subdirs, '1_trimmomatic', "2822_6_1.paired.trim.f
 my $outputfile2 = file(@output_subdirs, '1_trimmomatic', "2822_6_1.unpaired.trim.fastq");
 my $outputfile3 = file(@output_subdirs, '1_trimmomatic', "2822_6_2.paired.trim.fastq");
 my $outputfile4 = file(@output_subdirs, '1_trimmomatic', "2822_6_2.unpaired.trim.fastq");
+
+
+
+
+
+
 
 
 

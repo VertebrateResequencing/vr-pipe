@@ -55,10 +55,10 @@ if ($desired_ele) {
 else {
     foreach my $setup ($frontend->get_pipelinesetups()) {
         if ($all) {
-            @element_states = $setup->dataelementstates;
+            @element_states = $setup->dataelementstates(include_withdrawn => 1);
         }
         else {
-            my $estates_pager = $setup->datasource->incomplete_element_states($setup);
+            my $estates_pager = $setup->datasource->incomplete_element_states($setup, include_withdrawn => 1);
             my @estates;
             while (my $estates = $estates_pager->next) {
                 push(@estates, @$estates);
@@ -84,7 +84,7 @@ else {
                         next;
                     }
                     
-                    my ($found) = VRPipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
+                    my $found = VRPipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
                     if ($found) {
                         #*** can we combine all the above into one big search search query with multiple joins?...
                         push(@element_states, $estate);

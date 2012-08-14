@@ -46,28 +46,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::LocalScheduler {
-    with 'MooseX::Daemonize';
-    use Parallel::ForkManager;
+    use AnyEvent::ForkManager;
     use Sys::CPU;
     use Cwd;
     use POSIX qw(ceil);
     
-    use VRPipe::Config;
-    my $vrp_config = VRPipe::Config->new();
-    use VRPipe::Persistent::Schema;
-    
     our $DEFAULT_CPUS = Sys::CPU::cpu_count();
-    
-    has 'deployment' => (is            => 'ro',
-                         isa           => 'Str',
-                         default       => 'testing',
-                         documentation => 'testing|production (default testing): determins which database is used to track locally scheduled jobs');
-    
-    has 'pidbase' => (is      => 'rw',
-                      isa     => Dir,
-                      coerce  => 1,
-                      builder => '_default_pidbase',
-                      lazy    => 1);
     
     has 'cpus' => (is      => 'ro',
                    isa     => 'Int',
@@ -86,33 +70,8 @@ class VRPipe::LocalScheduler {
                 isa           => 'Int',
                 documentation => 'to specify a job array give the size of the array (default 1)',
                 default       => 1);
-
     
-
-    sub BUILD {
-        my $self = shift;
-        my $d    = $self->deployment;
-        unless ($d eq 'testing' || $d eq 'production') {
-            $self->throw("'$d' is not a valid deployment type; --deployment testing|production");
-        }
-        VRPipe::Persistent::SchemaBase->database_deployment($self->deployment);
-    }
-    
-    method _default_pidbase {
-        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_scheduler_output_root';
-        return $vrp_config->$method_name();
-    }
-    
-    after start {
-        return unless $self->is_daemon;
-        
-        while (1) {
-            $self->process_queue;
-            sleep(5);
-        }
-    }
-    
-    method submit (Str $cmd) {
+    method submit (Str $cmd, HashRef $env) {
         my $o_file = $self->o;
         my $e_file = $self->e;
         unless ($o_file && $e_file) {
@@ -120,7 +79,7 @@ class VRPipe::LocalScheduler {
         }
         
         my $array_size = $self->a;
-        my $lsj = VRPipe::LocalSchedulerJob->create(cmd => $cmd, array_size => $array_size, cwd => cwd());
+        my $lsj = VRPipe::LocalSchedulerJob->create(cmd => $cmd, array_size => $array_size, cwd => cwd(), env => $env);
         
         my $user = getlogin || getpwuid($<);
         my @lsjs_args;
@@ -134,14 +93,21 @@ class VRPipe::LocalScheduler {
         VRPipe::LocalSchedulerJobState->bulk_create_or_update(@lsjs_args);
         
         my $sid = $lsj->id;
-        print "Job <$sid> is submitted\n";
+        return "Job <$sid> is submitted";
     }
     
     method jobs (ArrayRef $ids) {
         my @lsjss;
+        my @warnings;
         if (@$ids) {
             foreach my $id (@$ids) {
-                push(@lsjss, $self->job_states($id));
+                my ($job_states, $warning) = $self->job_states($id);
+                if ($warning) {
+                    push @warnings, $warning;
+                }
+                else {
+                    push(@lsjss, @$job_states);
+                }
             }
         }
         else {
@@ -150,13 +116,18 @@ class VRPipe::LocalScheduler {
             }
         }
         
-        return unless @lsjss;
+        unless (@lsjss) {
+            return ([], \@warnings);
+        }
         
-        print join("\t", qw(JOBID INDEX STAT USER EXEC_HOST SUBMIT_TIME)), "\n";
+        my @lines;
+        push(@lines, join("\t", qw(JOBID INDEX STAT USER EXEC_HOST SUBMIT_TIME)));
         foreach my $lsjs (@lsjss) {
             my $lsj = $lsjs->localschedulerjob;
-            print join("\t", $lsj->id, $lsjs->aid, $lsjs->current_status, $lsjs->user, $lsjs->host || '', $lsj->creation_time), "\n";
+            push(@lines, join("\t", $lsj->id, $lsjs->aid, $lsjs->current_status, $lsjs->user, $lsjs->host || '', $lsj->creation_time));
         }
+        
+        return (\@lines, \@warnings);
     }
     
     method job_states ($id) {
@@ -168,14 +139,13 @@ class VRPipe::LocalScheduler {
             $sid = $id;
         }
         else {
-            $self->throw("bad id format '$id'");
+            die "bad id format '$id'";
         }
         
         my ($lsj) = VRPipe::LocalSchedulerJob->search({ id => $sid });
         
         unless ($lsj) {
-            print "Job <$sid> is not found\n";
-            return;
+            return ([], "Job <$sid> is not found");
         }
         
         my @lsjss;
@@ -186,11 +156,10 @@ class VRPipe::LocalScheduler {
             push(@lsjss, $lsjs);
         }
         if ($aid && !@lsjss) {
-            print "Job <$sid\[$aid\]> is not found\n";
-            return;
+            return ([], "Job <$sid\[$aid\]> is not found");
         }
         
-        return @lsjss;
+        return (\@lsjss);
     }
     
     method unfinished_lsjss {
@@ -201,13 +170,17 @@ class VRPipe::LocalScheduler {
         my @lsjss = $self->unfinished_lsjss;
         @lsjss || return;
         
-        my $fm = Parallel::ForkManager->new($self->cpus);
+        my $fm = AnyEvent::ForkManager->new(max_workers => $self->cpus);
         
         foreach my $lsjs (@lsjss) {
-            $fm->start and next; # fork
-            $lsjs->start_job;
-            $fm->finish;
+            $fm->start(
+                cb => sub {
+                    my ($fm, $lsjs) = @_;
+                    $lsjs->start_job;
+                },
+                args => [$lsjs]);
         }
+        
         $fm->wait_all_children;
         
         return 1;
@@ -215,12 +188,22 @@ class VRPipe::LocalScheduler {
     
     method kill (ArrayRef $ids) {
         my @lsjss;
+        my @warnings;
+        my @lines;
         foreach my $id (@$ids) {
-            push(@lsjss, $self->job_states($id));
+            my ($job_states, $warning) = $self->job_states($id);
+            if ($warning) {
+                push @warnings, $warning;
+            }
+            else {
+                push(@lsjss, @$job_states);
+                push @lines, "Job $id will be killed";
+            }
         }
         
         foreach my $lsjss (@lsjss) {
             $lsjss->kill_job;
         }
+        return (\@lines, \@warnings);
     }
 }

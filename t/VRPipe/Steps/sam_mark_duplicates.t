@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 use Path::Class;
-use File::Slurp;
 
 BEGIN {
     use Test::Most tests => 4;
@@ -30,6 +29,6 @@ push @outputfiles, $outputfile_1;
 warn $outputfile_1;
 ok handle_pipeline(@outputfiles), 'sam_mark_duplicates pipeline ran ok, generating the expected file';
 
-my $testfilecontents   = read_file(file(qw( t data 2822_6_1.fastq_bismark_pe.sorted.markdup.sam ))->stringify);
-my $outputfilecontents = read_file($outputfile_1->stringify);
+my $testfilecontents   = file(qw( t data 2822_6_1.fastq_bismark_pe.sorted.markdup.sam ))->slurp;
+my $outputfilecontents = $outputfile_1->slurp;
 is($testfilecontents, $outputfilecontents, 'file has duplicates marked');

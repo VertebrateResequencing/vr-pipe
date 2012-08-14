@@ -316,8 +316,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 # we don't actually block because of race condition issues, and
                 # because of fail and restart issues. Instead we always only
                 # actually call $job->run if this submission is the first
-                # submission created for this $job
-                my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id }, { rows => 1, order_by => { -asc => 'id' } });
+                # incomplete submission created for this $job
+                my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
                 return unless $first_sub->id == $submission->id;
             }
             $job->run(stepstate => $submission->stepstate);

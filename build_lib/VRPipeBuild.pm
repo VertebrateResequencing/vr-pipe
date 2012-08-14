@@ -40,6 +40,8 @@ package VRPipeBuild;
 BEGIN { unshift(@INC, './modules') }
 use base qw(Module::Build Exporter);
 @EXPORT = qw(get_pm_files required_modules);
+use Config;
+use File::Spec;
 
 # we're in the odd position of wanting to call the code we're trying to install
 # during the install process. If we're missing module dependencies
@@ -50,8 +52,11 @@ use base qw(Module::Build Exporter);
 
 sub required_modules {
     return { perl                             => '5.8.8',
+             'AnyEvent'                       => 0,
+             'AnyEvent::ForkManager'          => 0,
              'B::Deparse'                     => 0,
              'Class::Unload'                  => 0,
+             'Continuity'                     => 0,
              'Crypt::CBC'                     => 0,
              'Crypt::Blowfish'                => 0,
              'Cwd'                            => 0,
@@ -63,6 +68,7 @@ sub required_modules {
              'DBIx::Class::DeploymentHandler' => 0,
              'Devel::GlobalDestruction'       => 0,
              'Digest::MD5'                    => 0,
+             'EV'                             => 0,
              'File::Copy'                     => 0,
              'File::Fetch'                    => 0,
              'File::HomeDir'                  => 0,
@@ -71,17 +77,18 @@ sub required_modules {
              'File::Spec'                     => 0,
              'File::Temp'                     => 0,
              'Filesys::DfPortable'            => 0,
+             'HTTP::Parser::XS'               => 0,
              'Inline::C'                      => 0,
              'Inline::Filters'                => 0,
              'IO::Capture::Stderr'            => 0,
              'IO::Uncompress::AnyUncompress'  => 0,
              'List::Util'                     => 0,
              'List::MoreUtils'                => 0,
+             'LWP::UserAgent'                 => 0,
              'Module::Find'                   => 0,
              'Moose'                          => 0,
              'MooseX::AbstractFactory'        => 0,
              'MooseX::Aliases'                => 0,
-             'MooseX::Daemonize'              => 0,
              'MooseX::Declare'                => 0,
              'MooseX::NonMoose'               => 0,
              'MooseX::StrictConstructor'      => 0,
@@ -96,17 +103,20 @@ sub required_modules {
              'Storable'                       => 0,
              'Sys::CPU'                       => 0,
              'Sys::Hostname'                  => 0,
+             'Sys::Hostname::Long'            => 0,
              'Test::DBIx::Class'              => 0,
              'Test::Most'                     => 0,
              'Test::Strict'                   => 0,
              'Time::Format'                   => 0,
-             'TryCatch'                       => 0 };
+             'Twiggy'                         => 0,
+             'TryCatch'                       => 0,
+             'XML::LibXML'                    => 0,
+             'XML::LibXSLT'                   => 0 };
 }
 
 our %do_not_use = ('perl'                           => 1,
                    'DBIx::Class::DeploymentHandler' => 1,
-                   'Inline::C'                      => 1,
-                   'MooseX::Daemonize'              => 1);
+                   'Inline::C'                      => 1);
 
 sub create_site_config {
     my $self = shift;
@@ -176,6 +186,32 @@ sub ACTION_realclean {
     }
     
     $self->SUPER::ACTION_realclean(@_);
+}
+
+sub ACTION_test {
+    my $self = shift;
+    
+    # it's not strictly necessary and would happen automatically anyway, but
+    # we start vrpipe-server before testing:
+    my $local_script = File::Spec->catfile('scripts', 'vrpipe-server');
+    my $modules_dir = 'modules';
+    my $server;
+    if (-x $local_script && -d $modules_dir) {
+        my $thisperl = $Config{perlpath};
+        if ($^O ne 'VMS') {
+            $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
+        }
+        $server = "$thisperl -I$modules_dir $local_script --deployment testing";
+    }
+    system("$server start");
+    warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
+    
+    $self->SUPER::ACTION_test(@_);
+    
+    # and then stop it afterwards. This is the real point of this override:
+    # the testing server might stay alive on the users system until their next
+    # reboot, which is wasteful if they never do any development or testing!
+    system("$server stop");
 }
 
 # this method, called by create_build_script(), is just annoying and we don't

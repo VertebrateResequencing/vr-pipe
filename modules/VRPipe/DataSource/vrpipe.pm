@@ -56,6 +56,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         elsif ($method eq 'group_by_metadata') {
             return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
         }
+        elsif ($method eq 'group_all') {
+            return "All output files in the vrpipe datasource will be grouped into a single element. The filter option is a string of the form 'metadata_key#regex' which will select only files with metadata matching the regex.";
+        }
         
         return '';
     }
@@ -90,7 +93,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             # select desired step members
             my @step_members = $setup->pipeline->step_members;
             my %desired_steps;
-            if ($steps) {
+            if (defined $steps) {
                 my @steps = split /,/, $steps;
                 foreach my $step_name (@steps) {
                     my ($name, $kind) = split /\:/, $step_name;
@@ -108,11 +111,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                     $desired_steps{names}->{ $stepm->step->name }->{all} = 1;
                 }
             }
-
             
-
-            my $max_step = 0;
-            my $final_smid;
+            my $max_step   = 0;
+            my $final_smid = 0;
+            if (exists $desired_steps{numbers}->{'0'}) {
+                foreach my $kind (keys %{ $desired_steps{numbers}->{'0'} }) {
+                    $vrpipe_sources{$setup_id}->{stepmembers}->{'0'}->{$kind} = 1;
+                }
+            }
             foreach my $stepm (@step_members) {
                 my $smid      = $stepm->id;
                 my $step_name = $stepm->step->name;
@@ -185,6 +191,27 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
     
+    method group_all (Defined :$handle!, Str :$filter?) {
+        my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => 0, complete_elements => 1);
+        if ($filter) {
+            $args{filter} = $filter;
+        }
+        my (@paths, @parents);
+        foreach my $result (@{ $self->_all_results(%args) }) {
+            push @paths,   @{ $result->{paths} };
+            push @parents, $result->{parent};
+        }
+        $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
+        
+        # create corresponding dataelementlinks
+        my $child = VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => \@paths });
+        my @link_args;
+        foreach my $parent (@parents) {
+            push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child->id });
+        }
+        VRPipe::DataElementLink->bulk_create_or_update(@link_args);
+    }
+    
     sub _res_to_str {
         my $res = shift;
         my $str = join('|', @{ $res->{paths} || [] });
@@ -228,19 +255,28 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                     
                     my %element_hash = (parent => { element_id => $element_id, setup_id => $setup_id }, result => $element->result);
                     foreach my $smid (keys %{$stepmembers}) {
-                        my $stepm = $stepmember_objs->{$smid};
                         my $force = exists $stepmembers->{$smid}->{all};
-                        
-                        my ($stepstate) = VRPipe::StepState->search({ stepmember => $smid, dataelement => $element_id, pipelinesetup => $setup_id }, { rows => 1 });
-                        unless ($stepstate && $stepstate->complete) {
-                            # this shouldn't happen since we did the completed_steps
-                            # check above, but just incase we have an
-                            # inconsistency...
-                            return ([])  if $complete_all;
-                            next ELEMENT if $complete_elements;
+                        my $step_outs;
+                        if ($smid == 0) {
+                            my $result = $element->result;
+                            my $paths = $result->{paths} || $self->throw("data element " . $element->id . " gave a result with no paths");
+                            foreach my $path (@$paths) {
+                                my $file = VRPipe::File->get(path => file($path)->absolute);
+                                push @{ $step_outs->{ $file->type } }, $file;
+                            }
                         }
-                        
-                        my $step_outs = $stepstate->output_files;
+                        else {
+                            my $stepm = $stepmember_objs->{$smid};
+                            my ($stepstate) = VRPipe::StepState->search({ stepmember => $smid, dataelement => $element_id, pipelinesetup => $setup_id }, { rows => 1 });
+                            unless ($stepstate && $stepstate->complete) {
+                                # this shouldn't happen since we did the completed_steps
+                                # check above, but just incase we have an
+                                # inconsistency...
+                                return ([])  if $complete_all;
+                                next ELEMENT if $complete_elements;
+                            }
+                            $step_outs = $stepstate->output_files;
+                        }
                         while (my ($kind, $files) = each %{$step_outs}) {
                             unless ($force) {
                                 next unless exists $stepmembers->{$smid}->{$kind};

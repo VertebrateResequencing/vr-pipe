@@ -1,0 +1,439 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use EV;
+use AnyEvent;
+use AnyEvent::Util qw(fork_call);
+use VRPipe::Interface::CmdLine;
+use VRPipe::Interface::BackEnd;
+use VRPipe::LocalScheduler;
+
+# handle options
+my $cmdline = VRPipe::Interface::CmdLine->new(description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
+                                              extra_args  => 'start|stop|restart|status',
+                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]);
+my $backend;
+my $deployment = $cmdline->opts('deployment');
+my $foreground = $cmdline->opts('foreground');
+
+my $command = shift;
+unless ($command) {
+    $cmdline->error("a command is required");
+    $cmdline->help;
+}
+
+# act on the given command
+my $status = $cmdline->check_server(1);
+my (undef, $port, $url) = @{ $cmdline->_ua_port_baseurl };
+my $exit = 0;
+if ($command eq 'status') {
+    if ($status == 1) {
+        $cmdline->output("VRPipe server is running at $url");
+    }
+    elsif ($status == 0) {
+        $cmdline->output("VRPipe server is not running");
+    }
+    elsif ($status == -1) {
+        $cmdline->output("A server is listening on port $port, but is not responding like our own VRPipe server would");
+    }
+}
+elsif ($command eq 'stop') {
+    my $stopped = stop();
+    $exit = !$stopped;
+}
+elsif ($command eq 'start') {
+    my $started = start();
+    $exit = !$started;
+}
+elsif ($command eq 'restart') {
+    $cmdline->output("Restarting VRPipe server...");
+    my $stopped = stop();
+    my $started = 0;
+    if ($stopped) {
+        my $started = start();
+    }
+    $exit = !$started;
+}
+else {
+    $cmdline->die_with_error("$command is an invalid command");
+}
+
+exit $exit;
+
+sub stop {
+    if ($status == 1) {
+        my $response = $cmdline->server_get('/stop');
+        if ($response eq 'Stopping server') {
+            # the server responded that it would stop; give it up to 5 seconds
+            # to actually do that
+            my $seconds = 5;
+            while ($seconds--) {
+                $status = $cmdline->check_server(1);
+                last if $status == 0;
+                sleep(1);
+            }
+            
+            if ($status == 0) {
+                $cmdline->output("VRPipe server was stopped");
+                return 1;
+            }
+            else {
+                $cmdline->output("VRPipe server claimed it would stop, but it still seems to be running");
+                return 0;
+            }
+        }
+        else {
+            $cmdline->output("Failed to stop VRPipe server (it responded: '$response')");
+            return 0;
+        }
+    }
+    elsif ($status == 0) {
+        $cmdline->output("VRPipe server was not running");
+        return 1;
+    }
+    elsif ($status == -1) {
+        $cmdline->output("Will not attempt to stop the VRPipe server listening on port $port, since it does not seem to be ours");
+        return 0;
+    }
+}
+
+sub start {
+    if ($status == 1) {
+        $cmdline->output("VRPipe server is already running");
+        return 1;
+    }
+    elsif ($status == 0) {
+        $cmdline->output("Will start VRPipe server at $url");
+        start_server();
+    }
+    elsif ($status == -1) {
+        $cmdline->output("Will not attempt to start the VRPipe server, since another incompatible server is already listening on port $port");
+        return 0;
+    }
+}
+
+sub start_server {
+    # initialize the VRPipe backend
+    $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+    
+    # daemonize unless we're not supposed to
+    my $orig_dir = $backend->daemonize unless $foreground;
+    
+    # setup the timer for the local scheduler to process its queue
+    $AnyEvent::Util::MAX_FORKS = 1;
+    my $ls                         = VRPipe::LocalScheduler->new;
+    my $time_of_last_process_queue = time();
+    my $timer_interval             = $deployment eq 'production' ? 30 : 5;
+    my $ls_watcher                 = EV::timer_ns 0, $timer_interval, sub {
+        # don't do this more than once per x seconds
+        return unless time() - $time_of_last_process_queue >= $timer_interval;
+        
+        # we want to run process_queue every x seconds, but it may take
+        # longer than x seconds to run and we don't want to wait, so we do
+        # our own async fork (in order to call something that in turn will
+        # do further async forks...). It doesn't seem to matter that our
+        # children (presumably) have all our watchers running.
+        fork_call { $ls->process_queue; return; } sub {
+            $time_of_last_process_queue = time();
+            my $err = $@ || return;
+            
+            # when testing, we likely start the server and call
+            # process_queue before the VRPipe database has been created,
+            # so we make a nicer error message
+            if (ref($err)) {
+                $err = "$err"; # try and stringify it
+            }
+            if ($err =~ /no such table/) {
+                $err = 'VRPipe database not created yet, cannot process_queue for the local scheduler';
+            }
+            $backend->log($err);
+        };
+    };
+    
+    # automatically start the local scheduler if we're supposed to be using the
+    # local scheduler
+    if ($backend->scheduler eq 'local') {
+        $ls_watcher->start;
+    }
+    
+    # setup the http page requests we'll respond to
+    $backend->resigster_psgi_pages(
+        '/' => sub {
+            $backend->psgi_text_response(200, 'html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>", shift);
+        },
+        '/status'            => sub { $backend->psgi_nonblocking_xml_response(\&status,          shift); },
+        '/local_scheduler'   => sub { $backend->psgi_nonblocking_xml_response(\&local_scheduler, shift, $ls_watcher); },
+        '/continuation_test' => sub { $backend->psgi_continuation_response(\&continuation_test,  shift); },
+        '/dsn' => sub {
+            $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
+        },
+        '/stop' => sub {
+            shutdown_server("Received the stop command");
+            $backend->psgi_text_response(200, 'plain', 'Stopping server', shift);
+        });
+    
+    # setup the signals we'll react to
+    $SIG{HUP}  = 'IGNORE';
+    $SIG{PIPE} = 'IGNORE';
+    my $sigterm_watcher = EV::signal 'TERM', sub { shutdown_server("SIGTERM received"); };
+    my $sigint_watcher  = EV::signal 'INT',  sub { shutdown_server("SIGINT received"); };
+    my $sigquit_watcher = EV::signal 'QUIT', sub { shutdown_server("SIGQUIT received"); };
+    
+    # run the event loop
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started (pid $$).");
+    EV::run;
+    
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!");
+    exit 0;
+}
+
+sub shutdown_server {
+    my $msg = shift;
+    $backend->log($msg . ", will gracefully shut down server.");
+    EV::unloop;
+}
+
+# "page" subs
+sub status {
+    my $req = shift;
+    
+    my $opts = $backend->req_to_opts($req, ['setup!PipelineSetup']);
+    $opts->{'_multiple_setups'} = 1;
+    my $list            = $opts->{list};
+    my $incomplete_only = $opts->{incomplete};
+    my $brief           = $opts->{brief};
+    
+    my $xml = '<title>Current status of PipelineSetups</title>';
+    
+    # $xml .= '<options><bool></bool></options>';
+    
+    my @setups = $backend->get_pipelinesetups($opts);
+    if (@setups) {
+        my @objects;
+        foreach my $setup (@setups) {
+            my $object;
+            foreach my $attr (qw(id name user active)) {
+                $object .= $backend->xml_tag('attribute', $setup->$attr(), qq[name="$attr"]);
+            }
+            
+            if ($list) {
+                push(@objects, $object);
+                next;
+            }
+            
+            my $datasource = $setup->datasource;
+            my $num_elements;
+            my $incomplete_pager;
+            eval {
+                $num_elements = VRPipe::DataElement->search({ datasource => $datasource->id, withdrawn => 0 });
+                $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
+            };
+            my $ds_error = $@;
+            if ($ds_error || !$incomplete_pager) {
+                $ds_error ||= 'Could not create an incomplete_element_states pager for setup ' . $setup->id;
+                $object .= $backend->xml_tag('attribute', "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n", qq[name="problems"]);
+                push(@objects, $object);
+                next;
+            }
+            
+            my $num_incomplete = $incomplete_pager->total_entries;
+            next if $incomplete_only && !$num_incomplete;
+            
+            my $pipeline     = $setup->pipeline;
+            my $step_members = $pipeline->step_members;
+            unless ($brief) {
+                # pipeline details
+                $object .= '<attribute name="pipeline"><object class="Pipeline" display_mode="full">';
+                foreach my $attr (qw(id name description)) {
+                    $object .= $backend->xml_tag('attribute', $pipeline->$attr(), qq[name="$attr"]);
+                }
+                $object .= $backend->xml_tag('attribute', $step_members, q[name="num_steps"]);
+                $object .= '</object></attribute>';
+                
+                # setup options and output root
+                my $ps_opts = $setup->options;
+                $object .= '<attribute name="options">';
+                if (keys %$ps_opts) {
+                    $object .= $backend->hash_to_xml($ps_opts);
+                }
+                else {
+                    $object .= '(used with default/no options)';
+                }
+                $object .= '</attribute>';
+                $object .= $backend->xml_tag('attribute', $setup->output_root->stringify, q[name="output_root"]);
+                
+                # datasource details
+                $object .= '<attribute name="datasource"><object class="DataSource" display_mode="full">';
+                foreach my $attr (qw(id type method source)) {
+                    $object .= $backend->xml_tag('attribute', $datasource->$attr(), qq[name="$attr"]);
+                }
+                my $ds_opts = $datasource->options;
+                $object .= '<attribute name="options">';
+                if (keys %$ds_opts) {
+                    $object .= $backend->hash_to_xml($ds_opts);
+                }
+                else {
+                    $object .= '(used with default/no options)';
+                }
+                $object .= '</attribute>';
+                $object .= '</object></attribute>';
+            }
+            
+            $object .= $backend->xml_tag('attribute', $num_elements,   q[name="elements_total"]);
+            $object .= $backend->xml_tag('attribute', $num_incomplete, q[name="elements_incomplete"]);
+            if ($num_incomplete) {
+                my %status_hash;
+                my $fully_complete = $num_elements - $num_incomplete;
+                $status_hash{$step_members} = $fully_complete;
+                my $num_steps_complete = $fully_complete * $step_members;
+                while (my $incompletes = $incomplete_pager->next) {
+                    foreach my $es (@$incompletes) {
+                        my $completed_steps = $es->completed_steps;
+                        $num_steps_complete += $completed_steps;
+                        $status_hash{$completed_steps}++;
+                    }
+                }
+                $object .= '<attribute name="steps_completed">' . $backend->hash_to_xml(\%status_hash, [sort { my ($ay) = $a =~ /^(\d+)/; my ($be) = $b =~ /^(\d+)/; $ay <=> $be } keys %status_hash]) . '</attribute>';
+                
+                my $steps_to_complete = $num_elements * $step_members;
+                my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
+                $object .= $backend->xml_tag('attribute', "$percent_complete\%", qq[explanation="Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)"]);
+                
+                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
+                
+                my %sub_stats;
+                while (my $subs = $pager->next) {
+                    foreach my $sub (@$subs) {
+                        my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+                        if ($sub_state eq 'scheduled') {
+                            my $job = $sub->job;
+                            $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
+                        }
+                        $sub_stats{$sub_state}++;
+                    }
+                }
+                if (keys %sub_stats) {
+                    $object .= '<attribute name="submission_state">' . $backend->hash_to_xml(\%sub_stats, [qw(running processing pending failed)]) . '</attribute>';
+                    if (keys %sub_stats == 1 && exists $sub_stats{failed}) {
+                        my $failed = $sub_stats{failed};
+                        if ($failed >= $num_incomplete) {
+                            $object .= $backend->xml_tag('attribute', "WARNING! It looks like this setup may be STALLED due to repeated failures.\nInvestigate using: vrpipe-submissions --setup " . $setup->id . " --failed", q[name="problems"]);
+                        }
+                    }
+                }
+            }
+            else {
+                if ($num_elements == 0) {
+                    $object .= '<attribute name="completion" explanation="Pipeline has no inputs to work on (yet?), so has done nothing.">n/a</attribute>';
+                }
+                else {
+                    $object .= '<attribute name="completion" explanation="Pipeline currently 100% complete!">100%</attribute>';
+                }
+            }
+            
+            push(@objects, $object);
+        }
+        
+        if (@objects) {
+            my $mode = $list ? 'list' : ($brief ? 'brief' : 'full');
+            $xml .= '<objects>' . join('', map { qq[<object class="PipelineSetup" display_mode="$mode">] . $_ . '</object>' } @objects) . '</objects>';
+        }
+    }
+    
+    return $xml;
+}
+
+sub local_scheduler {
+    my ($req, $ls_watcher) = @_;
+    
+    my $opts = $backend->req_to_opts($req);
+    my $mode = $opts->{mode} || die "a mode is required\n";
+    my $ids  = $opts->{id};
+    my @ids;
+    if ($ids) {
+        if (ref($ids)) {
+            @ids = @$ids;
+        }
+        else {
+            @ids = ($ids);
+        }
+    }
+    
+    my $xml = '';
+    if ($mode eq 'start') {
+        $xml = '<title>Local Scheduler</title>';
+        $ls_watcher->start;
+        $xml .= '<response_line>Local Scheduler started</response_line>';
+    }
+    elsif ($mode eq 'stop') {
+        $xml = '<title>Local Scheduler</title>';
+        $ls_watcher->stop;
+        $xml .= '<response_line>Local Scheduler stopped</response_line>';
+    }
+    elsif ($mode eq 'submit') {
+        $xml = '<title>Job Submission to Local Scheduler</title>';
+        my $cmd = $opts->{cmd} || die "a cmd is required when submitting\n";
+        my $o   = $opts->{out} || die "the out option is required when submitting\n";
+        my $e   = $opts->{err} || die "the err option is required when submitting\n";
+        my $a   = $opts->{a};
+        my $env = $opts->{env} || {};
+        my $ls = VRPipe::LocalScheduler->new(o => $o, e => $e, $a ? (a => $a) : ());
+        $xml .= $backend->xml_tag('response_line', $ls->submit($cmd, $env));
+    }
+    elsif ($mode eq 'jobs') {
+        $xml = '<title>Jobs in the Local Scheduler</title>';
+    }
+    elsif ($mode eq 'kill') {
+        $xml = '<title>Jobs killed from the Local Scheduler</title>';
+        @ids || die "at least 1 id must be supplied\n";
+    }
+    else {
+        die "unknown mode '$mode'\n";
+    }
+    
+    if ($mode eq 'jobs' || $mode eq 'kill') {
+        my $ls = VRPipe::LocalScheduler->new;
+        my ($lines, $warnings) = $ls->$mode(\@ids);
+        foreach my $line (@$warnings) {
+            $xml .= $backend->xml_tag('warning', $line);
+        }
+        foreach my $line (@$lines) {
+            $xml .= $backend->xml_tag('response_line', $line);
+        }
+    }
+    
+    return $xml;
+}
+
+sub continuation_test {
+    my $request = shift;
+    $request->print("Your name: <form><input type=text name=name></form>");
+    $request->next; # this waits for the form to be submitted!
+    my $name = $request->param('name');
+    $request->print("Hello $name!");
+}

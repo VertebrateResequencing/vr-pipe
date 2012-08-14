@@ -5,10 +5,8 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_EXE BISMARK_GENOME_FOLDER)] # require bismark path
-          #required_exe => [qw(bismark)] ??
-    );
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_EXE BISMARK_GENOME_FOLDER)], # require bismark path
+                    required_exe => [qw(bismark)]);
     use TestPipelines;
     use_ok('VRPipe::Steps::bismark');
 }
@@ -24,7 +22,7 @@ my $setup = VRPipe::PipelineSetup->create(name       => 'bismark',
                                                                                    source  => file(qw(t data bismark_datasource_pe.fofn))->absolute),
                                           output_root => $output_dir,
                                           pipeline    => $pipeline,
-                                          options     => { paired_end => 1 });
+                                          options     => { bismark_exe => $ENV{BISMARK_EXE}, bismark_genome_folder => $ENV{BISMARK_GENOME_FOLDER}, paired_end => 1 });
 
 my @output_subdirs = output_subdirs(1);
 my $outputfile_1   = file(@output_subdirs, '1_bismark', "2822_6_1", "2822_6_1.fastq_Bismark_paired-end_mapping_report.txt");

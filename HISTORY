@@ -1,3 +1,23 @@
+0.94    Critical fix for getting interface_port when it is set as an environment
+        variable. See also the recent 0.93 changes.
+0.93    This version features the beginning of a more radicial overhaul,
+        introducing vrpipe-server, which is a trivial-memory, trivial-cpu
+        daemon process that will eventually run the whole system, discovering
+        and dispatching jobs. In this version it only serves the frontends (both
+        cmd-line and web, and currently only for vrpipe-status) and runs the
+        local scheduler (if you have that configured). vrpipe-server will be
+        started automatically when needed. When it starts it gives you the
+        website address you can visit. This is actually faster than using the
+        equivalent cmd-line tool. Please see IMPORTANT_NOTES if upgrading.
+        
+        The fofn, fofn_with_metadata and vrpipe DataSources now have a new
+        method 'group_all', which is useful for 'merge' type pipelines.
+0.92    vrpipe-setup script can now --reset or --delete an existing
+        PipelineSetups, to completely wipe out all progress on them. Fixed
+        critical bug in the sequence_index DataSource.
+0.91    When VRPipe counts the number of records in a bam, it now uses the
+        samtools executable in the $SAMTOOLS directory, not the first one in the
+        $PATH.
 0.90    Upgraded irods step to make it compatible with latest version of
         ichksum (critical fix for any irods-related pipeline).
 0.89    Fixed critical bug in Submission reserved memory calculation that could

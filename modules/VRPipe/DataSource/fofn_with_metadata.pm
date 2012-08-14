@@ -67,6 +67,9 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
         elsif ($method eq 'grouped_by_metadata') {
             return "Each element will consist of all the files given in the first column of the source that share values in the column(s) specified by the metadata_keys option. If you want to group by more than 1 metadata column, separate the key names with a '|' symbol. e.g. 'sample|platform|library' will group all files with the same sample, platform and library into one dataelement.";
         }
+        elsif ($method eq 'group_all') {
+            return "All files in the file will be grouped into a single element.";
+        }
         
         return '';
     }
@@ -78,6 +81,14 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
             push(@element_args, { datasource => $did, result => { paths => $result->{paths} } });
         }
         $self->_create_elements(\@element_args);
+    }
+    
+    method group_all (Defined :$handle!) {
+        my @paths;
+        foreach my $result ($self->_all_results(handle => $handle)) {
+            push @paths, @{ $result->{paths} };
+        }
+        $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
     }
     
     around _all_results (Defined :$handle!, Str :$delimiter?, ArrayRef :$path_columns?, Bool :$columns_are_paths?) {

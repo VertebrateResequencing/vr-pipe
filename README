@@ -23,12 +23,13 @@ INSTALLATION
 
 You will need the source version of samtools compiled with -fPIC and -m64 in the
 CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
-(which should now contain bam.h and libbam.a). Samtools can be downloaded from
-here: http://sourceforge.net/projects/samtools/files/samtools/
-Furthermore, it is required that a samtools executable be in your PATH. (Note
-that tests use the samtools in your PATH, not samtools in your SAMTOOlS dir;
-production pipelines will use the samtools at the absolute path you configure
-them with during setup - the default will be the first one in your PATH.)
+(which should now contain bam.h and libbam.a, and MUST contain the samtools
+executable). Samtools can be downloaded from here:
+http://sourceforge.net/projects/samtools/files/samtools/
+(Note that tests use the samtools in your PATH, not the samtools in your
+SAMTOOLS dir; production pipelines will use the samtools at the absolute path
+you configure them with during setup - the default will be the first one in your
+PATH.)
 
 It is also recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and
 create that directory.
@@ -42,33 +43,45 @@ $ perl Build.PL
 
 If this says you have "ERRORS/WARNINGS FOUND IN PREREQUISITES" try:
 $ ./Build installdeps
-to install missing prerequisites from CPAN. You may find that you have to
-unset your LANG environment variable temporarily to install all CPAN
-prerequisites. You will likely find that Inline::Filters fails its preprocess.t
-test; this is ok and you can manually use 'cpan' to:
-'force install Inline::Filters'. You may also find that
-MooseX::Types::Parameterizable fails its tests. In that case you can manually
-use 'cpan' to install an earlier version that should work:
-'install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz'.
-Version 0.08198 of DBIx::Class has a prefetch-related bug which prevents VRPipe
-from working. Please use an earlier version like 0.08196, or any higher version
-that claims to have fixed https://rt.cpan.org/Ticket/Display.html?id=78456 :
-'force install ARODLAND/DBIx-Class-0.08196.tar.gz'.
+to install missing prerequisites from CPAN.
+
+installdeps will install things automatically in some random order, but ideally
+you should manually install certain modules in a specific order:
+1) EV
+2) AnyEvent
+3) Continuity (specifically its Coro dependency)
+
+Possible problems you may encounter in installing your missing prerequisites:
+# You may find that you have to unset your LANG environment variable temporarily
+  to install all CPAN prerequisites.
+# You will likely find that Inline::Filters fails its preprocess.t test; this is
+  ok and you can manually use 'cpan' to:
+  cpan> force install Inline::Filters
+# You may find that MooseX::Types::Parameterizable fails its tests. In that case
+  you can manually use 'cpan' to install an earlier version that should work:
+  cpan> install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz
+# Version 0.08198 of DBIx::Class has a prefetch-related bug which prevents
+  VRPipe from working. Please use an earlier version like 0.08196, or any higher
+  version that claims to have fixed
+  https://rt.cpan.org/Ticket/Display.html?id=78456 :
+  cpan> force install ARODLAND/DBIx-Class-0.08196.tar.gz
+# If you find that AnyEvent::ForkManager fails tests and emmits errors
+  mentioning WNOHANG, you will have to cd to the cpan build directory and edit
+  line 11 of blib/lib/AnyEvent/ForkManager.pm to read "use POSIX qw(WNOHANG);"
+  (without the quotes). Then you can do "make test" and "make install".
+# Twiggy may fail its disconnect.t test. This is safe to ignore; just:
+  cpan> force install Twiggy
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is
 recommended to use a stand-alone relational database such as MySQL. The pipeline
 functionality requires such a database, but if you're only using code such as a
-parser or the bas function you can use sqlite, supplying a file path for the
-database name.
+parser or the bas function you can use SQLite, supplying a file path for the
+database name. Note that the local scheduler currently doesn't work well with an
+SQLite database, so some tests are likely to fail with that combination.
 
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
-
-If you choose to use the local scheduler, you will need to add the scripts
-directory to your PATH prior to running tests. Note that the local scheduler
-currently doesn't work well with an sqlite database, so some tests are likely
-to fail with that combination.
 
 
 To test the code prior to using it:

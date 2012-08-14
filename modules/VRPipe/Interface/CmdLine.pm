@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::FrontEnd - shared methods of all cmd-line frontend scripts
+VRPipe::Interface::CmdLine - shared methods of all cmd-line frontend scripts
 
 =head1 SYNOPSIS
 
@@ -40,15 +40,21 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::FrontEnd {
+class VRPipe::Interface::CmdLine {
     use Getopt::Long qw(GetOptions GetOptionsFromString);
     use Perl6::Form;
-    use Module::Find;
+    use LWP::UserAgent;
+    use Sys::Hostname::Long;
+    use VRPipe::Config;
     use VRPipe::Persistent::SchemaBase;
+    use Config;
     
     has 'description' => (is       => 'rw',
                           isa      => 'Str',
                           required => 1);
+    
+    has 'extra_args' => (is  => 'rw',
+                         isa => 'Str');
     
     has 'opt_spec' => (is      => 'rw',
                        isa     => 'ArrayRef[ArrayRef]',
@@ -68,11 +74,6 @@ class VRPipe::FrontEnd {
                     isa    => 'Str',
                     writer => '_set_usage');
     
-    has 'schema' => (is      => 'ro',
-                     isa     => 'VRPipe::Persistent::Schema',
-                     lazy    => 1,
-                     builder => '_build_schema');
-    
     has '_multiple_setups' => (is  => 'rw',
                                isa => 'Bool');
     
@@ -80,13 +81,36 @@ class VRPipe::FrontEnd {
                              isa     => 'Bool',
                              default => 0);
     
+    has '_ua' => (is      => 'ro',
+                  isa     => 'LWP::UserAgent',
+                  lazy    => 1,
+                  builder => '_build_ua');
+    
+    has 'port' => (is     => 'ro',
+                   isa    => PositiveInt,
+                   writer => '_set_port');
+    
+    has 'dsn' => (is     => 'ro',
+                  isa    => 'Str',
+                  writer => '_set_dsn');
+    
+    has 'server_ok' => (is      => 'ro',
+                        isa     => 'Bool',
+                        lazy    => 1,
+                        builder => 'check_server');
+    
+    has '_ua_port_baseurl' => (is      => 'ro',
+                               isa     => 'ArrayRef',
+                               lazy    => 1,
+                               builder => '_build_ua_port_baseurl');
+    
     method _default_opt_spec {
         return [['deployment=s', 'Use the production or testing database', { default => 'production' }], ['env|e=s', 'Use options stored in an environment variable'], ['help|h', 'Print this usage message and exit']];
     }
     
-    method _build_schema {
-        my $m = VRPipe::Manager->get;
-        return $m->result_source->schema;
+    method _build_ua {
+        my $ua = LWP::UserAgent->new(timeout => 20, agent => 'VRPipe-Client');
+        return $ua;
     }
     
     sub BUILD {
@@ -195,6 +219,8 @@ class VRPipe::FrontEnd {
         if ($has_long) {
             $o .= ' [long options...]';
         }
+        my $extra_args = $self->extra_args;
+        $o .= ' ' . $extra_args if $extra_args;
         $usage = $self->description . "\n$script_name$o\n" . $usage;
         $self->_set_usage($usage);
         
@@ -214,6 +240,14 @@ class VRPipe::FrontEnd {
             $self->_set_opt($opt => $val);
         }
         
+        my @ctps;
+        while (my ($opt, $class) = each %convert_to_persistent) {
+            push(@ctps, "$opt!$class");
+        }
+        if (@ctps) {
+            $self->_set_opt(convert_to_persistent => \@ctps);
+        }
+        
         my $help       = $self->opts('help');
         my $deployment = $self->opts('deployment');
         unless ($deployment eq 'production' || $deployment eq 'testing') {
@@ -222,69 +256,19 @@ class VRPipe::FrontEnd {
         }
         $self->help if $help;
         
-        VRPipe::Persistent::SchemaBase->database_deployment($deployment);
-        require VRPipe::Persistent::Schema;
-        
-        while (my ($opt, $class) = each %convert_to_persistent) {
-            next unless $self->option_was_set($opt);
-            my $val        = $self->opts($opt);
-            my @desired    = ref($val) eq 'ARRAY' ? @$val : ($val);
-            my $full_class = "VRPipe::$class";
-            
-            my @found;
-            foreach my $desired (@desired) {
-                my $found;
-                if ($desired =~ /^\d+$/) {
-                    ($found) = $full_class->search({ id => $desired });
-                    unless ($found) {
-                        $self->die_with_error("$desired is not a valid $class id");
-                    }
-                }
-                else {
-                    ($found) = $full_class->search({ name => $desired });
-                    unless ($found) {
-                        $self->die_with_error("$desired is not a valid $class name");
-                    }
-                }
-                push(@found, $found);
-            }
-            
-            if (ref($val) eq 'ARRAY') {
-                $self->_set_opt($opt => \@found);
-            }
-            else {
-                $self->_set_opt($opt => $found[0]);
-                if (@found > 1) {
-                    $self->error("--$opt @desired resulted in more than one $class object; only using the first");
-                }
-            }
+        my $vrp_config  = VRPipe::Config->new();
+        my $method_name = $deployment . '_interface_port';
+        my $port        = $vrp_config->$method_name();
+        unless ($port) {
+            $self->throw("VRPipe SiteConfig had no port specified for $method_name");
         }
+        $self->_set_port("$port");                                        # values retrieved from Config might be env vars, so we must force stringification
+        VRPipe::Persistent::SchemaBase->database_deployment($deployment); # this does not access the db, just lets get_dsn method work
+        $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
     }
     
     method help {
         $self->die_with_error($self->usage);
-    }
-    
-    method get_pipelinesetups (Bool :$inactive?) {
-        my @requested_setups = $self->option_was_set('setup') ? ($self->_multiple_setups ? @{ $self->opts('setup') } : ($self->opts('setup'))) : ();
-        
-        my @setups;
-        if (@requested_setups) {
-            @setups = @requested_setups;
-        }
-        elsif ($self->_multiple_setups) {
-            my $user = $self->opts('user');
-            unless (defined $inactive) {
-                $inactive = $self->opts('deactivated');
-            }
-            @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) });
-        }
-        
-        if ($self->_multiple_setups && !@setups) {
-            $self->die_with_error("No PipelineSetups match your settings (did you remember to specifiy --user?)");
-        }
-        
-        return $self->_multiple_setups ? @setups : $setups[0];
     }
     
     method output (@messages) {
@@ -302,76 +286,127 @@ class VRPipe::FrontEnd {
         die "\n";
     }
     
-    method progress_indicator (Bool $end?) {
-        if ($end) {
-            print STDERR "\n";
+    method _build_ua_port_baseurl {
+        my $ua       = $self->_ua;
+        my $port     = $self->port;
+        my $base_url = 'http://' . hostname_long . ':' . $port;
+        return [$ua, $port, $base_url];
+    }
+    
+    method check_server (Bool $no_auto_start_or_die = 0) {
+        my ($ua, $port, $base_url) = @{ $self->_ua_port_baseurl };
+        
+        # try and get a response from the port
+        my @post_args = ($base_url . '/dsn');
+        my $response  = $ua->post(@post_args);
+        my $server_dsn;
+        if ($response->is_success) {
+            $server_dsn = $response->decoded_content;
+        }
+        elsif ($no_auto_start_or_die) {
+            return 0;
         }
         else {
-            print STDERR '. ';
-        }
-    }
-    
-    method display_hash (Str $name, HashRef $hash, ArrayRef[Str] $key_order?) {
-        $key_order ||= [sort { $a cmp $b } keys %$hash];
-        $self->output("$name:");
-        my ($extra_tabs) = $name =~ /^(\t+)/;
-        $extra_tabs ||= '';
-        foreach my $key (@$key_order) {
-            next unless defined $hash->{$key};
-            $self->output("$extra_tabs\t", $key, ' => ', $hash->{$key});
-        }
-    }
-    
-    method sub_modules (Str $base) {
-        $base = "VRPipe::$base";
-        my @modules = findsubmod $base;
-        unless (@modules) {
-            @modules = findsubmod "${base}s";
-        }
-        my @names;
-        foreach my $module (@modules) {
-            my ($name) = $module =~ /::([^:]+)$/;
-            push(@names, $name);
-        }
-        return @names;
-    }
-    
-    method make_all_objects (Str $class) {
-        my @modules = $self->sub_modules($class);
-        $class = "VRPipe::$class";
-        foreach my $name (@modules) {
-            $class->get(name => $name);
-        }
-    }
-    
-    method ask_for_object (Str :$question!, Str :$class!, Str :$column!) {
-        $self->make_all_objects($class);
-        my @things     = "VRPipe::$class"->search({});
-        my %things     = map { $_->$column => $_ } @things;
-        my @thing_keys = sort keys %things;
-        $self->output("\n");
-        my %num_to_key;
-        foreach my $i (0 .. $#thing_keys) {
-            my $num = $i + 1;
-            my $key = $thing_keys[$i];
-            $num_to_key{$num} = $key;
-            my $output = "$num. $key";
-            my $obj    = $things{$key};
-            if ($obj->can('description')) {
-                $output .= ' [' . $obj->description . ']';
+            if ($response->code == 500) {
+                $self->error("Can't connect to VRPiper server at $base_url, will attempt to auto-start it...");
+                my $deployment = $self->opts('deployment');
+                my $script     = 'vrpipe-server';
+                if ($deployment eq 'testing') {
+                    # we might not have vrpipe-server in our PATH, and the
+                    # modules it needs might not be in our PERL5LIB, so allow
+                    # us to still work if we're running from the git repo root
+                    # dir (eg. during testing prior to an install). In fact, for
+                    # testing purposes, we prefer this to some version of the
+                    # files installed elsewhere.
+                    my $local_script = file('scripts', 'vrpipe-server');
+                    my $modules_dir = dir('modules');
+                    if (-x $local_script && -d $modules_dir) {
+                        my $thisperl = $Config{perlpath};
+                        if ($^O ne 'VMS') {
+                            $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
+                        }
+                        $script = "$thisperl -I$modules_dir $local_script";
+                    }
+                }
+                my $cmd = $script . ' --deployment ' . $deployment . ' start'; # (this confuses perltidy if put directly in the system() call)
+                system($cmd);
+                
+                # the vrpipe-server call returns ~instantly, but may take some
+                # time before the server is actually ready to connect to; keep
+                # trying for the next 20 seconds
+                my $seconds = 20;
+                while ($seconds--) {
+                    $response = $ua->post(@post_args);
+                    if ($response->is_success) {
+                        $server_dsn = $response->decoded_content;
+                        last;
+                    }
+                    sleep(1);
+                }
             }
-            $self->output($output);
+            $self->die_with_error($response->status_line) unless $server_dsn;
         }
-        my $chosen_num = $self->pick_number(question => $question, max => scalar(@thing_keys));
-        return $things{ $num_to_key{$chosen_num} };
+        
+        # make sure the response is valid
+        my $expected_dsn = $self->dsn;
+        unless ($server_dsn eq $expected_dsn) {
+            if ($no_auto_start_or_die) {
+                return -1;
+            }
+            else {
+                $self->die_with_error("There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all.\nIts reported dsn was:\n$server_dsn\n");
+            }
+        }
+        
+        return 1;
     }
     
-    method already_exists (Str $class!, Str $key!, Str $value!) {
-        my $found = "VRPipe::$class"->search({ $key => $value });
-        if ($found) {
-            return "a $class already exists with $key '$value'";
+    method server_get (Str $page, HashRef $opts?) {
+        $opts ||= {};
+        $opts->{display_format} = 'plain';
+        
+        # first we need to make sure that the server bound to the port we
+        # configured for our database is actually connected to our database
+        # (and we'll auto-start the server if it isn't running at all)
+        $self->die_with_error("Can't connect to server.") unless $self->server_ok;
+        
+        # now we'll handle the desired request
+        my ($ua, undef, $base_url) = @{ $self->_ua_port_baseurl };
+        my @post_args = ($base_url . $page, [$self->_deref_hash($self->_opts_hash), '_multiple_setups' => $self->_multiple_setups, $self->_deref_hash($opts)]);
+        
+        my $response = $ua->post(@post_args);
+        if ($response->is_success) {
+            return $response->decoded_content;
         }
-        return;
+        else {
+            $self->die_with_error("Failed to get $post_args[0] (@{$post_args[1]}):" . $response->status_line);
+        }
+    }
+    
+    method _deref_hash (HashRef $hash) {
+        my @list;
+        while (my ($key, $val) = each %$hash) {
+            my $ref = ref($val);
+            if ($ref) {
+                if ($ref eq 'ARRAY') {
+                    foreach my $subval (@$val) {
+                        push(@list, $key, $subval);
+                    }
+                }
+                elsif ($ref eq 'HASH') {
+                    while (my ($sub_key, $subval) = each %{$val}) {
+                        push(@list, "$key:hashderef:$sub_key", $subval);
+                    }
+                }
+                else {
+                    $self->throw("Can't cope with values of type $ref as post args");
+                }
+            }
+            else {
+                push(@list, $key, $val);
+            }
+        }
+        return @list;
     }
     
     method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?) {
