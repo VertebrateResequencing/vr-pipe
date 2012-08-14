@@ -36,8 +36,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                   optional => 1, default_value => 'samtools'),
-                 samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b options. Also exclude -l option a sites_file is provided as an input to the step', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
+        return { samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                          optional => 1, default_value => 'samtools'),
+                 samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b options. Also exclude the -l option if a sites_file is provided as an input to the step', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
                  reference_fasta          => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'), };
     }
     
@@ -63,9 +63,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
                 $mpileup_opts .= " -l " . $sites_file->path;
             }
             
-            my $bams_list = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1);
-            my $bams_list_path = $bams_list->path;
-            $bams_list->create_fofn($self->inputs->{bam_files});
+            my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
             my @input_ids = map { $_->id } @{ $self->inputs->{bam_files} };
             my $bcf_meta = $self->common_metadata($self->inputs->{bam_files});
             
@@ -138,15 +136,8 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
         my $bcf = VRPipe::FileType->create('bcf', { file => $output_path });
         my $bcf_file = VRPipe::File->get(path => $output_path);
         
-        # my $ofh = $fofn->openw;
-        # foreach my $input_id (@$input_ids) {
-        #     my $file = VRPipe::File->get(id => $input_id);
-        #     my $file_path = $file->path;
-        #     print $ofh "$file_path\n";
-        # }
-        # $ofh->close;
-        # $fofn->update_stats_from_disc(retries => 3);
-        # $self->throw("fofn ".$fofn_path." does not contain all input files") unless ($fofn->lines == scalar @$input_ids);
+        my @input_files = map { VRPipe::File->get(id => $_) } @$input_ids;
+        $fofn->create_fofn(\@input_files);
         
         $bcf_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");

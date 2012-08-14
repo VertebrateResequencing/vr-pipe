@@ -47,7 +47,7 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
     around options_definition {
         return {
             %{ $self->$orig }, # gatk options
-            unified_genotyper_options => VRPipe::StepOption->create(description => 'options for GATK UnifiedGenotyper, excluding -R,-D,-I,-o'), };
+            unified_genotyper_options => VRPipe::StepOption->create(description => 'Options for GATK UnifiedGenotyper, excluding -R,-I,-o'), };
     }
     
     method inputs_definition {
@@ -64,18 +64,19 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
             my $reference_fasta = $options->{reference_fasta};
             my $genotyper_opts  = $options->{unified_genotyper_options};
             
+            if ($genotyper_opts =~ /$reference_fasta|-I|-o|UnifiedGenotyper/) {
+                $self->throw("unified_genotyper_options should not include the reference, input or output options or UnifiedGenotyper task command");
+            }
+            
             if ($self->inputs->{sites_file}) {
                 $self->throw("unified_genotyper_options cannot contain the -alleles or --genotyping_mode (-gt_mode) options if a sites_file is an input to this step") if ($genotyper_opts =~ /-alleles/ || $genotyper_opts =~ /-gt_mode/ || $genotyper_opts =~ /--genotyping_mode/);
                 my $sites_file = $self->inputs->{sites_file}[0];
                 $genotyper_opts .= "--genotyping_mode GENOTYPE_GIVEN_ALLELES --alleles " . $sites_file->path;
             }
             
-            my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $jvm_args = $self->jvm_args($req->memory);
+            my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
+            my @input_ids = map { $_->id } @{ $self->inputs->{bam_files} };
             
-            my $bams_list = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1);
-            my $bams_list_path = $bams_list->path;
-            $bams_list->create_fofn($self->inputs->{bam_files});
             my $vcf_meta = $self->common_metadata($self->inputs->{bam_files});
             $vcf_meta->{caller} = 'GATK_UnifiedGenotyper';
             
@@ -111,10 +112,14 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
             
             my $vcf_file = $self->output_file(output_key => 'gatk_vcf_file', basename => $basename, type => 'vcf', metadata => $vcf_meta);
             my $vcf_path = $vcf_file->path;
+
             
-            my $cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T UnifiedGenotyper -R $reference_fasta -I $bams_list_path -o $vcf_path $genotyper_opts];
-            $self->dispatch([$cmd, $req, { output_files => [$vcf_file] }]);
-        
+
+            my $req      = $self->new_requirements(memory => 1200, time => 1);
+            my $jvm_args = $self->jvm_args($req->memory);
+            my $cmd      = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T UnifiedGenotyper -R $reference_fasta -I $bams_list_path -o $vcf_path $genotyper_opts];
+            my $this_cmd = "use VRPipe::Steps::gatk_unified_genotyper; VRPipe::Steps::gatk_unified_genotyper->genotype_and_check(q[$cmd], input_ids => [qw(@input_ids)]);";
+            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file] });
         };
     }
     
@@ -132,6 +137,32 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
     
     method max_simultaneous {
         return 0;            # meaning unlimited
+    }
+    
+    method genotype_and_check (ClassName|Object $self: Str $cmd_line, ArrayRef[Int] :$input_ids!, Int :$minimum_records = 0) {
+        my ($fofn_path, $out_path) = $cmd_line =~ /-I (\S+) -o (\S+)/;
+        $fofn_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $out_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        
+        my $fofn     = VRPipe::File->get(path => $fofn_path);
+        my $out_file = VRPipe::File->get(path => $out_path);
+        
+        my @input_files = map { VRPipe::File->get(id => $_) } @$input_ids;
+        $fofn->create_fofn(\@input_files);
+        
+        $fofn->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        $out_file->update_stats_from_disc(retries => 3);
+        
+        my $output_records = $out_file->num_records;
+        if ($output_records < $minimum_records) {
+            $out_file->unlink;
+            $self->throw("Output VCF has $output_records data lines, fewer than required minimum $minimum_records");
+        }
+        else {
+            return 1;
+        }
     }
 }
 

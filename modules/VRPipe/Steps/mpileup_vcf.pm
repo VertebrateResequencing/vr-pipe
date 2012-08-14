@@ -34,28 +34,33 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
+class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
     around options_definition {
         return { %{ $self->$orig },
-                 samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b. Since this will be piped into bcftools view, it is recommended that the -u option is set.',                                                                              optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -ug'),
-                 bcftools_exe             => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                                                                                                          optional => 1, default_value => 'bcftools'),
-                 bcftools_view_options    => VRPipe::StepOption->create(description => 'bcftools view options',                                                                                                                                                                                                optional => 1, default_value => '-p 0.99 -vcgN'),
-                 sample_sex_file          => VRPipe::StepOption->create(description => 'File listing the sex (M or F) of samples. If not provided, will call on all samples in the bcf header. If provided, calls will be made on the intersection of the samples in the file and samples in the bcf header.', optional => 1),
-                 assumed_sex              => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',                                                                                                                               optional => 1, default_value => 'F') };
+                 samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                             optional => 1, default_value => 'samtools'),
+                 samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b. Since this will be piped into bcftools view, it is recommended that the -u option is set.', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -ug'),
+                 reference_fasta          => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta') };
+    }
+    
+    method inputs_definition {
+        return { bam_files  => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
+                 sites_file => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'), };
     }
     
     method body_sub {
         return sub {
-            my $self            = shift;
-            my $options         = $self->options;
-            my $samtools        = $options->{samtools_exe};
-            my $reference_fasta = $options->{reference_fasta};
-            my $mpileup_opts    = $options->{samtools_mpileup_options};
-            my $bcftools        = $options->{bcftools_exe};
-            my $bcf_view_opts   = $options->{bcftools_view_options};
-            my $assumed_sex     = $options->{assumed_sex};
-            my $sample_sex_file;
+            my $self          = shift;
+            my $options       = $self->options;
+            my $samtools      = $options->{samtools_exe};
+            my $mpileup_opts  = $options->{samtools_mpileup_options};
+            my $bcftools      = $options->{bcftools_exe};
+            my $bcf_view_opts = $options->{bcftools_view_options};
+            my $assumed_sex   = $options->{assumed_sex};
             
+            my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
+            $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
+            
+            my $sample_sex_file;
             if ($options->{sample_sex_file}) {
                 $sample_sex_file = Path::Class::File->new($options->{sample_sex_file});
                 $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_file->is_absolute;
@@ -66,11 +71,9 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
                 $bcf_view_opts .= " -l " . $sites_file->path;
             }
             
-            my $bams_list = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1);
-            my $bams_list_path = $bams_list->path;
-            $bams_list->create_fofn($self->inputs->{bam_files});
-            my $vcf_meta = $self->common_metadata($self->inputs->{bam_files});
-            my @bam_ids = map { $_->id } @{ $self->inputs->{bam_files} };
+            my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
+            my $vcf_meta       = $self->common_metadata($self->inputs->{bam_files});
+            my @bam_ids        = map { $_->id } @{ $self->inputs->{bam_files} };
             $vcf_meta->{caller} = 'samtools_mpileup_bcftools';
             
             my $req = $self->new_requirements(memory => 500, time => 1);
@@ -140,22 +143,6 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::mpileup_bcf {
     method outputs_definition {
         return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a vcf file for each set of one or more input bams') };
     }
-    
-    # method run_mpileup (ClassName|Object $self: Str $cmd_line, Int $min_recs) {
-    #     system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-    #
-    #     my ($output_path) = $cmd_line =~ /> (\S+)$/;
-    #     my $output_file = VRPipe::File->get(path => $output_path);
-    #     $output_file->update_stats_from_disc;
-    #     my $output_recs = $output_file->num_records;
-    #
-    #     if ($output_recs < $min_recs) {
-    #         $output_file->unlink;
-    #         $self->throw("Output VCF has $output_recs data lines, fewer than expected minimum $min_recs");
-    #     } else {
-    #         return 1;
-    #     }
-    # }
 }
 
 1;

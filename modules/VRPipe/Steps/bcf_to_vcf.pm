@@ -111,10 +111,13 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
         return 0;            # meaning unlimited
     }
     
-    method source_samples (ClassName|Object $self: ArrayRef[Int] $source_file_ids) {
+    method bcftools_call_with_sample_file (ClassName|Object $self: Str $cmd_line!, Str|File $sample_ploidy_path, ArrayRef[Int] :$source_file_ids!, Str|File :$sample_sex_file?, Int :$female_ploidy!, Int :$male_ploidy!, Str :$assumed_sex = 'F', Int :$minimum_records = 0) {
+        my @input_files = map { VRPipe::File->get(id => $_) } @$source_file_ids;
+        
+        # find out the samples contained in the input files
         my %source_samples;
-        foreach my $file_id (@$source_file_ids) {
-            my $file = VRPipe::File->get(id => $file_id);
+        my $bam_input = 0;
+        foreach my $file (@input_files) {
             if ($file->type eq 'bcf') {
                 my $bcf_ft = VRPipe::FileType->create('bcf', { file => $file->path });
                 map { $source_samples{$_} = 1 } @{ $bcf_ft->samples };
@@ -123,19 +126,27 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 my $bp = VRPipe::Parser->create('bam', { file => $file });
                 map { $source_samples{$_} = 1 } $bp->samples;
                 $bp->close;
+                $bam_input = 1;
             }
             else {
                 $self->throw("Source file not of type bcf or bam, " . $file->path);
             }
         }
         $self->throw("No samples found") unless (keys %source_samples);
-        return \%source_samples;
-    }
-    
-    method bcftools_call_with_sample_file (ClassName|Object $self: Str $cmd_line!, Str|File $sample_ploidy_path, ArrayRef[Int] :$source_file_ids!, Str|File :$sample_sex_file?, Int :$female_ploidy!, Int :$male_ploidy!, Str :$assumed_sex = 'F') {
-        my $source_samples = $self->source_samples($source_file_ids);
-        my $ploidy_file = VRPipe::File->get(path => $sample_ploidy_path);
         
+        # if the inputs to the step are bam files, this is the mpileup step
+        # and we need to create a fofn of the input bam files
+        if ($bam_input) {
+            my ($bam_fofn_path) = $cmd_line =~ /-b (\S+) /;
+            $self->throw("No bam fofn path found in command line $cmd_line") unless $bam_fofn_path;
+            my $bam_fofn = VRPipe::File->get(path => $bam_fofn_path);
+            $bam_fofn->create_fofn(\@input_files);
+        }
+        
+        # find out the sex of each of the input files - either from
+        # the sample_sex_file or assumed_sex
+        # if sample_sex_file is a subset of all the samples, then
+        # we'll be calling on that subset
         my %samples;
         if ($sample_sex_file) {
             my $sex_file = VRPipe::File->create(path => $sample_sex_file);
@@ -143,18 +154,21 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
             while (<$fh>) {
                 chomp;
                 my ($sample, $sex) = split /\t/;
-                next unless (exists $source_samples->{$sample});
+                next unless (exists $source_samples{$sample});
                 $sex ||= $assumed_sex;
                 $samples{$sample} = $sex;
             }
             $fh->close;
         }
         else {
-            foreach my $sample (keys %$source_samples) {
+            foreach my $sample (keys %source_samples) {
                 $samples{$sample} = $assumed_sex;
             }
         }
         
+        # write the samples and ploidy to a file which will be
+        # used by bcftools to call
+        my $ploidy_file      = VRPipe::File->get(path => $sample_ploidy_path);
         my $pfh              = $ploidy_file->openw;
         my $expected_samples = 0;
         while (my ($sample, $sex) = each %samples) {
@@ -166,18 +180,28 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
         $pfh->close;
         $ploidy_file->update_stats_from_disc(retries => 3);
         
-        # check number of samples is as expected
+        # check that the number of samples is as expected
         my $actual_samples = $ploidy_file->lines;
         unless ($actual_samples == $expected_samples) {
             $ploidy_file->unlink;
             $self->throw("write_sample_ploidy_file failed because $actual_samples samples were generated in the output ploidy files, yet we expected $expected_samples samples");
         }
         
+        # run the command line
         my ($output_path) = $cmd_line =~ /> (\S+)$/;
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         $output_file->update_stats_from_disc(retries => 3);
+        
+        my $output_records = $output_file->num_records;
+        if ($output_records < $minimum_records) {
+            $output_file->unlink;
+            $self->throw("Output VCF has $output_records data lines, fewer than required minimum $minimum_records");
+        }
+        else {
+            return 1;
+        }
     }
 }
 
