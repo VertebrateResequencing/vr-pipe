@@ -10,7 +10,7 @@ without an intermediate BCF
 
 =head1 AUTHOR
 
-Chris Joyce <cj5@sanger.ac.uk>.
+Chris Joyce    <cj5@sanger.ac.uk>. Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -49,16 +49,24 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
     
     method body_sub {
         return sub {
-            my $self          = shift;
-            my $options       = $self->options;
-            my $samtools      = $options->{samtools_exe};
-            my $mpileup_opts  = $options->{samtools_mpileup_options};
-            my $bcftools      = $options->{bcftools_exe};
-            my $bcf_view_opts = $options->{bcftools_view_options};
-            my $assumed_sex   = $options->{assumed_sex};
+            my $self     = shift;
+            my $vcf_meta = $self->common_metadata($self->inputs->{bam_files});
+            $vcf_meta = { %$vcf_meta, $self->element_meta };
+            my $options = $self->handle_override_options($vcf_meta);
+            
+            my $samtools        = $options->{samtools_exe};
+            my $bcftools        = $options->{bcftools_exe};
+            my $mpileup_opts    = $options->{samtools_mpileup_options};
+            my $bcf_view_opts   = $options->{bcftools_view_options};
+            my $assumed_sex     = $options->{assumed_sex};
+            my $minimum_records = $options->{minimum_records};
             
             my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
+            
+            if ($mpileup_opts =~ /-f|-b|$reference_fasta/) {
+                $self->throw("samtools_mpileup_options should not include the reference, the -f or the -b options");
+            }
             
             my $sample_sex_file;
             if ($options->{sample_sex_file}) {
@@ -72,55 +80,26 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             }
             
             my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
-            my $vcf_meta       = $self->common_metadata($self->inputs->{bam_files});
-            my @bam_ids        = map { $_->id } @{ $self->inputs->{bam_files} };
+            my @bam_ids = map { $_->id } @{ $self->inputs->{bam_files} };
             $vcf_meta->{caller} = 'samtools_mpileup_bcftools';
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
-            my $female_ploidy = 2;
-            my $male_ploidy   = 2;
-            
-            my $element_meta = $self->step_state->dataelement->result;
-            my $basename;
-            if (defined $element_meta->{chrom}) {
-                my $chrom = $element_meta->{chrom};
-                my $from  = $element_meta->{from};
-                my $to    = $element_meta->{to};
-                $female_ploidy = $element_meta->{female_ploidy} if defined $element_meta->{female_ploidy};
-                $male_ploidy   = $element_meta->{male_ploidy}   if defined $element_meta->{male_ploidy};
-                my $region = "${chrom}_${from}-${to}";
-                $$vcf_meta{chrom}  = $chrom;
-                $$vcf_meta{from}   = $from;
-                $$vcf_meta{to}     = $to;
-                $$vcf_meta{seq_no} = $element_meta->{chunk_id};
-                my $override_file = $element_meta->{chunk_override_file};
-                my $override      = do $override_file;
-                
-                if (exists $override->{"$region"}->{samtools_exe}) {
-                    $samtools = $override->{"$region"}->{samtools_exe};
-                }
-                if (exists $override->{"$region"}->{samtools_mpileup_options}) {
-                    $mpileup_opts = $override->{"$region"}->{samtools_mpileup_options};
-                }
-                if (exists $override->{"$region"}->{bcftools_exe}) {
-                    $bcftools = $override->{"$region"}->{bcftools_exe};
-                }
-                if (exists $override->{"$region"}->{bcftools_view_options}) {
-                    $bcf_view_opts = $override->{"$region"}->{bcftools_view_options};
-                }
-                $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'samtools',
-                                                                      version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                                                                      summary => "samtools mpileup $mpileup_opts -r \$region -f \$reference_fasta \$bam_files | bcftools view $bcf_view_opts -s \$samples_file - | bgzip -c > \$vcf_file"));
-                $basename = "$region.mpileup";
+            my $summary_opts = $mpileup_opts;
+            my $basename     = 'mpileup';
+            my ($female_ploidy, $male_ploidy) = (2, 2);
+            if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
+                my ($chrom, $from, $to) = ($$vcf_meta{chrom}, $$vcf_meta{from}, $$vcf_meta{to});
+                $summary_opts .= ' -r $region';
                 $mpileup_opts .= " -r $chrom:$from-$to";
+                $basename      = "${chrom}_${from}-${to}.$basename";
+                $female_ploidy = $vcf_meta->{female_ploidy} if defined $vcf_meta->{female_ploidy};
+                $male_ploidy   = $vcf_meta->{male_ploidy} if defined $vcf_meta->{male_ploidy};
             }
-            else {
-                $basename = 'mpileup';
-                $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'samtools',
-                                                                      version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                                                                      summary => "samtools mpileup $mpileup_opts -f \$reference_fasta \$bam_files | bcftools view $bcf_view_opts -s \$samples_file - | bgzip -c > \$vcf_file"));
-            }
+            
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'samtools',
+                                                                  version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
+                                                                  summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list | bcftools view $bcf_view_opts -s \$samples_file - | bgzip -c > \$vcf_file"));
             
             my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename . '.vcf.gz', type => 'vcf', metadata => $vcf_meta);
             my $temp_samples_path = $self->output_file(basename => $basename . '.samples', type => 'txt', temporary => 1)->path;
@@ -131,7 +110,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             
             my $args = qq['$cmd_line', '$temp_samples_path', source_file_ids => [qw(@bam_ids)], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
             $args .= qq[, sample_sex_file => '$sample_sex_file'] if $sample_sex_file;
-            my $cmd = "use VRPipe::Steps::bcf_to_vcf; VRPipe::Steps::bcf_to_vcf->bcftools_call_with_sample_file($args);";
+            my $cmd = "use VRPipe::Steps::bcf_to_vcf; VRPipe::Steps::bcf_to_vcf->bcftools_call_with_sample_file($args, minimum_records => $minimum_records);";
             $self->dispatch_vrpipecode($cmd, $req, { output_files => [$vcf_file] });
         };
     }

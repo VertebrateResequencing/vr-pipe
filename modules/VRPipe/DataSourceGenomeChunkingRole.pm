@@ -1,8 +1,8 @@
 
 =head1 NAME
 
-VRPipe::DataSource::genome_chunking - auxiliary datasource for splitting
-datasources  into chunks across the genome
+VRPipe::DataSourceGenomeChunkingRole - role extends datasources to be  split
+into chunks across the genome
 
 =head1 SYNOPSIS
 
@@ -202,7 +202,7 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         }
         
         my @chunks;
-        my $chunk_id = 1;
+        my $seq_no = 1;
         for my $region (@chr_regions) {
             my $pos     = $$region{from};
             my $end_pos = $$region{to};
@@ -215,12 +215,12 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
                 if ($to > $end_pos) { $to = $end_pos; }
                 
                 if (keys %$ploidy_regions) {
-                    push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, female_ploidy => $female, male_ploidy => $male, chunk_id => $chunk_id };
+                    push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, female_ploidy => $female, male_ploidy => $male, seq_no => $seq_no };
                 }
                 else {
-                    push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, chunk_id => $chunk_id };
+                    push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, seq_no => $seq_no };
                 }
-                ++$chunk_id;
+                ++$seq_no;
                 
                 $pos += $chunk_size - $chunk_overlap;
                 if ($pos < 1) { $self->throw("The split size too small [$chunk_size]?\n"); }

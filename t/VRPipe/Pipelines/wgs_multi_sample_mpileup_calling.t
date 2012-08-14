@@ -86,7 +86,7 @@ foreach my $chunk (@$chunks) {
 
 ok handle_pipeline(@calling_files), 'pipeline ran ok and all calling files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -EDSV -C50 -m2 -F0.0005 -d 10000 -g -r $region -f $reference_fasta -b $bam_files_list > $bcf_file', 'bcftools view -p 0.99 -vcgN -s $samples_file $bcf_file | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -EDSV -C50 -m2 -F0.0005 -d 10000 -g -r $region -f $reference_fasta -b $bams_list > $bcf_file', 'bcftools view -p 0.99 -vcgN -s $samples_file $bcf_file | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
 
 # check override options work
 # indel calling is turned off for chromosome 20 by options in override file
@@ -116,6 +116,22 @@ VRPipe::PipelineSetup->create(name       => 'wgs test annotation',
                                            vep_options                => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
                                            'vcf2consequences_options' => "--grantham",
                                            cleanup                    => 0 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -166,13 +182,31 @@ ok handle_pipeline(@annotation_files, @final_files), 'annotation and concat pipe
 
 # check final vcfs have metadata
 is_deeply [VRPipe::File->get(path => $final_files[0])->metadata, VRPipe::File->get(path => $final_files[2])->metadata],
-  [{   chrom          => '11',
-       analysis_group => 'low_coverage',
-       caller         => 'samtools_mpileup_bcftools' },
-    {  chrom          => '20',
-       analysis_group => 'low_coverage',
-       caller         => 'samtools_mpileup_bcftools' }],
+  [{   chrom               => '11',
+       analysis_group      => 'low_coverage',
+       chunk_override_file => $override_file->path->stringify,
+       caller              => 'samtools_mpileup_bcftools' },
+    {  chrom               => '20',
+       analysis_group      => 'low_coverage',
+       chunk_override_file => $override_file->path->stringify,
+       caller              => 'samtools_mpileup_bcftools' }],
   'final merged vcfs have correct metadata';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

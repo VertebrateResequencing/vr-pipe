@@ -92,14 +92,16 @@ foreach my $sample (qw(1 2)) {
 
 ok handle_pipeline(@calling_files, @concat_files), 'all expected calling and concat files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -DSV -C50 -m2 -F0.0005 -d 10000 -ug -r $region -f $reference_fasta $bam_files | bcftools view -p 0.99 -vcgN -s $samples_file - | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -DSV -C50 -m2 -F0.0005 -d 10000 -ug -r $region -f $reference_fasta -b $bams_list | bcftools view -p 0.99 -vcgN -s $samples_file - | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
 
 # check final vcfs have metadata
 is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->get(path => $concat_files[2])->metadata],
-  [{   sample => 'SAMPLE01',
-       caller => 'samtools_mpileup_bcftools' },
-    {  sample => 'SAMPLE02',
-       caller => 'samtools_mpileup_bcftools' }],
+  [{   sample              => 'SAMPLE01',
+       chunk_override_file => $override_file,
+       caller              => 'samtools_mpileup_bcftools' },
+    {  sample              => 'SAMPLE02',
+       chunk_override_file => $override_file,
+       caller              => 'samtools_mpileup_bcftools' }],
   'final merged vcfs have correct metadata';
 
 finish;

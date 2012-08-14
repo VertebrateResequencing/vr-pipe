@@ -92,14 +92,16 @@ foreach my $sample (qw(1 2)) {
 
 ok handle_pipeline(@calling_files, @concat_files), 'all expected calling and concat files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary], ['java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file -L $region --genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0'], 'cmd summaries for the major steps were as expected';
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary], ['java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file --genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0 -L $region'], 'cmd summaries for the major steps were as expected';
 
 # check final vcfs have metadata
 is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->get(path => $concat_files[2])->metadata],
-  [{   sample => 'SAMPLE01',
-       caller => 'GATK_UnifiedGenotyper' },
-    {  sample => 'SAMPLE02',
-       caller => 'GATK_UnifiedGenotyper' }],
+  [{   sample              => 'SAMPLE01',
+       chunk_override_file => $override_file,
+       caller              => 'GATK_UnifiedGenotyper' },
+    {  sample              => 'SAMPLE02',
+       chunk_override_file => $override_file,
+       caller              => 'GATK_UnifiedGenotyper' }],
   'final merged vcfs have correct metadata';
 
 finish;

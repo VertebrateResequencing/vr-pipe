@@ -10,7 +10,7 @@ restricting output on samples or sites
 
 =head1 AUTHOR
 
-Chris Joyce <cj5@sanger.ac.uk>.
+Chris Joyce    <cj5@sanger.ac.uk>. Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -39,7 +39,8 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
         return { bcftools_exe          => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                                                                                                          optional => 1, default_value => 'bcftools'),
                  bcftools_view_options => VRPipe::StepOption->create(description => 'bcftools view options',                                                                                                                                                                                                optional => 1, default_value => '-p 0.99 -vcgN'),
                  sample_sex_file       => VRPipe::StepOption->create(description => 'File listing the sex (M or F) of samples. If not provided, will call on all samples in the bcf header. If provided, calls will be made on the intersection of the samples in the file and samples in the bcf header.', optional => 1),
-                 assumed_sex           => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',                                                                                                                               optional => 1, default_value => 'F') };
+                 assumed_sex           => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',                                                                                                                               optional => 1, default_value => 'F'),
+                 minimum_records       => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking',                                                                                                                           optional => 1, default_value => 0) };
     }
     
     method inputs_definition {
@@ -49,11 +50,16 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self        = shift;
-            my $options     = $self->options;
-            my $bcftools    = $options->{bcftools_exe};
-            my $view_opts   = $options->{bcftools_view_options};
-            my $assumed_sex = $options->{assumed_sex};
+            my $self     = shift;
+            my $vcf_meta = $self->common_metadata($self->inputs->{bcf_files});
+            $vcf_meta = { %$vcf_meta, $self->element_meta };
+            my $options = $self->handle_override_options($vcf_meta);
+            
+            my $bcftools        = $options->{bcftools_exe};
+            my $view_opts       = $options->{bcftools_view_options};
+            my $assumed_sex     = $options->{assumed_sex};
+            my $minimum_records = $options->{minimum_records};
+            
             my $sample_sex_file;
             if ($options->{sample_sex_file}) {
                 $sample_sex_file = Path::Class::File->new($options->{sample_sex_file});
@@ -85,7 +91,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 my $bcf_id = $bcf->id;
                 my $args   = qq['$cmd_line', '$temp_samples_path', source_file_ids => ['$bcf_id'], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
                 $args .= qq[, sample_sex_file => '$sample_sex_file'] if $sample_sex_file;
-                my $cmd = "use VRPipe::Steps::bcf_to_vcf; VRPipe::Steps::bcf_to_vcf->bcftools_call_with_sample_file($args);";
+                my $cmd = "use VRPipe::Steps::bcf_to_vcf; VRPipe::Steps::bcf_to_vcf->bcftools_call_with_sample_file($args, minimum_records => $minimum_records);";
                 $self->dispatch_vrpipecode($cmd, $req, { output_files => [$vcf_file] });
             }
             

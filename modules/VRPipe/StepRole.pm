@@ -708,6 +708,36 @@ role VRPipe::StepRole {
         }
         return $common_meta;
     }
+    
+    method element_meta {
+        my %element_meta = %{ $self->step_state->dataelement->result };
+        delete @element_meta{qw(paths lane group)};
+        return %element_meta;
+    }
+    
+    method handle_override_options (HashRef $meta!) {
+        my $options = $self->options;
+        
+        return $options unless (exists $meta->{chunk_override_file} && exists $meta->{chrom} && exists $meta->{from} && exists $meta->{to});
+        
+        my $override_options = $options;
+        
+        my $chrom  = $meta->{chrom};
+        my $from   = $meta->{from};
+        my $to     = $meta->{to};
+        my $region = "${chrom}_${from}-${to}";
+        
+        my $override_file = $meta->{chunk_override_file};
+        my $override      = do $override_file;
+        
+        foreach my $option (keys %$override_options) {
+            if (exists $override->{"$region"}->{"$option"}) {
+                $override_options->{"$option"} = $override->{"$region"}->{"$option"};
+            }
+        }
+        
+        return $override_options;
+    }
 }
 
 1;

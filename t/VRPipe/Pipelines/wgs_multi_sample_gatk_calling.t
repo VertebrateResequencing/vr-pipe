@@ -98,16 +98,18 @@ foreach my $chrom (qw(11 20)) {
 
 ok handle_pipeline(@calling_files, @concat_files), 'all output files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary], ['java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file -L $region --genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0 -baq RECALCULATE'], 'cmd summaries for the major steps were as expected';
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary], ['java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file --genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0 -baq RECALCULATE -L $region'], 'cmd summaries for the major steps were as expected';
 
 # check final vcfs have metadata
 is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->get(path => $concat_files[2])->metadata],
-  [{   chrom    => '11',
-       platform => 'ILLUMINA',
-       caller   => 'GATK_UnifiedGenotyper' },
-    {  chrom    => '20',
-       platform => 'ILLUMINA',
-       caller   => 'GATK_UnifiedGenotyper' }],
+  [{   chrom               => '11',
+       platform            => 'ILLUMINA',
+       chunk_override_file => $override_file,
+       caller              => 'GATK_UnifiedGenotyper' },
+    {  chrom               => '20',
+       platform            => 'ILLUMINA',
+       chunk_override_file => $override_file,
+       caller              => 'GATK_UnifiedGenotyper' }],
   'final merged vcfs have correct metadata';
 
 done_testing;
