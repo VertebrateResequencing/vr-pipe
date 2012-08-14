@@ -338,8 +338,9 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                 my $value       = $2;
                 my $orig_method = $method;
                 $method =~ s/\s+/_/g;
-                $method = 'first_fragments'    if $method eq '1st_fragments';
-                $method = 'bases_mapped_cigar' if $method eq 'bases_mapped_(cigar)';
+                $method = 'first_fragments' if $method eq '1st_fragments';
+                $method = 'bases_mapped_cigar'
+                  if $method eq 'bases_mapped_(cigar)';
                 $method = lc('_' . $method);
                 unless ($self->can($method)) {
                     $self->warn("unexpected SN line $orig_method");
@@ -376,7 +377,13 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                 $self->$method(\@items);
             }
         }
-        $self->_mean_coverage(sprintf("%0.2f", $cov_total / $cov_count));
+        
+        if ($cov_count > 0) {
+            $self->_mean_coverage(sprintf("%0.2f", $cov_total / $cov_count));
+        }
+        else { # no cov if unmapped bam
+            $self->_mean_coverage(0);
+        }
         
         if ($saw >= 22) {
             $self->_set_header_parsed();
