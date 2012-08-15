@@ -5,7 +5,7 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 9;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES CONVEX_R_LIB)],
             max_retries => 1,
 		    required_exe => [qw(samtools R)]);
     use TestPipelines;
@@ -25,7 +25,10 @@ foreach my $stepmember ($pipeline1->steps) {
 my @expected_step_names = qw(convex_read_depth bam_metadata_with_sex);
 is_deeply \@s_names, \@expected_step_names, 'the rd pipeline has the correct steps';
 
-my $classpath='/lustre/scratch106/user/cj5/cnv/convex/CoNVex/inst/java/lib/args4j-2.0.12.jar:/lustre/scratch106/user/cj5/cnv/convex/CoNVex/inst/java/lib/CoNVex.jar:/lustre/scratch106/user/cj5/cnv/convex/CoNVex/inst/java/lib/sam-1.67.jar';
+my $convex_r_libs=$ENV{CONVEX_R_LIB};
+my $convex_home="$convex_r_libs/CoNVex";
+my $classpath="$convex_home/java/lib/CoNVex.jar:$convex_home/java/lib/args4j-2.0.12.jar:$convex_home/java/lib/sam-1.67.jar";
+
 my $regions_file = file(qw(t data cnv hs_chr20.convex.regions))->absolute->stringify;
 
 my $fofn = file(qw(t data cnv cnv.bam.fofn));
@@ -83,8 +86,9 @@ my $pipelinesetup2 = VRPipe::PipelineSetup->create(name => 'convex_l2r_bp_genera
 		pipeline => $pipeline2,
 		options => { cleanup => 0, 
 			regions_file => $regions_file,
-			convex_rscript_path => '/lustre/scratch106/user/cj5/cnv/convex/CoNVex/inst/Rbatch',
-			r_libs => '/lustre/scratch101/sanger/cj5/R-modules',
+			convex_rscript_path => "$convex_home/Rbatch",
+			rscript_cmd => '/software/bin/Rscript --vanilla',
+			r_libs => $convex_r_libs,
 			includeChrX => 0,
             bp_file_name => $bp_file_name,
 		}
@@ -117,15 +121,15 @@ my $pipelinesetup3 = VRPipe::PipelineSetup->create(name => 'convex_cnv_calling_p
 		output_root => $output_dir,
 		pipeline => $pipeline3,
 		options => { cleanup => 0, 
-			convex_rscript_path => '/lustre/scratch106/user/cj5/cnv/convex/CoNVex/inst/Rbatch',
-			r_libs => '/lustre/scratch101/sanger/cj5/R-modules',
+			convex_rscript_path => "$convex_home/Rbatch",
+			rscript_cmd => '/software/bin/Rscript --vanilla',
+			r_libs => $convex_r_libs,
             features_file => $features_file,
             breakpoints_file => $bp_file_name,
-            sw_exec => '/nfs/users/nfs_p/pv1/R/x86_64-unknown-linux-gnu-library/2.11/CoNVex/exec/swa_lin64',
+            sw_exec => "$convex_home/exec/swa_lin64",
             centromere_reg_file  => $centromere_reg_file,
         }
 	);
-
 
 my $i=0;
 my @cnv_output_files;
