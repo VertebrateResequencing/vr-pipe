@@ -80,10 +80,8 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
     
     __PACKAGE__->make_persistent(has_many => [steps => 'VRPipe::StepMember']);
     
-    # steps must be called to initially create stepmembers for a new pipeline,
-    # but currently causes a memory leak, so we want to call it only once.
-    # Everywhere else we call step_members to just get back the existing
-    # step members
+    # step members is pretty much the same as steps(), only since we use our
+    # special search() method it can return a quick count(*) in scalar context
     sub step_members {
         my $self = shift;
         return VRPipe::StepMember->search({ pipeline => $self->id });

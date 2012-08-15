@@ -127,29 +127,6 @@ role VRPipe::PipelineRole {
         
         return @sms;
     }
-    
-    before steps {
-        if ($self->isa('VRPipe::Persistent')) {
-            my $name   = $self->name;
-            my $module = "VRPipe::Pipelines::$name";
-            
-            unless ($found_modules) {
-                %pipeline_modules = map { $_ => 1 } findallmod(VRPipe::Pipelines);
-                $found_modules = 1;
-            }
-            
-            if (exists $pipeline_modules{$module}) {
-                eval "require $module;";
-                unless ($@) {
-                    my $obj = $module->new();
-                    $self->_construct_pipeline($obj->_step_list);
-                }
-            }
-            else {
-                return;
-            }
-        }
-    }
 }
 
 1;
