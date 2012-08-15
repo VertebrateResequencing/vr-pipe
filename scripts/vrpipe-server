@@ -32,14 +32,18 @@ use AnyEvent::Util qw(fork_call);
 use VRPipe::Interface::CmdLine;
 use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
+use Sys::CPU;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
                                               extra_args  => 'start|stop|restart|status',
-                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]);
+                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR'], ['farm=s', 'Discover and dispatch submissions to the job scheduler identified by the supplied name (only 1 server can dispatch to each farm)'], ['max_submissions|m=i', 'The maximum number of submissions to dispatch to the farm when in --farm mode (default is unlimited)'], ['only_specified_setups', 'In --farm mode, normally any PipelineSetups that have no farm configured will be run on a random farm, so potentially via this server; turning this option on means this server will only handle setups configured for this farm']]);
 my $backend;
-my $deployment = $cmdline->opts('deployment');
-my $foreground = $cmdline->opts('foreground');
+my $deployment            = $cmdline->opts('deployment');
+my $foreground            = $cmdline->opts('foreground');
+my $farm                  = $cmdline->opts('farm');
+my $max_subs              = $cmdline->opts('max_submissions');
+my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 
 my $command = shift;
 unless ($command) {
@@ -144,41 +148,137 @@ sub start_server {
     # daemonize unless we're not supposed to
     my $orig_dir = $backend->daemonize unless $foreground;
     
-    # setup the timer for the local scheduler to process its queue
-    $AnyEvent::Util::MAX_FORKS = 1;
-    my $ls                         = VRPipe::LocalScheduler->new;
-    my $time_of_last_process_queue = time();
-    my $timer_interval             = $deployment eq 'production' ? 30 : 5;
-    my $ls_watcher                 = EV::timer_ns 0, $timer_interval, sub {
-        # don't do this more than once per x seconds
-        return unless time() - $time_of_last_process_queue >= $timer_interval;
+    $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
+    my $watcher_error_sub = sub {
+        my $err = $@ || return;
         
+        # when testing, we likely start the server and call some database-
+        # requiring method before the VRPipe database has been created,
+        # so we make a nicer error message
+        if (ref($err)) {
+            $err = "$err"; # try and stringify it
+        }
+        if ($err =~ /no such table/) {
+            $err = 'VRPipe database not created yet, cannot do all functions';
+        }
+        $backend->log($err);
+    };
+    
+    # setup the timer for the local scheduler to process its queue
+    my $ls             = VRPipe::LocalScheduler->new;
+    my $timer_interval = $deployment eq 'production' ? 30 : 5;
+    my $ls_watcher     = EV::timer_ns 0, $timer_interval, sub {
         # we want to run process_queue every x seconds, but it may take
         # longer than x seconds to run and we don't want to wait, so we do
         # our own async fork (in order to call something that in turn will
         # do further async forks...). It doesn't seem to matter that our
         # children (presumably) have all our watchers running.
-        fork_call { $ls->process_queue; return; } sub {
-            $time_of_last_process_queue = time();
-            my $err = $@ || return;
-            
-            # when testing, we likely start the server and call
-            # process_queue before the VRPipe database has been created,
-            # so we make a nicer error message
-            if (ref($err)) {
-                $err = "$err"; # try and stringify it
-            }
-            if ($err =~ /no such table/) {
-                $err = 'VRPipe database not created yet, cannot process_queue for the local scheduler';
-            }
-            $backend->log($err);
-        };
+        fork_call { $ls->process_queue; return; } $watcher_error_sub;
     };
     
     # automatically start the local scheduler if we're supposed to be using the
     # local scheduler
     if ($backend->scheduler eq 'local') {
         $ls_watcher->start;
+    }
+    
+    # setup the submission management system if we're supposed to
+    my ($farm_server, $fs_id, @setups, %farm_watchers);
+    if ($farm) {
+        # every 15s we'll update which PipelineSetups we'll handle, and we'll
+        # update $farm_server's heartbeat to note that we're still alive
+        $farm_watchers{farm_server} = EV::timer 0, 15, sub {
+            unless ($farm_server) {
+                # ideally we only want to be in this if ($farm) section if we
+                # have managed to register_farm_server(), but we can only do
+                # that once the database is ready, which won't be the case
+                # whilst testing. So we use our timer to keep trying to get the
+                # farm_server whilst it fails due to database issues, but cancel
+                # the timer if we fail because another server is handling this
+                # farm
+                eval { $farm_server = $backend->register_farm_server($farm) };
+                if ($@) {
+                    &{$watcher_error_sub};
+                }
+                elsif ($farm_server) {
+                    # our database must be ready now, so load all Pipeline and
+                    # Step .pm modules into db if we haven't already
+                    $fs_id = $farm_server->id;
+                    $backend->install_pipelines_and_steps;
+                    $backend->log("Submission management started for farm $farm");
+                }
+                else {
+                    $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
+                    undef $farm;
+                    %farm_watchers = ();
+                }
+            }
+            else {
+                fork_call {
+                    $farm_server->still_alive;
+                    return $farm_server->claim_setups(only_ours => $only_specified_setups);
+                }
+                sub {
+                    @setups = @_;
+                    my $err = $@;
+                    if ($err) {
+                        # perhaps another process decided our $farm_server was
+                        # no longer alive and it has been deleted from the db?
+                        # let's drop all the watchers in that case
+                        my $still_in_db = VRPipe::FarmServer->search(id => $fs_id);
+                        unless ($still_in_db) {
+                            $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table (perhaps we were suspended for a long time?)");
+                            undef $farm;
+                            %farm_watchers = ();
+                        }
+                        
+                        &{$watcher_error_sub};
+                    }
+                    else {
+                        # setup watchers for each datasource
+                        my %datasources;
+                        foreach my $setup (@setups) {
+                            my $ds = $setup->datasource;
+                            $datasources{ $ds->id } = $ds;
+                        }
+                        
+                        foreach my $ds (values %datasources) {
+                            next if defined $farm_watchers{datasources}->{ $ds->id };
+                            
+                            my $update_sub = sub {
+                                fork_call { $ds->elements; return; } $watcher_error_sub;
+                            };
+                            
+                            my $non_persistent = $ds->_from_non_persistent;
+                            my $watcher;
+                            if ($non_persistent && $non_persistent->does('VRPipe::DataSourceTextRole')) {
+                                # update when the source text file changes
+                                $watcher = EV::stat $ds->source, 0, $update_sub;
+                            }
+                            else {
+                                # update every 5mins
+                                $watcher = EV::timer 0, 300, $update_sub;
+                            }
+                            
+                            $farm_watchers{datasources}->{ $ds->id } = $watcher;
+                        }
+                        
+                        # remove watchers we no longer need
+                        foreach my $ds_id (keys %{ $farm_watchers{datasources} }) {
+                            delete $farm_watchers{datasources}->{$ds_id} unless exists $datasources{$ds_id};
+                        }
+                    }
+                };
+            }
+        };
+        
+        # every 15mins we'll check for stalled setups and retrigger them if
+        # necessary
+        # checks that all our incomplete setups are doing something. for each not it does stalled-due-to-failure detection and sends stalled warning email to user (but only once). if not stalled due to failure, it does a full traditional spool and email (to user and admin) warns once about errors encountered while attempting that.
+        $farm_watchers{stall_check} = EV::timer 0, 900, sub {
+            return unless @setups;
+        
+        };
     }
     
     # setup the http page requests we'll respond to
