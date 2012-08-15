@@ -43,8 +43,7 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
                  'swt_del'             => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
                  'swt_dup'             => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
                  'dv'                  => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
-                 'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
-                 'r_libs'              => VRPipe::StepOption->create(description => 'Full path to CoNVex R libs installation'), };
+                 'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'), };
     }
     
     method inputs_definition {
