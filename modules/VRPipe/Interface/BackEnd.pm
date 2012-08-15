@@ -53,6 +53,7 @@ class VRPipe::Interface::BackEnd {
     use POSIX qw(setsid setuid);
     use Cwd qw(chdir getcwd);
     use Time::Format;
+    use Module::Find;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -385,6 +386,11 @@ XSL
                                          continuation_for_page    => 'get',
                                          continuation_page_stored => 'exists' });
     
+    has 'manager' => (is      => 'ro',
+                      isa     => 'VRPipe::Manager',
+                      default => sub { VRPipe::Manager->create() },
+                      handles => [qw(register_farm_server)]);
+    
     has '_warnings' => (is      => 'ro',
                         isa     => 'ArrayRef',
                         default => sub { [] },
@@ -495,6 +501,26 @@ XSL
         # So we wait for the first child to exit
         waitpid($pid, 0);
         exit 0;
+    }
+    
+    method install_pipelines_and_steps {
+        foreach my $module (findallmod(VRPipe::Pipelines)) {
+            eval "require $module;";
+            unless ($@) {
+                my ($name) =~ /VRPipe::Pipelines::(\w+)/;
+                my $persistent = VRPipe::Pipeline->create(name => $name);
+                my $obj = $module->new();
+                $persistent->_construct_pipeline($obj->_step_list);
+            }
+        }
+        
+        foreach my $module (findallmod(VRPipe::Steps)) {
+            eval "require $module;";
+            unless ($@) {
+                my ($name) =~ /VRPipe::Steps::(\w+)/;
+                VRPipe::Step->create(name => $name);
+            }
+        }
     }
     
     sub resigster_psgi_pages {
