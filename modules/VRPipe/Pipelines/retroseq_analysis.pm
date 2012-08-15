@@ -5,7 +5,8 @@ VRPipe::Pipelines::retroseq_analysis - a pipeline
 
 =head1 DESCRIPTION
 
-Runs Retroseq genotyping of Transposable Elements from short read alignments, generating VCFs of TE calls for a bam datasource.
+Runs Retroseq genotyping of Transposable Elements from short read alignments,
+generating VCFs of TE calls for a bam datasource.
 
 =head1 AUTHOR
 

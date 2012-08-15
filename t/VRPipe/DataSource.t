@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 49;
+    use Test::Most tests => 55;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
@@ -166,6 +166,74 @@ is_deeply $meta,
     mate           => file(qw(t data 2822_6_2.fastq))->absolute->stringify },
   'a VRPipe::File created by source has the correct metadata';
 
+my $fai      = file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify;
+my $override = file(qw(t data wgs_calling_override_options))->absolute->stringify;
+
+# genome chunking
+my $chunks = [{ chrom => 11, from => 1, to => 10000000, seq_no => 1, chunk_override_file => $override }, { chrom => 11, from => 10000001, to => 20000000, seq_no => 2, chunk_override_file => $override }, { chrom => 11, from => 20000001, to => 30000000, seq_no => 3, chunk_override_file => $override }, { chrom => 11, from => 30000001, to => 40000000, seq_no => 4, chunk_override_file => $override }, { chrom => 11, from => 40000001, to => 50000000, seq_no => 5, chunk_override_file => $override }, { chrom => 11, from => 50000001, to => 60000000, seq_no => 6, chunk_override_file => $override }, { chrom => 11, from => 60000001, to => 70000000, seq_no => 7, chunk_override_file => $override }, { chrom => 11, from => 70000001, to => 80000000, seq_no => 8, chunk_override_file => $override }, { chrom => 11, from => 80000001, to => 90000000, seq_no => 9, chunk_override_file => $override }, { chrom => 11, from => 90000001, to => 100000000, seq_no => 10, chunk_override_file => $override }, { chrom => 11, from => 100000001, to => 110000000, seq_no => 11, chunk_override_file => $override }, { chrom => 11, from => 110000001, to => 120000000, seq_no => 12, chunk_override_file => $override }, { chrom => 11, from => 120000001, to => 130000000, seq_no => 13, chunk_override_file => $override }, { chrom => 11, from => 130000001, to => 135006516, seq_no => 14, chunk_override_file => $override }, { chrom => 20, from => 1, to => 10000000, seq_no => 15, chunk_override_file => $override }, { chrom => 20, from => 10000001, to => 20000000, seq_no => 16, chunk_override_file => $override }, { chrom => 20, from => 20000001, to => 30000000, seq_no => 17, chunk_override_file => $override }, { chrom => 20, from => 30000001, to => 40000000, seq_no => 18, chunk_override_file => $override }, { chrom => 20, from => 40000001, to => 50000000, seq_no => 19, chunk_override_file => $override }, { chrom => 20, from => 50000001, to => 60000000, seq_no => 20, chunk_override_file => $override }, { chrom => 20, from => 60000001, to => 63025520, seq_no => 21, chunk_override_file => $override }];
+
+ok $ds = VRPipe::DataSource->create(type    => 'fofn_with_genome_chunking',
+                                    method  => 'group_all',
+                                    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+                                    options => { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 }),
+  'could create a fofn_with_genome_chunking datasource with group_all method';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, $element->result);
+}
+my @expected = ();
+foreach my $chunk (@$chunks) {
+    push @expected, { paths => [file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute], %$chunk },;
+}
+is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking group_all method';
+
+$ds = $ds->_source_instance;
+is_deeply [$ds->method_options('group_all')], [['named', 'reference_index', 1, undef, 'Str|File'], ['named', 'chunk_override_file', 1, undef, 'Str|File'], ['named', 'chunk_size', 1, '1000000', 'Int'], ['named', 'chunk_overlap', 1, '0', 'Int'], ['named', 'chrom_list', 0, undef, 'Str'], ['named', 'ploidy', 0, undef, 'Str|File']], 'method_options call for fofn_with_genome_chunking datasource got correct result';
+
+is $ds->method_description('group_all'), q[All files in the file will be grouped into a single element. Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.], 'method description for fofn_with_genome_chunking group_all method is correct';
+
+# genome chunking with ploidy
+# {
+#     default=>2,
+#     X =>
+#     [
+#         # The pseudoautosomal regions 60,001-2,699,520 and 154,931,044-155,270,560 with the ploidy 2
+#         { from=>1, to=>60_000, M=>1 },
+#         { from=>2_699_521, to=>154_931_043, M=>1 },
+#     ],
+#     Y =>
+#     [
+#         # No chrY in females and one copy in males
+#         { from=>1, to=>59_373_566, M=>1, F=>0 },
+#     ],
+#     MT =>
+#     [
+#         # Haploid MT in males and females
+#         { from=>1, to => 16_569, M=>1, F=>1 },
+#     ],
+#}
+
+$chunks = [{ chrom => 'X', from => 1, to => 60000, male_ploidy => 1, female_ploidy => 2, seq_no => 1, chunk_override_file => $override }, { chrom => 'X', from => 60001, to => 2699520, male_ploidy => 2, female_ploidy => 2, seq_no => 2, chunk_override_file => $override }, { chrom => 'X', from => 2699521, to => 154931043, male_ploidy => 1, female_ploidy => 2, seq_no => 3, chunk_override_file => $override }, { chrom => 'X', from => 154931044, to => 155270560, male_ploidy => 2, female_ploidy => 2, seq_no => 4, chunk_override_file => $override }, { chrom => 'Y', from => 1, to => 59373566, male_ploidy => 1, female_ploidy => 0, seq_no => 5, chunk_override_file => $override }, { chrom => 'MT', from => 1, to => 16569, male_ploidy => 1, female_ploidy => 1, seq_no => 6, chunk_override_file => $override }];
+
+ok $ds = VRPipe::DataSource->create(type    => 'fofn_with_genome_chunking',
+                                    method  => 'all',
+                                    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+                                    options => { reference_index => $fai, chunk_override_file => $override, chrom_list => 'X Y MT', chunk_size => 155000000, ploidy => file(qw(t data ploidy_definition))->absolute->stringify }),
+  'could create a fofn_with_genome_chunking datasource with all method';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, $element->result);
+}
+@expected = ();
+foreach my $file (file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute) {
+    foreach my $chunk (@$chunks) {
+        push @expected, { paths => [$file], %$chunk };
+    }
+}
+is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking all method when using the ploidy option';
+
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VRTrack::Factory setup
 SKIP: {
@@ -240,7 +308,7 @@ SKIP: {
         $results++;
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
-
+    
     ## tests for _has_changed
     ok(!$ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change');
     

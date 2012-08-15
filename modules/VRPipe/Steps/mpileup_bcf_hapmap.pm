@@ -87,7 +87,7 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
                 
                 my $bcf_file = $self->output_file(output_key => 'bcf_files_with_metadata',
                                                   basename   => $bam_path->basename . '.bcf',
-                                                  type       => 'bin',
+                                                  type       => 'bcf',
                                                   metadata   => { sample => $sample, individual => $individual, source_bam => $bam_path->stringify });
                 my $bcf_path = $bcf_file->path;
                 my $cmd      = qq[$samtools mpileup $mpileup_opts -f $ref $bam_path > $bcf_path];
@@ -97,7 +97,7 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
     }
     
     method outputs_definition {
-        return { bcf_files_with_metadata => VRPipe::StepIODefinition->create(type        => 'bin',
+        return { bcf_files_with_metadata => VRPipe::StepIODefinition->create(type        => 'bcf',
                                                                              max_files   => -1,
                                                                              description => 'bcf file produced for bam file using samtools',
                                                                              metadata    => {

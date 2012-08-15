@@ -5,7 +5,8 @@ VRPipe::Steps::vep_analysis - a step
 
 =head1 DESCRIPTION
 
-Runs the Ensembl Variant Effect Predictor for one or more VCFS, generating a txt file of VEP Consequence Annotations
+Runs the Ensembl Variant Effect Predictor for one or more VCFS, generating a
+txt file of VEP Consequence Annotations
 
 =head1 AUTHOR
 
@@ -64,14 +65,9 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 5000, time => 1);
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.vcf.gz$/) {
-                    $basename =~ s/\.vcf.gz$/.vep.txt/;
-                    $cat_exe = 'zcat';
-                }
-                else {
-                    $basename .= '.vep.txt';
-                    $cat_exe = 'cat';
-                }
+                my $cat_exe = $basename =~ /\.vcf.gz$/ ? 'zcat' : 'cat';
+                $basename =~ s/\.vcf(.gz)?$/.vep.txt/;
+                
                 my $vep_txt = $self->output_file(output_key => 'vep_txt',
                                                  basename   => $basename,
                                                  type       => 'txt',

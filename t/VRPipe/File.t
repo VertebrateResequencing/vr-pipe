@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 39;
+    use Test::Most tests => 40;
     use VRPipeTest;
 }
 
@@ -146,6 +146,12 @@ my $symlink = file(qw(t data dirs for symlink higher.link))->absolute;
 $vrfile = VRPipe::File->create(path => $symlink);
 ok $vrfile->s, 's() worked for a complex relative symlink';
 is $vrfile->slurp, "the real file\n", 'slurp also worked on it';
+
+# create_fofn
+my $fofn = VRPipe::File->create(path => file($tmp_dir, 'list.fofn'));
+$fofn->create_fofn([$vrdest1, $vrdest2, $vrdest3, $vrdest4]);
+$fofn->reselect_values_from_db;
+is $fofn->lines, 4, 'fofn file created okay';
 
 done_testing;
 exit;
