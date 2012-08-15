@@ -45,8 +45,6 @@ VRPipe::PipelineSetup->create(name       => 'vqsr snps test',
 
 
 
-
-
 my @output_files;
 my @output_subdirs = output_subdirs(1, 1);
 foreach my $file (qw(recal recal.tranches recal.tranches.pdf recal.r recal.r.pdf)) {
