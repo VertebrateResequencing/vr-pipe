@@ -60,7 +60,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     
-    our $VERSION = 23;
+    our $VERSION = 24;
     __PACKAGE__->load_classes({
            'VRPipe' => [
                qw/Step Scheduler Job Requirements
@@ -74,7 +74,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                  DataElementState DataElementLink
                  LocalSchedulerJob
                  LocalSchedulerJobState
-                 StepStats/] });
+                 StepStats
+                 FarmServer/] });
     
     # deploy method overridden in order to add indexes in a db-dependent manner
     sub deploy {
