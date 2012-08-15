@@ -292,6 +292,8 @@ foreach my $path (@not_expected_files) {
 # get repeated, and parent step 1 output remains deleted.
 is $deleted, 4, 'the files that should have gotten deleted were deleted';
 
+
+
 # # change metadata and detect changes
 # VRPipe::File->create(path => $base_files[5]->stringify)->add_metadata({one_meta => '20'}, replace_data => 1);
 # ok handle_pipeline(@base_files, @link_files, @link_merge_files, @new_files), 'pipelines ran ok after file metadata changed - original and withdrawn files all exist';

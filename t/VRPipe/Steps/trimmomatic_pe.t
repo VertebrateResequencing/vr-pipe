@@ -30,8 +30,7 @@ my $outputfile1 = file(@output_subdirs, '1_trimmomatic', "2822_6_1.paired.trim.f
 my $outputfile2 = file(@output_subdirs, '1_trimmomatic', "2822_6_1.unpaired.trim.fastq");
 my $outputfile3 = file(@output_subdirs, '1_trimmomatic', "2822_6_2.paired.trim.fastq");
 my $outputfile4 = file(@output_subdirs, '1_trimmomatic', "2822_6_2.unpaired.trim.fastq");
-
-my $logfile = file(@output_subdirs, '1_trimmomatic', "trimmomatic.log");
+my $logfile     = file(@output_subdirs, '1_trimmomatic', "trimmomatic.log");
 push(@outfiles, $outputfile1, $outputfile2, $outputfile3, $outputfile4, $logfile);
 ok handle_pipeline(@outfiles), 'trimmomatic pipeline ran ok, generating the expected trimmed file';
 
