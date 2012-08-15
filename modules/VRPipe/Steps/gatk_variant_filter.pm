@@ -5,7 +5,9 @@ VRPipe::Steps::gatk_variant_filter - a step
 
 =head1 DESCRIPTION
 
-Runs the GATK VariantFiltration walker on VCF files, generating 'hard-filtered' VCFs according to the filter expressions provided. "Records are hard-filtered by changing the value in the FILTER field to something other than PASS".
+Runs the GATK VariantFiltration walker on VCF files, generating 'hard-filtered'
+VCFs according to the filter expressions provided. "Records are hard-filtered
+by changing the value in the FILTER field to something other than PASS".
 
 =head1 AUTHOR
 
@@ -47,8 +49,8 @@ use VRPipe::Base;
 class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
     around options_definition {
         return { %{ $self->$orig },
-                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
-                 var_filter_opts => VRPipe::StepOption->create(description => 'options for GATK VariantFiltration, excluding reference genome, input and output'), };
+                 reference_fasta     => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+                 variant_filter_opts => VRPipe::StepOption->create(description => 'options for GATK VariantFiltration, excluding reference genome, input and output'), };
     }
     
     method inputs_definition {
@@ -61,7 +63,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
             my $options = $self->options;
             $self->handle_standard_options($options);
             
-            my $var_filter_opts = $options->{var_filter_opts};
+            my $var_filter_opts = $options->{variant_filter_opts};
             my $reference_fasta = $options->{reference_fasta};
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'GenomeAnalysisTK',

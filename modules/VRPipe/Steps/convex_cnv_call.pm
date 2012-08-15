@@ -43,8 +43,7 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
                  'swt_del'             => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
                  'swt_dup'             => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
                  'dv'                  => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
-                 'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
-                 'r_libs'              => VRPipe::StepOption->create(description => 'Full path to CoNVex R libs installation'), };
+                 'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'), };
     }
     
     method inputs_definition {
@@ -78,7 +77,7 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
                 my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt');
                 my $cnv_dir = $cnv_file->dir;
                 
-                 my $cmd =  $self->rscript_cmd_prefix . " $convex_rscript_path/SWCNVCall.R $sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$basename,$sample,$centromere_reg_file,$cnv_dir,$sw_exec";
+                my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SWCNVCall.R $sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$basename,$sample,$centromere_reg_file,$cnv_dir,$sw_exec";
                 $self->dispatch([$cmd, $req, { output_files => [$cnv_file] }]);
             }
         };

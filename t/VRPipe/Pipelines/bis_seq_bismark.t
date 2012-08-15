@@ -6,7 +6,7 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_EXE BISMARK_GENOME_FOLDER TRIMMOMATIC)],
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_GENOME_FOLDER)],
                     required_exe => [qw(fastqc)]);
     use TestPipelines;
 }
@@ -26,7 +26,9 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(name       => 'bis_seq_bismark
                                                                                            options => {}),
                                                   output_root => $output_dir,
                                                   pipeline    => $pipeline,
-                                                  options     => {});
+                                                  options     => {
+                                                               trimmomatic_jar_path  => $ENV{TRIMMOMATIC_JAR_PATH},
+                                                               bismark_genome_folder => $ENV{BISMARK_GENOME_FOLDER} });
 
 my @output_subdirs = output_subdirs(1);
 

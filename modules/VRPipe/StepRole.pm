@@ -290,19 +290,6 @@ role VRPipe::StepRole {
                     }
                 }
                 
-                my $num_results = @$results;
-                my $max_allowed = $val->max_files;
-                my $min_allowed = $val->min_files;
-                if ($max_allowed == -1) {
-                    $max_allowed = $num_results;
-                }
-                if ($min_allowed == -1) {
-                    $min_allowed = $num_results;
-                }
-                unless ($num_results >= $min_allowed && $num_results <= $max_allowed) {
-                    $self->throw("there were $num_results input file(s) for '$key' of stepstate " . $self->step_state->id . ", which does not fit the allowed range $min_allowed..$max_allowed");
-                }
-                
                 my @vrfiles;
                 my @skip_reasons;
                 foreach my $result (@$results) {
@@ -342,8 +329,21 @@ role VRPipe::StepRole {
                     
                     push(@vrfiles, $result);
                 }
+                my $max_allowed = $val->max_files;
+                my $min_allowed = $val->min_files;
                 if (!@vrfiles && @skip_reasons) {
-                    $self->throw("none of the input files had a suitable type:\n" . join("\n", @skip_reasons));
+                    $self->throw("none of the input files had a suitable type:\n" . join("\n", @skip_reasons)) if ($min_allowed > 0);
+                    next;
+                }
+                my $num_results = @vrfiles;
+                if ($max_allowed == -1) {
+                    $max_allowed = $num_results;
+                }
+                if ($min_allowed == -1) {
+                    $min_allowed = $num_results;
+                }
+                unless ($num_results >= $min_allowed && $num_results <= $max_allowed) {
+                    $self->throw("there were $num_results input file(s) for '$key' of stepstate " . $self->step_state->id . ", which does not fit the allowed range $min_allowed..$max_allowed");
                 }
                 
                 $return{$key} = [map { $_->e ? $_ : $_->resolve } @vrfiles];
@@ -707,6 +707,36 @@ role VRPipe::StepRole {
             $common_meta->{$key} = $vals[0];
         }
         return $common_meta;
+    }
+    
+    method element_meta {
+        my %element_meta = %{ $self->step_state->dataelement->result };
+        delete @element_meta{qw(paths lane group)};
+        return %element_meta;
+    }
+    
+    method handle_override_options (HashRef $meta!) {
+        my $options = $self->options;
+        
+        return $options unless (exists $meta->{chunk_override_file} && exists $meta->{chrom} && exists $meta->{from} && exists $meta->{to});
+        
+        my $override_options = $options;
+        
+        my $chrom  = $meta->{chrom};
+        my $from   = $meta->{from};
+        my $to     = $meta->{to};
+        my $region = "${chrom}_${from}-${to}";
+        
+        my $override_file = $meta->{chunk_override_file};
+        my $override      = do $override_file;
+        
+        foreach my $option (keys %$override_options) {
+            if (exists $override->{"$region"}->{"$option"}) {
+                $override_options->{"$option"} = $override->{"$region"}->{"$option"};
+            }
+        }
+        
+        return $override_options;
     }
 }
 

@@ -6,8 +6,8 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES GSNAP_EXE GSNAP_DB_FOLDER TRIMMOMATIC)],
-                    required_exe => [qw(fastqc)]);
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES TRIMMOMATIC_JAR_PATH)],
+                    required_exe => [qw(fastqc java gsnap)]);
     use TestPipelines;
 }
 my $output_dir = get_output_dir('rna_seq_map_gsnap-test');
@@ -27,6 +27,8 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(name       => 'rna_seq_gsnap_m
                                                   output_root => $output_dir,
                                                   pipeline    => $pipeline,
                                                   options     => {
+                                                               trimmomatic_jar_path       => $ENV{TRIMMOMATIC_JAR_PATH},
+                                                               gsnap_db                   => 'mm9',
                                                                paired_end                 => 1,
                                                                sam_mark_duplicates_memory => 100,
                                                                sam_mark_duplicates_time   => 1, });

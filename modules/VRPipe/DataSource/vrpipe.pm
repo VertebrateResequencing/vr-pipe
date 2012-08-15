@@ -215,7 +215,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     sub _res_to_str {
         my $res = shift;
         my $str = join('|', @{ $res->{paths} || [] });
-        foreach my $key ('lane', 'group') {
+        foreach my $key ('lane', 'group', 'chrom', 'from', 'to') {
             $str .= '|' . $res->{$key} if defined $res->{$key};
         }
         return $str;

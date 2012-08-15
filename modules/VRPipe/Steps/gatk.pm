@@ -68,6 +68,13 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
                  gatk_path       => VRPipe::StepOption->create(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"), };
     }
     
+    around options {
+        my $options         = $self->$orig;
+        my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
+        $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
+        return $options;
+    }
+    
     method inputs_definition {
         return {};
     }

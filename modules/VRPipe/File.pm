@@ -635,6 +635,17 @@ class VRPipe::File extends VRPipe::Persistent {
         return if in_global_destruction;
         shift->close;
     }
+    
+    method create_fofn (ArrayRef['VRPipe::File'] $files!) {
+        my $ofh = $self->openw;
+        foreach my $file (@$files) {
+            my $file_path = $file->path;
+            print $ofh "$file_path\n";
+        }
+        $ofh->close;
+        $self->update_stats_from_disc(retries => 3);
+        $self->throw("fofn " . $self->path . " does not contain all input files") unless ($self->lines == scalar @$files);
+    }
 }
 
 1;
