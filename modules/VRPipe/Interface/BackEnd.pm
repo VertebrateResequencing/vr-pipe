@@ -525,7 +525,7 @@ XSL
         exit 0;
     }
     
-    sub resigster_psgi_pages {
+    sub register_psgi_pages {
         my ($self, %pages) = @_;
         
         my $app = sub {
