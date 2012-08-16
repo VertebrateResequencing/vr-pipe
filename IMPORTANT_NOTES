@@ -1,3 +1,40 @@
+# version 0.95:
+This version removes, renames and alters a number of pipline and step modules.
+Normally this is not something we will do, but we feel it is important in this
+case. There are 2 consequences if you are upgrading:
+    1) Your production database will still contain all the removed pipelines and
+       steps, cluttering up the output of vrpipe-setup (when it lists available
+       pipelines) and causing confusion (a user may pick one of the defunct
+       pipelines).
+    2) If you are partway through running one of the altered pipelines, or if
+       you later need to rerun a setup that used an affected pipeline that
+       previously completed, you will be left with a broken mess with undefined
+       behaviour.
+
+It is STRONGLY recommended that you resolve this by deleting affected pipelines
+and steps from your production database:
+    0) Complete installation of 0.95 in the usual way
+    1) Log into your production database
+    2) Run the following query to find affected PipelineSetups you've created in
+       the past:
+       mysql> select ps.id, ps.name, ps.user, p.name from pipelinesetup as ps left join pipeline as p on p.id = ps.pipeline where p.name in ('gatk_genotype', 'gatk_variant_calling_and_filter_vcf', 'mpileup_with_leftaln', 'snp_calling_chunked_mpileup_bcf', 'snp_calling_chunked_mpileup_vcf', 'snp_calling_gatk_vcf', 'snp_calling_mpileup_vcf', 'snp_calling_mpileup_bcf', 'vcf_chunked_vep_annotate', 'vcf_filter_merge_and_vep_annotate');
+       You cannot delete affected pipelines or steps if there are any
+       PipelineSetups that use them. The easiest thing to do for each one is:
+    3) $ vrpipe-setup --setup [affected setup id] --delete
+       Note that this will remove all trace that you ever created or ran that
+       setup (including deletion of the output files), so do manual backups of
+       anything you want to keep first.
+    4) Run the following queries to delete the pipelines:
+       mysql> delete sa.* from stepadaptor as sa left join pipeline as p on p.id = sa.pipeline where p.name in ('gatk_genotype', 'gatk_variant_calling_and_filter_vcf', 'mpileup_with_leftaln', 'snp_calling_chunked_mpileup_bcf', 'snp_calling_chunked_mpileup_vcf', 'snp_calling_gatk_vcf', 'snp_calling_mpileup_vcf', 'snp_calling_mpileup_bcf', 'vcf_chunked_vep_annotate', 'vcf_filter_merge_and_vep_annotate');
+       mysql> delete sa.* from stepbehaviour as sa left join pipeline as p on p.id = sa.pipeline where p.name in ('gatk_genotype', 'gatk_variant_calling_and_filter_vcf', 'mpileup_with_leftaln', 'snp_calling_chunked_mpileup_bcf', 'snp_calling_chunked_mpileup_vcf', 'snp_calling_gatk_vcf', 'snp_calling_mpileup_vcf', 'snp_calling_mpileup_bcf', 'vcf_chunked_vep_annotate', 'vcf_filter_merge_and_vep_annotate');
+       mysql> delete from pipeline where name in ('gatk_genotype', 'gatk_variant_calling_and_filter_vcf', 'mpileup_with_leftaln', 'snp_calling_chunked_mpileup_bcf', 'snp_calling_chunked_mpileup_vcf', 'snp_calling_gatk_vcf', 'snp_calling_mpileup_vcf', 'snp_calling_mpileup_bcf', 'vcf_chunked_vep_annotate', 'vcf_filter_merge_and_vep_annotate');
+    5) Run the following query to delete steps no longer used by any pipeline:
+       mysql> delete s.* from step as s left join stepmember as sm on sm.step = s.id where sm.step is NULL;
+    6) Deactivate all PipelineSetups that used the vcf_vep_annotate pipeline,
+       since this pipeline gained a step and you probably don't want those
+       setups springing back to life and trying to run the new final step:
+       myslq> update pipelinesetup as ps left join pipeline as p on p.id = ps.pipeline set active = 0 where p.name = 'vcf_vep_annotate';
+
 # version 0.93:
 This version features a schema change, so be sure to run vrpipe-db_upgrade.
 There are also new SiteConfig options, so be sure to go through and answer all
