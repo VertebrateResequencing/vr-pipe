@@ -47,32 +47,43 @@ while (<$ifh>) {
 $orig_fofn_file->close;
 $fofn_file->close;
 
-VRPipe::PipelineSetup->create(name       => 'wgs test multi-sample calling',
-                              datasource => VRPipe::DataSource->create(type    => 'fofn_with_metadata_with_genome_chunking',
-                                                                       method  => 'group_all',
-                                                                       source  => $fofn_file->path,
-                                                                       options => { reference_index     => file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify,
-                                                                                    chrom_list          => '11 20',
-                                                                                    chunk_size          => 10000000,
-                                                                                    chunk_overlap       => 0,
-                                                                                    chunk_override_file => $override_file, },),
-                              output_root => $calling_dir,
-                              pipeline    => $calling_pipeline,
-                              options     => {
-                                           reference_assembly_name   => 'NCBI37',
-                                           reference_species         => 'Human',
-                                           reference_fasta           => $ref_fa,
-                                           unified_genotyper_options => '--genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0 -baq RECALCULATE',
-                                           cleanup                   => 0, });
+VRPipe::PipelineSetup->create(
+    name       => 'wgs test multi-sample calling',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn_with_metadata_with_genome_chunking',
+        method  => 'group_all',
+        source  => $fofn_file->path,
+        options => {
+            reference_index     => file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify,
+            chrom_list          => '11 20',
+            chunk_size          => 10000000,
+            chunk_overlap       => 0,
+            chunk_override_file => $override_file,
+        },
+    ),
+    output_root => $calling_dir,
+    pipeline    => $calling_pipeline,
+    options     => {
+        reference_assembly_name   => 'NCBI37',
+        reference_species         => 'Human',
+        reference_fasta           => $ref_fa,
+        unified_genotyper_options => '--genotype_likelihoods_model BOTH -stand_call_conf 0.0 -stand_emit_conf 0.0 -baq RECALCULATE',
+        cleanup                   => 0,
+    }
+);
 
-VRPipe::PipelineSetup->create(name       => 'vcf-concat test',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'group_by_metadata',
-                                                                       source  => '1[4]',
-                                                                       options => { metadata_keys => 'chrom' }),
-                              output_root => $calling_dir,
-                              pipeline    => $concat_pipeline,
-                              options     => {});
+VRPipe::PipelineSetup->create(
+    name       => 'vcf-concat test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => '1[4]',
+        options => { metadata_keys => 'chrom' }
+    ),
+    output_root => $calling_dir,
+    pipeline    => $concat_pipeline,
+    options     => {}
+);
 
 my $chunks = [{ chrom => 11, from => 1, to => 10000000 }, { chrom => 11, from => 10000001, to => 20000000 }, { chrom => 11, from => 20000001, to => 30000000 }, { chrom => 11, from => 30000001, to => 40000000 }, { chrom => 11, from => 40000001, to => 50000000 }, { chrom => 11, from => 50000001, to => 60000000 }, { chrom => 11, from => 60000001, to => 70000000 }, { chrom => 11, from => 70000001, to => 80000000 }, { chrom => 11, from => 80000001, to => 90000000 }, { chrom => 11, from => 90000001, to => 100000000 }, { chrom => 11, from => 100000001, to => 110000000 }, { chrom => 11, from => 110000001, to => 120000000 }, { chrom => 11, from => 120000001, to => 130000000 }, { chrom => 11, from => 130000001, to => 135006516 }, { chrom => 20, from => 1, to => 10000000 }, { chrom => 20, from => 10000001, to => 20000000 }, { chrom => 20, from => 20000001, to => 30000000 }, { chrom => 20, from => 30000001, to => 40000000 }, { chrom => 20, from => 40000001, to => 50000000 }, { chrom => 20, from => 50000001, to => 60000000 }, { chrom => 20, from => 60000001, to => 63025520 }];
 
@@ -102,14 +113,19 @@ is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 4, dataeleme
 
 # check final vcfs have metadata
 is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->get(path => $concat_files[2])->metadata],
-  [{   chrom               => '11',
-       platform            => 'ILLUMINA',
-       chunk_override_file => $override_file,
-       caller              => 'GATK_UnifiedGenotyper' },
-    {  chrom               => '20',
-       platform            => 'ILLUMINA',
-       chunk_override_file => $override_file,
-       caller              => 'GATK_UnifiedGenotyper' }],
+  [{
+        chrom               => '11',
+        platform            => 'ILLUMINA',
+        chunk_override_file => $override_file,
+        caller              => 'GATK_UnifiedGenotyper'
+    },
+    {
+        chrom               => '20',
+        platform            => 'ILLUMINA',
+        chunk_override_file => $override_file,
+        caller              => 'GATK_UnifiedGenotyper'
+    }
+  ],
   'final merged vcfs have correct metadata';
 
 done_testing;

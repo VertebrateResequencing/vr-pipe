@@ -58,7 +58,8 @@ class VRPipe::Pipelines::snp_calling_mpileup_via_bcf with VRPipe::PipelineRole {
             
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'bcf_files', to_key => 'bcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'vcf_files', to_key => 'vcf_files')],
             
-            [VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'remove_bcfs', default_regulation => 0)]);
+            [VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'remove_bcfs', default_regulation => 0)]
+        );
     }
 }
 

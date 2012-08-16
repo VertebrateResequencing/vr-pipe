@@ -50,9 +50,11 @@ class VRPipe::StepStatsUtil {
     our %means;
     our %percentiles;
     
-    has 'step' => (is       => 'rw',
-                   isa      => 'VRPipe::Step',
-                   required => 1);
+    has 'step' => (
+        is       => 'rw',
+        isa      => 'VRPipe::Step',
+        required => 1
+    );
     
     method _percentile (Str $column! where { $_ eq 'memory' || $_ eq 'time' }, Int $percent! where { $_ > 0 && $_ < 100 }, VRPipe::PipelineSetup $pipelinesetup?) {
         # did we already work this out in the past hour?

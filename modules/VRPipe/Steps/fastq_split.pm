@@ -41,17 +41,22 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                 max_files   => 3,
-                                                                 description => '1-3 fastq files of the same lane',
-                                                                 metadata    => {
-                                                                               lane            => 'lane name (a unique identifer for this sequencing run)',
-                                                                               bases           => 'total number of base pairs',
-                                                                               reads           => 'total number of reads (sequences)',
-                                                                               avg_read_length => 'the average length of reads',
-                                                                               paired          => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
-                                                                               mate            => 'if paired, the path to the fastq that is our mate',
-                                                                               optional        => ['mate'] }) };
+        return {
+            fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                max_files   => 3,
+                description => '1-3 fastq files of the same lane',
+                metadata    => {
+                    lane            => 'lane name (a unique identifer for this sequencing run)',
+                    bases           => 'total number of base pairs',
+                    reads           => 'total number of reads (sequences)',
+                    avg_read_length => 'the average length of reads',
+                    paired          => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
+                    mate            => 'if paired, the path to the fastq that is our mate',
+                    optional        => ['mate']
+                }
+            )
+        };
     }
     
     method body_sub {
@@ -95,18 +100,23 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { split_fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                       max_files   => -1,
-                                                                       description => 'split fastq files',
-                                                                       metadata    => {
-                                                                                     source_fastq    => 'the fastq file this was split from',
-                                                                                     bases           => 'total number of base pairs',
-                                                                                     reads           => 'total number of reads (sequences) in this chunk',
-                                                                                     avg_read_length => 'the average length of reads',
-                                                                                     paired          => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
-                                                                                     mate            => 'if paired, the path to the fastq that is our mate and of the corresponding chunk',
-                                                                                     chunk           => 'an int to say which chunk of the source_fastq this is',
-                                                                                     optional        => ['mate'] }) };
+        return {
+            split_fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                max_files   => -1,
+                description => 'split fastq files',
+                metadata    => {
+                    source_fastq    => 'the fastq file this was split from',
+                    bases           => 'total number of base pairs',
+                    reads           => 'total number of reads (sequences) in this chunk',
+                    avg_read_length => 'the average length of reads',
+                    paired          => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
+                    mate            => 'if paired, the path to the fastq that is our mate and of the corresponding chunk',
+                    chunk           => 'an int to say which chunk of the source_fastq this is',
+                    optional        => ['mate']
+                }
+            )
+        };
     }
     
     method post_process_sub {
@@ -372,19 +382,25 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             
             if ($splits == 1) {
                 my $suffix = $fq =~ /\.gz$/ ? 'fastq.gz' : 'fastq';
-                push(@outs,
-                     VRPipe::File->create(
-                         path => file($split_dir, "$prefix.1.$suffix"),
-                         type => 'fq',
-                         metadata => { source_fastq => $fq->resolve->stringify }));
+                push(
+                    @outs,
+                    VRPipe::File->create(
+                        path => file($split_dir, "$prefix.1.$suffix"),
+                        type => 'fq',
+                        metadata => { source_fastq => $fq->resolve->stringify }
+                    )
+                );
             }
             else {
                 for my $split_num (1 .. $splits) {
-                    push(@outs,
-                         VRPipe::File->create(
-                             path => file($split_dir, "$prefix.$split_num.fastq.gz"),
-                             type => 'fq',
-                             metadata => { source_fastq => $fq->resolve->stringify }));
+                    push(
+                        @outs,
+                        VRPipe::File->create(
+                            path => file($split_dir, "$prefix.$split_num.fastq.gz"),
+                            type => 'fq',
+                            metadata => { source_fastq => $fq->resolve->stringify }
+                        )
+                    );
                 }
             }
         }

@@ -38,25 +38,37 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::DataSourceRole {
-    has 'method' => (is  => 'ro',
-                     isa => 'Str');
+    has 'method' => (
+        is  => 'ro',
+        isa => 'Str'
+    );
     
-    has 'source' => (is  => 'ro',
-                     isa => 'Defined');
+    has 'source' => (
+        is  => 'ro',
+        isa => 'Defined'
+    );
     
-    has 'options' => (is  => 'ro',
-                      isa => 'HashRef');
+    has 'options' => (
+        is  => 'ro',
+        isa => 'HashRef'
+    );
     
-    has '_handle' => (is      => 'rw',
-                      isa     => 'Defined',
-                      lazy    => 1,
-                      builder => '_open_source');
+    has '_handle' => (
+        is      => 'rw',
+        isa     => 'Defined',
+        lazy    => 1,
+        builder => '_open_source'
+    );
     
-    has '_changed_marker' => (is  => 'rw',
-                              isa => 'Str');
+    has '_changed_marker' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
     
-    has '_datasource_id' => (is  => 'ro',
-                             isa => Persistent);
+    has '_datasource_id' => (
+        is  => 'ro',
+        isa => Persistent
+    );
     
     requires '_open_source';
     requires '_has_changed';

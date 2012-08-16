@@ -59,10 +59,12 @@ class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
             
             foreach my $seq_file (@{ $self->inputs->{fastq_files} }) {
                 my ($name) = fileparse($seq_file->basename, ('.fastq'));
-                my $report_file = $self->output_file(output_key => 'fastq_report_files',
-                                                     basename   => $name . '_fastqc.zip',
-                                                     type       => 'bin',
-                                                     metadata   => $seq_file->metadata);
+                my $report_file = $self->output_file(
+                    output_key => 'fastq_report_files',
+                    basename   => $name . '_fastqc.zip',
+                    type       => 'bin',
+                    metadata   => $seq_file->metadata
+                );
                 my $seq_file_path   = $seq_file->path;
                 my $report_file_dir = $report_file->path->dir;
                 $self->dispatch([qq[$fastqc --noextract $seq_file_path --outdir $report_file_dir ], $req, { output_files => [$report_file] }]);

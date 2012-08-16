@@ -36,15 +36,21 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
     method options_definition {
-        return { vcf_concat_exe        => VRPipe::StepOption->create(description => 'path to vcf-concat executable',                                   optional => 1, default_value => 'vcf-concat'),
-                 vcf_concat_sites_only => VRPipe::StepOption->create(description => 'do not output genotype information to the concatenated vcf file', optional => 1, default_value => 0) };
+        return {
+            vcf_concat_exe        => VRPipe::StepOption->create(description => 'path to vcf-concat executable',                                   optional => 1, default_value => 'vcf-concat'),
+            vcf_concat_sites_only => VRPipe::StepOption->create(description => 'do not output genotype information to the concatenated vcf file', optional => 1, default_value => 0)
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               max_files   => -1,
-                                                               description => 'vcf files to concat',
-                                                               metadata    => { seq_no => 'a sequence number assigned by the split for reassembly in correct order' }) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                max_files   => -1,
+                description => 'vcf files to concat',
+                metadata    => { seq_no => 'a sequence number assigned by the split for reassembly in correct order' }
+            )
+        };
     }
     
     method body_sub {

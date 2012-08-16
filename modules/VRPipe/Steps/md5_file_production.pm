@@ -35,9 +35,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
     method options_definition {
-        return { md5_files_in_source_dir => VRPipe::StepOption->create(description   => 'should .md5 files be created in the same directory as their parent? (otherwise they go to the pipeline output directory)',
-                                                                       optional      => 1,
-                                                                       default_value => 0) };
+        return {
+            md5_files_in_source_dir => VRPipe::StepOption->create(
+                description   => 'should .md5 files be created in the same directory as their parent? (otherwise they go to the pipeline output directory)',
+                optional      => 1,
+                default_value => 0
+            )
+        };
     }
     
     method inputs_definition {
@@ -53,21 +57,27 @@ class VRPipe::Steps::md5_file_production with VRPipe::StepRole {
             @$input_files || return 1;
             foreach my $vrfile (@$input_files) {
                 my $ifile = $vrfile->path;
-                my $ofile = $self->output_file(output_key => 'md5_files',
-                                               $md5_files_in_source_dir ? (output_dir => $ifile->dir) : (),
-                                               basename => $ifile->basename . '.md5',
-                                               type     => 'txt',
-                                               metadata => { md5_checksum_of => $ifile->stringify })->path;
+                my $ofile = $self->output_file(
+                    output_key => 'md5_files',
+                    $md5_files_in_source_dir ? (output_dir => $ifile->dir) : (),
+                    basename => $ifile->basename . '.md5',
+                    type     => 'txt',
+                    metadata => { md5_checksum_of => $ifile->stringify }
+                )->path;
                 $self->dispatch([qq{md5sum $ifile > $ofile}, $self->new_requirements(memory => 500, time => 1)]);
             }
         };
     }
     
     method outputs_definition {
-        return { md5_files => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                               max_files   => -1,
-                                                               description => '.md5 files for each input file containing its md5 checksum',
-                                                               metadata    => { md5_checksum_of => 'absolute path of the file this .md5 file was generated for' }) };
+        return {
+            md5_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                max_files   => -1,
+                description => '.md5 files for each input file containing its md5 checksum',
+                metadata    => { md5_checksum_of => 'absolute path of the file this .md5 file was generated for' }
+            )
+        };
     }
     
     method post_process_sub {

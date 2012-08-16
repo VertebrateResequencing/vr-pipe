@@ -38,7 +38,8 @@ class VRPipe::Steps::vcf_split with VRPipe::StepRole {
         return {
             tabix_exe       => VRPipe::StepOption->create(description => 'path to tabix executable', optional => 1, default_value => 'tabix'),
             reference_index => VRPipe::StepOption->create(description => 'absolute path to the fasta index (.fai) file associated with reference fasta file'),
-            chunk_size => VRPipe::StepOption->create(description => 'Chunk size to split the vcf into.', default_value => 10000000) };
+            chunk_size => VRPipe::StepOption->create(description => 'Chunk size to split the vcf into.', default_value => 10000000)
+        };
     }
     
     method inputs_definition {
@@ -72,11 +73,13 @@ class VRPipe::Steps::vcf_split with VRPipe::StepRole {
                         my $to = $from + $chunk_size - 1;
                         if ($to > $seq_lengths{$chr}) { $to = $seq_lengths{$chr}; }
                         
-                        my $basename = "${chr}_${from}-${to}." . $vcf->basename;
-                        my $vcf_split_file = $self->output_file(output_key => 'vcf_split_files',
-                                                                basename   => $basename,
-                                                                type       => 'vcf',
-                                                                metadata   => { %$vcf_meta, chrom => $chr, from => $from, to => $to, seq_no => $seq_no });
+                        my $basename       = "${chr}_${from}-${to}." . $vcf->basename;
+                        my $vcf_split_file = $self->output_file(
+                            output_key => 'vcf_split_files',
+                            basename   => $basename,
+                            type       => 'vcf',
+                            metadata   => { %$vcf_meta, chrom => $chr, from => $from, to => $to, seq_no => $seq_no }
+                        );
                         $seq_no++;
                         
                         my $vcf_split_path = $vcf_split_file->path;
@@ -92,10 +95,14 @@ class VRPipe::Steps::vcf_split with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { vcf_split_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                                     max_files   => -1,
-                                                                     description => 'a set of split vcf.gz files for each input vcf',
-                                                                     metadata    => { seq_no => 'a sequence number assigned by the split for reassembly in correct order' }) };
+        return {
+            vcf_split_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                max_files   => -1,
+                description => 'a set of split vcf.gz files for each input vcf',
+                metadata    => { seq_no => 'a sequence number assigned by the split for reassembly in correct order' }
+            )
+        };
     }
     
     method post_process_sub {

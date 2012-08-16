@@ -38,15 +38,18 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
     use Data::Dumper;
     
     method options_definition {
-        return { gsnap_exe  => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                      optional => 1, default_value => 'gsnap'),
-                 paired_end => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.', optional => 1, default_value => '0'),
-                 gsnap_db   => VRPipe::StepOption->create(description => 'gsnap db that gsnap already knows about e.g. mm9, mm10, hg19, etc',  optional => 0, default_value => 'mm9') };
+        return {
+            gsnap_exe  => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                      optional => 1, default_value => 'gsnap'),
+            paired_end => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.', optional => 1, default_value => '0'),
+            gsnap_db   => VRPipe::StepOption->create(description => 'gsnap db that gsnap already knows about e.g. mm9, mm10, hg19, etc',  optional => 0, default_value => 'mm9')
+        };
     }
     
     method inputs_definition {
         return {
             # sequence file - fastq for now
-            fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files') };
+            fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files')
+        };
     }
     
     method body_sub {
@@ -68,10 +71,12 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
                 $self->throw("Expecting two input files for paired end processing") unless @input_file == 2;
                 $inputs = $input_file[0]->path . " " . $input_file[1]->path;
                 
-                $output_file_1 = $self->output_file(output_key => 'gsnap_uniq_sam',
-                                                    basename   => $name . ".concordant_uniq",
-                                                    type       => 'txt',
-                                                    metadata   => $input_file[0]->metadata);
+                $output_file_1 = $self->output_file(
+                    output_key => 'gsnap_uniq_sam',
+                    basename   => $name . ".concordant_uniq",
+                    type       => 'txt',
+                    metadata   => $input_file[0]->metadata
+                );
                 $output_file_dir = $output_file_1->dir->stringify;
             }
             
@@ -80,10 +85,12 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
                 $self->throw("Expecting one input file for single end processing") unless @input_file == 1;
                 $inputs = $input_file[0]->path;
                 
-                $output_file_1 = $self->output_file(output_key => 'gsnap_uniq_sam',
-                                                    basename   => $name . ".unpaired_uniq",
-                                                    type       => 'txt',
-                                                    metadata   => $input_file[0]->metadata);
+                $output_file_1 = $self->output_file(
+                    output_key => 'gsnap_uniq_sam',
+                    basename   => $name . ".unpaired_uniq",
+                    type       => 'txt',
+                    metadata   => $input_file[0]->metadata
+                );
                 $output_file_dir = $output_file_1->dir->stringify;
             }
             
@@ -114,11 +121,4 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
     }
 
 }
-
-
-
-
-
-
-
 

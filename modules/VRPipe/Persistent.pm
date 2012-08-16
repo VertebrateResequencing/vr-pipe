@@ -246,19 +246,25 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     __PACKAGE__->load_components(qw/InflateColumn::DateTime/);
     
-    has 'id' => (is                => 'rw',
-                 isa               => IntSQL [9],
-                 traits            => ['VRPipe::Persistent::Attributes'],
-                 is_auto_increment => 1,
-                 is_primary_key    => 1);
+    has 'id' => (
+        is                => 'rw',
+        isa               => IntSQL [9],
+        traits            => ['VRPipe::Persistent::Attributes'],
+        is_auto_increment => 1,
+        is_primary_key    => 1
+    );
     
-    has '-result_source' => (is  => 'rw',
-                             isa => 'DBIx::Class::ResultSource::Table');
+    has '-result_source' => (
+        is  => 'rw',
+        isa => 'DBIx::Class::ResultSource::Table'
+    );
     
-    has '_from_non_persistent' => (is      => 'rw',
-                                   isa     => 'Maybe[Object]',
-                                   lazy    => 1,
-                                   builder => '_determine_if_from_non_persistent');
+    has '_from_non_persistent' => (
+        is      => 'rw',
+        isa     => 'Maybe[Object]',
+        lazy    => 1,
+        builder => '_determine_if_from_non_persistent'
+    );
     
     # for when this instance was not retrieved via get()
     method _determine_if_from_non_persistent {
@@ -355,7 +361,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 else {
                     $column_info->{default_value} = $default;
                 }
-            
             }
             
             # determine the type constraint that the database should use
@@ -383,13 +388,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
                 elsif ($cname =~ /Ref/) {
                     if ($cname eq 'CodeRef') {
-                        $flations{$name} = { inflate => sub { eval "sub $_[0]"; },
-                                             deflate => sub { $deparse->coderef2text(shift); }
+                        $flations{$name} = {
+                            inflate => sub { eval "sub $_[0]"; },
+                            deflate => sub { $deparse->coderef2text(shift); }
                         };
                     }
                     elsif ($cname eq 'HashRef[ArrayRef[Str]|HashRef[Str]|Str]|Str' || $cname eq 'ArrayRef[ArrayRef[Str]|HashRef[Str]|Str]|Str') {
-                        $flations{$name} = { inflate => sub { thaw(shift); },
-                                             deflate => sub { nfreeze(shift); }
+                        $flations{$name} = {
+                            inflate => sub { thaw(shift); },
+                            deflate => sub { nfreeze(shift); }
                         };
                     }
                     elsif ($cname eq 'PersistentHashRef') {
@@ -604,7 +611,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     }
                     
                     return $return_val;
-                });
+                }
+            );
         }
         
         # like discard_changes, except we don't clumsily wipe out the whole
@@ -1215,6 +1223,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     sub _dumper_hook {
         $_[0] = bless { _strip_result_source($_[0]) }, ref($_[0]);
     }
+    
     sub _strip_result_source {
         my $ref = shift;
         my %hash;

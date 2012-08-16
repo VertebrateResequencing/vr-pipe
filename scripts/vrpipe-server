@@ -35,9 +35,17 @@ use VRPipe::LocalScheduler;
 use Sys::CPU;
 
 # handle options
-my $cmdline = VRPipe::Interface::CmdLine->new(description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
-                                              extra_args  => 'start|stop|restart|status',
-                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR'], ['farm=s', 'Discover and dispatch submissions to the job scheduler identified by the supplied name (only 1 server can dispatch to each farm)'], ['max_submissions|m=i', 'The maximum number of submissions to dispatch to the farm when in --farm mode (default is unlimited)'], ['only_specified_setups', 'In --farm mode, normally any PipelineSetups that have no farm configured will be run on a random farm, so potentially via this server; turning this option on means this server will only handle setups configured for this farm']]);
+my $cmdline = VRPipe::Interface::CmdLine->new(
+    description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
+    extra_args  => 'start|stop|restart|status',
+    opt_spec    => [
+        ['foreground|f',          'Do not daemonize - the server will run in the foreground, logging to STDERR'],
+        ['farm=s',                'Discover and dispatch submissions to the job scheduler identified by the supplied name (only 1 server can dispatch to each farm)'],
+        ['max_submissions|m=i',   'The maximum number of submissions to dispatch to the farm when in --farm mode (default is unlimited)'],
+        ['only_specified_setups', 'In --farm mode, normally any PipelineSetups that have no farm configured will be run on a random farm, so potentially via this server; turning this option on means this server will only handle setups configured for this farm']
+    ]
+);
+
 my $backend;
 my $deployment            = $cmdline->opts('deployment');
 my $foreground            = $cmdline->opts('foreground');
@@ -295,7 +303,8 @@ sub start_server {
         '/stop' => sub {
             shutdown_server("Received the stop command");
             $backend->psgi_text_response(200, 'plain', 'Stopping server', shift);
-        });
+        }
+    );
     
     # setup the signals we'll react to
     $SIG{HUP}  = 'IGNORE';

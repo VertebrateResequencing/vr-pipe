@@ -60,24 +60,34 @@ class VRPipe::Manager extends VRPipe::Persistent {
     our %step_limit_instigators;
     our $do_step_limits = 0;
     
-    has '_running' => (is      => 'rw',
-                       isa     => 'Bool',
-                       traits  => ['VRPipe::Persistent::Attributes'],
-                       default => 0);
+    has '_running' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
-    has '_run_start' => (is          => 'rw',
-                         isa         => Datetime,
-                         traits      => ['VRPipe::Persistent::Attributes'],
-                         is_nullable => 1);
+    has '_run_start' => (
+        is          => 'rw',
+        isa         => Datetime,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has '_instance_run_start' => (is  => 'rw',
-                                  isa => Datetime);
+    has '_instance_run_start' => (
+        is  => 'rw',
+        isa => Datetime
+    );
     
-    has 'global_limit' => (is  => 'rw',
-                           isa => PositiveInt);
+    has 'global_limit' => (
+        is  => 'rw',
+        isa => PositiveInt
+    );
     
-    has '_created_pipelines' => (is  => 'rw',
-                                 isa => 'HashRef');
+    has '_created_pipelines' => (
+        is  => 'rw',
+        isa => 'HashRef'
+    );
     
     # public getters for our private attributes
     method running {
@@ -303,10 +313,14 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # step are currently in the scheduler
         my %step_counts;
         if ($do_step_limits) {
-            my $array_ref = VRPipe::Submission->get_column_values(['step.name', 'count(step.name)'],
-                                                                  { '_done' => 0, '_failed' => 0, '_sid' => { '!=', undef } },
-                                                                  {  join     => { stepstate => { stepmember => 'step' } },
-                                                                     group_by => ['step.name'] });
+            my $array_ref = VRPipe::Submission->get_column_values(
+                ['step.name', 'count(step.name)'],
+                { '_done' => 0, '_failed' => 0, '_sid' => { '!=', undef } },
+                {
+                    join     => { stepstate => { stepmember => 'step' } },
+                    group_by => ['step.name']
+                }
+            );
             foreach my $vals (@$array_ref) {
                 $step_counts{ $vals->[0] } = $vals->[1];
             }
@@ -329,7 +343,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, 'me.id' => { '<=' => $last_sub_id } }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
         
         my $scheduler = VRPipe::Scheduler->get;
-      SLOOP: while (my $subs = $pager->next) {
+        SLOOP: while (my $subs = $pager->next) {
             my %batches;
             foreach my $sub (@$subs) {
                 # if the job is a block_and_skip_if_ok job, we don't actually
@@ -363,8 +377,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
             
             while (my ($req_id, $subs) = each %batches) {
                 $self->debug("_~_ Batched and submitted an array of " . scalar(@$subs) . " subs");
-                my $sid = $scheduler->submit(array        => $subs,
-                                             requirements => $subs->[0]->requirements);
+                my $sid = $scheduler->submit(
+                    array        => $subs,
+                    requirements => $subs->[0]->requirements
+                );
             }
         }
     }

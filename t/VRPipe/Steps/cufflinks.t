@@ -13,17 +13,22 @@ BEGIN {
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('cufflinks', 'sam_files');
 is_deeply [$step->id, $step->description], [1, 'Step for cufflinks: transcript assembly and quantification for rna-seq'], 'cufflinks step created and has correct description';
 
-my $setup = VRPipe::PipelineSetup->create(name       => 'cufflinks',
-                                          datasource => VRPipe::DataSource->create(type    => 'delimited',
-                                                                                   method  => 'all_columns',
-                                                                                   options => { delimiter => "\t" },
-                                                                                   source  => file(qw(t data cufflinks.fofn))->absolute),
-                                          output_root => $output_dir,
-                                          pipeline    => $pipeline,
-                                          options     => {
-                                                       reference_fasta  => file(qw(t data pombe_ref.fa))->absolute,
-                                                       known_genes_path => file(qw(t data knownGeneMm9.gtf))->absolute,
-                                                       gene_mask_path   => file(qw(t data GeneMaskMm9.gtf))->absolute });
+my $setup = VRPipe::PipelineSetup->create(
+    name       => 'cufflinks',
+    datasource => VRPipe::DataSource->create(
+        type    => 'delimited',
+        method  => 'all_columns',
+        options => { delimiter => "\t" },
+        source  => file(qw(t data cufflinks.fofn))->absolute
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        reference_fasta  => file(qw(t data pombe_ref.fa))->absolute,
+        known_genes_path => file(qw(t data knownGeneMm9.gtf))->absolute,
+        gene_mask_path   => file(qw(t data GeneMaskMm9.gtf))->absolute
+    }
+);
 
 my @output_subdirs = output_subdirs(1);
 #my $outputfile_1   = file(@output_subdirs, '1_cufflinks', "transcripts.gtf");

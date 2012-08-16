@@ -15,10 +15,12 @@ class VRPipe::Steps::test_import_bams with VRPipe::StepRole {
             
             my $req = $self->new_requirements(memory => 50, time => 1);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
-                my $local_bam = $self->output_file(output_key => 'local_bam_files',
-                                                   basename   => $bam->basename,
-                                                   type       => 'bam',
-                                                   metadata   => $bam->metadata);
+                my $local_bam = $self->output_file(
+                    output_key => 'local_bam_files',
+                    basename   => $bam->basename,
+                    type       => 'bam',
+                    metadata   => $bam->metadata
+                );
                 
                 my ($bam_path, $local_bam_path) = ($bam->path, $local_bam->path);
                 my $this_cmd = "cp $bam_path $local_bam_path";
@@ -29,10 +31,14 @@ class VRPipe::Steps::test_import_bams with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { local_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                                     max_files   => -1,
-                                                                     description => 'bams imported into the hashed directories',
-                                                                     metadata    => { reads => 'number of reads in the bam file' }) };
+        return {
+            local_bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => 'bams imported into the hashed directories',
+                metadata    => { reads => 'number of reads in the bam file' }
+            )
+        };
     }
     
     method post_process_sub {

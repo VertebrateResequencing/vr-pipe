@@ -28,16 +28,21 @@ my $fh = $fofn->openw;
 print $fh file(qw(t data dbsnp_132.b37.chr20_reduced.vcf.gz))->absolute->stringify . "\n";
 $fofn->close;
 
-my $setup = VRPipe::PipelineSetup->create(name       => 'gatk_left_align_variants',
-                                          datasource => VRPipe::DataSource->create(type    => 'fofn',
-                                                                                   method  => 'all',
-                                                                                   options => {},
-                                                                                   source  => $fofn->path),
-                                          output_root => $output_dir,
-                                          pipeline    => $pipeline,
-                                          options     => {
-                                                       reference_fasta             => $ref_fa->path,
-                                                       left_align_variants_options => '-L 20:1-600000' });
+my $setup = VRPipe::PipelineSetup->create(
+    name       => 'gatk_left_align_variants',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn',
+        method  => 'all',
+        options => {},
+        source  => $fofn->path
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        reference_fasta             => $ref_fa->path,
+        left_align_variants_options => '-L 20:1-600000'
+    }
+);
 
 my @output_subdirs = output_subdirs(1);
 ok handle_pipeline(file(@output_subdirs, '1_gatk_left_align_variants', "dbsnp_132.b37.chr20_reduced.aln.0.vcf.gz")), 'gatk_left_align_variants pipeline ran ok, generating the expected file';

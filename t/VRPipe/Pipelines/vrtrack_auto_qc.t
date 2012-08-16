@@ -7,8 +7,10 @@ use File::Copy;
 BEGIN {
     use Test::Most tests => 6;
     # this test is Sanger-specific, only the author needs to run it
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
-                    required_exe => [qw(bamcheck)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
+        required_exe => [qw(bamcheck)]
+    );
     use TestPipelines;
     
     use_ok('VRTrack::Factory');
@@ -62,14 +64,18 @@ foreach my $file_prefix (qw(autoqc_normal autoqc_short)) {
 }
 
 # autoqc that writes results to vrtrack
-my $auto_qc_ps = VRPipe::PipelineSetup->create(name       => 'auto_qc',
-                                               datasource => VRPipe::DataSource->create(type    => 'delimited',
-                                                                                        method  => 'all_columns',
-                                                                                        source  => file(qw(t data autoqc.tab))->absolute->stringify,
-                                                                                        options => { delimiter => "\t" }),
-                                               output_root => $output_dir,
-                                               pipeline    => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc'),
-                                               options     => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} });
+my $auto_qc_ps = VRPipe::PipelineSetup->create(
+    name       => 'auto_qc',
+    datasource => VRPipe::DataSource->create(
+        type    => 'delimited',
+        method  => 'all_columns',
+        source  => file(qw(t data autoqc.tab))->absolute->stringify,
+        options => { delimiter => "\t" }
+    ),
+    output_root => $output_dir,
+    pipeline    => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc'),
+    options     => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} }
+);
 
 ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
 

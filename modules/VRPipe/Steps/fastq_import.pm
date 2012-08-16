@@ -42,14 +42,19 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                 description => 'fastq files',
-                                                                 max_files   => -1,
-                                                                 metadata    => {
-                                                                               remote_path  => 'the complete remote location of the file',
-                                                                               expected_md5 => 'the md5 checksum the file is supposed to have',
-                                                                               optional     => ['remote_path', 'expected_md5'] },
-                                                                 check_existence => 0) };
+        return {
+            fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                description => 'fastq files',
+                max_files   => -1,
+                metadata    => {
+                    remote_path  => 'the complete remote location of the file',
+                    expected_md5 => 'the md5 checksum the file is supposed to have',
+                    optional     => ['remote_path', 'expected_md5']
+                },
+                check_existence => 0
+            )
+        };
     }
     
     method body_sub {
@@ -80,9 +85,13 @@ class VRPipe::Steps::fastq_import with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { local_fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                       description => 'a fastq file on a local disc',
-                                                                       max_files   => -1) };
+        return {
+            local_fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                description => 'a fastq file on a local disc',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

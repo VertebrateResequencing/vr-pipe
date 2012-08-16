@@ -38,16 +38,19 @@ class VRPipe::Steps::cufflinks with VRPipe::StepRole {
     use Data::Dumper;
     
     method options_definition {
-        return { cufflinks_exe    => VRPipe::StepOption->create(description => 'path to your cufflinks executable', optional => 1, default_value => 'cufflinks'),
-                 reference_fasta  => VRPipe::StepOption->create(description => 'path to genome file e.g. mm9.fa'),
-                 known_genes_path => VRPipe::StepOption->create(description => 'path to known genes file file e.g. knownGenesMm9.gtf'),
-                 gene_mask_path   => VRPipe::StepOption->create(description => 'path to gene mask file e.g. GeneMaskMm9.gtf') };
+        return {
+            cufflinks_exe    => VRPipe::StepOption->create(description => 'path to your cufflinks executable', optional => 1, default_value => 'cufflinks'),
+            reference_fasta  => VRPipe::StepOption->create(description => 'path to genome file e.g. mm9.fa'),
+            known_genes_path => VRPipe::StepOption->create(description => 'path to known genes file file e.g. knownGenesMm9.gtf'),
+            gene_mask_path   => VRPipe::StepOption->create(description => 'path to gene mask file e.g. GeneMaskMm9.gtf')
+        };
     }
     
     method inputs_definition {
         return {
             # sequence file - fastq for now
-            sam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more sam files') };
+            sam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more sam files')
+        };
     }
     
     method body_sub {
@@ -63,18 +66,24 @@ class VRPipe::Steps::cufflinks with VRPipe::StepRole {
             my $gene_mask_path   = $options->{gene_mask_path};
             
             $self->throw("One input file expected") unless (@input_file == 1);
-            my $output_file_1 = $self->output_file(output_key => 'transcripts_gtf',
-                                                   basename   => "transcripts.gtf",
-                                                   type       => 'txt',
-                                                   metadata   => $input_file[0]->metadata);
-            my $output_file_2 = $self->output_file(output_key => 'isoforms_fpkm_tracking',
-                                                   basename   => "isoforms.fpkm_tracking",
-                                                   type       => 'txt',
-                                                   metadata   => $input_file[0]->metadata);
-            my $output_file_3 = $self->output_file(output_key => 'genes_fpkm_tracking',
-                                                   basename   => "genes.fpkm_tracking",
-                                                   type       => 'txt',
-                                                   metadata   => $input_file[0]->metadata);
+            my $output_file_1 = $self->output_file(
+                output_key => 'transcripts_gtf',
+                basename   => "transcripts.gtf",
+                type       => 'txt',
+                metadata   => $input_file[0]->metadata
+            );
+            my $output_file_2 = $self->output_file(
+                output_key => 'isoforms_fpkm_tracking',
+                basename   => "isoforms.fpkm_tracking",
+                type       => 'txt',
+                metadata   => $input_file[0]->metadata
+            );
+            my $output_file_3 = $self->output_file(
+                output_key => 'genes_fpkm_tracking',
+                basename   => "genes.fpkm_tracking",
+                type       => 'txt',
+                metadata   => $input_file[0]->metadata
+            );
             
             my $output_file_dir = $output_file_1->dir->stringify;
             my $input_file_path = $input_file[0]->path;
@@ -88,9 +97,11 @@ class VRPipe::Steps::cufflinks with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { transcripts_gtf        => VRPipe::StepIODefinition->create(type => 'txt', description => 'cufflinks assembled isoforms in gtf format'),
-                 isoforms_fpkm_tracking => VRPipe::StepIODefinition->create(type => 'txt', description => 'cufflinks estimated isoform-level expression values in FPKM Tracking Format'),
-                 genes_fpkm_tracking    => VRPipe::StepIODefinition->create(type => 'txt', description => 'cufflinks estimated gene-level expression values in the generic FPKM Tracking Format') };
+        return {
+            transcripts_gtf        => VRPipe::StepIODefinition->create(type => 'txt', description => 'cufflinks assembled isoforms in gtf format'),
+            isoforms_fpkm_tracking => VRPipe::StepIODefinition->create(type => 'txt', description => 'cufflinks estimated isoform-level expression values in FPKM Tracking Format'),
+            genes_fpkm_tracking    => VRPipe::StepIODefinition->create(type => 'txt', description => 'cufflinks estimated gene-level expression values in the generic FPKM Tracking Format')
+        };
     }
     
     method description {

@@ -36,14 +36,18 @@ use VRPipe::Base;
 
 class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                          optional => 1, default_value => 'samtools'),
-                 samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b options. Also exclude the -l option if a sites_file is provided as an input to the step', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
-                 reference_fasta          => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'), };
+        return {
+            samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                          optional => 1, default_value => 'samtools'),
+            samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b options. Also exclude the -l option if a sites_file is provided as an input to the step', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
+            reference_fasta          => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+        };
     }
     
     method inputs_definition {
-        return { bam_files  => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
-                 sites_file => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'), };
+        return {
+            bam_files  => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
+            sites_file => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'),
+        };
     }
     
     method body_sub {
@@ -81,9 +85,13 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
                 $basename = "${chrom}_${from}-${to}.$basename";
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'samtools',
-                                                                  version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                                                                  summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list > \$bcf_file"));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'samtools',
+                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
+                    summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list > \$bcf_file"
+                )
+            );
             
             my $bcf_file = $self->output_file(output_key => 'bcf_files', basename => $basename, type => 'bcf', metadata => $bcf_meta);
             my $bcf_path = $bcf_file->path;

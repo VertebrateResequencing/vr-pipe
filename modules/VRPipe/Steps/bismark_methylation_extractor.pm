@@ -61,20 +61,26 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
             my $exe_path = $exe;
             $exe_path = which($exe) unless file($exe)->is_absolute;
             
-            my $outfile1 = $self->output_file(output_key => 'meth_calls_CHH',
-                                              basename   => 'CHH_context_' . $name . '.txt',
-                                              type       => 'txt',
-                                              metadata   => $infile->metadata);
+            my $outfile1 = $self->output_file(
+                output_key => 'meth_calls_CHH',
+                basename   => 'CHH_context_' . $name . '.txt',
+                type       => 'txt',
+                metadata   => $infile->metadata
+            );
             
-            my $outfile2 = $self->output_file(output_key => 'meth_calls_CpG',
-                                              basename   => 'CHG_context_' . $name . '.txt',
-                                              type       => 'txt',
-                                              metadata   => $infile->metadata);
+            my $outfile2 = $self->output_file(
+                output_key => 'meth_calls_CpG',
+                basename   => 'CHG_context_' . $name . '.txt',
+                type       => 'txt',
+                metadata   => $infile->metadata
+            );
             
-            my $outfile3 = $self->output_file(output_key => 'meth_calls_CHG',
-                                              basename   => 'CpG_context_' . $name . '.txt',
-                                              type       => 'txt',
-                                              metadata   => $infile->metadata);
+            my $outfile3 = $self->output_file(
+                output_key => 'meth_calls_CHG',
+                basename   => 'CpG_context_' . $name . '.txt',
+                type       => 'txt',
+                metadata   => $infile->metadata
+            );
             my $infile_path = $infile->path;
             
             my $req = $self->new_requirements(memory => 1500, time => 1);
@@ -86,9 +92,11 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { meth_calls_CHH => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
-                 meth_calls_CpG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
-                 meth_calls_CHG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position') };
+        return {
+            meth_calls_CHH => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
+            meth_calls_CpG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
+            meth_calls_CHG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position')
+        };
     }
     
     method post_process_sub {

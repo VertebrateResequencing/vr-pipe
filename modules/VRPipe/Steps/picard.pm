@@ -34,9 +34,11 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::picard extends VRPipe::Steps::java {
-    has 'picard_path' => (is     => 'rw',
-                          isa    => Dir,
-                          coerce => 1);
+    has 'picard_path' => (
+        is     => 'rw',
+        isa    => Dir,
+        coerce => 1
+    );
     
     has '+memory_multiplier' => (default => 0.7);
     
@@ -45,10 +47,12 @@ class VRPipe::Steps::picard extends VRPipe::Steps::java {
     }
     
     our %PICARD_VERSIONS;
-    has 'picard_version' => (is      => 'ro',
-                             isa     => 'Str',
-                             lazy    => 1,
-                             builder => 'determine_picard_version');
+    has 'picard_version' => (
+        is      => 'ro',
+        isa     => 'Str',
+        lazy    => 1,
+        builder => 'determine_picard_version'
+    );
     
     method determine_picard_version (ClassName|Object $self:) {
         my $picard_path = $self->picard_path->stringify;

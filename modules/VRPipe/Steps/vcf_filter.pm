@@ -36,17 +36,24 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf-filter_file' => VRPipe::StepOption->create(description => 'vcf-filter parameters file'),
-                 'vcf-filter_exe'  => VRPipe::StepOption->create(
-                                                                description   => 'path to vcf-filter executable',
-                                                                optional      => 1,
-                                                                default_value => 'vcf-filter') };
+        return {
+            'vcf-filter_file' => VRPipe::StepOption->create(description => 'vcf-filter parameters file'),
+            'vcf-filter_exe'  => VRPipe::StepOption->create(
+                description   => 'path to vcf-filter executable',
+                optional      => 1,
+                default_value => 'vcf-filter'
+            )
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               description => 'vcf files',
-                                                               max_files   => -1) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'vcf files',
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
@@ -76,9 +83,13 @@ class VRPipe::Steps::vcf_filter with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { filtered_vcf => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                                  description => 'a filtered vcf file',
-                                                                  max_files   => -1) };
+        return {
+            filtered_vcf => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'a filtered vcf file',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

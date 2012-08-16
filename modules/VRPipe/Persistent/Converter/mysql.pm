@@ -4,7 +4,7 @@
 VRPipe::Persistent::Converter::mysql - a converter for MySQL
 
 =head1 SYNOPSIS
-
+        
         my $converter = VRPipe::Persistent::ConverterFactory->create('mysql', {});
         ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
 
@@ -133,7 +133,8 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
                     }
                 }
             },
-            $table_name);
+            $table_name
+        );
         
         return \%idx_cols;
     }

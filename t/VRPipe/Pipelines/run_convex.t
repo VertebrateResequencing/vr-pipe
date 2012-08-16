@@ -5,9 +5,11 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 9;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES CONVEX_R_LIB)],
-                    max_retries  => 1,
-                    required_exe => [qw(samtools R)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES CONVEX_R_LIB)],
+        max_retries  => 1,
+        required_exe => [qw(samtools R)]
+    );
     use TestPipelines;
 }
 
@@ -33,15 +35,18 @@ my $regions_file = file(qw(t data cnv hs_chr20.convex.regions))->absolute->strin
 
 my $fofn = file(qw(t data cnv cnv.bam.fofn));
 
-my $pipelinesetup1 = VRPipe::PipelineSetup->create(name        => 'convex_read_depth_generation_pipeline',
-                                                   datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => $fofn),
-                                                   output_root => $output_dir,
-                                                   pipeline    => $pipeline1,
-                                                   options     => {
-                                                                cleanup          => 0,
-                                                                convex_classpath => $classpath,
-                                                                regions_file     => $regions_file,
-                                                                assumed_sex      => 'U', });
+my $pipelinesetup1 = VRPipe::PipelineSetup->create(
+    name        => 'convex_read_depth_generation_pipeline',
+    datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => $fofn),
+    output_root => $output_dir,
+    pipeline    => $pipeline1,
+    options     => {
+        cleanup          => 0,
+        convex_classpath => $classpath,
+        regions_file     => $regions_file,
+        assumed_sex      => 'U',
+    }
+);
 
 my (@output_files, @final_files);
 my $element_id = 0;
@@ -77,21 +82,25 @@ my $bp_file_name = "$output_dir/breakpoints.txt";
 
 my $pipelinesetup2 = VRPipe::PipelineSetup->create(
     name       => 'convex_l2r_bp_generation_pipeline',
-    datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                             method  => 'group_by_metadata',
-                                             source  => 'convex_read_depth_generation_pipeline[convex_read_depth]',
-                                             options => { metadata_keys => 'batch' }),
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 'convex_read_depth_generation_pipeline[convex_read_depth]',
+        options => { metadata_keys => 'batch' }
+    ),
     
     output_root => $output_dir,
     pipeline    => $pipeline2,
     options     => {
-                 cleanup             => 0,
-                 regions_file        => $regions_file,
-                 convex_rscript_path => "$convex_home/Rbatch",
-                 rscript_cmd         => '/software/bin/Rscript --vanilla',
-                 r_libs              => $convex_r_libs,
-                 includeChrX         => 0,
-                 bp_file_name        => $bp_file_name, });
+        cleanup             => 0,
+        regions_file        => $regions_file,
+        convex_rscript_path => "$convex_home/Rbatch",
+        rscript_cmd         => '/software/bin/Rscript --vanilla',
+        r_libs              => $convex_r_libs,
+        includeChrX         => 0,
+        bp_file_name        => $bp_file_name,
+    }
+);
 
 for (my $i = 0; $i < @output_files; $i++) {
     $output_files[$i] =~ s/rd\.txt/l2r.txt/;
@@ -115,19 +124,22 @@ is_deeply \@s_names, \@expected_step_names, 'the rd pipeline has the correct ste
 my $features_file       = file(qw(t data cnv hs_chr20.convex.features))->absolute->stringify;
 my $centromere_reg_file = file(qw(t data cnv hs_chr20.convex.aps_table_hg19.txt))->absolute->stringify;
 
-my $pipelinesetup3 = VRPipe::PipelineSetup->create(name        => 'convex_cnv_calling_pipeline',
-                                                   datasource  => VRPipe::DataSource->create(type => 'vrpipe', method => 'all', source => 'convex_read_depth_generation_pipeline[convex_read_depth]'),
-                                                   output_root => $output_dir,
-                                                   pipeline    => $pipeline3,
-                                                   options     => {
-                                                                cleanup             => 0,
-                                                                convex_rscript_path => "$convex_home/Rbatch",
-                                                                rscript_cmd         => '/software/bin/Rscript --vanilla',
-                                                                r_libs              => $convex_r_libs,
-                                                                features_file       => $features_file,
-                                                                breakpoints_file    => $bp_file_name,
-                                                                sw_exec             => "$convex_home/exec/swa_lin64",
-                                                                centromere_reg_file => $centromere_reg_file, });
+my $pipelinesetup3 = VRPipe::PipelineSetup->create(
+    name        => 'convex_cnv_calling_pipeline',
+    datasource  => VRPipe::DataSource->create(type => 'vrpipe', method => 'all', source => 'convex_read_depth_generation_pipeline[convex_read_depth]'),
+    output_root => $output_dir,
+    pipeline    => $pipeline3,
+    options     => {
+        cleanup             => 0,
+        convex_rscript_path => "$convex_home/Rbatch",
+        rscript_cmd         => '/software/bin/Rscript --vanilla',
+        r_libs              => $convex_r_libs,
+        features_file       => $features_file,
+        breakpoints_file    => $bp_file_name,
+        sw_exec             => "$convex_home/exec/swa_lin64",
+        centromere_reg_file => $centromere_reg_file,
+    }
+);
 
 my $i = 0;
 my @cnv_output_files;

@@ -28,31 +28,40 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::FrontEnd;
 
-my $frontend = VRPipe::FrontEnd->new(description => "Provide an overview of problems with pipelines that need user intervention to resolve.",
-                                     opt_spec => [ [ 'setup=s', 'Show details for this PipelineSetup only (by name or id)', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'retries=i', 'The number of retries the dispatch daemon is set to attempt before giving up (default 3)', { default => 3 } ] ]);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Provide an overview of problems with pipelines that need user intervention to resolve.",
+    opt_spec    => [
+        ['setup=s',   'Show details for this PipelineSetup only (by name or id)',                                 { persistent_object => 'PipelineSetup' }],
+        ['retries=i', 'The number of retries the dispatch daemon is set to attempt before giving up (default 3)', { default           => 3 }]
+    ]
+);
 
 my $retries = $frontend->opts('retries');
-my $setup = $frontend->get_pipelinesetups();
+my $setup   = $frontend->get_pipelinesetups();
 
-my @subs = VRPipe::Submission->search({ "_failed" => 1, retries => $retries,
-                                        $setup ? ('stepstate.pipelinesetup' => $setup->id) : () },
-                                      { $setup ? (join => 'stepstate') : (),
-                                        prefetch => { stepstate => ['pipelinesetup', { stepmember => 'step' }] } } );
+my @subs = VRPipe::Submission->search({
+        "_failed" => 1, retries => $retries,
+        $setup ? ('stepstate.pipelinesetup' => $setup->id) : ()
+    },
+    {
+        $setup ? (join => 'stepstate') : (),
+        prefetch => { stepstate => ['pipelinesetup', { stepmember => 'step' }] }
+    }
+);
 
 my %summary;
 foreach my $sub (@subs) {
-    my $state = $sub->stepstate;
-    my $setup = $state->pipelinesetup;
+    my $state      = $sub->stepstate;
+    my $setup      = $state->pipelinesetup;
     my $setup_name = $setup->name;
     
-    my $stepm = $state->stepmember;
+    my $stepm     = $state->stepmember;
     my $step_name = $stepm->step->name;
     
-    $summary{$setup->id.'|[]|'.$setup_name}->{$stepm->step_number.'|[]|'.$step_name}++;
+    $summary{ $setup->id . '|[]|' . $setup_name }->{ $stepm->step_number . '|[]|' . $step_name }++;
 }
 
-my $key_sort = sub { my ($ay) = split('\|\[\]\|', $a); my ($be) = split('\|\[\]\|', $b); $ay <=> $be  };
+my $key_sort = sub { my ($ay) = split('\|\[\]\|', $a); my ($be) = split('\|\[\]\|', $b); $ay <=> $be };
 if (keys %summary) {
     foreach my $setup (sort $key_sort keys %summary) {
         my ($setup_id, $setup_name) = split('\|\[\]\|', $setup);
@@ -62,7 +71,7 @@ if (keys %summary) {
         foreach my $step (sort $key_sort keys %{$steps}) {
             my ($step_id, $step_name) = split('\|\[\]\|', $step);
             my $fails = $steps->{$step};
-            my $cmd = "vrpipe-submissions --setup $setup_id --step '$step_name' --failed";
+            my $cmd   = "vrpipe-submissions --setup $setup_id --step '$step_name' --failed";
             $cmd .= ' --deployment testing' if ($frontend->opts('deployment') eq 'testing');
             $frontend->output("\t", "Step $step_name has failed $fails submissions; investigate by running: $cmd");
         }

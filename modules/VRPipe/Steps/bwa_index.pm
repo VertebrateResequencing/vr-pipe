@@ -35,13 +35,19 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bwa_index with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta   => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
-                 bwa_index_options => VRPipe::StepOption->create(description   => 'options to bwa index, excluding the reference fasta file',
-                                                                 optional      => 1,
-                                                                 default_value => '-a bwtsw'),
-                 bwa_exe => VRPipe::StepOption->create(description   => 'path to your bwa executable',
-                                                       optional      => 1,
-                                                       default_value => 'bwa') };
+        return {
+            reference_fasta   => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
+            bwa_index_options => VRPipe::StepOption->create(
+                description   => 'options to bwa index, excluding the reference fasta file',
+                optional      => 1,
+                default_value => '-a bwtsw'
+            ),
+            bwa_exe => VRPipe::StepOption->create(
+                description   => 'path to your bwa executable',
+                optional      => 1,
+                default_value => 'bwa'
+            )
+        };
     }
     
     method inputs_definition {
@@ -77,8 +83,10 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { bwa_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the files produced by bwa index', min_files => 6, max_files => 6),
-                 bwa_index_text_files   => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by bwa index', min_files => 2, max_files => 2) };
+        return {
+            bwa_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the files produced by bwa index', min_files => 6, max_files => 6),
+            bwa_index_text_files   => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by bwa index', min_files => 2, max_files => 2)
+        };
     }
     
     method post_process_sub {

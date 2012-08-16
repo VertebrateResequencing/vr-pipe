@@ -2,18 +2,24 @@ use VRPipe::Base;
 
 class VRPipe::Steps::conifer_analyze with VRPipe::StepRole {
     method options_definition {
-        return { python_exe  => VRPipe::StepOption->create(description => 'full path to python executable',               optional => 1, default_value => 'python'),
-                 conifer_py  => VRPipe::StepOption->create(description => 'full path to conifer.py',                      optional => 1, default_value => 'conifer.py'),
-                 probes_file => VRPipe::StepOption->create(description => 'probes / target definition file'),
-                 write_svals => VRPipe::StepOption->create(description => 'output singular values from the SVD analysis', optional => 1, default_value => 1),
-                 write_sd    => VRPipe::StepOption->create(description => 'output standard deviation for each sample',    optional => 1, default_value => 1),
-                 svd_remove  => VRPipe::StepOption->create(description => 'the number of SVD components to remove',       optional => 1, default_value => 0), };
+        return {
+            python_exe  => VRPipe::StepOption->create(description => 'full path to python executable',               optional => 1, default_value => 'python'),
+            conifer_py  => VRPipe::StepOption->create(description => 'full path to conifer.py',                      optional => 1, default_value => 'conifer.py'),
+            probes_file => VRPipe::StepOption->create(description => 'probes / target definition file'),
+            write_svals => VRPipe::StepOption->create(description => 'output singular values from the SVD analysis', optional => 1, default_value => 1),
+            write_sd    => VRPipe::StepOption->create(description => 'output standard deviation for each sample',    optional => 1, default_value => 1),
+            svd_remove  => VRPipe::StepOption->create(description => 'the number of SVD components to remove',       optional => 1, default_value => 0),
+        };
     }
     
     method inputs_definition {
-        return { rpkm_in => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                             description => 'set of conifer rpkm text files to be analyzed as a group',
-                                                             max_files   => -1), };
+        return {
+            rpkm_in => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'set of conifer rpkm text files to be analyzed as a group',
+                max_files   => -1
+            ),
+        };
     }
     
     method body_sub {
@@ -47,9 +53,13 @@ class VRPipe::Steps::conifer_analyze with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { analysis_hdf5 => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                   description => 'HDF5 file of SVD-ZRPKM values for each sample in rpkm set',
-                                                                   max_files   => -1) };
+        return {
+            analysis_hdf5 => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'HDF5 file of SVD-ZRPKM values for each sample in rpkm set',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

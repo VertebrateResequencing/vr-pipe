@@ -43,18 +43,23 @@ while (<$ifh>) {
 $orig_fofn_file->close;
 $fofn_file->close;
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->create(name       => 'my vcf_chunked_vep_annotate pipeline setup',
-                                                       datasource => VRPipe::DataSource->create(type   => 'fofn',
-                                                                                                method => 'all',
-                                                                                                source => $fofn_file->path),
-                                                       output_root => $output_dir,
-                                                       pipeline    => $pipeline,
-                                                       options     => {
-                                                                    cleanup                    => 0,
-                                                                    reference_index            => file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify,
-                                                                    chunk_size                 => 50000000,
-                                                                    'vep_options'              => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
-                                                                    'vcf2consequences_options' => "--grantham --gerp $gerp_cache", });
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 'my vcf_chunked_vep_annotate pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type   => 'fofn',
+        method => 'all',
+        source => $fofn_file->path
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        cleanup                    => 0,
+        reference_index            => file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify,
+        chunk_size                 => 50000000,
+        'vep_options'              => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+        'vcf2consequences_options' => "--grantham --gerp $gerp_cache",
+    }
+);
 
 my (@output_files, @final_files);
 my $element_id = 0;

@@ -30,15 +30,20 @@ print $fh file(qw(t data chrom20.ILLUMINA.bwa.JPT.low_coverage.bam))->absolute->
 print $fh file(qw(t data chrom20.SOLID.bfast.JPT.low_coverage.bam))->absolute->stringify . "\n";
 close($fh);
 
-my $setup = VRPipe::PipelineSetup->create(name       => 'gatk_variant_annotator',
-                                          datasource => VRPipe::DataSource->create(type    => 'fofn',
-                                                                                   method  => 'all',
-                                                                                   options => {},
-                                                                                   source  => file(qw(t data annotation.fofn))->absolute),
-                                          output_root => $output_dir,
-                                          pipeline    => $pipeline,
-                                          options     => {
-                                                       reference_fasta           => $ref_fa->path,
-                                                       variant_annotator_options => '-L 20:1-75500 --group StandardAnnotation -I ' . $fofn->path });
+my $setup = VRPipe::PipelineSetup->create(
+    name       => 'gatk_variant_annotator',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn',
+        method  => 'all',
+        options => {},
+        source  => file(qw(t data annotation.fofn))->absolute
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        reference_fasta           => $ref_fa->path,
+        variant_annotator_options => '-L 20:1-75500 --group StandardAnnotation -I ' . $fofn->path
+    }
+);
 my @output_subdirs = output_subdirs(1);
 ok handle_pipeline(file(@output_subdirs, '1_gatk_variant_annotator', "annotation.anno.vcf.gz")), 'gatk_variant_annotator pipeline ran ok, generating the expected file';

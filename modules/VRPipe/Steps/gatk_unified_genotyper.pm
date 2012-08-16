@@ -48,12 +48,15 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
         return {
             %{ $self->$orig }, # gatk options
             unified_genotyper_options => VRPipe::StepOption->create(description => 'Options for GATK UnifiedGenotyper, excluding -R,-I,-o'),
-            minimum_records           => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking', optional => 1, default_value => 0) };
+            minimum_records           => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking', optional => 1, default_value => 0)
+        };
     }
     
     method inputs_definition {
-        return { bam_files  => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
-                 sites_file => VRPipe::StepIODefinition->create(type => 'vcf', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'), };
+        return {
+            bam_files  => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
+            sites_file => VRPipe::StepIODefinition->create(type => 'vcf', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'),
+        };
     }
     
     method body_sub {
@@ -90,9 +93,13 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
                 $basename = "${chrom}_${from}-${to}.$basename";
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'GenomeAnalysisTK',
-                                                                  version => $self->gatk_version(),
-                                                                  summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file ' . $summary_opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'GenomeAnalysisTK',
+                    version => $self->gatk_version(),
+                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T UnifiedGenotyper -R $reference_fasta -I $bams_list -o $vcf_file ' . $summary_opts
+                )
+            );
             
             my $vcf_file = $self->output_file(output_key => 'gatk_vcf_file', basename => $basename, type => 'vcf', metadata => $vcf_meta);
             my $vcf_path = $vcf_file->path;

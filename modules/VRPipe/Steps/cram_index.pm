@@ -56,19 +56,25 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
                 $self->throw("cramtools_index_options should not include the reference or input options");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'cramtools',
-                                                                  version => $self->cramtools_version(),
-                                                                  summary => 'java $jvm_args -jar cramtools.jar index --input-cram-file $cram_file --reference-fasta-file $reference_fasta ' . $opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'cramtools',
+                    version => $self->cramtools_version(),
+                    summary => 'java $jvm_args -jar cramtools.jar index --input-cram-file $cram_file --reference-fasta-file $reference_fasta ' . $opts
+                )
+            );
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
             my $memory = $req->memory;
             
             foreach my $cram (@{ $self->inputs->{cram_files} }) {
-                my $cram_index_file = $self->output_file(output_key => 'cram_index_files',
-                                                         output_dir => $cram->dir,
-                                                         basename   => $cram->basename . '.crai',
-                                                         type       => 'bin',
-                                                         metadata   => $cram->metadata);
+                my $cram_index_file = $self->output_file(
+                    output_key => 'cram_index_files',
+                    output_dir => $cram->dir,
+                    basename   => $cram->basename . '.crai',
+                    type       => 'bin',
+                    metadata   => $cram->metadata
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $cram_index_file->dir;
                 my $jvm_args = $self->jvm_args($memory, $temp_dir);

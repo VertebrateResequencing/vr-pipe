@@ -35,9 +35,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::karma_index with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta     => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
-                 karma_index_options => VRPipe::StepOption->create(description => 'options to karma create, excluding the reference fasta file', optional => 1, default_value => '-i -w 15'),
-                 karma_exe           => VRPipe::StepOption->create(description => 'path to your karma executable', optional => 1, default_value => 'karma') };
+        return {
+            reference_fasta     => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
+            karma_index_options => VRPipe::StepOption->create(description => 'options to karma create, excluding the reference fasta file', optional => 1, default_value => '-i -w 15'),
+            karma_exe           => VRPipe::StepOption->create(description => 'path to your karma executable', optional => 1, default_value => 'karma')
+        };
     }
     
     method inputs_definition {
@@ -57,9 +59,13 @@ class VRPipe::Steps::karma_index with VRPipe::StepRole {
                 $self->throw("karma_index_options should not include the reference or create subcommand");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'karma',
-                                                                  version => VRPipe::StepCmdSummary->determine_version($karma_exe, 'version (.+)\.$'),
-                                                                  summary => 'karma create ' . $opts . ' $reference_fasta'));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'karma',
+                    version => VRPipe::StepCmdSummary->determine_version($karma_exe, 'version (.+)\.$'),
+                    summary => 'karma create ' . $opts . ' $reference_fasta'
+                )
+            );
             
             my $basename = $ref->basename;
             $basename =~ s/\.fa(sta)?$//;

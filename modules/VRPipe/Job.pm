@@ -60,85 +60,115 @@ class VRPipe::Job extends VRPipe::Persistent {
     use Sys::Hostname;
     use Net::SSH qw(ssh);
     
-    has 'cmd' => (is     => 'rw',
-                  isa    => Text,
-                  traits => ['VRPipe::Persistent::Attributes'],
-                  is_key => 1);
+    has 'cmd' => (
+        is     => 'rw',
+        isa    => Text,
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'dir' => (is     => 'rw',
-                  isa    => Dir,
-                  coerce => 1,
-                  traits => ['VRPipe::Persistent::Attributes'],
-                  is_key => 1);
+    has 'dir' => (
+        is     => 'rw',
+        isa    => Dir,
+        coerce => 1,
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'block_and_skip_if_ok' => (is      => 'rw',
-                                   isa     => 'Bool',
-                                   traits  => ['VRPipe::Persistent::Attributes'],
-                                   default => 0);
+    has 'block_and_skip_if_ok' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
-    has 'running' => (is      => 'rw',
-                      isa     => 'Bool',
-                      traits  => ['VRPipe::Persistent::Attributes'],
-                      default => 0);
+    has 'running' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
-    has 'finished' => (is      => 'rw',
-                       isa     => 'Bool',
-                       traits  => ['VRPipe::Persistent::Attributes'],
-                       default => 0);
+    has 'finished' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
-    has 'exit_code' => (is          => 'rw',
-                        isa         => IntSQL [5],
-                        traits      => ['VRPipe::Persistent::Attributes'],
-                        is_nullable => 1);
+    has 'exit_code' => (
+        is          => 'rw',
+        isa         => IntSQL [5],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'pid' => (is          => 'rw',
-                  isa         => IntSQL [6],
-                  traits      => ['VRPipe::Persistent::Attributes'],
-                  is_nullable => 1);
+    has 'pid' => (
+        is          => 'rw',
+        isa         => IntSQL [6],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'host' => (is          => 'rw',
-                   isa         => Varchar [64],
-                   traits      => ['VRPipe::Persistent::Attributes'],
-                   is_nullable => 1);
+    has 'host' => (
+        is          => 'rw',
+        isa         => Varchar [64],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'user' => (is          => 'rw',
-                   isa         => Varchar [64],
-                   traits      => ['VRPipe::Persistent::Attributes'],
-                   is_nullable => 1);
+    has 'user' => (
+        is          => 'rw',
+        isa         => Varchar [64],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'heartbeat' => (is          => 'rw',
-                        isa         => Datetime,
-                        coerce      => 1,
-                        traits      => ['VRPipe::Persistent::Attributes'],
-                        is_nullable => 1);
+    has 'heartbeat' => (
+        is          => 'rw',
+        isa         => Datetime,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'heartbeat_interval' => (is      => 'rw',
-                                 isa     => PositiveInt,
-                                 lazy    => 1,
-                                 builder => '_build_default_heartbeat_interval');
+    has 'heartbeat_interval' => (
+        is      => 'rw',
+        isa     => PositiveInt,
+        lazy    => 1,
+        builder => '_build_default_heartbeat_interval'
+    );
     
-    has 'creation_time' => (is      => 'rw',
-                            isa     => Datetime,
-                            coerce  => 1,
-                            traits  => ['VRPipe::Persistent::Attributes'],
-                            default => sub { DateTime->now() });
+    has 'creation_time' => (
+        is      => 'rw',
+        isa     => Datetime,
+        coerce  => 1,
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => sub { DateTime->now() }
+    );
     
-    has 'start_time' => (is          => 'rw',
-                         isa         => Datetime,
-                         coerce      => 1,
-                         traits      => ['VRPipe::Persistent::Attributes'],
-                         is_nullable => 1);
+    has 'start_time' => (
+        is          => 'rw',
+        isa         => Datetime,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'end_time' => (is          => 'rw',
-                       isa         => Datetime,
-                       coerce      => 1,
-                       traits      => ['VRPipe::Persistent::Attributes'],
-                       is_nullable => 1);
+    has 'end_time' => (
+        is          => 'rw',
+        isa         => Datetime,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'output_files' => (is      => 'rw',
-                           isa     => ArrayRefOfPersistent,
-                           traits  => ['VRPipe::Persistent::Attributes'],
-                           default => sub { [] });
+    has 'output_files' => (
+        is      => 'rw',
+        isa     => ArrayRefOfPersistent,
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => sub { [] }
+    );
     
     __PACKAGE__->make_persistent();
     

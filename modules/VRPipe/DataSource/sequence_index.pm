@@ -136,24 +136,26 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 }
             }
             
-            my $new_metadata = { $pr->[1] ? (expected_md5 => $pr->[1]) : (),
-                                 lane           => $pr->[2],
-                                 study          => $pr->[3],
-                                 study_name     => $pr->[4],
-                                 center_name    => uc($pr->[5]),
-                                 sample_id      => $pr->[8],
-                                 sample         => $pr->[9],
-                                 population     => $pr->[10],
-                                 platform       => $pr->[12],
-                                 library        => $pr->[14],
-                                 insert_size    => $pr->[17],
-                                 withdrawn      => $pr->[20],
-                                 reads          => $pr->[23],
-                                 bases          => $pr->[24],
-                                 analysis_group => $pr->[25],
-                                 paired         => $paired,
-                                 $mate        ? (mate        => $mate)        : (),
-                                 $remote_path ? (remote_path => $remote_path) : () };
+            my $new_metadata = {
+                $pr->[1] ? (expected_md5 => $pr->[1]) : (),
+                lane           => $pr->[2],
+                study          => $pr->[3],
+                study_name     => $pr->[4],
+                center_name    => uc($pr->[5]),
+                sample_id      => $pr->[8],
+                sample         => $pr->[9],
+                population     => $pr->[10],
+                platform       => $pr->[12],
+                library        => $pr->[14],
+                insert_size    => $pr->[17],
+                withdrawn      => $pr->[20],
+                reads          => $pr->[23],
+                bases          => $pr->[24],
+                analysis_group => $pr->[25],
+                paired         => $paired,
+                $mate        ? (mate        => $mate)        : (),
+                $remote_path ? (remote_path => $remote_path) : ()
+            };
             
             my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
             my $current_metadata = $vrfile->metadata;

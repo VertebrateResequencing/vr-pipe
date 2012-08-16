@@ -50,43 +50,59 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepBehaviour extends VRPipe::Persistent {
-    has 'pipeline' => (is         => 'rw',
-                       isa        => Persistent,
-                       coerce     => 1,
-                       traits     => ['VRPipe::Persistent::Attributes'],
-                       is_key     => 1,
-                       belongs_to => 'VRPipe::Pipeline');
+    has 'pipeline' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::Pipeline'
+    );
     
-    has 'after_step' => (is     => 'rw',
-                         isa    => IntSQL [4],
-                         traits => ['VRPipe::Persistent::Attributes'],
-                         is_key => 1);
+    has 'after_step' => (
+        is     => 'rw',
+        isa    => IntSQL [4],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'behaviour' => (is      => 'ro',
-                        isa     => Varchar [64],
-                        traits  => ['VRPipe::Persistent::Attributes'],
-                        is_key  => 1,
-                        default => 'delete_outputs');
+    has 'behaviour' => (
+        is      => 'ro',
+        isa     => Varchar [64],
+        traits  => ['VRPipe::Persistent::Attributes'],
+        is_key  => 1,
+        default => 'delete_outputs'
+    );
     
-    has 'behaviour_array' => (is      => 'rw',
-                              isa     => 'ArrayRef',
-                              traits  => ['VRPipe::Persistent::Attributes'],
-                              default => sub { [] });
+    has 'behaviour_array' => (
+        is      => 'rw',
+        isa     => 'ArrayRef',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => sub { [] }
+    );
     
-    has 'regulated_by' => (is      => 'rw',
-                           isa     => Varchar [64],
-                           traits  => ['VRPipe::Persistent::Attributes'],
-                           default => '');
+    has 'regulated_by' => (
+        is      => 'rw',
+        isa     => Varchar [64],
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => ''
+    );
     
-    has 'default_regulation' => (is      => 'rw',
-                                 isa     => 'Bool',
-                                 traits  => ['VRPipe::Persistent::Attributes'],
-                                 default => 0);
+    has 'default_regulation' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
-    has 'dataelement' => (is  => 'rw',
-                          isa => 'VRPipe::DataElement');
-    has 'pipelinesetup' => (is  => 'rw',
-                            isa => 'VRPipe::PipelineSetup');
+    has 'dataelement' => (
+        is  => 'rw',
+        isa => 'VRPipe::DataElement'
+    );
+    has 'pipelinesetup' => (
+        is  => 'rw',
+        isa => 'VRPipe::PipelineSetup'
+    );
     
     __PACKAGE__->make_persistent();
     
