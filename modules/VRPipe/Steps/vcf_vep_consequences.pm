@@ -37,21 +37,30 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf2consequences_options' => VRPipe::StepOption->create(description => 'options to vcf2consequences_vep, excluding -v and -i'),
-                 'vcf2consequences_exe'     => VRPipe::StepOption->create(
-                                                                      description   => 'path to your vcf2consequences executable',
-                                                                      optional      => 1,
-                                                                      default_value => 'vcf2consequences_vep') };
+        return {
+            'vcf2consequences_options' => VRPipe::StepOption->create(description => 'options to vcf2consequences_vep, excluding -v and -i'),
+            'vcf2consequences_exe'     => VRPipe::StepOption->create(
+                description   => 'path to your vcf2consequences executable',
+                optional      => 1,
+                default_value => 'vcf2consequences_vep'
+            )
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               description => 'annotated vcf files',
-                                                               max_files   => -1),
-                 vep_txt => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                             description => 'vep analysis output file',
-                                                             metadata    => { source_vcf => 'the vcf file analysed by the VEP' },
-                                                             max_files   => -1) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'annotated vcf files',
+                max_files   => -1
+            ),
+            vep_txt => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'vep analysis output file',
+                metadata    => { source_vcf => 'the vcf file analysed by the VEP' },
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
@@ -95,9 +104,13 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { conseq_vcf => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                                description => 'annotated vcf file with VEP consequences',
-                                                                max_files   => -1) };
+        return {
+            conseq_vcf => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'annotated vcf file with VEP consequences',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

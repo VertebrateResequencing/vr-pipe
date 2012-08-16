@@ -5,8 +5,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-                    required_exe => [qw(vcf-filter vcf-isec vcf-annotate vcf-stats variant_effect_predictor.pl vcf2consequences_vep tabix)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe => [qw(vcf-filter vcf-isec vcf-annotate vcf-stats variant_effect_predictor.pl vcf2consequences_vep tabix)]
+    );
     use TestPipelines;
 }
 
@@ -30,22 +32,27 @@ my $annot_2_desc_file = file(qw(t data annots-rsIDs-AFs.2011-10-05.tab.gz.desc))
 my $vep_cache         = file(qw(t data vep_cache))->absolute->stringify;
 my $gerp_cache        = file(qw(t data gerp_cache))->absolute->stringify;
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->create(name       => 'my vcf_filter_merge_and_vep_annotate pipeline setup',
-                                                       datasource => VRPipe::DataSource->create(type    => 'delimited',
-                                                                                                method  => 'all_columns',
-                                                                                                options => { delimiter => "\t" },
-                                                                                                source  => file(qw(t data datasource.vcfs))),
-                                                       output_root => $output_dir,
-                                                       pipeline    => $pipeline,
-                                                       options     => {
-                                                                    'vcf-annotate_options'     => "-a $annot_file -d $annot_desc_file -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ",
-                                                                    'vcf-annotate_2_options'   => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
-                                                                    'vcf-filter_programs'      => "vcf-filter#vcf-filter",
-                                                                    'vcf-filter_files'         => "$filter_opt_file_1#$filter_opt_file_2",
-                                                                    'vep_options'              => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
-                                                                    'vcf2consequences_options' => "--gerp $gerp_cache",
-                                                                    'vcf-stats_options'        => "-f FILTER",
-                                                                    cleanup                    => 0 });
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 'my vcf_filter_merge_and_vep_annotate pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type    => 'delimited',
+        method  => 'all_columns',
+        options => { delimiter => "\t" },
+        source  => file(qw(t data datasource.vcfs))
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        'vcf-annotate_options'     => "-a $annot_file -d $annot_desc_file -c CHROM,FROM,REF,ALT,-,-,INFO/KGPilot123,INFO/dbSNP ",
+        'vcf-annotate_2_options'   => "-a $annot_2_file -d $annot_2_desc_file -c CHROM,POS,ID,REF,ALT,INFO/AF_AFR,INFO/AF_AMR,INFO/AF_ASN,INFO/AF_EUR,INFO/AF_MAX ",
+        'vcf-filter_programs'      => "vcf-filter#vcf-filter",
+        'vcf-filter_files'         => "$filter_opt_file_1#$filter_opt_file_2",
+        'vep_options'              => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+        'vcf2consequences_options' => "--gerp $gerp_cache",
+        'vcf-stats_options'        => "-f FILTER",
+        cleanup                    => 0
+    }
+);
 
 my (@output_files, @final_files);
 my $element_id = 0;

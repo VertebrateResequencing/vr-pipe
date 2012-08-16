@@ -336,61 +336,89 @@ XSL
     
     my $parser = XML::LibXML->new();
     my $xslt   = XML::LibXSLT->new();
-    our %display_format_to_stylesheet = (html  => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_html)),
-                                         plain => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_plain)));
+    our %display_format_to_stylesheet = (
+        html  => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_html)),
+        plain => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_plain))
+    );
     
-    has 'deployment' => (is       => 'ro',
-                         isa      => 'Str',
-                         required => 1);
+    has 'deployment' => (
+        is       => 'ro',
+        isa      => 'Str',
+        required => 1
+    );
     
-    has 'port' => (is     => 'ro',
-                   isa    => PositiveInt,
-                   writer => '_set_port');
+    has 'port' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        writer => '_set_port'
+    );
     
-    has 'dsn' => (is     => 'ro',
-                  isa    => 'Str',
-                  writer => '_set_dsn');
+    has 'dsn' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_dsn'
+    );
     
-    has 'scheduler' => (is     => 'ro',
-                        isa    => 'Str',
-                        writer => '_set_scheduler');
+    has 'scheduler' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_scheduler'
+    );
     
-    has 'schema' => (is      => 'ro',
-                     isa     => 'VRPipe::Persistent::Schema',
-                     lazy    => 1,
-                     builder => '_build_schema');
+    has 'schema' => (
+        is      => 'ro',
+        isa     => 'VRPipe::Persistent::Schema',
+        lazy    => 1,
+        builder => '_build_schema'
+    );
     
-    has 'umask' => (is     => 'ro',
-                    isa    => 'Int',
-                    writer => '_set_umask');
+    has 'umask' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_set_umask'
+    );
     
-    has 'uid' => (is     => 'ro',
-                  isa    => 'Int',
-                  writer => '_set_uid');
+    has 'uid' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_set_uid'
+    );
     
-    has 'logging_directory' => (is     => 'ro',
-                                isa    => 'Str',
-                                writer => '_set_logging_directory');
+    has 'logging_directory' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_logging_directory'
+    );
     
-    has 'psgi_server' => (is      => 'ro',
-                          isa     => 'Object',
-                          lazy    => 1,
-                          builder => '_build_psgi_server');
+    has 'psgi_server' => (
+        is      => 'ro',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_psgi_server'
+    );
     
-    has 'continuations' => (is      => 'ro',
-                            isa     => 'HashRef',
-                            default => sub { {} },
-                            traits  => ['Hash'],
-                            handles => { store_continuation       => 'set',
-                                         continuation_for_page    => 'get',
-                                         continuation_page_stored => 'exists' });
+    has 'continuations' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        default => sub { {} },
+        traits  => ['Hash'],
+        handles => {
+            store_continuation       => 'set',
+            continuation_for_page    => 'get',
+            continuation_page_stored => 'exists'
+        }
+    );
     
-    has '_warnings' => (is      => 'ro',
-                        isa     => 'ArrayRef',
-                        default => sub { [] },
-                        traits  => ['Array'],
-                        handles => { user_warning   => 'push',
-                                     '_get_warning' => 'shift' });
+    has '_warnings' => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        default => sub { [] },
+        traits  => ['Array'],
+        handles => {
+            user_warning   => 'push',
+            '_get_warning' => 'shift'
+        }
+    );
     
     method _build_schema {
         my $m = VRPipe::Manager->get;
@@ -587,7 +615,8 @@ XSL
                     $res->content_type('text/' . $format);
                     $res->body($content);
                     $responder->($res->finalize);
-                });
+                }
+            );
             $pm->wait_all_children;
         };
     }

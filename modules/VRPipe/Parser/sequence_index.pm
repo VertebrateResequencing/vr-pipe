@@ -57,40 +57,46 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
-    our %field_to_index = (FASTQ_FILE          => 0,
-                           MD5                 => 1,
-                           RUN_ID              => 2,
-                           STUDY_ID            => 3,
-                           STUDY_NAME          => 4,
-                           CENTER_NAME         => 5,
-                           SUBMISSION_ID       => 6,
-                           SUBMISSION_DATE     => 7,
-                           SAMPLE_ID           => 8,
-                           SAMPLE_NAME         => 9,
-                           POPULATION          => 10,
-                           EXPERIMENT_ID       => 11,
-                           INSTRUMENT_PLATFORM => 12,
-                           INSTRUMENT_MODEL    => 13,
-                           LIBRARY_NAME        => 14,
-                           RUN_NAME            => 15,
-                           RUN_BLOCK_NAME      => 16,
-                           INSERT_SIZE         => 17,
-                           LIBRARY_LAYOUT      => 18,
-                           PAIRED_FASTQ        => 19,
-                           WITHDRAWN           => 20,
-                           WITHDRAWN_DATE      => 21,
-                           COMMENT             => 22,
-                           READ_COUNT          => 23,
-                           BASE_COUNT          => 24,
-                           ANALYSIS_GROUP      => 25);
+    our %field_to_index = (
+        FASTQ_FILE          => 0,
+        MD5                 => 1,
+        RUN_ID              => 2,
+        STUDY_ID            => 3,
+        STUDY_NAME          => 4,
+        CENTER_NAME         => 5,
+        SUBMISSION_ID       => 6,
+        SUBMISSION_DATE     => 7,
+        SAMPLE_ID           => 8,
+        SAMPLE_NAME         => 9,
+        POPULATION          => 10,
+        EXPERIMENT_ID       => 11,
+        INSTRUMENT_PLATFORM => 12,
+        INSTRUMENT_MODEL    => 13,
+        LIBRARY_NAME        => 14,
+        RUN_NAME            => 15,
+        RUN_BLOCK_NAME      => 16,
+        INSERT_SIZE         => 17,
+        LIBRARY_LAYOUT      => 18,
+        PAIRED_FASTQ        => 19,
+        WITHDRAWN           => 20,
+        WITHDRAWN_DATE      => 21,
+        COMMENT             => 22,
+        READ_COUNT          => 23,
+        BASE_COUNT          => 24,
+        ANALYSIS_GROUP      => 25
+    );
     
-    has '_saw_last_line' => (is      => 'rw',
-                             isa     => 'Bool',
-                             default => 0);
+    has '_saw_last_line' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
     
-    has '_lane_tells' => (is      => 'rw',
-                          isa     => 'HashRef',
-                          default => sub { {} });
+    has '_lane_tells' => (
+        is      => 'rw',
+        isa     => 'HashRef',
+        default => sub { {} }
+    );
 
 =head2 parsed_record
  
@@ -281,7 +287,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
         
         # parse the whole file
         $self->_seek_first_record();
-      RESULT: while ($self->next_record) {
+        RESULT: while ($self->next_record) {
             if ($do_ignores) {
                 keys %ignores; # reset the iterator, since we may have nexted out
                 while (my ($index, $regex) = each %ignores) {

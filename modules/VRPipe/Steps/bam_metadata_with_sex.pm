@@ -5,7 +5,8 @@ VRPipe::Steps::bam_metadata_with_sex - a step
 
 =head1 DESCRIPTION
 
-Extends bam_metadata to add Sample Gender meta-data to bam files. Assumes bams have sample meta-data and are therefore single-sample.
+Extends bam_metadata to add Sample Gender meta-data to bam files. Assumes bams
+have sample meta-data and are therefore single-sample.
 
 =head1 AUTHOR
 
@@ -36,9 +37,11 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
     around options_definition {
         my $options = $self->$orig;
-        return { %{ $self->$orig },
-                 sample_sex_file => VRPipe::StepOption->create(description => 'File listing the sex (eg M or F) of samples, assumed_sex is used if no file provided',                      optional => 1),
-                 assumed_sex     => VRPipe::StepOption->create(description => 'If sex is not present for a sample in the sample sex file (or no file provided), then this sex is assumed', optional => 1), };
+        return {
+            %{ $self->$orig },
+            sample_sex_file => VRPipe::StepOption->create(description => 'File listing the sex (eg M or F) of samples, assumed_sex is used if no file provided',                      optional => 1),
+            assumed_sex     => VRPipe::StepOption->create(description => 'If sex is not present for a sample in the sample sex file (or no file provided), then this sex is assumed', optional => 1),
+        };
     }
     
     method post_process_sub {

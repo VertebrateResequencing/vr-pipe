@@ -60,13 +60,17 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::dict with VRPipe::ParserRole {
-    has '_saw_last_line' => (is      => 'rw',
-                             isa     => 'Bool',
-                             default => 0);
+    has '_saw_last_line' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
     
-    has 'parsed_record' => (is      => 'ro',
-                            isa     => 'HashRef',
-                            default => sub { {} });
+    has 'parsed_record' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        default => sub { {} }
+    );
 
 =head2 parsed_record
  

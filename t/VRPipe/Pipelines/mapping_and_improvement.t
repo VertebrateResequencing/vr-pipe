@@ -6,8 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 12;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES GATK PICARD)],
-                    required_exe => [qw(samtools bwa)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES GATK PICARD)],
+        required_exe => [qw(samtools bwa)]
+    );
     use TestPipelines;
     
     use_ok('VRPipe::Persistent::Schema');
@@ -64,46 +66,51 @@ copy($known_sites_source . '.tbi', $known_sites . '.tbi');
 my $seq_index_file = file($res_dir, 'sequence.index');
 copy(file(qw(t data datasource.sequence_index)), $seq_index_file);
 
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(name       => 's_suis mapping',
-                                                          datasource => VRPipe::DataSource->create(type    => 'sequence_index',
-                                                                                                   method  => 'lane_fastqs',
-                                                                                                   source  => $seq_index_file,
-                                                                                                   options => { local_root_dir => dir(".")->absolute->stringify }),
-                                                          output_root => $mapping_output_dir,
-                                                          pipeline    => $mapping_pipeline,
-                                                          options     => {
-                                                                       fastq_chunk_size              => 8000,
-                                                                       reference_fasta               => $ref_fa,
-                                                                       reference_assembly_name       => 'SSuis1',
-                                                                       reference_public_url          => 'ftp://s.suis.com/ref.fa',
-                                                                       reference_species             => 'S.Suis',
-                                                                       bwa_index_options             => '-a is',
-                                                                       known_indels_for_realignment  => "-known $known_indels",
-                                                                       known_sites_for_recalibration => "-knownSites $known_sites",
-                                                                       gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
-                                                                       gatk_path                     => $ENV{GATK},
-                                                                       header_comment_file           => file(qw(t data header_comment))->absolute->stringify,
-                                                                       release_date                  => 20111004,
-                                                                       sequence_index                => file(qw(t data datasource.sequence_index))->absolute->stringify,
-                                                                       cleanup                       => 0,
-                                                                       sequence_dictionary_memory    => 150,
-                                                                       sequence_dictionary_time      => 1,
-                                                                       bwa_index_memory              => 150,
-                                                                       bwa_index_time                => 1,
-                                                                       fastq_import_memory           => 150,
-                                                                       fastq_import_time             => 1,
-                                                                       fastq_metadata_memory         => 150,
-                                                                       fastq_metadata_time           => 1,
-                                                                       fastq_split_memory            => 150,
-                                                                       fastq_split_time              => 1,
-                                                                       bwa_aln_fastq_memory          => 150,
-                                                                       bwa_aln_fastq_time            => 1,
-                                                                       bwa_sam_memory                => 150,
-                                                                       bwa_sam_time                  => 1,
-                                                                       sam_to_fixed_bam_memory       => 150,
-                                                                       sam_to_fixed_bam_time         => 1,
-                                                                       bam_merge_lane_splits_memory  => 150,
-                                                                       bam_merge_lane_splits_time    => 1 });
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 's_suis mapping',
+    datasource => VRPipe::DataSource->create(
+        type    => 'sequence_index',
+        method  => 'lane_fastqs',
+        source  => $seq_index_file,
+        options => { local_root_dir => dir(".")->absolute->stringify }
+    ),
+    output_root => $mapping_output_dir,
+    pipeline    => $mapping_pipeline,
+    options     => {
+        fastq_chunk_size              => 8000,
+        reference_fasta               => $ref_fa,
+        reference_assembly_name       => 'SSuis1',
+        reference_public_url          => 'ftp://s.suis.com/ref.fa',
+        reference_species             => 'S.Suis',
+        bwa_index_options             => '-a is',
+        known_indels_for_realignment  => "-known $known_indels",
+        known_sites_for_recalibration => "-knownSites $known_sites",
+        gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
+        gatk_path                     => $ENV{GATK},
+        header_comment_file           => file(qw(t data header_comment))->absolute->stringify,
+        release_date                  => 20111004,
+        sequence_index                => file(qw(t data datasource.sequence_index))->absolute->stringify,
+        cleanup                       => 0,
+        sequence_dictionary_memory    => 150,
+        sequence_dictionary_time      => 1,
+        bwa_index_memory              => 150,
+        bwa_index_time                => 1,
+        fastq_import_memory           => 150,
+        fastq_import_time             => 1,
+        fastq_metadata_memory         => 150,
+        fastq_metadata_time           => 1,
+        fastq_split_memory            => 150,
+        fastq_split_time              => 1,
+        bwa_aln_fastq_memory          => 150,
+        bwa_aln_fastq_time            => 1,
+        bwa_sam_memory                => 150,
+        bwa_sam_time                  => 1,
+        sam_to_fixed_bam_memory       => 150,
+        sam_to_fixed_bam_time         => 1,
+        bam_merge_lane_splits_memory  => 150,
+        bam_merge_lane_splits_time    => 1
+    }
+);
 
 ok handle_pipeline(), 'pipeline ran ok';
 

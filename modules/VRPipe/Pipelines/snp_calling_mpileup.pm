@@ -54,12 +54,13 @@ class VRPipe::Pipelines::snp_calling_mpileup with VRPipe::PipelineRole {
     
     method _step_list {
         return ([
-             VRPipe::Step->get(name => 'bam_index'),   #1
-             VRPipe::Step->get(name => 'mpileup_vcf'), #2
-             VRPipe::Step->get(name => 'vcf_index')    #3
+                VRPipe::Step->get(name => 'bam_index'),   #1
+                VRPipe::Step->get(name => 'mpileup_vcf'), #2
+                VRPipe::Step->get(name => 'vcf_index')    #3
             ],
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'vcf_files', to_key => 'vcf_files')],
-            []);
+            []
+        );
     }
 }
 

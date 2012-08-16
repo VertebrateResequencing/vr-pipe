@@ -39,40 +39,54 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
-    has 'chunks' => (is      => 'ro',
-                     isa     => 'ArrayRef',
-                     lazy    => 1,
-                     builder => '_build_chunks');
+    has 'chunks' => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        builder => '_build_chunks'
+    );
     
-    has 'reference_index' => (is      => 'rw',
-                              isa     => 'Str',
-                              lazy    => 1,
-                              builder => 'options');
+    has 'reference_index' => (
+        is      => 'rw',
+        isa     => 'Str',
+        lazy    => 1,
+        builder => 'options'
+    );
     
-    has 'chunk_override_file' => (is      => 'rw',
-                                  isa     => 'Str',
-                                  lazy    => 1,
-                                  builder => 'options');
+    has 'chunk_override_file' => (
+        is      => 'rw',
+        isa     => 'Str',
+        lazy    => 1,
+        builder => 'options'
+    );
     
-    has 'chunk_size' => (is      => 'rw',
-                         isa     => 'Int',
-                         lazy    => 1,
-                         default => 1000000);
+    has 'chunk_size' => (
+        is      => 'rw',
+        isa     => 'Int',
+        lazy    => 1,
+        default => 1000000
+    );
     
-    has 'chunk_overlap' => (is      => 'rw',
-                            isa     => 'Int',
-                            lazy    => 1,
-                            default => 0);
+    has 'chunk_overlap' => (
+        is      => 'rw',
+        isa     => 'Int',
+        lazy    => 1,
+        default => 0
+    );
     
-    has 'chrom_list' => (is      => 'rw',
-                         isa     => 'ArrayRef',
-                         lazy    => 1,
-                         default => sub { [] });
+    has 'chrom_list' => (
+        is      => 'rw',
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        default => sub { [] }
+    );
     
-    has 'ploidy' => (is      => 'rw',
-                     isa     => 'HashRef',
-                     lazy    => 1,
-                     default => sub { {} });
+    has 'ploidy' => (
+        is      => 'rw',
+        isa     => 'HashRef',
+        lazy    => 1,
+        default => sub { {} }
+    );
     
     around method_description (Str $method) {
         my $description = $self->$orig($method);

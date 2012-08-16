@@ -36,10 +36,12 @@ use VRPipe::Base;
 
 class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
     around options_definition {
-        return { %{ $self->$orig },
-                 'convex_classpath' => VRPipe::StepOption->create(description => 'path to convex package jar'),
-                 'regions_file'     => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
-                 'chr_prefix'       => VRPipe::StepOption->create(description => 'chromosome name prefix within the bam', optional => 1), };
+        return {
+            %{ $self->$orig },
+            'convex_classpath' => VRPipe::StepOption->create(description => 'path to convex package jar'),
+            'regions_file'     => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
+            'chr_prefix'       => VRPipe::StepOption->create(description => 'chromosome name prefix within the bam', optional => 1),
+        };
     }
     
     method inputs_definition {
@@ -65,10 +67,12 @@ class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
                 my $basename = $bam_file->basename;
                 $basename =~ s/\.bam$/.rd.txt/;
                 
-                my $rd_file = $self->output_file(output_key => 'rd_files',
-                                                 basename   => $basename,
-                                                 type       => 'txt',
-                                                 metadata   => { source_bam => $bam_file->path->stringify, batch => 1 }); # batch metadata is used to merge up for L2R pipeline
+                my $rd_file = $self->output_file(
+                    output_key => 'rd_files',
+                    basename   => $basename,
+                    type       => 'txt',
+                    metadata   => { source_bam => $bam_file->path->stringify, batch => 1 }
+                ); # batch metadata is used to merge up for L2R pipeline
                 my $rd_path = $rd_file->path;
                 
                 my $cmd = $self->java_exe . " $jvm_args -classpath $convex_classpath ReadDepth -bam_file $bam_path -regions_file $regions_file";

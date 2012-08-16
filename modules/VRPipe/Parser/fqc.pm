@@ -56,28 +56,38 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::fqc with VRPipe::ParserRole {
-    has 'num_sequences' => (is     => 'ro',
-                            isa    => PositiveInt,
-                            coerce => 1,
-                            writer => '_num_sequences');
+    has 'num_sequences' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        coerce => 1,
+        writer => '_num_sequences'
+    );
     
-    has 'total_length' => (is     => 'ro',
-                           isa    => PositiveInt,
-                           coerce => 1,
-                           writer => '_total_length');
+    has 'total_length' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        coerce => 1,
+        writer => '_total_length'
+    );
     
-    has 'avg_length' => (is     => 'ro',
-                         isa    => 'Num',
-                         writer => '_avg_length');
+    has 'avg_length' => (
+        is     => 'ro',
+        isa    => 'Num',
+        writer => '_avg_length'
+    );
     
-    has 'max_length' => (is     => 'ro',
-                         isa    => PositiveInt,
-                         coerce => 1,
-                         writer => '_max_length');
+    has 'max_length' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        coerce => 1,
+        writer => '_max_length'
+    );
     
-    has 'standard_deviations' => (is     => 'ro',
-                                  isa    => 'ArrayRef',
-                                  writer => '_standard_deviations');
+    has 'standard_deviations' => (
+        is     => 'ro',
+        isa    => 'ArrayRef',
+        writer => '_standard_deviations'
+    );
 
 =head2 parsed_record
  

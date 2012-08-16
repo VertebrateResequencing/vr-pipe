@@ -34,9 +34,11 @@ use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
 
 # handle options
-my $cmdline = VRPipe::Interface::CmdLine->new(description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
-                                              extra_args  => 'start|stop|restart|status',
-                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]);
+my $cmdline = VRPipe::Interface::CmdLine->new(
+    description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
+    extra_args  => 'start|stop|restart|status',
+    opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]
+);
 my $backend;
 my $deployment = $cmdline->opts('deployment');
 my $foreground = $cmdline->opts('foreground');
@@ -195,7 +197,8 @@ sub start_server {
         '/stop' => sub {
             shutdown_server("Received the stop command");
             $backend->psgi_text_response(200, 'plain', 'Stopping server', shift);
-        });
+        }
+    );
     
     # setup the signals we'll react to
     $SIG{HUP}  = 'IGNORE';

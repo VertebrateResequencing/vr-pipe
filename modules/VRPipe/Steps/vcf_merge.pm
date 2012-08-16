@@ -35,15 +35,23 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf-isec_exe' => VRPipe::StepOption->create(description   => 'path to your vcf-isec executable',
-                                                              optional      => 1,
-                                                              default_value => 'vcf-isec') };
+        return {
+            'vcf-isec_exe' => VRPipe::StepOption->create(
+                description   => 'path to your vcf-isec executable',
+                optional      => 1,
+                default_value => 'vcf-isec'
+            )
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               description => 'compressed vcf files',
-                                                               max_files   => -1) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'compressed vcf files',
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
@@ -77,9 +85,13 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { merged_vcf => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                                description => 'a merged vcf file',
-                                                                max_files   => 1) };
+        return {
+            merged_vcf => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'a merged vcf file',
+                max_files   => 1
+            )
+        };
     }
     
     method post_process_sub {

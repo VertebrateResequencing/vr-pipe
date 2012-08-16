@@ -5,7 +5,9 @@ VRPipe::Pipelines::§ - a pipeline
 
 =head1 DESCRIPTION
 
-Runs samtools mpileup for a bam datasource, generating both bcf and (using bcftools view) vcf files. Run this if you need to keep the intermediate bcfs, otherwise use the snp_calling_mpileup_vcf pipeline.
+Runs samtools mpileup for a bam datasource, generating both bcf and (using
+bcftools view) vcf files. Run this if you need to keep the intermediate bcfs,
+otherwise use the snp_calling_mpileup_vcf pipeline.
 
 =head1 AUTHOR
 
@@ -51,14 +53,19 @@ class VRPipe::Pipelines::snp_calling_mpileup_from_bcf with VRPipe::PipelineRole 
     }
     
     method _step_list {
-        return ([VRPipe::Step->get(name => 'bcf_to_vcf'),
-                 VRPipe::Step->get(name => 'vcf_index')], 
-        
-        [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bcf_files'), 
-         VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'sites_file'), 
-         VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vcf_files', to_key => 'vcf_files')], 
-        
-        [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_bcfs', default_regulation => 0)]);
+        return ([
+                VRPipe::Step->get(name => 'bcf_to_vcf'),
+                VRPipe::Step->get(name => 'vcf_index')
+            ],
+            
+            [
+                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key   => 'bcf_files'),
+                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key   => 'sites_file'),
+                VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vcf_files', to_key => 'vcf_files')
+            ],
+            
+            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_bcfs', default_regulation => 0)]
+        );
     }
 }
 

@@ -28,33 +28,37 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::FrontEnd;
 
-my $frontend = VRPipe::FrontEnd->new(description => "See details related to incomplete submissions.",
-                                     opt_spec => [ [ 'submission=i', 'Show details for this single submission only', { persistent_object => 'Submission' } ],
-                                                   [ 'setup=s', 'Only show details for submissions belonging to the given PipelineSetup (by id or name)', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'step=s', 'Only show details for submissions created for the step with this name' ],
-                                                   [ 'failed|f', q[Only show submissions that have stalled due to repeated failures that couldn't be overcome automatically] ],
-                                                   [ 'retries|r=i', q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default => 3 } ],
-                                                   [ 'done', q[Only show submissions that have succeeded], { default => 0 } ],
-                                                   [ 'all|a', q[Normally only details of incomplete submissions are given; this shows everything (may be very slow)] ],
-                                                   [ 'limit|l=i', q[Only show this number of submissions] ],
-                                                   [],
-                                                   [ q[After the above options have been used to filter the list of all submissions, and their details have been printed to screen, the following options will let you take action on those submissions (after a confirmation prompt):] ],
-                                                   [ 'start_over', q[Start the submissions over again, resetting their associated jobs and setting the number of retries back to 0. NB: the exact same cmd lines will be retried, since the jobs are not out-right deleted] ],
-                                                   [ 'full_reset', q[All submissions associated with the step and data element of the submissions that you chose will be deleted outright along with their jobs and all output files. VRPipe will then recreate new submissions and jobs for those steps and data elements. This is what you'd need to use if you changed options for a step that would result in new cmd lines] ],
-                                                   [ 'no_report', q[Don't print out full details of each submission, just start_over or full_reset them as fast as possible] ],
-                                                   [ 'force_with_all', q[Force --start_over or --full_reset to work with --all], { hidden => 1 } ] ]);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "See details related to incomplete submissions.",
+    opt_spec    => [
+        ['submission=i', 'Show details for this single submission only',                                                                  { persistent_object => 'Submission' }],
+        ['setup=s',      'Only show details for submissions belonging to the given PipelineSetup (by id or name)',                        { persistent_object => 'PipelineSetup' }],
+        ['step=s',       'Only show details for submissions created for the step with this name'],
+        ['failed|f',     q[Only show submissions that have stalled due to repeated failures that couldn't be overcome automatically]],
+        ['retries|r=i',  q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default           => 3 }],
+        ['done',         q[Only show submissions that have succeeded],                                                                    { default           => 0 }],
+        ['all|a',        q[Normally only details of incomplete submissions are given; this shows everything (may be very slow)]],
+        ['limit|l=i',    q[Only show this number of submissions]],
+        [],
+        [q[After the above options have been used to filter the list of all submissions, and their details have been printed to screen, the following options will let you take action on those submissions (after a confirmation prompt):]],
+        ['start_over', q[Start the submissions over again, resetting their associated jobs and setting the number of retries back to 0. NB: the exact same cmd lines will be retried, since the jobs are not out-right deleted]],
+        ['full_reset', q[All submissions associated with the step and data element of the submissions that you chose will be deleted outright along with their jobs and all output files. VRPipe will then recreate new submissions and jobs for those steps and data elements. This is what you'd need to use if you changed options for a step that would result in new cmd lines]],
+        ['no_report',  q[Don't print out full details of each submission, just start_over or full_reset them as fast as possible]],
+        ['force_with_all', q[Force --start_over or --full_reset to work with --all], { hidden => 1 }]
+    ]
+);
 
-my $desired_sub = $frontend->option_was_set('submission');
-my $retries = $frontend->opts('retries');
-my $setup = $frontend->get_pipelinesetups();
-my $desired_step = $frontend->opts('step');
-my $failed = $frontend->opts('failed');
-my $all = $frontend->opts('all');
-my $done = $frontend->opts('done');
-my $limit = $frontend->opts('limit');
-my $start_over = $frontend->opts('start_over');
-my $full_reset = $frontend->opts('full_reset');
-my $no_report = $frontend->opts('no_report');
+my $desired_sub    = $frontend->option_was_set('submission');
+my $retries        = $frontend->opts('retries');
+my $setup          = $frontend->get_pipelinesetups();
+my $desired_step   = $frontend->opts('step');
+my $failed         = $frontend->opts('failed');
+my $all            = $frontend->opts('all');
+my $done           = $frontend->opts('done');
+my $limit          = $frontend->opts('limit');
+my $start_over     = $frontend->opts('start_over');
+my $full_reset     = $frontend->opts('full_reset');
+my $no_report      = $frontend->opts('no_report');
 my $force_with_all = $frontend->opts('force_with_all');
 
 if ($desired_sub && ($setup || $desired_step)) {
@@ -70,7 +74,7 @@ if ($start_over && $full_reset) {
     $frontend->error("--start_over and --full_reset don't make sense togither; ignoring --full_reset");
     undef $full_reset;
 }
-if ($all && ! $force_with_all && ($start_over || $full_reset)) {
+if ($all && !$force_with_all && ($start_over || $full_reset)) {
     $frontend->die_with_error("Sorry, --all combined with --start_over or --full_reset seems like a really bad idea. Use --force_with_all if you're really really sure");
 }
 
@@ -79,13 +83,18 @@ if ($desired_sub) {
     @subs = ($frontend->opts('submission'));
 }
 else {
-    @subs = VRPipe::Submission->search({ $all ? () : ("_done" => $done), $failed ? ("_failed" => 1, $retries ? (retries => $retries) : ()) : (),
-                                         $setup ? ('stepstate.pipelinesetup' => $setup->id) : (),
-                                         $desired_step ? ('step.name' => $desired_step) : () },
-                                       { order_by => { -asc => 'me.id' },
-                                         $setup ? (join => ['stepstate', $desired_step ? ({ stepstate => { stepmember => 'step' } }) : ()]) : (),
-                                         $limit ? (rows => $limit) : (),
-                                         prefetch => [qw(stepstate job requirements scheduler)] });
+    @subs = VRPipe::Submission->search({
+            $all ? () : ("_done" => $done), $failed ? ("_failed" => 1, $retries ? (retries => $retries) : ()) : (),
+            $setup ? ('stepstate.pipelinesetup' => $setup->id) : (),
+            $desired_step ? ('step.name' => $desired_step) : ()
+        },
+        {
+            order_by => { -asc => 'me.id' },
+            $setup ? (join => ['stepstate', $desired_step ? ({ stepstate => { stepmember => 'step' } }) : ()]) : (),
+            $limit ? (rows => $limit) : (),
+            prefetch => [qw(stepstate job requirements scheduler)]
+        }
+    );
 }
 
 my $count = 0;
@@ -95,13 +104,13 @@ foreach my $sub (@subs) {
     my $state = $sub->stepstate;
     my $setup = $state->pipelinesetup->name;
     
-    my $stepm = $state->stepmember;
-    my $step_num = $stepm->step_number;
+    my $stepm     = $state->stepmember;
+    my $step_num  = $stepm->step_number;
     my $step_name = $stepm->step->name;
     
-    my $job = $sub->job;
-    my $req = $sub->requirements;
-    my $de = $state->dataelement->id;
+    my $job       = $sub->job;
+    my $req       = $sub->requirements;
+    my $de        = $state->dataelement->id;
     my $scheduler = $sub->scheduler->type;
     
     $count++;
@@ -113,13 +122,13 @@ foreach my $sub (@subs) {
     my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
     $frontend->output("---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" is $sub_state, having been retried ", $sub->retries, " times");
     my $job_state = $job->finished ? 'finished' : ($job->running ? 'running' : 'pending');
-    my $job_extra = $job_state eq 'finished' ? ', having exited with code '.$job->exit_code : '';
+    my $job_extra = $job_state eq 'finished' ? ', having exited with code ' . $job->exit_code : '';
     $frontend->output("The job is $job_state$job_extra; its command line is:\n", $job->cmd);
-    $frontend->output("The working directory for the job is ", $job->dir);
-    $frontend->output("We reserved ", $req->memory, "MB memory and ", $req->time, "hrs of time");
+    $frontend->output("The working directory for the job is ",                   $job->dir);
+    $frontend->output("We reserved ",                                            $req->memory, "MB memory and ", $req->time, "hrs of time");
     
     if ($sub_state ne 'scheduled' || $sub->retries > 0) {
-        my $pars = $sub->scheduler_stdout;
+        my $pars            = $sub->scheduler_stdout;
         my $scheduler_ofile = $sub->scheduler_stdout_file;
         $scheduler_ofile &&= $scheduler_ofile->path;
         $scheduler_ofile ||= 'unknown path';
@@ -127,13 +136,13 @@ foreach my $sub (@subs) {
             my $so = $sub->scheduler_stdout_file->path;
             my @details;
             while ($pars->next_record) {
-                my $mem = $pars->memory;
-                my $sec = $pars->time;
-                my $days = int($sec/(24*60*60));
-                my $hrs = ($sec/(60*60))%24;
-                my $mins = ($sec/60)%60;
-                my $remaining_secs = $sec%60;
-                my $extra = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
+                my $mem            = $pars->memory;
+                my $sec            = $pars->time;
+                my $days           = int($sec / (24 * 60 * 60));
+                my $hrs            = ($sec / (60 * 60)) % 24;
+                my $mins           = ($sec / 60) % 60;
+                my $remaining_secs = $sec % 60;
+                my $extra          = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
                 push(@details, [$mem, $sec, $extra]);
             }
             my $d = shift @details;
@@ -174,7 +183,7 @@ unless ($desired_sub) {
         $frontend->output("\n");
     }
     $frontend->output("$count submissions passed your filter");
-    if ($count && ! $desired_step) {
+    if ($count && !$desired_step) {
         $frontend->display_hash("Here's the break-down by step name", \%summary);
     }
 }
@@ -192,7 +201,7 @@ if ($count > 0 && ($start_over || $full_reset)) {
             my %sss;
             foreach my $sub (@final_subs) {
                 my $ss = $sub->stepstate;
-                $sss{$ss->id} = $ss;
+                $sss{ $ss->id } = $ss;
             }
             undef @final_subs;
             undef @subs;
@@ -210,26 +219,25 @@ if ($count > 0 && ($start_over || $full_reset)) {
 
 exit;
 
-
 sub show_output {
     my ($message, $pars) = @_;
     my $file = $pars->file;
     
     my @outputs;
     my $lines = $pars->parsed_record;
-    my @orig = ();
+    my @orig  = ();
     my $got_output;
     while ($pars->next_record) {
-        push(@orig, [@{$pars->parsed_record}]);
+        push(@orig, [@{ $pars->parsed_record }]);
         my $num_lines = @$lines;
         my @selected_lines;
         if ($num_lines > 45) {
-            for (1..10) {
+            for (1 .. 10) {
                 push(@selected_lines, $lines->[$_ - 1]);
             }
             my $other_lines = $num_lines - 40;
             push(@selected_lines, "\n[... $other_lines more lines in $file ...]\n\n");
-            for (($num_lines-30)..$num_lines) {
+            for (($num_lines - 30) .. $num_lines) {
                 push(@selected_lines, $lines->[$_ - 1]);
             }
         }

@@ -49,8 +49,10 @@ class VRPipe::Steps::gatk_variant_annotator extends VRPipe::Steps::gatk {
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'one or more vcf files to be annotated'),
-                 bam_files => VRPipe::StepIODefinition->create(type => 'bam', min_files => 0,  max_files   => -1, description => 'one or more bam files') };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'one or more vcf files to be annotated'),
+            bam_files => VRPipe::StepIODefinition->create(type => 'bam', min_files => 0,  max_files   => -1, description => 'one or more bam files')
+        };
     }
     
     method body_sub {

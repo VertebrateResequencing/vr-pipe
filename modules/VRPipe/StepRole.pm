@@ -59,89 +59,117 @@ role VRPipe::StepRole {
     requires 'max_simultaneous';
     
     # these may be needed by body_sub and post_process_sub
-    has 'step_state' => (is      => 'rw',
-                         isa     => 'VRPipe::StepState',
-                         trigger => \&_rebuild);
+    has 'step_state' => (
+        is      => 'rw',
+        isa     => 'VRPipe::StepState',
+        trigger => \&_rebuild
+    );
     
-    has 'data_element' => (is      => 'ro',
-                           isa     => 'VRPipe::DataElement',
-                           builder => '_build_data_element',
-                           lazy    => 1,
-                           clearer => '_clear_data_element');
+    has 'data_element' => (
+        is      => 'ro',
+        isa     => 'VRPipe::DataElement',
+        builder => '_build_data_element',
+        lazy    => 1,
+        clearer => '_clear_data_element'
+    );
     
-    has 'output_root' => (is      => 'ro',
-                          isa     => Dir,
-                          coerce  => 1,
-                          builder => '_build_output_root',
-                          lazy    => 1,
-                          clearer => '_clear_output_root');
+    has 'output_root' => (
+        is      => 'ro',
+        isa     => Dir,
+        coerce  => 1,
+        builder => '_build_output_root',
+        lazy    => 1,
+        clearer => '_clear_output_root'
+    );
     
-    has 'options' => (is      => 'ro',
-                      isa     => 'HashRef',
-                      builder => '_resolve_options',
-                      lazy    => 1,
-                      clearer => '_clear_options');
+    has 'options' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        builder => '_resolve_options',
+        lazy    => 1,
+        clearer => '_clear_options'
+    );
     
-    has 'inputs' => (is      => 'ro',
-                     isa     => PersistentFileHashRef,
-                     builder => '_resolve_inputs',
-                     lazy    => 1,
-                     clearer => '_clear_inputs');
+    has 'inputs' => (
+        is      => 'ro',
+        isa     => PersistentFileHashRef,
+        builder => '_resolve_inputs',
+        lazy    => 1,
+        clearer => '_clear_inputs'
+    );
     
-    has 'outputs' => (is      => 'ro',
-                      isa     => PersistentFileHashRef,
-                      builder => '_build_outputs',
-                      lazy    => 1,
-                      clearer => '_clear_outputs');
-    has 'temps' => (is      => 'ro',
-                    isa     => ArrayRefOfPersistent,
-                    builder => '_build_temps',
-                    lazy    => 1,
-                    clearer => '_clear_temps');
+    has 'outputs' => (
+        is      => 'ro',
+        isa     => PersistentFileHashRef,
+        builder => '_build_outputs',
+        lazy    => 1,
+        clearer => '_clear_outputs'
+    );
+    has 'temps' => (
+        is      => 'ro',
+        isa     => ArrayRefOfPersistent,
+        builder => '_build_temps',
+        lazy    => 1,
+        clearer => '_clear_temps'
+    );
     
-    has 'previous_step_outputs' => (is      => 'rw',
-                                    isa     => PreviousStepOutput,
-                                    trigger => sub { shift->_clear_inputs });
+    has 'previous_step_outputs' => (
+        is      => 'rw',
+        isa     => PreviousStepOutput,
+        trigger => sub { shift->_clear_inputs }
+    );
     
-    has 'allow_smaller_recommended_requirements_override' => (is      => 'rw',
-                                                              isa     => 'Bool',
-                                                              lazy    => 1,
-                                                              builder => '_build_smaller_recommended_requirements_override');
+    has 'allow_smaller_recommended_requirements_override' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        lazy    => 1,
+        builder => '_build_smaller_recommended_requirements_override'
+    );
     
     # when parse is called, we'll store our dispatched refs here
-    has 'dispatched' => (is      => 'ro',
-                         traits  => ['Array'],
-                         isa     => 'ArrayRef',
-                         lazy    => 1,
-                         default => sub { [] },
-                         handles => { _dispatch      => 'push',
-                                      num_dispatched => 'count' },
-                         writer  => '_set_dispatched',
-                         clearer => '_clear_dispatched');
+    has 'dispatched' => (
+        is      => 'ro',
+        traits  => ['Array'],
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        default => sub { [] },
+        handles => {
+            _dispatch      => 'push',
+            num_dispatched => 'count'
+        },
+        writer  => '_set_dispatched',
+        clearer => '_clear_dispatched'
+    );
     
     # and we'll also store all the output files the body_sub makes
-    has '_output_files' => (is      => 'ro',
-                            traits  => ['Hash'],
-                            isa     => 'HashRef',
-                            lazy    => 1,
-                            default => sub { {} },
-                            handles => { _remember_output_files => 'set' },
-                            writer  => '_set_output_files',
-                            clearer => '_clear_output_files');
-    has '_temp_files' => (is      => 'ro',
-                          traits  => ['Array'],
-                          isa     => 'ArrayRef',
-                          lazy    => 1,
-                          default => sub { [] },
-                          handles => { _remember_temp_file => 'push' },
-                          writer  => '_set_temp_files',
-                          clearer => '_clear_temp_files');
-    has '_last_output_dir' => (is      => 'rw',
-                               isa     => Dir,
-                               lazy    => 1,
-                               coerce  => 1,
-                               builder => '_build_last_output_dir',
-                               clearer => '_clear_last_output_dir');
+    has '_output_files' => (
+        is      => 'ro',
+        traits  => ['Hash'],
+        isa     => 'HashRef',
+        lazy    => 1,
+        default => sub { {} },
+        handles => { _remember_output_files => 'set' },
+        writer  => '_set_output_files',
+        clearer => '_clear_output_files'
+    );
+    has '_temp_files' => (
+        is      => 'ro',
+        traits  => ['Array'],
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        default => sub { [] },
+        handles => { _remember_temp_file => 'push' },
+        writer  => '_set_temp_files',
+        clearer => '_clear_temp_files'
+    );
+    has '_last_output_dir' => (
+        is      => 'rw',
+        isa     => Dir,
+        lazy    => 1,
+        coerce  => 1,
+        builder => '_build_last_output_dir',
+        clearer => '_clear_last_output_dir'
+    );
     
     method _rebuild {
         $self->_clear_data_element;
@@ -619,13 +647,14 @@ role VRPipe::StepRole {
         }
         #*** and the other resources?...
         
-        return
-          VRPipe::Requirements->create(memory => $memory,
-                                       time   => $time,
-                                       $cpus        ? (cpus        => $cpus)        : (),
-                                       $tmp_space   ? (tmp_space   => $tmp_space)   : (),
-                                       $local_space ? (local_space => $local_space) : (),
-                                       $custom      ? (custom      => $custom)      : ());
+        return VRPipe::Requirements->create(
+            memory => $memory,
+            time   => $time,
+            $cpus        ? (cpus        => $cpus)        : (),
+            $tmp_space   ? (tmp_space   => $tmp_space)   : (),
+            $local_space ? (local_space => $local_space) : (),
+            $custom      ? (custom      => $custom)      : ()
+        );
     }
     
     method dispatch (ArrayRef $aref) {

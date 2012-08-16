@@ -5,7 +5,8 @@ VRPipe::Steps::retroseq_discover - a step
 
 =head1 DESCRIPTION
 
-Runs the Retroseek -discover option for input BAMs, generating Retroseq Transposable Element candidates supporting read pairs in BED format
+Runs the Retroseek -discover option for input BAMs, generating Retroseq
+Transposable Element candidates supporting read pairs in BED format
 
 =head1 AUTHOR
 
@@ -35,15 +36,21 @@ use VRPipe::Base;
 
 class VRPipe::Steps::retroseq_discover with VRPipe::StepRole {
     method options_definition {
-        return { retroseq_exe => VRPipe::StepOption->create(description => 'full path to retroseq.pl',                                                       optional => 1, default_value => 'retroseq.pl'),
-                 refTEs_param => VRPipe::StepOption->create(description => '-refTEs option value, tab file with TE type and BED file of reference elements', optional => 1),
-                 exde_param   => VRPipe::StepOption->create(description => '-exd option value, fofn of BED files of discordant mate exclusion regions',      optional => 1), };
+        return {
+            retroseq_exe => VRPipe::StepOption->create(description => 'full path to retroseq.pl',                                                       optional => 1, default_value => 'retroseq.pl'),
+            refTEs_param => VRPipe::StepOption->create(description => '-refTEs option value, tab file with TE type and BED file of reference elements', optional => 1),
+            exde_param   => VRPipe::StepOption->create(description => '-exd option value, fofn of BED files of discordant mate exclusion regions',      optional => 1),
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               description => 'bam files',
-                                                               max_files   => -1) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'bam files',
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
@@ -59,10 +66,12 @@ class VRPipe::Steps::retroseq_discover with VRPipe::StepRole {
             foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
                 my $basename = $bam_file->basename;
                 $basename =~ s/\.bam$/.cand.tab/;
-                my $rseq_bed = $self->output_file(output_key => 'rseq_bed',
-                                                  basename   => $basename,
-                                                  type       => 'txt',
-                                                  metadata   => { source_bam => $bam_file->path->stringify });
+                my $rseq_bed = $self->output_file(
+                    output_key => 'rseq_bed',
+                    basename   => $basename,
+                    type       => 'txt',
+                    metadata   => { source_bam => $bam_file->path->stringify }
+                );
                 
                 my $input_path  = $bam_file->path;
                 my $output_path = $rseq_bed->path;
@@ -77,9 +86,13 @@ class VRPipe::Steps::retroseq_discover with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { rseq_bed => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                              description => 'retroseq -discover output in BED format',
-                                                              max_files   => -1) };
+        return {
+            rseq_bed => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'retroseq -discover output in BED format',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

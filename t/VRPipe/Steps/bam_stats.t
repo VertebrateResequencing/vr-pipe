@@ -18,20 +18,24 @@ is_deeply [$step->id, $step->description], [1, 'Calculates various statistics ab
 # test using the class methods directly
 my $test_bam = file(qw(t data bas.bam))->absolute;
 is_deeply { VRPipe::Steps::bam_stats->bam_statistics($test_bam) },
-  { SRR00001 => { total_bases                  => 115000,
-                  mapped_bases                 => 58583,
-                  total_reads                  => 2000,
-                  mapped_reads                 => 1084,
-                  mapped_reads_paired_in_seq   => 1084,
-                  mapped_reads_properly_paired => 1070,
-                  percent_mismatch             => '2.05',
-                  avg_qual                     => '23.32',
-                  avg_isize                    => 286,
-                  sd_isize                     => '74.10',
-                  median_isize                 => 275,
-                  mad                          => 48,
-                  duplicate_reads              => 2,
-                  duplicate_bases              => 122 } },
+  {
+    SRR00001 => {
+        total_bases                  => 115000,
+        mapped_bases                 => 58583,
+        total_reads                  => 2000,
+        mapped_reads                 => 1084,
+        mapped_reads_paired_in_seq   => 1084,
+        mapped_reads_properly_paired => 1070,
+        percent_mismatch             => '2.05',
+        avg_qual                     => '23.32',
+        avg_isize                    => 286,
+        sd_isize                     => '74.10',
+        median_isize                 => 275,
+        mad                          => 48,
+        duplicate_reads              => 2,
+        duplicate_bases              => 122
+    }
+  },
   'bam_statistics test';
 
 my $given_bas = file($output_dir, 'test.bas');
@@ -64,11 +68,13 @@ SKIP: {
     skip "longer-running pipeline test disabled without VRPIPE_TEST_PIPELINES", $num_tests unless $ENV{VRPIPE_TEST_PIPELINES};
     
     # test as part of a pipeline
-    my $setup = VRPipe::PipelineSetup->create(name        => 'bsp_setup',
-                                              datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
-                                              output_root => $output_dir,
-                                              pipeline    => $pipeline,
-                                              options     => {});
+    my $setup = VRPipe::PipelineSetup->create(
+        name        => 'bsp_setup',
+        datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute),
+        output_root => $output_dir,
+        pipeline    => $pipeline,
+        options     => {}
+    );
     
     ok handle_pipeline(), 'single-step pipeline ran ok';
 }

@@ -50,8 +50,10 @@ ok $ids[0] = VRPipe::StepIODefinition->create(type => 'bam', description => 'ste
 my @steps;
 ok $steps[0] = VRPipe::Step->create(
     name              => 'step_1',
-    inputs_definition => { static_input  => $files[0],
-                           dynamic_input => $ids[0] },
+    inputs_definition => {
+        static_input  => $files[0],
+        dynamic_input => $ids[0]
+    },
     body_sub => sub {
         my $self  = shift;
         my $ofile = $self->output_file(output_key => 'step1_output', basename => 'output1.txt', type => 'txt');
@@ -61,7 +63,8 @@ ok $steps[0] = VRPipe::Step->create(
     },
     outputs_definition => { step1_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step1_output file') },
     post_process_sub   => sub            { return 1 },
-    description        => 'the first step'),
+    description        => 'the first step'
+  ),
   'created a Step using create()';
 is_deeply [$steps[0]->id, $steps[0]->description], [1, 'the first step'], 'step1 has the expected fields';
 undef $steps[0];
@@ -142,7 +145,8 @@ VRPipe::Step->create(
         $ofile->close();
     },
     outputs_definition => { step2_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step2_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 VRPipe::Step->create(
     name              => "step_3",
     inputs_definition => { step3_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_3 input') },
@@ -154,7 +158,8 @@ VRPipe::Step->create(
         $self->dispatch(["sleep 3;",                           $self->new_requirements(memory => 50, time => 1)]);
     },
     outputs_definition => { step3_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step3_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 VRPipe::Step->create(
     name              => "step_4",
     inputs_definition => { step4_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_4 input') },
@@ -165,7 +170,8 @@ VRPipe::Step->create(
         $ofile->close();
     },
     outputs_definition => { step4_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step4_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 VRPipe::Step->create(
     name              => "step_5",
     inputs_definition => { step5_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_5 input') },
@@ -176,7 +182,8 @@ VRPipe::Step->create(
         $ofile->close();
     },
     outputs_definition => { step5_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step5_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 foreach my $step_num (2 .. 5) {
     # get
     push(@steps, VRPipe::Step->get(id => $step_num));
@@ -206,8 +213,6 @@ is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id,
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => { dynamic_input => "$step1_bam_input", baz => 'loman' });
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrieved with a full spec';
-
-
 
 ok my $first_setup = VRPipe::PipelineSetup->get(id => 1), 'pipelinesetup1 could be gotten by id';
 is $first_setup->datasource->id, 1, 'it has the correct datasource';

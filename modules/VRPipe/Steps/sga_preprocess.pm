@@ -71,9 +71,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
     method options_definition {
-        return { sga_preprocess_options        => VRPipe::StepOption->create(description => 'options to sga preprocess',                             optional => 1, default_value => '--min-length=75'),
-                 sga_exe                       => VRPipe::StepOption->create(description => 'path to your sga executable',                           optional => 1, default_value => 'sga'),
-                 sga_preprocess_compress_fastq => VRPipe::StepOption->create(description => 'compress the fastq output of sga preprocess (boolean)', optional => 1, default_value => 1) };
+        return {
+            sga_preprocess_options        => VRPipe::StepOption->create(description => 'options to sga preprocess',                             optional => 1, default_value => '--min-length=75'),
+            sga_exe                       => VRPipe::StepOption->create(description => 'path to your sga executable',                           optional => 1, default_value => 'sga'),
+            sga_preprocess_compress_fastq => VRPipe::StepOption->create(description => 'compress the fastq output of sga preprocess (boolean)', optional => 1, default_value => 1)
+        };
     }
     
     method inputs_definition {

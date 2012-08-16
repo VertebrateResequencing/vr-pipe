@@ -40,8 +40,6 @@ use VRPipe::Base;
 #   SO=coordinate \
 #   VALIDATION_STRINGENCY=SILENT
 
-
-
 class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
     around options_definition {
         return { %{ $self->$orig }, picard_fix_mates_options => VRPipe::StepOption->create(description => '', optional => 1, default_value => 'SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'), };
@@ -60,9 +58,13 @@ class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
             
             my $fixmate_options = $options->{picard_fix_mates_options};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
-                                                                  version => $self->picard_version(),
-                                                                  summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file ' . $fixmate_options));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'picard',
+                    version => $self->picard_version(),
+                    summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file ' . $fixmate_options
+                )
+            );
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
             my $memory = $req->memory;
@@ -72,10 +74,12 @@ class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
                 my $bam_meta        = $bam->metadata;
                 my $mate_fixed_base = $bam_base;
                 $mate_fixed_base =~ s/bam$/sort.bam/;
-                my $mate_fixed_file = $self->output_file(output_key => 'fixmate_bam_files',
-                                                         basename   => $mate_fixed_base,
-                                                         type       => 'bam',
-                                                         metadata   => $bam_meta);
+                my $mate_fixed_file = $self->output_file(
+                    output_key => 'fixmate_bam_files',
+                    basename   => $mate_fixed_base,
+                    type       => 'bam',
+                    metadata   => $bam_meta
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $mate_fixed_file->dir;
                 my $jvm_args = $self->jvm_args($memory, $temp_dir);

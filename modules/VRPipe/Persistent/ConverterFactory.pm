@@ -4,12 +4,13 @@
 VRPipe::Persistent::ConverterFactory - a factory for SQL converters
 
 =head1 SYNOPSIS
-
+        
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {}); # eg mysql
 
 =head1 DESCRIPTION
 
-A Factory for SQL Converters, which allow the Schema to be implemented in a database independent way.
+A Factory for SQL Converters, which allow the Schema to be implemented in a
+database independent way.
 
 =head1 AUTHOR
 

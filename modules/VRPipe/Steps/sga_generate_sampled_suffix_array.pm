@@ -43,8 +43,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_generate_sampled_suffix_array with VRPipe::StepRole {
     method options_definition {
-        return { sga_gen_ssa_options => VRPipe::StepOption->create(description => 'options to sga gen-ssa',      optional => 1),
-                 sga_exe             => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return {
+            sga_gen_ssa_options => VRPipe::StepOption->create(description => 'options to sga gen-ssa',      optional => 1),
+            sga_exe             => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga')
+        };
     }
     
     method inputs_definition {

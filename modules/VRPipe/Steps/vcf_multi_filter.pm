@@ -43,8 +43,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_multi_filter extends VRPipe::Steps::vcf_filter {
     method options_definition {
-        return { 'vcf-filter_programs' => VRPipe::StepOption->create(description => 'path to one or more filter executables, one per vcf to be filtered in parallel, delimited by #'),
-                 'vcf-filter_files'    => VRPipe::StepOption->create(description => 'one or more filter program option files, one per filter executable, delimited by #') };
+        return {
+            'vcf-filter_programs' => VRPipe::StepOption->create(description => 'path to one or more filter executables, one per vcf to be filtered in parallel, delimited by #'),
+            'vcf-filter_files'    => VRPipe::StepOption->create(description => 'one or more filter program option files, one per filter executable, delimited by #')
+        };
     }
     
     method body_sub {

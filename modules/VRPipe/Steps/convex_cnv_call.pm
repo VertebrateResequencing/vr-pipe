@@ -36,14 +36,16 @@ use VRPipe::Base;
 
 class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
     around options_definition {
-        return { %{ $self->$orig },
-                 'centromere_reg_file' => VRPipe::StepOption->create(description => 'Centromere regions file'),
-                 'sw_exec'             => VRPipe::StepOption->create(description => 'Full path to Smith-Waterman execution binary'),
-                 'sw_pval'             => VRPipe::StepOption->create(description => 'p value for Smith-Waterman algorithm', optional => 1, default_value => 2),
-                 'swt_del'             => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
-                 'swt_dup'             => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
-                 'dv'                  => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
-                 'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'), };
+        return {
+            %{ $self->$orig },
+            'centromere_reg_file' => VRPipe::StepOption->create(description => 'Centromere regions file'),
+            'sw_exec'             => VRPipe::StepOption->create(description => 'Full path to Smith-Waterman execution binary'),
+            'sw_pval'             => VRPipe::StepOption->create(description => 'p value for Smith-Waterman algorithm', optional => 1, default_value => 2),
+            'swt_del'             => VRPipe::StepOption->create(description => 't value threshold for the selection of deletion calls', optional => 1, default_value => 5),
+            'swt_dup'             => VRPipe::StepOption->create(description => 't value threshold for the selection of duplication calls', optional => 1, default_value => 5),
+            'dv'                  => VRPipe::StepOption->create(description => 'number of probes exponent in CNV call selection', optional => 1, default_value => 0.5),
+            'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+        };
     }
     
     method inputs_definition {

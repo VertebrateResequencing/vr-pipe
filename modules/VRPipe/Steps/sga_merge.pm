@@ -31,38 +31,6 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Usage: sga merge [OPTION] ... READS1 READS2
 # Merge the sequence files READS1, READS2 into a single file/index
 #
@@ -84,8 +52,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_merge with VRPipe::StepRole {
     method options_definition {
-        return { sga_merge_options => VRPipe::StepOption->create(description => 'options to sga merge excluding the --prefix option', optional => 1),
-                 sga_exe           => VRPipe::StepOption->create(description => 'path to your sga executable',                        optional => 1, default_value => 'sga') };
+        return {
+            sga_merge_options => VRPipe::StepOption->create(description => 'options to sga merge excluding the --prefix option', optional => 1),
+            sga_exe           => VRPipe::StepOption->create(description => 'path to your sga executable',                        optional => 1, default_value => 'sga')
+        };
     }
     
     method inputs_definition {
@@ -147,10 +117,12 @@ class VRPipe::Steps::sga_merge with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { merged_fastq_files  => VRPipe::StepIODefinition->create(type => 'fq',  description => 'the merged fastq files',  max_files => -1),
-                 merged_bwt_files    => VRPipe::StepIODefinition->create(type => 'bin', description => 'the merged bwt files',    max_files => -1),
-                 merged_sai_files    => VRPipe::StepIODefinition->create(type => 'txt', description => 'the merged sai files',    max_files => -1),
-                 merged_popidx_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the merged popidx files', min_files => 0, max_files => -1) };
+        return {
+            merged_fastq_files  => VRPipe::StepIODefinition->create(type => 'fq',  description => 'the merged fastq files',  max_files => -1),
+            merged_bwt_files    => VRPipe::StepIODefinition->create(type => 'bin', description => 'the merged bwt files',    max_files => -1),
+            merged_sai_files    => VRPipe::StepIODefinition->create(type => 'txt', description => 'the merged sai files',    max_files => -1),
+            merged_popidx_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'the merged popidx files', min_files => 0, max_files => -1)
+        };
     }
     
     method post_process_sub {

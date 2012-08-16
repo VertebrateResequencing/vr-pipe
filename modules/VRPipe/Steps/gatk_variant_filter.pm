@@ -48,9 +48,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
     around options_definition {
-        return { %{ $self->$orig },
-                 reference_fasta     => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
-                 variant_filter_opts => VRPipe::StepOption->create(description => 'options for GATK VariantFiltration, excluding reference genome, input and output'), };
+        return {
+            %{ $self->$orig },
+            reference_fasta     => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
+            variant_filter_opts => VRPipe::StepOption->create(description => 'options for GATK VariantFiltration, excluding reference genome, input and output'),
+        };
     }
     
     method inputs_definition {
@@ -66,9 +68,13 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
             my $var_filter_opts = $options->{variant_filter_opts};
             my $reference_fasta = $options->{reference_fasta};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'GenomeAnalysisTK',
-                                                                  version => $self->gatk_version(),
-                                                                  summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path ' . $var_filter_opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'GenomeAnalysisTK',
+                    version => $self->gatk_version(),
+                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path ' . $var_filter_opts
+                )
+            );
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);

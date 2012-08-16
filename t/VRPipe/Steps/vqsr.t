@@ -21,13 +21,16 @@ $recal_opts .= " -resource:omni,known=false,training=true,truth=false,prior=12.0
 $recal_opts .= " -resource:hapmap,known=false,training=true,truth=true,prior=15.0 " . file(qw(t data hapmap_3.3.b37.sites.chr20_reduced.vcf.gz))->absolute->stringify;
 $recal_opts .= ' -an QD -an HaplotypeScore';
 
-VRPipe::PipelineSetup->create(name        => 'vqsr step test',
-                              datasource  => VRPipe::DataSource->create(type => 'fofn_with_metadata', method => 'group_all', source => file(qw(t data vqsr_datasource.fofn))->absolute),
-                              output_root => $output_dir,
-                              pipeline    => $pipeline,
-                              options     => {
-                                           reference_fasta               => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
-                                           variant_recalibration_options => $recal_opts });
+VRPipe::PipelineSetup->create(
+    name        => 'vqsr step test',
+    datasource  => VRPipe::DataSource->create(type => 'fofn_with_metadata', method => 'group_all', source => file(qw(t data vqsr_datasource.fofn))->absolute),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        reference_fasta               => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
+        variant_recalibration_options => $recal_opts
+    }
+);
 
 my @output_files;
 my @output_subdirs = output_subdirs(1, 1);
@@ -40,13 +43,16 @@ ok handle_pipeline(@output_files), 'single step gatk_variant_recalibration pipel
 ($output_dir, $pipeline, $step) = create_single_step_pipeline('gatk_variant_recalibration_for_snps', 'vcf_files');
 is_deeply [$step->id, $step->description], [2, 'Recalibrates SNP calls using Variant Quality Score Recalibration (VQSR)'], 'gatk_variant_recalibration_for_snps step created and has correct description';
 
-VRPipe::PipelineSetup->create(name        => 'vqsr step test',
-                              datasource  => VRPipe::DataSource->create(type => 'fofn_with_metadata', method => 'group_all', source => file(qw(t data vqsr_datasource.fofn))->absolute),
-                              output_root => $output_dir,
-                              pipeline    => $pipeline,
-                              options     => {
-                                           reference_fasta           => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
-                                           snp_recalibration_options => $recal_opts });
+VRPipe::PipelineSetup->create(
+    name        => 'vqsr step test',
+    datasource  => VRPipe::DataSource->create(type => 'fofn_with_metadata', method => 'group_all', source => file(qw(t data vqsr_datasource.fofn))->absolute),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        reference_fasta           => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
+        snp_recalibration_options => $recal_opts
+    }
+);
 @output_files = ();
 @output_subdirs = output_subdirs(1, 2);
 foreach my $file (qw(recal recal.tranches recal.tranches.pdf recal.r recal.r.pdf)) {

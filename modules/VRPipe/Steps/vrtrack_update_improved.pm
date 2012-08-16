@@ -35,10 +35,14 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vrtrack_update_improved extends VRPipe::Steps::vrtrack_update {
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               description => 'bam file that has been improved',
-                                                               max_files   => -1,
-                                                               metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'bam file that has been improved',
+                max_files   => -1,
+                metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }
+            )
+        };
     }
     
     method body_sub {
@@ -97,7 +101,8 @@ class VRPipe::Steps::vrtrack_update_improved extends VRPipe::Steps::vrtrack_upda
                 $vrlane->update;
                 $vrlane->is_processed(improved => 1);
                 $vrlane->update;
-            });
+            }
+        );
         
         unless ($worked) {
             $self->throw($vrtrack->{transaction_error});

@@ -31,19 +31,22 @@ $recal_opts .= " -resource:omni,known=false,training=true,truth=false,prior=12.0
 $recal_opts .= " -resource:hapmap,known=false,training=true,truth=true,prior=15.0 " . file(qw(t data hapmap_3.3.b37.sites.chr20_reduced.vcf.gz))->absolute->stringify;
 $recal_opts .= ' -an QD -an HaplotypeScore';
 
-VRPipe::PipelineSetup->create(name       => 'vqsr snps test',
-                              datasource => VRPipe::DataSource->create(type    => 'fofn_with_metadata',
-                                                                       method  => 'grouped_by_metadata',
-                                                                       source  => file(qw(t data vqsr_datasource.fofn))->absolute->stringify,
-                                                                       options => { metadata_keys => 'analysis_group' },),
-                              output_root => $vqsr_dir,
-                              pipeline    => $vqsr_pipeline,
-                              options     => {
-                                           reference_fasta                      => $ref_fa,
-                                           snp_recalibration_options            => $recal_opts,
-                                           apply_recalibration_options_for_snps => '--ts_filter_level 99.0' });
-
-
+VRPipe::PipelineSetup->create(
+    name       => 'vqsr snps test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn_with_metadata',
+        method  => 'grouped_by_metadata',
+        source  => file(qw(t data vqsr_datasource.fofn))->absolute->stringify,
+        options => { metadata_keys => 'analysis_group' },
+    ),
+    output_root => $vqsr_dir,
+    pipeline    => $vqsr_pipeline,
+    options     => {
+        reference_fasta                      => $ref_fa,
+        snp_recalibration_options            => $recal_opts,
+        apply_recalibration_options_for_snps => '--ts_filter_level 99.0'
+    }
+);
 
 my @output_files;
 my @output_subdirs = output_subdirs(1, 1);
