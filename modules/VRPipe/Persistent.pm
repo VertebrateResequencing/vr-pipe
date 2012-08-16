@@ -355,7 +355,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 else {
                     $column_info->{default_value} = $default;
                 }
-            
             }
             
             # determine the type constraint that the database should use
@@ -1215,6 +1214,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     sub _dumper_hook {
         $_[0] = bless { _strip_result_source($_[0]) }, ref($_[0]);
     }
+    
     sub _strip_result_source {
         my $ref = shift;
         my %hash;
