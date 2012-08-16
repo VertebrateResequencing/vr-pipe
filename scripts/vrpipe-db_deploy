@@ -26,15 +26,18 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
-use aliased 'VRPipe::Persistent::Schema' => 'PS';
+use aliased 'VRPipe::Persistent::Schema'     => 'PS';
 use aliased 'DBIx::Class::DeploymentHandler' => 'DH';
 
 my $s = PS->connect;
 
-my $dh = DH->new({ schema => $s,
-                   databases => PS->get_dbtype,
-                   sql_translator_args => { add_drop_table => 0 },
-                   script_directory => PS->get_schema_dir });
+my $dh = DH->new({
+        schema              => $s,
+        databases           => PS->get_dbtype,
+        sql_translator_args => { add_drop_table => 0 },
+        script_directory    => PS->get_schema_dir
+    }
+);
 
 $dh->prepare_install;
 $dh->install;
@@ -42,16 +45,16 @@ $dh->install;
 # Add table indexes from Persistent metadata
 my $idx_cmds = PS->new->get_idx_sql('create');
 if ($idx_cmds) {
-	$s->storage->dbh_do(
-		sub {
-			my ($storage, $dbh, $idx_cmds) = @_;
-			my ($cols,$txt_cols);
-			foreach my $cmd (@{$idx_cmds}) {
-				$dbh->do($cmd);
-			}
-		},
-		$idx_cmds
-	);
+    $s->storage->dbh_do(
+        sub {
+            my ($storage, $dbh, $idx_cmds) = @_;
+            my ($cols, $txt_cols);
+            foreach my $cmd (@{$idx_cmds}) {
+                $dbh->do($cmd);
+            }
+        },
+        $idx_cmds
+    );
 }
 
 exit;

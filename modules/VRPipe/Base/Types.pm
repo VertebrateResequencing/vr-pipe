@@ -60,7 +60,8 @@ use MooseX::Types -declare => [
       PersistentHashRef FileType AbsoluteFile
       PersistentFileHashRef OpenMode AnyFileHandle
       ParserType MapperType PreviousStepOutput
-      Text)];
+      Text)
+];
 
 # import built-in types to subtype from
 use MooseX::Types::Parameterizable qw(Parameterizable);
@@ -153,7 +154,7 @@ class_type('File::Temp::File');
 subtype FileType, as Str, where {
     my $type = $_;
     length($type) <= 4 || return 0;
-    $type =~ /^(?:any|bam|cram|bin|cat|fq|lsf|txt|vcf|loc)$/ || return 0;
+    $type =~ /^(?:any|bam|bcf|cram|bin|cat|fq|lsf|txt|vcf|loc)$/ || return 0;
     return 1;
     #*** this hard-coding above required to solve the following eval'd
     #    require on $type == bin failing and causing death (despite the
@@ -187,9 +188,7 @@ subtype OpenMode, as Str, where { /^(?:>>?|<)$/ }, message { "open modes are res
 class_type 'DateTime';
 subtype Datetime, as 'DateTime';
 for my $type ("DateTime", Datetime) {
-    coerce $type => from Num,
-      via { 'DateTime'->from_epoch(epoch => $_) },
-      from HashRef, via { 'DateTime'->new(%$_) };
+    coerce $type => from Num, via { 'DateTime'->from_epoch(epoch => $_) }, from HashRef, via { 'DateTime'->new(%$_) };
 }
 
 # database constraints

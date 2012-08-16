@@ -28,8 +28,26 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::FrontEnd;
 
-my $frontend = VRPipe::FrontEnd->new(description => "Setup a new pipeline, or alter the configuration of an existing one.",
-                                     opt_spec    => [[], [q[Run with no options to create a new PipelineSetup.]], ['based_on=s', 'Provide the name or id of an existing PipelineSetup to create a new PipelineSetup based on it', { persistent_object => 'PipelineSetup' }], [], [q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:]], ['list|l', 'Just list out the setup names and ids, so you can subsequently rerun using --setup'], ['user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => getlogin || getpwuid($<) }], [], [q[To alter an existing PipelineSetup:]], ['setup=s', 'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' }], ['extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]], ['deactivate', 'Turn off the given --setup'], ['reactivate', 'Turn on the given --setup'], ['reset', 'Wipe out all progress on the --setup, returning everything to the state it was just after you first created the setup, and leaves it in a deactivated state'], ['delete', 'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it']]);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Setup a new pipeline, or alter the configuration of an existing one.",
+    opt_spec    => [
+        [],
+        [q[Run with no options to create a new PipelineSetup.]],
+        ['based_on=s', 'Provide the name or id of an existing PipelineSetup to create a new PipelineSetup based on it', { persistent_object => 'PipelineSetup' }],
+        [],
+        [q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:]],
+        ['list|l',   'Just list out the setup names and ids, so you can subsequently rerun using --setup'],
+        ['user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => getlogin || getpwuid($<) }],
+        [],
+        [q[To alter an existing PipelineSetup:]],
+        ['setup=s',       'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' }],
+        ['extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]],
+        ['deactivate',    'Turn off the given --setup'],
+        ['reactivate',    'Turn on the given --setup'],
+        ['reset',         'Wipe out all progress on the --setup, returning everything to the state it was just after you first created the setup, and leaves it in a deactivated state'],
+        ['delete',        'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it']
+    ]
+);
 
 my $user          = $frontend->opts('user');
 my $setup         = $frontend->get_pipelinesetups();
@@ -242,12 +260,14 @@ if ($setup) {
                     }
                 }
                 
-                my $choice = $frontend->pick_number(question => "Choose an option to change", max => $option_num);
+                my $choice     = $frontend->pick_number(question => "Choose an option to change", max => $option_num);
                 my $chosen_key = $options[$choice]->[0];
-                my $val = $frontend->ask_question(question => "Provide a new value for '$chosen_key'",
-                                                  required => $options[$choice]->[2] ? 0 : 1,
-                                                  $options[$choice]->[3] ? (default   => $options[$choice]->[3]) : (),
-                                                  $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ());
+                my $val        = $frontend->ask_question(
+                    question => "Provide a new value for '$chosen_key'",
+                    required => $options[$choice]->[2] ? 0 : 1,
+                    $options[$choice]->[3] ? (default   => $options[$choice]->[3]) : (),
+                    $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ()
+                );
                 $current_opts->{$chosen_key} = $val;
                 $setup->options($current_opts);
                 $setup->update;

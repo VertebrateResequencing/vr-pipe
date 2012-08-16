@@ -52,18 +52,19 @@ class VRPipe::Pipelines::bam_improvement_no_recal with VRPipe::PipelineRole {
     
     method _step_list {
         return ([
-             VRPipe::Step->get(name => 'sequence_dictionary'),                 #1
-             VRPipe::Step->get(name => 'bam_metadata'),                        #2
-             VRPipe::Step->get(name => 'bam_index'),                           #3
-             VRPipe::Step->get(name => 'gatk_target_interval_creator'),        #4
-             VRPipe::Step->get(name => 'bam_realignment_around_known_indels'), #5
-             VRPipe::Step->get(name => 'bam_calculate_bq'),                    #6
-             VRPipe::Step->get(name => 'bam_reheader'),                        #7
+                VRPipe::Step->get(name => 'sequence_dictionary'),                 #1
+                VRPipe::Step->get(name => 'bam_metadata'),                        #2
+                VRPipe::Step->get(name => 'bam_index'),                           #3
+                VRPipe::Step->get(name => 'gatk_target_interval_creator'),        #4
+                VRPipe::Step->get(name => 'bam_realignment_around_known_indels'), #5
+                VRPipe::Step->get(name => 'bam_calculate_bq'),                    #6
+                VRPipe::Step->get(name => 'bam_reheader'),                        #7
             ],
             
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'intervals_file', to_key => 'intervals_file'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 5, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 5, to_step => 6, from_key => 'realigned_bam_files', to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 6, to_step => 7, from_key => 'bq_bam_files', to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 7, from_key => 'reference_dict', to_key => 'dict_file')],
             
-            [VRPipe::StepBehaviourDefiner->new(after_step => 5, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0), VRPipe::StepBehaviourDefiner->new(after_step => 5, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'delete_input_bams', default_regulation => 0), VRPipe::StepBehaviourDefiner->new(after_step => 6, behaviour => 'delete_outputs', act_on_steps => [4, 5], regulated_by => 'cleanup', default_regulation => 1), VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [6], regulated_by => 'cleanup', default_regulation => 1)]);
+            [VRPipe::StepBehaviourDefiner->new(after_step => 5, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0), VRPipe::StepBehaviourDefiner->new(after_step => 5, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'delete_input_bams', default_regulation => 0), VRPipe::StepBehaviourDefiner->new(after_step => 6, behaviour => 'delete_outputs', act_on_steps => [4, 5], regulated_by => 'cleanup', default_regulation => 1), VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [6], regulated_by => 'cleanup', default_regulation => 1)]
+        );
     }
 }
 

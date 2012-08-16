@@ -35,38 +35,47 @@ use VRPipe::Base;
 
 class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta                    => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
-                 smalt_map_to_sam_options           => VRPipe::StepOption->create(description => 'options to smalt map -f samsoft', optional => 1),
-                 smalt_map_to_sam_pe_options        => VRPipe::StepOption->create(description => 'additional options for smalt map -f samsoft for paired end reads', optional => 1),
-                 smalt_map_reverse_input_read_order => VRPipe::StepOption->create(description => 'option to reverse the order in which reads are inputted to smalt map', optional => 1, default_value => 0),
-                 smalt_exe                          => VRPipe::StepOption->create(description => 'path to your smalt executable', optional => 1, default_value => 'smalt') };
+        return {
+            reference_fasta                    => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
+            smalt_map_to_sam_options           => VRPipe::StepOption->create(description => 'options to smalt map -f samsoft', optional => 1),
+            smalt_map_to_sam_pe_options        => VRPipe::StepOption->create(description => 'additional options for smalt map -f samsoft for paired end reads', optional => 1),
+            smalt_map_reverse_input_read_order => VRPipe::StepOption->create(description => 'option to reverse the order in which reads are inputted to smalt map', optional => 1, default_value => 0),
+            smalt_exe                          => VRPipe::StepOption->create(description => 'path to your smalt executable', optional => 1, default_value => 'smalt')
+        };
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                 max_files   => -1,
-                                                                 description => 'fastq files',
-                                                                 metadata    => {
-                                                                               lane           => 'lane name (a unique identifer for this sequencing run)',
-                                                                               library        => 'library name',
-                                                                               sample         => 'sample name',
-                                                                               center_name    => 'center name',
-                                                                               platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                               study          => 'name of the study, put in the DS field of the RG header line',
-                                                                               insert_size    => 'expected (mean) insert size if paired',
-                                                                               analysis_group => 'project analysis group',
-                                                                               population     => 'sample population',
-                                                                               bases          => 'total number of base pairs',
-                                                                               reads          => 'total number of reads (sequences)',
-                                                                               paired         => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
-                                                                               mate           => 'if paired, the path to the fastq that is our mate',
-                                                                               chunk          => 'if the fastq file was produced by fastq_split Step, the chunk number',
-                                                                               optional       => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study'] }),
-                 index_files => VRPipe::StepIODefinition->create(type        => 'bin',
-                                                                 min_files   => 2,
-                                                                 max_files   => 2,
-                                                                 description => 'binary files, as produced by smalt index',
-                                                                 metadata    => { index_base => 'base used in smalt index command' }) };
+        return {
+            fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                max_files   => -1,
+                description => 'fastq files',
+                metadata    => {
+                    lane           => 'lane name (a unique identifer for this sequencing run)',
+                    library        => 'library name',
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    insert_size    => 'expected (mean) insert size if paired',
+                    analysis_group => 'project analysis group',
+                    population     => 'sample population',
+                    bases          => 'total number of base pairs',
+                    reads          => 'total number of reads (sequences)',
+                    paired         => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
+                    mate           => 'if paired, the path to the fastq that is our mate',
+                    chunk          => 'if the fastq file was produced by fastq_split Step, the chunk number',
+                    optional       => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                }
+            ),
+            index_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                min_files   => 2,
+                max_files   => 2,
+                description => 'binary files, as produced by smalt index',
+                metadata    => { index_base => 'base used in smalt index command' }
+            )
+        };
     }
     
     method body_sub {
@@ -134,13 +143,15 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                         }
                         
                         # add metadata and construct RG line
-                        my $rg_line = '@RG\tID:' . $lane;
-                        my $sam_meta = { lane          => $lane,
-                                         bases         => $bases,
-                                         reads         => $reads,
-                                         paired        => $paired,
-                                         mapped_fastqs => join(',', @fqs),
-                                         $chunk ? (chunk => $chunk) : () };
+                        my $rg_line  = '@RG\tID:' . $lane;
+                        my $sam_meta = {
+                            lane          => $lane,
+                            bases         => $bases,
+                            reads         => $reads,
+                            paired        => $paired,
+                            mapped_fastqs => join(',', @fqs),
+                            $chunk ? (chunk => $chunk) : ()
+                        };
                         if (defined $fq_meta->{library}) {
                             my $lb = $fq_meta->{library};
                             $sam_meta->{library} = $lb;
@@ -179,10 +190,12 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
                         }
                         
                         my $ended = $paired ? 'pe' : 'se';
-                        my $sam_file = $self->output_file(output_key => 'smalt_sam_files',
-                                                          basename   => $chunk ? "$lane.$ended.$chunk.sam" : "$lane.$ended.sam",
-                                                          type       => 'txt',
-                                                          metadata   => $sam_meta);
+                        my $sam_file = $self->output_file(
+                            output_key => 'smalt_sam_files',
+                            basename   => $chunk ? "$lane.$ended.$chunk.sam" : "$lane.$ended.sam",
+                            type       => 'txt',
+                            metadata   => $sam_meta
+                        );
                         
                         my $this_cmd = "$cmd$these_opts -o " . $sam_file->path . " $index_base @fqs";
                         $self->dispatch_wrapped_cmd('VRPipe::Steps::smalt_map_to_sam', 'map_and_check', [$this_cmd, $req, { output_files => [$sam_file] }]);
@@ -191,32 +204,41 @@ class VRPipe::Steps::smalt_map_to_sam with VRPipe::StepRole {
             }
             
             my $summary_cmd = "smalt map -f samsoft$these_opts -o \$sam_file \$index_base \$fastq_file(s)";
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'smalt',
-                                                                  version => VRPipe::StepCmdSummary->determine_version($smalt_exe . ' version', '^Version: (.+)$'),
-                                                                  summary => $summary_cmd));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'smalt',
+                    version => VRPipe::StepCmdSummary->determine_version($smalt_exe . ' version', '^Version: (.+)$'),
+                    summary => $summary_cmd
+                )
+            );
         };
     }
     
     method outputs_definition {
-        return { smalt_sam_files => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                     max_files   => -1,
-                                                                     description => 'mapped sam file(s)',
-                                                                     metadata    => {
-                                                                                   lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                                   library        => 'library name',
-                                                                                   sample         => 'sample name',
-                                                                                   center_name    => 'center name',
-                                                                                   platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                                   study          => 'name of the study, put in the DS field of the RG header line',
-                                                                                   insert_size    => 'expected (mean) insert size if paired',
-                                                                                   analysis_group => 'project analysis group',
-                                                                                   population     => 'sample population',
-                                                                                   bases          => 'total number of base pairs',
-                                                                                   reads          => 'total number of reads (sequences)',
-                                                                                   paired         => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                                   mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
-                                                                                   chunk          => 'if this was mapped with fastqs that were chunks of an original fastq, this tells you which chunk',
-                                                                                   optional       => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study'] }) };
+        return {
+            smalt_sam_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                max_files   => -1,
+                description => 'mapped sam file(s)',
+                metadata    => {
+                    lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    library        => 'library name',
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    insert_size    => 'expected (mean) insert size if paired',
+                    analysis_group => 'project analysis group',
+                    population     => 'sample population',
+                    bases          => 'total number of base pairs',
+                    reads          => 'total number of reads (sequences)',
+                    paired         => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                    mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
+                    chunk          => 'if this was mapped with fastqs that were chunks of an original fastq, this tells you which chunk',
+                    optional       => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                }
+            )
+        };
     }
     
     method post_process_sub {

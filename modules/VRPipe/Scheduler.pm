@@ -57,18 +57,22 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::SchedulerMethodsFactory;
     
-    has 'type' => (is                   => 'rw',
-                   isa                  => Varchar [64],
-                   builder              => 'default_type',
-                   traits               => ['VRPipe::Persistent::Attributes'],
-                   is_key               => 1,
-                   allow_key_to_default => 1);
+    has 'type' => (
+        is                   => 'rw',
+        isa                  => Varchar [64],
+        builder              => 'default_type',
+        traits               => ['VRPipe::Persistent::Attributes'],
+        is_key               => 1,
+        allow_key_to_default => 1
+    );
     
-    has 'output_root' => (is      => 'ro',
-                          isa     => Dir,
-                          coerce  => 1,
-                          builder => 'default_output_root',
-                          lazy    => 1);
+    has 'output_root' => (
+        is      => 'ro',
+        isa     => Dir,
+        coerce  => 1,
+        builder => 'default_output_root',
+        lazy    => 1
+    );
     
     method default_type (ClassName|Object $self:) {
         my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_scheduler';
@@ -84,11 +88,13 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     
     # VRPipe::Schedulers::[type] classes will provide scheduler-specific
     # methods
-    has 'scheduler_instance' => (is      => 'ro',
-                                 isa     => 'Object',
-                                 builder => '_instantiate_method_class',
-                                 lazy    => 1,
-                                 handles => 'VRPipe::SchedulerMethodsRole');
+    has 'scheduler_instance' => (
+        is      => 'ro',
+        isa     => 'Object',
+        builder => '_instantiate_method_class',
+        lazy    => 1,
+        handles => 'VRPipe::SchedulerMethodsRole'
+    );
     
     method _instantiate_method_class (ClassName|Object $self:) {
         return VRPipe::SchedulerMethodsFactory->create(lc($self->type), {});
@@ -167,9 +173,11 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         $self->throw("at least one submission and requirements must be supplied") unless @$submissions && $requirements;
         
         # generate a command line that will submit to the scheduler
-        my $cmd_line = $self->build_command_line(requirements => $requirements,
-                                                 for          => $for,
-                                                 $heartbeat_interval ? (heartbeat_interval => $heartbeat_interval) : ());
+        my $cmd_line = $self->build_command_line(
+            requirements => $requirements,
+            for          => $for,
+            $heartbeat_interval ? (heartbeat_interval => $heartbeat_interval) : ()
+        );
         
         # claim all submission objects, associating them with the hashing id,
         # then attempt the submit and set their sid on success or release on
@@ -259,14 +267,17 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
         my $cmd        = qq[perl -MVRPipe::Persistent::Schema -e "VRPipe::Persistent::SchemaBase->database_deployment(q[$deployment]); VRPipe::Scheduler->create(id => $self_id)->run_on_node($node_run_args);"];
         
-        return
-          join(' ',
-               $self->submit_command,
-               $self->submit_args(requirements => $requirements,
-                                  stdo_file    => $self->scheduler_output_file($output_dir),
-                                  stde_file    => $self->scheduler_error_file($output_dir),
-                                  cmd          => $cmd,
-                                  $for->isa('VRPipe::PersistentArray') ? (array => $for) : ()));
+        return join(
+            ' ',
+            $self->submit_command,
+            $self->submit_args(
+                requirements => $requirements,
+                stdo_file    => $self->scheduler_output_file($output_dir),
+                stde_file    => $self->scheduler_error_file($output_dir),
+                cmd          => $cmd,
+                $for->isa('VRPipe::PersistentArray') ? (array => $for) : ()
+            )
+        );
     }
     
     method output_dir (PersistentObject $for) {

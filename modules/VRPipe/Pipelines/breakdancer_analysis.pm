@@ -56,7 +56,8 @@ class VRPipe::Pipelines::breakdancer_analysis with VRPipe::PipelineRole {
             
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'bam_cfg', to_key => 'bam_cfg'),],
             
-            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]);
+            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]
+        );
     }
 }
 

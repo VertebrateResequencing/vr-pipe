@@ -62,19 +62,22 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     
     our $VERSION = 23;
     __PACKAGE__->load_classes({
-           'VRPipe' => [
-               qw/Step Scheduler Job Requirements
-                 DataSource DataElement Pipeline
-                 StepCmdSummary StepMember File
-                 PipelineSetup StepBehaviour
-                 StepState Submission StepAdaptor
-                 PersistentArray StepOption
-                 PersistentArrayMember Manager
-                 StepIODefinition StepOutputFile
-                 DataElementState DataElementLink
-                 LocalSchedulerJob
-                 LocalSchedulerJobState
-                 StepStats/] });
+            'VRPipe' => [
+                qw/Step Scheduler Job Requirements
+                  DataSource DataElement Pipeline
+                  StepCmdSummary StepMember File
+                  PipelineSetup StepBehaviour
+                  StepState Submission StepAdaptor
+                  PersistentArray StepOption
+                  PersistentArrayMember Manager
+                  StepIODefinition StepOutputFile
+                  DataElementState DataElementLink
+                  LocalSchedulerJob
+                  LocalSchedulerJobState
+                  StepStats/
+            ]
+        }
+    );
     
     # deploy method overridden in order to add indexes in a db-dependent manner
     sub deploy {
@@ -92,7 +95,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                         $dbh->do($cmd);
                     }
                 },
-                $idx_cmds);
+                $idx_cmds
+            );
         }
     }
     

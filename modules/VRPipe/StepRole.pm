@@ -59,89 +59,117 @@ role VRPipe::StepRole {
     requires 'max_simultaneous';
     
     # these may be needed by body_sub and post_process_sub
-    has 'step_state' => (is      => 'rw',
-                         isa     => 'VRPipe::StepState',
-                         trigger => \&_rebuild);
+    has 'step_state' => (
+        is      => 'rw',
+        isa     => 'VRPipe::StepState',
+        trigger => \&_rebuild
+    );
     
-    has 'data_element' => (is      => 'ro',
-                           isa     => 'VRPipe::DataElement',
-                           builder => '_build_data_element',
-                           lazy    => 1,
-                           clearer => '_clear_data_element');
+    has 'data_element' => (
+        is      => 'ro',
+        isa     => 'VRPipe::DataElement',
+        builder => '_build_data_element',
+        lazy    => 1,
+        clearer => '_clear_data_element'
+    );
     
-    has 'output_root' => (is      => 'ro',
-                          isa     => Dir,
-                          coerce  => 1,
-                          builder => '_build_output_root',
-                          lazy    => 1,
-                          clearer => '_clear_output_root');
+    has 'output_root' => (
+        is      => 'ro',
+        isa     => Dir,
+        coerce  => 1,
+        builder => '_build_output_root',
+        lazy    => 1,
+        clearer => '_clear_output_root'
+    );
     
-    has 'options' => (is      => 'ro',
-                      isa     => 'HashRef',
-                      builder => '_resolve_options',
-                      lazy    => 1,
-                      clearer => '_clear_options');
+    has 'options' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        builder => '_resolve_options',
+        lazy    => 1,
+        clearer => '_clear_options'
+    );
     
-    has 'inputs' => (is      => 'ro',
-                     isa     => PersistentFileHashRef,
-                     builder => '_resolve_inputs',
-                     lazy    => 1,
-                     clearer => '_clear_inputs');
+    has 'inputs' => (
+        is      => 'ro',
+        isa     => PersistentFileHashRef,
+        builder => '_resolve_inputs',
+        lazy    => 1,
+        clearer => '_clear_inputs'
+    );
     
-    has 'outputs' => (is      => 'ro',
-                      isa     => PersistentFileHashRef,
-                      builder => '_build_outputs',
-                      lazy    => 1,
-                      clearer => '_clear_outputs');
-    has 'temps' => (is      => 'ro',
-                    isa     => ArrayRefOfPersistent,
-                    builder => '_build_temps',
-                    lazy    => 1,
-                    clearer => '_clear_temps');
+    has 'outputs' => (
+        is      => 'ro',
+        isa     => PersistentFileHashRef,
+        builder => '_build_outputs',
+        lazy    => 1,
+        clearer => '_clear_outputs'
+    );
+    has 'temps' => (
+        is      => 'ro',
+        isa     => ArrayRefOfPersistent,
+        builder => '_build_temps',
+        lazy    => 1,
+        clearer => '_clear_temps'
+    );
     
-    has 'previous_step_outputs' => (is      => 'rw',
-                                    isa     => PreviousStepOutput,
-                                    trigger => sub { shift->_clear_inputs });
+    has 'previous_step_outputs' => (
+        is      => 'rw',
+        isa     => PreviousStepOutput,
+        trigger => sub { shift->_clear_inputs }
+    );
     
-    has 'allow_smaller_recommended_requirements_override' => (is      => 'rw',
-                                                              isa     => 'Bool',
-                                                              lazy    => 1,
-                                                              builder => '_build_smaller_recommended_requirements_override');
+    has 'allow_smaller_recommended_requirements_override' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        lazy    => 1,
+        builder => '_build_smaller_recommended_requirements_override'
+    );
     
     # when parse is called, we'll store our dispatched refs here
-    has 'dispatched' => (is      => 'ro',
-                         traits  => ['Array'],
-                         isa     => 'ArrayRef',
-                         lazy    => 1,
-                         default => sub { [] },
-                         handles => { _dispatch      => 'push',
-                                      num_dispatched => 'count' },
-                         writer  => '_set_dispatched',
-                         clearer => '_clear_dispatched');
+    has 'dispatched' => (
+        is      => 'ro',
+        traits  => ['Array'],
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        default => sub { [] },
+        handles => {
+            _dispatch      => 'push',
+            num_dispatched => 'count'
+        },
+        writer  => '_set_dispatched',
+        clearer => '_clear_dispatched'
+    );
     
     # and we'll also store all the output files the body_sub makes
-    has '_output_files' => (is      => 'ro',
-                            traits  => ['Hash'],
-                            isa     => 'HashRef',
-                            lazy    => 1,
-                            default => sub { {} },
-                            handles => { _remember_output_files => 'set' },
-                            writer  => '_set_output_files',
-                            clearer => '_clear_output_files');
-    has '_temp_files' => (is      => 'ro',
-                          traits  => ['Array'],
-                          isa     => 'ArrayRef',
-                          lazy    => 1,
-                          default => sub { [] },
-                          handles => { _remember_temp_file => 'push' },
-                          writer  => '_set_temp_files',
-                          clearer => '_clear_temp_files');
-    has '_last_output_dir' => (is      => 'rw',
-                               isa     => Dir,
-                               lazy    => 1,
-                               coerce  => 1,
-                               builder => '_build_last_output_dir',
-                               clearer => '_clear_last_output_dir');
+    has '_output_files' => (
+        is      => 'ro',
+        traits  => ['Hash'],
+        isa     => 'HashRef',
+        lazy    => 1,
+        default => sub { {} },
+        handles => { _remember_output_files => 'set' },
+        writer  => '_set_output_files',
+        clearer => '_clear_output_files'
+    );
+    has '_temp_files' => (
+        is      => 'ro',
+        traits  => ['Array'],
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        default => sub { [] },
+        handles => { _remember_temp_file => 'push' },
+        writer  => '_set_temp_files',
+        clearer => '_clear_temp_files'
+    );
+    has '_last_output_dir' => (
+        is      => 'rw',
+        isa     => Dir,
+        lazy    => 1,
+        coerce  => 1,
+        builder => '_build_last_output_dir',
+        clearer => '_clear_last_output_dir'
+    );
     
     method _rebuild {
         $self->_clear_data_element;
@@ -290,19 +318,6 @@ role VRPipe::StepRole {
                     }
                 }
                 
-                my $num_results = @$results;
-                my $max_allowed = $val->max_files;
-                my $min_allowed = $val->min_files;
-                if ($max_allowed == -1) {
-                    $max_allowed = $num_results;
-                }
-                if ($min_allowed == -1) {
-                    $min_allowed = $num_results;
-                }
-                unless ($num_results >= $min_allowed && $num_results <= $max_allowed) {
-                    $self->throw("there were $num_results input file(s) for '$key' of stepstate " . $self->step_state->id . ", which does not fit the allowed range $min_allowed..$max_allowed");
-                }
-                
                 my @vrfiles;
                 my @skip_reasons;
                 foreach my $result (@$results) {
@@ -342,8 +357,21 @@ role VRPipe::StepRole {
                     
                     push(@vrfiles, $result);
                 }
+                my $max_allowed = $val->max_files;
+                my $min_allowed = $val->min_files;
                 if (!@vrfiles && @skip_reasons) {
-                    $self->throw("none of the input files had a suitable type:\n" . join("\n", @skip_reasons));
+                    $self->throw("none of the input files had a suitable type:\n" . join("\n", @skip_reasons)) if ($min_allowed > 0);
+                    next;
+                }
+                my $num_results = @vrfiles;
+                if ($max_allowed == -1) {
+                    $max_allowed = $num_results;
+                }
+                if ($min_allowed == -1) {
+                    $min_allowed = $num_results;
+                }
+                unless ($num_results >= $min_allowed && $num_results <= $max_allowed) {
+                    $self->throw("there were $num_results input file(s) for '$key' of stepstate " . $self->step_state->id . ", which does not fit the allowed range $min_allowed..$max_allowed");
                 }
                 
                 $return{$key} = [map { $_->e ? $_ : $_->resolve } @vrfiles];
@@ -619,13 +647,14 @@ role VRPipe::StepRole {
         }
         #*** and the other resources?...
         
-        return
-          VRPipe::Requirements->create(memory => $memory,
-                                       time   => $time,
-                                       $cpus        ? (cpus        => $cpus)        : (),
-                                       $tmp_space   ? (tmp_space   => $tmp_space)   : (),
-                                       $local_space ? (local_space => $local_space) : (),
-                                       $custom      ? (custom      => $custom)      : ());
+        return VRPipe::Requirements->create(
+            memory => $memory,
+            time   => $time,
+            $cpus        ? (cpus        => $cpus)        : (),
+            $tmp_space   ? (tmp_space   => $tmp_space)   : (),
+            $local_space ? (local_space => $local_space) : (),
+            $custom      ? (custom      => $custom)      : ()
+        );
     }
     
     method dispatch (ArrayRef $aref) {
@@ -707,6 +736,36 @@ role VRPipe::StepRole {
             $common_meta->{$key} = $vals[0];
         }
         return $common_meta;
+    }
+    
+    method element_meta {
+        my %element_meta = %{ $self->step_state->dataelement->result };
+        delete @element_meta{qw(paths lane group)};
+        return %element_meta;
+    }
+    
+    method handle_override_options (HashRef $meta!) {
+        my $options = $self->options;
+        
+        return $options unless (exists $meta->{chunk_override_file} && exists $meta->{chrom} && exists $meta->{from} && exists $meta->{to});
+        
+        my $override_options = $options;
+        
+        my $chrom  = $meta->{chrom};
+        my $from   = $meta->{from};
+        my $to     = $meta->{to};
+        my $region = "${chrom}_${from}-${to}";
+        
+        my $override_file = $meta->{chunk_override_file};
+        my $override      = do $override_file;
+        
+        foreach my $option (keys %$override_options) {
+            if (exists $override->{"$region"}->{"$option"}) {
+                $override_options->{"$option"} = $override->{"$region"}->{"$option"};
+            }
+        }
+        
+        return $override_options;
     }
 }
 

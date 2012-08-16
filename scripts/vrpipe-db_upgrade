@@ -27,17 +27,17 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 use Getopt::Long;
-use aliased 'VRPipe::Persistent::Schema' => 'PS';
+use aliased 'VRPipe::Persistent::Schema'     => 'PS';
 use aliased 'DBIx::Class::DeploymentHandler' => 'DH';
-  
+
 use VRPipe::Persistent::SchemaBase;
 use VRPipe::Persistent::ConverterFactory;
 
-my $to = PS->VERSION;
-my $s = PS->connect;
+my $to   = PS->VERSION;
+my $s    = PS->connect;
 my $from = $s->get_db_schema_version;
 my $help = 0;
-GetOptions( "help" => \$help);
+GetOptions("help" => \$help);
 
 if ($help) {
     print "Upgrade VRPipe schema for your production database:\nvrpipe-db_upgrade\n";
@@ -48,20 +48,20 @@ if ($from eq $to) {
     exit;
 }
 
-my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
+my $dbtype    = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
 my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
-my $style = $converter->index_creation_style;
+my $style     = $converter->index_creation_style;
 
 # check table index equivalence and come up with appropriate index commands
 my (@drop_idx_cmds, @create_idx_cmds);
-foreach my $class (keys %{$s->class_mappings}) {
+foreach my $class (keys %{ $s->class_mappings }) {
     my $table_name = $class;
     $table_name =~ s/.*:://;
     $table_name = lc($table_name);
     my $meta = $class->meta;
     
-    my $pre = $converter->get_index_cols($s, $table_name);
-    my $post = $meta->get_attribute('idxd_cols')->get_value($meta);
+    my $pre       = $converter->get_index_cols($s, $table_name);
+    my $post      = $meta->get_attribute('idxd_cols')->get_value($meta);
     my $to_create = $meta->get_attribute('cols_to_idx')->get_value($meta);
     
     if ($style eq 'single') {
@@ -70,10 +70,10 @@ foreach my $class (keys %{$s->class_mappings}) {
         my %created;
         while (my ($col, $type) = each %$pre) {
             unless (defined $post->{$col} && $post->{$col} eq $type) {
-                push(@drop_idx_cmds, @{$converter->get_index_statements($table_name, {$col => $type}, 'drop')});
+                push(@drop_idx_cmds, @{ $converter->get_index_statements($table_name, { $col => $type }, 'drop') });
                 
                 if (defined $post->{$col}) {
-                    push(@create_idx_cmds, @{$converter->get_index_statements($table_name, {$col => $post->{$col}}, 'create')});
+                    push(@create_idx_cmds, @{ $converter->get_index_statements($table_name, { $col => $post->{$col} }, 'create') });
                     $created{$col} = 1;
                 }
             }
@@ -83,7 +83,7 @@ foreach my $class (keys %{$s->class_mappings}) {
         while (my ($col, $type) = each %$to_create) {
             next if $created{$col};
             unless (defined $pre->{$col} && $pre->{$col} eq $type) {
-                push(@create_idx_cmds, @{$converter->get_index_statements($table_name, {$col => $type}, 'create')});
+                push(@create_idx_cmds, @{ $converter->get_index_statements($table_name, { $col => $type }, 'create') });
             }
         }
     }
@@ -94,12 +94,12 @@ foreach my $class (keys %{$s->class_mappings}) {
         # (but maintains its own indexes). So we must detect changes and
         # recreate all our own indexes as necessary.
         
-        my $pre = $converter->get_index_cols($s, $table_name);
-        my $post = $meta->get_attribute('idxd_cols')->get_value($meta);
+        my $pre       = $converter->get_index_cols($s, $table_name);
+        my $post      = $meta->get_attribute('idxd_cols')->get_value($meta);
         my $to_create = $meta->get_attribute('cols_to_idx')->get_value($meta);
         while (my ($col, $type) = each %$pre) {
-            if (! defined $post->{$col} || $post->{$col} ne $type) {
-                @create_idx_cmds = @{$converter->get_index_statements($table_name, $to_create, 'create')};
+            if (!defined $post->{$col} || $post->{$col} ne $type) {
+                @create_idx_cmds = @{ $converter->get_index_statements($table_name, $to_create, 'create') };
                 last;
             }
         }
@@ -108,7 +108,7 @@ foreach my $class (keys %{$s->class_mappings}) {
         unless (@create_idx_cmds) {
             while (my ($col, $type) = each %$to_create) {
                 unless (defined $pre->{$col}) {
-                    push(@create_idx_cmds, @{$converter->get_index_statements($table_name, {$col => $type}, 'create')});
+                    push(@create_idx_cmds, @{ $converter->get_index_statements($table_name, { $col => $type }, 'create') });
                 }
             }
         }
@@ -124,14 +124,17 @@ if (@drop_idx_cmds) {
 }
 
 print "Altering columns...\n";
-my $dh = DH->new({ schema => $s,
-                   databases => PS->get_dbtype,
-                   sql_translator_args => { add_drop_table => 0 },
-                   force_overwrite => 0,
-                   script_directory => PS->get_schema_dir });
+my $dh = DH->new({
+        schema              => $s,
+        databases           => PS->get_dbtype,
+        sql_translator_args => { add_drop_table => 0 },
+        force_overwrite     => 0,
+        script_directory    => PS->get_schema_dir
+    }
+);
 
 $dh->prepare_deploy;
-$dh->prepare_upgrade({ from_version => $from, to_version => $to});
+$dh->prepare_upgrade({ from_version => $from, to_version => $to });
 $dh->upgrade;
 
 if (@create_idx_cmds) {
@@ -146,13 +149,13 @@ exit;
 sub run_index_cmds {
     my $idx_cmds = shift;
     $s->storage->dbh_do(
-	sub {
-	    my ($storage, $dbh, $idx_cmds) = @_;
-	    foreach my $cmd (@{$idx_cmds}) {
-		print "   $cmd\n";
-		$dbh->do($cmd);
-	    }
-	},
-	$idx_cmds
+        sub {
+            my ($storage, $dbh, $idx_cmds) = @_;
+            foreach my $cmd (@{$idx_cmds}) {
+                print "   $cmd\n";
+                $dbh->do($cmd);
+            }
+        },
+        $idx_cmds
     );
 }

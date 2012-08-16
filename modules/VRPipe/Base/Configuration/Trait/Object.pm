@@ -44,35 +44,47 @@ role VRPipe::Base::Configuration::Trait::Object {
     use Crypt::CBC;
     use Digest::MD5 qw(md5_hex);
     
-    has config_module => (is      => 'ro',
-                          isa     => 'Str',
-                          lazy    => 1,
-                          builder => '_build_config_module');
+    has config_module => (
+        is      => 'ro',
+        isa     => 'Str',
+        lazy    => 1,
+        builder => '_build_config_module'
+    );
     
-    has config_module_path => (is      => 'ro',
-                               isa     => File,
-                               coerce  => 1,
-                               lazy    => 1,
-                               builder => '_build_config_path');
+    has config_module_path => (
+        is      => 'ro',
+        isa     => File,
+        coerce  => 1,
+        lazy    => 1,
+        builder => '_build_config_path'
+    );
     
-    has _key_file => (is      => 'rw',
-                      isa     => MaybeFile,
-                      coerce  => 1,
-                      lazy    => 1,
-                      builder => '_build_key_file');
+    has _key_file => (
+        is      => 'rw',
+        isa     => MaybeFile,
+        coerce  => 1,
+        lazy    => 1,
+        builder => '_build_key_file'
+    );
     
-    has _raw_config => (is      => 'ro',
-                        isa     => 'HashRef',
-                        lazy    => 1,
-                        builder => '_build_raw_config');
+    has _raw_config => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        lazy    => 1,
+        builder => '_build_raw_config'
+    );
     
-    has _options_list => (is      => 'ro',
-                          isa     => 'ArrayRef',
-                          builder => '_build_options_list');
+    has _options_list => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        builder => '_build_options_list'
+    );
     
-    has _next_option_index => (is      => 'rw',
-                               isa     => 'Int',
-                               default => 0);
+    has _next_option_index => (
+        is      => 'rw',
+        isa     => 'Int',
+        default => 0
+    );
     
     method _build_config_module {
         return 'VRPipe::SiteConfig';
@@ -130,9 +142,11 @@ role VRPipe::Base::Configuration::Trait::Object {
                     $fh->close;
                     chomp($decryption_key);
                     
-                    my $cipher = Crypt::CBC->new(-key    => $decryption_key,
-                                                 -cipher => 'Blowfish',
-                                                 -header => 'salt');
+                    my $cipher = Crypt::CBC->new(
+                        -key    => $decryption_key,
+                        -cipher => 'Blowfish',
+                        -header => 'salt'
+                    );
                     
                     $config->{$key} = $cipher->decrypt($value);
                 }
@@ -201,9 +215,11 @@ role VRPipe::Base::Configuration::Trait::Object {
                     $fh->close;
                 }
                 
-                my $cipher = Crypt::CBC->new(-key    => $key,
-                                             -cipher => 'Blowfish',
-                                             -header => 'salt');
+                my $cipher = Crypt::CBC->new(
+                    -key    => $key,
+                    -cipher => 'Blowfish',
+                    -header => 'salt'
+                );
                 
                 $value = $cipher->encrypt($value);
             }
@@ -250,12 +266,14 @@ END_HERE
         if ($do_add) {
             # add a question about where the encryption key should be stored
             $meta->make_mutable;
-            my $new_attr = $meta->add_attribute('encryption_key_file',
-                                                accessor        => 'encryption_key_file',
-                                                is              => 'rw',
-                                                trigger         => sub { shift->_key_file(shift); },
-                                                question        => 'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)',
-                                                question_number => 0);
+            my $new_attr = $meta->add_attribute(
+                'encryption_key_file',
+                accessor        => 'encryption_key_file',
+                is              => 'rw',
+                trigger         => sub { shift->_key_file(shift); },
+                question        => 'Passwords you enter will be encrypted; where should your encryption key be stored? (it is up to you to properly secure this file)',
+                question_number => 0
+            );
             $meta->make_immutable;
             unshift(@ck_attrs, $new_attr);
         }

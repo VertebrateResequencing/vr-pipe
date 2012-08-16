@@ -53,17 +53,18 @@ class VRPipe::Pipelines::bis_seq_bismark with VRPipe::PipelineRole {
     
     method _step_list {
         return ([
-             VRPipe::Step->get(name => 'fastqc_quality_report'),        # 1
-             VRPipe::Step->get(name => 'trimmomatic'),                  # 2
-             VRPipe::Step->get(name => 'bismark'),                      # 3
-             VRPipe::Step->get(name => 'sam_sort'),                     # 4
-             VRPipe::Step->get(name => 'sam_mark_duplicates'),          # 5
-             VRPipe::Step->get(name => 'bismark_methylation_extractor') # 6
+                VRPipe::Step->get(name => 'fastqc_quality_report'),        # 1
+                VRPipe::Step->get(name => 'trimmomatic'),                  # 2
+                VRPipe::Step->get(name => 'bismark'),                      # 3
+                VRPipe::Step->get(name => 'sam_sort'),                     # 4
+                VRPipe::Step->get(name => 'sam_mark_duplicates'),          # 5
+                VRPipe::Step->get(name => 'bismark_methylation_extractor') # 6
             ],
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'trimmed_files', to_key => 'fastq_files'), VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'bismark_sam', to_key => 'sam_file'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'sorted_sam', to_key => 'sam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'sorted_sam', to_key => 'sam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 5, to_step => 6, from_key => 'markdup_sam_files', to_key => 'sam_file')],
             [
             
-            ]);
+            ]
+        );
     }
 }
 1;

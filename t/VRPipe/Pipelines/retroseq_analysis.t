@@ -5,8 +5,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-                    required_exe => [qw(retroseq.pl)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe => [qw(retroseq.pl)]
+    );
     use TestPipelines;
 }
 
@@ -29,18 +31,23 @@ print REF "Alu\t${alu_file}\n";
 print REF "L1HS\t${l1hs_file}\n";
 close(REF);
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->create(name       => 'my retroseq_analysis pipeline setup',
-                                                       datasource => VRPipe::DataSource->create(type   => 'fofn',
-                                                                                                method => 'all',
-                                                                                                source => file(qw(t data hs_chr20.bam.fofn))),
-                                                       output_root => $output_dir,
-                                                       pipeline    => $pipeline,
-                                                       options     => {
-                                                                    'retroseq_exe'          => 'retroseq.pl',
-                                                                    'refTEs_param'          => "$refTE_file",
-                                                                    'retroseq_ref'          => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
-                                                                    'retroseq_call_options' => '-hets -reads 1 -depth 100',
-                                                                    cleanup                 => 0, });
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 'my retroseq_analysis pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type   => 'fofn',
+        method => 'all',
+        source => file(qw(t data hs_chr20.bam.fofn))
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        'retroseq_exe'          => 'retroseq.pl',
+        'refTEs_param'          => "$refTE_file",
+        'retroseq_ref'          => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
+        'retroseq_call_options' => '-hets -reads 1 -depth 100',
+        cleanup                 => 0,
+    }
+);
 
 my (@output_files, @final_files);
 my $element_id = 0;

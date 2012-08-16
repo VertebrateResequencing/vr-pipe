@@ -34,9 +34,11 @@ use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
 
 # handle options
-my $cmdline = VRPipe::Interface::CmdLine->new(description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
-                                              extra_args  => 'start|stop|restart|status',
-                                              opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]);
+my $cmdline = VRPipe::Interface::CmdLine->new(
+    description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
+    extra_args  => 'start|stop|restart|status',
+    opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]
+);
 my $backend;
 my $deployment = $cmdline->opts('deployment');
 my $foreground = $cmdline->opts('foreground');
@@ -182,7 +184,7 @@ sub start_server {
     }
     
     # setup the http page requests we'll respond to
-    $backend->resigster_psgi_pages(
+    $backend->register_psgi_pages(
         '/' => sub {
             $backend->psgi_text_response(200, 'html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>", shift);
         },
@@ -195,7 +197,8 @@ sub start_server {
         '/stop' => sub {
             shutdown_server("Received the stop command");
             $backend->psgi_text_response(200, 'plain', 'Stopping server', shift);
-        });
+        }
+    );
     
     # setup the signals we'll react to
     $SIG{HUP}  = 'IGNORE';

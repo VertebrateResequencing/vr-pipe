@@ -5,7 +5,8 @@ VRPipe::Pipelines::retroseq_analysis - a pipeline
 
 =head1 DESCRIPTION
 
-Runs Retroseq genotyping of Transposable Elements from short read alignments, generating VCFs of TE calls for a bam datasource.
+Runs Retroseq genotyping of Transposable Elements from short read alignments,
+generating VCFs of TE calls for a bam datasource.
 
 =head1 AUTHOR
 
@@ -56,7 +57,8 @@ class VRPipe::Pipelines::retroseq_analysis with VRPipe::PipelineRole {
             
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'rseq_bed', to_key => 'rseq_bed'),],
             
-            [VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup', default_regulation => 1)]);
+            [VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup', default_regulation => 1)]
+        );
     }
 }
 

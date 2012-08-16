@@ -1,3 +1,33 @@
+0.95    This version overhauls a number of SNP-calling-related piplines and
+        steps. If upgrading, be sure to read IMPORTANT_NOTES. The changes are
+        primarily concerned with moving the choice to do 'chunked' calling (as
+        opposed to calling across the whole genome at once) to the DataSource,
+        instead of having 2 separate piplines, one for whole-genome, one for
+        genome chunks. The change improves efficiency and makes it easier to
+        restart/trouble-shoot failed chunks.
+        Deleted pipelines:
+            gatk_genotype (renamed snp_calling_gatk_unified_genotyper)
+            gatk_variant_calling_and_filter_vcf (renamed snp_calling_gatk_unified_genotyper_and_filter_vcf)
+            mpileup_with_leftaln
+            snp_calling_chunked_mpileup_bcf (replaced by snp_calling_mpileup_via_bcf.pm + genome chunking)
+            snp_calling_chunked_mpileup_vcf (replaced by snp_calling_mpileup.pm + genome chunking)
+            snp_calling_gatk_vcf (replaced by snp_calling_gatk_unified_genotyper_and_filter_vcf + vqsr_for_snps)
+            snp_calling_mpileup_vcf (renamed snp_calling_mpileup)
+            snp_calling_mpileup_bcf (renamed snp_calling_mpileup_via_bcf)
+            vcf_chunked_vep_annotate (renamed vcf_split_and_vep_annotate)
+        Modified pipelines:
+            vcf_filter_merge_and_vep_annotate (vcf_index step added throughout)
+            vcf_vep_annotate (vcf_index step added at the end)
+        New pipelines:
+            vcf_concat.pm
+            merge_vcfs_to_site_list_and_recall_from_bcf
+            snp_calling_mpileup
+            snp_calling_gatk_unified_genotyper
+            snp_calling_mpileup_from_bcf
+            snp_calling_mpileup_via_bcf
+            vcf_split_and_vep_annotate
+            vqsr_for_snps
+            snp_calling_gatk_unified_genotyper_and_filter_vcf
 0.94    Critical fix for getting interface_port when it is set as an environment
         variable. See also the recent 0.93 changes.
 0.93    This version features the beginning of a more radicial overhaul,

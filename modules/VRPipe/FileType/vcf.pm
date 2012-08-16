@@ -46,7 +46,13 @@ class VRPipe::FileType::vcf extends VRPipe::FileType::txt {
         # uncompressed vcf files
         
         #*** worth doing something like checking the first line of file?
-        return 1;
+        my $file = $self->file;
+        my $type = $self->type;
+        $file =~ s/\.gz$// unless $type eq 'gz';
+        if ($file =~ /\.(?:$type)$/) { #*** this sucks as a test...
+            return 1;
+        }
+        return 0;
     }
     
     method num_header_lines {

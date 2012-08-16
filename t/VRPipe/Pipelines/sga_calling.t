@@ -6,8 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 6;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-                    required_exe => [qw(sga)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe => [qw(sga)]
+    );
     use TestPipelines;
 }
 
@@ -27,32 +29,42 @@ while (<$oh>) {
 close($oh);
 close($nh);
 
-VRPipe::PipelineSetup->create(name       => 'sga prepare fastq test',
-                              datasource => VRPipe::DataSource->create(type    => 'fofn_with_metadata',
-                                                                       method  => 'grouped_by_metadata',
-                                                                       source  => file(qw(t data sga_calling_datasource.fofn))->absolute->stringify,
-                                                                       options => { metadata_keys => 'sample|platform' },),
-                              output_root => $calling_dir,
-                              pipeline    => $preprocess_pipeline,
-                              options     => {
-                                           split_bam_only         => '^(11|20)$',
-                                           split_bam_include_mate => 1,
-                                           sga_preprocess_options => '--min-length=50',
-                                           sga_exe                => 'sga',
-                                           ignore_read_ordering   => 1,
-                                           cleanup                => 0, });
+VRPipe::PipelineSetup->create(
+    name       => 'sga prepare fastq test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn_with_metadata',
+        method  => 'grouped_by_metadata',
+        source  => file(qw(t data sga_calling_datasource.fofn))->absolute->stringify,
+        options => { metadata_keys => 'sample|platform' },
+    ),
+    output_root => $calling_dir,
+    pipeline    => $preprocess_pipeline,
+    options     => {
+        split_bam_only         => '^(11|20)$',
+        split_bam_include_mate => 1,
+        sga_preprocess_options => '--min-length=50',
+        sga_exe                => 'sga',
+        ignore_read_ordering   => 1,
+        cleanup                => 0,
+    }
+);
 
-VRPipe::PipelineSetup->create(name       => 'sga calling test',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'group_by_metadata',
-                                                                       source  => '1[4]',
-                                                                       options => { metadata_keys => 'population|split_sequence' }),
-                              output_root => $calling_dir,
-                              pipeline    => $sga_pipeline,
-                              options     => {
-                                           reference_fasta => $ref_fa,
-                                           sga_exe         => 'sga',
-                                           cleanup         => 0 });
+VRPipe::PipelineSetup->create(
+    name       => 'sga calling test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => '1[4]',
+        options => { metadata_keys => 'population|split_sequence' }
+    ),
+    output_root => $calling_dir,
+    pipeline    => $sga_pipeline,
+    options     => {
+        reference_fasta => $ref_fa,
+        sga_exe         => 'sga',
+        cleanup         => 0
+    }
+);
 
 ok handle_pipeline(), 'sga_prepare_fastq and sga_variant_calling pipelines ran ok';
 
@@ -90,17 +102,22 @@ ok handle_pipeline(@input_files, @ref_files, @calling_files), 'sga_prepare_fastq
 
 ok my $sga_merge_pipeline = VRPipe::Pipeline->create(name => 'sga_merge_and_variant_calling'), 'able to get the sga_merge_and_variant_calling pipeline';
 
-VRPipe::PipelineSetup->create(name       => 'sga merge and call test',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'group_by_metadata',
-                                                                       source  => '2[4:merged_fastq_file]',
-                                                                       options => { metadata_keys => 'continent|split_sequence' }),
-                              output_root => $calling_dir,
-                              pipeline    => $sga_merge_pipeline,
-                              options     => {
-                                           reference_fasta => $ref_fa,
-                                           sga_exe         => 'sga',
-                                           cleanup         => 0 });
+VRPipe::PipelineSetup->create(
+    name       => 'sga merge and call test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => '2[4:merged_fastq_file]',
+        options => { metadata_keys => 'continent|split_sequence' }
+    ),
+    output_root => $calling_dir,
+    pipeline    => $sga_merge_pipeline,
+    options     => {
+        reference_fasta => $ref_fa,
+        sga_exe         => 'sga',
+        cleanup         => 0
+    }
+);
 
 ok handle_pipeline(), 'sga_merge_and_variant_calling pipeline ran ok';
 

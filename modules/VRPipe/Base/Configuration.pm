@@ -98,7 +98,9 @@ use warnings;
 
 use Moose::Exporter;
 
-Moose::Exporter->setup_import_methods(class_metaroles  => { attribute => ['VRPipe::Base::Configuration::Trait::Attribute'], },
-                                      base_class_roles => ['VRPipe::Base::Configuration::Trait::Object'],);
+Moose::Exporter->setup_import_methods(
+    class_metaroles  => { attribute => ['VRPipe::Base::Configuration::Trait::Attribute'], },
+    base_class_roles => ['VRPipe::Base::Configuration::Trait::Object'],
+);
 
 1;

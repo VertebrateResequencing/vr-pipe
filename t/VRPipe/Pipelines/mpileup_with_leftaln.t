@@ -5,8 +5,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)],
-                    required_exe => [qw(samtools vcf-concat bcftools)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe => [qw(samtools vcf-concat bcftools)]
+    );
     use TestPipelines;
 }
 
@@ -22,16 +24,21 @@ foreach my $stepmember ($pipeline->steps) {
 my @expected_step_names = qw(mpileup_vcf vcf_index gatk_vcf_leftalign);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->create(name       => 'my mpileup_with_leftaln pipeline setup',
-                                                       datasource => VRPipe::DataSource->create(type   => 'fofn',
-                                                                                                method => 'all',
-                                                                                                source => file(qw(t data hs_chr20.bam.fofn))),
-                                                       output_root => $output_dir,
-                                                       pipeline    => $pipeline,
-                                                       options     => {
-                                                                    cleanup                  => 0,
-                                                                    samtools_mpileup_options => '-C50 -aug',
-                                                                    reference_fasta          => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify, });
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 'my mpileup_with_leftaln pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type   => 'fofn',
+        method => 'all',
+        source => file(qw(t data hs_chr20.bam.fofn))
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        cleanup                  => 0,
+        samtools_mpileup_options => '-C50 -aug',
+        reference_fasta          => file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify,
+    }
+);
 
 my (@output_files, @final_files);
 my $element_id = 0;

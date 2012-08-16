@@ -15,6 +15,18 @@ Currently this step sorts a sam file by co-oridinate.
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 =head1 AUTHOR
 
 NJWalker <nw11@sanger.ac.uk>.
@@ -58,11 +70,13 @@ class VRPipe::Steps::sam_sort with VRPipe::StepRole {
             my $self = shift;
             #my $options = $self->options;
             my ($infile) = @{ $self->inputs->{sam_file} };
-            my $name = $infile->basename;
-            my $outfile = $self->output_file(output_key => 'sorted_sam',
-                                             basename   => $name . '.sort' . '.sam',
-                                             type       => 'txt',
-                                             metadata   => $infile->metadata);
+            my $name     = $infile->basename;
+            my $outfile  = $self->output_file(
+                output_key => 'sorted_sam',
+                basename   => $name . '.sort' . '.sam',
+                type       => 'txt',
+                metadata   => $infile->metadata
+            );
             my $infile_path  = $infile->path;
             my $outfile_path = $outfile->path;
             my $req          = $self->new_requirements(memory => 1500, time => 1);

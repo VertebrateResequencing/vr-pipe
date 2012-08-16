@@ -43,38 +43,48 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepState extends VRPipe::Persistent {
-    has 'stepmember' => (is         => 'rw',
-                         isa        => Persistent,
-                         coerce     => 1,
-                         traits     => ['VRPipe::Persistent::Attributes'],
-                         is_key     => 1,
-                         belongs_to => 'VRPipe::StepMember');
+    has 'stepmember' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::StepMember'
+    );
     
-    has 'dataelement' => (is         => 'rw',
-                          isa        => Persistent,
-                          coerce     => 1,
-                          traits     => ['VRPipe::Persistent::Attributes'],
-                          is_key     => 1,
-                          belongs_to => 'VRPipe::DataElement');
+    has 'dataelement' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::DataElement'
+    );
     
-    has 'pipelinesetup' => (is         => 'rw',
-                            isa        => Persistent,
-                            coerce     => 1,
-                            traits     => ['VRPipe::Persistent::Attributes'],
-                            is_key     => 1,
-                            belongs_to => 'VRPipe::PipelineSetup');
+    has 'pipelinesetup' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::PipelineSetup'
+    );
     
-    has 'cmd_summary' => (is          => 'rw',
-                          isa         => Persistent,
-                          coerce      => 1,
-                          traits      => ['VRPipe::Persistent::Attributes'],
-                          is_nullable => 1,
-                          belongs_to  => 'VRPipe::StepCmdSummary');
+    has 'cmd_summary' => (
+        is          => 'rw',
+        isa         => Persistent,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1,
+        belongs_to  => 'VRPipe::StepCmdSummary'
+    );
     
-    has 'complete' => (is      => 'rw',
-                       isa     => 'Bool',
-                       traits  => ['VRPipe::Persistent::Attributes'],
-                       default => 0);
+    has 'complete' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
     __PACKAGE__->make_persistent(has_many => [[submissions => 'VRPipe::Submission'], ['_output_files' => 'VRPipe::StepOutputFile']]);
     

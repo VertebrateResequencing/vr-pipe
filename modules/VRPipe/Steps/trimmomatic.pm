@@ -38,10 +38,12 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
     use List::MoreUtils qw(natatime);
     
     around options_definition {
-        return { %{ $self->$orig },
-                 trimmomatic_jar_path     => VRPipe::StepOption->create(description => 'path to Trimmomatic jar file',                        optional => 0, default_value => "$ENV{TRIMMOMATIC_JAR_PATH}"),
-                 paired_end               => VRPipe::StepOption->create(description => 'Run in Paired End mode (default is for single end).', optional => 1, default_value => "0"),
-                 trimmomatic_step_options => VRPipe::StepOption->create(description => 'String of the step options for Trimmomatic.',         optional => 1, default_value => 'LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36') };
+        return {
+            %{ $self->$orig },
+            trimmomatic_jar_path     => VRPipe::StepOption->create(description => 'path to Trimmomatic jar file',                        optional => 0, default_value => "$ENV{TRIMMOMATIC_JAR_PATH}"),
+            paired_end               => VRPipe::StepOption->create(description => 'Run in Paired End mode (default is for single end).', optional => 1, default_value => "0"),
+            trimmomatic_step_options => VRPipe::StepOption->create(description => 'String of the step options for Trimmomatic.',         optional => 1, default_value => 'LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36')
+        };
     }
     
     method inputs_definition {
@@ -74,10 +76,12 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
             if (!$paired_end) {
                 foreach my $seq_file (@{ $self->inputs->{fastq_files} }) {
                     my ($name) = fileparse($seq_file->basename, ('.fastq'));
-                    my $out_file = $self->output_file(output_key => 'trimmed_files',
-                                                      basename   => $name . '.trim.fastq',
-                                                      type       => 'fq',
-                                                      metadata   => $seq_file->metadata);
+                    my $out_file = $self->output_file(
+                        output_key => 'trimmed_files',
+                        basename   => $name . '.trim.fastq',
+                        type       => 'fq',
+                        metadata   => $seq_file->metadata
+                    );
                     my $out_file_path = $out_file->path;
                     my $seq_file_path = $seq_file->path;
                     my $cmd           = $self->java_exe . " $jvm_args -classpath $trimmomatic_jar_path org.usadellab.trimmomatic.TrimmomaticSE $qual_enc -trimlog $log_file_path $seq_file_path $out_file_path $step_options";
@@ -96,26 +100,34 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                 my $it = natatime 2, @input_files;
                 while (my @pair = $it->()) {
                     my ($name1) = fileparse($pair[0]->basename, ('.fastq'));
-                    my $out_file_1 = $self->output_file(output_key => 'trimmed_files',
-                                                        basename   => $name1 . '.paired.trim.fastq',
-                                                        type       => 'fq',
-                                                        metadata   => $pair[0]->metadata);
+                    my $out_file_1 = $self->output_file(
+                        output_key => 'trimmed_files',
+                        basename   => $name1 . '.paired.trim.fastq',
+                        type       => 'fq',
+                        metadata   => $pair[0]->metadata
+                    );
                     
-                    my $out_file_2 = $self->output_file(output_key => 'unpaired_trimmed_files',
-                                                        basename   => $name1 . '.unpaired.trim.fastq',
-                                                        type       => 'fq',
-                                                        metadata   => $pair[0]->metadata);
+                    my $out_file_2 = $self->output_file(
+                        output_key => 'unpaired_trimmed_files',
+                        basename   => $name1 . '.unpaired.trim.fastq',
+                        type       => 'fq',
+                        metadata   => $pair[0]->metadata
+                    );
                     
                     my ($name2) = fileparse($pair[1]->basename, ('.fastq'));
-                    my $out_file_3 = $self->output_file(output_key => 'trimmed_files',
-                                                        basename   => $name2 . '.paired.trim.fastq',
-                                                        type       => 'fq',
-                                                        metadata   => $pair[1]->metadata);
+                    my $out_file_3 = $self->output_file(
+                        output_key => 'trimmed_files',
+                        basename   => $name2 . '.paired.trim.fastq',
+                        type       => 'fq',
+                        metadata   => $pair[1]->metadata
+                    );
                     
-                    my $out_file_4 = $self->output_file(output_key => 'unpaired_trimmed_files',
-                                                        basename   => $name2 . '.unpaired.trim.fastq',
-                                                        type       => 'fq',
-                                                        metadata   => $pair[1]->metadata);
+                    my $out_file_4 = $self->output_file(
+                        output_key => 'unpaired_trimmed_files',
+                        basename   => $name2 . '.unpaired.trim.fastq',
+                        type       => 'fq',
+                        metadata   => $pair[1]->metadata
+                    );
                     
                     my $out_file_path_1 = $out_file_1->path;
                     my $out_file_path_2 = $out_file_2->path;
@@ -133,9 +145,11 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
     }
     
     method outputs_definition {
-        return { trimmed_files          => VRPipe::StepIODefinition->create(type => 'fq',  max_files   => -1,                     min_files => 0,  description     => 'trimmomatic trimmed file output'),
-                 unpaired_trimmed_files => VRPipe::StepIODefinition->create(type => 'fq',  max_files   => -1,                     min_files => 0,  check_existence => 0, description => 'trimmomatic trimmed file output'),
-                 trimmomatic_log        => VRPipe::StepIODefinition->create(type => 'txt', description => 'trimmomatic log file', max_files => -1, min_files       => 0) };
+        return {
+            trimmed_files          => VRPipe::StepIODefinition->create(type => 'fq',  max_files   => -1,                     min_files => 0,  description     => 'trimmomatic trimmed file output'),
+            unpaired_trimmed_files => VRPipe::StepIODefinition->create(type => 'fq',  max_files   => -1,                     min_files => 0,  check_existence => 0, description => 'trimmomatic trimmed file output'),
+            trimmomatic_log        => VRPipe::StepIODefinition->create(type => 'txt', description => 'trimmomatic log file', max_files => -1, min_files       => 0)
+        };
     }
     
     method post_process_sub {

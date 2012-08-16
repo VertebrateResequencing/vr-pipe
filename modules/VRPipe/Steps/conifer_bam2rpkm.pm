@@ -35,15 +35,21 @@ use VRPipe::Base;
 
 class VRPipe::Steps::conifer_bam2rpkm with VRPipe::StepRole {
     method options_definition {
-        return { python_exe  => VRPipe::StepOption->create(description => 'full path to python executable', optional => 1, default_value => 'python'),
-                 conifer_py  => VRPipe::StepOption->create(description => 'full path to conifer.py',        optional => 1, default_value => 'conifer.py'),
-                 probes_file => VRPipe::StepOption->create(description => 'probes / target definition file'), };
+        return {
+            python_exe  => VRPipe::StepOption->create(description => 'full path to python executable', optional => 1, default_value => 'python'),
+            conifer_py  => VRPipe::StepOption->create(description => 'full path to conifer.py',        optional => 1, default_value => 'conifer.py'),
+            probes_file => VRPipe::StepOption->create(description => 'probes / target definition file'),
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               description => 'set of bam files to be analysed as a group',
-                                                               max_files   => -1) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'set of bam files to be analysed as a group',
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
@@ -72,9 +78,13 @@ class VRPipe::Steps::conifer_bam2rpkm with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { rpkm_out => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                              description => 'one conifer rpkm output file per bam',
-                                                              max_files   => -1) };
+        return {
+            rpkm_out => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'one conifer rpkm output file per bam',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

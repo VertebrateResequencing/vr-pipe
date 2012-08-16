@@ -5,7 +5,10 @@ VRPipe::Steps::vcf_consequences - a step
 
 =head1 DESCRIPTION
 
-Runs the old vcf2consequences program aganinst one or more VCF files to generate VCFs annotated with consequence, Superceded by vep_analysis / vcf2consequences_vep, which uses the Ensembl VEP and is much quicker.[Should probably get rid of this Step]
+Runs the old vcf2consequences program aganinst one or more VCF files to
+generate VCFs annotated with consequence, Superceded by vep_analysis /
+vcf2consequences_vep, which uses the Ensembl VEP and is much quicker.[Should
+probably get rid of this Step]
 
 =head1 AUTHOR
 
@@ -35,30 +38,33 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_consequences with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf2consequences_options' => VRPipe::StepOption->create(description => 'options to vcf2consequences, excluding -v'),
-                 'vcf2consequences_exe'     => VRPipe::StepOption->create(
-                                                                      description   => 'path to your vcf2consequences executable',
-                                                                      optional      => 1,
-                                                                      default_value => 'vcf2consequences'),
-                 'tabix_exe' => VRPipe::StepOption->create(description   => 'path to your tabix executable',
-                                                           optional      => 1,
-                                                           default_value => 'tabix') };
+        return {
+            'vcf2consequences_options' => VRPipe::StepOption->create(description => 'options to vcf2consequences, excluding -v'),
+            'vcf2consequences_exe'     => VRPipe::StepOption->create(
+                description   => 'path to your vcf2consequences executable',
+                optional      => 1,
+                default_value => 'vcf2consequences'
+            )
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               description => 'annotated vcf files',
-                                                               max_files   => -1) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'annotated vcf files',
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
         return sub {
             my $self = shift;
             
-            my $options   = $self->options;
-            my $tabix_exe = $options->{tabix_exe};
-            my $con_exe   = $options->{'vcf2consequences_exe'};
-            my $con_opts  = $options->{'vcf2consequences_options'};
+            my $options  = $self->options;
+            my $con_exe  = $options->{'vcf2consequences_exe'};
+            my $con_opts = $options->{'vcf2consequences_options'};
             
             if ($con_opts =~ /-v/) {
                 $self->throw("vcf2consequences_options should not include the reference or -v option");
@@ -67,32 +73,27 @@ class VRPipe::Steps::vcf_consequences with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.vcf.gz$/) {
-                    $basename =~ s/\.vcf.gz$/.conseq.vcf.gz/;
-                }
-                else {
-                    $basename =~ s/\.vcf$/.conseq.vcf/;
-                }
-                my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename,          type => 'vcf');
-                my $tbi        = $self->output_file(output_key => 'tbi_file',   basename => $basename . '.tbi', type => 'bin');
+                $basename =~ s/\.vcf(.gz)?$/.conseq.vcf.gz/;
+                my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename, type => 'vcf', metadata => $vcf_file->metadata);
                 
                 my $input_path  = $vcf_file->path;
                 my $output_path = $conseq_vcf->path;
                 
-                my $this_cmd = "$con_exe -v $input_path $con_opts | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path;";
+                my $this_cmd = "$con_exe -v $input_path $con_opts | bgzip -c > $output_path";
                 
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_consequences', 'consequence_vcf', [$this_cmd, $req, { output_files => [$conseq_vcf, $tbi] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_consequences', 'consequence_vcf', [$this_cmd, $req, { output_files => [$conseq_vcf] }]);
             }
         };
     }
     
     method outputs_definition {
-        return { conseq_vcf => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                                description => 'annotated vcf file with consequences',
-                                                                max_files   => -1),
-                 tbi_file => VRPipe::StepIODefinition->create(type        => 'bin',
-                                                              description => 'a tbi file',
-                                                              max_files   => -1) };
+        return {
+            conseq_vcf => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'annotated vcf file with consequences',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {
@@ -108,7 +109,7 @@ class VRPipe::Steps::vcf_consequences with VRPipe::StepRole {
     }
     
     method consequence_vcf (ClassName|Object $self: Str $cmd_line) {
-        my ($input_path, $output_path) = $cmd_line =~ /\S+ -v (\S+) .* vcf (\S+);$/;
+        my ($input_path, $output_path) = $cmd_line =~ /\S+ -v (\S+) .* bgzip -c > (\S+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         
         my $input_lines = $input_file->lines;

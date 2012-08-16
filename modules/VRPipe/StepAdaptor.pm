@@ -42,22 +42,28 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepAdaptor extends VRPipe::Persistent {
-    has 'pipeline' => (is         => 'rw',
-                       isa        => Persistent,
-                       coerce     => 1,
-                       traits     => ['VRPipe::Persistent::Attributes'],
-                       is_key     => 1,
-                       belongs_to => 'VRPipe::Pipeline');
+    has 'pipeline' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::Pipeline'
+    );
     
-    has 'to_step' => (is     => 'rw',
-                      isa    => IntSQL [4],
-                      traits => ['VRPipe::Persistent::Attributes'],
-                      is_key => 1);
+    has 'to_step' => (
+        is     => 'rw',
+        isa    => IntSQL [4],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'adaptor_hash' => (is      => 'rw',
-                           isa     => 'HashRef',
-                           traits  => ['VRPipe::Persistent::Attributes'],
-                           default => sub { {} });
+    has 'adaptor_hash' => (
+        is      => 'rw',
+        isa     => 'HashRef',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => sub { {} }
+    );
     
     __PACKAGE__->make_persistent();
     

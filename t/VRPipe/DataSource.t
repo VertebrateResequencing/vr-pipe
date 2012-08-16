@@ -4,17 +4,19 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 49;
+    use Test::Most tests => 55;
     use VRPipeTest;
     
     use_ok('VRPipe::DataSourceFactory');
 }
 
 # list
-ok my $ds = VRPipe::DataSource->create(type    => 'list',
-                                       method  => 'all',
-                                       source  => file(qw(t data datasource.list))->absolute->stringify,
-                                       options => {}),
+ok my $ds = VRPipe::DataSource->create(
+    type    => 'list',
+    method  => 'all',
+    source  => file(qw(t data datasource.list))->absolute->stringify,
+    options => {}
+  ),
   'could create a list datasource';
 
 my @results;
@@ -23,10 +25,12 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 is_deeply \@results, [{ line => 'foo' }, { line => 'bar' }, { line => 'henry' }], 'got all results correctly';
 
-$ds = VRPipe::DataSource->create(type    => 'list',
-                                 method  => 'all',
-                                 source  => file(qw(t data datasource.list))->absolute->stringify,
-                                 options => { skip_comments => 0 });
+$ds = VRPipe::DataSource->create(
+    type    => 'list',
+    method  => 'all',
+    source  => file(qw(t data datasource.list))->absolute->stringify,
+    options => { skip_comments => 0 }
+);
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
@@ -35,10 +39,12 @@ foreach my $element (@{ get_elements($ds) }) {
 is_deeply \@results, [{ line => 'foo' }, { line => 'bar' }, { line => '# comment' }, { line => 'henry' }], 'got even more results with extra options';
 
 # fofn
-ok $ds = VRPipe::DataSource->create(type    => 'fofn',
-                                    method  => 'all',
-                                    source  => file(qw(t data datasource.fofn))->absolute->stringify,
-                                    options => {}),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn',
+    method  => 'all',
+    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+    options => {}
+  ),
   'could create a fofn datasource';
 
 @results = ();
@@ -47,10 +53,12 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 is_deeply \@results, [{ paths => [file('t', 'data', 'file.bam')->absolute] }, { paths => [file('t', 'data', 'file.cat')->absolute] }, { paths => [file('t', 'data', 'file.txt')->absolute] }], 'got correct results for fofn all';
 
-ok $ds = VRPipe::DataSource->create(type    => 'fofn',
-                                    method  => 'group_all',
-                                    source  => file(qw(t data datasource.fofn))->absolute->stringify,
-                                    options => {}),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn',
+    method  => 'group_all',
+    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+    options => {}
+  ),
   'could create a fofn datasource with group_all method';
 
 @results = ();
@@ -60,12 +68,16 @@ foreach my $element (@{ get_elements($ds) }) {
 is_deeply \@results, [{ paths => [file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute] }], 'got correct results for fofn group_all';
 
 # delimited
-ok $ds = VRPipe::DataSource->create(type    => 'delimited',
-                                    method  => 'grouped_single_column',
-                                    source  => file(qw(t data datasource.fastqs))->absolute->stringify,
-                                    options => { delimiter => "\t",
-                                                 group_by  => 1,
-                                                 column    => 2 }),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'delimited',
+    method  => 'grouped_single_column',
+    source  => file(qw(t data datasource.fastqs))->absolute->stringify,
+    options => {
+        delimiter => "\t",
+        group_by  => 1,
+        column    => 2
+    }
+  ),
   'could create a delimited datasource';
 
 @results = ();
@@ -75,10 +87,12 @@ foreach my $element (@{ get_elements($ds) }) {
 is_deeply \@results, [{ paths => [file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute], group => '2822_6' }, { paths => [file(qw(t data 2822_7_1.fastq))->absolute, file(qw(t data 2822_7_2.fastq))->absolute], group => '2822_7' }, { paths => [file(qw(t data 2823_4_1.fastq))->absolute, file(qw(t data 2823_4_2.fastq))->absolute], group => '2823_4' }, { paths => [file(qw(t data 8324_8_1.fastq))->absolute, file(qw(t data 8324_8_2.fastq))->absolute], group => '8324_8' }], 'got correct results for delimited grouped_single_column';
 
 # delimited all columns
-ok $ds = VRPipe::DataSource->create(type    => 'delimited',
-                                    method  => 'all_columns',
-                                    source  => file(qw(t data datasource.2col))->absolute->stringify,
-                                    options => { delimiter => "\t" }),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'delimited',
+    method  => 'all_columns',
+    source  => file(qw(t data datasource.2col))->absolute->stringify,
+    options => { delimiter => "\t" }
+  ),
   'could create a delimited datasource';
 
 @results = ();
@@ -96,10 +110,12 @@ is_deeply [$ds->method_options('single_column')], [['named', 'delimiter', 1, und
 my @fwm_paths = ('/a/path/7816_3#95.bam', '/a/path/7413_5#95.bam', '/a/path/8312_5#95.bam');
 my %fwm_common_meta = (center_name => 'SC', study => 'ERP000979', platform => 'ILLUMINA');
 VRPipe::File->create(path => $fwm_paths[0])->add_metadata({ library => 'foo' });
-ok $ds = VRPipe::DataSource->create(type    => 'fofn_with_metadata',
-                                    method  => 'all',
-                                    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
-                                    options => {}),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
+    method  => 'all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => {}
+  ),
   'could create a fofn_with_metadata datasource';
 
 @results = ();
@@ -108,10 +124,12 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata, VRPipe::File->get(path => $fwm_paths[2])->metadata], [{ paths => [$fwm_paths[0]] }, { paths => [$fwm_paths[1]] }, { paths => [$fwm_paths[2]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }, { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata all, and the metadata on the files was correct';
 
-ok $ds = VRPipe::DataSource->create(type    => 'fofn_with_metadata',
-                                    method  => 'group_all',
-                                    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
-                                    options => {}),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
+    method  => 'group_all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => {}
+  ),
   'could create a fofn_with_metadata datasource with group_all method';
 
 @results = ();
@@ -120,10 +138,12 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata, VRPipe::File->get(path => $fwm_paths[2])->metadata], [{ paths => [$fwm_paths[0], $fwm_paths[1], $fwm_paths[2]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }, { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata group_all, and the metadata on the files was correct';
 
-ok $ds = VRPipe::DataSource->create(type    => 'fofn_with_metadata',
-                                    method  => 'grouped_by_metadata',
-                                    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
-                                    options => { metadata_keys => 'study|sample' }),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
+    method  => 'grouped_by_metadata',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { metadata_keys => 'study|sample' }
+  ),
   'could create a fofn_with_metadata grouped_by_metadata datasource';
 
 @results = ();
@@ -133,10 +153,12 @@ foreach my $element (@{ get_elements($ds) }) {
 is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[2]], group => 'ERP000979|JB951' }, { paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata';
 
 # sequence_index
-ok $ds = VRPipe::DataSource->create(type    => 'sequence_index',
-                                    method  => 'lane_fastqs',
-                                    source  => file(qw(t data datasource.sequence_index))->absolute->stringify,
-                                    options => { local_root_dir => dir('./')->absolute->stringify }),
+ok $ds = VRPipe::DataSource->create(
+    type    => 'sequence_index',
+    method  => 'lane_fastqs',
+    source  => file(qw(t data datasource.sequence_index))->absolute->stringify,
+    options => { local_root_dir => dir('./')->absolute->stringify }
+  ),
   'could create a sequence_index datasource';
 
 @results = ();
@@ -147,7 +169,8 @@ is_deeply \@results, [{ paths => [file(qw(t data 2822_6.fastq))->absolute, file(
 my $vrfile = VRPipe::File->get(path => file(qw(t data 2822_6_1.fastq))->absolute);
 my $meta = $vrfile->metadata;
 is_deeply $meta,
-  { expected_md5   => 'f1826489facca0d0bdf02d9586b493f6',
+  {
+    expected_md5   => 'f1826489facca0d0bdf02d9586b493f6',
     lane           => '2822_6',
     study          => 'STUDY01',
     study_name     => 'my study name',
@@ -163,8 +186,81 @@ is_deeply $meta,
     bases          => 12200,
     analysis_group => 'low coverage',
     paired         => 1,
-    mate           => file(qw(t data 2822_6_2.fastq))->absolute->stringify },
+    mate           => file(qw(t data 2822_6_2.fastq))->absolute->stringify
+  },
   'a VRPipe::File created by source has the correct metadata';
+
+my $fai      = file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify;
+my $override = file(qw(t data wgs_calling_override_options))->absolute->stringify;
+
+# genome chunking
+my $chunks = [{ chrom => 11, from => 1, to => 10000000, seq_no => 1, chunk_override_file => $override }, { chrom => 11, from => 10000001, to => 20000000, seq_no => 2, chunk_override_file => $override }, { chrom => 11, from => 20000001, to => 30000000, seq_no => 3, chunk_override_file => $override }, { chrom => 11, from => 30000001, to => 40000000, seq_no => 4, chunk_override_file => $override }, { chrom => 11, from => 40000001, to => 50000000, seq_no => 5, chunk_override_file => $override }, { chrom => 11, from => 50000001, to => 60000000, seq_no => 6, chunk_override_file => $override }, { chrom => 11, from => 60000001, to => 70000000, seq_no => 7, chunk_override_file => $override }, { chrom => 11, from => 70000001, to => 80000000, seq_no => 8, chunk_override_file => $override }, { chrom => 11, from => 80000001, to => 90000000, seq_no => 9, chunk_override_file => $override }, { chrom => 11, from => 90000001, to => 100000000, seq_no => 10, chunk_override_file => $override }, { chrom => 11, from => 100000001, to => 110000000, seq_no => 11, chunk_override_file => $override }, { chrom => 11, from => 110000001, to => 120000000, seq_no => 12, chunk_override_file => $override }, { chrom => 11, from => 120000001, to => 130000000, seq_no => 13, chunk_override_file => $override }, { chrom => 11, from => 130000001, to => 135006516, seq_no => 14, chunk_override_file => $override }, { chrom => 20, from => 1, to => 10000000, seq_no => 15, chunk_override_file => $override }, { chrom => 20, from => 10000001, to => 20000000, seq_no => 16, chunk_override_file => $override }, { chrom => 20, from => 20000001, to => 30000000, seq_no => 17, chunk_override_file => $override }, { chrom => 20, from => 30000001, to => 40000000, seq_no => 18, chunk_override_file => $override }, { chrom => 20, from => 40000001, to => 50000000, seq_no => 19, chunk_override_file => $override }, { chrom => 20, from => 50000001, to => 60000000, seq_no => 20, chunk_override_file => $override }, { chrom => 20, from => 60000001, to => 63025520, seq_no => 21, chunk_override_file => $override }];
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_genome_chunking',
+    method  => 'group_all',
+    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+    options => { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 }
+  ),
+  'could create a fofn_with_genome_chunking datasource with group_all method';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, $element->result);
+}
+my @expected = ();
+foreach my $chunk (@$chunks) {
+    push @expected, { paths => [file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute], %$chunk },;
+}
+is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking group_all method';
+
+$ds = $ds->_source_instance;
+is_deeply [$ds->method_options('group_all')], [['named', 'reference_index', 1, undef, 'Str|File'], ['named', 'chunk_override_file', 1, undef, 'Str|File'], ['named', 'chunk_size', 1, '1000000', 'Int'], ['named', 'chunk_overlap', 1, '0', 'Int'], ['named', 'chrom_list', 0, undef, 'Str'], ['named', 'ploidy', 0, undef, 'Str|File']], 'method_options call for fofn_with_genome_chunking datasource got correct result';
+
+is $ds->method_description('group_all'), q[All files in the file will be grouped into a single element. Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.], 'method description for fofn_with_genome_chunking group_all method is correct';
+
+# genome chunking with ploidy
+# {
+#     default=>2,
+#     X =>
+#     [
+#         # The pseudoautosomal regions 60,001-2,699,520 and 154,931,044-155,270,560 with the ploidy 2
+#         { from=>1, to=>60_000, M=>1 },
+#         { from=>2_699_521, to=>154_931_043, M=>1 },
+#     ],
+#     Y =>
+#     [
+#         # No chrY in females and one copy in males
+#         { from=>1, to=>59_373_566, M=>1, F=>0 },
+#     ],
+#     MT =>
+#     [
+#         # Haploid MT in males and females
+#         { from=>1, to => 16_569, M=>1, F=>1 },
+#     ],
+#}
+
+$chunks = [{ chrom => 'X', from => 1, to => 60000, male_ploidy => 1, female_ploidy => 2, seq_no => 1, chunk_override_file => $override }, { chrom => 'X', from => 60001, to => 2699520, male_ploidy => 2, female_ploidy => 2, seq_no => 2, chunk_override_file => $override }, { chrom => 'X', from => 2699521, to => 154931043, male_ploidy => 1, female_ploidy => 2, seq_no => 3, chunk_override_file => $override }, { chrom => 'X', from => 154931044, to => 155270560, male_ploidy => 2, female_ploidy => 2, seq_no => 4, chunk_override_file => $override }, { chrom => 'Y', from => 1, to => 59373566, male_ploidy => 1, female_ploidy => 0, seq_no => 5, chunk_override_file => $override }, { chrom => 'MT', from => 1, to => 16569, male_ploidy => 1, female_ploidy => 1, seq_no => 6, chunk_override_file => $override }];
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_genome_chunking',
+    method  => 'all',
+    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+    options => { reference_index => $fai, chunk_override_file => $override, chrom_list => 'X Y MT', chunk_size => 155000000, ploidy => file(qw(t data ploidy_definition))->absolute->stringify }
+  ),
+  'could create a fofn_with_genome_chunking datasource with all method';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, $element->result);
+}
+@expected = ();
+foreach my $file (file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute) {
+    foreach my $chunk (@$chunks) {
+        push @expected, { paths => [$file], %$chunk };
+    }
+}
+is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking all method when using the ploidy option';
 
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VRTrack::Factory setup
@@ -230,17 +326,19 @@ SKIP: {
         $lane->update;
     }
     
-    ok $ds = VRPipe::DataSource->create(type    => 'vrtrack',
-                                        method  => 'lanes',
-                                        source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                        options => { import => 1, mapped => 0 }),
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrtrack',
+        method  => 'lanes',
+        source  => $ENV{VRPIPE_VRTRACK_TESTDB},
+        options => { import => 1, mapped => 0 }
+      ),
       'could create a vrtrack datasource';
     my $results = 0;
     foreach my $element (@{ get_elements($ds) }) {
         $results++;
     }
     is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
-
+    
     ## tests for _has_changed
     ok(!$ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change');
     
@@ -289,10 +387,12 @@ SKIP: {
     $lane_to_add_file_for->is_withdrawn(0);
     $lane_to_add_file_for->update;
     
-    $ds = VRPipe::DataSource->create(type    => 'vrtrack',
-                                     method  => 'lanes',
-                                     source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                     options => { qc_status => 'pending' });
+    $ds = VRPipe::DataSource->create(
+        type    => 'vrtrack',
+        method  => 'lanes',
+        source  => $ENV{VRPIPE_VRTRACK_TESTDB},
+        options => { qc_status => 'pending' }
+    );
     $results = 0;
     foreach my $element (@{ get_elements($ds) }) {
         $results++;
@@ -306,10 +406,12 @@ SKIP: {
     }
     is $results, 1, 'after changing a lane to qc pending, got 1 dataelement';
     
-    $ds = VRPipe::DataSource->create(type    => 'vrtrack',
-                                     method  => 'lanes',
-                                     source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                     options => {});
+    $ds = VRPipe::DataSource->create(
+        type    => 'vrtrack',
+        method  => 'lanes',
+        source  => $ENV{VRPIPE_VRTRACK_TESTDB},
+        options => {}
+    );
     $results = 0;
     foreach my $element (@{ get_elements($ds) }) {
         $results++;
@@ -331,10 +433,12 @@ SKIP: {
     $lane_to_add_file_for->update;
     
     # lane_fastqs tests
-    ok $ds = VRPipe::DataSource->create(type    => 'vrtrack',
-                                        method  => 'lane_fastqs',
-                                        source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                        options => { import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library_regex => 'g1k-sc-NA19190-YRI-1\|SC\|SRP000542\|NA19190' }),
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrtrack',
+        method  => 'lane_fastqs',
+        source  => $ENV{VRPIPE_VRTRACK_TESTDB},
+        options => { import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library_regex => 'g1k-sc-NA19190-YRI-1\|SC\|SRP000542\|NA19190' }
+      ),
       'could create a vrtrack datasource';
     
     @results = ();
@@ -343,13 +447,16 @@ SKIP: {
     }
     
     is_deeply $results[0],
-      { paths => [file(qw(t data NA19190 sequence_read ERR003199.filt.fastq.gz))->absolute, file(qw(t data NA19190 sequence_read ERR003199_1.filt.fastq.gz))->absolute, file(qw(t data NA19190 sequence_read ERR003199_2.filt.fastq.gz))->absolute],
-        lane  => 'ERR003199' },
+      {
+        paths => [file(qw(t data NA19190 sequence_read ERR003199.filt.fastq.gz))->absolute, file(qw(t data NA19190 sequence_read ERR003199_1.filt.fastq.gz))->absolute, file(qw(t data NA19190 sequence_read ERR003199_2.filt.fastq.gz))->absolute],
+        lane  => 'ERR003199'
+      },
       'got correct results for vrtrack lane_fastqs';
     my $vrfile = VRPipe::File->get(path => file(qw(t data NA19190 sequence_read ERR003199.filt.fastq.gz))->absolute);
     my $meta = $vrfile->metadata;
     is_deeply $meta,
-      { 'bases'        => '1696783',
+      {
+        'bases'        => '1696783',
         'withdrawn'    => 0,
         'project'      => 'SRP000542',
         'species'      => 'Homo sapiens',
@@ -365,7 +472,8 @@ SKIP: {
         'expected_md5' => 'dfa4364855815d7433c451a87f0520d0',
         'study'        => 'SRP000542',
         'lane'         => 'ERR003199',
-        'insert_size'  => 175 },
+        'insert_size'  => 175
+      },
       'a VRPipe::File created by vrtrack datasource has the correct metadata';
     
     $newfile = $lane_to_add_file_for->add_file('new.fastq');
@@ -432,14 +540,20 @@ SKIP: {
             $vrlane->update;
         }
     }
-    my %expected_groups = ('SRP000546|SRP000546|NA18633|HUMsgR3AIDCAASE'      => 1,
-                           'SRP000547|SRP000547|NA07056|g1k_sc_NA07056_CEU_1' => 1);
-    $ds = VRPipe::DataSource->create(type    => 'vrtrack',
-                                     method  => 'lane_improved_bams',
-                                     source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-                                     options => { qc                => 1,
-                                                  qc_status         => 'passed',
-                                                  group_by_metadata => 'project|study|sample|library' });
+    my %expected_groups = (
+        'SRP000546|SRP000546|NA18633|HUMsgR3AIDCAASE'      => 1,
+        'SRP000547|SRP000547|NA07056|g1k_sc_NA07056_CEU_1' => 1
+    );
+    $ds = VRPipe::DataSource->create(
+        type    => 'vrtrack',
+        method  => 'lane_improved_bams',
+        source  => $ENV{VRPIPE_VRTRACK_TESTDB},
+        options => {
+            qc                => 1,
+            qc_status         => 'passed',
+            group_by_metadata => 'project|study|sample|library'
+        }
+    );
     my %actual_qc_passed_improved_bams;
     my %actual_groups;
     foreach my $element (@{ get_elements($ds) }) {

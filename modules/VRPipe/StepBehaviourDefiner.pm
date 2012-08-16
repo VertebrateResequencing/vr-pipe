@@ -49,20 +49,30 @@ use VRPipe::Base;
 class VRPipe::StepBehaviourDefiner {
     use Data::Compare;
     
-    has 'after_step' => (is  => 'ro',
-                         isa => PositiveInt);
+    has 'after_step' => (
+        is  => 'ro',
+        isa => PositiveInt
+    );
     
-    has 'behaviour' => (is  => 'ro',
-                        isa => 'Str');
+    has 'behaviour' => (
+        is  => 'ro',
+        isa => 'Str'
+    );
     
-    has 'act_on_steps' => (is  => 'ro',
-                           isa => 'ArrayRef');
+    has 'act_on_steps' => (
+        is  => 'ro',
+        isa => 'ArrayRef'
+    );
     
-    has 'regulated_by' => (is  => 'ro',
-                           isa => 'Str');
+    has 'regulated_by' => (
+        is  => 'ro',
+        isa => 'Str'
+    );
     
-    has 'default_regulation' => (is  => 'ro',
-                                 isa => 'Bool');
+    has 'default_regulation' => (
+        is  => 'ro',
+        isa => 'Bool'
+    );
     
     method define (Persistent|VRPipe::Pipeline $pipeline) {
         my $sb = VRPipe::StepBehaviour->create(pipeline => $pipeline, after_step => $self->after_step, behaviour => $self->behaviour);
