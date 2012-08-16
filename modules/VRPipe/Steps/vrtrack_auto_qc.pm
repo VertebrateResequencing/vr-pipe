@@ -37,45 +37,71 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
     use VRPipe::Parser;
     
     around options_definition {
-        return { %{ $self->$orig },
-                 auto_qc_gtype_regex => VRPipe::StepOption->create(description   => 'If the bam_genotype_checking pipeline was run, providing a gtype_analysis metadata key, provide a regular expression to choose acceptable status values',
-                                                                   optional      => 1,
-                                                                   default_value => '^confirmed'),
-                 auto_qc_mapped_base_percentage => VRPipe::StepOption->create(description   => 'Minimum percentage of mapped bases',
-                                                                              optional      => 1,
-                                                                              default_value => 90),
-                 auto_qc_duplicate_read_percentage => VRPipe::StepOption->create(description   => 'Maximum percentage of duplicate reads',
-                                                                                 optional      => 1,
-                                                                                 default_value => 8),
-                 auto_qc_mapped_reads_properly_paired_percentage => VRPipe::StepOption->create(description   => 'Minimum percentage of the reads that are mapped which are also properly paired',
-                                                                                               optional      => 1,
-                                                                                               default_value => 80),
-                 auto_qc_error_rate => VRPipe::StepOption->create(description   => 'Maximum allowed error rate',
-                                                                  optional      => 1,
-                                                                  default_value => 0.02),
-                 auto_qc_overlapping_base_duplicate_percent => VRPipe::StepOption->create(description   => 'Maximum percent of bases duplicated due to overlapping reads of a pair',
-                                                                                          optional      => 1,
-                                                                                          default_value => 4),
-                 auto_qc_insert_peak_window => VRPipe::StepOption->create(description   => 'A percentage of the insert size peak; this will be used get an acceptable range of insert sizes',
-                                                                          optional      => 1,
-                                                                          default_value => 25),
-                 auto_qc_insert_peak_reads => VRPipe::StepOption->create(description   => 'The minimum percentage of reads that must have an insert size within the auto_qc_insert_peak_window',
-                                                                         optional      => 1,
-                                                                         default_value => 80),
-                 auto_qc_max_ins_to_del_ratio => VRPipe::StepOption->create(description   => 'Maximum insert to deletion ratio',
-                                                                            optional      => 1,
-                                                                            default_value => '1.0') };
+        return {
+            %{ $self->$orig },
+            auto_qc_gtype_regex => VRPipe::StepOption->create(
+                description   => 'If the bam_genotype_checking pipeline was run, providing a gtype_analysis metadata key, provide a regular expression to choose acceptable status values',
+                optional      => 1,
+                default_value => '^confirmed'
+            ),
+            auto_qc_mapped_base_percentage => VRPipe::StepOption->create(
+                description   => 'Minimum percentage of mapped bases',
+                optional      => 1,
+                default_value => 90
+            ),
+            auto_qc_duplicate_read_percentage => VRPipe::StepOption->create(
+                description   => 'Maximum percentage of duplicate reads',
+                optional      => 1,
+                default_value => 8
+            ),
+            auto_qc_mapped_reads_properly_paired_percentage => VRPipe::StepOption->create(
+                description   => 'Minimum percentage of the reads that are mapped which are also properly paired',
+                optional      => 1,
+                default_value => 80
+            ),
+            auto_qc_error_rate => VRPipe::StepOption->create(
+                description   => 'Maximum allowed error rate',
+                optional      => 1,
+                default_value => 0.02
+            ),
+            auto_qc_overlapping_base_duplicate_percent => VRPipe::StepOption->create(
+                description   => 'Maximum percent of bases duplicated due to overlapping reads of a pair',
+                optional      => 1,
+                default_value => 4
+            ),
+            auto_qc_insert_peak_window => VRPipe::StepOption->create(
+                description   => 'A percentage of the insert size peak; this will be used get an acceptable range of insert sizes',
+                optional      => 1,
+                default_value => 25
+            ),
+            auto_qc_insert_peak_reads => VRPipe::StepOption->create(
+                description   => 'The minimum percentage of reads that must have an insert size within the auto_qc_insert_peak_window',
+                optional      => 1,
+                default_value => 80
+            ),
+            auto_qc_max_ins_to_del_ratio => VRPipe::StepOption->create(
+                description   => 'Maximum insert to deletion ratio',
+                optional      => 1,
+                default_value => '1.0'
+            )
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               description => 'bam files',
-                                                               max_files   => -1,
-                                                               metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }),
-                 bamcheck_files => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                    description => 'bamcheck files',
-                                                                    max_files   => -1,
-                                                                    metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'bam files',
+                max_files   => -1,
+                metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }
+            ),
+            bamcheck_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'bamcheck files',
+                max_files   => -1,
+                metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }
+            )
+        };
     }
     
     method body_sub {
@@ -393,7 +419,8 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 $vrlane->update();
             },
             undef,
-            [@objs_to_check]);
+            [@objs_to_check]
+        );
         
         # for some bizarre reason, at this point $lib_to_update->auto_qc_status
         # can report the desired status, yet the database has not actually been

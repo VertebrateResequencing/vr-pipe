@@ -28,9 +28,15 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Interface::CmdLine;
 
-my $cmdline = VRPipe::Interface::CmdLine->new(description => 'An implementation of a job scheduler that runs on the local CPU.',
-                                              extra_args  => 'start|stop|submit <cmd line>|jobs [ids]|kill [ids]',
-                                              opt_spec    => [['out=s', 'When submitting, --out specifies the path to the file the local scheduler will redirect its STDOUT to (required for submit)'], ['err=s', 'When submitting, --err specifies the path to the file the local scheduler will redirect its STDERR to (required for submit)'], ['a=i', 'When submitting, -a specifies a job array of the given size (default 1)']]);
+my $cmdline = VRPipe::Interface::CmdLine->new(
+    description => 'An implementation of a job scheduler that runs on the local CPU.',
+    extra_args  => 'start|stop|submit <cmd line>|jobs [ids]|kill [ids]',
+    opt_spec    => [
+        ['out=s', 'When submitting, --out specifies the path to the file the local scheduler will redirect its STDOUT to (required for submit)'],
+        ['err=s', 'When submitting, --err specifies the path to the file the local scheduler will redirect its STDERR to (required for submit)'],
+        ['a=i',   'When submitting, -a specifies a job array of the given size (default 1)']
+    ]
+);
 
 my ($command, @others) = @ARGV;
 unless ($command) {

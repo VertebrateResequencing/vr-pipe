@@ -49,13 +49,17 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
     method options_definition {
-        return { sga_graph_diff_options => VRPipe::StepOption->create(description => 'options to sga graph-diff',   optional => 1, default_value => '--debruijn --low-coverage -k 61'),
-                 sga_exe                => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga') };
+        return {
+            sga_graph_diff_options => VRPipe::StepOption->create(description => 'options to sga graph-diff',   optional => 1, default_value => '--debruijn --low-coverage -k 61'),
+            sga_exe                => VRPipe::StepOption->create(description => 'path to your sga executable', optional => 1, default_value => 'sga')
+        };
     }
     
     method inputs_definition {
-        return { sga_indexed_variant_reads => VRPipe::StepIODefinition->create(type => 'fq',  max_files => -1, description => 'file with variant reads'),
-                 reference_fasta           => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'reference fasta file') };
+        return {
+            sga_indexed_variant_reads => VRPipe::StepIODefinition->create(type => 'fq',  max_files => -1, description => 'file with variant reads'),
+            reference_fasta           => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'reference fasta file')
+        };
     }
     
     method body_sub {
@@ -91,10 +95,12 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { sga_base_vcf_files      => VRPipe::StepIODefinition->create(type => 'vcf', description => 'base variant calls made by sga graph-diff', max_files => -1),
-                 sga_variant_vcf_files   => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff',      max_files => -1),
-                 sga_calls_vcf_files     => VRPipe::StepIODefinition->create(type => 'vcf', description => 'calls made by sga graph-diff',              max_files => -1),
-                 sga_strings_fasta_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'strings fasta made by sga graph-diff',      max_files => -1, check_existence => 0) };
+        return {
+            sga_base_vcf_files      => VRPipe::StepIODefinition->create(type => 'vcf', description => 'base variant calls made by sga graph-diff', max_files => -1),
+            sga_variant_vcf_files   => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff',      max_files => -1),
+            sga_calls_vcf_files     => VRPipe::StepIODefinition->create(type => 'vcf', description => 'calls made by sga graph-diff',              max_files => -1),
+            sga_strings_fasta_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'strings fasta made by sga graph-diff',      max_files => -1, check_existence => 0)
+        };
     }
     
     method post_process_sub {

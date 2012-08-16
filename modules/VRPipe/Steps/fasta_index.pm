@@ -35,8 +35,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::fasta_index with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe    => VRPipe::StepOption->create(description => 'path to your samtools executable', optional => 1, default_value => 'samtools'),
-                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file') };
+        return {
+            samtools_exe    => VRPipe::StepOption->create(description => 'path to your samtools executable', optional => 1, default_value => 'samtools'),
+            reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file')
+        };
     }
     
     method inputs_definition {
@@ -55,10 +57,12 @@ class VRPipe::Steps::fasta_index with VRPipe::StepRole {
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'samtools', version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), summary => 'samtools faidx $reference_fasta'));
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            $self->output_file(output_key => 'fai_file',
-                               output_dir => $ref->dir,
-                               basename   => $ref->basename . '.fai',
-                               type       => 'txt');
+            $self->output_file(
+                output_key => 'fai_file',
+                output_dir => $ref->dir,
+                basename   => $ref->basename . '.fai',
+                type       => 'txt'
+            );
             $self->dispatch([qq[$samtools faidx $ref], $req, { block_and_skip_if_ok => 1 }]);
         };
     }

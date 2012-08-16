@@ -6,8 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 6;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES GATK PICARD)],
-                    required_exe => [qw(samtools)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES GATK PICARD)],
+        required_exe => [qw(samtools)]
+    );
     use TestPipelines;
 }
 
@@ -66,10 +68,12 @@ while (<$ifh>) {
 $orig_fofn_file->close;
 $fofn_file->close;
 
-ok my $ds = VRPipe::DataSource->create(type    => 'fofn',
-                                       method  => 'all',
-                                       source  => $fofn_file->path->stringify,
-                                       options => {}),
+ok my $ds = VRPipe::DataSource->create(
+    type    => 'fofn',
+    method  => 'all',
+    source  => $fofn_file->path->stringify,
+    options => {}
+  ),
   'could create a fofn datasource';
 
 my @results = ();
@@ -78,25 +82,26 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 is_deeply \@results, [{ paths => [file($improvement_output_dir, '2822_7.pe.bam')->absolute] }, { paths => [file($improvement_output_dir, '2822_6.pe.bam')->absolute] }, { paths => [file($improvement_output_dir, '2822_6.se.bam')->absolute] }, { paths => [file($improvement_output_dir, '2823_4.pe.bam')->absolute] }, { paths => [file($improvement_output_dir, '8324_8.pe.bam')->absolute] }], 'got correct results for fofn all';
 
-my $improvement_pipelinesetup = VRPipe::PipelineSetup->create(name        => 's_suis improvement',
-                                                              datasource  => $ds,
-                                                              output_root => $improvement_output_dir,
-                                                              pipeline    => $improvement_pipeline,
-                                                              options     => {
-                                                                           reference_fasta               => $ref_fa,
-                                                                           reference_assembly_name       => 'SSuis1',
-                                                                           reference_public_url          => 'ftp://s.suis.com/ref.fa',
-                                                                           reference_species             => 'S.Suis',
-                                                                           known_indels_for_realignment  => "-known $known_indels",
-                                                                           known_sites_for_recalibration => "-knownSites $known_sites",
-                                                                           gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
-                                                                           gatk_path                     => $ENV{GATK},
-                                                                           picard_path                   => $ENV{PICARD},
-                                                                           cleanup                       => 0,
-                                                                           sequence_dictionary_memory    => 150,
-                                                                           sequence_dictionary_time      => 1 });
-
-
+my $improvement_pipelinesetup = VRPipe::PipelineSetup->create(
+    name        => 's_suis improvement',
+    datasource  => $ds,
+    output_root => $improvement_output_dir,
+    pipeline    => $improvement_pipeline,
+    options     => {
+        reference_fasta               => $ref_fa,
+        reference_assembly_name       => 'SSuis1',
+        reference_public_url          => 'ftp://s.suis.com/ref.fa',
+        reference_species             => 'S.Suis',
+        known_indels_for_realignment  => "-known $known_indels",
+        known_sites_for_recalibration => "-knownSites $known_sites",
+        gatk_count_covariates_options => '-l INFO -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate',
+        gatk_path                     => $ENV{GATK},
+        picard_path                   => $ENV{PICARD},
+        cleanup                       => 0,
+        sequence_dictionary_memory    => 150,
+        sequence_dictionary_time      => 1
+    }
+);
 
 my @output_files = (file($improvement_output_dir, 'ref', 'S_suis_P17.fa.dict'), file($improvement_output_dir, 'resources', 'known_indels.intervals'));
 

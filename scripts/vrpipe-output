@@ -30,8 +30,44 @@ use VRPipe::FrontEnd;
 use Path::Class;
 use Data::Dumper;
 
-my $frontend = VRPipe::FrontEnd->new(description => "Symlink the output files of a pipeline into a more usable directory structure.",
-                                     opt_spec    => [[], [q[Required:]], ['setup=s', 'Get the output of this pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }], [], [q[Before trying to choose where your symlinks will go and what they'll be called, you may wish to just list the inputs from your datasource and the resulting output files with their metadata:]], ['list|l:i', q[List out the relationship between input and outputs, with an optional limit on the number of inputs to show (default all with no value supplied)]], [], [q[If not using --list, the remaining options come into play; at least one option from each grouping must be chosen.]], [], [q[Choose which output files you want symlinks for:]], ['step=s@', q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated]], ['filter=s', q[Select files based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions]], [], [q[Choose where the symlinks should go:]], ['output_dir=s', 'The output (root) directory for files'], ['output_by_metadata=s', q[Place symlinks in a sub directory of --output_dir, based on the metadata on the output file. The string you must supply should be of the form "key1/key2" which would place the symlink for an output file with metadata {key1 => 'foo', key2 => 'bar' } in output_dir/foo/bar/. If there are multiple output files per input, and only one of them has the chosen metadata, all the other output file symlinks are placed in the same directory as the one with the metadata. Non-word characters in metadata values are converted to underscores to generate the sub directory names]], ['path_regex=s@', q[If using output_by_metadata, optionally supply a regex and replacement string to alter the output subdirectory, eg. --path_regex 'foo#bar' will turn the path output_dir/sub/foo/path into output_dir/sub/bar/path. Multiple replacement may be made by supplying the --path_regex option multiple times]], ['OR'], ['output_with_input', q[Symlinks for output files should be placed in the same directory their input files were in ]], [], [q[Choose what the symlink basename should be:]], ['basename_as_output', q[Basename is what the pipeline itself chose to call the output file]], ['OR'], ['basename_as_input=s', q[Basename is the same as that of the input file with its extension replaced with the supplied string plus the output extension]], ['OR'], ['basename_from_metadata=s', q[Basename is the based on the metadata associated with the output file. The string you must supply should be of the form "string.%key1%.%key2%.base"]], [q[The resulting basename of any of these options can then be optionally modified with:]], ['basename_regex=s@', q[Supply a regex and replacement string to alter the basename, eg. --basename_regex 'foo#bar' will turn basename thefoo.file into thebar.file. Multiple replacement may be made by supplying the --basename_regex option multiple times]], [], ['Other options:'], ['pretend', q[Print the file source and destination paths to stdout of the symlinks that would be created, without actually creating them]], ['print', q[Print symlinks to stdout. Good for creating a fofn of the output files]], ['md5', q[Also print the md5 of the file to stdout if it has been recorded in the vrpipe database (--print is automatically turned on)]]]);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Symlink the output files of a pipeline into a more usable directory structure.",
+    opt_spec    => [
+        [],
+        [q[Required:]],
+        ['setup=s', 'Get the output of this pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
+        [],
+        [q[Before trying to choose where your symlinks will go and what they'll be called, you may wish to just list the inputs from your datasource and the resulting output files with their metadata:]],
+        ['list|l:i', q[List out the relationship between input and outputs, with an optional limit on the number of inputs to show (default all with no value supplied)]],
+        [],
+        [q[If not using --list, the remaining options come into play; at least one option from each grouping must be chosen.]],
+        [],
+        [q[Choose which output files you want symlinks for:]],
+        ['step=s@',  q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated]],
+        ['filter=s', q[Select files based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions]],
+        [],
+        [q[Choose where the symlinks should go:]],
+        ['output_dir=s',         'The output (root) directory for files'],
+        ['output_by_metadata=s', q[Place symlinks in a sub directory of --output_dir, based on the metadata on the output file. The string you must supply should be of the form "key1/key2" which would place the symlink for an output file with metadata {key1 => 'foo', key2 => 'bar' } in output_dir/foo/bar/. If there are multiple output files per input, and only one of them has the chosen metadata, all the other output file symlinks are placed in the same directory as the one with the metadata. Non-word characters in metadata values are converted to underscores to generate the sub directory names]],
+        ['path_regex=s@',        q[If using output_by_metadata, optionally supply a regex and replacement string to alter the output subdirectory, eg. --path_regex 'foo#bar' will turn the path output_dir/sub/foo/path into output_dir/sub/bar/path. Multiple replacement may be made by supplying the --path_regex option multiple times]],
+        ['OR'],
+        ['output_with_input', q[Symlinks for output files should be placed in the same directory their input files were in ]],
+        [],
+        [q[Choose what the symlink basename should be:]],
+        ['basename_as_output', q[Basename is what the pipeline itself chose to call the output file]],
+        ['OR'],
+        ['basename_as_input=s', q[Basename is the same as that of the input file with its extension replaced with the supplied string plus the output extension]],
+        ['OR'],
+        ['basename_from_metadata=s', q[Basename is the based on the metadata associated with the output file. The string you must supply should be of the form "string.%key1%.%key2%.base"]],
+        [q[The resulting basename of any of these options can then be optionally modified with:]],
+        ['basename_regex=s@', q[Supply a regex and replacement string to alter the basename, eg. --basename_regex 'foo#bar' will turn basename thefoo.file into thebar.file. Multiple replacement may be made by supplying the --basename_regex option multiple times]],
+        [],
+        ['Other options:'],
+        ['pretend', q[Print the file source and destination paths to stdout of the symlinks that would be created, without actually creating them]],
+        ['print',   q[Print symlinks to stdout. Good for creating a fofn of the output files]],
+        ['md5',     q[Also print the md5 of the file to stdout if it has been recorded in the vrpipe database (--print is automatically turned on)]]
+    ]
+);
 
 my $pretend                = $frontend->opts('pretend');
 my $print                  = $frontend->opts('print');
@@ -213,7 +249,7 @@ while (my $estates = $estates_pager->next) {
                 next unless @files;
                 
                 my @file_data;
-              FILE: foreach my $file (@files) {
+                FILE: foreach my $file (@files) {
                     my $meta = $file->metadata;
                     if ($filter) {
                         foreach my $key (keys %filters) {
@@ -335,7 +371,7 @@ while (my $estates = $estates_pager->next) {
                 my @basename_keys = $basename_from_metadata =~ m/%([^%]+)%/g;
                 
                 # find the first output file metadata that has all these keys
-              OFILE: foreach my $file (@output_files) {
+                OFILE: foreach my $file (@output_files) {
                     my $metadata      = $file->metadata;
                     my $this_basename = $basename_from_metadata;
                     foreach my $key (@basename_keys) {

@@ -43,20 +43,28 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepAdaptorDefiner {
-    has 'from_step' => (is  => 'ro',
-                        isa => 'Int');
+    has 'from_step' => (
+        is  => 'ro',
+        isa => 'Int'
+    );
     
-    has 'to_step' => (is     => 'ro',
-                      isa    => PositiveInt,
-                      coerce => 1);
+    has 'to_step' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        coerce => 1
+    );
     
-    has 'from_key' => (is      => 'ro',
-                       isa     => 'Str',
-                       builder => '_from_key_builder',
-                       lazy    => 1);
+    has 'from_key' => (
+        is      => 'ro',
+        isa     => 'Str',
+        builder => '_from_key_builder',
+        lazy    => 1
+    );
     
-    has 'to_key' => (is  => 'ro',
-                     isa => 'Str');
+    has 'to_key' => (
+        is  => 'ro',
+        isa => 'Str'
+    );
     
     method _from_key_builder {
         if ($self->from_step == 0) {

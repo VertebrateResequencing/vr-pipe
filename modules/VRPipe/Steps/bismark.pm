@@ -36,17 +36,21 @@ use VRPipe::Base;
 class VRPipe::Steps::bismark with VRPipe::StepRole {
     use File::Basename;
     use Data::Dumper;
+    use File::Which;
     
     method options_definition {
-        return { bismark_exe           => VRPipe::StepOption->create(description => 'path to your bismark executable',                                    optional => 1, default_value => $ENV{BISMARK_EXE}),
-                 paired_end            => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for singel end.', optional => 1, default_value => '0'),
-                 bismark_genome_folder => VRPipe::StepOption->create(description => 'path to your bismark genome folder',                                 optional => 1, default_value => $ENV{BISMARK_GENOME_FOLDER}) };
+        return {
+            bismark_exe           => VRPipe::StepOption->create(description => 'path to your bismark executable',                                    optional => 1, default_value => 'bismark'),
+            paired_end            => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for singel end.', optional => 1, default_value => '0'),
+            bismark_genome_folder => VRPipe::StepOption->create(description => 'path to your bismark genome folder',                                 optional => 0, default_value => $ENV{BISMARK_GENOME_FOLDER})
+        };
     }
     
     method inputs_definition {
         return {
             # sequence file - fastq for now
-            fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files') };
+            fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files')
+        };
     }
     
     method body_sub {
@@ -55,6 +59,11 @@ class VRPipe::Steps::bismark with VRPipe::StepRole {
             my $self        = shift;
             my $options     = $self->options;
             my $bismark_exe = $options->{bismark_exe};
+            
+            #get the absolute path
+            my $bismark_exe_path = $bismark_exe;
+            $bismark_exe_path = which($bismark_exe) unless file($bismark_exe)->is_absolute;
+            
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bismark', version => VRPipe::StepCmdSummary->determine_version($bismark_exe . ' --version', 'Bismark Version:  (.+) '), summary => 'bismark -o output_file bismark_genome_folder input_file'));
             my $req = $self->new_requirements(memory => 500, time => 1); #16GB RAM? Could be 8GB?
             my @input_file = @{ $self->inputs->{fastq_files} };
@@ -66,35 +75,44 @@ class VRPipe::Steps::bismark with VRPipe::StepRole {
             if (!$paired) {                                              # Single end case
                 
                 $self->throw("One input file expected") unless (@input_file == 1);
-                $output_file_1 = $self->output_file(output_key => 'bismark_report',
-                                                    basename   => $name . "/$name.fastq_Bismark_mapping_report.txt",
-                                                    type       => 'txt',
-                                                    metadata   => $input_file[0]->metadata);
+                $output_file_1 = $self->output_file(
+                    output_key => 'bismark_report',
+                    basename   => $name . "/$name.fastq_Bismark_mapping_report.txt",
+                    type       => 'txt',
+                    metadata   => $input_file[0]->metadata
+                );
                 
-                $output_file_2 = $self->output_file(output_key => 'bismark_sam',
-                                                    basename   => $name . "/$name.fastq_bismark.sam",
-                                                    type       => 'txt',
-                                                    metadata   => $input_file[0]->metadata);
+                $output_file_2 = $self->output_file(
+                    output_key => 'bismark_sam',
+                    basename   => $name . "/$name.fastq_bismark.sam",
+                    type       => 'txt',
+                    metadata   => $input_file[0]->metadata
+                );
                 my $output_file_dir = $output_file_1->dir->stringify;
                 my $input_file_path = $input_file[0]->path;
-                $cmd = "perl $bismark_exe -o $output_file_dir $bismark_genome_folder $input_file_path";
+                $cmd = "perl $bismark_exe_path -o $output_file_dir $bismark_genome_folder $input_file_path";
             } #end if not paired
             
             if ($paired) {
-                $self->throw("One input file expected") unless (@input_file == 2);
-                $output_file_1 = $self->output_file(output_key => 'bismark_report',
-                                                    basename   => $name . "/$name.fastq_Bismark_paired-end_mapping_report.txt",
-                                                    type       => 'txt',
-                                                    metadata   => $input_file[0]->metadata);
+                $self->throw("Two input files expected") unless (@input_file == 2);
+                $output_file_1 = $self->output_file(
+                    output_key => 'bismark_report',
+                    basename   => $name . "/$name.fastq_Bismark_paired-end_mapping_report.txt",
+                    type       => 'txt',
+                    metadata   => $input_file[0]->metadata
+                );
                 
-                $output_file_2 = $self->output_file(output_key => 'bismark_sam',
-                                                    basename   => $name . "/$name.fastq_bismark_pe.sam",
-                                                    type       => 'txt',
-                                                    metadata   => $input_file[0]->metadata);
+                $output_file_2 = $self->output_file(
+                    output_key => 'bismark_sam',
+                    basename   => $name . "/$name.fastq_bismark_pe.sam",
+                    type       => 'txt',
+                    metadata   => $input_file[0]->metadata
+                );
                 my $output_file_dir   = $output_file_1->dir->stringify;
                 my $input_file_path_1 = $input_file[0]->path;
                 my $input_file_path_2 = $input_file[1]->path;
-                $cmd = "perl $bismark_exe -o $output_file_dir $bismark_genome_folder -1 $input_file_path_1 -2 $input_file_path_2";
+                
+                $cmd = "perl $bismark_exe_path -o $output_file_dir $bismark_genome_folder -1 $input_file_path_1 -2 $input_file_path_2";
             }
             
             my $out = $self->dispatch([qq[$cmd], $req, { output_files => [$output_file_1, $output_file_2] }]);
@@ -102,8 +120,10 @@ class VRPipe::Steps::bismark with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { bismark_sam    => VRPipe::StepIODefinition->create(type => 'txt', description => 'bismark mapped sequences files in sam format'),
-                 bismark_report => VRPipe::StepIODefinition->create(type => 'txt', description => 'bismark mapped sequences files in sam format') };
+        return {
+            bismark_sam    => VRPipe::StepIODefinition->create(type => 'txt', description => 'bismark mapped sequences files in sam format'),
+            bismark_report => VRPipe::StepIODefinition->create(type => 'txt', description => 'bismark mapped sequences files in sam format')
+        };
     }
     
     method description {

@@ -6,8 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES GSNAP_EXE GSNAP_DB_FOLDER TRIMMOMATIC)],
-                    required_exe => [qw(fastqc)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES GSNAP_EXE GSNAP_DB_FOLDER TRIMMOMATIC)],
+        required_exe => [qw(fastqc)]
+    );
     use TestPipelines;
 }
 my $output_dir = get_output_dir('rna_seq_map_gsnap-test');
@@ -19,17 +21,22 @@ foreach my $stepmember ($pipeline->steps) {
 
 is_deeply \@s_names, [qw(fastqc_quality_report trimmomatic gsnap sam_sort sam_mark_duplicates)], 'the pipeline has the correct steps';
 
-my $pipelinesetup = VRPipe::PipelineSetup->create(name       => 'rna_seq_gsnap_map_test',
-                                                  datasource => VRPipe::DataSource->create(type    => 'delimited',
-                                                                                           method  => 'all_columns',
-                                                                                           options => { delimiter => "\t" },
-                                                                                           source  => file(qw(t data gsnap_datasource_se.fofn)),),
-                                                  output_root => $output_dir,
-                                                  pipeline    => $pipeline,
-                                                  options     => {
-                                                               paired_end                 => 0,
-                                                               sam_mark_duplicates_memory => 100,
-                                                               sam_mark_duplicates_time   => 1, });
+my $pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 'rna_seq_gsnap_map_test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'delimited',
+        method  => 'all_columns',
+        options => { delimiter => "\t" },
+        source  => file(qw(t data gsnap_datasource_se.fofn)),
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        paired_end                 => 0,
+        sam_mark_duplicates_memory => 100,
+        sam_mark_duplicates_time   => 1,
+    }
+);
 
 my @output_subdirs = output_subdirs(1);
 

@@ -35,11 +35,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
     use File::Basename;
-    use Data::Dumper;
+    use File::Which;
     
     method options_definition {
         return {
-            bismark_meth_extractor_exe => VRPipe::StepOption->create(description => 'path to your bismark methylation extractor executable',                          optional => 1, default_value => $ENV{BISMARK_METH_EXR_EXE}),
+            bismark_meth_extractor_exe => VRPipe::StepOption->create(description => 'path to your bismark methylation extractor executable',                          optional => 1, default_value => 'methylation_extractor'),
             paired_end                 => VRPipe::StepOption->create(description => 'Run on files generated with paired end data (default is to run on single end).', optional => 1, default_value => 0)
         
         };
@@ -58,33 +58,45 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
             my ($infile) = @{ $self->inputs->{sam_file} };
             my $name     = $infile->basename;
             
-            my $outfile1 = $self->output_file(output_key => 'meth_calls_CHH',
-                                              basename   => 'CHH_context_' . $name . '.txt',
-                                              type       => 'txt',
-                                              metadata   => $infile->metadata);
+            my $exe_path = $exe;
+            $exe_path = which($exe) unless file($exe)->is_absolute;
             
-            my $outfile2 = $self->output_file(output_key => 'meth_calls_CpG',
-                                              basename   => 'CHG_context_' . $name . '.txt',
-                                              type       => 'txt',
-                                              metadata   => $infile->metadata);
+            my $outfile1 = $self->output_file(
+                output_key => 'meth_calls_CHH',
+                basename   => 'CHH_context_' . $name . '.txt',
+                type       => 'txt',
+                metadata   => $infile->metadata
+            );
             
-            my $outfile3 = $self->output_file(output_key => 'meth_calls_CHG',
-                                              basename   => 'CpG_context_' . $name . '.txt',
-                                              type       => 'txt',
-                                              metadata   => $infile->metadata);
+            my $outfile2 = $self->output_file(
+                output_key => 'meth_calls_CpG',
+                basename   => 'CHG_context_' . $name . '.txt',
+                type       => 'txt',
+                metadata   => $infile->metadata
+            );
+            
+            my $outfile3 = $self->output_file(
+                output_key => 'meth_calls_CHG',
+                basename   => 'CpG_context_' . $name . '.txt',
+                type       => 'txt',
+                metadata   => $infile->metadata
+            );
             my $infile_path = $infile->path;
             
             my $req = $self->new_requirements(memory => 1500, time => 1);
             
-            my $cmd = $paired ? $exe . " -p --comprehensive $infile_path" : $exe . " -s --comprehensive $infile_path"; #> $outfile_path";
+            my $interpreter_and_exe_path = "perl $exe_path";
+            my $cmd = $paired ? $interpreter_and_exe_path . " -p --comprehensive $infile_path" : $interpreter_and_exe_path . " -s --comprehensive $infile_path"; #> $outfile_path";
             $self->dispatch([qq[$cmd], $req, { output_files => [$outfile1, $outfile2, $outfile3] }]);
           }
     }
     
     method outputs_definition {
-        return { meth_calls_CHH => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
-                 meth_calls_CpG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
-                 meth_calls_CHG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position') };
+        return {
+            meth_calls_CHH => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
+            meth_calls_CpG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position'),
+            meth_calls_CHG => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Text file listing methylation calls by position')
+        };
     }
     
     method post_process_sub {
@@ -96,6 +108,6 @@ class VRPipe::Steps::bismark_methylation_extractor with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;                                                                                                      # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }

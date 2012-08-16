@@ -41,10 +41,14 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                 max_files   => -1,
-                                                                 description => 'fastq files to be merged',
-                                                                 metadata    => { sample => 'sample name' }) };
+        return {
+            fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                max_files   => -1,
+                description => 'fastq files to be merged',
+                metadata    => { sample => 'sample name' }
+            )
+        };
     }
     
     method body_sub {
@@ -73,8 +77,10 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { merged_fastq_file => VRPipe::StepIODefinition->create(type => 'fq',  description => 'the merged fastq file',                        max_files => 1),
-                 index_file        => VRPipe::StepIODefinition->create(type => 'txt', description => 'popidx file to map sequences back to samples', max_files => 1) };
+        return {
+            merged_fastq_file => VRPipe::StepIODefinition->create(type => 'fq',  description => 'the merged fastq file',                        max_files => 1),
+            index_file        => VRPipe::StepIODefinition->create(type => 'txt', description => 'popidx file to map sequences back to samples', max_files => 1)
+        };
     }
     
     method post_process_sub {

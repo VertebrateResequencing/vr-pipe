@@ -63,26 +63,36 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Persistent::Pager {
-    has resultset => (is       => 'ro',
-                      isa      => 'DBIx::Class::ResultSet',
-                      required => 1,
-                      writer   => '_modify_resultset');
+    has resultset => (
+        is       => 'ro',
+        isa      => 'DBIx::Class::ResultSet',
+        required => 1,
+        writer   => '_modify_resultset'
+    );
     
-    has rows_per_page => (is      => 'ro',
-                          default => 1000);
+    has rows_per_page => (
+        is      => 'ro',
+        default => 1000
+    );
     
-    has result_method => (is      => 'ro',
-                          isa     => 'Str|CodeRef',
-                          default => 'all');
+    has result_method => (
+        is      => 'ro',
+        isa     => 'Str|CodeRef',
+        default => 'all'
+    );
     
-    has _pager => (is      => 'rw',
-                   isa     => 'Data::Page',
-                   lazy    => 1,
-                   builder => '_build_pager',
-                   handles => [qw(current_page last_page total_entries)]);
+    has _pager => (
+        is      => 'rw',
+        isa     => 'Data::Page',
+        lazy    => 1,
+        builder => '_build_pager',
+        handles => [qw(current_page last_page total_entries)]
+    );
     
-    has _pages_done => (is      => 'rw',
-                        default => 0);
+    has _pages_done => (
+        is      => 'rw',
+        default => 0
+    );
     
     method _build_pager {
         my $rs = $self->resultset;

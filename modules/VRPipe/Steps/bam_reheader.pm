@@ -35,31 +35,42 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->create(description   => 'path to your samtools executable',
-                                                            optional      => 1,
-                                                            default_value => 'samtools'),
-                 header_comment_file => VRPipe::StepOption->create(description => 'path to your file containing SAM comment lines to include in the header', optional => 1) };
+        return {
+            samtools_exe => VRPipe::StepOption->create(
+                description   => 'path to your samtools executable',
+                optional      => 1,
+                default_value => 'samtools'
+            ),
+            header_comment_file => VRPipe::StepOption->create(description => 'path to your file containing SAM comment lines to include in the header', optional => 1)
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               max_files   => -1,
-                                                               description => '1 or more bam files',
-                                                               metadata    => {
-                                                                             lane             => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                             library          => 'library name',
-                                                                             sample           => 'sample name',
-                                                                             center_name      => 'center name',
-                                                                             platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                             study            => 'name of the study',
-                                                                             insert_size      => 'expected library insert size if paired',
-                                                                             mean_insert_size => 'calculated mean insert size if paired',
-                                                                             bases            => 'total number of base pairs',
-                                                                             reads            => 'total number of reads (sequences)',
-                                                                             paired           => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                             optional         => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study'] }),
-                 dict_file => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                               description => 'a sequence dictionary file for your reference fasta') };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => '1 or more bam files',
+                metadata    => {
+                    lane             => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    library          => 'library name',
+                    sample           => 'sample name',
+                    center_name      => 'center name',
+                    platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study            => 'name of the study',
+                    insert_size      => 'expected library insert size if paired',
+                    mean_insert_size => 'calculated mean insert size if paired',
+                    bases            => 'total number of base pairs',
+                    reads            => 'total number of reads (sequences)',
+                    paired           => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                    optional         => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']
+                }
+            ),
+            dict_file => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'a sequence dictionary file for your reference fasta'
+            )
+        };
     }
     
     method body_sub {
@@ -78,19 +89,23 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 1000, time => 1);
             my $step_state = $self->step_state->id;
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
-                my $bam_path = $bam->path;
-                my $bam_meta = $bam->metadata;
-                my $basename = $bam->basename;
-                my $headed_bam_file = $self->output_file(output_key => 'headed_bam_files',
-                                                         basename   => $basename,
-                                                         type       => 'bam',
-                                                         metadata   => $bam_meta);
+                my $bam_path        = $bam->path;
+                my $bam_meta        = $bam->metadata;
+                my $basename        = $bam->basename;
+                my $headed_bam_file = $self->output_file(
+                    output_key => 'headed_bam_files',
+                    basename   => $basename,
+                    type       => 'bam',
+                    metadata   => $bam_meta
+                );
                 
                 my $headed_bam_path = $headed_bam_file->path;
                 
-                $self->output_file(basename  => $basename . '.header',
-                                   type      => 'txt',
-                                   temporary => 1);
+                $self->output_file(
+                    basename  => $basename . '.header',
+                    type      => 'txt',
+                    temporary => 1
+                );
                 
                 my $this_cmd = "use VRPipe::Steps::bam_reheader; VRPipe::Steps::bam_reheader->reheader_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$headed_bam_path], step_state => $step_state, bam => q[$bam_path]$comment);";
                 $self->dispatch_vrpipecode($this_cmd, $req); # deliberately do not include {output_files => [$headed_bam_file]} so that any temp files we made will get their stats updated prior to auto-deletion
@@ -99,22 +114,27 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { headed_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                                      max_files   => -1,
-                                                                      description => 'a bam file with good header',
-                                                                      metadata    => {
-                                                                                    lane             => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                                    library          => 'library name',
-                                                                                    sample           => 'sample name',
-                                                                                    center_name      => 'center name',
-                                                                                    platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                                    study            => 'name of the study, put in the DS field of the RG header line',
-                                                                                    insert_size      => 'expected library insert size if paired',
-                                                                                    mean_insert_size => 'calculated mean insert size if paired',
-                                                                                    bases            => 'total number of base pairs',
-                                                                                    reads            => 'total number of reads (sequences)',
-                                                                                    paired           => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
-                                                                                    optional         => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study'] }) };
+        return {
+            headed_bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => 'a bam file with good header',
+                metadata    => {
+                    lane             => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    library          => 'library name',
+                    sample           => 'sample name',
+                    center_name      => 'center name',
+                    platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study            => 'name of the study, put in the DS field of the RG header line',
+                    insert_size      => 'expected library insert size if paired',
+                    mean_insert_size => 'calculated mean insert size if paired',
+                    bases            => 'total number of base pairs',
+                    reads            => 'total number of reads (sequences)',
+                    paired           => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
+                    optional         => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']
+                }
+            )
+        };
     }
     
     method post_process_sub {

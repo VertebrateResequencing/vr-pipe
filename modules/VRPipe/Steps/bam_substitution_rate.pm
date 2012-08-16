@@ -37,22 +37,32 @@ class VRPipe::Steps::bam_substitution_rate with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
-                 samtools_exe    => VRPipe::StepOption->create(
-                                                            description   => 'path to samtools executable',
-                                                            optional      => 1,
-                                                            default_value => 'samtools') };
+        return {
+            reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
+            samtools_exe    => VRPipe::StepOption->create(
+                description   => 'path to samtools executable',
+                optional      => 1,
+                default_value => 'samtools'
+            )
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               max_files   => -1,
-                                                               description => '1 or more bam files',
-                                                               metadata    => {
-                                                                             mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
-                                                                             optional      => ['mapped_fastqs'] }),
-                 dict_file => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                               description => 'a sequence dictionary file for your reference fasta') };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => '1 or more bam files',
+                metadata    => {
+                    mapped_fastqs => 'comma separated list of the fastq file(s) that were mapped',
+                    optional      => ['mapped_fastqs']
+                }
+            ),
+            dict_file => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'a sequence dictionary file for your reference fasta'
+            )
+        };
     }
     
     method body_sub {

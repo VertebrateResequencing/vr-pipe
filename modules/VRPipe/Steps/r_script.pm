@@ -5,7 +5,9 @@ VRPipe::Steps::r_script - a step
 
 =head1 DESCRIPTION
 
-Generic step for steps using Rscript command, providing params for the Rscript executable and R libaries pathset, and generating a standard Rscript command prefix
+Generic step for steps using Rscript command, providing params for the Rscript
+executable and R libaries pathset, and generating a standard Rscript command
+prefix
 
 =head1 AUTHOR
 
@@ -36,16 +38,22 @@ use VRPipe::Base;
 class VRPipe::Steps::r_script with VRPipe::StepRole {
     use POSIX qw(ceil);
     
-    has 'rscript_cmd' => (is  => 'rw',
-                       isa => 'Str');
+    has 'rscript_cmd' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
     
-    has 'r_libs' => (is  => 'rw',
-                       isa => 'Str');
+    has 'r_libs' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
     
-    has 'standard_options' => (is      => 'ro',
-                               isa     => 'ArrayRef',
-                               lazy    => 1,
-                               builder => '_build_standard_options');
+    has 'standard_options' => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        builder => '_build_standard_options'
+    );
     
     method _build_standard_options {
         return ['rscript_cmd', 'r_libs'];
@@ -64,8 +72,10 @@ class VRPipe::Steps::r_script with VRPipe::StepRole {
     }
     
     method options_definition {
-        return { rscript_cmd => VRPipe::StepOption->create(description => 'path to your Rscript executable and default arguments', optional => 1, default_value => 'Rscript --vanilla'),
-                 r_libs => VRPipe::StepOption->create(description => 'R libraries path set', optional => 1, default_value => "$ENV{R_LIBS}"), };
+        return {
+            rscript_cmd => VRPipe::StepOption->create(description => 'path to your Rscript executable and default arguments', optional => 1, default_value => 'Rscript --vanilla'),
+            r_libs      => VRPipe::StepOption->create(description => 'R libraries path set',                                  optional => 1, default_value => "$ENV{R_LIBS}"),
+        };
     }
     
     method inputs_definition {

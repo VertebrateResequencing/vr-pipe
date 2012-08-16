@@ -58,9 +58,11 @@ use VRPipe::Base;
 class VRPipe::Parser::fastq with VRPipe::ParserRole {
     use Inline C => Config => FILTERS => 'Strip_POD';
     
-    has '_saw_last_line' => (is      => 'rw',
-                             isa     => 'Bool',
-                             default => 0);
+    has '_saw_last_line' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
 
 =head2 parsed_record
  

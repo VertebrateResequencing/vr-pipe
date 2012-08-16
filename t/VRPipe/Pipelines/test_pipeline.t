@@ -34,29 +34,39 @@ foreach my $stepmember ($pipeline->steps) {
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps after a second retrieval';
 is_deeply \@s_nums, [1, 2, 3, 4], 'the pipeline has the correct step numbers after a second retrieval';
 
-my $test_pipelinesetup = VRPipe::PipelineSetup->create(name       => 'my test pipeline setup',
-                                                       datasource => VRPipe::DataSource->create(type   => 'fofn',
-                                                                                                method => 'all',
-                                                                                                source => file(qw(t data datasource.fofn2))),
-                                                       output_root => $output_dir,
-                                                       pipeline    => $pipeline,
-                                                       options     => {
-                                                                    all_option  => 'foo',
-                                                                    one_option  => 50,
-                                                                    four_option => 'bar',
-                                                                    cleanup     => 0 });
+my $test_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 'my test pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type   => 'fofn',
+        method => 'all',
+        source => file(qw(t data datasource.fofn2))
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        all_option  => 'foo',
+        one_option  => 50,
+        four_option => 'bar',
+        cleanup     => 0
+    }
+);
 
 # also test with cleanup defaulting to true
-my $test_pipelinesetup_clean = VRPipe::PipelineSetup->create(name       => 'my test pipeline setup',
-                                                             datasource => VRPipe::DataSource->create(type   => 'fofn',
-                                                                                                      method => 'all',
-                                                                                                      source => file(qw(t data datasource.fofn2))),
-                                                             output_root => $output_dir_clean,
-                                                             pipeline    => $pipeline,
-                                                             options     => {
-                                                                          all_option  => 'foo',
-                                                                          one_option  => 50,
-                                                                          four_option => 'bar' });
+my $test_pipelinesetup_clean = VRPipe::PipelineSetup->create(
+    name       => 'my test pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type   => 'fofn',
+        method => 'all',
+        source => file(qw(t data datasource.fofn2))
+    ),
+    output_root => $output_dir_clean,
+    pipeline    => $pipeline,
+    options     => {
+        all_option  => 'foo',
+        one_option  => 50,
+        four_option => 'bar'
+    }
+);
 
 # before the step has ever been run, there is no recommended memory or time
 ok my $ssu = VRPipe::StepStatsUtil->new(step => $last_step), 'able to make a StepStatsUtil object';
@@ -100,8 +110,6 @@ is $existing_files, 0, 'all but the final files were deleted from the run with c
 my $expected_output = "3: a text file\n3: with two lines\n";
 is_deeply [scalar($ofile->slurp), scalar(VRPipe::File->create(path => file(output_subdirs(3, 2), '4_test_step_four', 'file3.txt.step_one.step_two.step_three.step_four'))->slurp)], [$expected_output, $expected_output], 'both runs of the pipeline gave good output files';
 
-
-
 # let's reset the final step of the cleaned-up pipeline and rerun, to test if
 # we trigger a cascade of step resets when it discovers previous step output
 # files have been deleted
@@ -110,15 +118,11 @@ $last_stepstate->start_over;
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output after we did start_over on the last cleaned-up stepstate';
 
-
-
 # let's also test manually starting a particular dataelement over from scratch
 my $de_to_restart = VRPipe::DataElement->create(id => 3);
 $de_to_restart->start_from_scratch($test_pipelinesetup_clean);
 is_deeply [-e $final_files[-1], -e $final_files[-2]], [undef, 1], 'start_from_scratch deleted the final output file for the particular datalement, but not others';
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and recreated files for the scratched dataelement';
-
-
 
 # check that we can access job and scheduler std output/err files
 my $submission = VRPipe::Submission->create(id => 1);
@@ -133,8 +137,6 @@ $pars->next_record;
 is_deeply [@{ $pars->parsed_record }], [], 'scheduler_stderr had no content';
 my $parser = $submission->scheduler_stdout;
 ok $parser->does('VRPipe::ParserRole'), 'scheduler_stdout returns a parser';
-
-
 
 # let's test moving a mid-step output file and starting over a final step of the
 # non-cleaned pipeline, to confirm that it does not redo the mid-step but uses

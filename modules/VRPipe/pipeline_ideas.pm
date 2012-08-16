@@ -193,7 +193,12 @@
  $file_obj->mv('/abs/path/new/location');
  # does a safe copy to the location, checks the md5s match, creates a new
  # file_obj for the new file, then does $self->unlink
+ 
+ 
+ 
 
+ 
+ 
  
 
  # before getting stats about a file, we can control if we'll use the existing
@@ -998,7 +1003,12 @@
  # given this information the subclass should then be able to work out what its
  # required files are, where it will write its provided files, and be able to
  # proceed with doing work when run_step($name) is called.
+ 
+ 
+ 
 
+ 
+ 
  
 
  # The step, requires, provides and finish subroutines of a subclass (which
@@ -1034,7 +1044,12 @@
  
  # you could make use of VRPipe::ResultStore to store (small) final output
  # instead of writing to disc.
+ 
+ 
+ 
 
+ 
+ 
  
 
  # NB: compared to the original VRPipe::Pipeline* system, this is deliberatly
@@ -1298,6 +1313,18 @@
 =cut
 
 =head1 VRPipe::Pipeline::Steps*
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

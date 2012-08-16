@@ -6,8 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_EXE BISMARK_GENOME_FOLDER TRIMMOMATIC)],
-                    required_exe => [qw(fastqc)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES BISMARK_GENOME_FOLDER)],
+        required_exe => [qw(fastqc)]
+    );
     use TestPipelines;
 }
 my $output_dir = get_output_dir('bis_seq_bismark-test');
@@ -19,14 +21,21 @@ foreach my $stepmember ($pipeline->steps) {
 
 is_deeply \@s_names, [qw(fastqc_quality_report trimmomatic bismark sam_sort sam_mark_duplicates bismark_methylation_extractor)], 'the pipeline has the correct steps';
 
-my $pipelinesetup = VRPipe::PipelineSetup->create(name       => 'bis_seq_bismark_test',
-                                                  datasource => VRPipe::DataSource->create(type    => 'fofn',
-                                                                                           method  => 'all',
-                                                                                           source  => file(qw(t data fastqc_report_datasource.fofn)),
-                                                                                           options => {}),
-                                                  output_root => $output_dir,
-                                                  pipeline    => $pipeline,
-                                                  options     => {});
+my $pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 'bis_seq_bismark_test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn',
+        method  => 'all',
+        source  => file(qw(t data fastqc_report_datasource.fofn)),
+        options => {}
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        trimmomatic_jar_path  => $ENV{TRIMMOMATIC_JAR_PATH},
+        bismark_genome_folder => $ENV{BISMARK_GENOME_FOLDER}
+    }
+);
 
 my @output_subdirs = output_subdirs(1);
 

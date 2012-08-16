@@ -5,7 +5,7 @@ VRPipe::Pipelines::rna_seq_transcript_quantify_cufflinks - a pipeline
 
 =head1 DESCRIPTION
 
-RNA-Seq Mapping Pipeline employing GSNAP.
+RNA-Seq transcript assembly and quantification pipeline employing Cufflinks.
 
 =head1 AUTHOR
 
@@ -52,12 +52,13 @@ class VRPipe::Pipelines::rna_seq_transcript_quantify_cufflinks with VRPipe::Pipe
     
     method _step_list {
         return ([
-             VRPipe::Step->get(name => 'cufflinks'), # 1
+                VRPipe::Step->get(name => 'cufflinks'), # 1
             ],
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'sam_files')],
             [
             
-            ]);
+            ]
+        );
     }
 }
 1;

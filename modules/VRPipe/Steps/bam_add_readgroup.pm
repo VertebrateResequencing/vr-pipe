@@ -37,25 +37,32 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
     use VRPipe::Parser;
     
     around options_definition {
-        return { %{ $self->$orig },
-                 picard_add_readgroups_options  => VRPipe::StepOption->create(description => 'options for picard AddOrReplaceReadGroups',                                                                                             optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
-                 readgroup_sm_from_metadata_key => VRPipe::StepOption->create(description => 'The SM of the readgroup will come from metadata associated with the bam; this option chooses which metadata key to get the value from', optional => 1, default_value => 'sample') };
+        return {
+            %{ $self->$orig },
+            picard_add_readgroups_options  => VRPipe::StepOption->create(description => 'options for picard AddOrReplaceReadGroups',                                                                                             optional => 1, default_value => 'VALIDATION_STRINGENCY=SILENT COMPRESSION_LEVEL=0'),
+            readgroup_sm_from_metadata_key => VRPipe::StepOption->create(description => 'The SM of the readgroup will come from metadata associated with the bam; this option chooses which metadata key to get the value from', optional => 1, default_value => 'sample')
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               max_files   => -1,
-                                                               description => 'bam files to have header replaced',
-                                                               metadata    => {
-                                                                             lane          => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                             library       => 'library name',
-                                                                             sample        => 'sample name',
-                                                                             center_name   => 'center name',
-                                                                             platform      => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                             study         => 'name of the study',
-                                                                             platform_unit => 'platform sequencing unit',
-                                                                             reads         => 'total number of reads (sequences)',
-                                                                             optional      => ['library', 'platform_unit', 'sample', 'center_name', 'platform', 'study'] }) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => 'bam files to have header replaced',
+                metadata    => {
+                    lane          => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    library       => 'library name',
+                    sample        => 'sample name',
+                    center_name   => 'center name',
+                    platform      => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study         => 'name of the study',
+                    platform_unit => 'platform sequencing unit',
+                    reads         => 'total number of reads (sequences)',
+                    optional      => ['library', 'platform_unit', 'sample', 'center_name', 'platform', 'study']
+                }
+            )
+        };
     }
     
     method body_sub {
@@ -68,9 +75,13 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
             my $sample_key = $options->{readgroup_sm_from_metadata_key};
             my $opts       = $options->{picard_add_readgroups_options};
             my $rginfo     = 'RGID=$lane RGLB=$library RGPL=$platform RGPU=$platform_unit RGSM=$' . $sample_key . ' RGCN=$centre RGDS=$study';
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
-                                                                  version => $self->picard_version(),
-                                                                  summary => 'java $jvm_args -jar AddOrReplaceReadGroups.jar INPUT=$bam_file OUTPUT=$rg_added_bam_file' . " $rginfo $opts"));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'picard',
+                    version => $self->picard_version(),
+                    summary => 'java $jvm_args -jar AddOrReplaceReadGroups.jar INPUT=$bam_file OUTPUT=$rg_added_bam_file' . " $rginfo $opts"
+                )
+            );
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             my $memory = $req->memory;
@@ -92,10 +103,12 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                 my $study = $self->command_line_safe_string($meta->{study} || 'unknown_study');
                 $rginfo_cmd .= " RGDS=$study";
                 
-                my $rg_added_bam_file = $self->output_file(output_key => 'rg_added_bam_files',
-                                                           basename   => $bam->basename,
-                                                           type       => 'bam',
-                                                           metadata   => $meta);
+                my $rg_added_bam_file = $self->output_file(
+                    output_key => 'rg_added_bam_files',
+                    basename   => $bam->basename,
+                    type       => 'bam',
+                    metadata   => $meta
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $rg_added_bam_file->dir;
                 my $jvm_args = $self->jvm_args($memory, $temp_dir);
@@ -107,10 +120,14 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
     }
     
     method outputs_definition {
-        return { rg_added_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                                        max_files   => -1,
-                                                                        description => 'uncompressed bam files with readgroup info added',
-                                                                        metadata    => { reads => 'total number of reads (sequences)' }) };
+        return {
+            rg_added_bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => 'uncompressed bam files with readgroup info added',
+                metadata    => { reads => 'total number of reads (sequences)' }
+            )
+        };
     }
     
     method post_process_sub {

@@ -36,18 +36,24 @@ elapsed($l, __LINE__);
 $l = start_clock(__LINE__);
 for my $i (1 .. 1000) {
     my $file = VRPipe::File->create(path => "/my/file/path/$i");
-    $file->add_metadata({ foo  => 'bar',
-                          baz  => 'loman',
-                          cat  => 'dog',
-                          fish => 'turnip' });
+    $file->add_metadata({
+            foo  => 'bar',
+            baz  => 'loman',
+            cat  => 'dog',
+            fish => 'turnip'
+        }
+    );
 }
 elapsed($l, __LINE__);
 
 $l = start_clock(__LINE__);
 for my $i (1 .. 1000) {
     my $file = VRPipe::File->get(path => "/my/file/path/$i");
-    $file->add_metadata({ foo => 'boo',
-                          rat => 'king' . $i });
+    $file->add_metadata({
+            foo => 'boo',
+            rat => 'king' . $i
+        }
+    );
 }
 elapsed($l, __LINE__);
 

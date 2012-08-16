@@ -5,7 +5,8 @@ VRPipe::Steps::vcf_concat - a step
 
 =head1 DESCRIPTION
 
-Runs vcf-concat against an input set of VCFs, each containing a sequence number as metadata for sorting purposes, generating one concatenated VCF
+Runs vcf-concat against an input set of VCFs, each containing a sequence number
+as metadata for sorting purposes, generating one concatenated VCF
 
 =head1 AUTHOR
 
@@ -35,14 +36,21 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
     method options_definition {
-        return { vcf_concat_exe => VRPipe::StepOption->create(description => 'path to vcf-concat executable', optional => 1, default_value => 'vcf-concat') };
+        return {
+            vcf_concat_exe        => VRPipe::StepOption->create(description => 'path to vcf-concat executable',                                   optional => 1, default_value => 'vcf-concat'),
+            vcf_concat_sites_only => VRPipe::StepOption->create(description => 'do not output genotype information to the concatenated vcf file', optional => 1, default_value => 0)
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               max_files   => -1,
-                                                               description => 'vcf files to concat',
-                                                               metadata    => { seq_no => 'a sequence number assigned by the split for reassembly in correct order' }) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                max_files   => -1,
+                description => 'vcf files to concat',
+                metadata    => { seq_no => 'a sequence number assigned by the split for reassembly in correct order' }
+            )
+        };
     }
     
     method body_sub {
@@ -50,42 +58,22 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             my $self           = shift;
             my $options        = $self->options;
             my $vcf_concat_exe = $options->{vcf_concat_exe};
+            my $sites_only     = $options->{vcf_concat_sites_only};
             
             # create temporary fofn of files to merge
-            my %vcfs;
-            my %orig_meta;
-            foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
-                my $vcf_meta = $vcf->metadata;
-                my $seq_no   = $vcf_meta->{seq_no};
-                $vcfs{$seq_no} = $vcf->path;
-                foreach my $key (keys %$vcf_meta) {
-                    $orig_meta{$key}->{ $vcf_meta->{$key} } = 1;
-                }
-            }
-            
-            # Only keep unique metadata
-            my %new_meta;
-            foreach my $key (keys %orig_meta) {
-                my @vals = keys %{ $orig_meta{$key} };
-                next unless @vals == 1;
-                $new_meta{$key} = $vals[0];
-            }
-            
             my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
-            my $ofh = $merge_list->openw;
-            foreach my $seq (sort { $a <=> $b } keys(%vcfs)) {
-                print $ofh $vcfs{$seq}, "\n";
-            }
-            $merge_list->close;
-            ($merge_list->lines == scalar keys %vcfs && $merge_list->lines == scalar @{ $self->inputs->{vcf_files} }) || $self->throw("merge list does not contain all input files");
+            my @sorted_vcf_files = sort { $a->metadata->{seq_no} <=> $b->metadata->{seq_no} } @{ $self->inputs->{vcf_files} };
+            $merge_list->create_fofn(\@sorted_vcf_files);
             
             # define output file
-            my $concat_vcf = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => \%new_meta);
+            my $concat_meta = $self->common_metadata($self->inputs->{vcf_files});
+            my $concat_vcf = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => $concat_meta);
             
             # run command
             my $merge_list_path = $merge_list->path;
             my $concat_vcf_path = $concat_vcf->path;
-            my $cmd             = qq[$vcf_concat_exe -f $merge_list_path | bgzip -c > $concat_vcf_path];
+            my $cut             = $sites_only ? ' | cut -f 1-8' : '';
+            my $cmd             = qq[$vcf_concat_exe -f $merge_list_path$cut | bgzip -c > $concat_vcf_path];
             my $req             = $self->new_requirements(memory => 500, time => 1);
             $self->dispatch([$cmd, $req, { output_files => [$concat_vcf, $merge_list] }]);
         };

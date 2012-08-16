@@ -30,8 +30,25 @@ use VRPipe::FrontEnd;
 use Path::Class;
 use File::Find;
 
-my $frontend = VRPipe::FrontEnd->new(description => "Delete files on disk, like unix 'rm', also updating the VRPipe database. Also let's you delete output files of a particular pipeline.",
-                                     opt_spec    => [[], [q[To delete specified files, use standard unix 'rm' arguments.]], [], [q[To delete pipeline outputs, supply both:]], ['setup=s', 'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }], ['steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]], [], [q[Currently supported unix 'rm' options:]], ['force|f', q[Ignore nonexistent files, never prompt]], ['recursive|r', q[Remove directories and their contents recursively]], [], [q[Other options:]], ['pretend|p', q[Only print out what files would be deleted; don't actually delete anything]], ['verbose|v', q[Print out the files that are being deleted (automatically on if using --pretend)]]]);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Delete files on disk, like unix 'rm', also updating the VRPipe database. Also let's you delete output files of a particular pipeline.",
+    opt_spec    => [
+        [],
+        [q[To delete specified files, use standard unix 'rm' arguments.]],
+        [],
+        [q[To delete pipeline outputs, supply both:]],
+        ['setup=s',  'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
+        ['steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]],
+        [],
+        [q[Currently supported unix 'rm' options:]],
+        ['force|f',     q[Ignore nonexistent files, never prompt]],
+        ['recursive|r', q[Remove directories and their contents recursively]],
+        [],
+        [q[Other options:]],
+        ['pretend|p', q[Only print out what files would be deleted; don't actually delete anything]],
+        ['verbose|v', q[Print out the files that are being deleted (automatically on if using --pretend)]]
+    ]
+);
 
 my $pretend = $frontend->opts('pretend');
 my $verbose = $frontend->opts('verbose');

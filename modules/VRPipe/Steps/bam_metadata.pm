@@ -34,9 +34,11 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
-    has 'meta_to_check' => (is      => 'rw',
-                            isa     => 'ArrayRef',
-                            builder => '_build_meta_to_check');
+    has 'meta_to_check' => (
+        is      => 'rw',
+        isa     => 'ArrayRef',
+        builder => '_build_meta_to_check'
+    );
     
     my $core_samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
     

@@ -39,9 +39,11 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
     use VRPipe::Utils::Math;
     
     method options_definition {
-        return { release_date   => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date',                                                                                            optional => 1),
-                 sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index',                                                 optional => 1),
-                 rg_from_pu     => VRPipe::StepOption->create(description => 'boolean which if true means that bam headers have their RG identifiers in the PU field instead of ID field of the RG lines in the bam header', optional => 1, default_value => 0) };
+        return {
+            release_date   => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date',                                                                                            optional => 1),
+            sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index',                                                 optional => 1),
+            rg_from_pu     => VRPipe::StepOption->create(description => 'boolean which if true means that bam headers have their RG identifiers in the PU field instead of ID field of the RG lines in the bam header', optional => 1, default_value => 0)
+        };
     }
     
     method inputs_definition {
@@ -67,7 +69,8 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
                     #output_dir => $bam->dir, # *** important to have them in the same dir as input bam?
                     basename => $bam->basename . '.bas',
                     type     => 'txt',
-                    metadata => $bam->metadata);
+                    metadata => $bam->metadata
+                );
                 my $bam_path = $bam->path;
                 my $bas_path = $bas->path;
                 my $this_cmd = "use VRPipe::Steps::bam_stats; VRPipe::Steps::bam_stats->bas(q[$bam_path], q[$bas_path]$extra_args);";
@@ -92,12 +95,14 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
         return 0;            # meaning unlimited
     }
     
-    our %tech_to_platform = (SLX       => 'ILLUMINA',
-                             '454'     => 'LS454',
-                             SOLID     => 'ABI_SOLID',
-                             ILLUMINA  => 'ILLUMINA',
-                             LS454     => 'LS454',
-                             ABI_SOLID => 'ABI_SOLID');
+    our %tech_to_platform = (
+        SLX       => 'ILLUMINA',
+        '454'     => 'LS454',
+        SOLID     => 'ABI_SOLID',
+        ILLUMINA  => 'ILLUMINA',
+        LS454     => 'LS454',
+        ABI_SOLID => 'ABI_SOLID'
+    );
 
 =head2 bam_statistics
  
@@ -435,10 +440,12 @@ class VRPipe::Steps::bam_stats with VRPipe::StepRole {
             
             # fall back on the sequence.index if we have to
             if ($sip) {
-                my %convert = (study    => 'STUDY_ID',
-                               sample   => 'SAMPLE_NAME',
-                               platform => 'INSTRUMENT_PLATFORM',
-                               library  => 'LIBRARY_NAME');
+                my %convert = (
+                    study    => 'STUDY_ID',
+                    sample   => 'SAMPLE_NAME',
+                    platform => 'INSTRUMENT_PLATFORM',
+                    library  => 'LIBRARY_NAME'
+                );
                 foreach my $field (keys %convert) {
                     if (!$readgroup_data{$rg}->{$field} || $readgroup_data{$rg}->{$field} eq "unknown_$field" || $readgroup_data{$rg}->{$field} eq '-') {
                         $readgroup_data{$rg}->{$field} = $sip->lane_info($rg, $convert{$field}) || "unknown_$field";

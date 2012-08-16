@@ -38,29 +38,41 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::Base::Configuration::Trait::Attribute::ConfigKey {
-    has question => (is        => 'ro',
-                     isa       => 'Str',
-                     predicate => 'has_question');
+    has question => (
+        is        => 'ro',
+        isa       => 'Str',
+        predicate => 'has_question'
+    );
     
-    has question_number => (is       => 'ro',
-                            isa      => 'Str',
-                            required => 1);
+    has question_number => (
+        is       => 'ro',
+        isa      => 'Str',
+        required => 1
+    );
     
-    has valid => (is        => 'ro',
-                  isa       => ArrayRefOfStrings,
-                  predicate => 'has_valid');
+    has valid => (
+        is        => 'ro',
+        isa       => ArrayRefOfStrings,
+        predicate => 'has_valid'
+    );
     
-    has env => (is        => 'ro',
-                isa       => 'Str',
-                predicate => 'has_env');
+    has env => (
+        is        => 'ro',
+        isa       => 'Str',
+        predicate => 'has_env'
+    );
     
-    has skip => (is        => 'ro',
-                 isa       => 'Str',
-                 predicate => 'has_skip');
+    has skip => (
+        is        => 'ro',
+        isa       => 'Str',
+        predicate => 'has_skip'
+    );
     
-    has secure => (is        => 'ro',
-                   isa       => 'Bool',
-                   predicate => 'has_secure');
+    has secure => (
+        is        => 'ro',
+        isa       => 'Bool',
+        predicate => 'has_secure'
+    );
     
     around _process_options (ClassName|Object $class: Str $name, HashRef $options) {
         $options->{isa} = MaybeStrOrEnv;
