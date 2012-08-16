@@ -27,22 +27,6 @@ Currently this step sorts a sam file by co-oridinate.
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 =head1 AUTHOR
 
 NJWalker <nw11@sanger.ac.uk>.

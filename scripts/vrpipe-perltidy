@@ -1130,14 +1130,6 @@ The default is B<-cscb>.
 
 
 
-
-
-
-
-
-
-
-
 =item B<-cscw>, or B<--closing-side-comment-warnings> 
 
 This parameter is intended to help make the initial transition to the use of
@@ -1315,14 +1307,6 @@ note that this string is used in a perl regular expression which identifies
 these comments, so it must enable a valid regular expression to be formed.
 
 =back
-
-
-
-
-
-
-
-
 
 
 
@@ -2135,14 +2119,6 @@ on the B<-mbl=k> flag.
 
 
 
-
-
-
-
-
-
-
-
 =item B<-blbp=n>,  B<--blank-lines-before-packages=n>
 
 The parameter B<-blbp=n> requests that least B<n> blank lines precede a package
@@ -2151,14 +2127,6 @@ which does not follow a comment.  The default is <-blbp=1>.
 This parameter interacts with the value B<k> of the parameter
 B<--maximum-consecutive-blank-lines=k> (B<-mbl=k>) in the same way as described
 for the previous item B<-blbs=n>.
-
-
-
-
-
-
-
-
 
 
 
