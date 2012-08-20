@@ -56,7 +56,7 @@ class VRPipe::Requirements extends VRPipe::Persistent {
     
     has 'time' => (
         is     => 'rw',
-        isa    => IntSQL [3],
+        isa    => IntSQL [5],
         traits => ['VRPipe::Persistent::Attributes'],
         is_key => 1
     );

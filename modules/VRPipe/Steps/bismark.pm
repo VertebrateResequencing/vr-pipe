@@ -40,9 +40,9 @@ class VRPipe::Steps::bismark with VRPipe::StepRole {
     
     method options_definition {
         return {
-            bismark_exe           => VRPipe::StepOption->create(description => 'path to your bismark executable',                                    optional => 1, default_value => 'bismark'),
-            paired_end            => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for singel end.', optional => 1, default_value => '0'),
-            bismark_genome_folder => VRPipe::StepOption->create(description => 'path to your bismark genome folder',                                 optional => 0, default_value => $ENV{BISMARK_GENOME_FOLDER})
+            bismark_exe => VRPipe::StepOption->create(description => 'path to your bismark executable',                                    optional => 1, default_value => 'bismark'),
+            paired_end  => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for singel end.', optional => 1, default_value => '0'),
+            bismark_genome_folder => VRPipe::StepOption->create(description => 'path to your bismark genome folder', $ENV{BISMARK_GENOME_FOLDER} ? (default_value => $ENV{BISMARK_GENOME_FOLDER}) : ())
         };
     }
     

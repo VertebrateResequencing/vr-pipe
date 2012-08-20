@@ -377,6 +377,7 @@ class VRPipe::Interface::CmdLine {
         my $expected_dsn = $self->dsn;
         unless ($server_dsn eq $expected_dsn) {
             if ($no_auto_start_or_die) {
+                $self->error("expected dsn $expected_dsn but got $server_dsn");
                 return -1;
             }
             else {

@@ -70,7 +70,7 @@ class VRPipe::Steps::cramtools extends VRPipe::Steps::java {
         return {
             %{ $self->$orig },
             reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
-            cramtools_path  => VRPipe::StepOption->create(description => 'path to cramtools jar file', optional => 1, default_value => "$ENV{CRAMTOOLS}"),
+            cramtools_path  => VRPipe::StepOption->create(description => 'path to cramtools jar file', $ENV{CRAMTOOLS} ? (default_value => $ENV{CRAMTOOLS}) : ()),
         };
     }
     
