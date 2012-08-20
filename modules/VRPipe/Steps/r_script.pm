@@ -61,7 +61,13 @@ class VRPipe::Steps::r_script with VRPipe::StepRole {
     
     method rscript_cmd_prefix {
         my $options = $self->options;
-        return "export R_LIBS=" . $self->r_libs . ";" . $self->rscript_cmd;
+        my $r_libs  = $self->r_libs;
+        my $return;
+        if ($r_libs) {
+            $return = "export R_LIBS=" . $self->r_libs . ";";
+        }
+        $return .= $self->rscript_cmd;
+        return $return;
     }
     
     method handle_standard_options (HashRef $options) {
@@ -74,7 +80,7 @@ class VRPipe::Steps::r_script with VRPipe::StepRole {
     method options_definition {
         return {
             rscript_cmd => VRPipe::StepOption->create(description => 'path to your Rscript executable and default arguments', optional => 1, default_value => 'Rscript --vanilla'),
-            r_libs      => VRPipe::StepOption->create(description => 'R libraries path set',                                  optional => 1, default_value => "$ENV{R_LIBS}"),
+            r_libs => VRPipe::StepOption->create(description => 'R libraries path set', optional => 1, $ENV{R_LIBS} ? (default_value => $ENV{R_LIBS}) : ()),
         };
     }
     

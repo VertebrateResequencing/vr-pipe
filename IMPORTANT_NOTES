@@ -1,3 +1,7 @@
+# version 0.96:
+This version features a schema change, so be sure to run vrpipe-db_upgrade if
+upgrading from an earlier version.
+
 # version 0.95:
 This version removes, renames and alters a number of pipline and step modules.
 Normally this is not something we will do, but we feel it is important in this

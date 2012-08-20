@@ -248,13 +248,14 @@ role VRPipe::StepRole {
                         $return{$key} = $user_val;
                     }
                 }
-                elsif (!$val->optional) {
-                    $self->throw("the option '$key' is required");
-                }
                 else {
-                    my $default = $val->default_value;
-                    if (defined $default) {
+                    my $default  = $val->default_value;
+                    my $optional = $val->optional;
+                    if (defined $default && $optional ? 1 : $default ne '') {
                         $return{$key} = $default;
+                    }
+                    elsif (!$optional) {
+                        $self->throw("the option '$key' is required");
                     }
                 }
             }

@@ -40,7 +40,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
     around options_definition {
         return {
             %{ $self->$orig },
-            trimmomatic_jar_path     => VRPipe::StepOption->create(description => 'path to Trimmomatic jar file',                        optional => 0, default_value => "$ENV{TRIMMOMATIC_JAR_PATH}"),
+            trimmomatic_jar_path => VRPipe::StepOption->create(description => 'path to Trimmomatic jar file', $ENV{TRIMMOMATIC_JAR_PATH} ? (default_value => $ENV{TRIMMOMATIC_JAR_PATH}) : ()),
             paired_end               => VRPipe::StepOption->create(description => 'Run in Paired End mode (default is for single end).', optional => 1, default_value => "0"),
             trimmomatic_step_options => VRPipe::StepOption->create(description => 'String of the step options for Trimmomatic.',         optional => 1, default_value => 'LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36')
         };

@@ -1,3 +1,6 @@
+0.96    Fix for Requirments, allowing reservation of over 999 hrs. See
+        IMPORTANT_NOTES if upgrading. The use of Environement variables has
+        been cleaned up and clarified; see the updated README.
 0.95    This version overhauls a number of SNP-calling-related piplines and
         steps. If upgrading, be sure to read IMPORTANT_NOTES. The changes are
         primarily concerned with moving the choice to do 'chunked' calling (as
