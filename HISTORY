@@ -1,3 +1,7 @@
+0.97    Fix for vrpipe group_all method to wait until all elements are complete.
+        Fix for the chunking DataSource variants, so their methods are shown
+        when running vrpipe-setup. Fix for the retroseq_call step, for
+        compatability with the latest version of retroseq.
 0.96    Fix for Requirments, allowing reservation of over 999 hrs. See
         IMPORTANT_NOTES if upgrading. The use of Environement variables has
         been cleaned up and clarified; see the updated README.

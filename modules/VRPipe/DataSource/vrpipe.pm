@@ -194,12 +194,12 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     }
     
     method group_all (Defined :$handle!, Str :$filter?) {
-        my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => 0, complete_elements => 1);
+        my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => 0);
         if ($filter) {
             $args{filter} = $filter;
         }
         my (@paths, @parents);
-        foreach my $result (@{ $self->_all_results(%args) }) {
+        foreach my $result (@{ $self->_all_results(%args, complete_all => 1) }) {
             push @paths,   @{ $result->{paths} };
             push @parents, $result->{parent};
         }
