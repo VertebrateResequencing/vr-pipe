@@ -84,12 +84,12 @@ class VRPipe::Steps::retroseq_call with VRPipe::StepRole {
                 my $bam_path = $bam_file->path;
                 
                 my $basename = $bam_file->basename;
-                $basename =~ s/\.bam$/.rseq.vcf.PE/; # Assuming Paired End reads
+                $basename =~ s/\.bam$/.rseq.PE.vcf/; # Assuming Paired End reads
                 
                 my $rseq_vcf = $self->output_file(output_key => 'rseq_vcf', basename => $basename, type => 'vcf');
                 
                 my $output_path = $rseq_vcf->path;
-                $output_path =~ s/\.PE$//;           # remove suffix for the -output parameter
+                $output_path =~ s/\.PE\.vcf$//;      # remove suffix for the -output parameter
                 
                 my $cmd = "$retroseq_exe -call -bam $bam_path -input $bed_files{$bam_path} -ref $retroseq_ref";
                 $cmd .= " -filter $retroseq_filter" if $retroseq_filter;
@@ -126,7 +126,7 @@ class VRPipe::Steps::retroseq_call with VRPipe::StepRole {
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my ($output_path) = $cmd_line =~ /.* -output (\S+)$/;
-        $output_path .= '.PE';                       # paired end
+        $output_path .= '.PE.vcf';                   # paired end
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
