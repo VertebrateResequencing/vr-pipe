@@ -220,6 +220,19 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has email_domain => (
+        is              => 'rw',
+        question        => 'When the VRPipe server needs to email users, what domain can be used to form valid email addresses with their usernames?',
+        question_number => ++$question_number
+    );
+    
+    has admin_user => (
+        is              => 'rw',
+        question        => 'When the VRPipe server encounters problems, what user should be emailed?',
+        default         => 'root',
+        question_number => ++$question_number
+    );
+    
     method _get_dbtype (Str $prefix) {
         my $method = $prefix . '_dbtype';
         return $self->$method();

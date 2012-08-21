@@ -69,6 +69,8 @@ sub required_modules {
         'DBIx::Class::DeploymentHandler' => 0,
         'Devel::GlobalDestruction'       => 0,
         'Digest::MD5'                    => 0,
+        'Email::Sender::Simple'          => 0,
+        'Email::Simple::Creator'         => 0,
         'EV'                             => 0,
         'File::Copy'                     => 0,
         'File::Fetch'                    => 0,

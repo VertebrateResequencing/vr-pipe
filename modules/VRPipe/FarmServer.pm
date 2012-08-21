@@ -43,28 +43,35 @@ class VRPipe::FarmServer extends VRPipe::Persistent {
     
     our $dead_time = 60;
     
-    has 'farm' => (is         => 'rw',
-                   isa        => 'Str',
-                   traits     => ['VRPipe::Persistent::Attributes'],
-                   is_key     => 1,
-                   belongs_to => 'VRPipe::StepMember');
+    has 'farm' => (
+        is     => 'rw',
+        isa    => Varchar [64],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'only_ours' => (is      => 'rw',
-                        isa     => 'Bool',
-                        traits  => ['VRPipe::Persistent::Attributes'],
-                        default => 0);
+    has 'only_ours' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
-    has 'last_claim_time' => (is          => 'rw',
-                              isa         => Datetime,
-                              coerce      => 1,
-                              traits      => ['VRPipe::Persistent::Attributes'],
-                              is_nullable => 1);
+    has 'last_claim_time' => (
+        is          => 'rw',
+        isa         => Datetime,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'heartbeat' => (is      => 'rw',
-                        isa     => Datetime,
-                        coerce  => 1,
-                        traits  => ['VRPipe::Persistent::Attributes'],
-                        default => sub { DateTime->now() });
+    has 'heartbeat' => (
+        is      => 'rw',
+        isa     => Datetime,
+        coerce  => 1,
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => sub { DateTime->now() }
+    );
     
     __PACKAGE__->make_persistent();
     

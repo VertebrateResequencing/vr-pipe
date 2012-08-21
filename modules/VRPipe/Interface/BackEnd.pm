@@ -54,6 +54,8 @@ class VRPipe::Interface::BackEnd {
     use Cwd qw(chdir getcwd);
     use Time::Format;
     use Module::Find;
+    use Email::Sender::Simple;
+    use Email::Simple::Creator;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -366,6 +368,18 @@ XSL
         writer => '_set_scheduler'
     );
     
+    has 'admin_user' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_admin_user'
+    );
+    
+    has 'email_domain' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_email_domain'
+    );
+    
     has 'schema' => (
         is      => 'ro',
         isa     => 'VRPipe::Persistent::Schema',
@@ -413,7 +427,8 @@ XSL
     has 'manager' => (
         is      => 'ro',
         isa     => 'VRPipe::Manager',
-        default => sub { VRPipe::Manager->create() },
+        lazy    => 1,
+        builder => '_create_manager',        # we can't have a default because we must delay the create call
         handles => [qw(register_farm_server)]
     );
     
@@ -436,6 +451,10 @@ XSL
     method _build_psgi_server {
         my $port = $self->port;
         return Twiggy::Server->new(port => $port); # host `uname -n`; parse the ip address, use as host? Currently defaults to 0.0.0.0
+    }
+    
+    method _create_manager {
+        return VRPipe::Manager->create();
     }
     
     sub BUILD {
@@ -461,6 +480,12 @@ XSL
         $method_name = $deployment . '_scheduler';
         my $scheduler = $vrp_config->$method_name();
         $self->_set_scheduler("$scheduler");
+        
+        my $admin_user = $vrp_config->admin_user();
+        $self->_set_admin_user("$admin_user");
+        
+        my $email_domain = $vrp_config->email_domain();
+        $self->_set_email_domain("$email_domain");
         
         $method_name = $deployment . '_scheduler_output_root';
         my $log_dir = $vrp_config->$method_name();
@@ -724,9 +749,32 @@ XSL
         return \%opts;
     }
     
-    method log (Str $msg) {
+    method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?) {
         chomp($msg);
+        
+        # we always just warn, which ends up in the server log
         warn "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
+        
+        if ($self->deployment eq 'production' && ($email_to || $email_admin)) {
+            # email the desired users
+            my $domain      = $self->email_domain;
+            my $admin_email = $self->admin_user . '@' . $domain;
+            
+            my $email = Email::Simple->create(
+                header => [
+                    To => $email_to ? join(', ', map { "$_\@$domain" } @$email_to) : $admin_email,
+                    $admin_email && $email_to ? (Cc => $admin_email) : (),
+                    From    => '"VRPipe Server" <vrpipe@do.not.reply>',
+                    Subject => $subject || "VRPipe Server message",
+                ],
+                body => $msg . "\n",
+            );
+            my $sent = Email::Sender::Simple->try_to_send($email);
+            
+            unless ($sent) {
+                warn "$time{'yyyy/mm/dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
+            }
+        }
     }
     
     method xml_tag (Str $tag, Str $cdata, Str $attribs?) {

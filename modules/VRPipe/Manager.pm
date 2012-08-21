@@ -115,9 +115,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
             my ($fs) = VRPipe::FarmServer->search({ farm => $farm }, { for => 'update' });
             return if ($fs && $fs->alive);
             return VRPipe::FarmServer->create(farm => $farm, only_ours => $only_ours);
-          }
-          
-          return $self->do_transaction($transaction, "Could not register farm $farm");
+        };
+        
+        return $self->do_transaction($transaction, "Could not register farm $farm");
     }
     
     method setups (Str :$pipeline_name?) {

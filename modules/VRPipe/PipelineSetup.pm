@@ -191,7 +191,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     my $state       = VRPipe::StepState->create(
                         stepmember    => $member,
                         dataelement   => $element,
-                        pipelinesetup => $setup
+                        pipelinesetup => $self
                     );
                     
                     my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
@@ -258,13 +258,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     my ($cmd, $reqs, $job_args) = @$arrayref;
                                     my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
                                 }
-                                $step_counts{$step_name}++ if $inc_step_count;
                             }
                             else {
                                 # it is possible for a parse to result in a
                                 # different step being started over because
                                 # input files were missing
-                                $self->debug("step " . $step->id . " for data element " . $element->id . " for pipeline setup " . $setup->id . " neither completed nor dispatched anything!");
+                                $self->debug("step " . $step->id . " for data element " . $element->id . " for pipeline setup " . $self->id . " neither completed nor dispatched anything!");
                             }
                         }
                     }
