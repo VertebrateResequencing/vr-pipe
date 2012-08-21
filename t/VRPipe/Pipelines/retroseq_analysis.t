@@ -55,7 +55,7 @@ foreach my $in ('hs_chr20.a', 'hs_chr20.b') {
     $element_id++;
     my @output_dirs = output_subdirs($element_id);
     push(@output_files, file(@output_dirs, '2_retroseq_discover', "${in}.cand.tab"));
-    push(@final_files,  file(@output_dirs, '3_retroseq_call',     "${in}.rseq.vcf.PE"));
+    push(@final_files,  file(@output_dirs, '3_retroseq_call',     "${in}.rseq.PE.vcf"));
 }
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
 
