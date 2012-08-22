@@ -749,13 +749,13 @@ XSL
         return \%opts;
     }
     
-    method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?) {
+    method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Bool :$force_when_testing?) {
         chomp($msg);
         
         # we always just warn, which ends up in the server log
         warn "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
         
-        if ($self->deployment eq 'production' && ($email_to || $email_admin)) {
+        if (($force_when_testing || $self->deployment eq 'production') && ($email_to || $email_admin)) {
             # email the desired users
             my $domain      = $self->email_domain;
             my $admin_email = $self->admin_user . '@' . $domain;
