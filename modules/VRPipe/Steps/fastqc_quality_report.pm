@@ -71,7 +71,6 @@ class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
                 my $seq_file_path   = $seq_file->path;
                 my $report_file_dir = $report_file->path->dir;
                 my $cmd             = qq[$fastqc_exe_path_with_interpreter --noextract $seq_file_path --outdir $report_file_dir];
-                warn $cmd;
                 $self->dispatch([$cmd, $req, { output_files => [$report_file] }]);
             }
         };
