@@ -1,3 +1,5 @@
+0.98    Fix for fastqc_quality_report and cufflinks steps to make them work in
+        production.
 0.97    Fix for vrpipe group_all method to wait until all elements are complete.
         Fix for the chunking DataSource variants, so their methods are shown
         when running vrpipe-setup. Fix for the retroseq_call step, for
