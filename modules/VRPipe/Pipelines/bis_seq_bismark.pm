@@ -5,8 +5,9 @@ VRPipe::Pipelines::bis-seq_bismark - a pipeline
 
 =head1 DESCRIPTION
 
-Bisulphite Sequencing Pipeline employing Bismakr tools to gain methylation
-calls.
+Bisulfite Sequencing pipeline using Bismark and associated software
+(http://www.bioinformatics.babraham.ac.uk/projects/bismark/) to produce
+methylation calls.
 
 =head1 AUTHOR
 
