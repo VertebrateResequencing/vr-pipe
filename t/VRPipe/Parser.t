@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 76;
+    use Test::Most tests => 79;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -117,6 +117,17 @@ while ($p->next_record) {
 my @common_dict = (UR => 'ftp://s.suis.com/ref.fa', AS => 'SSuis1', SP => 'S.Suis');
 is_deeply [@records], [{ SN => 'fake_chr1', LN => 290640, M5 => '55f9584cf1f4194f13bbdc0167e0a05f', @common_dict }, { SN => 'fake_chr2', LN => 1716851, M5 => '6dd2836053e5c4bd14ad49b5b2f2eb88', @common_dict }], 'dict file was parsed correctly';
 is $p->total_length, 2007491, 'total_length for dict files worked';
+
+# fai
+$p       = VRPipe::Parser->create('fai', { file => file(qw(t data S_suis_P17.fa.fai)) });
+@records = ();
+$pr      = $p->parsed_record;
+while ($p->next_record) {
+    push(@records, { %{$pr} });
+}
+is_deeply [@records], [{ SN => 'fake_chr1', LN => 290640 }, { SN => 'fake_chr2', LN => 1716851 }], 'fai file was parsed correctly';
+is_deeply [{ $p->seq_lengths }], [{ 'fake_chr1' => 290640, 'fake_chr2' => 1716851 }], 'seq_lengths for fai files worked';
+is $p->total_length, 2007491, 'total_length for fai files worked';
 
 # bam (we have Parser_bam.t for more in-depth testing of bam parsing)
 $p = VRPipe::Parser->create('bam', { file => file(qw(t data file.bam)) });
