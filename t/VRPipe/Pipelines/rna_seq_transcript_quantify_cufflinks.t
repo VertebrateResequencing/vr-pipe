@@ -7,8 +7,8 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES CUFFLINKS_EXE CUFFLINKS_GENOME_FASTA_PATH CUFFLINKS_KNOWN_GENES_PATH CUFFLINKS_GENE_MASK_PATH)],
-        required_exe => []
+        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe => [qw(cufflinks)]
     );
     use TestPipelines;
 }
