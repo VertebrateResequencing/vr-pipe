@@ -51,6 +51,8 @@ use VRPipe::Base;
 class VRPipe::Manager extends VRPipe::Persistent {
     use Parallel::ForkManager;
     use Sys::CPU;
+    use Proc::ProcessTable;
+    use Number::Bytes::Human qw(format_bytes);
     use POSIX qw(ceil);
     
     our $DEFAULT_MAX_PROCESSES = Sys::CPU::cpu_count();
@@ -110,7 +112,17 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
+    sub memory_usage {
+        my $t = new Proc::ProcessTable;
+        foreach my $got (@{ $t->table }) {
+            next
+              unless $got->pid eq $$;
+            return format_bytes($got->size);
+        }
+    }
+    
     method setups (Str :$pipeline_name?) {
+        warn "setups called, memory: ", memory_usage, "\n";
         my @setups;
         foreach my $ps (VRPipe::PipelineSetup->search({}, { prefetch => 'pipeline' })) {
             my $p = $ps->pipeline;
@@ -188,6 +200,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             push(@setups, $ps);
         }
         
+        warn "setups returning, memory: ", memory_usage, "\n";
         return @setups;
     }
     
@@ -214,9 +227,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         foreach my $setup (@$setups) {
             if ($setup->active) {
+                warn "in trigger, will spool setup ", $setup->id, " in a child, parent memory: ", memory_usage, "\n";
                 $fm->start and next; # fork
                 
                 my $all_done = $self->spool($setup);
+                warn "in child, after spool of setup ", $setup->id, ", memory = ", memory_usage, "\n";
                 
                 $fm->finish(0, \$all_done); # exit in the child process
             }
@@ -301,6 +316,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         $self->debug("Spool for setup " . $setup->id . " got " . $pager->total_entries . " incomplete element states");
         
         ELOOP: while (my $estates = $pager->next) {
+            warn "in pager loop, got ", scalar(@$estates), " estates, memory: ", memory_usage, "\n";
             foreach my $estate (@$estates) {
                 my $element         = $estate->dataelement;
                 my $completed_steps = $estate->completed_steps;
@@ -338,7 +354,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         next;
                     }
                     
-                    my $step_name      = $step->name;
+                    my $step_name = $step->name;
+                    warn "  looking at incomplete estate ", $estate->id, " and step $step_name, memory: ", memory_usage, "\n";
                     my $inc_step_count = 0;
                     if (exists $step_limits{$step_name}) {
                         $inc_step_count = 1;
@@ -391,6 +408,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         # this is the first time we're looking at this step for
                         # this data member for this pipelinesetup
                         my $completed;
+                        warn "  will step->parse, memory: ", memory_usage, "\n";
                         try {
                             $completed = $step->parse();
                         }
@@ -399,6 +417,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                             $all_done = 0;
                             last;
                         }
+                        warn "  after parse, memory: ", memory_usage, "\n";
                         
                         if ($completed) {
                             # on instant complete, parse calls post_process itself
@@ -416,6 +435,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                                     $self->debug(" parsing the step made new submission " . $sub->id . " with job " . $sub->job->id);
                                 }
                                 $step_counts{$step_name}++ if $inc_step_count;
+                                warn "  dispatched ", scalar(@$dispatched), " submissions, memory: ", memory_usage, "\n";
                             }
                             else {
                                 $self->debug("step " . $step->id . " for data element " . $element->id . " for pipeline setup " . $setup->id . " neither completed nor dispatched anything!");
