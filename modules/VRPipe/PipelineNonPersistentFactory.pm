@@ -42,7 +42,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 package VRPipe::PipelineNonPersistentFactory;
-use MooseX::AbstractFactory;
+use VRPipe::Base::AbstractFactory;
 
 implementation_does qw/VRPipe::PipelineRole/;
 implementation_class_via sub { 'VRPipe::Pipelines::' . shift };
