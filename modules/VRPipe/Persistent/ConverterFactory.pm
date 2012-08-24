@@ -37,7 +37,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 package VRPipe::Persistent::ConverterFactory;
-use MooseX::AbstractFactory;
+use VRPipe::Base::AbstractFactory;
 
 implementation_does qw/VRPipe::Persistent::ConverterRole/;
 implementation_class_via sub { 'VRPipe::Persistent::Converter::' . shift };
