@@ -5,8 +5,6 @@ package VRPipe::Base::AbstractFactoryRole;
 use strict;
 use warnings;
 use Moose::Role;
-
-use Moose::Autobox;
 use TryCatch;
 
 has _options        => (is => 'ro', isa => 'ArrayRef[Any]');

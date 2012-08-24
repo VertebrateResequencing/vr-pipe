@@ -41,5 +41,3 @@ sub init_meta {
 }
 
 1;
-
-1;
