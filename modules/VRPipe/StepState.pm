@@ -79,6 +79,15 @@ class VRPipe::StepState extends VRPipe::Persistent {
         belongs_to  => 'VRPipe::StepCmdSummary'
     );
     
+    has 'same_submissions_as' => (
+        is          => 'rw',
+        isa         => Persistent,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1,
+        belongs_to  => 'VRPipe::StepState'
+    );
+    
     has 'complete' => (
         is      => 'rw',
         isa     => 'Bool',
@@ -87,6 +96,13 @@ class VRPipe::StepState extends VRPipe::Persistent {
     );
     
     __PACKAGE__->make_persistent(has_many => [[submissions => 'VRPipe::Submission'], ['_output_files' => 'VRPipe::StepOutputFile']]);
+    
+    around submissions {
+        if (my $other_state = $self->same_submissions_as) {
+            return $other_state->submissions;
+        }
+        return $self->$orig;
+    }
     
     method output_files (Maybe[PersistentFileHashRef] $new_hash?, Bool :$only_unique_to_us?) {
         $only_unique_to_us = 0 if $new_hash;

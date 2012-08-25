@@ -110,6 +110,15 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
+    sub memory_usage {
+        my $t = new Proc::ProcessTable;
+        foreach my $got (@{ $t->table }) {
+            next
+              unless $got->pid eq $$;
+            return format_bytes($got->size);
+        }
+    }
+    
     method setups (Str :$pipeline_name?) {
         my @setups;
         foreach my $ps (VRPipe::PipelineSetup->search({}, { prefetch => 'pipeline' })) {
@@ -352,7 +361,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     # waiting on submissions to complete?
                     my @submissions = $state->submissions;
                     if (@submissions) {
-                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->id });
+                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->same_submissions_as ? $state->same_submissions_as->id : $state->id });
                         unless ($unfinished) {
                             my $ok = $step->post_process();
                             if ($ok) {
@@ -410,11 +419,37 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         else {
                             my $dispatched = $step->dispatched();
                             if (@$dispatched) {
+                                my %other_states;
                                 foreach my $arrayref (@$dispatched) {
-                                    my ($cmd, $reqs, $job_args) = @$arrayref;
-                                    my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
-                                    $self->debug(" parsing the step made new submission " . $sub->id . " with job " . $sub->job->id);
+                                    my ($cmd, undef, $job_args) = @$arrayref;
+                                    my ($job) = VRPipe::Job->search({ dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd });
+                                    last unless $job;
+                                    my @submissions = VRPipe::Submission->search({ job => $job->id }, { prefetch => 'stepstate' });
+                                    last unless @submissions;
+                                    foreach my $sub (@submissions) {
+                                        $other_states{ $sub->stepstate->id }++;
+                                    }
                                 }
+                                
+                                my $same_as_us;
+                                my $needed_count = scalar @$dispatched;
+                                while (my ($other_id, $count) = each %other_states) {
+                                    next unless $needed_count == $count;
+                                    $same_as_us = $other_id;
+                                }
+                                
+                                if ($same_as_us) {
+                                    $state->same_submissions_as($same_as_us);
+                                    $state->update;
+                                }
+                                else {
+                                    foreach my $arrayref (@$dispatched) {
+                                        my ($cmd, $reqs, $job_args) = @$arrayref;
+                                        my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                        $self->debug(" parsing the step made new submission " . $sub->id . " with job " . $sub->job->id);
+                                    }
+                                }
+                                
                                 $step_counts{$step_name}++ if $inc_step_count;
                             }
                             else {
@@ -442,17 +477,19 @@ class VRPipe::Manager extends VRPipe::Persistent {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
-            # are there a behaviours to trigger?
-            foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
-                $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
-            }
-            
-            # add to the StepStats
-            foreach my $submission ($state->submissions) {
-                my $sched_stdout = $submission->scheduler_stdout || next;
-                my $memory = ceil($sched_stdout->memory || $submission->memory);
-                my $time   = ceil($sched_stdout->time   || $submission->time);
-                VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
+            unless ($state->same_submissions_as) {
+                # are there a behaviours to trigger?
+                foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
+                    $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
+                }
+                
+                # add to the StepStats
+                foreach my $submission ($state->submissions) {
+                    my $sched_stdout = $submission->scheduler_stdout || next;
+                    my $memory = ceil($sched_stdout->memory || $submission->memory);
+                    my $time   = ceil($sched_stdout->time   || $submission->time);
+                    VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
+                }
             }
             
             $state->complete(1);
