@@ -110,15 +110,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
-    sub memory_usage {
-        my $t = new Proc::ProcessTable;
-        foreach my $got (@{ $t->table }) {
-            next
-              unless $got->pid eq $$;
-            return format_bytes($got->size);
-        }
-    }
-    
     method setups (Str :$pipeline_name?) {
         my @setups;
         foreach my $ps (VRPipe::PipelineSetup->search({}, { prefetch => 'pipeline' })) {
