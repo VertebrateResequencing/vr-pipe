@@ -41,7 +41,7 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             %{ $self->$orig },
             'regions_file'        => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
             'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
-            'includeChrX'         => VRPipe::StepOption->create(description => 'indicates whether to include Chr X in calulation', optional => 1, default_value => 1),
+            'includeChrX'         => VRPipe::StepOption->create(description => 'indicates whether to include Chr X in calulation', optional => 1, default_value => 0),
         };
     }
     
