@@ -352,7 +352,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     # waiting on submissions to complete?
                     my @submissions = $state->submissions;
                     if (@submissions) {
-                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->same_submissions_as ? $state->same_submissions_as->id : $state->id });
+                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->submission_search_id });
                         unless ($unfinished) {
                             my $ok = $step->post_process();
                             if ($ok) {
@@ -424,9 +424,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
                                 
                                 my $same_as_us;
                                 my $needed_count = scalar @$dispatched;
-                                while (my ($other_id, $count) = each %other_states) {
+                                foreach my $other_id (sort { $a <=> $b } keys %other_states) {
+                                    my $count = $other_states{$other_id};
                                     next unless $needed_count == $count;
                                     $same_as_us = $other_id;
+                                    last;
                                 }
                                 
                                 if ($same_as_us) {
@@ -436,7 +438,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                                 else {
                                     foreach my $arrayref (@$dispatched) {
                                         my ($cmd, $reqs, $job_args) = @$arrayref;
-                                        my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                        my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state->submission_search_id, requirements => $reqs);
                                         $self->debug(" parsing the step made new submission " . $sub->id . " with job " . $sub->job->id);
                                     }
                                 }
