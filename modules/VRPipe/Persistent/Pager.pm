@@ -106,9 +106,10 @@ class VRPipe::Persistent::Pager {
         # matching row and then searching for ids less than that.
         my @id_limit = ();
         unless (defined $rs->{cond}->{'me.id'}) {
-            my $cursor = $rs->search_rs({}, { order_by => { -desc => 'me.id' }, rows => 1, columns => ['me.id'] })->cursor;
-            my ($ref) = $cursor->all;
-            @id_limit = ('me.id' => { '<=' => $ref->[0] });
+            my ($ref) = $rs->search_rs({}, { order_by => { -desc => 'me.id' }, rows => 1, columns => ['me.id'] })->cursor->all;
+            if ($ref && $ref->[0]) {
+                @id_limit = ('me.id' => { '<=' => $ref->[0] });
+            }
         }
         
         $rs = $rs->search({@id_limit}, { rows => $self->rows_per_page, page => 1 });
