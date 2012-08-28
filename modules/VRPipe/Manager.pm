@@ -410,6 +410,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         else {
                             my $dispatched = $step->dispatched();
                             if (@$dispatched) {
+                                # is there another stepstate that we already
+                                # made equivalent submissions for?
                                 my %other_states;
                                 foreach my $arrayref (@$dispatched) {
                                     my ($cmd, undef, $job_args) = @$arrayref;
@@ -432,10 +434,20 @@ class VRPipe::Manager extends VRPipe::Persistent {
                                 }
                                 
                                 if ($same_as_us) {
+                                    # we just say that $state's submissions are
+                                    # the same as the other other stepstate's
                                     $state->same_submissions_as($same_as_us);
                                     $state->update;
                                 }
                                 else {
+                                    # create new submissions for the relevant
+                                    # stepstate ($state may have had start_over
+                                    # run on it, which would have deleted its
+                                    # same_submissions_as stepstate's subs, and
+                                    # we want to create the new submissions for
+                                    # that same_submissions_as stepstate, not
+                                    # for $state, hence the use of
+                                    # $state->submission_search_id)
                                     foreach my $arrayref (@$dispatched) {
                                         my ($cmd, $reqs, $job_args) = @$arrayref;
                                         my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state->submission_search_id, requirements => $reqs);
