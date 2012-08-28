@@ -155,6 +155,9 @@ if ($setup) {
                         $sof->delete;
                     }
                     
+                    # undef any same_submissions_as that reference us
+                    VRPipe::StepState->search_rs({ same_submissions_as => $step_state->id })->update({ same_submissions_as => undef });
+                    
                     $step_state->delete;
                 }
                 
