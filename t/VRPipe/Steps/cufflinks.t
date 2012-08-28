@@ -5,7 +5,7 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 3;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES CUFFLINKS_GENOME_FASTA_PATH CUFFLINKS_KNOWN_GENES_PATH CUFFLINKS_GENE_MASK_PATH)]);
+    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)]);
     use TestPipelines;
     use_ok('VRPipe::Steps::cufflinks');
 }
@@ -24,13 +24,16 @@ my $setup = VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        reference_fasta  => file(qw(t data pombe_ref.fa))->absolute,
-        known_genes_path => file(qw(t data knownGeneMm9.gtf))->absolute,
-        gene_mask_path   => file(qw(t data GeneMaskMm9.gtf))->absolute
+        #reference_fasta  => file(qw(t data pombe_ref.fa))->absolute,
+        #reference_fasta => file(qw(.. .. lust rna-seq general_files mouse_ref mm9.fa))->absolute,
+        #known_genes_path => file(qw(.. .. lust rna-seq general_files knownGeneMm9.gtf))->absolute,
+        #known_genes_path => file(qw(t data knownGeneMm9.gtf))->absolute,
+        gene_mask_path => file(qw(t data GeneMaskMm9.gtf))->absolute
     }
 );
 
 my @output_subdirs = output_subdirs(1);
+#warn join(@output_subdirs);
 #my $outputfile_1   = file(@output_subdirs, '1_cufflinks', "transcripts.gtf");
 #my $outputfile_2   = file(@output_subdirs, '1_cufflinks', "isoforms.fpkm_tracking");
 #my $outputfile_3   = file(@output_subdirs, '1_cufflinks', "genes.fpkm_tracking");

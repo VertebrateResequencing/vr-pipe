@@ -35,6 +35,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
     use File::Basename;
+    use File::Which;
     
     method options_definition {
         return { fastqc_exe => VRPipe::StepOption->create(description => 'path to your fastqc executable', optional => 1, default_value => 'fastqc') }
@@ -51,10 +52,12 @@ class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self    = shift;
-            my $options = $self->options;
-            my $fastqc  = $options->{fastqc_exe};
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'fastqc', version => VRPipe::StepCmdSummary->determine_version($fastqc . ' --version', '^FastQC v(.+)$'), summary => 'fastqc --noextract file1 '));
+            my $self                             = shift;
+            my $options                          = $self->options;
+            my $fastqc                           = $options->{fastqc_exe};
+            my $fastqc_exe_path                  = which($fastqc) unless file($fastqc)->is_absolute;
+            my $fastqc_exe_path_with_interpreter = "perl $fastqc_exe_path";
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => $fastqc_exe_path_with_interpreter, version => VRPipe::StepCmdSummary->determine_version($fastqc . ' --version', '^FastQC v(.+)$'), summary => 'fastqc --noextract file1 '));
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $seq_file (@{ $self->inputs->{fastq_files} }) {
@@ -67,7 +70,8 @@ class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
                 );
                 my $seq_file_path   = $seq_file->path;
                 my $report_file_dir = $report_file->path->dir;
-                $self->dispatch([qq[$fastqc --noextract $seq_file_path --outdir $report_file_dir ], $req, { output_files => [$report_file] }]);
+                my $cmd             = qq[$fastqc_exe_path_with_interpreter --noextract $seq_file_path --outdir $report_file_dir];
+                $self->dispatch([$cmd, $req, { output_files => [$report_file] }]);
             }
         };
     }

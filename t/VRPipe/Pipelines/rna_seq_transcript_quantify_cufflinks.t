@@ -7,8 +7,8 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES CUFFLINKS_EXE CUFFLINKS_GENOME_FASTA_PATH CUFFLINKS_KNOWN_GENES_PATH CUFFLINKS_GENE_MASK_PATH)],
-        required_exe => []
+        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe => [qw(cufflinks)]
     );
     use TestPipelines;
 }
@@ -31,7 +31,9 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
-    options     => {}
+    options     => {           #known_genes_path => file(qw(.. .. lust rna-seq general_files knownGeneMm9.gtf))->absolute,
+        #reference_fasta => file(qw(.. .. lust rna-seq general_files mouse_ref mm9.fa))->absolute
+      } #set to test data when we have test data.
 );
 my @output_subdirs = output_subdirs(1);
 
@@ -40,3 +42,5 @@ my @outputfiles;
 push(@outputfiles, $outputfile_1);
 ok handle_pipeline(@outputfiles), 'rna-seq-pipeline ran ok, generating the expected output files';
 finish;
+
+#WARNING TEST FAILS UNTIL TEST DATA SORTED OUT

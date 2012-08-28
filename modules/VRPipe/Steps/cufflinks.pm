@@ -39,10 +39,10 @@ class VRPipe::Steps::cufflinks with VRPipe::StepRole {
     
     method options_definition {
         return {
-            cufflinks_exe    => VRPipe::StepOption->create(description => 'path to your cufflinks executable', optional => 1, default_value => 'cufflinks'),
+            cufflinks_exe    => VRPipe::StepOption->create(description => 'path to your cufflinks executable',           optional => 1, default_value => 'cufflinks'),
             reference_fasta  => VRPipe::StepOption->create(description => 'path to genome file e.g. mm9.fa'),
             known_genes_path => VRPipe::StepOption->create(description => 'path to known genes file file e.g. knownGenesMm9.gtf'),
-            gene_mask_path   => VRPipe::StepOption->create(description => 'path to gene mask file e.g. GeneMaskMm9.gtf')
+            gene_mask_path   => VRPipe::StepOption->create(description => 'path to gene mask file e.g. GeneMaskMm9.gtf', optional => 1, default_value => '')
         };
     }
     
@@ -88,10 +88,10 @@ class VRPipe::Steps::cufflinks with VRPipe::StepRole {
             my $output_file_dir = $output_file_1->dir->stringify;
             my $input_file_path = $input_file[0]->path;
             
-            #TO DO:  Build the command up  - allow more options.
-            
-            my $cmd = "cufflinks --num-threads 32 --frag-bias-correct $reference_fasta --GTF-guide $known_genes_path --upper-quartile-norm --max-mle-iterations 10000 --total-hits-norm --max-bundle-frags 100000000 -M $gene_mask_path -o $output_file_dir --multi-read-correct $input_file_path";
-            
+            #TO DO: allow more options.
+            my $cmd = "cufflinks --num-threads 32 --frag-bias-correct $reference_fasta --GTF-guide $known_genes_path --upper-quartile-norm --max-mle-iterations 10000 --total-hits-norm --max-bundle-frags 100000000";
+            $cmd .= " -M $gene_mask_path" unless ($gene_mask_path eq '');
+            $cmd .= " -o $output_file_dir --multi-read-correct $input_file_path";
             my $out = $self->dispatch([qq[$cmd], $req, { output_files => [$output_file_1, $output_file_2, $output_file_3] }]);
           }
     }

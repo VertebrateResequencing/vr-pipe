@@ -325,9 +325,10 @@ sub status {
                 
                 my $steps_to_complete = $num_elements * $step_members;
                 my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
-                $object .= $backend->xml_tag('attribute', "$percent_complete\%", qq[explanation="Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)"]);
+                $object .= $backend->xml_tag('attribute', "$percent_complete\%", qq[name="completion" explanation="Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)"]);
                 
-                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
+                my ($last_sub_id) = VRPipe::Submission->get_column_values('id', {}, { order_by => { -desc => 'id' }, rows => 1 });
+                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id, 'me.id' => { '<=' => $last_sub_id } }, { join => ['stepstate'], prefetch => 'job' });
                 
                 my %sub_stats;
                 while (my $subs = $pager->next) {

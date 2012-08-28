@@ -110,6 +110,8 @@ class VRPipe::Parser::fai with VRPipe::ParserRole {
         my @data = split(qr/\t/, $line);
         @data || return;
         
+        $self->throw("Parsed file does not contain the expected number of columns. Is it an fai file?: $line") unless (scalar @data == 5);
+        
         my $pr = $self->parsed_record;
         
         foreach my $key (keys %{$pr}) {
