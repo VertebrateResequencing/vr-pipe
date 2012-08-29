@@ -1156,7 +1156,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         return $str;
     }
     
-    method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {
+    # method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {
+    #*** can't use this as a method due to a memory leak
+    sub search {
+        my ($self, $search_args, $search_attributes) = @_;
         my $rs = $self->search_rs($search_args, $search_attributes);
         
         if (wantarray()) {

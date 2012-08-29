@@ -38,7 +38,7 @@ class VRPipe::Steps::convex_gam_correction extends VRPipe::Steps::r_script {
     around options_definition {
         return {
             %{ $self->$orig },
-            'features_file'       => VRPipe::StepOption->create(description => 'features file form L2R calculation step'),
+            'features_file'       => VRPipe::StepOption->create(description => 'features file from L2R calculation step'),
             'breakpoints_file'    => VRPipe::StepOption->create(description => 'breakpoints file'),
             'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
         };

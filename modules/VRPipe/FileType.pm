@@ -44,7 +44,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 package VRPipe::FileType;
-use MooseX::AbstractFactory;
+use VRPipe::Base::AbstractFactory;
 
 implementation_does qw/VRPipe::FileTypeRole/;
 

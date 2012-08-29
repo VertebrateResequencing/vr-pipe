@@ -126,6 +126,12 @@ role VRPipe::StepRole {
         builder => '_build_smaller_recommended_requirements_override'
     );
     
+    # to avoid memory leak we need to store our real self on our non-persistent version
+    has '_persistent_step' => (
+        is  => 'rw',
+        isa => 'VRPipe::Step',
+    );
+    
     # when parse is called, we'll store our dispatched refs here
     has 'dispatched' => (
         is      => 'ro',
@@ -558,9 +564,10 @@ role VRPipe::StepRole {
         # of $self
         my $non_persistent = $self->_from_non_persistent;
         if ($non_persistent) {
-            #*** this is pretty ugly - is there a better way?
+            #*** this is very ugly - is there a better way?
             $non_persistent->step_state($self->step_state);
             $non_persistent->previous_step_outputs($self->previous_step_outputs);
+            $non_persistent->_persistent_step($self);
             
             $non_persistent->_run_coderef('body_sub');
             
@@ -624,7 +631,7 @@ role VRPipe::StepRole {
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
         # get the current mean+2sd memory and time of past runs of this step
-        my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : VRPipe::Step->get(name => $self->name));
+        my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : $self->_persistent_step);
         my $rec_mem  = $ssu->recommended_memory;
         my $rec_time = $ssu->recommended_time;
         

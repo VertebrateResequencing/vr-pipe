@@ -233,31 +233,9 @@ class VRPipe::Job extends VRPipe::Persistent {
         my $do_return   = 0;
         my $transaction = sub {
             unless ($self->pending) {
-                if ($self->block_and_skip_if_ok) {
-                    # Scheduler->run_on_node implementation should actually mean
-                    # this never happens:
-                    
-                    # wait until the job has finished running, run it again if it
-                    # failed, otherwise do nothing so that $job->ok will be true
-                    while (1) {
-                        $self->disconnect;
-                        sleep(60);
-                        $self->reselect_values_from_db;
-                        if ($self->finished) {
-                            if ($self->ok) {
-                                $do_return = 1;
-                                return; # out of the txn_do
-                            }
-                            else {
-                                # *** do some kind of reset on failure?
-                                $self->throw("blocking and skipping if ok, but finished and failed... don't know what to do!");
-                            }
-                        }
-                    }
-                }
-                elsif ($self->ok) {
+                if ($self->ok) {
                     $do_return = 1;
-                    return;             # out of the txn_do
+                    return; # out of the txn_do
                 }
                 else {
                     $self->throw("Job " . $self->id . " could not be run because it was not in the pending state");
