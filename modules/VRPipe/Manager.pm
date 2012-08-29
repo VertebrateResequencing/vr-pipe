@@ -110,15 +110,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
-    sub memory_usage {
-        my $t = new Proc::ProcessTable;
-        foreach my $got (@{ $t->table }) {
-            next
-              unless $got->pid eq $$;
-            return format_bytes($got->size);
-        }
-    }
-    
     method setups (Str :$pipeline_name?) {
         my @setups;
         foreach my $ps (VRPipe::PipelineSetup->search({}, { prefetch => 'pipeline' })) {
@@ -361,7 +352,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
                     # waiting on submissions to complete?
                     my @submissions = $state->submissions;
                     if (@submissions) {
-                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->same_submissions_as ? $state->same_submissions_as->id : $state->id });
+                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->submission_search_id });
                         unless ($unfinished) {
                             my $ok = $step->post_process();
                             if ($ok) {
@@ -419,6 +410,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
                         else {
                             my $dispatched = $step->dispatched();
                             if (@$dispatched) {
+                                # is there another stepstate that we already
+                                # made equivalent submissions for?
                                 my %other_states;
                                 foreach my $arrayref (@$dispatched) {
                                     my ($cmd, undef, $job_args) = @$arrayref;
@@ -433,19 +426,31 @@ class VRPipe::Manager extends VRPipe::Persistent {
                                 
                                 my $same_as_us;
                                 my $needed_count = scalar @$dispatched;
-                                while (my ($other_id, $count) = each %other_states) {
+                                foreach my $other_id (sort { $a <=> $b } keys %other_states) {
+                                    my $count = $other_states{$other_id};
                                     next unless $needed_count == $count;
                                     $same_as_us = $other_id;
+                                    last;
                                 }
                                 
                                 if ($same_as_us) {
+                                    # we just say that $state's submissions are
+                                    # the same as the other other stepstate's
                                     $state->same_submissions_as($same_as_us);
                                     $state->update;
                                 }
                                 else {
+                                    # create new submissions for the relevant
+                                    # stepstate ($state may have had start_over
+                                    # run on it, which would have deleted its
+                                    # same_submissions_as stepstate's subs, and
+                                    # we want to create the new submissions for
+                                    # that same_submissions_as stepstate, not
+                                    # for $state, hence the use of
+                                    # $state->submission_search_id)
                                     foreach my $arrayref (@$dispatched) {
                                         my ($cmd, $reqs, $job_args) = @$arrayref;
-                                        my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                        my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state->submission_search_id, requirements => $reqs);
                                         $self->debug(" parsing the step made new submission " . $sub->id . " with job " . $sub->job->id);
                                     }
                                 }
@@ -515,18 +520,9 @@ class VRPipe::Manager extends VRPipe::Persistent {
         }
     }
     
-    # because another process could create new submissions which would change
-    # our results during search_page loops, we avoid unecessary (possibly
-    # infinite) loop restarts by Pager by first getting the most recently
-    # created submission and then searching for ids less than that.
-    sub _submission_limiter {
-        my ($last_sub_id) = VRPipe::Submission->get_column_values('id', {}, { order_by => { -desc => 'id' }, rows => 1 });
-        return ('me.id' => { '<=' => $last_sub_id });
-    }
-    
     method check_running {
         # update the status of each submission in case any of them finished
-        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, $self->_submission_limiter }, { prefetch => 'job' });
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0 }, { prefetch => 'job' });
         
         my $still_not_done = 0;
         my $c              = 0;
@@ -580,7 +576,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # this checks all failed submissions, and uses the standard Submission
         # and Job methods to work out why and resubmit them as appropriate,
         # potentially with updated Requirements. max_retries defaults to 3.
-        my $pager = VRPipe::Submission->search_paged({ _failed => 1, retries => { '<' => $max_retries }, $self->_submission_limiter }, { prefetch => [qw(scheduler requirements)] });
+        my $pager = VRPipe::Submission->search_paged({ _failed => 1, retries => { '<' => $max_retries } }, { prefetch => [qw(scheduler requirements)] });
         
         while (my $subs = $pager->next) {
             foreach my $sub (@$subs) {
@@ -639,7 +635,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         
         # we want to now find all submissions that are not done or failed and
         # that haven't already been submitted.
-        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, $self->_submission_limiter }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
         
         my $scheduler = VRPipe::Scheduler->get;
         SLOOP: while (my $subs = $pager->next) {

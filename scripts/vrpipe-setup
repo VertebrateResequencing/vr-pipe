@@ -120,29 +120,31 @@ if ($setup) {
                     
                     # delete all the step_state's submissions, and their job if
                     # not also used by some other setup
-                    foreach my $sub ($step_state->submissions) {
-                        my $job = $sub->job;
-                        
-                        my @job_subs = VRPipe::Submission->search({ job => $job->id }, { prefetch => { stepstate => 'pipelinesetup' } });
-                        my $all_mine = 1;
-                        foreach my $other_sub (@job_subs) {
-                            if ($other_sub->stepstate->pipelinesetup->id != $setup_id) {
-                                $all_mine = 0;
-                                last;
+                    unless ($step_state->same_submissions_as) {
+                        foreach my $sub ($step_state->submissions) {
+                            my $job = $sub->job;
+                            
+                            my @job_subs = VRPipe::Submission->search({ job => $job->id }, { prefetch => { stepstate => 'pipelinesetup' } });
+                            my $all_mine = 1;
+                            foreach my $other_sub (@job_subs) {
+                                if ($other_sub->stepstate->pipelinesetup->id != $setup_id) {
+                                    $all_mine = 0;
+                                    last;
+                                }
                             }
+                            
+                            if ($all_mine) {
+                                $job->kill_job unless $job->finished;
+                            }
+                            
+                            # delete any stepstats for the submission
+                            foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
+                                $ss->delete;
+                            }
+                            
+                            $sub->delete;
+                            push(@jobs_to_delete, $job) if $all_mine;
                         }
-                        
-                        if ($all_mine) {
-                            $job->kill_job unless $job->finished;
-                        }
-                        
-                        # delete any stepstats for the submission
-                        foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
-                            $ss->delete;
-                        }
-                        
-                        $sub->delete;
-                        push(@jobs_to_delete, $job) if $all_mine;
                     }
                     
                     # delete output files not also created by some other setup
@@ -152,6 +154,9 @@ if ($setup) {
                     foreach my $sof ($step_state->_output_files) {
                         $sof->delete;
                     }
+                    
+                    # undef any same_submissions_as that reference us
+                    VRPipe::StepState->search_rs({ same_submissions_as => $step_state->id })->update({ same_submissions_as => undef });
                     
                     $step_state->delete;
                 }
