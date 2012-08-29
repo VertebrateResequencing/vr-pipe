@@ -1,3 +1,8 @@
+# version 0.99:
+This version features a schema change, so be sure to run vrpipe-db_upgrade if
+upgrading from an earlier version.
+(MooseX::AbstractFactory is also no longer required)
+
 # version 0.96:
 This version features a schema change, so be sure to run vrpipe-db_upgrade if
 upgrading from an earlier version.
