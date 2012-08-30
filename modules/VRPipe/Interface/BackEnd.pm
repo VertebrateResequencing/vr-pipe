@@ -562,7 +562,7 @@ XSL
         foreach my $module (findallmod(VRPipe::Pipelines)) {
             eval "require $module;";
             unless ($@) {
-                my ($name) =~ /VRPipe::Pipelines::(\w+)/;
+                my ($name) = $module =~ /VRPipe::Pipelines::(\w+)/;
                 my $persistent = VRPipe::Pipeline->create(name => $name);
                 my $obj = $module->new();
                 $persistent->_construct_pipeline($obj->_step_list);
@@ -572,7 +572,7 @@ XSL
         foreach my $module (findallmod(VRPipe::Steps)) {
             eval "require $module;";
             unless ($@) {
-                my ($name) =~ /VRPipe::Steps::(\w+)/;
+                my ($name) = $module =~ /VRPipe::Steps::(\w+)/;
                 VRPipe::Step->create(name => $name);
             }
         }
