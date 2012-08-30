@@ -34,7 +34,10 @@ of 10000.
 
 NB: if what you are searching for changes between calls of next(), the query
 will be restarted and you will be on page 1 again (possibly going through rows
-you already dealt with, depending on what changed and what your query was).
+you already dealt with, depending on what changed and what your query was). To
+help avoid near-infinite loops if paging whilst new rows are added to the table
+you're searching on, an extra search term is automatically applied that limits
+the id to the last id when search_paged as first called.
 
 =head1 AUTHOR
 
@@ -96,7 +99,20 @@ class VRPipe::Persistent::Pager {
     
     method _build_pager {
         my $rs = $self->resultset;
-        $rs = $rs->search({}, { rows => $self->rows_per_page, page => 1 });
+        
+        # because another process could create new table rows which would change
+        # our results every next(), we avoid unecessary (seemingly
+        # psuedo-infinite) restarts by first getting the most recently created
+        # matching row and then searching for ids less than that.
+        my @id_limit = ();
+        unless (defined $rs->{cond}->{'me.id'}) {
+            my ($ref) = $rs->search_rs({}, { order_by => { -desc => 'me.id' }, rows => 1, columns => ['me.id'] })->cursor->all;
+            if ($ref && $ref->[0]) {
+                @id_limit = ('me.id' => { '<=' => $ref->[0] });
+            }
+        }
+        
+        $rs = $rs->search({@id_limit}, { rows => $self->rows_per_page, page => 1 });
         $self->_modify_resultset($rs);
         return $rs->pager;
     }

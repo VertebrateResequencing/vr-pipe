@@ -212,7 +212,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     # currently waiting on submissions to complete?
                     my @submissions = $state->submissions;
                     if (@submissions) {
-                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->id });
+                        my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->submission_search_id });
                         unless ($unfinished) {
                             my $ok = $step->post_process();
                             if ($ok) {
@@ -253,10 +253,48 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         else {
                             my $dispatched = $step->dispatched();
                             if (@$dispatched) {
-                                # create submissions
+                                # is there another stepstate that we already
+                                # made equivalent submissions for?
+                                my %other_states;
                                 foreach my $arrayref (@$dispatched) {
-                                    my ($cmd, $reqs, $job_args) = @$arrayref;
-                                    my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state, requirements => $reqs);
+                                    my ($cmd, undef, $job_args) = @$arrayref;
+                                    my ($job) = VRPipe::Job->search({ dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd });
+                                    last unless $job;
+                                    my @submissions = VRPipe::Submission->search({ job => $job->id }, { prefetch => 'stepstate' });
+                                    last unless @submissions;
+                                    foreach my $sub (@submissions) {
+                                        $other_states{ $sub->stepstate->id }++;
+                                    }
+                                }
+                                
+                                my $same_as_us;
+                                my $needed_count = scalar @$dispatched;
+                                foreach my $other_id (sort { $a <=> $b } keys %other_states) {
+                                    my $count = $other_states{$other_id};
+                                    next unless $needed_count == $count;
+                                    $same_as_us = $other_id;
+                                    last;
+                                }
+                                
+                                if ($same_as_us) {
+                                    # we just say that $state's submissions are
+                                    # the same as the other other stepstate's
+                                    $state->same_submissions_as($same_as_us);
+                                    $state->update;
+                                }
+                                else {
+                                    # create new submissions for the relevant
+                                    # stepstate ($state may have had start_over
+                                    # run on it, which would have deleted its
+                                    # same_submissions_as stepstate's subs, and
+                                    # we want to create the new submissions for
+                                    # that same_submissions_as stepstate, not
+                                    # for $state, hence the use of
+                                    # $state->submission_search_id)
+                                    foreach my $arrayref (@$dispatched) {
+                                        my ($cmd, $reqs, $job_args) = @$arrayref;
+                                        my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state->submission_search_id, requirements => $reqs);
+                                    }
                                 }
                             }
                             else {
@@ -282,17 +320,19 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
-            # are there a behaviours to trigger?
-            foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
-                $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
-            }
-            
-            # add to the StepStats
-            foreach my $submission ($state->submissions) {
-                my $sched_stdout = $submission->scheduler_stdout || next;
-                my $memory = ceil($sched_stdout->memory || $submission->memory);
-                my $time   = ceil($sched_stdout->time   || $submission->time);
-                VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
+            unless ($state->same_submissions_as) {
+                # are there a behaviours to trigger?
+                foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
+                    $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
+                }
+                
+                # add to the StepStats
+                foreach my $submission ($state->submissions) {
+                    my $sched_stdout = $submission->scheduler_stdout || next;
+                    my $memory = ceil($sched_stdout->memory || $submission->memory);
+                    my $time   = ceil($sched_stdout->time   || $submission->time);
+                    VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
+                }
             }
             
             $state->complete(1);

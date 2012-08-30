@@ -275,7 +275,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
         # this checks all failed submissions, and uses the standard Submission
         # and Job methods to work out why and resubmit them as appropriate,
         # potentially with updated Requirements. max_retries defaults to 3.
-        
         my $pager = VRPipe::Submission->search_paged({ _failed => 1, retries => { '<' => $max_retries } }, { prefetch => [qw(scheduler requirements)] });
         
         while (my $subs = $pager->next) {
@@ -334,13 +333,8 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $count = VRPipe::Job->search({ 'running' => 1 });
         
         # we want to now find all submissions that are not done or failed and
-        # that haven't already been submitted. Because another process could
-        # create new submissions which would change our results during the loop,
-        # we avoid unecessary (possibly infinite) loop restarts by Pager by
-        # first getting the most recently created submission and then searching
-        # for ids less than that.
-        my ($last_sub_id) = VRPipe::Submission->get_column_values('id', {}, { order_by => { -desc => 'id' }, rows => 1 });
-        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, 'me.id' => { '<=' => $last_sub_id } }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
+        # that haven't already been submitted.
+        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
         
         my $scheduler = VRPipe::Scheduler->get;
         SLOOP: while (my $subs = $pager->next) {

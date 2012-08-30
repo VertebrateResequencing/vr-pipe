@@ -71,7 +71,7 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
             my $genotyper_opts  = $options->{unified_genotyper_options};
             my $minimum_records = $options->{minimum_records};
             
-            if ($genotyper_opts =~ /$reference_fasta|-I|-o|UnifiedGenotyper/) {
+            if ($genotyper_opts =~ /$reference_fasta|-I|-o |UnifiedGenotyper/) {
                 $self->throw("unified_genotyper_options should not include the reference, input or output options or UnifiedGenotyper task command");
             }
             

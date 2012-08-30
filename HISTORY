@@ -1,3 +1,7 @@
+0.99    Critical fix for memory leaks and slow-down problems when dealing with
+        pipeline steps that have 10s of input files and produce 100s of
+        duplicate submissions - like the new SNP calling pipeline(s). See
+        IMPORTANT_NOTES if upgrading.
 0.98    Fix for fastqc_quality_report and cufflinks steps to make them work in
         production.
 0.97    Fix for vrpipe group_all method to wait until all elements are complete.

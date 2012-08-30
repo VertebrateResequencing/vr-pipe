@@ -90,7 +90,6 @@ sub required_modules {
         'LWP::UserAgent'                 => 0,
         'Module::Find'                   => 0,
         'Moose'                          => 0,
-        'MooseX::AbstractFactory'        => 0,
         'MooseX::Aliases'                => 0,
         'MooseX::Declare'                => 0,
         'MooseX::NonMoose'               => 0,

@@ -38,7 +38,7 @@ class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
     around options_definition {
         return {
             %{ $self->$orig },
-            'convex_classpath' => VRPipe::StepOption->create(description => 'convex claspath to all convex package jars'),
+            'convex_classpath' => VRPipe::StepOption->create(description => 'convex classpath to all convex package jars'),
             'regions_file'     => VRPipe::StepOption->create(description => 'regions file for which to generate read depths'),
             'chr_prefix'       => VRPipe::StepOption->create(description => 'chromosome name prefix within the bam', optional => 1),
         };
