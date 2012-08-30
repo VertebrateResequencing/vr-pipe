@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 123;
+    use Test::Most tests => 126;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -331,6 +331,47 @@ while (my $vals = $pager->next) {
 }
 is_deeply [\@got_stepstats, $pages], [[[5], [10]], 2], 'using VRPipe::StepStats->get_column_values_paged with a single column and a $pager->next loop got expected stepstat values';
 
+# test that we don't repeat pages when new rows are added between next() calls
+$stepstates[2] = VRPipe::StepState->create(stepmember => $stepms[0], dataelement => $de[2], pipelinesetup => $setups[0]);
+$subs[2] = VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[2], requirements => $reqs[1]);
+
+$pager         = VRPipe::StepStats->search_paged($search_args, {}, 1);
+@got_stepstats = ();
+$pages         = 0;
+while (my $stepstats = $pager->next) {
+    $pages++;
+    foreach my $stepstat (@$stepstats) {
+        push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+    }
+    if ($pages == 1) {
+        VRPipe::StepStats->create(step => 1, pipelinesetup => 1, submission => 3, memory => 15, time => 3);
+    }
+}
+is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 2], 'search_paged and an $pager->next loop got expected (old) stepstat values, even when a new row got added between pages';
+
+push(@expected_stepstats, [15, 3, 3, 3]);
+$pager         = VRPipe::StepStats->search_paged($search_args, {}, 1);
+@got_stepstats = ();
+$pages         = 0;
+while (my $stepstats = $pager->next) {
+    $pages++;
+    foreach my $stepstat (@$stepstats) {
+        push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+    }
+}
+is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 3], 'a new pager gives us the new row we added';
+
+$pager         = VRPipe::StepStats->search_paged({ %{$search_args}, 'me.id' => 1 }, {}, 1);
+@got_stepstats = ();
+$pages         = 0;
+while (my $stepstats = $pager->next) {
+    $pages++;
+    foreach my $stepstat (@$stepstats) {
+        push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+    }
+}
+is_deeply [\@got_stepstats, $pages], [[$expected_stepstats[0]], 1], 'search_paged auto-id_limiting does not stop user using their own id search terms';
+
 # test that this works with something like Step, which has refs for vals
 $pager = VRPipe::Step->get_column_values_paged(['body_sub', 'id'], { id => { '<=' => 2 } }, {}, 1);
 my @got_steps = ();
@@ -353,8 +394,8 @@ is_deeply [ref($got_steps[0]->[0]), scalar(@got_steps), $pages], ['CODE', 2, 2],
 use_ok('VRPipe::StepStatsUtil');
 my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));
 my @ssumm = $ssu->mean_memory;
-is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with get_column_values_paged, worked fine';
-is_deeply [$ssu->percentile_memory(percent => 90, pipelinesetup => VRPipe::PipelineSetup->get(id => 1))], [2, 10], 'StepStatsUtil percentile_memory, which is implemented with get_column_values, worked fine';
+is $ssumm[1], 10, 'StepStatsUtil mean_memory, which is implemented with get_column_values_paged, worked fine';
+is_deeply [$ssu->percentile_memory(percent => 90, pipelinesetup => VRPipe::PipelineSetup->get(id => 1))], [3, 15], 'StepStatsUtil percentile_memory, which is implemented with get_column_values, worked fine';
 
 my @job_args;
 foreach my $i (1 .. 1000) {
