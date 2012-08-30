@@ -208,7 +208,7 @@ sub ACTION_test {
         }
         $server = "$thisperl -I$modules_dir $local_script --deployment testing";
     }
-    system("$server start");
+    system("$server restart");
     warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
     
     $self->SUPER::ACTION_test(@_);
