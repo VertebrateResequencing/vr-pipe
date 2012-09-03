@@ -33,3 +33,12 @@ $ vrpipe-githook_tidy install
 Now you can just:
 $ git add modules/VRPipe/[my_modified_file].pm
 $ git commit
+
+NB: There is currently an issue with the hooks that will cause problems if you
+try to commit following a 'git pull' or similar that was interupted due to
+conflicts. In this situation the safest thing to do is:
+$ git pull
+# resolve conflicts normally
+$ rm .git/hooks/pre-commit; rm .git/hooks/post-commit
+$ git commit -m 'resolved conflicts from pull'
+$ vrpipe-githook_tidy install
