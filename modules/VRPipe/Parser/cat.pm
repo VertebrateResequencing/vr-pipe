@@ -96,7 +96,7 @@ class VRPipe::Parser::cat with VRPipe::ParserRole {
                 $file->close;
                 undef($fh);
                 my $path = $file->path;
-                open($fh, "tail -n 1000 $path |") || $self->throw("Could not get the tail of $path");
+                open($fh, "tail -n 1002 $path |") || $self->throw("Could not get the tail of $path"); # 1002 to potentially get the whole last record if we did a 1000 max_lines concatenate
                 $self->_set_fh($fh);
                 $self->tail_mode(1);
                 $tail_mode = 1;
@@ -110,7 +110,7 @@ class VRPipe::Parser::cat with VRPipe::ParserRole {
             $tail_mode = $self->tail_mode;
         }
         
-        # (we're reading the file backwards)
+        # (we're reading the file backwards if not in tail mode)
         my ($saw_marker, @lines) = (0);
         while (my $line = $self->_readline($fh)) { #*** move the getting of $fh to inside _readline? needs to be profiled
             if ($line =~ /^-{33}VRPipe--concat-{33}/) {
@@ -134,7 +134,7 @@ class VRPipe::Parser::cat with VRPipe::ParserRole {
         $#$pr = -1; # truncate the ref to no elements
         my $i = 0;
         foreach my $line ($tail_mode ? (@lines) : (reverse @lines)) {
-            $pr->[$i++] = $line;
+            $pr->[$i++] = $line unless ($tail_mode && $line =~ /^-{33}VRPipe--concat-{33}/);
         }
         
         return 1;
