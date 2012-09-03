@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 40;
+    use Test::Most tests => 44;
     use VRPipeTest;
 }
 
@@ -152,6 +152,23 @@ my $fofn = VRPipe::File->create(path => file($tmp_dir, 'list.fofn'));
 $fofn->create_fofn([$vrdest1, $vrdest2, $vrdest3, $vrdest4]);
 $fofn->reselect_values_from_db;
 is $fofn->lines, 4, 'fofn file created okay';
+
+# test FileMethod's concatenate
+my $concat_marker  = "---------------------------------VRPipe--concat---------------------------------\n";
+my $skipped_marker = "--[lines skipped during VRPipe-concat]--\n";
+$vrsource = VRPipe::File->create(path => file(qw(t data concat.source))->absolute);
+my $vrdest = VRPipe::File->create(path => file($tmp_dir, 'concat.dest'));
+$vrobj->concatenate($vrsource, $vrdest, unlink_source => 0, add_marker => 1);
+is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", "line 5\n", "line 6\n", "line 7\n", "line 8\n", "line 9\n", "line 10\n", $concat_marker], 'concatenate with no limit worked, effectively just copying the file';
+$vrdest->unlink;
+$vrobj->concatenate($vrsource, $vrdest, unlink_source => 0, add_marker => 1, max_lines => 10);
+is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", "line 5\n", "line 6\n", "line 7\n", "line 8\n", "line 9\n", "line 10\n", $concat_marker], 'concatenate with limit of 10';
+$vrdest->unlink;
+$vrobj->concatenate($vrsource, $vrdest, unlink_source => 0, add_marker => 1, max_lines => 9);
+is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", $skipped_marker, "line 6\n", "line 7\n", "line 8\n", "line 9\n", "line 10\n", $concat_marker], 'concatenate with limit of 9';
+$vrdest->unlink;
+$vrobj->concatenate($vrsource, $vrdest, unlink_source => 0, add_marker => 1, max_lines => 8);
+is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", $skipped_marker, "line 7\n", "line 8\n", "line 9\n", "line 10\n", $concat_marker], 'concatenate with limit of 8';
 
 done_testing;
 exit;
