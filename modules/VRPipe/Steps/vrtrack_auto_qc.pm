@@ -82,7 +82,12 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             auto_qc_max_ins_to_del_ratio => VRPipe::StepOption->create(
                 description   => 'Maximum insert to deletion ratio',
                 optional      => 1,
-                default_value => '1.0'
+                default_value => '0.82'
+            ),
+            auto_qc_min_ins_to_del_ratio => VRPipe::StepOption->create(
+                description   => 'Minimum insert to deletion ratio',
+                optional      => 1,
+                default_value => '0.68'
             )
         };
     }
@@ -123,7 +128,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             while (my ($lane, $files) = each %by_lane) {
                 $self->throw("There was not exactly 1 bam file and 1 bamcheck file per lane for lane $lane (@$files)") unless @$files == 2;
                 
-                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent} );";
+                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_min_ins_to_del_ratio => $opts->{auto_qc_min_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent} );";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -137,7 +142,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         return "Considering the stats in the bamcheck file for a lane, and the metadata stored on the bam file and in the VRTrack database for the corresponding lane, automatically decide if the lane passes the quality check.";
     }
     
-    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?) {
+    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_min_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?) {
         my $bam_file = VRPipe::File->get(path => $bam);
         my $meta     = $bam_file->metadata;
         my $bc       = VRPipe::Parser->create('bamcheck', { file => $bamcheck });
@@ -260,21 +265,33 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         }
         
         # number of insertions vs deletions
-        if (defined $auto_qc_max_ins_to_del_ratio) {
-            my $max = $auto_qc_max_ins_to_del_ratio;
-            $status = 1;
+        if (defined $auto_qc_max_ins_to_del_ratio || defined $auto_qc_min_ins_to_del_ratio) {
             my ($inum, $dnum);
             my $counts = $bc->indel_dist();
             for my $row (@$counts) {
                 $inum += $$row[1];
                 $dnum += $$row[2];
             }
-            $reason = "The Ins/Del ratio is smaller than $max ($inum/$dnum).";
-            if (!$dnum or $inum / $dnum > $max) {
-                $status = 0;
-                $reason = "The Ins/Del ratio is bigger than $max ($inum/$dnum).";
+            if (defined $auto_qc_max_ins_to_del_ratio) {
+                my $max = $auto_qc_max_ins_to_del_ratio;
+                $status = 1;
+                $reason = "The Ins/Del ratio is smaller than $max ($inum/$dnum).";
+                if (!$dnum or $inum / $dnum > $max) {
+                    $status = 0;
+                    $reason = "The Ins/Del ratio is bigger than $max ($inum/$dnum).";
+                }
+                push @qc_status, { test => 'InDel ratio', status => $status, reason => $reason };
             }
-            push @qc_status, { test => 'InDel ratio', status => $status, reason => $reason };
+            if (defined $auto_qc_min_ins_to_del_ratio) {
+                my $min = $auto_qc_min_ins_to_del_ratio;
+                $status = 1;
+                $reason = "The Ins/Del ratio is greater than $min ($inum/$dnum).";
+                if (!$inum or $inum / $dnum < $min) {
+                    $status = 0;
+                    $reason = "The Ins/Del ratio is smaller than $min ($inum/$dnum).";
+                }
+                push @qc_status, { test => 'InDel ratio minimum', status => $status, reason => $reason };
+            }
         }
         
         # insert size

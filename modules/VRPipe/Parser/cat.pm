@@ -53,6 +53,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::cat with VRPipe::ParserRole {
+    has 'tail_mode' => (
+        is        => 'rw',
+        isa       => 'Bool',
+        predicate => 'tail_mode_set'
+    );
+
 =head2 parsed_record
  
  Title   : parsed_record
@@ -80,7 +86,31 @@ class VRPipe::Parser::cat with VRPipe::ParserRole {
         # just return if no file set
         my $fh = $self->fh() || return;
         
-        # (we're reading the file backwards)
+        # some sort of issue with File::ReadBackwards means we can't actually
+        # do <$fh> on very large files, so have to check how big the file is
+        # first and turn $fh into a tail if necessary
+        my $tail_mode;
+        unless ($self->tail_mode_set) {
+            my $file = $self->_vrpipe_file;
+            if ($file->s > 100000) {
+                $file->close;
+                undef($fh);
+                my $path = $file->path;
+                open($fh, "tail -n 1002 $path |") || $self->throw("Could not get the tail of $path"); # 1002 to potentially get the whole last record if we did a 1000 max_lines concatenate
+                $self->_set_fh($fh);
+                $self->tail_mode(1);
+                $tail_mode = 1;
+                warn "The cat file $path was too large to parse properly, can only consider the last 1000 lines\n";
+            }
+            else {
+                $self->tail_mode(0);
+            }
+        }
+        else {
+            $tail_mode = $self->tail_mode;
+        }
+        
+        # (we're reading the file backwards if not in tail mode)
         my ($saw_marker, @lines) = (0);
         while (my $line = $self->_readline($fh)) { #*** move the getting of $fh to inside _readline? needs to be profiled
             if ($line =~ /^-{33}VRPipe--concat-{33}/) {
@@ -96,15 +126,15 @@ class VRPipe::Parser::cat with VRPipe::ParserRole {
         }
         
         unless ($saw_marker) {
-            return;
+            return unless ($tail_mode && @lines);
         }
         
         # fill in the parsed_record
         my $pr = $self->parsed_record;
         $#$pr = -1; # truncate the ref to no elements
         my $i = 0;
-        foreach my $line (reverse @lines) {
-            $pr->[$i++] = $line;
+        foreach my $line ($tail_mode ? (@lines) : (reverse @lines)) {
+            $pr->[$i++] = $line unless ($tail_mode && $line =~ /^-{33}VRPipe--concat-{33}/);
         }
         
         return 1;

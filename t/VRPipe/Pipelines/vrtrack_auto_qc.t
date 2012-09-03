@@ -74,7 +74,7 @@ my $auto_qc_ps = VRPipe::PipelineSetup->create(
     ),
     output_root => $output_dir,
     pipeline    => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc'),
-    options     => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB} }
+    options     => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB}, auto_qc_min_ins_to_del_ratio => 0.5 }
 );
 
 ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
