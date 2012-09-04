@@ -38,6 +38,7 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
     use VRPipe::Parser::bam;
     
     method options_definition {
+<<<<<<< Updated upstream
         return {
             reference_index                   => VRPipe::StepOption->create(description => 'Reference index (fai) file.'),
             split_bam_by_region_chunk_size    => VRPipe::StepOption->create(description => 'Chunk size to split the bam into.', default_value => 50000000),
@@ -45,6 +46,13 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
             split_bam_by_region_chrom_list    => VRPipe::StepOption->create(description => 'Number of bases to allow chunks to overlap.', optional => 1),
             split_bam_by_region_include_mate  => VRPipe::StepOption->create(description => 'boolean; if true mates mapping to the split sequence will be included', optional => 1, default_value => 0)
         };
+=======
+        return { reference_index                   => VRPipe::StepOption->create(description => 'Reference index (fai) file.'),
+                 split_bam_by_region_chunk_size    => VRPipe::StepOption->create(description => 'Chunk size to split the bam into.',                                                    default_value => 50000000),
+                 split_bam_by_region_chunk_overlap => VRPipe::StepOption->create(description => 'Number of bases to allow chunks to overlap.',                                          default_value => 1000),
+                 split_bam_by_region_chrom_list    => VRPipe::StepOption->create(description => 'Number of bases to allow chunks to overlap.',                           optional => 1),
+                 split_bam_by_region_include_mate  => VRPipe::StepOption->create(description => 'boolean; if true mates mapping to the split sequence will be included', optional => 1, default_value => 0) };
+>>>>>>> Stashed changes
     }
     
     method inputs_definition {
@@ -58,8 +66,13 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
             my $self            = shift;
             my $options         = $self->options;
             my $reference_index = $options->{reference_index};
+<<<<<<< Updated upstream
             my $chunk_size      = $options->{split_bam_by_region_chunk_size};
             my $chunk_overlap   = $options->{split_bam_by_region_chunk_overlap};
+=======
+            my $chunk_size      = $options->{split_bam_by_region_chunk_size };
+            my $chunk_overlap   = $options->{split_bam_by_region_chunk_overlap };
+>>>>>>> Stashed changes
             my $chrom_list      = $options->{chrom_list};
             
             my @chroms = ();
@@ -73,12 +86,20 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
                 my $split_dir = $self->output_root->absolute->stringify;
                 my $bam_path  = $bam->path->stringify;
                 
+<<<<<<< Updated upstream
                 my $meta = $bam->metadata;
+=======
+                my $meta      = $bam->metadata;
+>>>>>>> Stashed changes
                 delete $meta->{reads} if (exists $meta->{reads});
                 delete $meta->{bases} if (exists $meta->{bases});
                 
                 my $chrom_select = $meta->{chrom} || $meta->{split_sequence} || '';
+<<<<<<< Updated upstream
                 $chrom_select =~ s/^chrom//;
+=======
+                $chrom_select    =~ s/^chrom//;
+>>>>>>> Stashed changes
                 
                 my (@regions, @output_files);
                 my $args = "q[$bam_path], split_dir => q[$split_dir], include_mate => $$options{split_bam_by_region_include_mate}";
@@ -90,6 +111,7 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
                     }
                     my $region = "$$chunk{chrom}_$$chunk{from}-$$chunk{to}";
                     push(@regions, $region);
+<<<<<<< Updated upstream
                     push(
                         @output_files,
                         $self->output_file(
@@ -99,6 +121,12 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
                             metadata   => { %$meta, chrom => $$chunk{chrom}, from => $$chunk{from}, to => $$chunk{to} }
                         )
                     );
+=======
+                    push(@output_files, $self->output_file(output_key => 'split_region_bam_files',
+                                                           basename   => "$region." . $bam->basename,
+                                                           type       => 'bam',
+                                                           metadata   => { %$meta, chrom => $$chunk{chrom}, from => $$chunk{from}, to => $$chunk{to} }));
+>>>>>>> Stashed changes
                 }
                 if (@regions) {
                     my $this_cmd = "use VRPipe::Steps::bam_split_by_region; VRPipe::Steps::bam_split_by_region->split_bam_by_region($args, regions => [qw(@regions)]);";
@@ -109,6 +137,7 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
     }
     
     method outputs_definition {
+<<<<<<< Updated upstream
         return {
             split_region_bam_files => VRPipe::StepIODefinition->create(
                 type        => 'bam',
@@ -122,6 +151,16 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
                 }
             )
         };
+=======
+        return { split_region_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
+                                                                            max_files   => -1,
+                                                                            description => 'split bams for each sequence the reads were aligned to',
+                                                                            metadata    => {
+                                                                                             reads => 'number of reads in the split region bam',
+                                                                                             chrom => 'The chromosome for this split region',
+                                                                                             from  => 'Split from',
+                                                                                             to    => 'Split to' }) };
+>>>>>>> Stashed changes
     }
     
     method post_process_sub {
@@ -133,7 +172,11 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
     }
     
     method max_simultaneous {
+<<<<<<< Updated upstream
         return 0;          # meaning unlimited
+=======
+        return 0;            # meaning unlimited
+>>>>>>> Stashed changes
     }
     
     method split_bam_by_region (ClassName|Object $self: Str $bam_file!, Str :$split_dir!, ArrayRef :$regions!, Bool :$include_mate = 0) {

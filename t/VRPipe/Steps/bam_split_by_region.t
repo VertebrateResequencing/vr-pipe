@@ -15,8 +15,13 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_split_by_r
 is_deeply [$step->id, $step->description], [1, 'Splits a BAM file into multiple BAM files, one for each sequence the reads were aligned to'], 'bam_split_by_region step created and has correct description';
 
 # test using the class methods directly
+<<<<<<< Updated upstream
 my $test_bam  = VRPipe::File->create(path => file(qw(t data NA19334.bam))->absolute)->path->stringify;
 my $ref_index = VRPipe::File->create(path => file(qw(t data human_g1k_v37.chr11.chr20.fa.gz.fai))->absolute)->path->stringify;
+=======
+my $test_bam   = VRPipe::File->create(path => file(qw(t data NA19334.bam))->absolute)->path->stringify;
+my $ref_index  = VRPipe::File->create(path => file(qw(t data human_g1k_v37.chr11.chr20.fa.gz.fai))->absolute)->path->stringify;
+>>>>>>> Stashed changes
 my $split_dir = $output_dir->stringify;
 
 my $ok = VRPipe::Steps::bam_split_by_region->split_bam_by_region($test_bam, split_dir => $split_dir, include_mate => 1, regions => ['11_1-100000', '11_98000-200000']);
@@ -28,6 +33,7 @@ VRPipe::PipelineSetup->create(
     datasource  => VRPipe::DataSource->create(type => 'fofn_with_metadata', method => 'all', source => file(qw(t data calling_datasource.fofn))->absolute),
     output_root => $output_dir,
     pipeline    => $pipeline,
+<<<<<<< Updated upstream
     options     => {
         reference_index                   => $ref_index,
         split_bam_by_region_chunk_size    => 10000000,
@@ -35,6 +41,15 @@ VRPipe::PipelineSetup->create(
         split_bam_by_region_chrom_list    => '11 20',
         include_mate                      => 1
     }
+=======
+    options => { 
+				 reference_index => $ref_index,
+				 split_bam_by_region_chunk_size => 10000000,
+				 split_bam_by_region_chunk_overlap => 5000,
+				 split_bam_by_region_chrom_list => '11 20',
+				 include_mate => 1
+			   }
+>>>>>>> Stashed changes
 );
 
 my $regions = [qw(11_1-10000000 11_9995001-19995000 11_19990001-29990000 11_29985001-39985000 11_39980001-49980000 11_49975001-59975000 11_59970001-69970000 11_69965001-79965000 11_79960001-89960000 11_89955001-99955000 11_99950001-109950000 11_109945001-119945000 11_119940001-129940000 11_129935001-135006516 20_1-10000000 20_19990001-29990000 20_29985001-39985000 20_39980001-49980000 20_49975001-59975000 20_59970001-63025520 20_9995001-19995000)];
