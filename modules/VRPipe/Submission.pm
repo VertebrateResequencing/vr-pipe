@@ -300,7 +300,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $self->concatenate(
                 $source, $dest,
                 unlink_source => 1,
-                add_marker    => $add_marker
+                add_marker    => $add_marker,
+                max_lines     => 1000
             );
         }
     }

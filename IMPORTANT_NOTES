@@ -1,3 +1,10 @@
+# version 0.100:
+If you have used previous versions it is possible you have large Job stdout/err
+files hanging around that are just wasting disc space. You can delete these by
+doing something like:
+perl -MVRPipe::Persistent::Schema -Mstrict -we 'foreach my $file (VRPipe::File->search({ s => { ">=" => 536870912 }, e => 1, path => { "LIKE" => q[%job_std%] } })) { $file->unlink }'
+(which deletes all job_std* files over 512MB)
+
 # version 0.99:
 This version features a schema change, so be sure to run vrpipe-db_upgrade if
 upgrading from an earlier version.
