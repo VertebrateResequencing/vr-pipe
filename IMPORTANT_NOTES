@@ -1,3 +1,11 @@
+# version 0.101:
+Now that we have more than 100 version, all previous tags in the git repository
+have been renamed. If you have an existing clone, however, the old tags will
+still be there. If it bothers you, you can delete them, eg:
+perl -e 'for (1..99) { $old = "0.".sprintf("%02d", $_); system("git tag -d $old"); }'
+If you have your own fork, also delete from your origin:
+perl -e 'for (1..99) { $old = "0.".sprintf("%02d", $_); system("git push origin :refs/tags/$old"); }'
+
 # version 0.100:
 If you have used previous versions it is possible you have large Job stdout/err
 files hanging around that are just wasting disc space. You can delete these by
