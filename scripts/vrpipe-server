@@ -174,10 +174,13 @@ sub start_server {
         $backend->log($err, email_admin => $email_admin);
     };
     
-    # setup the timer for the local scheduler to process its queue
+    # setup the timer for the local scheduler to process its queue. (for timers
+    # we use periodic instead of timer because timer seems to have some bug
+    # where on the first invocation it happens twice at ~the same time, which
+    # can be terrible for us. periodic (usually) does not)
     my $ls             = VRPipe::LocalScheduler->new;
     my $timer_interval = $deployment eq 'production' ? 30 : 5;
-    my $ls_watcher     = EV::timer_ns 0, $timer_interval, sub {
+    my $ls_watcher     = EV::periodic_ns 0, $timer_interval, 0, sub {
         # we want to run process_queue every x seconds, but it may take
         # longer than x seconds to run and we don't want to wait, so we do
         # our own async fork (in order to call something that in turn will
@@ -195,9 +198,9 @@ sub start_server {
     # setup the submission management system if we're supposed to
     my ($farm_server, $fs_id, @setups, %farm_watchers);
     if ($farm) {
-        # every 15s we'll update which PipelineSetups we'll handle, and we'll
+        # every x s we'll update which PipelineSetups we'll handle, and we'll
         # update $farm_server's heartbeat to note that we're still alive
-        $farm_watchers{farm_server} = EV::timer 0, 15, sub {
+        $farm_watchers{farm_server} = EV::periodic 0, $timer_interval, 0, sub {
             unless ($farm_server) {
                 # ideally we only want to be in this if ($farm) section if we
                 # have managed to register_farm_server(), but we can only do
@@ -206,7 +209,7 @@ sub start_server {
                 # farm_server whilst it fails due to database issues, but cancel
                 # the timer if we fail because another server is handling this
                 # farm
-                eval { $farm_server = $backend->register_farm_server($farm) };
+                eval { $farm_server = $backend->register_farm_server($farm, only_ours => $only_specified_setups) };
                 if ($@) {
                     &{$watcher_error_sub};
                 }
@@ -214,19 +217,19 @@ sub start_server {
                     # our database must be ready now, so load all Pipeline and
                     # Step .pm modules into db if we haven't already
                     $fs_id = $farm_server->id;
-                    $backend->install_pipelines_and_steps;
+                    $backend->install_pipelines_and_steps unless $deployment eq 'testing';
                     $backend->log("Submission management started for farm $farm");
                 }
                 else {
                     $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
-                    undef $farm;
-                    %farm_watchers = ();
+                    undef $farm_server;
+                    delete $farm_watchers{datasources};
                 }
             }
             else {
                 fork_call {
-                    $farm_server->still_alive;
-                    return $farm_server->claim_setups(only_ours => $only_specified_setups);
+                    die "no longer in db\n" unless $farm_server->still_alive; # this updates the heartbeat to say we're still alive, and also checks we're still actually in the db
+                    return $farm_server->claim_setups();
                 }
                 sub {
                     @setups = @_;
@@ -234,17 +237,21 @@ sub start_server {
                     if ($err) {
                         # perhaps another process decided our $farm_server was
                         # no longer alive and it has been deleted from the db?
-                        # let's drop all the watchers in that case
-                        my $still_in_db = VRPipe::FarmServer->search(id => $fs_id);
-                        unless ($still_in_db) {
+                        # let's drop all the datasource watchers in that case,
+                        # but still keep the farmserver watcher alive so we will
+                        # try and re-register as a farmserver - necessary when
+                        # running a bunch of tests where the database keeps
+                        # getting dropped and recreated while the server is
+                        # running
+                        if ($err =~ /no longer in db/) {
                             $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table (perhaps we were suspended for a long time?)", email_admin => 1);
-                            undef $farm;
-                            %farm_watchers = ();
+                            undef $farm_server;
+                            delete $farm_watchers{datasources};
                         }
                         
                         &{$watcher_error_sub};
                     }
-                    else {
+                    elsif (0) {
                         # setup watchers for each datasource
                         my %datasources;
                         foreach my $setup (@setups) {
@@ -267,7 +274,7 @@ sub start_server {
                             }
                             else {
                                 # update every 5mins
-                                $watcher = EV::timer 0, 300, $update_sub;
+                                $watcher = EV::periodic 0, 300, 0, $update_sub;
                             }
                             
                             $farm_watchers{datasources}->{ $ds->id } = $watcher;
@@ -286,9 +293,23 @@ sub start_server {
         # necessary. We'll also notify users when their setups complete on the
         # latest number of dataelements.
         # checks that all our incomplete setups are doing something. for each not it does stalled-due-to-failure detection and sends stalled warning email to user (but only once). if not stalled due to failure, it does a full traditional spool and email (to user and admin) warns once about errors encountered while attempting that.
-        $farm_watchers{stall_check} = EV::timer 0, 900, sub {
-            return unless @setups;
-        
+        $farm_watchers{stall_check} = EV::periodic 0, 15, 0, sub { #900
+            foreach my $setup (@setups) {
+                next if $setup->currently_complete;
+                my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'] });
+                if ($perma_fails) {
+                    # email user once about this
+                    #***
+                    $backend->log("setup " . $setup->id . " has repeated failures that need user intervention");
+                }
+                else {
+                    my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'] });
+                    unless ($incomplete_subs) {
+                        $backend->log("forcing a full trigger for setup " . $setup->id . " because we aren't complete, but have no incomplete submissions");
+                        $setup->trigger;
+                    }
+                }
+            }
         };
     }
     
