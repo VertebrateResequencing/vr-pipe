@@ -80,7 +80,6 @@ sub handle_pipeline {
     my $gave_up    = 0;
     my $retriggers = 0;
     while (1) {
-        $manager->trigger;
         $manager->handle_submissions(max_retries => $max_retries);
         
         # check for repeated failures
