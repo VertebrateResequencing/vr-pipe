@@ -1,3 +1,5 @@
+0.101   vrtrack datasource fixed so that it does not create elements in
+        group_by_metadata mode if any member of the group has no files.
 0.100   New auto_qc_min_ins_to_del_ratio option for AutoQC pipeline. When Job
         stdout/err is archived, it is now limited to first and last 500 lines
         to avoid storing massive files. See IMPORTANT_NOTES if you want to clean
