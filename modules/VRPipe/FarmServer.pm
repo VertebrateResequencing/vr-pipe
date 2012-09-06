@@ -85,39 +85,53 @@ class VRPipe::FarmServer extends VRPipe::Persistent {
         my $elapsed = $self->time_since_heartbeat;
         my $alive   = $elapsed < $dead_time;
         unless ($alive) {
-            $self->delete;     # (see note in DEMOLISH)
+            # we could do something like remove our farm name from the
+            # controlling_farm of all PipelineSetups, but probably bad things
+            # would happen if a setup that was still running was suddenly
+            # controlled by a different farm. So once claimed, a setup will
+            # always run only on that farm, even when its server goes down and
+            # doesn't come back
+            $self->delete;
         }
         return $alive;
     }
     
     method still_alive {
+        my $selfid = $self->id;
+        my $still_in_db = VRPipe::FarmServer->search({ id => $selfid });
+        return 0 unless $still_in_db;
         $self->heartbeat(DateTime->now());
+        $self->update;
+        return 1;
     }
     
     method claim_setups {
-        my $farm = $self->farm;
+        my $own_farm_name = $self->farm;
         
         # delete any farms no longer alive
-        $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $dead_time) } })->delete;
+        my $rs = $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $dead_time) } }, { for => 'update' }); #->delete;
+        while (my $fs = $rs->next) {
+            $fs->delete;
+        }
         
         my @setups_to_trigger;
         my $transaction = sub {
             # unless we're only doing setups assigned directly to us, we want to
             # share setups evenly amongst all the farms
             unless ($self->only_ours) {
-                my @farms = $self->search({ only_ours => 0 }, { for => 'update', order_by => { -asc => 'last_claim_time' } });
+                my @farm_names = $self->get_column_values('farm', { only_ours => 0 }, { for => 'update', order_by => { -asc => 'last_claim_time' } });
                 
                 my @search = ({ active => 1, desired_farm => undef, controlling_farm => undef }, { for => 'update' });
                 my $num_setups = VRPipe::PipelineSetup->search(@search);
                 
                 if ($num_setups) {
-                    my $pager = VRPipe::PipelineSetup->search_paged(@search, ceil($num_setups / scalar(@farms)));
+                    my $pager = VRPipe::PipelineSetup->search_paged(@search, ceil($num_setups / scalar(@farm_names)));
                     
-                    foreach my $fs (@farms) {
+                    foreach my $farm_name (@farm_names) {
                         my $setups = $pager->next;
-                        if ($fs->farm eq $farm) {
+                        if ($farm_name eq $own_farm_name) {
                             foreach my $setup (@$setups) {
-                                $setup->controlling_farm($farm);
+                                $setup->controlling_farm($own_farm_name);
                                 $setup->update;
                                 push(@setups_to_trigger, $setup);
                             }
@@ -136,33 +150,24 @@ class VRPipe::FarmServer extends VRPipe::Persistent {
             }
             
             # obviously we also claim setups assigned to us
-            foreach my $setup (VRPipe::PipelineSetup->search({ active => 1, desired_farm => $farm, controlling_farm => undef }, { for => 'update' })) {
-                $setup->controlling_farm($farm);
+            foreach my $setup (VRPipe::PipelineSetup->search({ active => 1, desired_farm => $own_farm_name, controlling_farm => undef }, { for => 'update' })) {
+                $setup->controlling_farm($own_farm_name);
                 $setup->update;
                 push(@setups_to_trigger, $setup);
             }
         };
-        $self->do_transaction($transaction, "Could not claim PipelineSetups for farm $farm");
+        $self->do_transaction($transaction, "Could not claim PipelineSetups for farm $own_farm_name");
         
         # since @setups_to_trigger were previously uncontrolled setups they are
         # most likely brand new and have never been run before, which means
         # there are no submissions for the farm server to manage; we'll start
         # off proceedings with a full trigger on all dataelements
         foreach my $setup (@setups_to_trigger) {
+            warn "claim_setups calling trigger on setup ", $setup->id, "\n";
             $setup->trigger();
         }
         
-        return VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm });
-    }
-    
-    sub DEMOLISH {
-        my $self = shift;
-        $self->delete;
-        # we could do something like remove our farm name from the
-        # controlling_farm of all PipelineSetups, but probably bad things would
-        # happen if a setup that was still running was suddenly controlled by
-        # a different farm. So once claimed, a setup will always run only on
-        # that farm, even when its server goes down and doesn't come back
+        return VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $own_farm_name });
     }
 }
 
