@@ -157,6 +157,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $current_farm;
     }
     
+    method currently_complete {
+        my $num_steps_to_complete = $self->pipeline->step_members;
+        my $elements_incomplete = VRPipe::DataElementState->search({ pipelinesetup => $self->id, completed_steps => { '<' => $num_steps_to_complete } });
+        return $elements_incomplete ? 0 : 1;
+    }
+    
     method trigger ($supplied_data_element?) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
