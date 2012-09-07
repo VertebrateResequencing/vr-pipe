@@ -6,8 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 18;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
-                    required_exe => [qw(samtools bwa)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
+        required_exe => [qw(samtools bwa)]
+    );
     use TestPipelines;
     
     use_ok('VRPipe::Steps::picard');
@@ -31,85 +33,107 @@ $mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
-my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(name       => 's_suis mapping',
-                                                          datasource => VRPipe::DataSource->create(type    => 'sequence_index',
-                                                                                                   method  => 'lane_fastqs',
-                                                                                                   source  => file(qw(t data datasource.sequence_index)),
-                                                                                                   options => { local_root_dir => dir(".")->absolute->stringify }),
-                                                          output_root => $mapping_dir,
-                                                          pipeline    => $mapping_pipeline,
-                                                          options     => {
-                                                                       fastq_chunk_size             => 8000,
-                                                                       reference_fasta              => $ref_fa,
-                                                                       reference_assembly_name      => 'SSuis1',
-                                                                       reference_public_url         => 'ftp://s.suis.com/ref.fa',
-                                                                       reference_species            => 'S.Suis',
-                                                                       bwa_index_options            => '-a is',
-                                                                       sequence_dictionary_memory   => 150,
-                                                                       sequence_dictionary_time     => 1,
-                                                                       bwa_index_memory             => 150,
-                                                                       bwa_index_time               => 1,
-                                                                       fastq_import_memory          => 150,
-                                                                       fastq_import_time            => 1,
-                                                                       fastq_metadata_memory        => 150,
-                                                                       fastq_metadata_time          => 1,
-                                                                       fastq_split_memory           => 150,
-                                                                       fastq_split_time             => 1,
-                                                                       bwa_aln_fastq_memory         => 150,
-                                                                       bwa_aln_fastq_time           => 1,
-                                                                       bwa_sam_memory               => 150,
-                                                                       bwa_sam_time                 => 1,
-                                                                       sam_to_fixed_bam_memory      => 150,
-                                                                       sam_to_fixed_bam_time        => 1,
-                                                                       bam_merge_lane_splits_memory => 150,
-                                                                       bam_merge_lane_splits_time   => 1 });
+my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 's_suis mapping',
+    datasource => VRPipe::DataSource->create(
+        type    => 'sequence_index',
+        method  => 'lane_fastqs',
+        source  => file(qw(t data datasource.sequence_index)),
+        options => { local_root_dir => dir(".")->absolute->stringify }
+    ),
+    output_root => $mapping_dir,
+    pipeline    => $mapping_pipeline,
+    options     => {
+        fastq_chunk_size             => 8000,
+        reference_fasta              => $ref_fa,
+        reference_assembly_name      => 'SSuis1',
+        reference_public_url         => 'ftp://s.suis.com/ref.fa',
+        reference_species            => 'S.Suis',
+        bwa_index_options            => '-a is',
+        sequence_dictionary_memory   => 150,
+        sequence_dictionary_time     => 1,
+        bwa_index_memory             => 150,
+        bwa_index_time               => 1,
+        fastq_import_memory          => 150,
+        fastq_import_time            => 1,
+        fastq_metadata_memory        => 150,
+        fastq_metadata_time          => 1,
+        fastq_split_memory           => 150,
+        fastq_split_time             => 1,
+        bwa_aln_fastq_memory         => 150,
+        bwa_aln_fastq_time           => 1,
+        bwa_sam_memory               => 150,
+        bwa_sam_time                 => 1,
+        sam_to_fixed_bam_memory      => 150,
+        sam_to_fixed_bam_time        => 1,
+        bam_merge_lane_splits_memory => 150,
+        bam_merge_lane_splits_time   => 1
+    }
+);
 
 my $build_dir = get_output_dir('build_test');
 
-my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->create(name       => 's_suis merge lanes',
-                                                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                                                       method  => 'group_by_metadata',
-                                                                                                       source  => 's_suis mapping[9:merged_lane_bams]',
-                                                                                                       options => { metadata_keys => 'analysis_group|population|sample|platform|library' }),
-                                                              output_root => $build_dir,
-                                                              pipeline    => $merge_lanes_pipeline,
-                                                              options     => {
-                                                                           bam_tags_to_strip                     => 'OQ XM XG XO',
-                                                                           bam_merge_keep_single_paired_separate => 1,
-                                                                           bam_merge_memory                      => 200,
-                                                                           cleanup                               => 1 });
+my $merge_lanes_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 's_suis merge lanes',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 's_suis mapping[9:merged_lane_bams]',
+        options => { metadata_keys => 'analysis_group|population|sample|platform|library' }
+    ),
+    output_root => $build_dir,
+    pipeline    => $merge_lanes_pipeline,
+    options     => {
+        bam_tags_to_strip                     => 'OQ XM XG XO',
+        bam_merge_keep_single_paired_separate => 1,
+        bam_merge_memory                      => 200,
+        cleanup                               => 1
+    }
+);
 
-my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->create(name       => 's_suis merge libraries',
-                                                                  datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                                                           method  => 'group_by_metadata',
-                                                                                                           source  => 's_suis merge lanes[3:markdup_bam_files]',
-                                                                                                           options => { metadata_keys => 'analysis_group|population|sample|platform' }),
-                                                                  output_root => $build_dir,
-                                                                  pipeline    => $merge_libraries_pipeline,
-                                                                  options     => {
-                                                                               bam_merge_keep_single_paired_separate => 0,
-                                                                               reference_fasta                       => $ref_fa,
-                                                                               reference_assembly_name               => 'SSuis1',
-                                                                               reference_public_url                  => 'ftp://s.suis.com/ref.fa',
-                                                                               reference_species                     => 'S.Suis',
-                                                                               bam_merge_memory                      => 200,
-                                                                               split_bam_make_unmapped               => 1,
-                                                                               cleanup                               => 1,
-                                                                               delete_input_bams                     => 1,
-                                                                               remove_merged_bams                    => 1 });
+my $merge_libraries_pipelinesetup = VRPipe::PipelineSetup->create(
+    name       => 's_suis merge libraries',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 's_suis merge lanes[3:markdup_bam_files]',
+        options => { metadata_keys => 'analysis_group|population|sample|platform' }
+    ),
+    output_root => $build_dir,
+    pipeline    => $merge_libraries_pipeline,
+    options     => {
+        bam_merge_keep_single_paired_separate => 0,
+        reference_fasta                       => $ref_fa,
+        reference_assembly_name               => 'SSuis1',
+        reference_public_url                  => 'ftp://s.suis.com/ref.fa',
+        reference_species                     => 'S.Suis',
+        bam_merge_memory                      => 200,
+        split_bam_make_unmapped               => 1,
+        cleanup                               => 1,
+        delete_input_bams                     => 1,
+        remove_merged_bams                    => 1
+    }
+);
 
-my $release_pipeline_setup = VRPipe::PipelineSetup->create(name       => 's_suis release',
-                                                           datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                                                    method  => 'all',
-                                                                                                    source  => 's_suis merge libraries[4:split_bam_files]',
-                                                                                                    options => { filter                => 'split_sequence#^(fake_chr2|unmapped)$',
-                                                                                                                 filter_after_grouping => 0 }),
-                                                           output_root => $build_dir,
-                                                           pipeline    => $release_pipeline,
-                                                           options     => {
-                                                                        release_date   => '19790320',
-                                                                        sequence_index => file(qw(t data datasource.sequence_index))->absolute->stringify,
-                                                                        rg_from_pu     => 0 });
+my $release_pipeline_setup = VRPipe::PipelineSetup->create(
+    name       => 's_suis release',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 's_suis merge libraries[4:split_bam_files]',
+        options => {
+            filter                => 'split_sequence#^(fake_chr2|unmapped)$',
+            filter_after_grouping => 0
+        }
+    ),
+    output_root => $build_dir,
+    pipeline    => $release_pipeline,
+    options     => {
+        release_date   => '19790320',
+        sequence_index => file(qw(t data datasource.sequence_index))->absolute->stringify,
+        rg_from_pu     => 0
+    }
+);
 
 my @mapping_files;
 my %bams = ('2822_6.pe.bam' => 1, '2822_6.se.bam' => 1, '2822_7.pe.bam' => 2, '2823_4.pe.bam' => 3, '8324_8.pe.bam' => 4);
@@ -117,8 +141,6 @@ while (my ($bam, $element_id) = each %bams) {
     my @output_subdirs = output_subdirs($element_id);
     push(@mapping_files, file(@output_subdirs, '9_bam_merge_lane_splits', $bam));
 }
-
-
 
 handle_pipeline(@mapping_files);
 # linked pipelines only create their dataelements after the previous pipeline

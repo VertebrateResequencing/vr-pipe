@@ -34,19 +34,23 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::gatk extends VRPipe::Steps::java {
-    has 'gatk_path' => (is     => 'rw',
-                        isa    => Dir,
-                        coerce => 1);
+    has 'gatk_path' => (
+        is     => 'rw',
+        isa    => Dir,
+        coerce => 1
+    );
     
     around _build_standard_options {
         return [@{ $self->$orig }, 'gatk_path'];
     }
     
     our %GATK_VERSIONS;
-    has 'gatk_version' => (is      => 'ro',
-                           isa     => 'Str',
-                           lazy    => 1,
-                           builder => 'determine_gatk_version');
+    has 'gatk_version' => (
+        is      => 'ro',
+        isa     => 'Str',
+        lazy    => 1,
+        builder => 'determine_gatk_version'
+    );
     
     method jar (ClassName|Object $self:) {
         return file($self->gatk_path, 'GenomeAnalysisTK.jar');
@@ -63,9 +67,18 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
     }
     
     around options_definition {
-        return { %{ $self->$orig },
-                 reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
-                 gatk_path       => VRPipe::StepOption->create(description => 'path to GATK jar files', optional => 1, default_value => "$ENV{GATK}"), };
+        return {
+            %{ $self->$orig },
+            reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
+            gatk_path       => VRPipe::StepOption->create(description => 'path to GATK jar files', $ENV{GATK} ? (default_value => $ENV{GATK}) : ()),
+        };
+    }
+    
+    around options {
+        my $options         = $self->$orig;
+        my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
+        $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
+        return $options;
     }
     
     method inputs_definition {

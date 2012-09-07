@@ -35,13 +35,17 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sex_to_ploidy with VRPipe::StepRole {
     method options_definition {
-        return { sample_sex_file => VRPipe::StepOption->create(description => 'File listing the sex (M or F) of samples'),
-                 assumed_sex     => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed', optional => 1, default_value => 'F') };
+        return {
+            sample_sex_file => VRPipe::StepOption->create(description => 'File listing the sex (M or F) of samples'),
+            assumed_sex     => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed', optional => 1, default_value => 'F')
+        };
     }
     
     method inputs_definition {
-        return { chunked_regions_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'Chromosomal regions file split according to chunk size'),
-                 bcf_files            => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'The bcf files which were chunked by chunked_regions file'), };
+        return {
+            chunked_regions_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'Chromosomal regions file split according to chunk size'),
+            bcf_files            => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'The bcf files which were chunked by chunked_regions file'),
+        };
     }
     
     method body_sub {
@@ -66,10 +70,12 @@ class VRPipe::Steps::sex_to_ploidy with VRPipe::StepRole {
                 my $bcf  = $bcfs{$region};
                 my $base = $bcf->basename;
                 $base =~ s/bcf$/samples/;
-                my $sample_ploidy_file = $self->output_file(output_key => 'sample_ploidy_files',
-                                                            basename   => $base,
-                                                            type       => 'txt',
-                                                            metadata   => { source_bcf => $bcf->path->stringify });
+                my $sample_ploidy_file = $self->output_file(
+                    output_key => 'sample_ploidy_files',
+                    basename   => $base,
+                    type       => 'txt',
+                    metadata   => { source_bcf => $bcf->path->stringify }
+                );
                 my $sample_ploidy_path = $sample_ploidy_file->path;
                 my $req                = $self->new_requirements(memory => 50, time => 1);
                 my $cmd                = "use VRPipe::Steps::sex_to_ploidy; VRPipe::Steps::sex_to_ploidy->write_sample_ploidy_file('$sample_sex_file', '$sample_ploidy_path', female_ploidy => $female_ploidy, male_ploidy => $male_ploidy, assumed_sex => '$assumed_sex');";
@@ -79,10 +85,14 @@ class VRPipe::Steps::sex_to_ploidy with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { sample_ploidy_files => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                         description => 'Files listing sample name and ploidy for each region to be used as input to bcftools calling',
-                                                                         max_files   => -1,
-                                                                         metadata    => { source_bcf => 'bcf for which this samples file was generated' }) };
+        return {
+            sample_ploidy_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'Files listing sample name and ploidy for each region to be used as input to bcftools calling',
+                max_files   => -1,
+                metadata    => { source_bcf => 'bcf for which this samples file was generated' }
+            )
+        };
     }
     
     method post_process_sub {

@@ -37,14 +37,22 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return { bamcheck_exe => VRPipe::StepOption->create(description   => 'path to your bamcheck executable',
-                                                            optional      => 1,
-                                                            default_value => 'bamcheck'),
-                 bamcheck_options => VRPipe::StepOption->create(description => 'options to bamcheck, excluding -r and -t (which are set by reference_fasta and exome_targets_file options)',
-                                                                optional    => 1),
-                 reference_fasta    => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
-                 exome_targets_file => VRPipe::StepOption->create(description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
-                                                                  optional    => 1) };
+        return {
+            bamcheck_exe => VRPipe::StepOption->create(
+                description   => 'path to your bamcheck executable',
+                optional      => 1,
+                default_value => 'bamcheck'
+            ),
+            bamcheck_options => VRPipe::StepOption->create(
+                description => 'options to bamcheck, excluding -r and -t (which are set by reference_fasta and exome_targets_file options)',
+                optional    => 1
+            ),
+            reference_fasta    => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
+            exome_targets_file => VRPipe::StepOption->create(
+                description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
+                optional    => 1
+            )
+        };
     }
     
     method inputs_definition {
@@ -70,12 +78,17 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { bamcheck_files => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                    description => 'the output of bamcheck on a bam',
-                                                                    max_files   => -1,
-                                                                    metadata    => {
-                                                                                  source_bam => 'path to the bam file this bamcheck file was created from',
-                                                                                  lane       => 'lane name (a unique identifer for this sequencing run, aka read group)' }) };
+        return {
+            bamcheck_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'the output of bamcheck on a bam',
+                max_files   => -1,
+                metadata    => {
+                    source_bam => 'path to the bam file this bamcheck file was created from',
+                    lane       => 'lane name (a unique identifer for this sequencing run, aka read group)'
+                }
+            )
+        };
     }
     
     method post_process_sub {
@@ -87,7 +100,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method get_bamcheck_options (ClassName|Object $self: HashRef $options!) {
@@ -197,12 +210,12 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             }
             else {
                 # Add metadata if same for all RGs
-                my %rg_items = ( PU => 'lane', LB => 'library', SM => 'sample', CN => 'center_name', PL => 'platform', DS => 'study',);
-
-                foreach my $rg_k (keys %rg_items ) {
+                my %rg_items = (PU => 'lane', LB => 'library', SM => 'sample', CN => 'center_name', PL => 'platform', DS => 'study',);
+                
+                foreach my $rg_k (keys %rg_items) {
                     my $rg_item = $rg_items{$rg_k};
                     unless (defined $existing_meta->{$rg_item}) {
-                        foreach my $i (0..$#rgs) {
+                        foreach my $i (0 .. $#rgs) {
                             my $info = $rg_info{ $rgs[$i] };
                             if ($info->{$rg_k}) {
                                 if ($new_meta->{$rg_item}) {
@@ -219,7 +232,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                     }
                 }
             }
-
+            
             if (@rgs != 1 || "$new_meta->{lane}" eq "1") {
                 # call the name something we can be most sure is maximally
                 # unique
@@ -232,8 +245,11 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             }
             
             $bam_file->add_metadata($new_meta);
-            $check_file->add_metadata({ source_bam => $bam_file->path->stringify,
-                                        lane       => $bam_file->metadata->{lane} });
+            $check_file->add_metadata({
+                    source_bam => $bam_file->path->stringify,
+                    lane       => $bam_file->metadata->{lane}
+                }
+            );
         }
         else {
             $self->throw("$check_path failed to be made");

@@ -4,7 +4,7 @@
 VRPipe::Persistent::Converter::mysql - a converter for SQLite
 
 =head1 SYNOPSIS
-
+        
         my $converter = VRPipe::Persistent::ConverterFactory->create('sqlite', {});
         ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
 
@@ -101,7 +101,8 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
                     $idx_cols{$col_name} = $1;
                 }
             },
-            $table_name);
+            $table_name
+        );
         
         return \%idx_cols;
     }

@@ -30,8 +30,22 @@ use VRPipe::FrontEnd;
 use Path::Class;
 use File::Find;
 
-my $frontend = VRPipe::FrontEnd->new(description => "Run chmod, chgrp and chown on all the files output by a VRPipe PipelineSetup.",
-                                     opt_spec    => [['setup=s', 'Pipeline setup (id or name) - REQUIRED', { persistent_object => 'PipelineSetup' }], ['steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]], [], [q[To change the group on the files:]], ['chgrp=s', q[Supply the string you would give to the unix 'chgrp' command (excluding options and path)]], [], [q[To change the mode on the files:]], ['chmod=s', q[Supply the string you would give to the unix 'chmod' command (excluding options and path)]], [], [q[To change the owner of the files (you will need to have root permissions for this to work):]], ['chown=s', q[Supply the string you would give to the unix 'chown' command (excluding options and path)]]]);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Run chmod, chgrp and chown on all the files output by a VRPipe PipelineSetup.",
+    opt_spec    => [
+        ['setup=s',  'Pipeline setup (id or name) - REQUIRED', { persistent_object => 'PipelineSetup' }],
+        ['steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]],
+        [],
+        [q[To change the group on the files:]],
+        ['chgrp=s', q[Supply the string you would give to the unix 'chgrp' command (excluding options and path)]],
+        [],
+        [q[To change the mode on the files:]],
+        ['chmod=s', q[Supply the string you would give to the unix 'chmod' command (excluding options and path)]],
+        [],
+        [q[To change the owner of the files (you will need to have root permissions for this to work):]],
+        ['chown=s', q[Supply the string you would give to the unix 'chown' command (excluding options and path)]]
+    ]
+);
 
 my $setup = $frontend->get_pipelinesetups();
 my @steps = $frontend->option_was_set('steps') ? @{ $frontend->opts('steps') } : ();

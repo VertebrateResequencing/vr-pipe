@@ -38,10 +38,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::DataSourceTextRole with VRPipe::DataSourceRole {
-    has 'source_file' => (is      => 'ro',
-                          isa     => 'VRPipe::File',
-                          lazy    => 1,
-                          builder => '_build_source_file');
+    has 'source_file' => (
+        is      => 'ro',
+        isa     => 'VRPipe::File',
+        lazy    => 1,
+        builder => '_build_source_file'
+    );
     
     method _build_source_file {
         my $source = file($self->source)->absolute;

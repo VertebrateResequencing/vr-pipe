@@ -29,36 +29,38 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::FrontEnd;
 use VRPipe::StepStatsUtil;
 
-my $frontend = VRPipe::FrontEnd->new(description => "Get wall-time and memory usage stats for steps or whole pipelines.",
-                                     opt_spec => [ [],
-                                                   [ q[At least one of the following options is required:] ],
-                                                   [ 'step=s@', 'Get stats for the given Step (by id or name); you can repeat this option', { persistent_object => 'Step' } ],
-                                                   [ 'setup=s@', 'Get stats for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'pipeline=s@', 'Get stats for all the steps in the given Pipeline; you can repeat this option', { persistent_object => 'Pipeline' } ]
-                                                 ],
-                                     no_user_option => 1);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Get wall-time and memory usage stats for steps or whole pipelines.",
+    opt_spec    => [
+        [],
+        [q[At least one of the following options is required:]],
+        ['step=s@',     'Get stats for the given Step (by id or name); you can repeat this option',          { persistent_object => 'Step' }],
+        ['setup=s@',    'Get stats for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }],
+        ['pipeline=s@', 'Get stats for all the steps in the given Pipeline; you can repeat this option',     { persistent_object => 'Pipeline' }]
+    ],
+    no_user_option => 1
+);
 
 unless ($frontend->option_was_set('step') || $frontend->option_was_set('setup') || $frontend->option_was_set('pipeline')) {
     $frontend->die_with_error("At least one of --step, --setup or --pipeline must be supplied");
 }
 
-
 # resolve user options to steps
 my %steps;
-foreach my $step (@{$frontend->opts('step') || []}) {
-    $steps{$step->id}->{all} = 1;
+foreach my $step (@{ $frontend->opts('step') || [] }) {
+    $steps{ $step->id }->{all} = 1;
 }
 
-foreach my $pipeline (@{$frontend->opts('pipeline') || []}) {
+foreach my $pipeline (@{ $frontend->opts('pipeline') || [] }) {
     foreach my $stepmember ($pipeline->steps) {
-        $steps{$stepmember->step->id}->{all} = 1;
+        $steps{ $stepmember->step->id }->{all} = 1;
     }
 }
 
-foreach my $setup (@{$frontend->opts('setup') || []}) {
+foreach my $setup (@{ $frontend->opts('setup') || [] }) {
     my $setup_id = $setup->id;
     foreach my $stepmember ($setup->pipeline->steps) {
-        $steps{$stepmember->step->id}->{$setup_id} = 1;
+        $steps{ $stepmember->step->id }->{$setup_id} = 1;
     }
 }
 
@@ -93,9 +95,9 @@ foreach my $by ('by_all', 'by_setup', 'by_step') {
         print "\nStats by Step:\n";
     }
     
-    my @id_order = $by eq 'by_all' ? ('overall') : (sort { $stats{$by}->{time}->{$b}->[4] <=> $stats{$by}->{time}->{$a}->[4] } keys %{$stats{$by}->{time}});
+    my @id_order = $by eq 'by_all' ? ('overall') : (sort { $stats{$by}->{time}->{$b}->[4] <=> $stats{$by}->{time}->{$a}->[4] } keys %{ $stats{$by}->{time} });
     foreach my $id (@id_order) {
-        my $time_string = get_stats($stats{$by}->{time}->{$id}, 'time');
+        my $time_string   = get_stats($stats{$by}->{time}->{$id},   'time');
         my $memory_string = get_stats($stats{$by}->{memory}->{$id}, 'memory');
         
         print "  $id:-\n    $time_string\n    $memory_string\n";
@@ -108,9 +110,9 @@ exit;
 sub add_stats {
     my ($step_id, $setup_id) = @_;
     
-    my $step = VRPipe::Step->get(id => $step_id);
-    my $step_name = $step->name;
-    my $setup = VRPipe::PipelineSetup->get(id => $setup_id);
+    my $step       = VRPipe::Step->get(id => $step_id);
+    my $step_name  = $step->name;
+    my $setup      = VRPipe::PipelineSetup->get(id => $setup_id);
     my $setup_name = $setup->name;
     
     foreach my $column ('memory', 'time') {
@@ -165,15 +167,15 @@ sub get_stats {
     
     if ($count) {
         $mean = sprintf("%0.0f", $mean);
-        $sd = sprintf("%0.0f", sqrt($sd / $count));
+        $sd   = sprintf("%0.0f", sqrt($sd / $count));
     }
     
     if ($type eq 'time') {
-        my $days = int($total/(24*60*60));
-        my $hrs = ($total/(60*60))%24;
-        my $mins = ($total/60)%60;
-        my $remaining_secs = $total%60;
-        my $extra = $total > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
+        my $days = int($total / (24 * 60 * 60));
+        my $hrs            = ($total / (60 * 60)) % 24;
+        my $mins           = ($total / 60) % 60;
+        my $remaining_secs = $total % 60;
+        my $extra          = $total > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
         return "Mean seconds per job: $mean (sd $sd, max $max, n=$count); Total serial wall time: $total secs$extra";
     }
     else {

@@ -35,24 +35,35 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
-                 bwa_aln_options => VRPipe::StepOption->create(description   => 'options to bwa aln, excluding the input fastq, reference and -f option',
-                                                               optional      => 1,
-                                                               default_value => '-q 15'),
-                 bwa_exe => VRPipe::StepOption->create(description   => 'path to your bwa executable',
-                                                       optional      => 1,
-                                                       default_value => 'bwa') };
+        return {
+            reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
+            bwa_aln_options => VRPipe::StepOption->create(
+                description   => 'options to bwa aln, excluding the input fastq, reference and -f option',
+                optional      => 1,
+                default_value => '-q 15'
+            ),
+            bwa_exe => VRPipe::StepOption->create(
+                description   => 'path to your bwa executable',
+                optional      => 1,
+                default_value => 'bwa'
+            )
+        };
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                 max_files   => -1,
-                                                                 description => 'fastq files, which will be alnd independently',
-                                                                 metadata    => {
-                                                                               reads    => 'total number of reads (sequences)',
-                                                                               paired   => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
-                                                                               mate     => 'if paired, the path to the fastq that is our mate',
-                                                                               optional => ['mate'] }) };
+        return {
+            fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                max_files   => -1,
+                description => 'fastq files, which will be alnd independently',
+                metadata    => {
+                    reads    => 'total number of reads (sequences)',
+                    paired   => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
+                    mate     => 'if paired, the path to the fastq that is our mate',
+                    optional => ['mate']
+                }
+            )
+        };
     }
     
     method body_sub {
@@ -73,14 +84,17 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
             
             my $req = $self->new_requirements(memory => 2900, time => 2);
             foreach my $fastq (@{ $self->inputs->{fastq_files} }) {
-                my $sai_file = $self->output_file(output_key => 'bwa_sai_files',
-                                                  output_dir => $fastq->dir,
-                                                  basename   => $fastq->basename . '.sai',
-                                                  type       => 'bin',
-                                                  metadata   => {
-                                                                source_fastq    => $fastq->path->stringify,
-                                                                reference_fasta => $ref->stringify,
-                                                                reads           => $fastq->metadata->{reads} });
+                my $sai_file = $self->output_file(
+                    output_key => 'bwa_sai_files',
+                    output_dir => $fastq->dir,
+                    basename   => $fastq->basename . '.sai',
+                    type       => 'bin',
+                    metadata   => {
+                        source_fastq    => $fastq->path->stringify,
+                        reference_fasta => $ref->stringify,
+                        reads           => $fastq->metadata->{reads}
+                    }
+                );
                 my $this_cmd = $cmd . ' -f ' . $sai_file->path . ' ' . $ref . ' ' . $fastq->path;
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_aln_fastq', 'aln_and_check', [$this_cmd, $req, { output_files => [$sai_file] }]); # specifying output_files here passes it to the Job, so it doesn't have to check all Step output files, just the one in this loop
             }
@@ -88,13 +102,18 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { bwa_sai_files => VRPipe::StepIODefinition->create(type        => 'bin',
-                                                                   max_files   => -1,
-                                                                   description => 'output files of independent bwa aln calls on each input fastq',
-                                                                   metadata    => {
-                                                                                 source_fastq    => 'the fastq file that was input to bwa aln to generate this sai file',
-                                                                                 reference_fasta => 'the reference fasta that reads were aligned to',
-                                                                                 reads           => 'the number of reads in the source_fastq' }) };
+        return {
+            bwa_sai_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                max_files   => -1,
+                description => 'output files of independent bwa aln calls on each input fastq',
+                metadata    => {
+                    source_fastq    => 'the fastq file that was input to bwa aln to generate this sai file',
+                    reference_fasta => 'the reference fasta that reads were aligned to',
+                    reads           => 'the number of reads in the source_fastq'
+                }
+            )
+        };
     }
     
     method post_process_sub {
@@ -106,7 +125,7 @@ class VRPipe::Steps::bwa_aln_fastq with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;                                                                                                                                 # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method aln_and_check (ClassName|Object $self: Str $cmd_line) {

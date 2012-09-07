@@ -29,38 +29,41 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::FrontEnd;
 use Path::Class;
 
-my $frontend = VRPipe::FrontEnd->new(description => "Get information on files created by VRPipe - what pipeline created them, and what metadata they have.",
-                                     opt_spec => [ [],
-                                                   [ q[Specify which file(s) you want to know about by supplying at least one of these alternatives:] ],
-                                                   [ 'path=s@', 'Get info on the file at this absolute path. Can be repeated' ],
-                                                   [ 'AND/OR' ],
-                                                   [ 'setup=s@', 'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' } ],
-                                                   [ 'step=s@', q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated] ],
-                                                   [ 'limit|l=i', 'Show info only on the first --limit number of files that match the above criteria'],
-                                                   [],
-                                                   [ q[Choose what information to display (by default just outputs the current path to the file):] ],
-                                                   [ 'setup_info', 'Show details about the PipelineSetup that created the file' ],
-                                                   [ 'cmd_summary', 'Show a simplyfied summary of what commands where used to generate the file (may not be available for all pipelines or steps)' ],
-                                                   [ 'cmd_lines', 'Show the real complete command lines that were executed in order to generate the file' ],
-                                                   [ 'time', 'Show the total wall time that the cmd_lines took to run, in seconds' ],
-                                                   [ 'metadata:s', 'Show the metadata associated with the file; optionally you can supply a comma separated list of metadata keys to restrict the output' ],
-                                                   [ 'lines', 'Show the number of lines in the file' ],
-                                                   [ 'size', 'Show the size of the file in bytes' ],
-                                                   [ 'md5', 'Show the md5 checksum for the file (if it has been previously calculated)' ],
-                                                   [],
-                                                   [ q[Choose how to display the information (these are mutually exclusive):] ],
-                                                   [ 'display=s', q[report=present a multi-line report for each file (forced on when setup_info, cmd_summary or cmd_lines are in use); tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], {default => 'report'} ],
-                                                   [ 'tab_columns=s', q[For --display tab mode, supply a list of comma-separated display option names to choose the order of columns (path is always first), eg. --tab_columns size,md5,metadata --metadata length,height,depth would give output with columns: path size md5 length height depth] ],
-                                                 ],
-                                     no_user_option => 1);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Get information on files created by VRPipe - what pipeline created them, and what metadata they have.",
+    opt_spec    => [
+        [],
+        [q[Specify which file(s) you want to know about by supplying at least one of these alternatives:]],
+        ['path=s@', 'Get info on the file at this absolute path. Can be repeated'],
+        ['AND/OR'],
+        ['setup=s@',  'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' }],
+        ['step=s@',   q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated]],
+        ['limit|l=i', 'Show info only on the first --limit number of files that match the above criteria'],
+        [],
+        [q[Choose what information to display (by default just outputs the current path to the file):]],
+        ['setup_info',  'Show details about the PipelineSetup that created the file'],
+        ['cmd_summary', 'Show a simplyfied summary of what commands where used to generate the file (may not be available for all pipelines or steps)'],
+        ['cmd_lines',   'Show the real complete command lines that were executed in order to generate the file'],
+        ['time',        'Show the total wall time that the cmd_lines took to run, in seconds'],
+        ['metadata:s',  'Show the metadata associated with the file; optionally you can supply a comma separated list of metadata keys to restrict the output'],
+        ['lines',       'Show the number of lines in the file'],
+        ['size',        'Show the size of the file in bytes'],
+        ['md5',         'Show the md5 checksum for the file (if it has been previously calculated)'],
+        [],
+        [q[Choose how to display the information (these are mutually exclusive):]],
+        ['display=s',     q[report=present a multi-line report for each file (forced on when setup_info, cmd_summary or cmd_lines are in use); tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], { default => 'report' }],
+        ['tab_columns=s', q[For --display tab mode, supply a list of comma-separated display option names to choose the order of columns (path is always first), eg. --tab_columns size,md5,metadata --metadata length,height,depth would give output with columns: path size md5 length height depth]],
+    ],
+    no_user_option => 1
+);
 
-my @paths = $frontend->option_was_set('path') ? @{$frontend->opts('path')} : ();
-my @setups = $frontend->option_was_set('setup') ? @{$frontend->opts('setup')} : ();
-my @steps = $frontend->option_was_set('step') ? @{$frontend->opts('step')} : ();
+my @paths  = $frontend->option_was_set('path')  ? @{ $frontend->opts('path') }  : ();
+my @setups = $frontend->option_was_set('setup') ? @{ $frontend->opts('setup') } : ();
+my @steps  = $frontend->option_was_set('step')  ? @{ $frontend->opts('step') }  : ();
 unless (@paths || @setups) {
     $frontend->die_with_error("--path or --setup is required");
 }
-if (@steps && ! @setups) {
+if (@steps && !@setups) {
     $frontend->die_with_error("--step makes no sense without --setup");
 }
 my $limit = $frontend->opts('limit') || 0;
@@ -68,10 +71,10 @@ my $display_type = $frontend->opts('display');
 unless ($display_type eq 'report' || $display_type eq 'tab') {
     $frontend->die_with_error("--display must be report|tab");
 }
-my $do_tab = $display_type eq 'tab';
-my $do_metadata = $frontend->option_was_set('metadata');
+my $do_tab           = $display_type eq 'tab';
+my $do_metadata      = $frontend->option_was_set('metadata');
 my $desired_metadata = $frontend->opts('metadata');
-if ($do_tab && $do_metadata && ! $desired_metadata) {
+if ($do_tab && $do_metadata && !$desired_metadata) {
     $frontend->die_with_error("When using --display tab, --metadata must be given an argument");
 }
 
@@ -102,7 +105,7 @@ else {
 my $file_setup_needed = 0;
 foreach my $col (@tab_cols) {
     if ($col eq 'setup_info' || $col eq 'cmd_summary' || $col eq 'cmd_lines') {
-        $do_tab = 0;
+        $do_tab            = 0;
         $file_setup_needed = 1;
         last;
     }
@@ -120,7 +123,7 @@ foreach my $path (@paths) {
     else {
         my $fid = $file->id;
         unless (exists $files{$fid}) {
-            $files{$file->id} = $file;
+            $files{ $file->id } = $file;
             $limit_count++;
         }
         if ($limit) {
@@ -152,20 +155,20 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
         my %allowed_kinds;
         if ($limit_steps) {
             foreach my $stepm (@step_members) {
-                my $smid = $stepm->id;
+                my $smid      = $stepm->id;
                 my $step_name = $stepm->step->name;
                 if (exists $desired_steps{names}->{$step_name}) {
-                    foreach my $kind (keys %{$desired_steps{names}->{$step_name}}) {
+                    foreach my $kind (keys %{ $desired_steps{names}->{$step_name} }) {
                         $allowed_kinds{$smid}->{$kind} = 1;
                     }
                 }
                 my $step_num = $stepm->step_number;
                 if (exists $desired_steps{numbers}->{$step_num}) {
-                    foreach my $kind (keys %{$desired_steps{numbers}->{$step_num}}) {
+                    foreach my $kind (keys %{ $desired_steps{numbers}->{$step_num} }) {
                         $allowed_kinds{$smid}->{$kind} = 1;
                     }
                 }
-                next unless keys %{$allowed_kinds{$smid}};
+                next unless keys %{ $allowed_kinds{$smid} };
                 
                 push(@allowed_step_members, $stepm);
             }
@@ -180,7 +183,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
         
         # loop through completed elements
         my $pipeline_length = @step_members;
-        my $estates_pager = $setup->dataelementstates_pager;
+        my $estates_pager   = $setup->dataelementstates_pager;
         while (my $estates = $estates_pager->next) {
             foreach my $element_state (@$estates) {
                 unless ($element_state->completed_steps == $pipeline_length) {
@@ -192,10 +195,10 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
                 foreach my $stepm (@allowed_step_members) {
                     my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
                     my $step_outs = $stepstate->output_files;
-                    my $smid = $stepm->id;
-                    my $force = exists $allowed_kinds{$smid}->{all};
+                    my $smid      = $stepm->id;
+                    my $force     = exists $allowed_kinds{$smid}->{all};
                     my $step_name = $stepm->step->name;
-                    my $step_num = $stepm->step_number;
+                    my $step_num  = $stepm->step_number;
                     my $step_desc = "Step $step_num ($step_name)";
                     while (my ($kind, $files) = each %$step_outs) {
                         unless ($force) {
@@ -264,10 +267,10 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                 my $setup = $stepstate->pipelinesetup;
                 
                 my @results;
-                push(@results, "setup name: ".$setup->name, "id: ".$setup->id, "user: ".$setup->user);
+                push(@results, "setup name: " . $setup->name, "id: " . $setup->id, "user: " . $setup->user);
                 
                 my $pipeline = $setup->pipeline;
-                push(@results, "pipeline name: ".$pipeline->name, "pipeline description: ".$pipeline->description);
+                push(@results, "pipeline name: " . $pipeline->name, "pipeline description: " . $pipeline->description);
                 
                 my $ps_opts = $setup->options;
                 if (keys %$ps_opts) {
@@ -280,10 +283,10 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                     push(@results, "pipeline options: defaults/none");
                 }
                 
-                push(@results, "pipeline output root: ".$setup->output_root);
+                push(@results, "pipeline output root: " . $setup->output_root);
                 
                 my $datasource = $setup->datasource;
-                push(@results, "datasource type: ".$datasource->type, "datasource method: ".$datasource->method, "datasource source: ".$datasource->source);
+                push(@results, "datasource type: " . $datasource->type, "datasource method: " . $datasource->method, "datasource source: " . $datasource->source);
                 
                 my $ds_opts = $datasource->options;
                 if (keys %$ds_opts) {
@@ -296,7 +299,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                     push(@results, "datasource options: defaults/none");
                 }
                 
-                $result = "\n".join("\n", map { "\t\t".$_ } @results);
+                $result = "\n" . join("\n", map { "\t\t" . $_ } @results);
             }
             else {
                 $result = 'file was not made by a (single) VRPipe pipeline';
@@ -304,9 +307,9 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
         }
         elsif ($col eq 'cmd_summary') {
             if ($stepstate) {
-                my @chain = stepstate_chain($stepstate);
+                my @chain   = stepstate_chain($stepstate);
                 my @results = stepstates_to_summaries(@chain);
-                $result = "\n".join("\n", map { "\t\t".$_ } @results);
+                $result = "\n" . join("\n", map { "\t\t" . $_ } @results);
             }
             else {
                 $result = 'file was not made by a (single) VRPipe pipeline';
@@ -314,9 +317,9 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
         }
         elsif ($col eq 'cmd_lines') {
             if ($stepstate) {
-                my @chain = stepstate_chain($stepstate);
+                my @chain   = stepstate_chain($stepstate);
                 my @results = stepstates_to_cmds(@chain);
-                $result = "\n".join("\n\n", map { "\t\t".$_ } @results);
+                $result = "\n" . join("\n\n", map { "\t\t" . $_ } @results);
             }
             else {
                 $result = 'file was not made by a (single) VRPipe pipeline';
@@ -367,7 +370,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                     my $val = $result_meta->{$key};
                     push(@results, "\t\t$key => $val");
                 }
-                $result = "\n".join("\n", @results);
+                $result = "\n" . join("\n", @results);
             }
         }
         
@@ -396,10 +399,10 @@ sub stepstate_chain {
     # stepmember dataelement pipelinesetup cmd_summary complete submissions
     
     my $pipelinesetup = $child_stepstate->pipelinesetup;
-    my $dataelement = $child_stepstate->dataelement;
-    my $stepmember = $child_stepstate->stepmember;
+    my $dataelement   = $child_stepstate->dataelement;
+    my $stepmember    = $child_stepstate->stepmember;
     my $this_stepm_id = $stepmember->id;
-    my $pipeline = $stepmember->pipeline;
+    my $pipeline      = $stepmember->pipeline;
     
     my @chain;
     if ($pipelinesetup->datasource->type eq 'vrpipe') {
@@ -407,7 +410,7 @@ sub stepstate_chain {
         my @links = VRPipe::DataElementLink->search({ child => $dataelement->id }, { prefetch => [qw(pipelinesetup parent)] });
         foreach my $link (@links) {
             my $this_pipelinesetup = $link->pipelinesetup;
-            my $setup_id = $this_pipelinesetup->id;
+            my $setup_id           = $this_pipelinesetup->id;
             next unless exists $vrpipe_sources->{$setup_id};
             my $this_stepmember = VRPipe::StepMember->get(id => $vrpipe_sources->{$setup_id}->{final_smid});
             push @chain, stepstate_chain(VRPipe::StepState->get(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember));
@@ -428,7 +431,7 @@ sub stepstates_to_summaries {
     my %seen;
     foreach my $ss (@step_states) {
         my $cmd_summary = $ss->cmd_summary;
-        my $summary = $ss->stepmember->step->name. ($cmd_summary ? ' ['.$cmd_summary->exe.' (v'.$cmd_summary->version.')]: '.$cmd_summary->summary : '');
+        my $summary = $ss->stepmember->step->name . ($cmd_summary ? ' [' . $cmd_summary->exe . ' (v' . $cmd_summary->version . ')]: ' . $cmd_summary->summary : '');
         next if exists $seen{$summary};
         push(@summaries, $summary);
         $seen{$summary} = 1;
@@ -443,7 +446,7 @@ sub stepstates_to_cmds {
     foreach my $ss (@step_states) {
         my $step_name = $ss->stepmember->step->name;
         foreach my $sub ($ss->submissions) {
-            my $cmd = $step_name.': '.$sub->job->cmd;
+            my $cmd = $step_name . ': ' . $sub->job->cmd;
             next if exists $seen{$cmd};
             push(@cmds, $cmd);
             $seen{$cmd} = 1;

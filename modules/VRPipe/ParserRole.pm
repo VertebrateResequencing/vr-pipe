@@ -47,53 +47,75 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::ParserRole {
-    has 'file' => (is       => 'ro',
-                   isa      => VRPFileOrHandle,
-                   coerce   => 1,
-                   required => 1);
+    has 'file' => (
+        is       => 'ro',
+        isa      => VRPFileOrHandle,
+        coerce   => 1,
+        required => 1
+    );
     
-    has 'type' => (is      => 'ro',
-                   isa     => ParserType,
-                   lazy    => 1,
-                   builder => '_build_type');
+    has 'type' => (
+        is      => 'ro',
+        isa     => ParserType,
+        lazy    => 1,
+        builder => '_build_type'
+    );
     
-    has 'parsed_record' => (is      => 'ro',
-                            isa     => 'ArrayRef',
-                            default => sub { [] });
+    has 'parsed_record' => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        default => sub { [] }
+    );
     
-    has 'fh' => (is      => 'ro',
-                 isa     => AnyFileHandle,
-                 writer  => '_set_fh',
-                 lazy    => 1,
-                 builder => '_get_fh');
+    has 'fh' => (
+        is      => 'ro',
+        isa     => AnyFileHandle,
+        writer  => '_set_fh',
+        lazy    => 1,
+        builder => '_get_fh'
+    );
     
-    has 'filename' => (is      => 'ro',
-                       isa     => 'Str',
-                       lazy    => 1,
-                       builder => '_get_filename');
+    has 'filename' => (
+        is      => 'ro',
+        isa     => 'Str',
+        lazy    => 1,
+        builder => '_get_filename'
+    );
     
-    has '_buffer_store' => (is      => 'ro',
-                            traits  => ['Array'],
-                            isa     => 'ArrayRef[Str]',
-                            default => sub { [] },
-                            handles => { '_pushback'     => 'push',
-                                         '_getback'      => 'shift',
-                                         '_empty_buffer' => 'clear' });
+    has '_buffer_store' => (
+        is      => 'ro',
+        traits  => ['Array'],
+        isa     => 'ArrayRef[Str]',
+        default => sub { [] },
+        handles => {
+            '_pushback'     => 'push',
+            '_getback'      => 'shift',
+            '_empty_buffer' => 'clear'
+        }
+    );
     
-    has '_vrpipe_file' => (is     => 'ro',
-                           isa    => 'VRPipe::File',
-                           writer => '_set_vrpipe_file');
+    has '_vrpipe_file' => (
+        is     => 'ro',
+        isa    => 'VRPipe::File',
+        writer => '_set_vrpipe_file'
+    );
     
-    has '_tell' => (is  => 'rw',
-                    isa => 'Int');
+    has '_tell' => (
+        is  => 'rw',
+        isa => 'Int'
+    );
     
-    has '_current_results' => (is  => 'rw',
-                               isa => 'ArrayRef|HashRef');
+    has '_current_results' => (
+        is  => 'rw',
+        isa => 'ArrayRef|HashRef'
+    );
     
-    has '_header_parsed' => (is        => 'ro',
-                             isa       => 'Int',
-                             writer    => '_set_header_parsed',
-                             predicate => '_got_header');
+    has '_header_parsed' => (
+        is        => 'ro',
+        isa       => 'Int',
+        writer    => '_set_header_parsed',
+        predicate => '_got_header'
+    );
     
     method BUILD {
         $self->_get_header;

@@ -40,14 +40,18 @@ use VRPipe::Base;
 class VRPipe::Base::Configuration::Option {
     use VRPipe::Base::Configuration::Env;
     
-    has _attr => (is       => 'ro',
-                  does     => 'VRPipe::Base::Configuration::Trait::Attribute::ConfigKey',
-                  required => 1);
+    has _attr => (
+        is       => 'ro',
+        does     => 'VRPipe::Base::Configuration::Trait::Attribute::ConfigKey',
+        required => 1
+    );
     
-    has _obj => (is       => 'ro',
-                 does     => 'VRPipe::Base::Configuration::Trait::Object',
-                 weak_ref => 1,
-                 required => 1);
+    has _obj => (
+        is       => 'ro',
+        does     => 'VRPipe::Base::Configuration::Trait::Object',
+        weak_ref => 1,
+        required => 1
+    );
     
     method key {
         $self->_attr->name;
@@ -147,7 +151,8 @@ EOF
         }
         
         my $ans = $self->_readline();
-        if (!defined($ans) # Ctrl-D or unattended
+        if (
+            !defined($ans) # Ctrl-D or unattended
             or !length($ans)
           ) {              # User hit return
             $ans = $default;

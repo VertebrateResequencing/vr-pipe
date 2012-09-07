@@ -86,17 +86,19 @@ sub import {
     # copy/pasted  Test::DBIx::Class to get the exports
     my ($schema_manager, $merged_config, @exports) = $class->_initialize();
     my $exporter = Sub::Exporter::build_exporter({
-           exports => [
-               Schema => sub {
-                   return sub {
-                       return $schema_manager->schema;
-                     }
-               },
-               get_elements => sub {
-                   return \&get_elements;
-                 }
-           ],
-           into_level => 1, });
+            exports => [
+                Schema => sub {
+                    return sub {
+                        return $schema_manager->schema;
+                      }
+                },
+                get_elements => sub {
+                    return \&get_elements;
+                  }
+            ],
+            into_level => 1,
+        }
+    );
     
     $class->$exporter(qw/Schema get_elements/, @exports);
 }
@@ -104,15 +106,15 @@ sub import {
 sub _initialize_schema {
     my $class = shift;
     
-    my $config = { schema_class     => 'VRPipe::Persistent::Schema',
-                   force_drop_table => 1,
-                   keep_db          => 1,
-                   connect_info     => [VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password] };
+    my $config = {
+        schema_class     => 'VRPipe::Persistent::Schema',
+        force_drop_table => 1,
+        keep_db          => 1,
+        connect_info     => [VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password]
+    };
     
     return $class->SUPER::_initialize_schema($config);
 }
-
-
 
 # following methods were stolen and slightly modified from
 # Test::Skip::UnlessExistsExecutable

@@ -35,25 +35,32 @@ use VRPipe::Base;
 
 class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
     method options_definition {
-        return { sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index'),
-                 release_date   => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date (YYYYMMDD)'), };
+        return {
+            sequence_index => VRPipe::StepOption->create(description => 'for DCC-style filenames and using input bams with poor headers, provide a DCC sequence.index'),
+            release_date   => VRPipe::StepOption->create(description => 'for DCC-style filenames, provide the release date (YYYYMMDD)'),
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               description => 'bam files',
-                                                               max_files   => -1,
-                                                               metadata    => {
-                                                                             sample         => 'sample name',
-                                                                             center_name    => 'center name',
-                                                                             library        => 'library name',
-                                                                             platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                             study          => 'name of the study, put in the DS field of the RG header line',
-                                                                             population     => 'sample population',
-                                                                             analysis_group => 'project analysis group',
-                                                                             split_sequence => 'chromosomal split',
-                                                                             reads          => 'total number of reads (sequences)',
-                                                                             optional       => ['library', 'study', 'center_name', 'split_sequence'] }) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'bam files',
+                max_files   => -1,
+                metadata    => {
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    library        => 'library name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    population     => 'sample population',
+                    analysis_group => 'project analysis group',
+                    split_sequence => 'chromosomal split',
+                    reads          => 'total number of reads (sequences)',
+                    optional       => ['library', 'study', 'center_name', 'split_sequence']
+                }
+            )
+        };
     }
     
     method body_sub {
@@ -78,21 +85,26 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { dcc_ready_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                                         description => 'a bam file with associated metadata',
-                                                                         max_files   => -1,
-                                                                         metadata    => {
-                                                                                       sample         => 'sample name',
-                                                                                       center_name    => 'center name',
-                                                                                       library        => 'library name',
-                                                                                       platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                                       study          => 'name of the study, put in the DS field of the RG header line',
-                                                                                       population     => 'sample population',
-                                                                                       analysis_group => 'project analysis group',
-                                                                                       split_sequence => 'chromosomal split',
-                                                                                       reads          => 'total number of reads (sequences)',
-                                                                                       release_date   => 'DCC sequence index release date',
-                                                                                       optional       => ['library', 'study', 'center_name', 'split_sequence'] }) };
+        return {
+            dcc_ready_bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'a bam file with associated metadata',
+                max_files   => -1,
+                metadata    => {
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    library        => 'library name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    population     => 'sample population',
+                    analysis_group => 'project analysis group',
+                    split_sequence => 'chromosomal split',
+                    reads          => 'total number of reads (sequences)',
+                    release_date   => 'DCC sequence index release date',
+                    optional       => ['library', 'study', 'center_name', 'split_sequence']
+                }
+            )
+        };
     }
     
     method post_process_sub {

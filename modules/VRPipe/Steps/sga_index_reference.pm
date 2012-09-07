@@ -59,8 +59,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
     method options_definition {
-        return { sga_index_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '-d 10'),
-                 sga_exe                     => VRPipe::StepOption->create(description => 'path to your sga executable',                            optional => 1, default_value => 'sga') };
+        return {
+            sga_index_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '-d 10'),
+            sga_exe                     => VRPipe::StepOption->create(description => 'path to your sga executable',                            optional => 1, default_value => 'sga')
+        };
     }
     
     method inputs_definition {
@@ -98,8 +100,10 @@ class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { sga_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the binary files produced by sga index', max_files => 2),
-                 sga_index_text_files   => VRPipe::StepIODefinition->create(type => 'txt', description => 'the text files produced by sga index',   max_files => 2) };
+        return {
+            sga_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the binary files produced by sga index', max_files => 2),
+            sga_index_text_files   => VRPipe::StepIODefinition->create(type => 'txt', description => 'the text files produced by sga index',   max_files => 2)
+        };
     }
     
     method post_process_sub {

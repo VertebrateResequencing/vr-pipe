@@ -5,9 +5,11 @@ VRPipe::Steps::population_bam_list - a step
 
 =head1 DESCRIPTION
 
-Creates a seperate FOFN from a set of BAMS, for each population group, as defined using a perl hash definition, eg
+Creates a seperate FOFN from a set of BAMS, for each population group, as
+defined using a perl hash definition, eg
 
-{AMR=>[qw(MXL CLM PUR)],AFR=>[qw(YRI LWK ASW)],ASN=>[qw(CHB CHS JPT)],EUR=>[qw(CEU TSI FIN GBR IBS)],}
+{AMR=>[qw(MXL CLM PUR)],AFR=>[qw(YRI LWK ASW)],ASN=>[qw(CHB CHS
+JPT)],EUR=>[qw(CEU TSI FIN GBR IBS)],}
 
 Can be run optionally to split FOFNs by chromosome
 
@@ -39,9 +41,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::population_bam_list with VRPipe::StepRole {
     method options_definition {
-        return { whole_genome_mode => VRPipe::StepOption->create(description => "Indicates bam lists not split by chromosome", optional => 1, default_value => 0),
-                 chrom_list        => VRPipe::StepOption->create(description => 'Names of chromosomes',                        optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y'),
-                 pops_definition   => VRPipe::StepOption->create(description => "populations structure definition, eg {AMR=>[qw(MXL CLM PUR)],AFR=>[qw(YRI LWK ASW)],ASN=>[qw(CHB CHS JPT)],EUR=>[qw(CEU TSI FIN GBR IBS)],}"), };
+        return {
+            whole_genome_mode => VRPipe::StepOption->create(description => "Indicates bam lists not split by chromosome", optional => 1, default_value => 0),
+            chrom_list        => VRPipe::StepOption->create(description => 'Names of chromosomes',                        optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y'),
+            pops_definition   => VRPipe::StepOption->create(description => "populations structure definition, eg {AMR=>[qw(MXL CLM PUR)],AFR=>[qw(YRI LWK ASW)],ASN=>[qw(CHB CHS JPT)],EUR=>[qw(CEU TSI FIN GBR IBS)],}"),
+        };
     }
     
     method inputs_definition {

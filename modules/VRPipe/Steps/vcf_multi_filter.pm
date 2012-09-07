@@ -5,13 +5,15 @@ VRPipe::Steps::vcf_multi_filter - a step
 
 =head1 DESCRIPTION
 
-Soft-filters input VCFs in parallel from a multi-column datasource, using multiple filter programs and option files for each VCF. 
-The filter programs and their accociated option files are each provided as parameters delimited by '#'. 
+Soft-filters input VCFs in parallel from a multi-column datasource, using
+multiple filter programs and option files for each VCF.  The filter programs
+and their accociated option files are each provided as parameters delimited by
+'#'.
 
-vcf-filter#vcf-annotate
-vcf_filter_opt_file#vcf_annotate_opt_file
+vcf-filter#vcf-annotate vcf_filter_opt_file#vcf_annotate_opt_file
 
-There needs to be one program and filter options file for each column in the datasource.
+There needs to be one program and filter options file for each column in the
+datasource.
 
 =head1 AUTHOR
 
@@ -41,9 +43,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_multi_filter extends VRPipe::Steps::vcf_filter {
     method options_definition {
-        return { 'vcf-filter_programs' => VRPipe::StepOption->create(description => 'path to one or more filter executables, one per vcf to be filtered in parallel, delimited by #'),
-                 'vcf-filter_files'    => VRPipe::StepOption->create(description => 'one or more filter program option files, one per filter executable, delimited by #'),
-                 'tabix_exe'           => VRPipe::StepOption->create(description => 'path to your tabix executable', optional => 1, default_value => 'tabix'), };
+        return {
+            'vcf-filter_programs' => VRPipe::StepOption->create(description => 'path to one or more filter executables, one per vcf to be filtered in parallel, delimited by #'),
+            'vcf-filter_files'    => VRPipe::StepOption->create(description => 'one or more filter program option files, one per filter executable, delimited by #')
+        };
     }
     
     method body_sub {
@@ -53,34 +56,26 @@ class VRPipe::Steps::vcf_multi_filter extends VRPipe::Steps::vcf_filter {
             my $options         = $self->options;
             my @filter_programs = split('#', $options->{'vcf-filter_programs'});
             my @filter_files    = split('#', $options->{'vcf-filter_files'});
-            my $tabix_exe       = $options->{tabix_exe};
-            my $cat_exe;
             
             my $idx = 0;
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.vcf.gz$/) {
-                    $basename =~ s/\.vcf.gz$/.filt.vcf.gz/;
-                    $cat_exe = 'zcat';
-                }
-                else {
-                    $basename =~ s/\.vcf$/.filt.vcf/;
-                    $cat_exe = 'cat';
-                }
+                my $cat_exe = $basename =~ /\.vcf.gz$/ ? 'zcat' : 'cat';
+                $basename =~ s/\.vcf(.gz)?$/.filt.vcf.gz/;
+                
                 my $filter_exe  = $filter_programs[$idx];
                 my $filter_file = $filter_files[$idx];
                 $idx++;
                 
-                my $filtered_vcf = $self->output_file(output_key => 'filtered_vcf', basename => $basename,          type => 'vcf');
-                my $tbi          = $self->output_file(output_key => 'tbi_file',     basename => $basename . '.tbi', type => 'bin');
+                my $filtered_vcf = $self->output_file(output_key => 'filtered_vcf', basename => $basename, type => 'vcf', metadata => $vcf_file->metadata);
                 
                 my $input_path  = $vcf_file->path;
                 my $output_path = $filtered_vcf->path;
                 
-                my $this_cmd = "$cat_exe $input_path | $filter_exe -f $filter_file | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path";
+                my $this_cmd = "$cat_exe $input_path | $filter_exe -f $filter_file | bgzip -c > $output_path";
                 
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_filter', 'filter_vcf', [$this_cmd, $req, { output_files => [$filtered_vcf, $tbi] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_filter', 'filter_vcf', [$this_cmd, $req, { output_files => [$filtered_vcf] }]);
             }
         };
     }

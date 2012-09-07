@@ -74,20 +74,26 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepCmdSummary extends VRPipe::Persistent {
-    has 'exe' => (is     => 'rw',
-                  isa    => Varchar [255],
-                  traits => ['VRPipe::Persistent::Attributes'],
-                  is_key => 1);
+    has 'exe' => (
+        is     => 'rw',
+        isa    => Varchar [255],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'version' => (is     => 'rw',
-                      isa    => Varchar [32],
-                      traits => ['VRPipe::Persistent::Attributes'],
-                      is_key => 1);
+    has 'version' => (
+        is     => 'rw',
+        isa    => Varchar [32],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'summary' => (is     => 'rw',
-                      isa    => Text,
-                      traits => ['VRPipe::Persistent::Attributes'],
-                      is_key => 1);
+    has 'summary' => (
+        is     => 'rw',
+        isa    => Text,
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
     __PACKAGE__->make_persistent();
     

@@ -35,44 +35,60 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta   => VRPipe::StepOption->create(description => 'absolute path to genome reference file the sai files were aligned with'),
-                 bwa_samse_options => VRPipe::StepOption->create(description   => 'options to bwa samse, excluding the input sai, bam, reference, -r and -f',
-                                                                 optional      => 1,
-                                                                 default_value => ''),
-                 bwa_sampe_options => VRPipe::StepOption->create(description => 'options to bwa sampe, excluding the input sai, bams, reference, -r and -f; defaults to bwa sampe with -a set as appropriate for the bam insert_size',
-                                                                 optional    => 1),
-                 bwa_exe => VRPipe::StepOption->create(description   => 'path to your bwa executable',
-                                                       optional      => 1,
-                                                       default_value => 'bwa') };
+        return {
+            reference_fasta   => VRPipe::StepOption->create(description => 'absolute path to genome reference file the sai files were aligned with'),
+            bwa_samse_options => VRPipe::StepOption->create(
+                description   => 'options to bwa samse, excluding the input sai, bam, reference, -r and -f',
+                optional      => 1,
+                default_value => ''
+            ),
+            bwa_sampe_options => VRPipe::StepOption->create(
+                description => 'options to bwa sampe, excluding the input sai, bams, reference, -r and -f; defaults to bwa sampe with -a set as appropriate for the bam insert_size',
+                optional    => 1
+            ),
+            bwa_exe => VRPipe::StepOption->create(
+                description   => 'path to your bwa executable',
+                optional      => 1,
+                default_value => 'bwa'
+            )
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               max_files   => -1,
-                                                               description => 'bam files',
-                                                               metadata    => {
-                                                                             lane           => 'lane name (a unique identifer for this sequencing run)',
-                                                                             library        => 'library name',
-                                                                             sample         => 'sample name',
-                                                                             center_name    => 'center name',
-                                                                             platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                             study          => 'name of the study, put in the DS field of the RG header line',
-                                                                             insert_size    => 'expected (mean) insert size if paired',
-                                                                             analysis_group => 'project analysis group',
-                                                                             population     => 'sample population',
-                                                                             bases          => 'total number of base pairs',
-                                                                             reads          => 'total number of reads (sequences)',
-                                                                             forward_reads  => 'number of forward reads',
-                                                                             reverse_reads  => 'number of reverse reads',
-                                                                             paired         => '0=single ended reads only; 1=paired end reads present',
-                                                                             optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study'] }),
-                 sai_files => VRPipe::StepIODefinition->create(type        => 'bin',
-                                                               max_files   => -1,
-                                                               description => 'sai files, as produced by bwa aln',
-                                                               metadata    => {
-                                                                             source_bam      => 'the bam file that was input to bwa aln to generate this sai file',
-                                                                             paired          => 'what kind of reads were used from the source_bam: 0=single end reads; 1=forward reads; 2=reverse reads',
-                                                                             reference_fasta => 'the reference fasta that reads were aligned to' }) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => 'bam files',
+                metadata    => {
+                    lane           => 'lane name (a unique identifer for this sequencing run)',
+                    library        => 'library name',
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    insert_size    => 'expected (mean) insert size if paired',
+                    analysis_group => 'project analysis group',
+                    population     => 'sample population',
+                    bases          => 'total number of base pairs',
+                    reads          => 'total number of reads (sequences)',
+                    forward_reads  => 'number of forward reads',
+                    reverse_reads  => 'number of reverse reads',
+                    paired         => '0=single ended reads only; 1=paired end reads present',
+                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                }
+            ),
+            sai_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                max_files   => -1,
+                description => 'sai files, as produced by bwa aln',
+                metadata    => {
+                    source_bam      => 'the bam file that was input to bwa aln to generate this sai file',
+                    paired          => 'what kind of reads were used from the source_bam: 0=single end reads; 1=forward reads; 2=reverse reads',
+                    reference_fasta => 'the reference fasta that reads were aligned to'
+                }
+            )
+        };
     }
     
     method body_sub {
@@ -161,12 +177,14 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                     }
                     
                     # add metadata and construct RG line
-                    my $rg_line = '@RG\tID:' . $lane;
-                    my $sam_meta = { lane         => $lane,
-                                     bases        => $bases,
-                                     reads        => $reads,
-                                     paired       => $paired eq 'se' ? 0 : 1,
-                                     remapped_bam => $bam };
+                    my $rg_line  = '@RG\tID:' . $lane;
+                    my $sam_meta = {
+                        lane         => $lane,
+                        bases        => $bases,
+                        reads        => $reads,
+                        paired       => $paired eq 'se' ? 0 : 1,
+                        remapped_bam => $bam
+                    };
                     if (defined $bam_meta->{library}) {
                         my $lb = $bam_meta->{library};
                         $sam_meta->{library} = $lb;
@@ -206,10 +224,12 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
                     
                     my $lane_base = $lane;
                     $lane_base =~ s/\W/_/g;
-                    my $sam_file = $self->output_file(output_key => 'bwa_sam_files',
-                                                      basename   => "$lane_base.$paired.sam",
-                                                      type       => 'txt',
-                                                      metadata   => $sam_meta);
+                    my $sam_file = $self->output_file(
+                        output_key => 'bwa_sam_files',
+                        basename   => "$lane_base.$paired.sam",
+                        type       => 'txt',
+                        metadata   => $sam_meta
+                    );
                     
                     $this_cmd .= " -r '$rg_line' -f " . $sam_file->path . " $ref @sais @bams";
                     $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_sam_using_bam', 'sam_and_check', [$this_cmd, $req, { output_files => [$sam_file] }]);
@@ -222,24 +242,29 @@ class VRPipe::Steps::bwa_sam_using_bam with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { bwa_sam_files => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                   max_files   => -1,
-                                                                   description => 'mapped sam file(s)',
-                                                                   metadata    => {
-                                                                                 lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                                 library        => 'library name',
-                                                                                 sample         => 'sample name',
-                                                                                 center_name    => 'center name',
-                                                                                 platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                                 study          => 'name of the study, put in the DS field of the RG header line',
-                                                                                 insert_size    => 'expected (mean) insert size if paired',
-                                                                                 analysis_group => 'project analysis group',
-                                                                                 population     => 'sample population',
-                                                                                 bases          => 'total number of base pairs',
-                                                                                 reads          => 'total number of reads (sequences)',
-                                                                                 paired         => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                                 remapped_bam   => 'the bam file that was (re)mapped',
-                                                                                 optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study'] }) };
+        return {
+            bwa_sam_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                max_files   => -1,
+                description => 'mapped sam file(s)',
+                metadata    => {
+                    lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    library        => 'library name',
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    insert_size    => 'expected (mean) insert size if paired',
+                    analysis_group => 'project analysis group',
+                    population     => 'sample population',
+                    bases          => 'total number of base pairs',
+                    reads          => 'total number of reads (sequences)',
+                    paired         => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                    remapped_bam   => 'the bam file that was (re)mapped',
+                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                }
+            )
+        };
     }
     
     method post_process_sub {

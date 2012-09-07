@@ -100,6 +100,14 @@ VRPIPE_TEST_PIPELINES, when true, will fully test all the pipelines and steps
                $ ./Build test --test_files t/VRPipe/Pipelines/[name].t --verbose
 GATK, pointing to a directory containing GATK jar files, will enable tests that
       require GATK
+PICARD, pointing to a directory containing Picard jar files, will enable tests
+      that require Picard
+CRAMTOOLS, pointing to a directory containing Cramtools jar files, will enable
+      tests that require Cramtools
+TRIMMOMATIC_JAR_PATH, pointing to the timmomatic .jar file, will enable tests
+      that require Trimmomatic
+CONVEX_R_LIB, pointing to a directory containing your R lib files, will enable
+      tests of Convex
 VRPIPE_VRTRACK_TESTDB will enable testing of the VRTrack DataSource, using the
                       value supplied as the database name (other database
                       details will come from the standard VRTrack environment
@@ -142,15 +150,26 @@ variable you need to set, and the value you should set it to, separated by
 commas.
 
 samtools,SAMTOOLS,/path/to/samtools/source_directory
-GATK,GATK,/path/to/gatk_jar_files
-picard,PICARD,/path/to/picard_jar_files
+cramtools,CRAMTOOLS,/path/to/cramtools_jar_files
 
-eg. to have GATK work properly in the pipelines you might do:
-setenv GATK /path/to/gatk_jar_files
+eg. to have cramtools work properly in the pipelines you might do:
+setenv CRAMTOOLS /path/to/cramtools_jar_files
 or
-export GATK=/path/to/gatk_jar_files
+export CRAMTOOLS=/path/to/cramtools_jar_files
 depending on what shell you are using.
 
+These values are used internally and are independent of values you might set
+when asked for eg. the path to your cramtools jars when running vrpipe-setup.
+
+A number of other environment variables are used to setup default values for
+when running vrpipe-setup, but are not required to use the software (ie. you can
+just manually enter the required path each time you setup the pipeline):
+
+GATK,GATK,/path/to/GATK_jar_files
+picard,PICARD,/path/to/picard_jar_files
+R,R_LIB,/path/to/R_library_files
+bismark,BISMARK_GENOME_FOLDER,/path/to/bismark_genome_files
+trimmomatic,TRIMMOMATIC_JAR_PATH,/path/to/trimmomatic_jar_file
 
 
 COPYRIGHT & LICENSE

@@ -12,24 +12,32 @@ BEGIN {
 package VRPipe::Test;
 use VRPipe::Base;
 class VRPipe::Test {
-    has 'foo' => (is  => 'rw',
-                  isa => 'Str',);
+    has 'foo' => (
+        is  => 'rw',
+        isa => 'Str',
+    );
     
-    has 'file' => (is     => 'rw',
-                   isa    => File,
-                   coerce => 1);
+    has 'file' => (
+        is     => 'rw',
+        isa    => File,
+        coerce => 1
+    );
     
-    has 'optional_file' => (is     => 'rw',
-                            isa    => MaybeFile,
-                            coerce => 1);
+    has 'optional_file' => (
+        is     => 'rw',
+        isa    => MaybeFile,
+        coerce => 1
+    );
 }
 1;
 
 package VRPipe::Test2;
 use VRPipe::Base;
 class VRPipe::Test2 {
-    has 'foogu' => (is  => 'rw',
-                    isa => 'Str',);
+    has 'foogu' => (
+        is  => 'rw',
+        isa => 'Str',
+    );
 }
 1;
 

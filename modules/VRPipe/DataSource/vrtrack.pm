@@ -315,7 +315,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     reads       => $file->raw_reads || 0,
                     bases       => $file->raw_bases || 0,
                     paired      => $lane_info{vrlane}->is_paired,
-                    lane_id     => $file->lane_id };
+                    lane_id     => $file->lane_id
+                };
                 
                 # add metadata to file but ensure that we update any fields in
                 # the new metadata
@@ -356,18 +357,24 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 push @files, $file_abs_path;
             }
             
-            push(@single_results,
-                 {  paths               => \@files,
+            push(
+                @single_results,
+                {
+                    paths               => \@files,
                     lane                => $lane->name,
-                    groupable_lane_meta => { project => $lane_info{project},
-                                             study   => $lane_info{study},
-                                             $lane_info{species} ? (species => $lane_info{species}) : (),
-                                             population => $lane_info{population},
-                                             individual => $lane_info{individual},
-                                             sample     => $lane_info{sample},
-                                             platform   => $lane_info{seq_tech},
-                                             library    => $lane_info{library} },
-                    scalar(@lane_changed_details) ? (changed => \@lane_changed_details) : () });
+                    groupable_lane_meta => {
+                        project => $lane_info{project},
+                        study   => $lane_info{study},
+                        $lane_info{species} ? (species => $lane_info{species}) : (),
+                        population => $lane_info{population},
+                        individual => $lane_info{individual},
+                        sample     => $lane_info{sample},
+                        platform   => $lane_info{seq_tech},
+                        library    => $lane_info{library}
+                    },
+                    scalar(@lane_changed_details) ? (changed => \@lane_changed_details) : ()
+                }
+            );
         }
         
         my $results;
@@ -376,6 +383,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             my @meta_keys = split /\|/, $group_by_metadata;
             
             my $group_hash;
+            my %groups_missing_files;
             foreach my $result (@single_results) {
                 my @group_keys;
                 foreach my $key (@meta_keys) {
@@ -386,9 +394,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $group_key = join '|', @group_keys;
                 push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
                 push(@{ $group_hash->{$group_key}->{changed} }, @{ $result->{changed} }) if $result->{changed};
+                unless (@{ $result->{paths} }) {
+                    $groups_missing_files{$group_key} = 1;
+                }
             }
             
             while (my ($group, $data) = each %$group_hash) {
+                next if exists $groups_missing_files{$group};
                 push(@$results, { paths => $data->{paths}, group => $group, $data->{changed} ? (changed => $data->{changed}) : () });
             }
             

@@ -21,10 +21,12 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 
 my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     name       => 'my breakdancer_analysis pipeline setup',
-    datasource => VRPipe::DataSource->create(type    => 'delimited',
-                                             method  => 'all_columns',
-                                             options => { delimiter => "\t" },
-                                             source  => file(qw(t data hs_chr20.bam.datasource))),
+    datasource => VRPipe::DataSource->create(
+        type    => 'delimited',
+        method  => 'all_columns',
+        options => { delimiter => "\t" },
+        source  => file(qw(t data hs_chr20.bam.datasource))
+    ),
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
@@ -32,7 +34,9 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
         'breakdancer_max_options' => '-m 10000000 -q 25 -y 20',
         'whole_genome_mode'       => 1,
         #'chrom_list' => '20',
-        cleanup => 0, });
+        cleanup => 0,
+    }
+);
 
 my (@output_files, @final_files);
 my $element_id = 0;

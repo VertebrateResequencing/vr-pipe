@@ -40,7 +40,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 package VRPipe::DataSourceFactory;
-use MooseX::AbstractFactory;
+use VRPipe::Base::AbstractFactory;
 
 implementation_does qw/VRPipe::DataSourceRole/;
 implementation_class_via sub { 'VRPipe::DataSource::' . shift };

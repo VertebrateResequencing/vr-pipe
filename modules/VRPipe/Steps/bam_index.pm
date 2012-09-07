@@ -35,9 +35,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bam_index with VRPipe::StepRole {
     method options_definition {
-        return { samtools_exe => VRPipe::StepOption->create(description   => 'path to your samtools executable',
-                                                            optional      => 1,
-                                                            default_value => 'samtools') };
+        return {
+            samtools_exe => VRPipe::StepOption->create(
+                description   => 'path to your samtools executable',
+                optional      => 1,
+                default_value => 'samtools'
+            )
+        };
     }
     
     method inputs_definition {
@@ -53,14 +57,16 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $bam_path = $bam->path;
-                my $bai_file = $self->output_file(output_key => 'bai_files',
-                                                  output_dir => $bam->dir,
-                                                  basename   => $bam->basename . '.bai',
-                                                  type       => 'bin',
-                                                  metadata   => $bam->metadata);
+                my $bai_file = $self->output_file(
+                    output_key => 'bai_files',
+                    output_dir => $bam->dir,
+                    basename   => $bam->basename . '.bai',
+                    type       => 'bin',
+                    metadata   => $bam->metadata
+                );
                 my $bai_path = $bai_file->path;
                 my $cmd      = qq[$samtools index $bam_path $bai_path];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_index', 'index_and_check', [$cmd, $req, { output_files => [$bai_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_index', 'index_and_check', [$cmd, $req, { output_files => [$bai_file], block_and_skip_if_ok => 1 }]);
             }
         };
     }

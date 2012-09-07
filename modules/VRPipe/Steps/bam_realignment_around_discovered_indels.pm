@@ -41,13 +41,19 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               max_files   => -1,
-                                                               description => '1 or more bam files'),
-                 intervals_file => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                    max_files   => -1,
-                                                                    description => 'GATK intervals file for each input bam file',
-                                                                    metadata    => { source_bam => 'bam file this intervals file was created for' }) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => '1 or more bam files'
+            ),
+            intervals_file => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                max_files   => -1,
+                description => 'GATK intervals file for each input bam file',
+                metadata    => { source_bam => 'bam file this intervals file was created for' }
+            )
+        };
     }
     
     method body_sub {
@@ -64,9 +70,13 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
                 $self->throw("gatk_indelrealigner_options should not include the reference or IndelRealigner task command");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'GenomeAnalysisTK',
-                                                                  version => $self->gatk_version(),
-                                                                  summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file ' . $realign_opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'GenomeAnalysisTK',
+                    version => $self->gatk_version(),
+                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file ' . $realign_opts
+                )
+            );
             
             my $req = $self->new_requirements(memory => 4500, time => 2);
             
@@ -83,10 +93,12 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
                 my $bam_meta       = $bam->metadata;
                 my $realigned_base = $bam_base;
                 $realigned_base =~ s/bam$/realign.bam/;
-                my $realigned_bam_file = $self->output_file(output_key => 'realigned_bam_files',
-                                                            basename   => $realigned_base,
-                                                            type       => 'bam',
-                                                            metadata   => $bam_meta);
+                my $realigned_bam_file = $self->output_file(
+                    output_key => 'realigned_bam_files',
+                    basename   => $realigned_base,
+                    type       => 'bam',
+                    metadata   => $bam_meta
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $realigned_bam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
@@ -99,9 +111,13 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
     }
     
     method outputs_definition {
-        return { realigned_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                                         max_files   => -1,
-                                                                         description => 'a name-sorted bam file with improved alignments near indels') };
+        return {
+            realigned_bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => 'a name-sorted bam file with improved alignments near indels'
+            )
+        };
     }
     
     method post_process_sub {

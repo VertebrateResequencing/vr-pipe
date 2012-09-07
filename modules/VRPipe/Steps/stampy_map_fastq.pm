@@ -35,43 +35,60 @@ use VRPipe::Base;
 
 class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
     method options_definition {
-        return { reference_fasta    => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
-                 stampy_map_options => VRPipe::StepOption->create(description => 'options for stampy mapping, excluding the output, input fastq(s), reference, --bwa and --bwaoptions options',
-                                                                  optional    => 1),
-                 stampy_bwa_options => VRPipe::StepOption->create(description => 'to use bwa for premapping, supply the string you would give to --bwaoptions, excluding the reference',
-                                                                  optional    => 1),
-                 stampy_substitution_rate_from_metadata => VRPipe::StepOption->create(description   => q[set stampy's --substitutionrate option based on the value of the substitution_rate metadata key on the input fastqs, if present],
-                                                                                      optional      => 1,
-                                                                                      default_value => 1),
-                 stampy_exe => VRPipe::StepOption->create(description   => 'path to your stampy.py executable',
-                                                          optional      => 1,
-                                                          default_value => 'stampy.py'),
-                 bwa_exe => VRPipe::StepOption->create(description   => 'path to your bwa executable',
-                                                       optional      => 1,
-                                                       default_value => 'bwa') };
+        return {
+            reference_fasta    => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
+            stampy_map_options => VRPipe::StepOption->create(
+                description => 'options for stampy mapping, excluding the output, input fastq(s), reference, --bwa and --bwaoptions options',
+                optional    => 1
+            ),
+            stampy_bwa_options => VRPipe::StepOption->create(
+                description => 'to use bwa for premapping, supply the string you would give to --bwaoptions, excluding the reference',
+                optional    => 1
+            ),
+            stampy_substitution_rate_from_metadata => VRPipe::StepOption->create(
+                description   => q[set stampy's --substitutionrate option based on the value of the substitution_rate metadata key on the input fastqs, if present],
+                optional      => 1,
+                default_value => 1
+            ),
+            stampy_exe => VRPipe::StepOption->create(
+                description   => 'path to your stampy.py executable',
+                optional      => 1,
+                default_value => 'stampy.py'
+            ),
+            bwa_exe => VRPipe::StepOption->create(
+                description   => 'path to your bwa executable',
+                optional      => 1,
+                default_value => 'bwa'
+            )
+        };
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type        => 'fq',
-                                                                 max_files   => -1,
-                                                                 description => 'fastq file(s) to be mapped',
-                                                                 metadata    => {
-                                                                               lane              => 'lane name (a unique identifer for this sequencing run)',
-                                                                               library           => 'library name',
-                                                                               sample            => 'sample name',
-                                                                               center_name       => 'center name',
-                                                                               platform          => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                               study             => 'name of the study, put in the DS field of the RG header line',
-                                                                               insert_size       => 'expected (mean) insert size if paired',
-                                                                               analysis_group    => 'project analysis group',
-                                                                               population        => 'sample population',
-                                                                               bases             => 'total number of base pairs',
-                                                                               reads             => 'total number of reads (sequences)',
-                                                                               paired            => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
-                                                                               mate              => 'if paired, the path to the fastq that is our mate',
-                                                                               chunk             => 'if the fastq file was produced by fastq_split Step, the chunk number',
-                                                                               substitution_rate => 'the substitution rate of this sample data compared to the reference',
-                                                                               optional          => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study', 'substitution_rate'] }) };
+        return {
+            fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                max_files   => -1,
+                description => 'fastq file(s) to be mapped',
+                metadata    => {
+                    lane              => 'lane name (a unique identifer for this sequencing run)',
+                    library           => 'library name',
+                    sample            => 'sample name',
+                    center_name       => 'center name',
+                    platform          => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study             => 'name of the study, put in the DS field of the RG header line',
+                    insert_size       => 'expected (mean) insert size if paired',
+                    analysis_group    => 'project analysis group',
+                    population        => 'sample population',
+                    bases             => 'total number of base pairs',
+                    reads             => 'total number of reads (sequences)',
+                    paired            => '0=unpaired; 1=reads in this file are forward; 2=reads in this file are reverse',
+                    mate              => 'if paired, the path to the fastq that is our mate',
+                    chunk             => 'if the fastq file was produced by fastq_split Step, the chunk number',
+                    substitution_rate => 'the substitution rate of this sample data compared to the reference',
+                    optional          => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study', 'substitution_rate']
+                }
+            )
+        };
     }
     
     method body_sub {
@@ -143,7 +160,7 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         unless (defined $srate) {
                             # also check the source fastq or bam, in case this
                             # is a fastq split or was made from a bam
-                          SOURCE: foreach my $key (qw(source_bam source_fastq)) {
+                            SOURCE: foreach my $key (qw(source_bam source_fastq)) {
                                 my @source_paths = split(',', $fq_meta->{$key} || next);
                                 foreach my $path (@source_paths) {
                                     my $parent_srate = VRPipe::File->get(path => $path)->metadata->{substitution_rate};
@@ -165,13 +182,15 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         }
                         
                         # add metadata and construct readgroup info
-                        my $rg_arg = 'ID:' . $lane;
-                        my $sam_meta = { lane          => $lane,
-                                         bases         => $bases,
-                                         reads         => $reads,
-                                         paired        => $paired,
-                                         mapped_fastqs => join(',', @fqs),
-                                         $chunk ? (chunk => $chunk) : () };
+                        my $rg_arg   = 'ID:' . $lane;
+                        my $sam_meta = {
+                            lane          => $lane,
+                            bases         => $bases,
+                            reads         => $reads,
+                            paired        => $paired,
+                            mapped_fastqs => join(',', @fqs),
+                            $chunk ? (chunk => $chunk) : ()
+                        };
                         if (defined $fq_meta->{library}) {
                             my $lb = $fq_meta->{library};
                             $sam_meta->{library} = $lb;
@@ -210,10 +229,12 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
                         }
                         
                         my $ended = $paired ? 'pe' : 'se';
-                        my $sam_file = $self->output_file(output_key => 'stampy_sam_files',
-                                                          basename   => $chunk ? "$lane.$ended.$chunk.sam" : "$lane.$ended.sam",
-                                                          type       => 'txt',
-                                                          metadata   => $sam_meta);
+                        my $sam_file = $self->output_file(
+                            output_key => 'stampy_sam_files',
+                            basename   => $chunk ? "$lane.$ended.$chunk.sam" : "$lane.$ended.sam",
+                            type       => 'txt',
+                            metadata   => $sam_meta
+                        );
                         
                         $this_cmd .= " --readgroup=$rg_arg -o " . $sam_file->path;
                         $self->dispatch_wrapped_cmd('VRPipe::Steps::stampy_map_fastq', 'map_and_check', [$this_cmd, $req, { output_files => [$sam_file] }]);
@@ -233,25 +254,30 @@ class VRPipe::Steps::stampy_map_fastq with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { stampy_sam_files => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                      max_files   => -1,
-                                                                      description => 'mapped sam file per endedness and lane',
-                                                                      metadata    => {
-                                                                                    lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
-                                                                                    library        => 'library name',
-                                                                                    sample         => 'sample name',
-                                                                                    center_name    => 'center name',
-                                                                                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                                                                                    study          => 'name of the study, put in the DS field of the RG header line',
-                                                                                    insert_size    => 'expected (mean) insert size if paired',
-                                                                                    analysis_group => 'project analysis group',
-                                                                                    population     => 'sample population',
-                                                                                    bases          => 'total number of base pairs',
-                                                                                    reads          => 'total number of reads (sequences)',
-                                                                                    paired         => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                                                                                    mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
-                                                                                    chunk          => 'if this was mapped with fastqs that were chunks of an original fastq, this tells you which chunk',
-                                                                                    optional       => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study'] }) };
+        return {
+            stampy_sam_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                max_files   => -1,
+                description => 'mapped sam file per endedness and lane',
+                metadata    => {
+                    lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    library        => 'library name',
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    insert_size    => 'expected (mean) insert size if paired',
+                    analysis_group => 'project analysis group',
+                    population     => 'sample population',
+                    bases          => 'total number of base pairs',
+                    reads          => 'total number of reads (sequences)',
+                    paired         => '0=unpaired reads were mapped; 1=paired reads were mapped',
+                    mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
+                    chunk          => 'if this was mapped with fastqs that were chunks of an original fastq, this tells you which chunk',
+                    optional       => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                }
+            )
+        };
     }
     
     method post_process_sub {

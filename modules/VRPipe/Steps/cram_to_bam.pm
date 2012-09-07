@@ -39,8 +39,10 @@ class VRPipe::Steps::cram_to_bam extends VRPipe::Steps::cramtools {
     }
     
     method inputs_definition {
-        return { cram_files       => VRPipe::StepIODefinition->create(type => 'cram', max_files => -1, description => '1 or more cram files'),
-                 cram_index_files => VRPipe::StepIODefinition->create(type => 'bin',  max_files => -1, description => '1 or more cram index files') };
+        return {
+            cram_files       => VRPipe::StepIODefinition->create(type => 'cram', max_files => -1, description => '1 or more cram files'),
+            cram_index_files => VRPipe::StepIODefinition->create(type => 'bin',  max_files => -1, description => '1 or more cram index files')
+        };
     }
     
     method body_sub {
@@ -57,9 +59,13 @@ class VRPipe::Steps::cram_to_bam extends VRPipe::Steps::cramtools {
                 $self->throw("cramtools_cram_to_bam_options should not include the reference, input or output options");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'cramtools',
-                                                                  version => $self->cramtools_version(),
-                                                                  summary => 'java $jvm_args -jar cramtools.jar bam --input-cram-file $cram_file --output-bam-file $bam_file --reference-fasta-file $reference_fasta ' . $opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'cramtools',
+                    version => $self->cramtools_version(),
+                    summary => 'java $jvm_args -jar cramtools.jar bam --input-cram-file $cram_file --output-bam-file $bam_file --reference-fasta-file $reference_fasta ' . $opts
+                )
+            );
             
             my $req = $self->new_requirements(memory => 4000, time => 3);
             my $memory = $req->memory;
@@ -67,10 +73,12 @@ class VRPipe::Steps::cram_to_bam extends VRPipe::Steps::cramtools {
             foreach my $cram (@{ $self->inputs->{cram_files} }) {
                 my $bam_base = $cram->basename;
                 $bam_base =~ s/cram$/bam/;
-                my $bam_file = $self->output_file(output_key => 'bam_files',
-                                                  basename   => $bam_base,
-                                                  type       => 'bam',
-                                                  metadata   => $cram->metadata);
+                my $bam_file = $self->output_file(
+                    output_key => 'bam_files',
+                    basename   => $bam_base,
+                    type       => 'bam',
+                    metadata   => $cram->metadata
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $bam_file->dir;
                 my $jvm_args = $self->jvm_args($memory, $temp_dir);

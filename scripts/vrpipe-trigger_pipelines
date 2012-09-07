@@ -30,8 +30,8 @@ use VRPipe::Persistent::Schema;
 
 use Getopt::Long;
 my $verbose = 0;
-my $limit = 2000;
-my $result = GetOptions("verbose" => \$verbose, "limit=i" => \$limit);
+my $limit   = 2000;
+my $result  = GetOptions("verbose" => \$verbose, "limit=i" => \$limit);
 
 my $manager = VRPipe::Manager->create(global_limit => $limit);
 $manager->set_verbose_global(1) if $verbose;
@@ -47,7 +47,7 @@ exit;
 sub handle_pipeline {
     while (1) {
         last if $manager->trigger;
-	print STDERR ". ";
+        print STDERR ". ";
         sleep(60);
     }
 }

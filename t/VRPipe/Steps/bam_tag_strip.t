@@ -32,11 +32,13 @@ my @actual_stripped_reads = get_bam_records($strip_bam);
 is_deeply [@actual_stripped_reads[0 .. 9]], \@expected_stripped_reads, 'correct tags stripped from bam';
 
 # test as part of a pipeline
-my $setup = VRPipe::PipelineSetup->create(name        => 'strip_setup',
-                                          datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
-                                          output_root => $output_dir,
-                                          pipeline    => $pipeline,
-                                          options => { bam_tags_to_strip => $tags_to_strip });
+my $setup = VRPipe::PipelineSetup->create(
+    name        => 'strip_setup',
+    datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data improvement_datasource.fofn))->absolute),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options => { bam_tags_to_strip => $tags_to_strip }
+);
 
 ok handle_pipeline(), 'single-step pipeline ran ok';
 

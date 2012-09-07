@@ -116,29 +116,37 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
     use Inline C => Config => FILTERS => 'Strip_POD' => INC => "-I$ENV{SAMTOOLS}" => LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" => CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
     my $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
     
-    our %flags = (paired_tech   => 0x0001,
-                  paired_map    => 0x0002,
-                  self_unmapped => 0x0004,
-                  mate_unmapped => 0x0008,
-                  self_reverse  => 0x0010,
-                  mate_reverse  => 0x0020,
-                  '1st_in_pair' => 0x0040,
-                  '2nd_in_pair' => 0x0080,
-                  not_primary   => 0x0100,
-                  failed_qc     => 0x0200,
-                  duplicate     => 0x0400);
+    our %flags = (
+        paired_tech   => 0x0001,
+        paired_map    => 0x0002,
+        self_unmapped => 0x0004,
+        mate_unmapped => 0x0008,
+        self_reverse  => 0x0010,
+        mate_reverse  => 0x0020,
+        '1st_in_pair' => 0x0040,
+        '2nd_in_pair' => 0x0080,
+        not_primary   => 0x0100,
+        failed_qc     => 0x0200,
+        duplicate     => 0x0400
+    );
     
-    has 'parsed_record' => (is      => 'ro',
-                            isa     => 'HashRef',
-                            default => sub { {} });
+    has 'parsed_record' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        default => sub { {} }
+    );
     
-    has '_header' => (is      => 'rw',
-                      isa     => 'HashRef',
-                      default => sub { {} });
+    has '_header' => (
+        is      => 'rw',
+        isa     => 'HashRef',
+        default => sub { {} }
+    );
     
-    has '_writes' => (is      => 'rw',
-                      isa     => 'HashRef',
-                      default => sub { {} });
+    has '_writes' => (
+        is      => 'rw',
+        isa     => 'HashRef',
+        default => sub { {} }
+    );
     
     sub BUILD {
         my $self = shift;

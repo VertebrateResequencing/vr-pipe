@@ -5,7 +5,9 @@ VRPipe::Steps::vcf_vep_consequences - a step
 
 =head1 DESCRIPTION
 
-Runs the vcf2consequences_vep program, which applies Consequence annotations generated using the Ensembl VEP to VCF files, and optionally Grantham Matrix and GERP scores.
+Runs the vcf2consequences_vep program, which applies Consequence annotations
+generated using the Ensembl VEP to VCF files, and optionally Grantham Matrix
+and GERP scores.
 
 =head1 AUTHOR
 
@@ -35,34 +37,39 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
     method options_definition {
-        return { 'vcf2consequences_options' => VRPipe::StepOption->create(description => 'options to vcf2consequences_vep, excluding -v and -i'),
-                 'vcf2consequences_exe'     => VRPipe::StepOption->create(
-                                                                      description   => 'path to your vcf2consequences executable',
-                                                                      optional      => 1,
-                                                                      default_value => 'vcf2consequences_vep'),
-                 'tabix_exe' => VRPipe::StepOption->create(description   => 'path to your tabix executable',
-                                                           optional      => 1,
-                                                           default_value => 'tabix') };
+        return {
+            'vcf2consequences_options' => VRPipe::StepOption->create(description => 'options to vcf2consequences_vep, excluding -v and -i'),
+            'vcf2consequences_exe'     => VRPipe::StepOption->create(
+                description   => 'path to your vcf2consequences executable',
+                optional      => 1,
+                default_value => 'vcf2consequences_vep'
+            )
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               description => 'annotated vcf files',
-                                                               max_files   => -1),
-                 vep_txt => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                             description => 'vep analysis output file',
-                                                             metadata    => { source_vcf => 'the vcf file analysed by the VEP' },
-                                                             max_files   => -1) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'annotated vcf files',
+                max_files   => -1
+            ),
+            vep_txt => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'vep analysis output file',
+                metadata    => { source_vcf => 'the vcf file analysed by the VEP' },
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
         return sub {
             my $self = shift;
             
-            my $options   = $self->options;
-            my $tabix_exe = $options->{tabix_exe};
-            my $con_exe   = $options->{'vcf2consequences_exe'};
-            my $con_opts  = $options->{'vcf2consequences_options'};
+            my $options  = $self->options;
+            my $con_exe  = $options->{'vcf2consequences_exe'};
+            my $con_opts = $options->{'vcf2consequences_options'};
             
             if ($con_opts =~ /-[v,i]/) {
                 $self->throw("vcf2consequences_options should not include the -i or -v option");
@@ -84,34 +91,26 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
                 my $vep_txt_path = $vep_files{$input_path} || $self->throw("got no recal file for $input_path");
                 
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.vcf.gz$/) {
-                    $basename =~ s/\.vcf.gz$/.conseq.vcf.gz/;
-                }
-                else {
-                    $basename =~ s/\.vcf$/.conseq.vcf/;
-                }
-                my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename, type => 'vcf');
-                if ($vcf_file->metadata) {
-                    $conseq_vcf->add_metadata($vcf_file->metadata);
-                }
-                my $tbi = $self->output_file(output_key => 'tbi_file', basename => $basename . '.tbi', type => 'bin');
+                $basename =~ s/\.vcf(.gz)?$/.conseq.vcf.gz/;
+                my $conseq_vcf = $self->output_file(output_key => 'conseq_vcf', basename => $basename, type => 'vcf', metadata => $vcf_file->metadata);
                 
                 my $output_path = $conseq_vcf->path;
                 
-                my $this_cmd = "$con_exe -v $input_path -i $vep_txt_path $con_opts | bgzip -c > $output_path; $tabix_exe -f -p vcf $output_path";
+                my $this_cmd = "$con_exe -v $input_path -i $vep_txt_path $con_opts | bgzip -c > $output_path";
                 
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_vep_consequences', 'consequence_vcf', [$this_cmd, $req, { output_files => [$conseq_vcf, $tbi] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_vep_consequences', 'consequence_vcf', [$this_cmd, $req, { output_files => [$conseq_vcf] }]);
             }
         };
     }
     
     method outputs_definition {
-        return { conseq_vcf => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                                description => 'annotated vcf file with VEP consequences',
-                                                                max_files   => -1),
-                 tbi_file => VRPipe::StepIODefinition->create(type        => 'bin',
-                                                              description => 'a tbi file',
-                                                              max_files   => -1) };
+        return {
+            conseq_vcf => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'annotated vcf file with VEP consequences',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {
@@ -127,7 +126,7 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
     }
     
     method consequence_vcf (ClassName|Object $self: Str $cmd_line) {
-        my ($input_path, $output_path) = $cmd_line =~ /\S+ -v (\S+) .* vcf (\S[^;]+)$/;
+        my ($input_path, $output_path) = $cmd_line =~ /\S+ -v (\S+) .* bgzip -c > (\S+)$/;
         my $input_file = VRPipe::File->get(path => $input_path);
         
         my $input_recs = $input_file->num_records;

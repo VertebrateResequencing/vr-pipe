@@ -51,9 +51,13 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
             
             my $markdup_opts = $options->{markdup_options};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
-                                                                  version => $self->picard_version(),
-                                                                  summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file ' . $markdup_opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'picard',
+                    version => $self->picard_version(),
+                    summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file ' . $markdup_opts
+                )
+            );
             
             my $req = $self->new_requirements(memory => 5800, time => 2);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
@@ -61,10 +65,12 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
                 my $bam_meta     = $bam->metadata;
                 my $markdup_base = $bam_base;
                 $markdup_base =~ s/bam$/markdup.bam/;
-                my $markdup_bam_file = $self->output_file(output_key => 'markdup_bam_files',
-                                                          basename   => $markdup_base,
-                                                          type       => 'bam',
-                                                          metadata   => $bam_meta);
+                my $markdup_bam_file = $self->output_file(
+                    output_key => 'markdup_bam_files',
+                    basename   => $markdup_base,
+                    type       => 'bam',
+                    metadata   => $bam_meta
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $markdup_bam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);

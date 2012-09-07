@@ -35,14 +35,20 @@ use VRPipe::Base;
 
 class VRPipe::Steps::breakdancer_bam2cfg with VRPipe::StepRole {
     method options_definition {
-        return { 'bam2cfg_options' => VRPipe::StepOption->create(description => 'bam2cfg.pl options excluding bam file name'),
-                 'bam2cfg_exe'     => VRPipe::StepOption->create(description => 'full path to bam2cfg.pl', optional => 1, default_value => 'bam2cfg.pl'), };
+        return {
+            'bam2cfg_options' => VRPipe::StepOption->create(description => 'bam2cfg.pl options excluding bam file name'),
+            'bam2cfg_exe'     => VRPipe::StepOption->create(description => 'full path to bam2cfg.pl', optional => 1, default_value => 'bam2cfg.pl'),
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               description => 'bam files',
-                                                               max_files   => -1) };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'bam files',
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
@@ -68,9 +74,13 @@ class VRPipe::Steps::breakdancer_bam2cfg with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { bam_cfg => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                             description => 'breakdancer bam config file',
-                                                             max_files   => -1) };
+        return {
+            bam_cfg => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'breakdancer bam config file',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

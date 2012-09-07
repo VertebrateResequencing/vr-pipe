@@ -36,15 +36,21 @@ use VRPipe::Parser;
 
 class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
     around options_definition {
-        return { %{ $self->$orig },
-                 samtools_mpileup_options => VRPipe::StepOption->create(description   => 'options for samtools mpileup, excluding -l and -f (-g is required)',
-                                                                        optional      => 1,
-                                                                        default_value => '-ugDI -d 1000 -C50') };
+        return {
+            %{ $self->$orig },
+            samtools_mpileup_options => VRPipe::StepOption->create(
+                description   => 'options for samtools mpileup, excluding -l and -f (-g is required)',
+                optional      => 1,
+                default_value => '-ugDI -d 1000 -C50'
+            )
+        };
     }
     
     method inputs_definition {
-        return { bam_files   => VRPipe::StepIODefinition->create(type => 'bam', max_files   => -1, description => 'bam files for bcf production'),
-                 hapmap_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'hapmap sites (-l positions) file') };
+        return {
+            bam_files   => VRPipe::StepIODefinition->create(type => 'bam', max_files   => -1, description => 'bam files for bcf production'),
+            hapmap_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'hapmap sites (-l positions) file')
+        };
     }
     
     method body_sub {
@@ -85,10 +91,12 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
                 $self->throw("Unable to obtain sample name for bam file $bam_path") unless $sample;
                 my $individual = $meta->{individual} || $sample;
                 
-                my $bcf_file = $self->output_file(output_key => 'bcf_files_with_metadata',
-                                                  basename   => $bam_path->basename . '.bcf',
-                                                  type       => 'bin',
-                                                  metadata   => { sample => $sample, individual => $individual, source_bam => $bam_path->stringify });
+                my $bcf_file = $self->output_file(
+                    output_key => 'bcf_files_with_metadata',
+                    basename   => $bam_path->basename . '.bcf',
+                    type       => 'bcf',
+                    metadata   => { sample => $sample, individual => $individual, source_bam => $bam_path->stringify }
+                );
                 my $bcf_path = $bcf_file->path;
                 my $cmd      = qq[$samtools mpileup $mpileup_opts -f $ref $bam_path > $bcf_path];
                 $self->dispatch([$cmd, $req, { output_files => [$bcf_file] }]);
@@ -97,13 +105,18 @@ class VRPipe::Steps::mpileup_bcf_hapmap extends VRPipe::Steps::mpileup_bcf {
     }
     
     method outputs_definition {
-        return { bcf_files_with_metadata => VRPipe::StepIODefinition->create(type        => 'bin',
-                                                                             max_files   => -1,
-                                                                             description => 'bcf file produced for bam file using samtools',
-                                                                             metadata    => {
-                                                                                           sample     => 'name of expected sample',
-                                                                                           individual => 'name of expected individual',
-                                                                                           source_bam => 'name of bam file used to produce bcf file' }) };
+        return {
+            bcf_files_with_metadata => VRPipe::StepIODefinition->create(
+                type        => 'bcf',
+                max_files   => -1,
+                description => 'bcf file produced for bam file using samtools',
+                metadata    => {
+                    sample     => 'name of expected sample',
+                    individual => 'name of expected individual',
+                    source_bam => 'name of bam file used to produce bcf file'
+                }
+            )
+        };
     }
     
     method description {

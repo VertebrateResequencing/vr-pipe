@@ -42,9 +42,11 @@ use VRPipe::Base;
 
 class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
     around options_definition {
-        return { %{ $self->$orig },
-                 known_indels_for_realignment => VRPipe::StepOption->create(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites. Could be --DBSNP and -B options for older versions of GATK.'),
-                 target_intervals_options     => VRPipe::StepOption->create(description => 'command line options for GATK RealignerTargetCreator; excludes -known options which are set by another StepOption', optional => 1) };
+        return {
+            %{ $self->$orig },
+            known_indels_for_realignment => VRPipe::StepOption->create(description => 'the -known option(s) for GATK RealignerTargetCreator and IndelRealigner which define known indel sites. Could be --DBSNP and -B options for older versions of GATK.'),
+            target_intervals_options     => VRPipe::StepOption->create(description => 'command line options for GATK RealignerTargetCreator; excludes -known options which are set by another StepOption', optional => 1)
+        };
     }
     
     method inputs_definition {
@@ -73,15 +75,21 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
             my $basename = join '_', map { $_->basename } @known_files;
             $basename =~ s/\.vcf(\.gz)?$//g;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'GenomeAnalysisTK',
-                                                                  version => $self->gatk_version(),
-                                                                  summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) ' . $intervals_opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'GenomeAnalysisTK',
+                    version => $self->gatk_version(),
+                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) ' . $intervals_opts
+                )
+            );
             
-            my $intervals_file = $self->output_file(output_key => 'intervals_file',
-                                                    output_dir => $known_files[0]->dir->stringify,     # arbitrarily place intervals file in the directory of the first listed file
-                                                    basename   => qq[$basename.intervals],
-                                                    type       => 'txt',
-                                                    metadata   => { known_files => join(',', @knowns) });
+            my $intervals_file = $self->output_file(
+                output_key => 'intervals_file',
+                output_dir => $known_files[0]->dir->stringify,     # arbitrarily place intervals file in the directory of the first listed file
+                basename   => qq[$basename.intervals],
+                type       => 'txt',
+                metadata   => { known_files => join(',', @knowns) }
+            );
             
             my $req = $self->new_requirements(memory => 4500, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
@@ -92,9 +100,13 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
     }
     
     method outputs_definition {
-        return { intervals_file => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                                    description => 'GATK intervals file for known indel sites',
-                                                                    metadata    => { known_files => 'comma separated list of known indel file(s) used to create the intervals file' }) };
+        return {
+            intervals_file => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'GATK intervals file for known indel sites',
+                metadata    => { known_files => 'comma separated list of known indel file(s) used to create the intervals file' }
+            )
+        };
     }
     
     method post_process_sub {

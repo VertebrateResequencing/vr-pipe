@@ -1,0 +1,3 @@
+path	chrom	analysis_group
+t/data/vqsr.chr11_reduced.vcf.gz	11	low_coverage
+t/data/vqsr.chr20_reduced.vcf.gz	20	low_coverage

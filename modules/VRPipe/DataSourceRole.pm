@@ -38,25 +38,37 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::DataSourceRole {
-    has 'method' => (is  => 'ro',
-                     isa => 'Str');
+    has 'method' => (
+        is  => 'ro',
+        isa => 'Str'
+    );
     
-    has 'source' => (is  => 'ro',
-                     isa => 'Defined');
+    has 'source' => (
+        is  => 'ro',
+        isa => 'Defined'
+    );
     
-    has 'options' => (is  => 'ro',
-                      isa => 'HashRef');
+    has 'options' => (
+        is  => 'ro',
+        isa => 'HashRef'
+    );
     
-    has '_handle' => (is      => 'rw',
-                      isa     => 'Defined',
-                      lazy    => 1,
-                      builder => '_open_source');
+    has '_handle' => (
+        is      => 'rw',
+        isa     => 'Defined',
+        lazy    => 1,
+        builder => '_open_source'
+    );
     
-    has '_changed_marker' => (is  => 'rw',
-                              isa => 'Str');
+    has '_changed_marker' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
     
-    has '_datasource_id' => (is  => 'ro',
-                             isa => Persistent);
+    has '_datasource_id' => (
+        is  => 'ro',
+        isa => Persistent
+    );
     
     requires '_open_source';
     requires '_has_changed';
@@ -80,12 +92,17 @@ role VRPipe::DataSourceRole {
         push(@meta_methods, $metarole->get_required_method_list);
         my %role_methods = map { $_ => 1 } @meta_methods;
         
-        my $class        = ref($self);
-        my $classmeta    = $self->meta;
-        my %self_methods = map { $_->name => 1 } $classmeta->get_all_attributes; #*** really we want to skip methods on all of the roles a class uses, but I don't know how to get that list of all roles...
-        $self_methods{new}     = 1;
-        $self_methods{DESTROY} = 1;                                              #*** bleugh, is there a way to detect these kinds of things automatically as well?
-        return map { $_->name } grep { $_->original_package_name eq $class && !exists $role_methods{ $_->name } && !exists $self_methods{ $_->name } && index($_->name, '_') != 0 } $classmeta->get_all_methods;
+        my %methods;
+        my $this_classmeta = $self->meta;
+        foreach my $class ($this_classmeta->linearized_isa) {
+            next unless ($class =~ /VRPipe::DataSource/);
+            my $classmeta = $class->meta;
+            my %self_methods = map { $_->name => 1 } $classmeta->get_all_attributes; #*** really we want to skip methods on all of the roles a class uses, but I don't know how to get that list of all roles...
+            $self_methods{new}     = 1;
+            $self_methods{DESTROY} = 1; #*** bleugh, is there a way to detect these kinds of things automatically as well?
+            map { $methods{ $_->name } = 1 } grep { $_->original_package_name eq $class && !exists $role_methods{ $_->name } && !exists $self_methods{ $_->name } && index($_->name, '_') != 0 } $classmeta->get_all_methods;
+        }
+        return keys %methods;
     }
     
     method method_options (Str $method) {

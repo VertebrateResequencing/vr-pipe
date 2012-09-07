@@ -34,10 +34,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::irods with VRPipe::StepRole {
-    has 'irods_exes' => (is      => 'ro',
-                         isa     => 'HashRef',
-                         lazy    => 1,
-                         builder => '_build_irods_exes');
+    has 'irods_exes' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        lazy    => 1,
+        builder => '_build_irods_exes'
+    );
     
     method _build_irods_exes {
         return {};

@@ -50,9 +50,11 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::fasta with VRPipe::ParserRole {
-    has '_saw_last_line' => (is      => 'rw',
-                             isa     => 'Bool',
-                             default => 0);
+    has '_saw_last_line' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
 
 =head2 parsed_record
  

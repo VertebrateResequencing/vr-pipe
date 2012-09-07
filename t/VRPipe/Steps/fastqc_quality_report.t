@@ -8,8 +8,10 @@ use Archive::Zip::MemberRead;
 
 BEGIN {
     use Test::Most tests => 4;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES)], #require env FASTQC ?
-                    required_exe => [qw(fastqc)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES)], #require env FASTQC ?
+        required_exe => [qw(fastqc)]
+    );
     use TestPipelines;
     use_ok('VRPipe::Steps::fastqc_quality_report');
 }
@@ -20,11 +22,13 @@ is_deeply [$step->id, $step->description], [1, 'Produces quality report using fa
 
 VRPipe::File->create(path => file(qw(t data 2822_6_1.fastq))->absolute);
 
-my $setup = VRPipe::PipelineSetup->create(name        => 'fastqc_quality_report',
-                                          datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data fastqc_report_datasource.fofn))->absolute),
-                                          output_root => $output_dir,
-                                          pipeline    => $pipeline,
-                                          options => { fastqc_exe => 'fastqc' });
+my $setup = VRPipe::PipelineSetup->create(
+    name        => 'fastqc_quality_report',
+    datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data fastqc_report_datasource.fofn))->absolute),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options => { fastqc_exe => 'fastqc' }
+);
 
 my @output_subdirs = output_subdirs(1);
 my @zip;

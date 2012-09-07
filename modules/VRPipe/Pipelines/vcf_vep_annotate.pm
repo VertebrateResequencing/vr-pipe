@@ -5,7 +5,10 @@ VRPipe::Pipelines::vcf_vep_annotate - a pipeline
 
 =head1 DESCRIPTION
 
-Pipeline to Annotate VCF files with consequences using the Ensembl Variant Effect Predictor, VEP. Runs against whole VCFs, so for 'large' VCFs consider using the vcf_chunked_vep_annotate pipeline, which chunks the VCFs to distribute the processing.
+Pipeline to Annotate VCF files with consequences using the Ensembl Variant
+Effect Predictor, VEP. Runs against whole VCFs, so for 'large' VCFs consider
+using the vcf_chunked_vep_annotate pipeline, which chunks the VCFs to
+distribute the processing.
 
 =head1 AUTHOR
 
@@ -39,7 +42,7 @@ class VRPipe::Pipelines::vcf_vep_annotate with VRPipe::PipelineRole {
     }
     
     method _num_steps {
-        return 2;
+        return 3;
     }
     
     method description {
@@ -52,11 +55,12 @@ class VRPipe::Pipelines::vcf_vep_annotate with VRPipe::PipelineRole {
     
     method _step_list {
         return (
-            [VRPipe::Step->get(name => 'vep_analysis'), VRPipe::Step->get(name => 'vcf_vep_consequences')],
+            [VRPipe::Step->get(name => 'vep_analysis'), VRPipe::Step->get(name => 'vcf_vep_consequences'), VRPipe::Step->get(name => 'vcf_index')],
             
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vep_txt', to_key => 'vep_txt'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'vcf_files')],
+            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vep_txt', to_key => 'vep_txt'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'conseq_vcf', to_key => 'vcf_files')],
             
-            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]);
+            [VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]
+        );
     }
 }
 

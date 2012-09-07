@@ -5,7 +5,8 @@ VRPipe::Steps::retroseq_call - a step
 
 =head1 DESCRIPTION
 
-Generates a VCF of Transposable Element calls from BAM files and their TE Paired End read candidates in BED format, as generated using Retroseq discovery
+Generates a VCF of Transposable Element calls from BAM files and their TE
+Paired End read candidates in BED format, as generated using Retroseq discovery
 
 =head1 AUTHOR
 
@@ -39,17 +40,24 @@ class VRPipe::Steps::retroseq_call with VRPipe::StepRole {
             retroseq_exe => VRPipe::StepOption->create(description => 'full path to retroseq.pl', optional => 1, default_value => 'retroseq.pl'),
             retroseq_ref => VRPipe::StepOption->create(description => '-ref option, genome ref FASTA file'),
             retroseq_filter       => VRPipe::StepOption->create(description => '-filter option, tab file with TE type and BED file of reference elements to filter out', optional => 1),
-            retroseq_call_options => VRPipe::StepOption->create(description => 'retroseq -call additional options excluding input, output and filter files'), };
+            retroseq_call_options => VRPipe::StepOption->create(description => 'retroseq -call additional options excluding input, output and filter files'),
+        };
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                               description => 'bam files',
-                                                               max_files   => -1),
-                 rseq_bed => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                              description => 'retroseq candidate supporting read pairs in BED format',
-                                                              metadata    => { source_bam => 'the bam file analysed by the retroseq -discover' },
-                                                              max_files   => -1), };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                description => 'bam files',
+                max_files   => -1
+            ),
+            rseq_bed => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'retroseq candidate supporting read pairs in BED format',
+                metadata    => { source_bam => 'the bam file analysed by the retroseq -discover' },
+                max_files   => -1
+            ),
+        };
     }
     
     method body_sub {
@@ -76,12 +84,12 @@ class VRPipe::Steps::retroseq_call with VRPipe::StepRole {
                 my $bam_path = $bam_file->path;
                 
                 my $basename = $bam_file->basename;
-                $basename =~ s/\.bam$/.rseq.vcf.PE/; # Assuming Paired End reads
+                $basename =~ s/\.bam$/.rseq.PE.vcf/; # Assuming Paired End reads
                 
                 my $rseq_vcf = $self->output_file(output_key => 'rseq_vcf', basename => $basename, type => 'vcf');
                 
                 my $output_path = $rseq_vcf->path;
-                $output_path =~ s/\.PE$//;           # remove suffix for the -output parameter
+                $output_path =~ s/\.PE\.vcf$//;      # remove suffix for the -output parameter
                 
                 my $cmd = "$retroseq_exe -call -bam $bam_path -input $bed_files{$bam_path} -ref $retroseq_ref";
                 $cmd .= " -filter $retroseq_filter" if $retroseq_filter;
@@ -93,9 +101,13 @@ class VRPipe::Steps::retroseq_call with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { rseq_vcf => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                              description => 'VCF of retroseq TE calls',
-                                                              max_files   => -1) };
+        return {
+            rseq_vcf => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'VCF of retroseq TE calls',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {
@@ -114,7 +126,7 @@ class VRPipe::Steps::retroseq_call with VRPipe::StepRole {
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my ($output_path) = $cmd_line =~ /.* -output (\S+)$/;
-        $output_path .= '.PE';                       # paired end
+        $output_path .= '.PE.vcf';                   # paired end
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;

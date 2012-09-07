@@ -49,60 +49,86 @@ class VRPipe::Interface::CmdLine {
     use VRPipe::Persistent::SchemaBase;
     use Config;
     
-    has 'description' => (is       => 'rw',
-                          isa      => 'Str',
-                          required => 1);
+    has 'description' => (
+        is       => 'rw',
+        isa      => 'Str',
+        required => 1
+    );
     
-    has 'extra_args' => (is  => 'rw',
-                         isa => 'Str');
+    has 'extra_args' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
     
-    has 'opt_spec' => (is      => 'rw',
-                       isa     => 'ArrayRef[ArrayRef]',
-                       lazy    => 1,
-                       builder => '_default_opt_spec');
+    has 'opt_spec' => (
+        is      => 'rw',
+        isa     => 'ArrayRef[ArrayRef]',
+        lazy    => 1,
+        builder => '_default_opt_spec'
+    );
     
-    has '_opts_hash' => (is      => 'ro',
-                         isa     => 'HashRef',
-                         default => sub { {} },
-                         writer  => '_set_opts',
-                         traits  => ['Hash'],
-                         handles => { opts           => 'get',
-                                      option_was_set => 'defined',
-                                      '_set_opt'     => 'set' });
+    has '_opts_hash' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        default => sub { {} },
+        writer  => '_set_opts',
+        traits  => ['Hash'],
+        handles => {
+            opts           => 'get',
+            option_was_set => 'defined',
+            '_set_opt'     => 'set'
+        }
+    );
     
-    has 'usage' => (is     => 'ro',
-                    isa    => 'Str',
-                    writer => '_set_usage');
+    has 'usage' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_usage'
+    );
     
-    has '_multiple_setups' => (is  => 'rw',
-                               isa => 'Bool');
+    has '_multiple_setups' => (
+        is  => 'rw',
+        isa => 'Bool'
+    );
     
-    has 'no_user_option' => (is      => 'ro',
-                             isa     => 'Bool',
-                             default => 0);
+    has 'no_user_option' => (
+        is      => 'ro',
+        isa     => 'Bool',
+        default => 0
+    );
     
-    has '_ua' => (is      => 'ro',
-                  isa     => 'LWP::UserAgent',
-                  lazy    => 1,
-                  builder => '_build_ua');
+    has '_ua' => (
+        is      => 'ro',
+        isa     => 'LWP::UserAgent',
+        lazy    => 1,
+        builder => '_build_ua'
+    );
     
-    has 'port' => (is     => 'ro',
-                   isa    => PositiveInt,
-                   writer => '_set_port');
+    has 'port' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        writer => '_set_port'
+    );
     
-    has 'dsn' => (is     => 'ro',
-                  isa    => 'Str',
-                  writer => '_set_dsn');
+    has 'dsn' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_dsn'
+    );
     
-    has 'server_ok' => (is      => 'ro',
-                        isa     => 'Bool',
-                        lazy    => 1,
-                        builder => 'check_server');
+    has 'server_ok' => (
+        is      => 'ro',
+        isa     => 'Bool',
+        lazy    => 1,
+        builder => 'check_server'
+    );
     
-    has '_ua_port_baseurl' => (is      => 'ro',
-                               isa     => 'ArrayRef',
-                               lazy    => 1,
-                               builder => '_build_ua_port_baseurl');
+    has '_ua_port_baseurl' => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        builder => '_build_ua_port_baseurl'
+    );
     
     method _default_opt_spec {
         return [['deployment=s', 'Use the production or testing database', { default => 'production' }], ['env|e=s', 'Use options stored in an environment variable'], ['help|h', 'Print this usage message and exit']];
@@ -351,6 +377,7 @@ class VRPipe::Interface::CmdLine {
         my $expected_dsn = $self->dsn;
         unless ($server_dsn eq $expected_dsn) {
             if ($no_auto_start_or_die) {
+                $self->error("expected dsn $expected_dsn but got $server_dsn");
                 return -1;
             }
             else {

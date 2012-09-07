@@ -39,26 +39,32 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::DataElementLink extends VRPipe::Persistent {
-    has 'pipelinesetup' => (is         => 'rw',
-                            isa        => Persistent,
-                            coerce     => 1,
-                            traits     => ['VRPipe::Persistent::Attributes'],
-                            is_key     => 1,
-                            belongs_to => 'VRPipe::PipelineSetup');
+    has 'pipelinesetup' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::PipelineSetup'
+    );
     
-    has 'parent' => (is         => 'rw',
-                     isa        => Persistent,
-                     coerce     => 1,
-                     traits     => ['VRPipe::Persistent::Attributes'],
-                     is_key     => 1,
-                     belongs_to => 'VRPipe::DataElement');
+    has 'parent' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::DataElement'
+    );
     
-    has 'child' => (is         => 'rw',
-                    isa        => Persistent,
-                    coerce     => 1,
-                    traits     => ['VRPipe::Persistent::Attributes'],
-                    is_key     => 1,
-                    belongs_to => 'VRPipe::DataElement');
+    has 'child' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::DataElement'
+    );
     
     __PACKAGE__->make_persistent();
 }

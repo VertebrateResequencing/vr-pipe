@@ -53,15 +53,19 @@ role VRPipe::Base::Debuggable {
     our $GLOBAL_LOG_FILE = File::Spec->catfile($ENV{HOME}, '.VRPipe.log');
     
     # these are just to allow verbose and log_file to be set during new()
-    has '_verbose' => (is       => 'ro',
-                       isa      => VerbosityValue,
-                       default  => 0,
-                       init_arg => 'verbose',
-                       trigger  => \&verbose);
-    has '_log_file' => (is       => 'ro',
-                        isa      => 'Str|Path::Class::File',
-                        init_arg => 'log_file',
-                        trigger  => \&log_file);
+    has '_verbose' => (
+        is       => 'ro',
+        isa      => VerbosityValue,
+        default  => 0,
+        init_arg => 'verbose',
+        trigger  => \&verbose
+    );
+    has '_log_file' => (
+        is       => 'ro',
+        isa      => 'Str|Path::Class::File',
+        init_arg => 'log_file',
+        trigger  => \&log_file
+    );
 
 =head2 verbose
  

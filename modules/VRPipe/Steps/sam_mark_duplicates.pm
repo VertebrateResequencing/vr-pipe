@@ -50,9 +50,13 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
             my $markdup_jar  = $self->jar('MarkDuplicates.jar');
             my $markdup_opts = $options->{markdup_options};
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'picard',
-                                                                  version => $self->picard_version(),
-                                                                  summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$sam_file OUTPUT=$markdup_sam_file ' . $markdup_opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'picard',
+                    version => $self->picard_version(),
+                    summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$sam_file OUTPUT=$markdup_sam_file ' . $markdup_opts
+                )
+            );
             
             my $req = $self->new_requirements(memory => 5800, time => 2);
             foreach my $sam (@{ $self->inputs->{sam_files} }) {
@@ -60,10 +64,12 @@ class VRPipe::Steps::sam_mark_duplicates extends VRPipe::Steps::picard {
                 my $sam_meta     = $sam->metadata;
                 my $markdup_base = $sam_base;
                 $markdup_base =~ s/sam$/markdup.sam/;
-                my $markdup_sam_file = $self->output_file(output_key => 'markdup_sam_files',
-                                                          basename   => $markdup_base,
-                                                          type       => 'txt',
-                                                          metadata   => $sam_meta);
+                my $markdup_sam_file = $self->output_file(
+                    output_key => 'markdup_sam_files',
+                    basename   => $markdup_base,
+                    type       => 'txt',
+                    metadata   => $sam_meta
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $markdup_sam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);

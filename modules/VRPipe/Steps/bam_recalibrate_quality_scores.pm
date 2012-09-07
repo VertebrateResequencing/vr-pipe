@@ -47,8 +47,10 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
     }
     
     method inputs_definition {
-        return { bam_files               => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
-                 bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from count covariates step') };
+        return {
+            bam_files               => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
+            bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from count covariates step')
+        };
     }
     
     method body_sub {
@@ -65,9 +67,13 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
                 $self->throw("bam_recalibration_options should not include the reference, recalFile option or TableRecalibration task command");
             }
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe     => 'GenomeAnalysisTK',
-                                                                  version => $self->gatk_version(),
-                                                                  summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file ' . $recal_opts));
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'GenomeAnalysisTK',
+                    version => $self->gatk_version(),
+                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file ' . $recal_opts
+                )
+            );
             
             my $req = $self->new_requirements(memory => 4500, time => 2);
             foreach my $recal_file (@{ $self->inputs->{bam_recalibration_files} }) {
@@ -77,10 +83,12 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
                 my $bam_meta   = $bam->metadata;
                 my $recal_base = $bam_base;
                 $recal_base =~ s/bam$/recal.bam/;
-                my $recal_bam_file = $self->output_file(output_key => 'recalibrated_bam_files',
-                                                        basename   => $recal_base,
-                                                        type       => 'bam',
-                                                        metadata   => $bam_meta);
+                my $recal_bam_file = $self->output_file(
+                    output_key => 'recalibrated_bam_files',
+                    basename   => $recal_base,
+                    type       => 'bam',
+                    metadata   => $bam_meta
+                );
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_bam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
@@ -92,9 +100,13 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
     }
     
     method outputs_definition {
-        return { recalibrated_bam_files => VRPipe::StepIODefinition->create(type        => 'bam',
-                                                                            max_files   => -1,
-                                                                            description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',) };
+        return {
+            recalibrated_bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
+                max_files   => -1,
+                description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
+            )
+        };
     }
     
     method post_process_sub {

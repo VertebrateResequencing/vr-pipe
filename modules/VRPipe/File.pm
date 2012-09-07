@@ -72,71 +72,95 @@ class VRPipe::File extends VRPipe::Persistent {
     #     alone. However, with MySQL at least, the search on path is case
     #     insensitive, so we can't store two different files that only differ
     #     by case!
-    has 'path' => (is      => 'rw',
-                   isa     => AbsoluteFile,                      # we can't be nice and auto convert relative to absolute because alterations made by moose during construction do not affect what gets put in the db
-                   coerce  => 1,
-                   traits  => ['VRPipe::Persistent::Attributes'],
-                   is_key  => 1,
-                   handles => [qw(slurp stat lstat basename dir)]);
+    has 'path' => (
+        is      => 'rw',
+        isa     => AbsoluteFile,                      # we can't be nice and auto convert relative to absolute because alterations made by moose during construction do not affect what gets put in the db
+        coerce  => 1,
+        traits  => ['VRPipe::Persistent::Attributes'],
+        is_key  => 1,
+        handles => [qw(slurp stat lstat basename dir)]
+    );
     
-    has 'type' => (is      => 'rw',
-                   isa     => FileType,
-                   coerce  => 1,
-                   traits  => ['VRPipe::Persistent::Attributes'],
-                   builder => '_filetype_from_extension');
+    has 'type' => (
+        is      => 'rw',
+        isa     => FileType,
+        coerce  => 1,
+        traits  => ['VRPipe::Persistent::Attributes'],
+        builder => '_filetype_from_extension'
+    );
     
-    has 'e' => (is      => 'rw',
-                isa     => 'Bool',
-                traits  => ['VRPipe::Persistent::Attributes'],
-                builder => 'check_file_existence_on_disc');
+    has 'e' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        builder => 'check_file_existence_on_disc'
+    );
     
-    has 's' => (is      => 'rw',
-                isa     => IntSQL [16],
-                traits  => ['VRPipe::Persistent::Attributes'],
-                builder => 'check_file_size_on_disc');
+    has 's' => (
+        is      => 'rw',
+        isa     => IntSQL [16],
+        traits  => ['VRPipe::Persistent::Attributes'],
+        builder => 'check_file_size_on_disc'
+    );
     
-    has 'mtime' => (is          => 'rw',
-                    isa         => Datetime,
-                    coerce      => 1,
-                    traits      => ['VRPipe::Persistent::Attributes'],
-                    builder     => 'check_mtime_on_disc',
-                    is_nullable => 1);
+    has 'mtime' => (
+        is          => 'rw',
+        isa         => Datetime,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        builder     => 'check_mtime_on_disc',
+        is_nullable => 1
+    );
     
-    has 'md5' => (is          => 'rw',
-                  isa         => Varchar [64],
-                  traits      => ['VRPipe::Persistent::Attributes'],
-                  is_nullable => 1);
+    has 'md5' => (
+        is          => 'rw',
+        isa         => Varchar [64],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has '_lines' => (is          => 'rw',
-                     isa         => IntSQL [16],
-                     traits      => ['VRPipe::Persistent::Attributes'],
-                     is_nullable => 1);
+    has '_lines' => (
+        is          => 'rw',
+        isa         => IntSQL [16],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has 'metadata' => (is      => 'rw',
-                       isa     => 'HashRef',
-                       traits  => ['VRPipe::Persistent::Attributes'],
-                       default => sub { {} });
+    has 'metadata' => (
+        is      => 'rw',
+        isa     => 'HashRef',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => sub { {} }
+    );
     
-    has 'moved_to' => (is          => 'rw',
-                       isa         => Persistent,
-                       coerce      => 1,
-                       traits      => ['VRPipe::Persistent::Attributes'],
-                       belongs_to  => 'VRPipe::File',
-                       is_nullable => 1);
+    has 'moved_to' => (
+        is          => 'rw',
+        isa         => Persistent,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        belongs_to  => 'VRPipe::File',
+        is_nullable => 1
+    );
     
-    has 'parent' => (is          => 'rw',
-                     isa         => Persistent,
-                     coerce      => 1,
-                     traits      => ['VRPipe::Persistent::Attributes'],
-                     belongs_to  => 'VRPipe::File',
-                     is_nullable => 1);
+    has 'parent' => (
+        is          => 'rw',
+        isa         => Persistent,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        belongs_to  => 'VRPipe::File',
+        is_nullable => 1
+    );
     
-    has _opened_for_writing => (is      => 'rw',
-                                isa     => 'Bool',
-                                default => 0);
+    has _opened_for_writing => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
     
-    has _opened => (is  => 'rw',
-                    isa => 'Maybe[IO::File|FileHandle]');
+    has _opened => (
+        is  => 'rw',
+        isa => 'Maybe[IO::File|FileHandle]'
+    );
     
     method check_file_existence_on_disc (File $path?) {
         $path ||= $self->path;         # optional so that we can call this without a db connection by supplying the path
@@ -634,6 +658,17 @@ class VRPipe::File extends VRPipe::Persistent {
     sub DEMOLISH {
         return if in_global_destruction;
         shift->close;
+    }
+    
+    method create_fofn (ArrayRef['VRPipe::File'] $files!) {
+        my $ofh = $self->openw;
+        foreach my $file (@$files) {
+            my $file_path = $file->path;
+            print $ofh "$file_path\n";
+        }
+        $ofh->close;
+        $self->update_stats_from_disc(retries => 3);
+        $self->throw("fofn " . $self->path . " does not contain all input files") unless ($self->lines == scalar @$files);
     }
 }
 

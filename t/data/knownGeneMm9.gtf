@@ -1,0 +1,4 @@
+chr1    knownGene       exon    3195985 3197398 .       -       .       gene_id "uc007aet.1"; transcript_id "uc007aet.1"; exon_number "1"; exon_id "uc007aet.1.1";
+chr1    knownGene       exon    3203520 3205713 .       -       .       gene_id "uc007aet.1"; transcript_id "uc007aet.1"; exon_number "2"; exon_id "uc007aet.1.2";
+chr1    knownGene       exon    3204563 3207049 .       -       .       gene_id "Q5GH67"; transcript_id "uc007aeu.1"; exon_number "1"; exon_id "uc007aeu.1.1"; gene_name "Q5GH67";
+chr1    knownGene       CDS     3206106 3207049 .       -       2       gene_id "Q5GH67"; transcript_id "uc007aeu.1"; exon_number "1"; exon_id "uc007aeu.1.1"; gene_name "Q5GH67";

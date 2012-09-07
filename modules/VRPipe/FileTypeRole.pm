@@ -40,28 +40,38 @@ use VRPipe::Base;
 role VRPipe::FileTypeRole {
     use VRPipe::Parser;
     
-    has 'file' => (is       => 'rw',
-                   isa      => File,
-                   coerce   => 1,
-                   required => 1);
+    has 'file' => (
+        is       => 'rw',
+        isa      => File,
+        coerce   => 1,
+        required => 1
+    );
     
-    has 'type' => (is      => 'ro',
-                   isa     => FileType,
-                   lazy    => 1,
-                   builder => '_build_type');
+    has 'type' => (
+        is      => 'ro',
+        isa     => FileType,
+        lazy    => 1,
+        builder => '_build_type'
+    );
     
-    has 'record_separator' => (is      => 'ro',
-                               isa     => 'Maybe[Str]',
-                               builder => '_build_record_separator');
+    has 'record_separator' => (
+        is      => 'ro',
+        isa     => 'Maybe[Str]',
+        builder => '_build_record_separator'
+    );
     
-    has 'read_backwards' => (is      => 'ro',
-                             isa     => 'Bool',
-                             builder => '_build_read_backwards');
+    has 'read_backwards' => (
+        is      => 'ro',
+        isa     => 'Bool',
+        builder => '_build_read_backwards'
+    );
     
-    has 'parser' => (is      => 'ro',
-                     does    => 'VRPipe::ParserRole',
-                     lazy    => 1,
-                     builder => '_build_parser');
+    has 'parser' => (
+        is      => 'ro',
+        does    => 'VRPipe::ParserRole',
+        lazy    => 1,
+        builder => '_build_parser'
+    );
     
     method _build_type {
         my $class = ref($self);

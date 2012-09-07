@@ -73,9 +73,12 @@ role VRPipe::PipelineRole {
         my @sms;
         foreach my $step (@$steps) {
             my $step_id = $step->id;
-            my @results = VRPipe::StepMember->search({ 'step'        => $step_id,
-                                                       'pipeline'    => $self->id,
-                                                       'step_number' => ++$step_num });
+            my @results = VRPipe::StepMember->search({
+                    'step'        => $step_id,
+                    'pipeline'    => $self->id,
+                    'step_number' => ++$step_num
+                }
+            );
             
             if (@results == 1) {
                 push(@sms, @results);

@@ -42,7 +42,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 package VRPipe::StepNonPersistentFactory;
-use MooseX::AbstractFactory;
+use VRPipe::Base::AbstractFactory;
 
 implementation_does qw/VRPipe::StepRole/;
 implementation_class_via sub { 'VRPipe::Steps::' . shift };

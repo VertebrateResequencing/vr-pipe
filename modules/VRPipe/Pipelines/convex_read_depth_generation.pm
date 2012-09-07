@@ -5,8 +5,10 @@ VRPipe::Pipelines::convex_read_depth_generation - a pipeline
 
 =head1 DESCRIPTION
 
-This is first of three pipeline required to run in sequence in order to generate CNV Calls using the Convex Exome CNV detection package.
-This pipeline generates Read Depth files from a BAM Datasource, and adds Sample and Sex metadata to the bams, for subsequent L2R Generation and CNV Calling pipelines.
+This is first of three pipeline required to run in sequence in order to
+generate CNV Calls using the Convex Exome CNV detection package. This pipeline
+generates Read Depth files from a BAM Datasource, and adds Sample and Sex
+metadata to the bams, for subsequent L2R Generation and CNV Calling pipelines.
 
 =head1 AUTHOR
 
@@ -53,11 +55,12 @@ class VRPipe::Pipelines::convex_read_depth_generation with VRPipe::PipelineRole 
     
     method _step_list {
         return ([
-             VRPipe::Step->get(name => 'convex_read_depth'),     #
-             VRPipe::Step->get(name => 'bam_metadata_with_sex'), #
+                VRPipe::Step->get(name => 'convex_read_depth'),     #
+                VRPipe::Step->get(name => 'bam_metadata_with_sex'), #
             ],
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'bam_files'),],
-            [],);
+            [],
+        );
     }
 }
 

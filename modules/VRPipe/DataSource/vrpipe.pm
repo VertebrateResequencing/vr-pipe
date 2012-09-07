@@ -63,10 +63,12 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return '';
     }
     
-    has 'vrpipe_sources' => (is      => 'ro',
-                             isa     => 'HashRef',
-                             builder => '_build_vrpipe_sources',
-                             lazy    => 1);
+    has 'vrpipe_sources' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        builder => '_build_vrpipe_sources',
+        lazy    => 1
+    );
     
     method _build_vrpipe_sources {
         my @sources = split /\|/, $self->source;
@@ -192,12 +194,12 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     }
     
     method group_all (Defined :$handle!, Str :$filter?) {
-        my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => 0, complete_elements => 1);
+        my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => 0);
         if ($filter) {
             $args{filter} = $filter;
         }
         my (@paths, @parents);
-        foreach my $result (@{ $self->_all_results(%args) }) {
+        foreach my $result (@{ $self->_all_results(%args, complete_all => 1) }) {
             push @paths,   @{ $result->{paths} };
             push @parents, $result->{parent};
         }
@@ -215,7 +217,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     sub _res_to_str {
         my $res = shift;
         my $str = join('|', @{ $res->{paths} || [] });
-        foreach my $key ('lane', 'group') {
+        foreach my $key ('lane', 'group', 'chrom', 'from', 'to') {
             $str .= '|' . $res->{$key} if defined $res->{$key};
         }
         return $str;
@@ -240,7 +242,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             my %element_state_completed_steps = map { $_->[0] => $_->[1] } @{ VRPipe::DataElementState->get_column_values(['dataelement', 'completed_steps'], { pipelinesetup => $setup_id }) || [] };
             
             my @per_element_output_files;
-          ELEMENT: while (my $elements = $elements_pager->next) {
+            ELEMENT: while (my $elements = $elements_pager->next) {
                 foreach my $element (@$elements) {
                     # complete_elements means we do not consider a dataelement until
                     # it has completed its pipeline, even if the output file we want
@@ -399,12 +401,15 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             # stepoutputfile.output_key != "temp" and
             # stepstate.stepmember=$stepm and stepstate.pipelinesetup=$setup_id and 
             # stepstate.complete=1;
-            my $pager = VRPipe::StepOutputFile->search_paged({  'stepstate.complete'      => 1,
-                                                                'stepstate.pipelinesetup' => $setup_id,
-                                                                'dataelement.withdrawn'   => 0,
-                                                                'stepstate.stepmember'    => $sources->{$setup_id}->{final_smid},
-                                                                'output_key'              => { '!=', 'temp' } },
-                                                             { join => { 'stepstate' => 'dataelement' }, prefetch => 'file' });
+            my $pager = VRPipe::StepOutputFile->search_paged({
+                    'stepstate.complete'      => 1,
+                    'stepstate.pipelinesetup' => $setup_id,
+                    'dataelement.withdrawn'   => 0,
+                    'stepstate.stepmember'    => $sources->{$setup_id}->{final_smid},
+                    'output_key'              => { '!=', 'temp' }
+                },
+                { join => { 'stepstate' => 'dataelement' }, prefetch => 'file' }
+            );
             while (my $outputs = $pager->next) {
                 foreach my $output (@$outputs) {
                     push @all_files, $output->file->resolve;

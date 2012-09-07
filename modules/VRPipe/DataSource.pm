@@ -91,54 +91,71 @@ class VRPipe::DataSource extends VRPipe::Persistent {
     use DateTime;
     use VRPipe::DataSourceFactory;
     
-    has 'type' => (is     => 'rw',
-                   isa    => Varchar [64],
-                   traits => ['VRPipe::Persistent::Attributes'],
-                   is_key => 1);
+    has 'type' => (
+        is     => 'rw',
+        isa    => Varchar [64],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'method' => (is     => 'rw',
-                     isa    => Varchar [64],
-                     traits => ['VRPipe::Persistent::Attributes'],
-                     is_key => 1);
+    has 'method' => (
+        is     => 'rw',
+        isa    => Varchar [64],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'source' => (is     => 'rw',
-                     isa    => Text,
-                     coerce => 1,
-                     traits => ['VRPipe::Persistent::Attributes'],
-                     is_key => 1);
+    has 'source' => (
+        is     => 'rw',
+        isa    => Text,
+        coerce => 1,
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
     
-    has 'options' => (is                   => 'rw',
-                      isa                  => 'HashRef',
-                      traits               => ['VRPipe::Persistent::Attributes'],
-                      default              => sub { {} },
-                      allow_key_to_default => 1,
-                      is_key               => 1);
+    has 'options' => (
+        is                   => 'rw',
+        isa                  => 'HashRef',
+        traits               => ['VRPipe::Persistent::Attributes'],
+        default              => sub { {} },
+        allow_key_to_default => 1,
+        is_key               => 1
+    );
     
-    has '_lock' => (is          => 'rw',
-                    isa         => Datetime,
-                    traits      => ['VRPipe::Persistent::Attributes'],
-                    is_nullable => 1);
+    has '_lock' => (
+        is          => 'rw',
+        isa         => Datetime,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has '_changed_marker' => (is          => 'rw',
-                              isa         => Varchar [255],
-                              traits      => ['VRPipe::Persistent::Attributes'],
-                              is_nullable => 1);
+    has '_changed_marker' => (
+        is          => 'rw',
+        isa         => Varchar [255],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
     
-    has '_source_instance' => (is      => 'rw',
-                               isa     => 'Defined',
-                               lazy    => 1,
-                               builder => '_build_source',
-                               handles => [qw(description source_description method_description)]);
+    has '_source_instance' => (
+        is      => 'rw',
+        isa     => 'Defined',
+        lazy    => 1,
+        builder => '_build_source',
+        handles => [qw(description source_description method_description)]
+    );
     
     method _build_source {
         my $changed_marker = $self->_changed_marker;
-        return
-          VRPipe::DataSourceFactory->create($self->type,
-                                            {  method  => $self->method,
-                                               source  => $self->source,
-                                               options => $self->options,
-                                               $changed_marker ? ('_changed_marker' => $changed_marker) : (),
-                                               '_datasource_id' => $self->id });
+        return VRPipe::DataSourceFactory->create(
+            $self->type,
+            {
+                method  => $self->method,
+                source  => $self->source,
+                options => $self->options,
+                $changed_marker ? ('_changed_marker' => $changed_marker) : (),
+                '_datasource_id' => $self->id
+            }
+        );
     }
     
     __PACKAGE__->make_persistent(has_many => [elements => 'VRPipe::DataElement']);

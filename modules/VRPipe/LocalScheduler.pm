@@ -53,23 +53,31 @@ class VRPipe::LocalScheduler {
     
     our $DEFAULT_CPUS = Sys::CPU::cpu_count();
     
-    has 'cpus' => (is      => 'ro',
-                   isa     => 'Int',
-                   default => $DEFAULT_CPUS);
+    has 'cpus' => (
+        is      => 'ro',
+        isa     => 'Int',
+        default => $DEFAULT_CPUS
+    );
     
     # for submit
-    has 'o' => (is            => 'ro',
-                isa           => 'Str',
-                documentation => 'absolute path to stdout of scheduler (required for submit)');
+    has 'o' => (
+        is            => 'ro',
+        isa           => 'Str',
+        documentation => 'absolute path to stdout of scheduler (required for submit)'
+    );
     
-    has 'e' => (is            => 'ro',
-                isa           => 'Str',
-                documentation => 'absolute path to stderr of scheduler (required for submit)');
+    has 'e' => (
+        is            => 'ro',
+        isa           => 'Str',
+        documentation => 'absolute path to stderr of scheduler (required for submit)'
+    );
     
-    has 'a' => (is            => 'ro',
-                isa           => 'Int',
-                documentation => 'to specify a job array give the size of the array (default 1)',
-                default       => 1);
+    has 'a' => (
+        is            => 'ro',
+        isa           => 'Int',
+        documentation => 'to specify a job array give the size of the array (default 1)',
+        default       => 1
+    );
     
     method submit (Str $cmd, HashRef $env) {
         my $o_file = $self->o;
@@ -178,7 +186,8 @@ class VRPipe::LocalScheduler {
                     my ($fm, $lsjs) = @_;
                     $lsjs->start_job;
                 },
-                args => [$lsjs]);
+                args => [$lsjs]
+            );
         }
         
         $fm->wait_all_children;

@@ -37,27 +37,35 @@ copy($fa_index_source, $fa_index);
 
 my $bc_options = "-q 20";
 
-my $ds = VRPipe::DataSource->create(type   => 'fofn',
-                                    method => 'all',
-                                    source => file(qw(t data hs_chr20.qc.bam.fofn))->absolute);
+my $ds = VRPipe::DataSource->create(
+    type   => 'fofn',
+    method => 'all',
+    source => file(qw(t data hs_chr20.qc.bam.fofn))->absolute
+);
 
 # setup 2 pipelines, 1 wgs, 1 exome
-VRPipe::PipelineSetup->create(name        => 'graphs_and_stats whole genome',
-                              datasource  => $ds,
-                              output_root => $stats_output_dir,
-                              pipeline    => $stats_pipeline,
-                              options     => {
-                                           reference_fasta  => $ref_fa,
-                                           bamcheck_options => $bc_options });
+VRPipe::PipelineSetup->create(
+    name        => 'graphs_and_stats whole genome',
+    datasource  => $ds,
+    output_root => $stats_output_dir,
+    pipeline    => $stats_pipeline,
+    options     => {
+        reference_fasta  => $ref_fa,
+        bamcheck_options => $bc_options
+    }
+);
 
-VRPipe::PipelineSetup->create(name        => 'graphs_and_stats exome',
-                              datasource  => $ds,
-                              output_root => $target_output_dir,
-                              pipeline    => $stats_pipeline,
-                              options     => {
-                                           reference_fasta    => $ref_fa,
-                                           bamcheck_options   => $bc_options,
-                                           exome_targets_file => file(qw(t data hs_chr20.invervals.tab))->absolute->stringify });
+VRPipe::PipelineSetup->create(
+    name        => 'graphs_and_stats exome',
+    datasource  => $ds,
+    output_root => $target_output_dir,
+    pipeline    => $stats_pipeline,
+    options     => {
+        reference_fasta    => $ref_fa,
+        bamcheck_options   => $bc_options,
+        exome_targets_file => file(qw(t data hs_chr20.invervals.tab))->absolute->stringify
+    }
+);
 
 my (@output_files, @target_files);
 my @other_files = (file($ref_dir, 'human_g1k_v37.chr20.fa.gc_stats'), file($ref_dir, 'human_g1k_v37.chr20.fa.gc_stats.targeted-9cc6c71308612098ffcd32445361f4c6'));

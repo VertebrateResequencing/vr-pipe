@@ -46,39 +46,55 @@ class VRPipe::FrontEnd {
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
     
-    has 'description' => (is       => 'rw',
-                          isa      => 'Str',
-                          required => 1);
+    has 'description' => (
+        is       => 'rw',
+        isa      => 'Str',
+        required => 1
+    );
     
-    has 'opt_spec' => (is      => 'rw',
-                       isa     => 'ArrayRef[ArrayRef]',
-                       lazy    => 1,
-                       builder => '_default_opt_spec');
+    has 'opt_spec' => (
+        is      => 'rw',
+        isa     => 'ArrayRef[ArrayRef]',
+        lazy    => 1,
+        builder => '_default_opt_spec'
+    );
     
-    has '_opts_hash' => (is      => 'ro',
-                         isa     => 'HashRef',
-                         default => sub { {} },
-                         writer  => '_set_opts',
-                         traits  => ['Hash'],
-                         handles => { opts           => 'get',
-                                      option_was_set => 'defined',
-                                      '_set_opt'     => 'set' });
+    has '_opts_hash' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        default => sub { {} },
+        writer  => '_set_opts',
+        traits  => ['Hash'],
+        handles => {
+            opts           => 'get',
+            option_was_set => 'defined',
+            '_set_opt'     => 'set'
+        }
+    );
     
-    has 'usage' => (is     => 'ro',
-                    isa    => 'Str',
-                    writer => '_set_usage');
+    has 'usage' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_usage'
+    );
     
-    has 'schema' => (is      => 'ro',
-                     isa     => 'VRPipe::Persistent::Schema',
-                     lazy    => 1,
-                     builder => '_build_schema');
+    has 'schema' => (
+        is      => 'ro',
+        isa     => 'VRPipe::Persistent::Schema',
+        lazy    => 1,
+        builder => '_build_schema'
+    );
     
-    has '_multiple_setups' => (is  => 'rw',
-                               isa => 'Bool');
+    has '_multiple_setups' => (
+        is  => 'rw',
+        isa => 'Bool'
+    );
     
-    has 'no_user_option' => (is      => 'ro',
-                             isa     => 'Bool',
-                             default => 0);
+    has 'no_user_option' => (
+        is      => 'ro',
+        isa     => 'Bool',
+        default => 0
+    );
     
     method _default_opt_spec {
         return [['deployment=s', 'Use the production or testing database', { default => 'production' }], ['env|e=s', 'Use options stored in an environment variable'], ['help|h', 'Print this usage message and exit']];

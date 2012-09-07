@@ -5,7 +5,8 @@ VRPipe::Steps::chunk_genomic_region - a step
 
 =head1 DESCRIPTION
 
-Generate a chromosomal regions file, split according to chunk size parameter, from either a fasta reference index file or a specific regions file
+Generate a chromosomal regions file, split according to chunk size parameter,
+from either a fasta reference index file or a specific regions file
 
 =head1 AUTHOR
 
@@ -35,11 +36,13 @@ use VRPipe::Base;
 
 class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
     method options_definition {
-        return { genomic_region_file => VRPipe::StepOption->create(description => 'Genomic regions source file; absolute path to either fasta genomic reference index file (fai suffix), or specific regions file with columns CHR,FROM,TO'),
-                 chrom_list          => VRPipe::StepOption->create(description => 'Space separated list of chromosomes', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y'),
-                 chunk_size          => VRPipe::StepOption->create(description => 'Number of base pairs to have in a chunk', optional => 1, default_value => 1_000_000),
-                 chunk_overlap       => VRPipe::StepOption->create(description => 'Chunk overlap size', optional => 1, default_value => 0),
-                 ploidy => VRPipe::StepOption->create(description => "File defining the ploidy to be used to call in different regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}", optional => 1), };
+        return {
+            genomic_region_file => VRPipe::StepOption->create(description => 'Genomic regions source file; absolute path to either fasta genomic reference index file (fai suffix), or specific regions file with columns CHR,FROM,TO'),
+            chrom_list          => VRPipe::StepOption->create(description => 'Space separated list of chromosomes', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y'),
+            chunk_size          => VRPipe::StepOption->create(description => 'Number of base pairs to have in a chunk', optional => 1, default_value => 1_000_000),
+            chunk_overlap       => VRPipe::StepOption->create(description => 'Chunk overlap size', optional => 1, default_value => 0),
+            ploidy => VRPipe::StepOption->create(description => "File defining the ploidy to be used to call in different regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}", optional => 1),
+        };
     }
     
     method inputs_definition {

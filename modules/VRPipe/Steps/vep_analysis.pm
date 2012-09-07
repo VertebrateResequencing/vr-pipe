@@ -5,7 +5,8 @@ VRPipe::Steps::vep_analysis - a step
 
 =head1 DESCRIPTION
 
-Runs the Ensembl Variant Effect Predictor for one or more VCFS, generating a txt file of VEP Consequence Annotations
+Runs the Ensembl Variant Effect Predictor for one or more VCFS, generating a
+txt file of VEP Consequence Annotations
 
 =head1 AUTHOR
 
@@ -35,17 +36,24 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
     method options_definition {
-        return { 'vep_options' => VRPipe::StepOption->create(description => 'options to vep, excluding -i or -o'),
-                 'vep_exe'     => VRPipe::StepOption->create(
-                                                         description   => 'path to your vep executable',
-                                                         optional      => 1,
-                                                         default_value => 'variant_effect_predictor.pl') };
+        return {
+            'vep_options' => VRPipe::StepOption->create(description => 'options to vep, excluding -i or -o'),
+            'vep_exe'     => VRPipe::StepOption->create(
+                description   => 'path to your vep executable',
+                optional      => 1,
+                default_value => 'variant_effect_predictor.pl'
+            )
+        };
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type        => 'vcf',
-                                                               description => 'vcf files',
-                                                               max_files   => -1) };
+        return {
+            vcf_files => VRPipe::StepIODefinition->create(
+                type        => 'vcf',
+                description => 'vcf files',
+                max_files   => -1
+            )
+        };
     }
     
     method body_sub {
@@ -64,18 +72,15 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 5000, time => 1);
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $basename = $vcf_file->basename;
-                if ($basename =~ /\.vcf.gz$/) {
-                    $basename =~ s/\.vcf.gz$/.vep.txt/;
-                    $cat_exe = 'zcat';
-                }
-                else {
-                    $basename .= '.vep.txt';
-                    $cat_exe = 'cat';
-                }
-                my $vep_txt = $self->output_file(output_key => 'vep_txt',
-                                                 basename   => $basename,
-                                                 type       => 'txt',
-                                                 metadata   => { source_vcf => $vcf_file->path->stringify });
+                my $cat_exe = $basename =~ /\.vcf.gz$/ ? 'zcat' : 'cat';
+                $basename =~ s/\.vcf(.gz)?$/.vep.txt/;
+                
+                my $vep_txt = $self->output_file(
+                    output_key => 'vep_txt',
+                    basename   => $basename,
+                    type       => 'txt',
+                    metadata   => { source_vcf => $vcf_file->path->stringify }
+                );
                 
                 my $input_path  = $vcf_file->path;
                 my $output_path = $vep_txt->path;
@@ -88,9 +93,13 @@ class VRPipe::Steps::vep_analysis with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { vep_txt => VRPipe::StepIODefinition->create(type        => 'txt',
-                                                             description => 'vep analysis output file',
-                                                             max_files   => -1) };
+        return {
+            vep_txt => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'vep analysis output file',
+                max_files   => -1
+            )
+        };
     }
     
     method post_process_sub {

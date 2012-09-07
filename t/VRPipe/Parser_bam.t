@@ -201,8 +201,6 @@ while ($pb->next_record) {
 }
 is $c, 3, 'minimum_quality(0) gives all results';
 
-
-
 # hard/soft clipping seq length tests
 $b_file = Path::Class::File->new(qw(t data parser.hard_soft.bam));
 $pb = VRPipe::Parser->create('bam', { file => $b_file });

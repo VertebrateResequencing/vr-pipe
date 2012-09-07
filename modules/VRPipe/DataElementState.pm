@@ -42,24 +42,30 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::DataElementState extends VRPipe::Persistent {
-    has 'pipelinesetup' => (is         => 'rw',
-                            isa        => Persistent,
-                            coerce     => 1,
-                            traits     => ['VRPipe::Persistent::Attributes'],
-                            is_key     => 1,
-                            belongs_to => 'VRPipe::PipelineSetup');
+    has 'pipelinesetup' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::PipelineSetup'
+    );
     
-    has 'dataelement' => (is         => 'rw',
-                          isa        => Persistent,
-                          coerce     => 1,
-                          traits     => ['VRPipe::Persistent::Attributes'],
-                          is_key     => 1,
-                          belongs_to => 'VRPipe::DataElement');
+    has 'dataelement' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::DataElement'
+    );
     
-    has 'completed_steps' => (is      => 'rw',
-                              isa     => IntSQL [4],
-                              traits  => ['VRPipe::Persistent::Attributes'],
-                              default => 0);
+    has 'completed_steps' => (
+        is      => 'rw',
+        isa     => IntSQL [4],
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
     __PACKAGE__->make_persistent();
     
@@ -117,7 +123,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
                 # check that all other step states that output this same file
                 # are also our own step states
                 my $pager = VRPipe::StepOutputFile->search_paged({ file => $sof->file->id }, { prefetch => 'stepstate' });
-              PLOOP: while (my $other_sofs = $pager->next) {
+                PLOOP: while (my $other_sofs = $pager->next) {
                     foreach my $other_sof (@$other_sofs) {
                         my $other_ss = $other_sof->stepstate;
                         unless (exists $ss_ids{ $other_ss->id }) {

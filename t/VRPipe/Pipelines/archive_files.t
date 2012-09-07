@@ -21,16 +21,21 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 
 # first run a quick pipline to generate some files we can archive
 my $test_output_dir = get_output_dir('test_pipeline');
-VRPipe::PipelineSetup->create(name       => 'my test pipeline setup',
-                              datasource => VRPipe::DataSource->create(type   => 'fofn',
-                                                                       method => 'all',
-                                                                       source => file(qw(t data datasource.fofn3))),
-                              output_root => $test_output_dir,
-                              pipeline    => VRPipe::Pipeline->create(name => 'test_pipeline'),
-                              options     => {
-                                           all_option  => 'foo',
-                                           one_option  => 50,
-                                           four_option => 'bar' });
+VRPipe::PipelineSetup->create(
+    name       => 'my test pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type   => 'fofn',
+        method => 'all',
+        source => file(qw(t data datasource.fofn3))
+    ),
+    output_root => $test_output_dir,
+    pipeline    => VRPipe::Pipeline->create(name => 'test_pipeline'),
+    options     => {
+        all_option  => 'foo',
+        one_option  => 50,
+        four_option => 'bar'
+    }
+);
 
 my @test_files;
 my $element_id = 0;
@@ -53,14 +58,18 @@ foreach my $pool (qw(pool1 pool2 pool3)) {
 $dpf->close;
 my $pool_regex = join('|', @pools);
 
-VRPipe::PipelineSetup->create(name       => 'my archive pipeline setup',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'all',
-                                                                       source  => 'my test pipeline setup[4]',
-                                                                       options => {}),
-                              output_root => $archive_output_dir,
-                              pipeline    => $pipeline,
-                              options     => { disc_pool_file => $dpf->path->stringify });
+VRPipe::PipelineSetup->create(
+    name       => 'my archive pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'my test pipeline setup[4]',
+        options => {}
+    ),
+    output_root => $archive_output_dir,
+    pipeline    => $pipeline,
+    options     => { disc_pool_file => $dpf->path->stringify }
+);
 
 ok handle_pipeline(), 'archive pipeline ran';
 my @archive_files;
@@ -85,14 +94,18 @@ foreach my $pool (qw(pool1 pool2 pool4)) {
 $dpf->close;
 $pool_regex = join('|', @pools);
 
-VRPipe::PipelineSetup->create(name       => 'my second archive pipeline setup',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'all',
-                                                                       source  => 'my archive pipeline setup',
-                                                                       options => {}),
-                              output_root => $archive_output_dir,
-                              pipeline    => $pipeline,
-                              options     => { disc_pool_file => $dpf->path->stringify });
+VRPipe::PipelineSetup->create(
+    name       => 'my second archive pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'my archive pipeline setup',
+        options => {}
+    ),
+    output_root => $archive_output_dir,
+    pipeline    => $pipeline,
+    options     => { disc_pool_file => $dpf->path->stringify }
+);
 
 ok handle_pipeline(), 'archiving with an altered pool also worked';
 my @new_archive_files;

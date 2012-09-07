@@ -83,7 +83,9 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
                     reads           => 'total number of reads (sequences)',
                     avg_read_length => 'the average length of reads',
                     #*** etc.
-                }) };
+                }
+            )
+        };
     }
     
     method post_process_sub {

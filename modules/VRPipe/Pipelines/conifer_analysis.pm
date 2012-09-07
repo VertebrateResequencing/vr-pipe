@@ -5,7 +5,9 @@ VRPipe::Pipelines::conifer_analysis - a pipeline
 
 =head1 DESCRIPTION
 
-Runs Conifer Copy Number Variant detection for a datasource of exome bams, generating a SVD-ZRPKM values file, CNV calls and associated plots for each bam in the group.
+Runs Conifer Copy Number Variant detection for a datasource of exome bams,
+generating a SVD-ZRPKM values file, CNV calls and associated plots for each bam
+in the group.
 
 =head1 AUTHOR
 
@@ -56,7 +58,8 @@ class VRPipe::Pipelines::conifer_analysis with VRPipe::PipelineRole {
             
             [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'rpkm_out', to_key => 'rpkm_in'),],
             
-            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]);
+            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]
+        );
     }
 }
 

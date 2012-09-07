@@ -14,7 +14,18 @@ L<VRPipe::DataSource>, and even the same L<VRPipe::Pipeline>, and so the same
 L<VRPipe::Step>s could be processing the same input files specified by the same
 L<VRPipe::DataElement>s. StepState lets B<VRPipe> keep track of when a Step
 successfully completes its work on a particular DataElement for a particular
-PipelineSetup.
+PipelineSetup. It also provides the submissions() method to get at all the
+submissions for a particular DataElement/PipelineSetup/Step combo.
+
+Different DataElements for the same PipelineSetup, running the same Step, may
+also end up wanting to run the exact same command line(s) (eg. when they're
+running block_and_skip_if_ok jobs, like indexing a reference file in the first
+step of a pipeline)). To avoid the wasteful creation of duplicate submissions
+for the same job, same_submissions_as() can store another StepState that the
+submissions were originally created for, and then submissions() will return
+that StepState's submissions. submission_search_id() can be used when
+constructing a Submission search query limited to the submissions of a
+particular StepState, and it returns the appropriate StepState id().
 
 =head1 AUTHOR
 
@@ -43,40 +54,73 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::StepState extends VRPipe::Persistent {
-    has 'stepmember' => (is         => 'rw',
-                         isa        => Persistent,
-                         coerce     => 1,
-                         traits     => ['VRPipe::Persistent::Attributes'],
-                         is_key     => 1,
-                         belongs_to => 'VRPipe::StepMember');
+    has 'stepmember' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::StepMember'
+    );
     
-    has 'dataelement' => (is         => 'rw',
-                          isa        => Persistent,
-                          coerce     => 1,
-                          traits     => ['VRPipe::Persistent::Attributes'],
-                          is_key     => 1,
-                          belongs_to => 'VRPipe::DataElement');
+    has 'dataelement' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::DataElement'
+    );
     
-    has 'pipelinesetup' => (is         => 'rw',
-                            isa        => Persistent,
-                            coerce     => 1,
-                            traits     => ['VRPipe::Persistent::Attributes'],
-                            is_key     => 1,
-                            belongs_to => 'VRPipe::PipelineSetup');
+    has 'pipelinesetup' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::PipelineSetup'
+    );
     
-    has 'cmd_summary' => (is          => 'rw',
-                          isa         => Persistent,
-                          coerce      => 1,
-                          traits      => ['VRPipe::Persistent::Attributes'],
-                          is_nullable => 1,
-                          belongs_to  => 'VRPipe::StepCmdSummary');
+    has 'cmd_summary' => (
+        is          => 'rw',
+        isa         => Persistent,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1,
+        belongs_to  => 'VRPipe::StepCmdSummary'
+    );
     
-    has 'complete' => (is      => 'rw',
-                       isa     => 'Bool',
-                       traits  => ['VRPipe::Persistent::Attributes'],
-                       default => 0);
+    has 'same_submissions_as' => (
+        is          => 'rw',
+        isa         => Persistent,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1,
+        belongs_to  => 'VRPipe::StepState'
+    );
+    
+    has 'complete' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
     
     __PACKAGE__->make_persistent(has_many => [[submissions => 'VRPipe::Submission'], ['_output_files' => 'VRPipe::StepOutputFile']]);
+    
+    around submissions {
+        if (my $other_state = $self->same_submissions_as) {
+            return $other_state->submissions;
+        }
+        return $self->$orig;
+    }
+    
+    method submission_search_id {
+        if (my $other_state = $self->same_submissions_as) {
+            return $other_state->id;
+        }
+        return $self->id;
+    }
     
     method output_files (Maybe[PersistentFileHashRef] $new_hash?, Bool :$only_unique_to_us?) {
         $only_unique_to_us = 0 if $new_hash;

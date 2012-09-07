@@ -36,17 +36,23 @@ use VRPipe::Base;
 class VRPipe::Steps::java with VRPipe::StepRole {
     use POSIX qw(ceil);
     
-    has 'java_exe' => (is  => 'rw',
-                       isa => 'Str');
+    has 'java_exe' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
     
-    has 'memory_multiplier' => (is      => 'ro',
-                                isa     => 'Num',
-                                default => 0.9);
+    has 'memory_multiplier' => (
+        is      => 'ro',
+        isa     => 'Num',
+        default => 0.9
+    );
     
-    has 'standard_options' => (is      => 'ro',
-                               isa     => 'ArrayRef',
-                               lazy    => 1,
-                               builder => '_build_standard_options');
+    has 'standard_options' => (
+        is      => 'ro',
+        isa     => 'ArrayRef',
+        lazy    => 1,
+        builder => '_build_standard_options'
+    );
     
     method _build_smaller_recommended_requirements_override {
         return 0;
@@ -77,8 +83,10 @@ class VRPipe::Steps::java with VRPipe::StepRole {
     }
     
     method options_definition {
-        return { java_exe => VRPipe::StepOption->create(description => 'path to your java executable',                                optional => 1, default_value => 'java'),
-                 tmp_dir  => VRPipe::StepOption->create(description => 'location for tmp directories; defaults to working directory', optional => 1), };
+        return {
+            java_exe => VRPipe::StepOption->create(description => 'path to your java executable',                                optional => 1, default_value => 'java'),
+            tmp_dir  => VRPipe::StepOption->create(description => 'location for tmp directories; defaults to working directory', optional => 1),
+        };
     }
     
     method inputs_definition {

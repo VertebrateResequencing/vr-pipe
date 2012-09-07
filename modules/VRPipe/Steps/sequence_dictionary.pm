@@ -42,10 +42,12 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
     }
     
     method options_definition {
-        return { reference_fasta         => VRPipe::StepOption->create(description => 'absolute path to fasta file'),
-                 reference_assembly_name => VRPipe::StepOption->create(description => 'public name of the assembly, eg. NCBI37; defaults to being excluded', optional => 1),
-                 reference_public_url    => VRPipe::StepOption->create(description => 'public url that the reference_fasta can be accessed from; defaults to reference_fasta path', optional => 1),
-                 reference_species       => VRPipe::StepOption->create(description => 'species of the reference genome; defaults to being excluded', optional => 1) };
+        return {
+            reference_fasta         => VRPipe::StepOption->create(description => 'absolute path to fasta file'),
+            reference_assembly_name => VRPipe::StepOption->create(description => 'public name of the assembly, eg. NCBI37; defaults to being excluded', optional => 1),
+            reference_public_url    => VRPipe::StepOption->create(description => 'public url that the reference_fasta can be accessed from; defaults to reference_fasta path', optional => 1),
+            reference_species       => VRPipe::StepOption->create(description => 'species of the reference genome; defaults to being excluded', optional => 1)
+        };
     }
     
     method inputs_definition {
@@ -139,6 +141,18 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
             print $ofh $dict_content;
             $dict_file->close;
         }
+        
+        # GATK adds a dict file automatically when it runs if it doesn't already exist
+        # Unformunately it replaces .fa or .fasta with .dict rather than appending.
+        # Create a symlink to our just created file to replace this. This will prevent
+        # runs where many GATK jobs start at once and all want to create this file.
+        my $symlink_path = $ref;
+        $symlink_path =~ s/fa(sta)?(\.gz)?$/dict/;
+        my $dict_symlink = VRPipe::File->create(path => $symlink_path);
+        if (-s $symlink_path && !(-l $symlink_path)) {
+            $dict_symlink->unlink;
+        }
+        $dict_file->symlink($dict_symlink);
     }
 }
 

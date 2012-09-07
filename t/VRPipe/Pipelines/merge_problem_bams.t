@@ -6,8 +6,10 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 4;
-    use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
-                    required_exe => [qw(samtools)]);
+    use VRPipeTest (
+        required_env => [qw(VRPIPE_TEST_PIPELINES PICARD GATK)],
+        required_exe => [qw(samtools)]
+    );
     use TestPipelines;
     
     use_ok('VRPipe::Steps::picard');
@@ -43,57 +45,63 @@ copy($ref_fa_source, $ref_fa);
 # since merge_lanes_and_fix_rgs requires a vrpipe datasource currently (since
 # only that has grouping on metadata_keys functionality), we start with a simple
 # import pipeline
-VRPipe::PipelineSetup->create(name       => 'test bam import',
-                              datasource => VRPipe::DataSource->create(type    => 'fofn',
-                                                                       method  => 'all',
-                                                                       source  => file($poor_dir, 'fofn')->stringify,
-                                                                       options => {}),
-                              output_root => $output_dir,
-                              pipeline    => VRPipe::Pipeline->create(name => 'import_bams'),
-                              options     => {});
+VRPipe::PipelineSetup->create(
+    name       => 'test bam import',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn',
+        method  => 'all',
+        source  => file($poor_dir, 'fofn')->stringify,
+        options => {}
+    ),
+    output_root => $output_dir,
+    pipeline    => VRPipe::Pipeline->create(name => 'import_bams'),
+    options     => {}
+);
 
-VRPipe::PipelineSetup->create(name       => 'test merge lanes',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'group_by_metadata',
-                                                                       source  => 'test bam import[1]',
-                                                                       options => { metadata_keys => 'sample|platform|library' }),
-                              output_root => $output_dir,
-                              pipeline    => $merge_lanes_pipeline,
-                              options     => {
-                                           bam_tags_to_strip                     => 'OQ XM XG XO',
-                                           readgroup_sm_from_metadata_key        => 'individual',
-                                           bam_merge_keep_single_paired_separate => 1,
-                                           bam_merge_memory                      => 200,
-                                           cleanup                               => 1 });
+VRPipe::PipelineSetup->create(
+    name       => 'test merge lanes',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 'test bam import[1]',
+        options => { metadata_keys => 'sample|platform|library' }
+    ),
+    output_root => $output_dir,
+    pipeline    => $merge_lanes_pipeline,
+    options     => {
+        bam_tags_to_strip                     => 'OQ XM XG XO',
+        readgroup_sm_from_metadata_key        => 'individual',
+        bam_merge_keep_single_paired_separate => 1,
+        bam_merge_memory                      => 200,
+        cleanup                               => 1
+    }
+);
 
-VRPipe::PipelineSetup->create(name       => 'test merge libraries',
-                              datasource => VRPipe::DataSource->create(type    => 'vrpipe',
-                                                                       method  => 'group_by_metadata',
-                                                                       source  => 'test merge lanes[4:markdup_bam_files]',
-                                                                       options => { metadata_keys => 'sample|platform' }),
-                              output_root => $output_dir,
-                              pipeline    => $merge_libraries_pipeline,
-                              options     => {
-                                           bam_merge_keep_single_paired_separate => 0,
-                                           reference_fasta                       => $ref_fa,
-                                           reference_public_url                  => 'file:t/data/poor_rg_bams/chr1_truncated.fa',
-                                           bam_merge_memory                      => 200,
-                                           split_bam_make_unmapped               => 1,
-                                           cleanup                               => 1,
-                                           cleanup_inputs                        => 1,
-                                           remove_merged_bams                    => 1 });
+VRPipe::PipelineSetup->create(
+    name       => 'test merge libraries',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 'test merge lanes[4:markdup_bam_files]',
+        options => { metadata_keys => 'sample|platform' }
+    ),
+    output_root => $output_dir,
+    pipeline    => $merge_libraries_pipeline,
+    options     => {
+        bam_merge_keep_single_paired_separate => 0,
+        reference_fasta                       => $ref_fa,
+        reference_public_url                  => 'file:t/data/poor_rg_bams/chr1_truncated.fa',
+        bam_merge_memory                      => 200,
+        split_bam_make_unmapped               => 1,
+        cleanup                               => 1,
+        cleanup_inputs                        => 1,
+        remove_merged_bams                    => 1
+    }
+);
 
 ok handle_pipeline(), 'pipelines ran ok';
 
-
-
-
-
 #*** needs proper tests; so far only manually confirmed that all 3 resulting
 #    sample bams have the expected RGs, and record RG tags match RGs in header
-
-
-
-
 
 finish;

@@ -44,7 +44,8 @@ use VRPipe::Base;
 class VRPipe::FileType::cram extends VRPipe::FileType::bin {
     our $correct_magic = [qw(103 122 101 115 000 000 000 103 037 213 010 000 000 000 000 000)];
     
-    my $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
+    our $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
+    our $cramtools_path = $ENV{CRAMTOOLS};
     
     around check_type {
         $self->$orig || return 0;
@@ -53,15 +54,17 @@ class VRPipe::FileType::cram extends VRPipe::FileType::bin {
     }
     
     method num_header_lines (ClassName|Object $self: Str|File :$reference_fasta!) {
+        $self->throw("Cannot get num_header_lines without the CRAMTOOLS environment variable set") unless $cramtools_path;
         my $path         = $self->file;
-        my $headers      = `java -Dreference=$reference_fasta -cp $ENV{CRAMTOOLS}/cramtools.jar net.sf.picard.sam.ViewSam INPUT=$path | $samtools_exe view -SH -`;
+        my $headers      = `java -Dreference=$reference_fasta -cp $cramtools_path/cramtools.jar net.sf.picard.sam.ViewSam INPUT=$path | $samtools_exe view -SH -`;
         my @header_lines = split(/\n/, $headers);
         return scalar(@header_lines);
     }
     
     method num_records (ClassName|Object $self: Str|File :$reference_fasta!) {
+        $self->throw("Cannot get num_records without the CRAMTOOLS environment variable set") unless $cramtools_path;
         my $path    = $self->file;
-        my $records = `java -Dreference=$reference_fasta -cp $ENV{CRAMTOOLS}/cramtools.jar net.sf.picard.sam.ViewSam INPUT=$path | $samtools_exe view -Sc -`;
+        my $records = `java -Dreference=$reference_fasta -cp $cramtools_path/cramtools.jar net.sf.picard.sam.ViewSam INPUT=$path | $samtools_exe view -Sc -`;
         ($records) = $records =~ /^(\d+)/m;
         $records ||= 0;
         return $records;

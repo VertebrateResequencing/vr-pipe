@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 123;
+    use Test::Most tests => 126;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -50,8 +50,10 @@ ok $ids[0] = VRPipe::StepIODefinition->create(type => 'bam', description => 'ste
 my @steps;
 ok $steps[0] = VRPipe::Step->create(
     name              => 'step_1',
-    inputs_definition => { static_input  => $files[0],
-                           dynamic_input => $ids[0] },
+    inputs_definition => {
+        static_input  => $files[0],
+        dynamic_input => $ids[0]
+    },
     body_sub => sub {
         my $self  = shift;
         my $ofile = $self->output_file(output_key => 'step1_output', basename => 'output1.txt', type => 'txt');
@@ -61,7 +63,8 @@ ok $steps[0] = VRPipe::Step->create(
     },
     outputs_definition => { step1_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step1_output file') },
     post_process_sub   => sub            { return 1 },
-    description        => 'the first step'),
+    description        => 'the first step'
+  ),
   'created a Step using create()';
 is_deeply [$steps[0]->id, $steps[0]->description], [1, 'the first step'], 'step1 has the expected fields';
 undef $steps[0];
@@ -142,7 +145,8 @@ VRPipe::Step->create(
         $ofile->close();
     },
     outputs_definition => { step2_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step2_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 VRPipe::Step->create(
     name              => "step_3",
     inputs_definition => { step3_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_3 input') },
@@ -154,7 +158,8 @@ VRPipe::Step->create(
         $self->dispatch(["sleep 3;",                           $self->new_requirements(memory => 50, time => 1)]);
     },
     outputs_definition => { step3_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step3_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 VRPipe::Step->create(
     name              => "step_4",
     inputs_definition => { step4_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_4 input') },
@@ -165,7 +170,8 @@ VRPipe::Step->create(
         $ofile->close();
     },
     outputs_definition => { step4_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step4_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 VRPipe::Step->create(
     name              => "step_5",
     inputs_definition => { step5_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'step_5 input') },
@@ -176,7 +182,8 @@ VRPipe::Step->create(
         $ofile->close();
     },
     outputs_definition => { step5_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step5_output file') },
-    post_process_sub   => sub            { return 1 });
+    post_process_sub   => sub            { return 1 }
+);
 foreach my $step_num (2 .. 5) {
     # get
     push(@steps, VRPipe::Step->get(id => $step_num));
@@ -206,8 +213,6 @@ is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id,
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => { dynamic_input => "$step1_bam_input", baz => 'loman' });
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrieved with a full spec';
-
-
 
 ok my $first_setup = VRPipe::PipelineSetup->get(id => 1), 'pipelinesetup1 could be gotten by id';
 is $first_setup->datasource->id, 1, 'it has the correct datasource';
@@ -326,6 +331,47 @@ while (my $vals = $pager->next) {
 }
 is_deeply [\@got_stepstats, $pages], [[[5], [10]], 2], 'using VRPipe::StepStats->get_column_values_paged with a single column and a $pager->next loop got expected stepstat values';
 
+# test that we don't repeat pages when new rows are added between next() calls
+$stepstates[2] = VRPipe::StepState->create(stepmember => $stepms[0], dataelement => $de[2], pipelinesetup => $setups[0]);
+$subs[2] = VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[2], requirements => $reqs[1]);
+
+$pager         = VRPipe::StepStats->search_paged($search_args, {}, 1);
+@got_stepstats = ();
+$pages         = 0;
+while (my $stepstats = $pager->next) {
+    $pages++;
+    foreach my $stepstat (@$stepstats) {
+        push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+    }
+    if ($pages == 1) {
+        VRPipe::StepStats->create(step => 1, pipelinesetup => 1, submission => 3, memory => 15, time => 3);
+    }
+}
+is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 2], 'search_paged and an $pager->next loop got expected (old) stepstat values, even when a new row got added between pages';
+
+push(@expected_stepstats, [15, 3, 3, 3]);
+$pager         = VRPipe::StepStats->search_paged($search_args, {}, 1);
+@got_stepstats = ();
+$pages         = 0;
+while (my $stepstats = $pager->next) {
+    $pages++;
+    foreach my $stepstat (@$stepstats) {
+        push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+    }
+}
+is_deeply [\@got_stepstats, $pages], [\@expected_stepstats, 3], 'a new pager gives us the new row we added';
+
+$pager         = VRPipe::StepStats->search_paged({ %{$search_args}, 'me.id' => 1 }, {}, 1);
+@got_stepstats = ();
+$pages         = 0;
+while (my $stepstats = $pager->next) {
+    $pages++;
+    foreach my $stepstat (@$stepstats) {
+        push(@got_stepstats, [$stepstat->memory, $stepstat->time, $stepstat->id, $stepstat->submission->id]);
+    }
+}
+is_deeply [\@got_stepstats, $pages], [[$expected_stepstats[0]], 1], 'search_paged auto-id_limiting does not stop user using their own id search terms';
+
 # test that this works with something like Step, which has refs for vals
 $pager = VRPipe::Step->get_column_values_paged(['body_sub', 'id'], { id => { '<=' => 2 } }, {}, 1);
 my @got_steps = ();
@@ -348,8 +394,8 @@ is_deeply [ref($got_steps[0]->[0]), scalar(@got_steps), $pages], ['CODE', 2, 2],
 use_ok('VRPipe::StepStatsUtil');
 my $ssu = VRPipe::StepStatsUtil->new(step => VRPipe::Step->get(id => 1));
 my @ssumm = $ssu->mean_memory;
-is $ssumm[1], 8, 'StepStatsUtil mean_memory, which is implemented with get_column_values_paged, worked fine';
-is_deeply [$ssu->percentile_memory(percent => 90, pipelinesetup => VRPipe::PipelineSetup->get(id => 1))], [2, 10], 'StepStatsUtil percentile_memory, which is implemented with get_column_values, worked fine';
+is $ssumm[1], 10, 'StepStatsUtil mean_memory, which is implemented with get_column_values_paged, worked fine';
+is_deeply [$ssu->percentile_memory(percent => 90, pipelinesetup => VRPipe::PipelineSetup->get(id => 1))], [3, 15], 'StepStatsUtil percentile_memory, which is implemented with get_column_values, worked fine';
 
 my @job_args;
 foreach my $i (1 .. 1000) {

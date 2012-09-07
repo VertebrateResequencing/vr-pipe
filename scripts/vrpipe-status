@@ -28,8 +28,15 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Interface::CmdLine;
 
-my $cmdline = VRPipe::Interface::CmdLine->new(description => "See the overall state of active pipeline setups.",
-                                              opt_spec    => [['setup=s@', 'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }], ['incomplete|i', 'Only show details of PipelineSetups that are incomplete (does not affect --list mode)'], ['brief|b', 'Do not show full config details of each PipelineSetup, just the completion state summary'], ['list|l', 'Just list out the setup names and ids without details']]);
+my $cmdline = VRPipe::Interface::CmdLine->new(
+    description => "See the overall state of active pipeline setups.",
+    opt_spec    => [
+        ['setup=s@',     'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }],
+        ['incomplete|i', 'Only show details of PipelineSetups that are incomplete (does not affect --list mode)'],
+        ['brief|b',      'Do not show full config details of each PipelineSetup, just the completion state summary'],
+        ['list|l',       'Just list out the setup names and ids without details']
+    ]
+);
 
 my $response = $cmdline->server_get('/status');
 $cmdline->output($response);
