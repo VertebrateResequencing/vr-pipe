@@ -66,7 +66,7 @@ class VRPipe::Steps::sga_index with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'sequence files to be indexed') };
+        return { fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => 'sequence files to be indexed', metadata => { bases => 'number of bases in the fastq file' }) };
     }
     
     method body_sub {
@@ -87,8 +87,12 @@ class VRPipe::Steps::sga_index with VRPipe::StepRole {
             unless ($cpus) {
                 ($cpus) = $sga_opts =~ m/--threads (\d+)/;
             }
-            my $req = $self->new_requirements(memory => 8900, time => 1, $cpus ? (cpus => $cpus) : ());
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
+                # estimate 5 bits/base for memory
+                my $bases  = $fq->metadata->{bases};
+                my $memory = 5000 + int(5 * $bases / (8 * 1024 * 1024) + 0.5);                                   # Mb
+                my $req    = $self->new_requirements(memory => $memory, time => 1, $cpus ? (cpus => $cpus) : ());
+                
                 my $prefix = $fq->basename;
                 $prefix =~ s/\.(fq|fastq)(\.gz)?//;
                 my @outfiles;
