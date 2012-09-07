@@ -41,9 +41,9 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
         return {
             reference_index                   => VRPipe::StepOption->create(description => 'Reference index (fai) file.'),
             split_bam_by_region_chunk_size    => VRPipe::StepOption->create(description => 'Chunk size to split the bam into.', default_value => 50000000),
-            split_bam_by_region_chunk_overlap => VRPipe::StepOption->create(description => 'Number of bases to allow chunks to overlap.', default_value => 1000),
-            split_bam_by_region_chrom_list    => VRPipe::StepOption->create(description => 'Number of bases to allow chunks to overlap.', optional => 1),
-            split_bam_by_region_include_mate  => VRPipe::StepOption->create(description => 'boolean; if true mates mapping to the split sequence will be included', optional => 1, default_value => 0)
+            split_bam_by_region_chunk_overlap => VRPipe::StepOption->create(description => 'Number of bases to allow chunks to overlap.', optional => 1, default_value => 1000),
+            split_bam_by_region_chrom_list   => VRPipe::StepOption->create(description => 'Limit split to specified chromosomes. Space separated list of chromosome names.', optional => 1),
+            split_bam_by_region_include_mate => VRPipe::StepOption->create(description => 'boolean; if true mates mapping to the split sequence will be included',           optional => 1, default_value => 0)
         };
     }
     
@@ -60,7 +60,7 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
             my $reference_index = $options->{reference_index};
             my $chunk_size      = $options->{split_bam_by_region_chunk_size};
             my $chunk_overlap   = $options->{split_bam_by_region_chunk_overlap};
-            my $chrom_list      = $options->{chrom_list};
+            my $chrom_list      = $options->{split_bam_by_region_chrom_list};
             
             my @chroms = ();
             @chroms = split(' ', $chrom_list) if ($chrom_list);
@@ -113,12 +113,12 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
             split_region_bam_files => VRPipe::StepIODefinition->create(
                 type        => 'bam',
                 max_files   => -1,
-                description => 'split bams for each sequence the reads were aligned to',
+                description => 'split bams for containing reads aligned to each genomic region specified',
                 metadata    => {
-                    reads => 'number of reads in the split region bam',
-                    chrom => 'The chromosome for this split region',
-                    from  => 'Split from',
-                    to    => 'Split to'
+                    reads => 'Number of reads in the split region bam',
+                    chrom => 'The chromosome for the split region bam',
+                    from  => 'The "from" coordinate of the split region bam',
+                    to    => 'The "to" coordinate of the split region bam'
                 }
             )
         };
@@ -129,7 +129,7 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
     }
     
     method description {
-        return "Splits a BAM file into multiple BAM files, one for each sequence the reads were aligned to";
+        return "Splits a BAM file into multiple BAM files, one for each genomic region specified.";
     }
     
     method max_simultaneous {
@@ -143,9 +143,12 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
         my $pb = VRPipe::Parser->create('bam', { file => $bam_file });
         
         my %region_bams;
+        my %chrom_regions;
         foreach my $region (@$regions) {
             my $region_bam = VRPipe::File->create(path => file($split_dir, $region . '.' . $bam_file->basename));
             $region_bams{$region} = $region_bam->path->stringify;
+            my ($chrom, $from, $to) = $region =~ m/^(.+)_(\d+)-(\d+)$/;
+            push @{ $chrom_regions{$chrom} }, { from => $from, to => $to, bam_path => $region_bam->path->stringify };
         }
         
         my @get_fields = ('RNAME', 'POS');
@@ -163,16 +166,20 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
             my $seq_name = $parsed_record->{RNAME};
             my $seq_pos  = $parsed_record->{POS};
             my %out_bams;
-            my $seq_bams = $self->position_to_bam($seq_name, $seq_pos, \%region_bams);
-            foreach my $seq_bam (@$seq_bams) {
-                $out_bams{$seq_bam} = 1;
+            if (exists $chrom_regions{$seq_name}) {
+                my $seq_bams = $self->position_to_bam($seq_pos, $chrom_regions{$seq_name});
+                foreach my $seq_bam (@$seq_bams) {
+                    $out_bams{$seq_bam} = 1;
+                }
             }
             if ($include_mate) {
                 my $mate_name = $parsed_record->{MRNM};
                 my $mate_pos  = $parsed_record->{MPOS};
-                my $mate_bams = $self->position_to_bam($mate_name, $mate_pos, \%region_bams);
-                foreach my $mate_bam (@$mate_bams) {
-                    $out_bams{$mate_bam} = 1;
+                if (exists $chrom_regions{$mate_name}) {
+                    my $mate_bams = $self->position_to_bam($mate_pos, $chrom_regions{$mate_name});
+                    foreach my $mate_bam (@$mate_bams) {
+                        $out_bams{$mate_bam} = 1;
+                    }
                 }
             }
             
@@ -227,14 +234,11 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
         }
     }
     
-    method position_to_bam (ClassName|Object $self: Str $seq!, Int $pos!, HashRef $region_bams!) {
+    method position_to_bam (ClassName|Object $self: Int $pos!, ArrayRef $region_bams!) {
         my @matching_bams;
-        while (my ($region, $bam) = each %$region_bams) {
-            my ($chrom, $from, $to) = $region =~ m/^(.+)_(\d+)-(\d+)/;
-            next unless ($seq eq $chrom);
-            next unless ($pos >= $from);
-            next unless ($pos <= $to);
-            push @matching_bams, $bam;
+        foreach my $hash (@$region_bams) {
+            next unless ($pos >= $hash->{from} && $pos <= $hash->{to});
+            push @matching_bams, $hash->{bam_path};
         }
         return \@matching_bams;
     }
