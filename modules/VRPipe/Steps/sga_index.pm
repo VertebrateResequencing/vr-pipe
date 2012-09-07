@@ -88,9 +88,9 @@ class VRPipe::Steps::sga_index with VRPipe::StepRole {
                 ($cpus) = $sga_opts =~ m/--threads (\d+)/;
             }
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
-                # estimate 4 bits/base for memory
+                # estimate 5 bits/base for memory
                 my $bases  = $fq->metadata->{bases};
-                my $memory = 1000 + int(4 * $bases / (8 * 1024 * 1024));                                         # Mb
+                my $memory = 5000 + int(5 * $bases / (8 * 1024 * 1024) + 0.5);                                   # Mb
                 my $req    = $self->new_requirements(memory => $memory, time => 1, $cpus ? (cpus => $cpus) : ());
                 
                 my $prefix = $fq->basename;

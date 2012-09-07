@@ -142,7 +142,7 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
         }
         
         # Estimate bit array size
-        my $bit_array = ($variant->s) / 4;
+        my $bit_array = $variant->path =~ /\.gz$/ ? $variant->s : ($variant->s) / 4;
         $bytes += $bit_array;
         
         my $overcommit = 1.25;
