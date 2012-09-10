@@ -63,13 +63,13 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
             
             my $fq_meta = $self->common_metadata($self->inputs->{fastq_files});
             
-            my @fq_paths;
+            my @fq_ids;
             my ($reads, $bases) = (0, 0);
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
                 my $meta = $fq->metadata;
                 $reads += $meta->{reads};
                 $bases += $meta->{bases};
-                push @fq_paths, $fq->path;
+                push @fq_ids, $fq->id;
             }
             $fq_meta->{reads} = $reads;
             $fq_meta->{bases} = $bases;
@@ -85,7 +85,7 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
             my $index_path        = $index_file->path;
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            my $this_cmd = "use VRPipe::Steps::fastq_merge_and_index; VRPipe::Steps::fastq_merge_and_index->fastq_merge_and_index([qw(@fq_paths)], q[$merged_fastq_path], q[$index_path]);";
+            my $this_cmd = "use VRPipe::Steps::fastq_merge_and_index; VRPipe::Steps::fastq_merge_and_index->fastq_merge_and_index(fastq_ids => [qw(@fq_ids)], merged_fastq => q[$merged_fastq_path], pop_index => q[$index_path]);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$merged_fastq_file, $index_file] });
         };
     }
@@ -117,7 +117,7 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method fastq_merge_and_index (ClassName|Object $self: ArrayRef[Str|File] $fastqs!, Str|File $merged_fastq!, Str|File $pop_index!) {
+    method fastq_merge_and_index (ClassName|Object $self: ArrayRef[Str|File] :$fastq_ids!, Str|File :$merged_fastq!, Str|File :$pop_index!) {
         unless (ref($merged_fastq) && ref($merged_fastq) eq 'VRPipe::File') {
             $merged_fastq = VRPipe::File->get(path => file($merged_fastq));
         }
@@ -130,8 +130,8 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         
         my %samples;
         my $expected_lines = 0;
-        foreach my $fq (@$fastqs) {
-            my $fq_file = VRPipe::File->get(path => file($fq));
+        foreach my $id (@$fastq_ids) {
+            my $fq_file = VRPipe::File->get(id => $id);
             my $sample = $fq_file->metadata->{sample};
             push @{ $samples{$sample} }, $fq_file;
             $expected_lines += $fq_file->lines;
@@ -189,10 +189,10 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
             $pop_index->unlink;
             $self->throw("Merged fastq had $actual_reads actual reads, whereas we expected $expected_reads reads.");
         }
-        elsif ($index_lines != scalar @$fastqs) {
+        elsif ($index_lines != scalar @$fastq_ids) {
             $merged_fastq->unlink;
             $pop_index->unlink;
-            $self->throw("Index had $index_lines, whereas we expected " . scalar(@$fastqs) . " lines.");
+            $self->throw("Index had $index_lines, whereas we expected " . scalar(@$fastq_ids) . " lines.");
         }
         else {
             return 1;
