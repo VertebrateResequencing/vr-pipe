@@ -278,7 +278,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         
         my @single_results;
         foreach my $lane ($self->_filtered_lanes(%args)) {
-            my %lane_info = $vrtrack->lane_info($lane->name);
+            my %lane_info = $vrtrack->lane_info($lane);
             my @lane_changed_details;
             
             my @files;
