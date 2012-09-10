@@ -61,7 +61,7 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
                 next unless $paids{$paid} == $expected_count;
                 return $self->$orig(id => $paid);
             }
-            $self->throw("No PersistentArray exists for the given PersistentArrayMembers");
+            return $self->create(members => $members);
         }
         else {
             $self->throw("PersistentArray->get requires id or members");
