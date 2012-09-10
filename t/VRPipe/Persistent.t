@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 130;
+    use Test::Most tests => 131;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -268,6 +268,7 @@ ok $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'got a Persist
 is $subs_array->id, 1, 'it had the id of the first matching PArray';
 ok $subs_array = VRPipe::PersistentArray->get(members => [$subs[1], $subs[0]]), 'created a PersistentArray using get()';
 is $subs_array->id, 3, 'using get() with members in a previously unused order returns a new PArray';
+is_deeply [map { $_->id => ref($_) } $subs_array->member_instances], [2 => 'VRPipe::Submission', 1 => 'VRPipe::Submission'], 'member_instances() works';
 
 # now that we have some submissions and pipelinesetup, make some stepstats and
 # test that the multi-row get methods work

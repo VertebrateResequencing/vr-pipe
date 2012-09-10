@@ -91,8 +91,15 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
         my ($pam) = VRPipe::PersistentArrayMember->search({ persistentarray => $self->id, array_index => $index });
         $pam || $self->throw("PersistentArray " . $self->id . " does not have a member with index $index");
         
-        my $class = $pam->class;
-        return $class->get(id => $pam->class_id);
+        return $pam->instantiate;
+    }
+    
+    method member_instances {
+        my @return;
+        foreach my $member ($self->members) {
+            push(@return, $member->instantiate);
+        }
+        return @return;
     }
     
     method size {
