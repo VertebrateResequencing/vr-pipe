@@ -40,7 +40,7 @@ use VRPipe::Base;
 class VRPipe::PersistentArray extends VRPipe::Persistent {
     __PACKAGE__->make_persistent(has_many => [members => 'VRPipe::PersistentArrayMember']);
     
-    around get (ClassName|Object $self: Persistent :$id?, ArrayRefOfPersistent :$members?) {
+    around get (ClassName|Object $self: Persistent :$id?, ArrayRefOfPersistent :$members?, Bool :$any_order?) {
         $self->throw("You cannot supply both id and members") if $id && $members;
         
         if ($id) {
@@ -51,7 +51,7 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
             my $index = 0;
             foreach my $member (@$members) {
                 ++$index;
-                foreach my $paid (VRPipe::PersistentArrayMember->get_column_values('persistentarray', { class => ref($member), class_id => $member->id, array_index => $index })) {
+                foreach my $paid (VRPipe::PersistentArrayMember->get_column_values('persistentarray', { class => ref($member), class_id => $member->id, $any_order ? () : (array_index => $index) })) {
                     $paids{$paid}++;
                 }
             }
@@ -59,6 +59,7 @@ class VRPipe::PersistentArray extends VRPipe::Persistent {
             my $expected_count = @$members;
             foreach my $paid (sort { $a <=> $b } keys %paids) {
                 next unless $paids{$paid} == $expected_count;
+                next unless VRPipe::PersistentArrayMember->search({ persistentarray => $paid }) == $expected_count;
                 return $self->$orig(id => $paid);
             }
             return $self->create(members => $members);

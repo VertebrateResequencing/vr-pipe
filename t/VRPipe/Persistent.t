@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 131;
+    use Test::Most tests => 133;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -266,6 +266,8 @@ ok $subs_array = VRPipe::PersistentArray->create(members => \@subs), 'created a 
 is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id, $subs_array->member(1)->id, $subs_array->member(2)->id], [2, 3, 4, 1, 2], 'the created PArray has a new id, new persistentarray members, but the same contents otherwise';
 ok $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'got a PersistentArray using a set of members';
 is $subs_array->id, 1, 'it had the id of the first matching PArray';
+ok $subs_array = VRPipe::PersistentArray->get(members => [$subs[1], $subs[0]], any_order => 1), 'got a PersistentArray using get()';
+is $subs_array->id, 1, 'using get() with members in a previously unused order still returns an existing PArray when any_order is true';
 ok $subs_array = VRPipe::PersistentArray->get(members => [$subs[1], $subs[0]]), 'created a PersistentArray using get()';
 is $subs_array->id, 3, 'using get() with members in a previously unused order returns a new PArray';
 is_deeply [map { $_->id => ref($_) } $subs_array->member_instances], [2 => 'VRPipe::Submission', 1 => 'VRPipe::Submission'], 'member_instances() works';
