@@ -81,10 +81,9 @@ class VRPipe::StepAdaptor extends VRPipe::Persistent {
             while (my ($key, $from_step) = each %$ref) {
                 if ($data_element) {
                     if ($key eq 'data_element' && $from_step == 0) {
-                        my $result = $data_element->result;
-                        my $paths = $result->{paths} || $self->throw("data element " . $data_element->id . " gave a result with no paths");
-                        foreach my $path (@$paths) {
-                            push(@results, VRPipe::File->get(path => file($path)->absolute));
+                        my $files = $data_element->files || $self->throw("data element " . $data_element->id . " gave a result with no files");
+                        foreach my $file (@$files) {
+                            push(@results, $file);
                         }
                     }
                 }
