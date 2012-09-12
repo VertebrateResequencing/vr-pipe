@@ -72,8 +72,8 @@ Possible problems you may encounter in installing your missing prerequisites:
 # Twiggy may fail its disconnect.t test. This is safe to ignore; just:
   cpan> force install Twiggy
 # If you run into a problem installing XML::LibXML due to an inability to find
-  the required libs, try using your OS packagement management system to intall
-  it, eg. for Ubuntu:
+  the required libs, try using your OS package management system to install it,
+  eg. for Ubuntu:
   sudo apt-get install libxml-libxml-perl
 # Likewise for XML::LibXSLT:
   sudo apt-get install libxml-libxslt-perl
