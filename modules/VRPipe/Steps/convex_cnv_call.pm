@@ -76,7 +76,7 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
                 my $basename = $gam_file->basename;
                 $basename =~ s/gam\.txt$/cnv_calls.txt/;
                 
-                my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt');
+                my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt', metadata => {sample => $sample});
                 my $cnv_dir = $cnv_file->dir;
                 
                 my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SWCNVCall.R $sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$basename,$sample,$centromere_reg_file,$cnv_dir,$sw_exec";
