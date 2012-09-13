@@ -299,7 +299,20 @@ class VRPipe::Job extends VRPipe::Persistent {
             open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
             open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
             chdir($dir);
-            exec($cmd);
+            
+            # exec is supposed to get our $cmd to run whilst keeping the same
+            # $cmd_pid, but on some systems like Ubuntu the sh (dash) is a bit
+            # sucky: http://www.perlmonks.org/?node_id=785284
+            # We can't force list mode in the normal way because we actually
+            # require the use of the shell to do things like run multi-line
+            # commands and pipes etc.
+            # $cmd having a different pid to $cmd_pid matters because we need to
+            # know the correct pid if the server needs to kill it later.
+            # Instead we force the use of bash for everything, which might be
+            # less efficient in some cases, but the difference is going to be
+            # meaningless for us. Of possibly greater concern is reduced
+            # portability, but we'll deal with that when someone complains...
+            exec {'bash'} 'bash', '-c', $cmd;
         }
         
         # wait for the cmd to finish

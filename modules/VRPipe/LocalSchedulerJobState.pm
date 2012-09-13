@@ -182,7 +182,8 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             }
             $ENV{VRPIPE_LOCAL_JOBINDEX} = $aid;
             
-            exec($cmd);
+            # see notes in VRPipe::Job for we do this instead of exec($cmd);
+            exec {'bash'} 'bash', '-c', $cmd;
         }
         
         # wait for the cmd to finish
