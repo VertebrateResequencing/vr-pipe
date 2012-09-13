@@ -90,17 +90,20 @@ sub import {
                 Schema => sub {
                     return sub {
                         return $schema_manager->schema;
-                      }
+                    };
                 },
                 get_elements => sub {
                     return \&get_elements;
+                },
+                result_with_inflated_paths => sub {
+                    return \&result_with_inflated_paths;
                   }
             ],
             into_level => 1,
         }
     );
     
-    $class->$exporter(qw/Schema get_elements/, @exports);
+    $class->$exporter(qw/Schema get_elements result_with_inflated_paths/, @exports);
 }
 
 sub _initialize_schema {
@@ -211,6 +214,15 @@ sub get_elements {
         push(@elements, @$elements);
     }
     return \@elements;
+}
+
+sub result_with_inflated_paths {
+    my $de     = shift;
+    my $result = $de->result;
+    if (defined $result->{paths}) {
+        $result->{paths} = [$de->paths] unless ref($result->{paths});
+    }
+    return $result;
 }
 
 1;

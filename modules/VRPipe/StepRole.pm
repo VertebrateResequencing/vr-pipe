@@ -213,8 +213,11 @@ role VRPipe::StepRole {
     
     method _build_outputs {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
-        my $outs       = $step_state->output_files;
-        my $temps      = $step_state->temp_files;
+        if ($step_state->same_submissions_as) {
+            $step_state = $step_state->same_submissions_as;
+        }
+        my $outs  = $step_state->output_files;
+        my $temps = $step_state->temp_files;
         foreach my $temp (@$temps) {
             push(@{ $outs->{temp} }, $temp);
         }
@@ -463,7 +466,7 @@ role VRPipe::StepRole {
         while (my ($key, $val) = each %$defs) {
             next if exists $hash->{$key};
             next if $val->min_files == 0;
-            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
+            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key (dataelement " . $self->data_element->id . "; stepstate " . $self->step_state->id . "; pipelinesetup " . $self->step_state->pipelinesetup->id . ")");
         }
         
         return $self->_missing($hash, $defs);

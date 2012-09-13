@@ -154,7 +154,7 @@ my $ds_test = VRPipe::DataSource->create(
 );
 my @results = ();
 foreach my $element (@{ get_elements($ds_test) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => \@step_four_base_files, group => 'bar' }], 'metadata filtering for "group_by_metadata" vrpipe datasource method worked as expected';
 
@@ -170,7 +170,7 @@ $ds_test = VRPipe::DataSource->create(
 );
 @results = ();
 foreach my $element (@{ get_elements($ds_test) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [$step_four_base_files[1]], group => 'bar' }], 'metadata filtering for "group_by_metadata" vrpipe datasource method with "filter_after_grouping" option off worked as expected';
 
@@ -182,7 +182,7 @@ $ds_test = VRPipe::DataSource->create(
 );
 @results = ();
 foreach my $element (@{ get_elements($ds_test) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for "all" vrpipe datasource method worked as expected';
 
@@ -194,7 +194,7 @@ $ds_test = VRPipe::DataSource->create(
 );
 @results = ();
 foreach my $element (@{ get_elements($ds_test) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file(qw(t data file.txt))->absolute->stringify] }, { paths => [file(qw(t data file2.txt))->absolute->stringify] }, { paths => [file(qw(t data file3.txt))->absolute->stringify] }], 'getting vrpipe datasource from step 0 worked';
 
@@ -206,7 +206,7 @@ $ds_test = VRPipe::DataSource->create(
 );
 @results = ();
 foreach my $element (@{ get_elements($ds_test) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => \@step_four_base_files }], 'vrpipe datasource group_all method worked as expected';
 
@@ -218,7 +218,7 @@ $ds_test = VRPipe::DataSource->create(
 );
 @results = ();
 foreach my $element (@{ get_elements($ds_test) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'vrpipe datasource group_all with filter option worked as expected';
 

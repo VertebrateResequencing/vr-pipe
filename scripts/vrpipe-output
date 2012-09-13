@@ -209,7 +209,7 @@ while (my $estates = $estates_pager->next) {
         my ($element_result, $input_parent_dir, $input_basename);
         if (defined $list || $output_with_input || $basename_as_input) {
             $element_result = $element->result;
-            my $input_paths = $element_result->{paths};
+            my $input_paths = $element->paths;
             if ($input_paths) {
                 $input_parent_dir = common_parent_dir($input_paths);
                 

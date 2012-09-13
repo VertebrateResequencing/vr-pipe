@@ -26,28 +26,25 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
-use VRPipe::Persistent::Schema;
+use VRPipe::FrontEnd;
 
-use Getopt::Long;
-my $verbose = 0;
-my $limit   = 2000;
-my $result  = GetOptions("verbose" => \$verbose, "limit=i" => \$limit);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Discover work that needs to be done in pipeline setups.",
+    opt_spec    => [
+        ['limit=i', q[Globally limit the number of things we'll trigger], { default => 2000 }],
+        ['verbose', 'Print lots of debugging information']
+    ]
+);
+my $verbose = $frontend->opts('verbose');
+my $limit   = $frontend->opts('limit');
 
 my $manager = VRPipe::Manager->create(global_limit => $limit);
 $manager->set_verbose_global(1) if $verbose;
 
 while (1) {
-    handle_pipeline();
-    print STDERR ", ";
+    $manager->trigger;
+    print STDERR ". ";
     sleep(60);
 }
 
 exit;
-
-sub handle_pipeline {
-    while (1) {
-        last if $manager->trigger;
-        print STDERR ". ";
-        sleep(60);
-    }
-}

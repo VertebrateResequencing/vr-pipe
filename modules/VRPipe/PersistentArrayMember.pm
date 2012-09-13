@@ -69,6 +69,11 @@ class VRPipe::PersistentArrayMember extends VRPipe::Persistent {
     );
     
     __PACKAGE__->make_persistent();
+    
+    method instantiate {
+        my $class = $self->class;
+        return $class->get(id => $self->class_id);
+    }
 }
 
 1;

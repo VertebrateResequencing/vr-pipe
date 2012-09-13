@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 126;
+    use Test::Most tests => 133;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -254,9 +254,9 @@ $subs[1] = VRPipe::Submission->get(id => 1);
 is $subs[1]->requirements->id, 2, 'but getting it with a certain requirements changed the requirements for this submission in the db';
 $subs[1] = VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[1], requirements => $reqs[1]);
 
-throws_ok { VRPipe::PersistentArray->get() } qr/Validation failed/,    'get() for PersistentArray fails with no args';
-throws_ok { VRPipe::PersistentArray->create() } qr/Validation failed/, 'create() for PersistentArray fails with no args';
-throws_ok { VRPipe::PersistentArray->get(id => 1, members => \@subs) } qr/Validation failed/, 'get() for PersistentArray fails with both id and members supplied';
+throws_ok { VRPipe::PersistentArray->get() } qr/requires id or members/, 'get() for PersistentArray fails with no args';
+throws_ok { VRPipe::PersistentArray->create() } qr/Validation failed/,   'create() for PersistentArray fails with no args';
+throws_ok { VRPipe::PersistentArray->get(id => 1, members => \@subs) } qr/cannot supply both id and members/, 'get() for PersistentArray fails with both id and members supplied';
 ok my $subs_array = VRPipe::PersistentArray->create(members => \@subs), 'created a PersistentArray using create(members => [...])';
 is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id, $subs_array->member(1)->id, $subs_array->member(2)->id], [1, 1, 2, 1, 2], 'the created PArray has the correct contents';
 undef $subs_array;
@@ -264,6 +264,13 @@ ok $subs_array = VRPipe::PersistentArray->get(id => 1), 'got a PersistentArray u
 is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id], [1, 1, 2], 'the gotten PArray has the correct contents';
 ok $subs_array = VRPipe::PersistentArray->create(members => \@subs), 'created a PersistentArray using the same set of members)';
 is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id, $subs_array->member(1)->id, $subs_array->member(2)->id], [2, 3, 4, 1, 2], 'the created PArray has a new id, new persistentarray members, but the same contents otherwise';
+ok $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'got a PersistentArray using a set of members';
+is $subs_array->id, 1, 'it had the id of the first matching PArray';
+ok $subs_array = VRPipe::PersistentArray->get(members => [$subs[1], $subs[0]], any_order => 1), 'got a PersistentArray using get()';
+is $subs_array->id, 1, 'using get() with members in a previously unused order still returns an existing PArray when any_order is true';
+ok $subs_array = VRPipe::PersistentArray->get(members => [$subs[1], $subs[0]]), 'created a PersistentArray using get()';
+is $subs_array->id, 3, 'using get() with members in a previously unused order returns a new PArray';
+is_deeply [map { $_->id => ref($_) } $subs_array->member_instances], [2 => 'VRPipe::Submission', 1 => 'VRPipe::Submission'], 'member_instances() works';
 
 # now that we have some submissions and pipelinesetup, make some stepstats and
 # test that the multi-row get methods work
