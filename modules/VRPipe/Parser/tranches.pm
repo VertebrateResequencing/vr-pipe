@@ -55,6 +55,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::tranches with VRPipe::ParserRole {
+
     has 'parsed_record' => (
         is      => 'ro',
         isa     => 'HashRef',
@@ -125,13 +126,13 @@ class VRPipe::Parser::tranches with VRPipe::ParserRole {
         # 99.00,963,0,2.4149,0.0000,1.6421,VQSRTrancheSNP90.00to99.00,SNP,165,163,0.9879
         # 99.90,1245,1111,2.3378,2.6426,0.7663,VQSRTrancheSNP99.00to99.90,SNP,165,164,0.9939
         # 100.00,1315,5056,2.2630,1.9935,-486.3780,VQSRTrancheSNP99.90to100.00,SNP,165,165,1.0000
-        
+
         my $pr = $self->parsed_record;
         
         foreach my $key (keys %{$pr}) {
             delete $pr->{$key};
         }
-        
+
         my @columns;
         if (@data == 10) {
             @columns = (qw(targetTruthSensitivity numKnown numNovel knownTiTv novelTiTv minVQSLod filterName accessibleTruthSites callsAtTruthSites truthSensitivity));
