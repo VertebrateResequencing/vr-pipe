@@ -39,6 +39,7 @@ use VRPipe::Base;
 
 class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
     use Sys::Hostname;
+    use Proc::Killfam;
     
     has 'localschedulerjob' => (
         is         => 'rw',
@@ -182,7 +183,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             }
             $ENV{VRPIPE_LOCAL_JOBINDEX} = $aid;
             
-            # see notes in VRPipe::Job for we do this instead of exec($cmd);
+            # see notes in VRPipe::Job for why we do this instead of exec($cmd);
             exec {'bash'} 'bash', '-c', $cmd;
         }
         
@@ -228,7 +229,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         my $pid = $self->pid;
         if ($pid) {
             if (!$self->end_time) {
-                kill(9, $pid);
+                killfam 'KILL', $pid;
             }
         }
         
