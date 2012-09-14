@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 79;
+    use Test::Most tests => 75;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -129,18 +129,7 @@ is_deeply [@records], [{ SN => 'fake_chr1', LN => 290640 }, { SN => 'fake_chr2',
 is_deeply [{ $p->seq_lengths }], [{ 'fake_chr1' => 290640, 'fake_chr2' => 1716851 }], 'seq_lengths for fai files worked';
 is $p->total_length, 2007491, 'total_length for fai files worked';
 
-# bam (we have Parser_bam.t for more in-depth testing of bam parsing)
-$p = VRPipe::Parser->create('bam', { file => file(qw(t data file.bam)) });
-is $p->sam_version, '1.0', 'sam version could be parsed from bam file';
-is $p->sequence_info('2', 'LN'), 243199373, 'chrom length could be parsed from bam file';
-is $p->program_info('bwa', 'VN'), '0.5.5', 'program info could be parsed from bam file';
-is $p->readgroup_info('SRR035022', 'LB'), 'Solexa-16652', 'readgroup info could be parsed from bam file';
-is_deeply [$p->samples], ['NA06984'], 'could get all samples from bam file';
-$num_records = 0;
-while ($p->next_record) {
-    $num_records++;
-}
-is $num_records, 3, 'correct number of records found in bam file';
+# bam (we have Parser_bam.t for this)
 
 # bamcheck
 $p = VRPipe::Parser->create('bamcheck', { file => file(qw(t data parser.bamcheck)) });
@@ -173,6 +162,16 @@ while ($p->next_record) {
 is_deeply \@records, ['NA00001.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122', 'NA00002.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122', 'NA00003.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122'], 'correct number of records found in bas file, and seems to be fully parsed';
 is $p->total_bases,     345000, 'total_bases worked';
 is $p->duplicate_bases, 366,    'duplicate_bases worked';
+
+# tranches
+$p       = VRPipe::Parser->create('tranches', { file => file(qw(t data example.tranches)) });
+$pr      = $p->parsed_record;
+@records = ();
+while ($p->next_record) {
+    push(@records, [$pr->{targetTruthSensitivity}, $pr->{numKnown}, $pr->{numNovel}, $pr->{knownTiTv}, $pr->{novelTiTv}, $pr->{minVQSLod}, $pr->{filterName}, $pr->{accessibleTruthSites}, $pr->{callsAtTruthSites}, $pr->{truthSensitivity}]);
+}
+is scalar @records, 51, 'tranches parser parsed the correct number of lines';
+is_deeply $records[0], [qw(95.00 12709365 3437394 2.2470 2.1520 3.8133 TruthSensitivityTranche0.00to95.00 1422549 1351421 0.9500)], 'first record of tranches file is correct';
 
 # fastq
 {

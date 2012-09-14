@@ -1,12 +1,12 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::vcf_concat - a pipeline
+VRPipe::Pipelines::vcf_annotate - a pipeline
 
 =head1 DESCRIPTION
 
-Pipeline to concatenate multiple vcf files using the vcftools utility
-vcf-concat.
+Pipeline to annotate multiple vcf files using the vcftools utility
+vcf-annotate.
 
 =head1 AUTHOR
 
@@ -34,9 +34,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vcf_concat with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vcf_annotate with VRPipe::PipelineRole {
     method name {
-        return 'vcf_concat';
+        return 'vcf_annotate';
     }
     
     method _num_steps {
@@ -44,7 +44,7 @@ class VRPipe::Pipelines::vcf_concat with VRPipe::PipelineRole {
     }
     
     method description {
-        return 'Concatenate multiple vcfs using vcf-concat';
+        return 'Annotate multiple vcfs using vcf-annotate';
     }
     
     method steps {
@@ -53,10 +53,10 @@ class VRPipe::Pipelines::vcf_concat with VRPipe::PipelineRole {
     
     method _step_list {
         return ([
-                VRPipe::Step->get(name => 'vcf_concat'), #1
-                VRPipe::Step->get(name => 'vcf_index'),  #2
+                VRPipe::Step->get(name => 'vcf_annotate'), #1
+                VRPipe::Step->get(name => 'vcf_index'),    #2
             ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'concat_vcf', to_key => 'vcf_files')],
+            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'annotated_vcf', to_key => 'vcf_files')],
             [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_input_vcfs', default_regulation => 0)]
         );
     }

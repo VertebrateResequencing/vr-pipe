@@ -60,17 +60,18 @@ Possible problems you may encounter in installing your missing prerequisites:
 # You may find that MooseX::Types::Parameterizable fails its tests. In that case
   you can manually use 'cpan' to install an earlier version that should work:
   cpan> install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz
-# Version 0.08198 of DBIx::Class has a prefetch-related bug which prevents
-  VRPipe from working. Please use an earlier version like 0.08196, or any higher
-  version that claims to have fixed
-  https://rt.cpan.org/Ticket/Display.html?id=78456 :
-  cpan> force install ARODLAND/DBIx-Class-0.08196.tar.gz
 # If you find that AnyEvent::ForkManager fails tests and emmits errors
   mentioning WNOHANG, you will have to cd to the cpan build directory and edit
   line 11 of blib/lib/AnyEvent/ForkManager.pm to read "use POSIX qw(WNOHANG);"
   (without the quotes). Then you can do "make test" and "make install".
 # Twiggy may fail its disconnect.t test. This is safe to ignore; just:
   cpan> force install Twiggy
+# If you run into a problem installing XML::LibXML due to an inability to find
+  the required libs, try using your OS package management system to install it,
+  eg. for Ubuntu:
+  sudo apt-get install libxml-libxml-perl
+# Likewise for XML::LibXSLT:
+  sudo apt-get install libxml-libxslt-perl
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is

@@ -42,7 +42,7 @@ ok my $ds = VRPipe::DataSource->create(
 
 my @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file('t', 'data', '2822_6.pe.bam')->absolute, file('t', 'data', '2822_6.se.bam')->absolute, file('t', 'data', '2822_7.pe.bam')->absolute], group => 'LIB01' }, { paths => [file('t', 'data', '2823_4.pe.bam')->absolute], group => 'LIB02' }, { paths => [file('t', 'data', '8324_8.pe.bam')->absolute], group => 'LIB03' }], 'got correct results for delimited datasource';
 

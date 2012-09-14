@@ -406,10 +406,8 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
     
     method element_readgroups (ClassName|Object $self: VRPipe::DataElement $dataelement!) {
         my %readgroups;
-        my $result = $dataelement->result;
-        my $paths = $result->{paths} || $self->throw("data element " . $dataelement->id . " gave a result with no paths");
-        foreach my $path (@$paths) {
-            my $bam = VRPipe::File->get(path => file($path)->absolute);
+        my $files = $dataelement->files || $self->throw("data element " . $dataelement->id . " gave a result with no paths");
+        foreach my $bam (@$files) {
             my $metadata = $bam->metadata;
             next unless defined $metadata->{lane};
             foreach my $lane (split ',', $metadata->{lane}) {

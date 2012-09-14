@@ -35,7 +35,6 @@ my @output_subdirs = output_subdirs(1);
 my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'SRR514151_160_lines.unpaired_uniq');
 my @outputfiles;
 push(@outputfiles, $outputfile_1);
-warn $outputfile_1;
 ok handle_pipeline(@outputfiles), 'gsnap pipeline ran ok, generating the expected output file';
 
 #my $testfilecontents   = file( qw(t data ERR032995.concordant_uniq) )->slurp;

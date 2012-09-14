@@ -133,19 +133,19 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
         my ($input_path, $output_path) = $cmd_line =~ /-input (\S+) .* -o (\S+) /;
         my $input_file = VRPipe::File->get(path => $input_path);
         
-        my $input_lines = $input_file->lines;
+        my $input_records = $input_file->num_records;
         
         $input_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
-        my $output_lines = $output_file->lines;
+        my $output_records = $output_file->num_records;
         
         # Should have extra header lines
-        unless ($output_lines >= $input_lines) {
+        if ($output_records < $input_records) {
             $output_file->unlink;
-            $self->throw("Output VCF has $output_lines lines, less than input $input_lines");
+            $self->throw("Output VCF has $output_records records, less than input $input_records");
         }
         else {
             return 1;

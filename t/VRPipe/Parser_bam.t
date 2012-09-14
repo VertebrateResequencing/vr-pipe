@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 46;
+    use Test::Most tests => 52;
     use VRPipeTest (required_env => 'SAMTOOLS');
     
     use_ok('VRPipe::Parser');
@@ -28,7 +28,20 @@ is $pb->is_primary($flag),   1, 'is_primary test';
 is $pb->passes_qc($flag),    1, 'passes_qc test';
 is $pb->is_duplicate($flag), 0, 'is_duplicate test';
 
-# now test parsing actual bam records; header methods are tested in Parser.t
+# test bam header parsing
+my $pb2 = VRPipe::Parser->create('bam', { file => file(qw(t data file.bam)) });
+is $pb2->sam_version, '1.0', 'sam version could be parsed from bam file';
+is $pb2->sequence_info('2', 'LN'), 243199373, 'chrom length could be parsed from bam file';
+is $pb2->program_info('bwa', 'VN'), '0.5.5', 'program info could be parsed from bam file';
+is $pb2->readgroup_info('SRR035022', 'LB'), 'Solexa-16652', 'readgroup info could be parsed from bam file';
+is_deeply [$pb2->samples], ['NA06984'], 'could get all samples from bam file';
+my $num_records = 0;
+while ($pb2->next_record) {
+    $num_records++;
+}
+is $num_records, 3, 'correct number of records found in bam file';
+
+# now test parsing actual bam records
 ok my $pr = $pb->parsed_record(), 'parsed_record returned something';
 is ref($pr), 'HASH', 'parsed_record returns a hash ref';
 is keys %{$pr}, 0, 'the parsed_record starts off empty';
@@ -220,7 +233,7 @@ exit;
 
 sub get_bam_header {
     my $bam_file = shift;
-    open(my $bamfh, "samtools view -H $bam_file |") || die "Could not open samtools view -H $bam_file\n";
+    open(my $bamfh, "$ENV{SAMTOOLS}/samtools view -H $bam_file |") || die "Could not open samtools view -H $bam_file\n";
     my @header_lines;
     while (<$bamfh>) {
         chomp;
@@ -232,7 +245,7 @@ sub get_bam_header {
 
 sub get_bam_body {
     my $bam_file = shift;
-    open(my $bamfh, "samtools view $bam_file |") || die "Could not open samtools view $bam_file\n";
+    open(my $bamfh, "$ENV{SAMTOOLS}/samtools view $bam_file |") || die "Could not open samtools view $bam_file\n";
     my @records;
     while (<$bamfh>) {
         chomp;
