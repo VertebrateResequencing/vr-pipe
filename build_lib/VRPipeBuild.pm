@@ -65,7 +65,7 @@ sub required_modules {
         'Data::Dumper'                   => 0,
         'DateTime'                       => 0,
         'DBI'                            => 0,
-        'DBIx::Class'                    => '>= 0.08192, != 0.08198', # prefetch bug in 0.08198: https://rt.cpan.org/Ticket/Display.html?id=78456
+        'DBIx::Class'                    => '>= 0.08200',
         'DBIx::Class::DeploymentHandler' => 0,
         'Devel::GlobalDestruction'       => 0,
         'Digest::MD5'                    => 0,
@@ -93,13 +93,14 @@ sub required_modules {
         'MooseX::NonMoose'               => 0,
         'MooseX::StrictConstructor'      => 0,
         'MooseX::Types'                  => 0,
-        'MooseX::Types::Parameterizable' => '>= 0.07, != 0.08',       # 0.08, currently the latest version, just doesn't seem to pass tests for anyone
+        'MooseX::Types::Parameterizable' => '>= 0.07, != 0.08', # 0.08, currently the latest version, just doesn't seem to pass tests for anyone
         'Net::FTP::Robust'               => 0,
         'Net::SSH'                       => 0,
         'Parallel::ForkManager'          => 0,
         'Path::Class'                    => 0,
         'Perl6::Form'                    => 0,
         'POSIX'                          => 0,
+        'Proc::Killfam'                  => 0,
         'Storable'                       => 0,
         'Sys::CPU'                       => 0,
         'Sys::Hostname'                  => 0,
