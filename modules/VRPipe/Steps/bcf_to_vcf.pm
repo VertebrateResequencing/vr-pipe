@@ -154,7 +154,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
         # if the inputs to the step are bam files, this is the mpileup step
         # and we need to create a fofn of the input bam files
         if ($bam_input) {
-            my ($bam_fofn_path) = $cmd_line =~ /-b (\S+) |/;
+            my ($bam_fofn_path) = $cmd_line =~ /-b (\S+) \|/;
             $self->throw("No bam fofn path found in command line $cmd_line") unless $bam_fofn_path;
             my $bam_fofn = VRPipe::File->get(path => $bam_fofn_path);
             $bam_fofn->create_fofn(\@input_files);
