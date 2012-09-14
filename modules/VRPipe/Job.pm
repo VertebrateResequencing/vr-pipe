@@ -59,6 +59,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     use Cwd;
     use Sys::Hostname;
     use Net::SSH qw(ssh);
+    use VRPipe::Config;
     
     has 'cmd' => (
         is     => 'rw',
@@ -305,14 +306,18 @@ class VRPipe::Job extends VRPipe::Persistent {
             # sucky: http://www.perlmonks.org/?node_id=785284
             # We can't force list mode in the normal way because we actually
             # require the use of the shell to do things like run multi-line
-            # commands and pipes etc.
-            # $cmd having a different pid to $cmd_pid matters because we need to
-            # know the correct pid if the server needs to kill it later.
-            # Instead we force the use of bash for everything, which might be
-            # less efficient in some cases, but the difference is going to be
-            # meaningless for us. Of possibly greater concern is reduced
-            # portability, but we'll deal with that when someone complains...
-            exec {'bash'} 'bash', '-c', $cmd;
+            # commands and pipes etc. $cmd having a different pid to $cmd_pid
+            # matters because we need to know the correct pid if the server
+            # needs to kill it later. Instead we force the use of a better shell
+            # (default bash) for everything, which might be less efficient in
+            # some cases, but the difference is going to be meaningless for us.
+            my $shell = VRPipe::Config->new->exec_shell;
+            if ($shell) {
+                exec {$shell} $shell, '-c', $cmd;
+            }
+            else {
+                exec $cmd;
+            }
         }
         
         # wait for the cmd to finish
