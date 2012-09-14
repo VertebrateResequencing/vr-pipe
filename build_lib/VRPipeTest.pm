@@ -9,6 +9,7 @@ VRPipeTest - for use by all test scripts
         use Test::Most tests => 3;
         use VRPipeTest (required_env => [qw(RUN_AUTHOR_TESTS)],
                         required_exe => [qw(foo bar)],
+                        required_module => [qw(Baz::Bar Far::Car)],
                         debug => 0,
                         max_retries => 3);
     }
@@ -52,6 +53,7 @@ use VRPipe::Persistent::SchemaBase;
 use File::Spec;
 use File::Which qw(which);
 $SQL::Translator::Schema::DEBUG = 0; # suppress stupid warning in test harness
+$ENV{PERL_STRICTURES_EXTRA} = 0;
 
 BEGIN { unshift(@INC, './modules') }
 VRPipe::Persistent::SchemaBase->database_deployment('testing'); # do not change this under any circumstance!
@@ -68,7 +70,7 @@ sub import {
     
     # skip if required_env or required_exe not satisfied
     while (my ($key, $val) = each %args) {
-        if ($key =~ /^required_(env|exe)/) {
+        if ($key =~ /^required_(env|exe|module)/) {
             my $type = $1;
             my @to_check = ref($val) ? @{$val} : ($val);
             foreach (@to_check) {
@@ -131,6 +133,10 @@ sub skip_all_unless_exists {
     elsif ($type eq 'env') {
         $found = $ENV{$to_check};
     }
+    elsif ($type eq 'module') {
+        eval "use $to_check;";
+        $found = !$@;
+    }
     else {
         die "invalid type '$type'\n";
     }
@@ -165,6 +171,9 @@ sub skip_all_unless_exists {
         }
         elsif ($type eq 'env') {
             $skip_all->("The test requires the '$to_check' environment variable");
+        }
+        elsif ($type eq 'module') {
+            $skip_all->("The test requires the '$to_check' Perl module");
         }
     }
 }
