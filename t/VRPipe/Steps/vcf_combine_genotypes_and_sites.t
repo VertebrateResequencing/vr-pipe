@@ -2,13 +2,13 @@
 use strict;
 use warnings;
 use Path::Class;
-use Vcf;
 
 BEGIN {
     use Test::Most tests => 4;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES)],
-        required_exe => [qw(tabix)]
+        required_exe => [qw(tabix)],
+        required_module => [qw(Vcf)]
     );
     use TestPipelines;
     
