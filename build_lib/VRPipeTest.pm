@@ -53,6 +53,7 @@ use VRPipe::Persistent::SchemaBase;
 use File::Spec;
 use File::Which qw(which);
 $SQL::Translator::Schema::DEBUG = 0; # suppress stupid warning in test harness
+$ENV{PERL_STRICTURES_EXTRA} = 0;
 
 BEGIN { unshift(@INC, './modules') }
 VRPipe::Persistent::SchemaBase->database_deployment('testing'); # do not change this under any circumstance!
