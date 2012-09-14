@@ -41,7 +41,8 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
             bcftools_view_options => VRPipe::StepOption->create(description => 'bcftools view options',                                                                                                                                                                                                optional => 1, default_value => '-p 0.99 -vcgN'),
             sample_sex_file       => VRPipe::StepOption->create(description => 'File listing the sex (M or F) of samples. If not provided, will call on all samples in the bcf header. If provided, calls will be made on the intersection of the samples in the file and samples in the bcf header.', optional => 1),
             assumed_sex           => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',                                                                                                                               optional => 1, default_value => 'F'),
-            minimum_records       => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking',                                                                                                                           optional => 1, default_value => 0)
+            minimum_records       => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking',                                                                                                                           optional => 1, default_value => 0),
+            post_calling_vcftools => VRPipe::StepOption->create(description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',                                                           optional => 1),
         };
     }
     
@@ -63,6 +64,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
             my $view_opts       = $options->{bcftools_view_options};
             my $assumed_sex     = $options->{assumed_sex};
             my $minimum_records = $options->{minimum_records};
+            my $post_filter     = $options->{post_calling_vcftools};
             
             my $sample_sex_file;
             if ($options->{sample_sex_file}) {
@@ -74,6 +76,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 my $sites_file = $self->inputs->{sites_file}[0];
                 $view_opts .= " -l " . $sites_file->path;
             }
+            my $filter = $post_filter ? " | $post_filter" : '';
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bcf (@{ $self->inputs->{bcf_files} }) {
@@ -90,7 +93,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 
                 my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename . '.vcf.gz', type => 'vcf', metadata => $bcf_meta);
                 my $vcf_path = $vcf_file->path;
-                my $cmd_line = qq[$bcftools view $view_opts -s $temp_samples_path $bcf_path | bgzip -c > $vcf_path];
+                my $cmd_line = qq[$bcftools view $view_opts -s $temp_samples_path $bcf_path$filter | bgzip -c > $vcf_path];
                 
                 my $bcf_id = $bcf->id;
                 my $args   = qq['$cmd_line', '$temp_samples_path', source_file_ids => ['$bcf_id'], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
@@ -103,7 +106,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bcftools',
                     version => VRPipe::StepCmdSummary->determine_version($bcftools, '^Version: (.+)$'),
-                    summary => "bcftools view $view_opts -s \$samples_file \$bcf_file | bgzip -c > \$vcf_file"
+                    summary => "bcftools view $view_opts -s \$samples_file \$bcf_file$filter | bgzip -c > \$vcf_file"
                 )
             );
         };
@@ -151,7 +154,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
         # if the inputs to the step are bam files, this is the mpileup step
         # and we need to create a fofn of the input bam files
         if ($bam_input) {
-            my ($bam_fofn_path) = $cmd_line =~ /-b (\S+) /;
+            my ($bam_fofn_path) = $cmd_line =~ /-b (\S+) \|/;
             $self->throw("No bam fofn path found in command line $cmd_line") unless $bam_fofn_path;
             my $bam_fofn = VRPipe::File->get(path => $bam_fofn_path);
             $bam_fofn->create_fofn(\@input_files);

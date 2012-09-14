@@ -43,8 +43,9 @@ my $frontend = VRPipe::FrontEnd->new(
         [q[If not using --list, the remaining options come into play; at least one option from each grouping must be chosen.]],
         [],
         [q[Choose which output files you want symlinks for:]],
-        ['step=s@',  q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated]],
-        ['filter=s', q[Select files based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions]],
+        ['step=s@',           q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated]],
+        ['filter=s',          q[Select files based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions]],
+        ['include_withdrawn', q[Also make symlinks for files generated for withdrawn dataelements]],
         [],
         [q[Choose where the symlinks should go:]],
         ['output_dir=s',         'The output (root) directory for files'],
@@ -83,6 +84,7 @@ my $basename_from_metadata = $frontend->opts('basename_from_metadata');
 my @basename_regex         = $frontend->option_was_set('basename_regex') ? @{ $frontend->opts('basename_regex') } : ();
 my $setup                  = $frontend->get_pipelinesetups();
 my @steps                  = $frontend->option_was_set('step') ? @{ $frontend->opts('step') } : ();
+my $include_withdrawn      = $frontend->opts('include_withdrawn');
 
 my %filters;
 my $filter = $frontend->opts('filter');
@@ -198,8 +200,8 @@ else {
 }
 
 # loop through elements
-my $estates_pager = $setup->dataelementstates_pager;
-my $count         = 0;
+my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => $include_withdrawn);
+my $count = 0;
 my %done_outputs;
 while (my $estates = $estates_pager->next) {
     foreach my $element_state (@$estates) {
@@ -209,13 +211,13 @@ while (my $estates = $estates_pager->next) {
         my ($element_result, $input_parent_dir, $input_basename);
         if (defined $list || $output_with_input || $basename_as_input) {
             $element_result = $element->result;
-            my $input_paths = $element_result->{paths};
-            if ($input_paths) {
-                $input_parent_dir = common_parent_dir($input_paths);
+            my @input_paths = $element->paths;
+            if (@input_paths) {
+                $input_parent_dir = common_parent_dir(\@input_paths);
                 
                 if ($basename_as_input) {
-                    if (@$input_paths == 1) {
-                        $input_basename = file($input_paths->[0])->basename;
+                    if (@input_paths == 1) {
+                        $input_basename = file($input_paths[0])->basename;
                         $input_basename =~ s/\.[^\.]+$/.$basename_as_input/;
                     }
                     else {
