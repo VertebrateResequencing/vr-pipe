@@ -37,8 +37,9 @@ use VRPipe::Base;
 class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
     method options_definition {
         return {
-            vcf_concat_exe        => VRPipe::StepOption->create(description => 'path to vcf-concat executable',                                   optional => 1, default_value => 'vcf-concat'),
-            vcf_concat_sites_only => VRPipe::StepOption->create(description => 'do not output genotype information to the concatenated vcf file', optional => 1, default_value => 0)
+            vcf_concat_exe           => VRPipe::StepOption->create(description => 'path to vcf-concat executable',                                                                                                              optional => 1, default_value => 'vcf-concat'),
+            vcf_concat_sites_only    => VRPipe::StepOption->create(description => 'do not output genotype information to the concatenated vcf file',                                                                            optional => 1, default_value => 0),
+            post_vcf_concat_vcftools => VRPipe::StepOption->create(description => 'after vcf-concat, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations', optional => 1),
         };
     }
     
@@ -59,6 +60,7 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             my $options        = $self->options;
             my $vcf_concat_exe = $options->{vcf_concat_exe};
             my $sites_only     = $options->{vcf_concat_sites_only};
+            my $post_filter    = $options->{post_vcf_concat_vcftools};
             
             # create temporary fofn of files to merge
             my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
@@ -73,7 +75,8 @@ class VRPipe::Steps::vcf_concat with VRPipe::StepRole {
             my $merge_list_path = $merge_list->path;
             my $concat_vcf_path = $concat_vcf->path;
             my $cut             = $sites_only ? ' | cut -f 1-8' : '';
-            my $cmd             = qq[$vcf_concat_exe -f $merge_list_path$cut | bgzip -c > $concat_vcf_path];
+            my $filter          = $post_filter ? " | $post_filter" : '';
+            my $cmd             = qq[$vcf_concat_exe -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path];
             my $req             = $self->new_requirements(memory => 500, time => 1);
             $self->dispatch([$cmd, $req, { output_files => [$concat_vcf, $merge_list] }]);
         };

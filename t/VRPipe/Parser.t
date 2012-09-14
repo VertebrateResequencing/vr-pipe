@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 73;
+    use Test::Most tests => 75;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -162,6 +162,16 @@ while ($p->next_record) {
 is_deeply \@records, ['NA00001.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122', 'NA00002.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122', 'NA00003.ILLUMINA.bwa.unknown_population.unknown_analysisgroup.20100208==122'], 'correct number of records found in bas file, and seems to be fully parsed';
 is $p->total_bases,     345000, 'total_bases worked';
 is $p->duplicate_bases, 366,    'duplicate_bases worked';
+
+# tranches
+$p       = VRPipe::Parser->create('tranches', { file => file(qw(t data example.tranches)) });
+$pr      = $p->parsed_record;
+@records = ();
+while ($p->next_record) {
+    push(@records, [$pr->{targetTruthSensitivity}, $pr->{numKnown}, $pr->{numNovel}, $pr->{knownTiTv}, $pr->{novelTiTv}, $pr->{minVQSLod}, $pr->{filterName}, $pr->{accessibleTruthSites}, $pr->{callsAtTruthSites}, $pr->{truthSensitivity}]);
+}
+is scalar @records, 51, 'tranches parser parsed the correct number of lines';
+is_deeply $records[0], [qw(95.00 12709365 3437394 2.2470 2.1520 3.8133 TruthSensitivityTranche0.00to95.00 1422549 1351421 0.9500)], 'first record of tranches file is correct';
 
 # fastq
 {
