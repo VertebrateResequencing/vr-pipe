@@ -36,8 +36,10 @@ my $frontend = VRPipe::FrontEnd->new(
         [q[Specify which file(s) you want to know about by supplying at least one of these alternatives:]],
         ['path=s@', 'Get info on the file at this absolute path. Can be repeated'],
         ['AND/OR'],
-        ['setup=s@',  'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' }],
-        ['step=s@',   q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated]],
+        ['setup=s@',          'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' }],
+        ['step=s@',           q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated]],
+        ['include_withdrawn', q[When getting files generated for setups, also include those for withdrawn dataelements]],
+        
         ['limit|l=i', 'Show info only on the first --limit number of files that match the above criteria'],
         [],
         [q[Choose what information to display (by default just outputs the current path to the file):]],
@@ -57,9 +59,10 @@ my $frontend = VRPipe::FrontEnd->new(
     no_user_option => 1
 );
 
-my @paths  = $frontend->option_was_set('path')  ? @{ $frontend->opts('path') }  : ();
-my @setups = $frontend->option_was_set('setup') ? @{ $frontend->opts('setup') } : ();
-my @steps  = $frontend->option_was_set('step')  ? @{ $frontend->opts('step') }  : ();
+my $include_withdrawn = $frontend->opts('include_withdrawn');
+my @paths             = $frontend->option_was_set('path') ? @{ $frontend->opts('path') } : ();
+my @setups            = $frontend->option_was_set('setup') ? @{ $frontend->opts('setup') } : ();
+my @steps             = $frontend->option_was_set('step') ? @{ $frontend->opts('step') } : ();
 unless (@paths || @setups) {
     $frontend->die_with_error("--path or --setup is required");
 }
@@ -183,7 +186,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
         
         # loop through completed elements
         my $pipeline_length = @step_members;
-        my $estates_pager   = $setup->dataelementstates_pager;
+        my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => $include_withdrawn);
         while (my $estates = $estates_pager->next) {
             foreach my $element_state (@$estates) {
                 unless ($element_state->completed_steps == $pipeline_length) {
