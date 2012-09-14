@@ -1,3 +1,14 @@
+0.103   WARNING: if upgrading, follow the instructions in IMPORTANT_NOTES before
+        installing this version.
+        Changes were made to how DataElements store input file paths in the
+        database, now allowing a virtually unlimited number of paths, needed
+        for some kinds of Step. This also fixes cases of extraneous DataElement
+        withdrawal and needless repetition of work.
+        A fix was made to make VRPipe fully functional on recent stock Ubuntu
+        installs.
+        A fix was made so that Jobs get properly killed when necessary.
+        vrpipe-fileinfo and vrpipe-output gained a --include_withdrawn option.
+        General improvements were made to SNP calling pipelines.
 0.102   SGA-related improvements, including the ability to create and call on
         bam chunks.
 0.101   vrtrack datasource fixed so that it does not create elements in
