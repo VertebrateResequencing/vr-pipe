@@ -1,3 +1,70 @@
+# version 0.104:
+This is identical to 0.103, released only to correct the upgrade instructions
+below given for 0.103. Follow the advice given for 0.103, using this command
+line when you get to step 3) (NB: it might take hours to run):
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next unless ref($ps); \
+    next unless @$ps > 0; \
+    eval { $de->_deflate_paths($r); }; next if $@; \
+    my %new_result; \
+    while (my ($key, $val) = each %$r) { \
+        $new_result{$key} = $val; \
+    } \
+    $de->result(\%new_result); \
+    $de->update; \
+  } \
+}'
+
+If you had already completed your install of 0.103 and started running VRPipe
+already, you can correct errors that may be in your database by again following
+steps 1-5, but this time using the following 2 commands during step 3):
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next if ref($ps); \
+    my %correct_result; \
+    while (my ($key, $val) = each %$r) { \
+        $correct_result{$key} = $val; \
+    } \
+    $r->{paths} = 0; \
+    $r->{paths} = $ps; \
+    my ($orig) = VRPipe::DataElement->search({withdrawn => 1, datasource => $de->datasource->id, result => $r}); \
+    if ($orig) { \
+        eval { VRPipe::StepState->search_rs({dataelement => $de->id})->delete; \
+               VRPipe::DataElementState->search_rs({dataelement => $de->id})->delete; \
+               $de->delete; }; \
+        if ($@) { \
+            $de->result($r); \
+            $de->withdrawn(1); \
+            $de->update; \
+        } \
+        $de = $orig; \
+        $de->withdrawn(0); \
+    } \
+    $de->result(\%correct_result); \
+    $de->update; \
+  } \
+}'
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 1}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next if ref($ps); \
+    my ($corrected) = VRPipe::DataElement->search({withdrawn => 0, datasource => $de->datasource->id, result => $r}); \
+    unless ($corrected) { \
+        $de->result($r); \
+        $de->update; \
+    } \
+  } \
+}'
+
 # version 0.103:
 New CPAN module dependencies were added, and a new SiteConfig option should be
 answered, so be sure to rerun 'perl Build.PL' and answer 'y' to the first
@@ -10,19 +77,8 @@ you do the following PRIOR to installation of 0.103:
        code (ie. the directory containing this file)
     3) run the following (copy and paste all the lines in one go to your
        terminal):
-perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({}); \
-while (my $des = $pager->next) { \
-  foreach my $de (@$des) { \
-    my $r = $de->result; \
-    my $ps = $r->{paths} || next; \
-    next unless ref($ps); \
-    next unless @$ps > 0; \
-    $de->_deflate_paths($r); \
-    $de->result($r); \
-    $de->update; \
-  } \
-}'
-    4) install 0.103 in your normal way
+[redacted - see notes for version 0.104]
+    4) install this latest version of VRPipe in your normal way
     5) start running VRPipe again
 
 # version 0.101:
