@@ -1,3 +1,7 @@
+0.104   No changes to the code were made in this version. This release only
+        corrects the upgrading instructions in IMPORTANT_NOTES for v0.103. If
+        you already upgraded to 0.103, IMPORTANT_NOTES also contains advice on
+        how to fix issues that may have arrisen.
 0.103   WARNING: if upgrading, follow the instructions in IMPORTANT_NOTES before
         installing this version.
         Changes were made to how DataElements store input file paths in the
