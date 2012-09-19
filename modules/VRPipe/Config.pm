@@ -232,6 +232,8 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'When the VRPipe server encounters problems, what user should be emailed?',
         default         => 'root',
+        question_number => ++$question_number
+    );
     
     has exec_shell => (
         is       => 'rw',
