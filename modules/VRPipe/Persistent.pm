@@ -659,7 +659,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # get() and bulk_create_or_update() need to handle search args the
         # same way
         $meta->add_method('_find_args' => sub { 
-            my ($self, $args, $search_mode) = @_;
+            my ($self, $args, $search_mode, $schema) = @_;
             
             my $find_args = {};
             unless ($search_mode) {
@@ -689,7 +689,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             # auto-flatten it and screw up the find call; search() will just try
             # to search for the reference and fail. find/search based on the
             # deflated string instead. Also find based on Peristent ids, not the
-            # object references
+            # object references. Also convert DateTime objects as necessary for
+            # searches
+            my $dtf;
+            if ($search_mode && $schema) {
+                $dtf = $schema->storage->datetime_parser;
+            }
             my %pks = map { $_ => 1 } @psuedo_keys;
             foreach my $hash ($search_mode ? ($args) : ($find_args, $args)) {
                 while (my ($key, $val) = each %$hash) {
@@ -705,12 +710,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                             if ($val->isa('VRPipe::Persistent')) {
                                 $hash->{$key} = $val->id;
                             }
+                            elsif ($dtf && $val->isa('DateTime')) {
+                                $hash->{$key} = $dtf->format_datetime($val);
+                            }
                             elsif ($val->can('stringify')) {
                                 $hash->{$key} = $val->stringify;
                             }
                         }
                         elsif (exists $flations{$key}) {
                             $hash->{$key} = &{ $flations{$key}->{deflate} }($val);
+                        }
+                        elsif ($dtf && ref($val) eq 'HASH') {
+                            # we might have a DateTime as a value
+                            while (my ($hash_key, $hash_val) = each %$val) {
+                                if (ref($hash_val) && UNIVERSAL::can($hash_val, 'can') && $hash_val->isa('DateTime')) {
+                                    $val->{$hash_key} = $dtf->format_datetime($hash_val);
+                                }
+                            }
                         }
                     }
                 }
@@ -742,13 +758,13 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->add_method('search_rs' => sub { 
             my ($self, $search_args, $search_attributes) = @_;
             
-            my (undef, $rs) = $self->_class_specific();
+            my ($schema, $rs) = $self->_class_specific();
             
             # when using resultset->search, a common mistake and often silently
             # dangerous bug is that you supply a value that is an instance
             # instead of an id, or you supply some other ref; _find_args will
             # fix up the search args for us
-            $self->_find_args($search_args, 1);
+            $self->_find_args($search_args, 1, $schema);
             
             # by default we'll order by id for consistency and repeatability
             unless ($search_attributes && exists $search_attributes->{order_by}) {
