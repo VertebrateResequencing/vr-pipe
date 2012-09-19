@@ -227,12 +227,13 @@ sub start_server {
                 }
             }
             else {
+                my $schema = $farm_server->result_source->schema;
                 fork_call {
                     die "no longer in db\n" unless $farm_server->still_alive; # this updates the heartbeat to say we're still alive, and also checks we're still actually in the db
-                    return $farm_server->claim_setups();
+                    return map { $schema->freeze($_); } $farm_server->claim_setups();
                 }
                 sub {
-                    @setups = @_;
+                    @setups = map { $schema->thaw($_) } @_;
                     my $err = $@;
                     if ($err) {
                         # perhaps another process decided our $farm_server was
