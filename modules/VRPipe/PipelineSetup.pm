@@ -272,6 +272,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         $other_states{ $sub->stepstate->id }++;
                                     }
                                 }
+                                delete $other_states{ $state->id };
                                 
                                 my $same_as_us;
                                 my $needed_count = scalar @$dispatched;
