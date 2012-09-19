@@ -63,13 +63,15 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
             
             my $fq_meta = $self->common_metadata($self->inputs->{fastq_files});
             
-            my @fq_ids;
+            my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
+            my $merge_list_path = $merge_list->path;
+            $merge_list->create_fofn($self->inputs->{fastq_files});
+            
             my ($reads, $bases) = (0, 0);
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
                 my $meta = $fq->metadata;
                 $reads += $meta->{reads};
                 $bases += $meta->{bases};
-                push @fq_ids, $fq->id;
             }
             $fq_meta->{reads} = $reads;
             $fq_meta->{bases} = $bases;
@@ -85,7 +87,7 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
             my $index_path        = $index_file->path;
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            my $this_cmd = "use VRPipe::Steps::fastq_merge_and_index; VRPipe::Steps::fastq_merge_and_index->fastq_merge_and_index(fastq_ids => [qw(@fq_ids)], merged_fastq => q[$merged_fastq_path], pop_index => q[$index_path]);";
+            my $this_cmd = "use VRPipe::Steps::fastq_merge_and_index; VRPipe::Steps::fastq_merge_and_index->fastq_merge_and_index(fastq_fofn => q[$merge_list_path], merged_fastq => q[$merged_fastq_path], pop_index => q[$index_path]);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$merged_fastq_file, $index_file] });
         };
     }
@@ -117,7 +119,10 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method fastq_merge_and_index (ClassName|Object $self: ArrayRef[Str|File] :$fastq_ids!, Str|File :$merged_fastq!, Str|File :$pop_index!) {
+    method fastq_merge_and_index (ClassName|Object $self: Str|File :$fastq_fofn!, Str|File :$merged_fastq!, Str|File :$pop_index!) {
+        unless (ref($fastq_fofn) && ref($fastq_fofn) eq 'VRPipe::File') {
+            $fastq_fofn = VRPipe::File->get(path => file($fastq_fofn));
+        }
         unless (ref($merged_fastq) && ref($merged_fastq) eq 'VRPipe::File') {
             $merged_fastq = VRPipe::File->get(path => file($merged_fastq));
         }
@@ -130,14 +135,15 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         
         my %samples;
         my $expected_lines = 0;
-        foreach my $id (@$fastq_ids) {
-            my $fq_file = VRPipe::File->get(id => $id);
+        my $fq_fh          = $fastq_fofn->openr;
+        while (my $fq_path = <$fq_fh>) {
+            chomp $fq_path;
+            my $fq_file = VRPipe::File->get(path => $fq_path);
             my $sample = $fq_file->metadata->{sample};
             push @{ $samples{$sample} }, $fq_file;
             $expected_lines += $fq_file->lines;
         }
-        
-        $merged_fastq->disconnect;
+        $fq_fh->close;
         
         # Track position data
         my $current_index       = 0;
@@ -159,10 +165,11 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
                 # write the contents of fq to the merged fq file
                 # update the position of the current index
                 my $fh = $fq->openr;
+                $fq->disconnect;
                 while (my $line = <$fh>) {
                     print $seq_fh $line;
                 }
-                $fh->close;
+                $fq->close;
                 $current_index += $fq->metadata->{reads};
             }
         }
@@ -175,24 +182,17 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         $pop_index->update_stats_from_disc(retries => 3);
         $merged_fastq->update_stats_from_disc(retries => 3);
         
-        my $actual_lines   = $merged_fastq->lines;
-        my $index_lines    = $pop_index->lines;
-        my $actual_reads   = $merged_fastq->num_records;
-        my $expected_reads = $merged_fastq->metadata->{reads};
+        my $actual_lines = $merged_fastq->lines;
+        my $index_lines  = $pop_index->lines;
         if ($actual_lines != $expected_lines) {
             $merged_fastq->unlink;
             $pop_index->unlink;
             $self->throw("Merged fastq had $actual_lines actual lines, whereas we expected $expected_lines lines.");
         }
-        elsif ($actual_reads != $expected_reads) {
+        elsif ($index_lines != $fastq_fofn->lines) {
             $merged_fastq->unlink;
             $pop_index->unlink;
-            $self->throw("Merged fastq had $actual_reads actual reads, whereas we expected $expected_reads reads.");
-        }
-        elsif ($index_lines != scalar @$fastq_ids) {
-            $merged_fastq->unlink;
-            $pop_index->unlink;
-            $self->throw("Index had $index_lines, whereas we expected " . scalar(@$fastq_ids) . " lines.");
+            $self->throw("Index had $index_lines, whereas we expected " . $fastq_fofn->lines . " lines.");
         }
         else {
             return 1;
