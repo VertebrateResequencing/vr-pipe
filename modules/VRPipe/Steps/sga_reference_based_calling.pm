@@ -80,8 +80,9 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
             unless ($cpus) {
                 ($cpus) = $sga_opts =~ m/--threads (\d+)/;
             }
-            my $req = $self->new_requirements(memory => 16000, time => 1, $cpus ? (cpus => $cpus) : ());
             foreach my $fq (@{ $self->inputs->{sga_indexed_variant_reads} }) {
+                my $memory_estimate = $self->estimate_memory($ref_file, $fq);
+                my $req = $self->new_requirements(memory => $memory_estimate, time => 1, $cpus ? (cpus => $cpus) : ());
                 my $prefix = $fq->basename;
                 $prefix =~ s/\.(fq|fastq)(\.gz)?$//;
                 my $base_vcf      = $self->output_file(output_key => 'sga_base_vcf_files',      basename => qq[$prefix.base.vcf],    type => 'vcf', metadata => $fq->metadata);
@@ -113,6 +114,40 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
     
     method max_simultaneous {
         return 0;            # meaning unlimited
+    }
+    
+    method estimate_memory (ClassName|Object $self: VRPipe::File $reference!, VRPipe::File $variant!, VRPipe::File $base?) {
+        my $ref_bwt = $reference->path;
+        $ref_bwt =~ s/(fa|fasta)(.gz)?$/bwt/;
+        
+        my $ref_ssa = $reference->path;
+        $ref_ssa =~ s/(fa|fasta)(.gz)?$/ssa/;
+        
+        # Compute amount of reference storage
+        my $bytes_reference     = ($reference->s) / 8;
+        my $bytes_reference_bwt = 2 * VRPipe::File->get(path => $ref_bwt)->s;
+        my $bytes_reference_ssa = VRPipe::File->get(path => $ref_ssa)->s;
+        
+        my $bytes = $bytes_reference + $bytes_reference_bwt + $bytes_reference_ssa;
+        
+        # Compute amount of BWT storage for the variant and base indices
+        my @input_files = ($variant);
+        push(@input_files, $base) if ($base);
+        foreach my $file (@input_files) {
+            my $bwt_file = $file->path;
+            $bwt_file =~ s/(fq|fastq)(.gz)?$/bwt/;
+            $bwt_file =~ s/(fa|fasta)(.gz)?$/bwt/;
+            my $bwt_size = 2 * VRPipe::File->get(path => $bwt_file)->s;
+            $bytes += $bwt_size;
+        }
+        
+        # Estimate bit array size
+        my $bit_array = $variant->path =~ /\.gz$/ ? $variant->s : ($variant->s) / 4;
+        $bytes += $bit_array;
+        
+        my $overcommit = 1.25;
+        my $estimate   = int(($overcommit * $bytes) / 1000000 + 0.5); # Mb
+        return $estimate > 1000 ? $estimate : 1000;
     }
 }
 

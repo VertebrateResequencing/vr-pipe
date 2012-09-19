@@ -2,7 +2,7 @@
 
 
 VRPipe is a generic pipeline system designed for use by the Vertebrate
-Resequencing team at the Sanger Instititue, but also for broad use for anyone.
+Resequencing team at the Sanger Institute, but also for broad use for anyone.
 
 For an overview of why it was created, read our vision document:
 https://github.com/VertebrateResequencing/vr-pipe/wiki/Vision
@@ -13,7 +13,7 @@ modules within subfolders.
 Help on each module is currently of limited availability, but eventually all
 will be self-documented with POD, which can be read with eg. perldoc.
 
-Each script has a --help opion, eg:
+Each script has a --help option, eg:
 vrpipe-status --help
 
 
@@ -60,17 +60,22 @@ Possible problems you may encounter in installing your missing prerequisites:
 # You may find that MooseX::Types::Parameterizable fails its tests. In that case
   you can manually use 'cpan' to install an earlier version that should work:
   cpan> install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz
-# Version 0.08198 of DBIx::Class has a prefetch-related bug which prevents
-  VRPipe from working. Please use an earlier version like 0.08196, or any higher
-  version that claims to have fixed
-  https://rt.cpan.org/Ticket/Display.html?id=78456 :
-  cpan> force install ARODLAND/DBIx-Class-0.08196.tar.gz
-# If you find that AnyEvent::ForkManager fails tests and emmits errors
+# If you find that AnyEvent::ForkManager fails tests and emits errors
   mentioning WNOHANG, you will have to cd to the cpan build directory and edit
   line 11 of blib/lib/AnyEvent/ForkManager.pm to read "use POSIX qw(WNOHANG);"
   (without the quotes). Then you can do "make test" and "make install".
 # Twiggy may fail its disconnect.t test. This is safe to ignore; just:
   cpan> force install Twiggy
+# You may encounter difficulties installing Proc::ProcessTable, which is one of
+  Proc::Killfam's dependencies. In that case, try manually installing an earlier
+  version of it before retrying the Proc::Killfam install normally:
+  cpan> install DURIST/Proc-ProcessTable-0.44.tar.gz
+# If you run into a problem installing XML::LibXML due to an inability to find
+  the required libs, try using your OS package management system to install it,
+  eg. for Ubuntu:
+  sudo apt-get install libxml-libxml-perl
+# Likewise for XML::LibXSLT:
+  sudo apt-get install libxml-libxslt-perl
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is

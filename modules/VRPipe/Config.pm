@@ -50,6 +50,8 @@ use VRPipe::Base;
 
 class VRPipe::Config {
     use VRPipe::Base::Configuration;
+    use File::Which qw(which);
+    use Cwd 'abs_path';
     
     my $question_number = 0;
     
@@ -230,6 +232,15 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'When the VRPipe server encounters problems, what user should be emailed?',
         default         => 'root',
+    
+    has exec_shell => (
+        is       => 'rw',
+        question => 'When VRPipe executes commands with exec(), what shell should be used (avoid the use of dash on Ubuntu, which is its default sh)?',
+        default  => sub {
+            my $shell = which('bash') || which('sh');
+            if ($shell) { $shell = abs_path($shell); undef $shell if $shell =~ /dash$/ }
+            return $shell || '';
+        },
         question_number => ++$question_number
     );
     

@@ -98,7 +98,7 @@ ok handle_pipeline(@other_files, @output_files, @target_files), 'pipeline ran an
 # same bam file was used in both piplines, it will have the metadata of both
 # mixed together
 my $meta = VRPipe::File->create(path => file(qw(t data hs_chr20.a.bam))->absolute)->metadata;
-is_deeply [$meta->{reads}, $meta->{bases_of_1X_coverage}, $meta->{targeted_reads}, $meta->{targeted_bases_of_1X_coverage}, $meta->{targeted_bases_of_2X_coverage}, $meta->{targeted_bases_of_5X_coverage}, $meta->{targeted_bases_of_10X_coverage}, $meta->{targeted_bases_of_20X_coverage}, $meta->{targeted_bases_of_50X_coverage}, $meta->{targeted_bases_of_100X_coverage}, $meta->{targeted_mean_coverage}], [912, 37787, 862, 36019, 8126, 98, 0, 0, 0, 0, 1.29], 'bamcheck results are as expected and have results from with and without use of targets file';
+is_deeply [$meta->{reads}, $meta->{bases_of_1X_coverage}, $meta->{targeted_reads}, $meta->{targeted_bases_of_1X_coverage}, $meta->{targeted_bases_of_2X_coverage}, $meta->{targeted_bases_of_5X_coverage}, $meta->{targeted_mean_coverage}], [912, 37787, 862, 36019, 8126, 98, 1.29], 'bamcheck results are as expected and have results from with and without use of targets file';
 
 done_testing;
 

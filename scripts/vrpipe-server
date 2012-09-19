@@ -460,9 +460,10 @@ sub status {
                 my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
                 
                 my %sub_stats;
-                while (my $subs = $pager->next) {
+                while (my $subs = $pager->next(no_resetting => 1)) {
                     foreach my $sub (@$subs) {
-                        my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+                        next if $sub->done;
+                        my $sub_state = $sub->failed ? 'failed' : 'scheduled';
                         if ($sub_state eq 'scheduled') {
                             my $job = $sub->job;
                             $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
