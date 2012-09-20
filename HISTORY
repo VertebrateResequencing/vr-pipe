@@ -1,3 +1,7 @@
+0.105   Fix for vrpipe-status so that it no longer produces wild submission
+        state numbers while reporting on a setup with a large number of
+        currently changing submissions. Fix for the fastq_merge_and_index step
+        so that it no longer uses up all database connections.
 0.104   No changes to the code were made in this version. This release only
         corrects the upgrading instructions in IMPORTANT_NOTES for v0.103. If
         you already upgraded to 0.103, IMPORTANT_NOTES also contains advice on
