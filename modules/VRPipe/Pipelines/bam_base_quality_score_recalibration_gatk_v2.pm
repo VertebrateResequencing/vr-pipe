@@ -35,7 +35,7 @@ use VRPipe::Base;
 
 class VRPipe::Pipelines::bam_base_quality_score_recalibration_gatk_v2 with VRPipe::PipelineRole {
     method name {
-        return 'bam_base_quality_score_recalibration_v2';
+        return 'bam_base_quality_score_recalibration_gatk_v2';
     }
     
     method _num_steps {
