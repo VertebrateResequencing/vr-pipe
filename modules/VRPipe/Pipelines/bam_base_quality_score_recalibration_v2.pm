@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::bam_base_quality_score_recalibration - a pipeline
+VRPipe::Pipelines::bam_base_quality_score_recalibration_v2 - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,9 +33,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::bam_base_quality_score_recalibration with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_base_quality_score_recalibration_v2 with VRPipe::PipelineRole {
     method name {
-        return 'bam_base_quality_score_recalibration';
+        return 'bam_base_quality_score_recalibration_v2';
     }
     
     method _num_steps {
@@ -43,7 +43,7 @@ class VRPipe::Pipelines::bam_base_quality_score_recalibration with VRPipe::Pipel
     }
     
     method description {
-        return 'Recailbrate base quality scores, including insertion and deletion error models with GATK BaseRecalibrator';
+        return 'Recailbrate base quality scores, including insertion and deletion error models with GATK BaseRecalibrator v2';
     }
     
     method steps {
@@ -52,10 +52,10 @@ class VRPipe::Pipelines::bam_base_quality_score_recalibration with VRPipe::Pipel
     
     method _step_list {
         return ([
-                VRPipe::Step->get(name => 'bam_index'),                             #1
-                VRPipe::Step->get(name => 'gatk_base_quality_score_recalibration'), #2
-                VRPipe::Step->get(name => 'gatk_apply_bqsr'),                       #3
-                VRPipe::Step->get(name => 'bam_index'),                             #4
+                VRPipe::Step->get(name => 'bam_index'),                  #1
+                VRPipe::Step->get(name => 'gatk_base_recalibrator'),     #2
+                VRPipe::Step->get(name => 'gatk_print_reads_with_bqsr'), #3
+                VRPipe::Step->get(name => 'bam_index'),                  #4
             ],
             
             [

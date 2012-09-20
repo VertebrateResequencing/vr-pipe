@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::gatk_base_quality_score_recalibration - a step
+VRPipe::Steps::gatk_base_recalibrator - a step
 
 =head1 DESCRIPTION
 
@@ -41,7 +41,7 @@ use VRPipe::Base;
 #   -knownSites another/optional/setOfSitesToMask.vcf \
 #   -o recal_data.grp
 
-class VRPipe::Steps::gatk_base_quality_score_recalibration extends VRPipe::Steps::gatk {
+class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk {
     around options_definition {
         return {
             %{ $self->$orig },
@@ -90,7 +90,7 @@ class VRPipe::Steps::gatk_base_quality_score_recalibration extends VRPipe::Steps
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T BaseRecalibrator -R $ref -I ] . $bam->path . qq[ -o ] . $recal_file->path . qq[ $recal_options];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_base_quality_score_recalibration', 'bqsr_and_check', [$this_cmd, $req, { output_files => [$recal_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_base_recalibrator', 'bqsr_and_check', [$this_cmd, $req, { output_files => [$recal_file] }]);
             }
         };
     }
@@ -128,17 +128,17 @@ class VRPipe::Steps::gatk_base_quality_score_recalibration extends VRPipe::Steps
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $recal_file->update_stats_from_disc(retries => 3);
-        
+
         ## NEED A WAY TO TEST THIS FILE OKAY? CountCovariate use to have and EOF
         # my $eof = `tail -1 $recal_path`;
         # chomp $eof;
         
         # if ($eof eq "EOF") {
-        return 1;
+            return 1;
         # }
         # else {
-        # $recal_file->unlink;
-        # $self->throw("cmd [$cmd_line] there was no EOF line at the end of recalibration file $recal_path");
+            # $recal_file->unlink;
+            # $self->throw("cmd [$cmd_line] there was no EOF line at the end of recalibration file $recal_path");
         # }
     }
 }

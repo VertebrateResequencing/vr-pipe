@@ -15,7 +15,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('bqsr_and_reduce');
 
-ok my $bqsr_pipeline = VRPipe::Pipeline->create(name => 'bam_base_quality_score_recalibration'), 'able to get the bam_base_quality_score_recalibration pipeline';
+ok my $bqsr_pipeline = VRPipe::Pipeline->create(name => 'bam_base_quality_score_recalibration_v2'), 'able to get the bam_base_quality_score_recalibration_v2 pipeline';
 ok my $reduce_pipeline = VRPipe::Pipeline->create(name => 'bam_reduce_reads'), 'able to get the bam_reduce_reads pipeline';
 
 my @s_names;
@@ -24,8 +24,8 @@ foreach my $stepmember ($bqsr_pipeline->steps, $reduce_pipeline->steps) {
 }
 my @expected_step_names = qw(
   bam_index
-  gatk_base_quality_score_recalibration
-  gatk_apply_bqsr
+  gatk_base_recalibrator
+  gatk_print_reads_with_bqsr
   bam_index
   bam_index
   gatk_reduce_reads
@@ -107,10 +107,10 @@ foreach my $file (@files) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id, 1);
     $file =~ s/bam$/recal_data.grp/;
-    push @output_files, file(@output_subdirs, '2_gatk_base_quality_score_recalibration', $file);
+    push @output_files, file(@output_subdirs, '2_gatk_base_recalibrator', $file);
     $file =~ s/recal\_data\.grp$/recal.bam/;
-    push @output_files, file(@output_subdirs, '3_gatk_apply_bqsr', $file);
-    push @output_files, file(@output_subdirs, '3_gatk_apply_bqsr', $file . '.bai');
+    push @output_files, file(@output_subdirs, '3_gatk_print_reads_with_bqsr', $file);
+    push @output_files, file(@output_subdirs, '3_gatk_print_reads_with_bqsr', $file . '.bai');
     
     foreach my $element (@{ get_elements($reduce_pipelinesetup->datasource) }) {
         my $path = shift @{ result_with_inflated_paths($element)->{paths} };

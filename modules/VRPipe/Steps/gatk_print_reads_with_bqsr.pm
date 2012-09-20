@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::gatk_apply_bqsr - a step
+VRPipe::Steps::gatk_print_reads_with_bqsr - a step
 
 =head1 DESCRIPTION
 
@@ -40,9 +40,10 @@ use VRPipe::Base;
 #   -I input.bam \
 #   --BQSR input.recal_data.grp
 
-class VRPipe::Steps::gatk_apply_bqsr extends VRPipe::Steps::gatk_print_reads {
+class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_print_reads {
     around inputs_definition {
-        return { %{ $self->$orig }, bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from gatk_base_quality_score_recalibration step', metadata => { source_bam => 'path to the bam used to create this recalibration file' }) };
+        return { %{ $self->$orig }, bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from gatk_base_quality_score_recalibration step', metadata => { source_bam => 'path to the bam used to create this recalibration file' })
+        };
     }
     
     method body_sub {
@@ -53,7 +54,7 @@ class VRPipe::Steps::gatk_apply_bqsr extends VRPipe::Steps::gatk_print_reads {
             
             my $ref = $options->{reference_fasta};
             
-            my $recal_opts = $options->{print_reads_options};
+            my $recal_opts = $options->{print_reads_options };
             if ($recal_opts =~ /$ref|-I |--input_file|-o |--output|BQSR|PrintReads/) {
                 $self->throw("print_reads_options  should not include the reference, input files, output files, BQSR option or PrintReads task command");
             }
@@ -83,7 +84,7 @@ class VRPipe::Steps::gatk_apply_bqsr extends VRPipe::Steps::gatk_print_reads {
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T PrintReads -R $ref --BQSR ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_apply_bqsr', 'apply_bqsr_and_check', [$this_cmd, $req, { output_files => [$recal_bam_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads_with_bqsr', 'apply_bqsr_and_check', [$this_cmd, $req, { output_files => [$recal_bam_file] }]);
             }
         };
     }
@@ -127,7 +128,7 @@ class VRPipe::Steps::gatk_apply_bqsr extends VRPipe::Steps::gatk_print_reads {
         my $actual_reads = $out_file->num_records;
         
         if ($actual_reads == $expected_reads) {
-            $out_file->add_metadata({ reads => $actual_reads });
+            $out_file->add_metadata({reads => $actual_reads});
             return 1;
         }
         else {
