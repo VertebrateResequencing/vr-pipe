@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::bam_base_quality_score_recalibration_v2 - a pipeline
+VRPipe::Pipelines::bam_base_quality_score_recalibration_gatk_v2 - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,7 +33,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::bam_base_quality_score_recalibration_v2 with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_base_quality_score_recalibration_gatk_v2 with VRPipe::PipelineRole {
     method name {
         return 'bam_base_quality_score_recalibration_v2';
     }

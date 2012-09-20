@@ -15,7 +15,7 @@ BEGIN {
 
 my $output_dir = get_output_dir('bqsr_and_reduce');
 
-ok my $bqsr_pipeline = VRPipe::Pipeline->create(name => 'bam_base_quality_score_recalibration_v2'), 'able to get the bam_base_quality_score_recalibration_v2 pipeline';
+ok my $bqsr_pipeline = VRPipe::Pipeline->create(name => 'bam_base_quality_score_recalibration_gatk_v2'), 'able to get the bam_base_quality_score_recalibration_gatk_v2 pipeline';
 ok my $reduce_pipeline = VRPipe::Pipeline->create(name => 'bam_reduce_reads'), 'able to get the bam_reduce_reads pipeline';
 
 my @s_names;
