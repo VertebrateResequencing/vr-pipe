@@ -53,7 +53,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
     method inputs_definition {
         return {};
     }
-
+    
     method body_sub {
         return sub {
             my $self    = shift;
@@ -76,10 +76,10 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
             # version 0.5 of bwa produces one set of output files, but 0.6 (and
             # presumably later) produce fewer.
             my @outfiles = qw(bwt pac sa);
-            if ($version =~ /^0.5/){
+            if ($version =~ /^0\.5\./) {
                 push @outfiles, qw(rbwt rpac rsa);
             }
-
+            
             foreach my $suffix (@outfiles) {
                 $self->output_file(output_key => 'bwa_index_binary_files', output_dir => $ref->dir->stringify, basename => $ref->basename . '.' . $suffix, type => 'bin');
             }
