@@ -26,12 +26,17 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
-use VRPipe::Persistent::Schema;
+use VRPipe::FrontEnd;
 
-use Getopt::Long;
-my $verbose = 0;
-my $limit   = 2000;
-my $result  = GetOptions("verbose" => \$verbose, "limit=i" => \$limit);
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Dispatch work that needs to be done to the job scheduler (eg. LSF).",
+    opt_spec    => [
+        ['limit=i', q[Globally limit the number of submissions that will be dispatched], { default => 2000 }],
+        ['verbose', 'Print lots of debugging information']
+    ]
+);
+my $verbose = $frontend->opts('verbose');
+my $limit   = $frontend->opts('limit');
 
 my $manager = VRPipe::Manager->create(global_limit => $limit);
 $manager->set_verbose_global(1) if $verbose;
@@ -41,6 +46,5 @@ while (1) {
     print STDERR ". ";
     sleep(60);
 }
-print STDERR "\n";
 
 exit;

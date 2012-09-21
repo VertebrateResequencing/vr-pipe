@@ -21,7 +21,7 @@ ok my $ds = VRPipe::DataSource->create(
 
 my @results;
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ line => 'foo' }, { line => 'bar' }, { line => 'henry' }], 'got all results correctly';
 
@@ -34,7 +34,7 @@ $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ line => 'foo' }, { line => 'bar' }, { line => '# comment' }, { line => 'henry' }], 'got even more results with extra options';
 
@@ -49,7 +49,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file('t', 'data', 'file.bam')->absolute] }, { paths => [file('t', 'data', 'file.cat')->absolute] }, { paths => [file('t', 'data', 'file.txt')->absolute] }], 'got correct results for fofn all';
 
@@ -63,7 +63,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute] }], 'got correct results for fofn group_all';
 
@@ -82,7 +82,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute], group => '2822_6' }, { paths => [file(qw(t data 2822_7_1.fastq))->absolute, file(qw(t data 2822_7_2.fastq))->absolute], group => '2822_7' }, { paths => [file(qw(t data 2823_4_1.fastq))->absolute, file(qw(t data 2823_4_2.fastq))->absolute], group => '2823_4' }, { paths => [file(qw(t data 8324_8_1.fastq))->absolute, file(qw(t data 8324_8_2.fastq))->absolute], group => '8324_8' }], 'got correct results for delimited grouped_single_column';
 
@@ -97,7 +97,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file(qw(t data file.txt))->absolute, file(qw(t data file2.txt))->absolute] }, { paths => [file(qw(t data file3.txt))->absolute, file(qw(t data file.cat))->absolute] }], 'got correct results for delimited all_columns';
 
@@ -120,7 +120,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata, VRPipe::File->get(path => $fwm_paths[2])->metadata], [{ paths => [$fwm_paths[0]] }, { paths => [$fwm_paths[1]] }, { paths => [$fwm_paths[2]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }, { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata all, and the metadata on the files was correct';
 
@@ -134,7 +134,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata, VRPipe::File->get(path => $fwm_paths[2])->metadata], [{ paths => [$fwm_paths[0], $fwm_paths[1], $fwm_paths[2]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }, { %fwm_common_meta, sample => 'JB951', library => '4074399', lane => '8312_5#95' }], 'got correct results for fofn_with_metadata group_all, and the metadata on the files was correct';
 
@@ -148,7 +148,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[2]], group => 'ERP000979|JB951' }, { paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata';
 
@@ -163,7 +163,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file(qw(t data 2822_6.fastq))->absolute, file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute], lane => '2822_6' }, { paths => [file(qw(t data 2822_7_1.fastq))->absolute, file(qw(t data 2822_7_2.fastq))->absolute], lane => '2822_7' }, { paths => [file(qw(t data 2823_4_1.fastq))->absolute, file(qw(t data 2823_4_2.fastq))->absolute], lane => '2823_4' }, { paths => [file(qw(t data 8324_8_1.fastq))->absolute, file(qw(t data 8324_8_2.fastq))->absolute], lane => '8324_8' }], 'got correct results for sequence_index lane_fastqs';
 my $vrfile = VRPipe::File->get(path => file(qw(t data 2822_6_1.fastq))->absolute);
@@ -206,7 +206,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 my @expected = ();
 foreach my $chunk (@$chunks) {
@@ -252,7 +252,7 @@ ok $ds = VRPipe::DataSource->create(
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 @expected = ();
 foreach my $file (file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute) {
@@ -443,7 +443,7 @@ SKIP: {
     
     @results = ();
     foreach my $element (@{ get_elements($ds) }) {
-        push(@results, $element->result);
+        push(@results, result_with_inflated_paths($element));
     }
     
     is_deeply $results[0],
@@ -501,7 +501,7 @@ SKIP: {
     # if we change the insert_size in vrtrack, this should cause the datasource
     # to reset the elements. Critically, the vrfile metadata should get updated,
     # or else we'd be stuck in an infinite loop of always detecting the
-    # insert_size change and reseting
+    # insert_size change and resetting
     $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my $lib = VRTrack::Library->new_by_name($vrtrack, 'g1k-sc-NA19190-YRI-1|SC|SRP000542|NA19190');
     $lib->fragment_size_from(200);
@@ -557,7 +557,7 @@ SKIP: {
     my %actual_qc_passed_improved_bams;
     my %actual_groups;
     foreach my $element (@{ get_elements($ds) }) {
-        my $result = $element->result;
+        my $result = result_with_inflated_paths($element);
         $actual_groups{ $result->{group} || 'no_group' } = 1;
         foreach my $path (@{ $result->{paths} }) {
             $actual_qc_passed_improved_bams{$path} = 1;
@@ -566,4 +566,5 @@ SKIP: {
     is_deeply \%actual_qc_passed_improved_bams, \%expected_qc_passed_improved_bams, 'an improved bam qc passed datasource gave the expected files';
     is_deeply \%actual_groups, \%expected_groups, 'a group_by_metadata datasource gave the expected groups';
 }
+
 exit;

@@ -59,6 +59,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     use Cwd;
     use Sys::Hostname;
     use Net::SSH qw(ssh);
+    use VRPipe::Config;
     
     has 'cmd' => (
         is     => 'rw',
@@ -233,31 +234,9 @@ class VRPipe::Job extends VRPipe::Persistent {
         my $do_return   = 0;
         my $transaction = sub {
             unless ($self->pending) {
-                if ($self->block_and_skip_if_ok) {
-                    # Scheduler->run_on_node implementation should actually mean
-                    # this never happens:
-                    
-                    # wait until the job has finished running, run it again if it
-                    # failed, otherwise do nothing so that $job->ok will be true
-                    while (1) {
-                        $self->disconnect;
-                        sleep(60);
-                        $self->reselect_values_from_db;
-                        if ($self->finished) {
-                            if ($self->ok) {
-                                $do_return = 1;
-                                return; # out of the txn_do
-                            }
-                            else {
-                                # *** do some kind of reset on failure?
-                                $self->throw("blocking and skipping if ok, but finished and failed... don't know what to do!");
-                            }
-                        }
-                    }
-                }
-                elsif ($self->ok) {
+                if ($self->ok) {
                     $do_return = 1;
-                    return;             # out of the txn_do
+                    return; # out of the txn_do
                 }
                 else {
                     $self->throw("Job " . $self->id . " could not be run because it was not in the pending state");
@@ -321,7 +300,24 @@ class VRPipe::Job extends VRPipe::Persistent {
             open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
             open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
             chdir($dir);
-            exec($cmd);
+            
+            # exec is supposed to get our $cmd to run whilst keeping the same
+            # $cmd_pid, but on some systems like Ubuntu the sh (dash) is a bit
+            # sucky: http://www.perlmonks.org/?node_id=785284
+            # We can't force list mode in the normal way because we actually
+            # require the use of the shell to do things like run multi-line
+            # commands and pipes etc. $cmd having a different pid to $cmd_pid
+            # matters because we need to know the correct pid if the server
+            # needs to kill it later. Instead we force the use of a better shell
+            # (default bash) for everything, which might be less efficient in
+            # some cases, but the difference is going to be meaningless for us.
+            my $shell = VRPipe::Config->new->exec_shell;
+            if ($shell) {
+                exec {$shell} $shell, '-c', $cmd;
+            }
+            else {
+                exec $cmd;
+            }
         }
         
         # wait for the cmd to finish
@@ -437,7 +433,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             eval {
                 local $SIG{ALRM} = sub { die "ssh timed out\n" };
                 alarm(15);
-                ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
+                ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam "KILL", $pid']); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
                 #    Net::SSH::Perl is able to always log us in, but can take over a minute!
                 # *** we need to do something if the kill fails...
                 alarm(0);

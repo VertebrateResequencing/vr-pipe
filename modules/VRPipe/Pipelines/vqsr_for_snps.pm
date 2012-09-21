@@ -39,7 +39,7 @@ class VRPipe::Pipelines::vqsr_for_snps with VRPipe::PipelineRole {
     }
     
     method _num_steps {
-        return 3;
+        return 4;
     }
     
     method description {
@@ -52,14 +52,26 @@ class VRPipe::Pipelines::vqsr_for_snps with VRPipe::PipelineRole {
     
     method _step_list {
         return ([
-                VRPipe::Step->get(name => 'gatk_variant_recalibration_for_snps'), #1
-                VRPipe::Step->get(name => 'gatk_apply_recalibration_for_snps'),   #2
-                VRPipe::Step->get(name => 'vcf_index'),                           #3
+                VRPipe::Step->get(name => 'vcf_index'),                           #1
+                VRPipe::Step->get(name => 'gatk_variant_recalibration_for_snps'), #2
+                VRPipe::Step->get(name => 'gatk_apply_recalibration_for_snps'),   #3
+                VRPipe::Step->get(name => 'vcf_index'),                           #4
             ],
             
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'recalibration_file', to_key => 'recalibration_file'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'tranches_file', to_key => 'tranches_file'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'recalibrated_vcfs', to_key => 'vcf_files'),],
+            [
+                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key   => 'vcf_files'),
+                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key   => 'vcf_files'),
+                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key   => 'vcf_files'),
+                VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'recalibration_file', to_key => 'recalibration_file'),
+                VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'tranches_file', to_key => 'tranches_file'),
+                VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'recalibrated_vcfs', to_key => 'vcf_files'),
+            ],
             
-            []
+            [
+                VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'remove_input_vcfs',          default_regulation => 0),
+                VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'remove_input_vcfs',          default_regulation => 0),
+                VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'remove_recalibration_files', default_regulation => 0),
+            ]
         );
     }
 }

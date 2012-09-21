@@ -126,6 +126,12 @@ role VRPipe::StepRole {
         builder => '_build_smaller_recommended_requirements_override'
     );
     
+    # to avoid memory leak we need to store our real self on our non-persistent version
+    has '_persistent_step' => (
+        is  => 'rw',
+        isa => 'VRPipe::Step',
+    );
+    
     # when parse is called, we'll store our dispatched refs here
     has 'dispatched' => (
         is      => 'ro',
@@ -207,8 +213,11 @@ role VRPipe::StepRole {
     
     method _build_outputs {
         my $step_state = $self->step_state || $self->throw("Cannot get outputs without step state");
-        my $outs       = $step_state->output_files;
-        my $temps      = $step_state->temp_files;
+        if ($step_state->same_submissions_as) {
+            $step_state = $step_state->same_submissions_as;
+        }
+        my $outs  = $step_state->output_files;
+        my $temps = $step_state->temp_files;
         foreach my $temp (@$temps) {
             push(@{ $outs->{temp} }, $temp);
         }
@@ -457,7 +466,7 @@ role VRPipe::StepRole {
         while (my ($key, $val) = each %$defs) {
             next if exists $hash->{$key};
             next if $val->min_files == 0;
-            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key");
+            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key (dataelement " . $self->data_element->id . "; stepstate " . $self->step_state->id . "; pipelinesetup " . $self->step_state->pipelinesetup->id . ")");
         }
         
         return $self->_missing($hash, $defs);
@@ -558,9 +567,10 @@ role VRPipe::StepRole {
         # of $self
         my $non_persistent = $self->_from_non_persistent;
         if ($non_persistent) {
-            #*** this is pretty ugly - is there a better way?
+            #*** this is very ugly - is there a better way?
             $non_persistent->step_state($self->step_state);
             $non_persistent->previous_step_outputs($self->previous_step_outputs);
+            $non_persistent->_persistent_step($self);
             
             $non_persistent->_run_coderef('body_sub');
             
@@ -624,7 +634,7 @@ role VRPipe::StepRole {
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
         # get the current mean+2sd memory and time of past runs of this step
-        my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : VRPipe::Step->get(name => $self->name));
+        my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : $self->_persistent_step);
         my $rec_mem  = $ssu->recommended_memory;
         my $rec_time = $ssu->recommended_time;
         

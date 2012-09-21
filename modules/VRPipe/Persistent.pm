@@ -762,17 +762,20 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             my ($self, $column_spec, $search_args, $search_attributes) = @_;
             my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
             $search_attributes ||= {};
+            my $disable_inflation = delete $search_attributes->{disable_inflation};
             
             my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
             
             # do we have to inflate any of the columns?
             my @inflaters;
             my @is_to_inflate;
-            foreach my $i (0 .. $#columns) {
-                my $col = $columns[$i];
-                if (exists $flations{$col}) {
-                    $inflaters[$i] = $flations{$col}->{inflate};
-                    push(@is_to_inflate, $i);
+            unless ($disable_inflation) {
+                foreach my $i (0 .. $#columns) {
+                    my $col = $columns[$i];
+                    if (exists $flations{$col}) {
+                        $inflaters[$i] = $flations{$col}->{inflate};
+                        push(@is_to_inflate, $i);
+                    }
                 }
             }
             
@@ -1156,7 +1159,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         return $str;
     }
     
-    method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {
+    # method search (ClassName|Object $self: HashRef $search_args!, HashRef $search_attributes?) {
+    #*** can't use this as a method due to a memory leak
+    sub search {
+        my ($self, $search_args, $search_attributes) = @_;
         my $rs = $self->search_rs($search_args, $search_attributes);
         
         if (wantarray()) {

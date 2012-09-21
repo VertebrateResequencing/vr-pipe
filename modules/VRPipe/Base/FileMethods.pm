@@ -260,21 +260,27 @@ role VRPipe::Base::FileMethods {
             my $first_half_limit  = int($max_lines / 2) if $max_lines;
             my $second_half_limit = $max_lines - $first_half_limit if $max_lines;
             
-            my @buffer;
+            my $do_tail = 0;
             while (<$ifh>) {
-                if ($first_half_limit && $copied_lines >= $first_half_limit) {
-                    push(@buffer, $_);
-                    if (@buffer > $second_half_limit) {
-                        shift(@buffer);
-                    }
+                if ($first_half_limit && ($copied_lines >= $first_half_limit)) {
+                    $do_tail++;
+                    last if $do_tail > $second_half_limit;
                 }
                 else {
                     print $ofh $_;
                     $copied_lines++;
                 }
             }
-            foreach my $line (@buffer) {
-                print $ofh $line;
+            
+            if ($do_tail) {
+                print $ofh "--[lines skipped during VRPipe-concat]--\n" unless $do_tail == $second_half_limit;
+                close($ifh);
+                my $path = $source->path;
+                open($ifh, "tail -n $second_half_limit $path |") || $self->throw("Could not tail $path\n");
+                while (<$ifh>) {
+                    print $ofh $_;
+                }
+                close($ifh);
             }
             
             # *** could do with checks on expected line numbers...
@@ -324,7 +330,9 @@ role VRPipe::Base::FileMethods {
     }
     
     method file_md5 (VRPipe::File $vrfile) {
-        open my $fh, '<', $vrfile->path;
+        my $path = $vrfile->path;
+        $self->throw("Cannot get the md5 of a file ($path) that does not exist") unless -e $path;
+        open my $fh, '<', $path;
         binmode($fh);
         return Digest::MD5->new->addfile($fh)->hexdigest;
     }

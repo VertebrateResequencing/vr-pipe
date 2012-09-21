@@ -19,7 +19,7 @@ my @s_names;
 foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(vep_analysis vcf_vep_consequences);
+my @expected_step_names = qw(vep_analysis vcf_vep_consequences vcf_index);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 my $vep_cache  = file(qw(t data vep_cache))->absolute->stringify;

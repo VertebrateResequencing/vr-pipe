@@ -66,6 +66,11 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
         $records ||= 0;
         return $records;
     }
+    
+    method check_magic {
+        my $bam = VRPipe::File->get(path => $self->file->absolute->stringify);
+        return $bam->check_magic($self->file, $correct_magic);
+    }
 }
 
 1;

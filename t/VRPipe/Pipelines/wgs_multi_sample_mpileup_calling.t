@@ -3,13 +3,13 @@ use strict;
 use warnings;
 use File::Copy;
 use Path::Class;
-use Vcf;
 
 BEGIN {
     use Test::Most tests => 15;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES)],
-        required_exe => [qw(samtools bcftools)]
+        required_env    => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe    => [qw(samtools bcftools)],
+        required_module => [qw(Vcf)]
     );
     use TestPipelines;
 }

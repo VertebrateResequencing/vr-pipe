@@ -97,7 +97,7 @@ else {
                         next;
                     }
                     
-                    my $found = VRPipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->id });
+                    my $found = VRPipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->submission_search_id });
                     if ($found) {
                         #*** can we combine all the above into one big search search query with multiple joins?...
                         push(@element_states, $estate);
@@ -143,7 +143,7 @@ foreach my $estate (@element_states) {
         my ($step_member) = grep { $_->step_number == $current_step_num } @stepms;
         my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
         
-        my @subs = VRPipe::Submission->search({ stepstate => $sstate->id }, { prefetch => 'job' });
+        my @subs = VRPipe::Submission->search({ stepstate => $sstate->submission_search_id }, { prefetch => 'job' });
         my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
         foreach my $sub (@subs) {
             if ($sub->failed) {

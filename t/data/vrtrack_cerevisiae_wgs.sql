@@ -476,7 +476,7 @@ DROP TABLE IF EXISTS `latest_seq_request`;
   `library_id` smallint(5) unsigned,
   `multiplex_pool_id` smallint(5) unsigned,
   `ssid` mediumint(8) unsigned,
-  `seq_type` enum('Single ended sequencing','Paired end sequencing','HiSeq Paired end sequencing','MiSeq sequencing','Single ended hi seq sequencing'),
+  `seq_type` enum('Illumina-A HiSeq Paired end sequencing','Illumina-B HiSeq Paired end sequencing','Illumina-C HiSeq Paired end sequencing','Illumina-C MiSeq sequencing','Illumina-C Single ended hi seq sequencing','Single ended sequencing','Paired end sequencing','HiSeq Paired end sequencing','MiSeq sequencing','Single ended hi seq sequencing'),
   `seq_status` enum('unknown','pending','started','passed','failed','cancelled','hold'),
   `note_id` mediumint(8) unsigned,
   `changed` datetime,
@@ -873,7 +873,7 @@ SET character_set_client = @saved_cs_client;
 
 LOCK TABLES `schema_version` WRITE;
 /*!40000 ALTER TABLE `schema_version` DISABLE KEYS */;
-INSERT INTO `schema_version` VALUES (20);
+INSERT INTO `schema_version` VALUES (23);
 /*!40000 ALTER TABLE `schema_version` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -914,7 +914,7 @@ CREATE TABLE `seq_request` (
   `library_id` smallint(5) unsigned default NULL,
   `multiplex_pool_id` smallint(5) unsigned default NULL,
   `ssid` mediumint(8) unsigned default NULL,
-  `seq_type` enum('Single ended sequencing','Paired end sequencing','HiSeq Paired end sequencing','MiSeq sequencing','Single ended hi seq sequencing') default 'Single ended sequencing',
+  `seq_type` enum('Illumina-A HiSeq Paired end sequencing','Illumina-B HiSeq Paired end sequencing','Illumina-C HiSeq Paired end sequencing','Illumina-C MiSeq sequencing','Illumina-C Single ended hi seq sequencing','Single ended sequencing','Paired end sequencing','HiSeq Paired end sequencing','MiSeq sequencing','Single ended hi seq sequencing') NOT NULL,
   `seq_status` enum('unknown','pending','started','passed','failed','cancelled','hold') default 'unknown',
   `note_id` mediumint(8) unsigned default NULL,
   `changed` datetime NOT NULL default '0000-00-00 00:00:00',
@@ -1126,4 +1126,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-07-11 14:19:10
+-- Dump completed on 2012-09-11 15:57:45

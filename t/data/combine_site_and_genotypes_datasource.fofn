@@ -1,0 +1,3 @@
+path	chrom	seq_no
+t/data/11.genotypes.vcf.gz	11	1
+t/data/20.genotypes.vcf.gz	20	2

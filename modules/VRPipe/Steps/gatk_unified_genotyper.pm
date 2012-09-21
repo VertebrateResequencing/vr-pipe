@@ -71,7 +71,7 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
             my $genotyper_opts  = $options->{unified_genotyper_options};
             my $minimum_records = $options->{minimum_records};
             
-            if ($genotyper_opts =~ /$reference_fasta|-I|-o|UnifiedGenotyper/) {
+            if ($genotyper_opts =~ /$reference_fasta|-I|-o |UnifiedGenotyper/) {
                 $self->throw("unified_genotyper_options should not include the reference, input or output options or UnifiedGenotyper task command");
             }
             
@@ -104,7 +104,7 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
             my $vcf_file = $self->output_file(output_key => 'gatk_vcf_file', basename => $basename, type => 'vcf', metadata => $vcf_meta);
             my $vcf_path = $vcf_file->path;
             
-            my $req      = $self->new_requirements(memory => 1200, time => 1);
+            my $req      = $self->new_requirements(memory => 6000, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
             my $cmd      = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T UnifiedGenotyper -R $reference_fasta -I $bams_list_path -o $vcf_path $genotyper_opts];
             my $this_cmd = "use VRPipe::Steps::gatk_unified_genotyper; VRPipe::Steps::gatk_unified_genotyper->genotype_and_check(q[$cmd], input_ids => [qw(@input_ids)], minimum_records => $minimum_records);";

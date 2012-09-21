@@ -5,9 +5,8 @@ VRPipe::Steps::vcf_annotate - a step
 
 =head1 DESCRIPTION
 
-Generates Annotated VCF files from one or more input VCFs from two sets of
-annotation options, using two passes of vcf-annotate.  [Should be amended to
-make the second annotation optional.]
+Generates annotated VCF files from one or more input VCFs using vcf-annotate. 
+Optionally, one can make two passes with vcf-annotate.
 
 =head1 AUTHOR
 
@@ -39,8 +38,8 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
     method options_definition {
         return {
             'vcf-annotate_options'   => VRPipe::StepOption->create(description => 'vcf-annotate pass 1 options'),
-            'vcf-annotate_2_options' => VRPipe::StepOption->create(description => 'vcf-annotate pass 2 options'),
-            'vcf-annotate_exe'       => VRPipe::StepOption->create(
+            'vcf-annotate_2_options' => VRPipe::StepOption->create(description => 'vcf-annotate pass 2 options', optional => 1),
+            'vcf-annotate_exe' => VRPipe::StepOption->create(
                 description   => 'path to your vcf-annotate executable',
                 optional      => 1,
                 default_value => 'vcf-annotate'
@@ -78,8 +77,11 @@ class VRPipe::Steps::vcf_annotate with VRPipe::StepRole {
                 my $input_path  = $vcf_file->path;
                 my $output_path = $annotated_vcf->path;
                 
-                # Two-pass annotation
-                my $this_cmd = "$cat_exe $input_path | $an_exe $an_opts | $an_exe $an_2_opts | bgzip -c > $output_path";
+                my $annotate = "$an_exe $an_opts";
+                if ($an_2_opts) {
+                    $annotate .= " | $an_exe $an_2_opts";
+                }
+                my $this_cmd = "$cat_exe $input_path | $annotate | bgzip -c > $output_path";
                 
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_annotate', 'annotate_vcf', [$this_cmd, $req, { output_files => [$annotated_vcf] }]);
             }
