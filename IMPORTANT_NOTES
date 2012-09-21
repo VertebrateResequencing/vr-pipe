@@ -22,7 +22,7 @@ while (my $des = $pager->next) { \
 If you had already completed your install of 0.103 and started running VRPipe
 already, you can correct errors that may be in your database by again following
 steps 1-5, but this time using the following 2 commands during step 3):
-perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0 }); \
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
 while (my $des = $pager->next) { \
   foreach my $de (@$des) { \
     print STDERR ". "; \
@@ -37,7 +37,6 @@ while (my $des = $pager->next) { \
     $r->{paths} = $ps; \
     my ($orig) = VRPipe::DataElement->search({withdrawn => 1, datasource => $de->datasource->id, result => $r}); \
     if ($orig && $orig->id < $de->id) { \
-        print STDERR " ", $orig->id, " "; \
         eval { VRPipe::StepState->search_rs({dataelement => $de->id})->delete; \
                VRPipe::DataElementState->search_rs({dataelement => $de->id})->delete; \
                $de->delete; }; \
@@ -49,8 +48,19 @@ while (my $des = $pager->next) { \
         $de = $orig; \
         $de->withdrawn(0); \
         $de->result(\%correct_result); \
-        $de->update; \
     } \
+    else { \
+        my ($result_str) = VRPipe::DataElement->get_column_values("result", { id => $de->id }, {disable_inflation => 1}); \
+        if ($result_str =~ /lane/) { \
+            if ($result_str =~ /paths.+lane/s) { \
+                $de->result($r); \
+            } \
+        } \
+        else { \
+            $de->result(\%correct_result); \
+        } \
+    } \
+    $de->update; \
   } \
   print STDERR "\n"; \
 }'
