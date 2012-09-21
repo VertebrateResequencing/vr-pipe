@@ -45,6 +45,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['deactivate',    'Turn off the given --setup'],
         ['reactivate',    'Turn on the given --setup'],
         ['reset',         'Wipe out all progress on the --setup, returning everything to the state it was just after you first created the setup, and leaves it in a deactivated state'],
+        ['cleanup',       'Like --reset, but only for DataElements that are now withdrawn (use to recover wasted disk space)'],
         ['delete',        'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it']
     ]
 );
@@ -55,6 +56,7 @@ my $extra_options = $frontend->opts('extra_options');
 my $deactivate    = $frontend->opts('deactivate');
 my $reactivate    = $frontend->opts('reactivate');
 my $reset         = $frontend->opts('reset');
+my $cleanup       = $frontend->opts('cleanup');
 my $delete        = $frontend->opts('delete');
 my $list          = $frontend->opts('list');
 my $based_on      = $frontend->opts('based_on');
@@ -91,23 +93,26 @@ if ($setup) {
         
         $frontend->output("The 'active' state of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") is now $active");
     }
-    elsif ($reset || $delete) {
-        my $go_ahead = $frontend->ask_question(question => "Are you really sure you want to wipe out all progress on this setup? All output files will be deleted!", possibles => [qw(y n)], required => 1);
+    elsif ($reset || $cleanup || $delete) {
+        my $question = $cleanup ? "Are you really sure you want to wipe out all work done on withdrawn DataElements of this setup? All their output files will be deleted!" : "Are you really sure you want to wipe out all progress on this setup? All output files will be deleted!";
+        my $go_ahead = $frontend->ask_question(question => $question, possibles => [qw(y n)], required => 1);
         if ($go_ahead eq 'n') {
             $frontend->output("Abandoning this request, no harm done");
             exit;
         }
         
         my $setup_id = $setup->id;
-        $frontend->output("Working on wiping out all trace of setup $setup_id...");
+        $frontend->output($cleanup ? "Working on wiping out all trace of the withdrawn DataElements of setup $setup_id..." : "Working on wiping out all trace of setup $setup_id...");
         
         # deactivate it first
-        $setup->active(0);
-        $setup->update;
+        unless ($cleanup) {
+            $setup->active(0);
+            $setup->update;
+        }
         
         # delete all related rows in the db
         my @step_members = $setup->pipeline->steps;
-        my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+        my $estates_pager = $setup->dataelementstates_pager($cleanup ? (only_withdrawn => 1) : (include_withdrawn => 1));
         my @jobs_to_delete;
         while (my $estates = $estates_pager->next) {
             foreach my $element_state (@$estates) {
@@ -170,14 +175,19 @@ if ($setup) {
             $job->delete;
         }
         
-        # also delete the pipelinesetup and links if in delete mode
-        if ($delete) {
-            VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
-            $setup->delete;
-            $frontend->output("Setup $setup_id has been reset and deleted.");
+        if ($cleanup) {
+            $frontend->output("Setup $setup_id has been cleaned up.");
         }
         else {
-            $frontend->output("Setup $setup_id has been reset and is now deactivated.");
+            # also delete the pipelinesetup and links if in delete mode
+            if ($delete) {
+                VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
+                $setup->delete;
+                $frontend->output("Setup $setup_id has been reset and deleted.");
+            }
+            else {
+                $frontend->output("Setup $setup_id has been reset and is now deactivated.");
+            }
         }
     }
     else {
