@@ -53,6 +53,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::PipelineSetup extends VRPipe::Persistent {
+    use POSIX qw(ceil);
+    
     has 'name' => (
         is     => 'rw',
         isa    => Varchar [64],
