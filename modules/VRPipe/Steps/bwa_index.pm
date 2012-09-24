@@ -68,10 +68,19 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
             }
             my $cmd = $bwa_exe . ' index ' . $bwa_opts;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => 'bwa index ' . $bwa_opts . ' $reference_fasta'));
+            my $version = VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$');
+            
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bwa', version => $version, summary => 'bwa index ' . $bwa_opts . ' $reference_fasta'));
             $cmd .= ' ' . $ref;
             
-            foreach my $suffix (qw(bwt pac rbwt rpac rsa sa)) {
+            # version 0.5 of bwa produces one set of output files, but 0.6 (and
+            # presumably later) produce fewer.
+            my @outfiles = qw(bwt pac sa);
+            if ($version =~ /^0\.5\./) {
+                push @outfiles, qw(rbwt rpac rsa);
+            }
+            
+            foreach my $suffix (@outfiles) {
                 $self->output_file(output_key => 'bwa_index_binary_files', output_dir => $ref->dir->stringify, basename => $ref->basename . '.' . $suffix, type => 'bin');
             }
             foreach my $suffix (qw(amb ann)) {
@@ -84,7 +93,7 @@ class VRPipe::Steps::bwa_index with VRPipe::StepRole {
     
     method outputs_definition {
         return {
-            bwa_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the files produced by bwa index', min_files => 6, max_files => 6),
+            bwa_index_binary_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'the files produced by bwa index', min_files => 3, max_files => 6),
             bwa_index_text_files   => VRPipe::StepIODefinition->create(type => 'txt', description => 'the files produced by bwa index', min_files => 2, max_files => 2)
         };
     }
