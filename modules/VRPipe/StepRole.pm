@@ -370,7 +370,7 @@ role VRPipe::StepRole {
                 my $max_allowed = $val->max_files;
                 my $min_allowed = $val->min_files;
                 if (!@vrfiles && @skip_reasons) {
-                    $self->throw("none of the input files had a suitable type:\n" . join("\n", @skip_reasons)) if ($min_allowed > 0);
+                    $self->throw("for '$key' of stepstate " . $self->step_state->id . " none of the input files had a suitable type:\n" . join("\n", @skip_reasons)) if ($min_allowed > 0);
                     next;
                 }
                 my $num_results = @vrfiles;
