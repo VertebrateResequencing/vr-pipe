@@ -113,23 +113,27 @@ subtype AbsoluteFile, as File, where { $_->is_absolute }, message {
     else                                                 { return "Not a Path::Class::File"; }
 };
 
+sub cleanup_path_str {
+    my $str = shift;
+    return unless $str;
+    $str =~ s/^\s+//;
+    $str =~ s/\s+$//;
+    if ($str =~ /^~/) {
+        my $home = File::HomeDir->my_home;
+        $str =~ s/^~/$home/;
+    }
+    return $str;
+}
+
 for my $type ('Path::Class::Dir', Dir, MaybeDir) {
     coerce $type, from Str, via {
-        if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; }
-        Path::Class::Dir->new($_);
-    }, from ArrayRef, via {
-        if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; }
-        Path::Class::Dir->new(@{$_});
+        Path::Class::Dir->new(cleanup_path_str($_));
     };
 }
 
 for my $type ('Path::Class::File', File, MaybeFile, AbsoluteFile) {
     coerce $type, from Str, via {
-        if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; }
-        Path::Class::File->new($_);
-    }, from ArrayRef, via {
-        if (/^~/) { my $home = File::HomeDir->my_home; $_ =~ s/^~/$home/; }
-        Path::Class::File->new(@{$_});
+        Path::Class::File->new(cleanup_path_str($_));
     };
 }
 
