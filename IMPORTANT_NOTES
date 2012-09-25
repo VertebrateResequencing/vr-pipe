@@ -1,28 +1,20 @@
-# version 0.104:
-This is identical to 0.103, released only to correct the upgrade instructions
-below given for 0.103. Follow the advice given for 0.103, using this command
-line when you get to step 3) (NB: it might take hours to run):
-perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({}); \
-while (my $des = $pager->next) { \
-  foreach my $de (@$des) { \
-    my $r = $de->result; \
-    my $ps = $r->{paths} || next; \
-    next unless ref($ps); \
-    next unless @$ps > 0; \
-    eval { $de->_deflate_paths($r); }; next if $@; \
-    my %new_result; \
-    while (my ($key, $val) = each %$r) { \
-        $new_result{$key} = $val; \
-    } \
-    $de->result(\%new_result); \
-    $de->update; \
-  } \
-}'
-
-If you had already completed your install of 0.103 and started running VRPipe
-already, you can correct errors that may be in your database by again following
-steps 1-5, but this time using the following 2 commands during step 3):
-perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
+# version 0.106:
+Further subtle issues have been discovered that may affect your VRPipe database
+following the upgrade to 0.103 and/or 0.104. If you have ever used version
+0.102 or earlier, it is STRONGLY recommended you do the following:
+    1) Install 0.106 as normal.
+    2) Make sure you have no VRPipe code running.
+    3) Log into your production database and execute the following command:
+    mysql> update datasource set _changed_marker = 'foo';
+    4) Run this Perl multi-liner (copy and paste it all in one go to your
+       terminal):
+perl -MVRPipe::Persistent::Schema -Mstrict -we 'foreach my $setup (VRPipe::PipelineSetup->search({})) { \
+    print STDERR ". "; \
+    eval { $setup->datasource->incomplete_element_states($setup); }; \
+} warn "\nAll done!\n";'
+    5) Run this Perl multi-liner (copy and paste it all in one go to your
+       terminal):
+perl -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
 while (my $des = $pager->next) { \
   foreach my $de (@$des) { \
     print STDERR ". "; \
@@ -63,6 +55,61 @@ while (my $des = $pager->next) { \
     $de->update; \
   } \
   print STDERR "\n"; \
+}'
+    6) Start running VRPipe again normally
+
+# version 0.104:
+This is identical to 0.103, released only to correct the upgrade instructions
+below given for 0.103. Follow the advice given for 0.103, using this command
+line when you get to step 3) (NB: it might take hours to run):
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next unless ref($ps); \
+    next unless @$ps > 0; \
+    eval { $de->_deflate_paths($r); }; next if $@; \
+    my %new_result; \
+    while (my ($key, $val) = each %$r) { \
+        $new_result{$key} = $val; \
+    } \
+    $de->result(\%new_result); \
+    $de->update; \
+  } \
+}'
+
+If you had already completed your install of 0.103 and started running VRPipe
+already, you can correct errors that may be in your database by again following
+steps 1-5, but this time using the following 2 commands during step 3):
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next if ref($ps); \
+    my %correct_result; \
+    while (my ($key, $val) = each %$r) { \
+        $correct_result{$key} = $val; \
+    } \
+    $r->{paths} = 0; \
+    $r->{paths} = $ps; \
+    my ($orig) = VRPipe::DataElement->search({withdrawn => 1, datasource => $de->datasource->id, result => $r}); \
+    if ($orig) { \
+        eval { VRPipe::StepState->search_rs({dataelement => $de->id})->delete; \
+               VRPipe::DataElementState->search_rs({dataelement => $de->id})->delete; \
+               $de->delete; }; \
+        if ($@) { \
+            $de->result($r); \
+            $de->withdrawn(1); \
+            $de->update; \
+        } \
+        $de = $orig; \
+        $de->withdrawn(0); \
+    } \
+    $de->result(\%correct_result); \
+    $de->update; \
+  } \
 }'
 perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 1}); \
 while (my $des = $pager->next) { \
