@@ -133,15 +133,16 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         my $seq_fh = $merged_fastq->openw;
         my $idx_fh = $pop_index->openw;
         
-        my %samples;
+        my (%samples, %reads);
         my $expected_lines = 0;
         my $fq_fh          = $fastq_fofn->openr;
         while (my $fq_path = <$fq_fh>) {
             chomp $fq_path;
             my $fq_file = VRPipe::File->get(path => $fq_path);
             my $sample = $fq_file->metadata->{sample};
-            push @{ $samples{$sample} }, $fq_file;
-            $expected_lines += $fq_file->lines;
+            push @{ $samples{$sample} }, $fq_path;
+            $reads{$fq_path} = $fq_file->metadata->{reads};
+            $expected_lines += $fq_file->lines(raw => 1);
         }
         $fq_fh->close;
         
@@ -149,6 +150,9 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         my $current_index       = 0;
         my $current_start_index = 0;
         my $current_label       = '';
+        my $written_lines       = 0;
+        
+        $merged_fastq->disconnect;
         
         # Iterate over every file
         while (my ($sample, $fqs) = each %samples) {
@@ -164,13 +168,20 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
             foreach my $fq (@$fqs) {
                 # write the contents of fq to the merged fq file
                 # update the position of the current index
-                my $fh = $fq->openr;
-                $fq->disconnect;
+                my $fh;
+                if ($fq =~ /\.gz$/) {
+                    open($fh, "gunzip -c $fq |") or $self->throw("Could not open 'gunzip -c $fq |': $!");
+                }
+                else {
+                    open($fh, "< $fq") or $self->throw("Could not open '< $fq': $!");
+                }
+                $fh || $self->throw("Could get filehandle for file $fq");
                 while (my $line = <$fh>) {
                     print $seq_fh $line;
+                    $written_lines++;
                 }
-                $fq->close;
-                $current_index += $fq->metadata->{reads};
+                close $fh;
+                $current_index += $reads{$fq};
             }
         }
         $seq_fh->close;
@@ -182,12 +193,11 @@ class VRPipe::Steps::fastq_merge_and_index with VRPipe::StepRole {
         $pop_index->update_stats_from_disc(retries => 3);
         $merged_fastq->update_stats_from_disc(retries => 3);
         
-        my $actual_lines = $merged_fastq->lines;
-        my $index_lines  = $pop_index->lines;
-        if ($actual_lines != $expected_lines) {
+        my $index_lines = $pop_index->lines;
+        if ($written_lines != $expected_lines) {
             $merged_fastq->unlink;
             $pop_index->unlink;
-            $self->throw("Merged fastq had $actual_lines actual lines, whereas we expected $expected_lines lines.");
+            $self->throw("Merged fastq had $written_lines written lines, whereas we expected $expected_lines lines.");
         }
         elsif ($index_lines != $fastq_fofn->lines) {
             $merged_fastq->unlink;
