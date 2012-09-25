@@ -71,7 +71,7 @@ else {
             @element_states = $setup->dataelementstates(include_withdrawn => 1);
         }
         else {
-            my $estates_pager = $setup->datasource->incomplete_element_states($setup, include_withdrawn => 1);
+            my $estates_pager = $setup->datasource->incomplete_element_states($setup, include_withdrawn => 1, prepare => 0);
             my @estates;
             while (my $estates = $estates_pager->next) {
                 push(@estates, @$estates);
