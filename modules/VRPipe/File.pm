@@ -608,15 +608,18 @@ class VRPipe::File extends VRPipe::Persistent {
         }
     }
     
-    method lines {
+    method lines (Bool :$raw = 0) {
         my $s = $self->s || return 0;
         
         my $lines = $self->_lines;
-        unless ($lines) {
-            my $ft = VRPipe::FileType->create($self->type, { file => $self->path });
+        if ($raw || !$lines) {
+            my $type = $raw ? 'any' : $self->type;
+            my $ft = VRPipe::FileType->create($type, { file => $self->path });
             $lines = $ft->num_lines;
-            $self->_lines($lines);
-            $self->update;
+            unless ($raw) {
+                $self->_lines($lines);
+                $self->update;
+            }
         }
         
         $lines || $self->throw("Failed to find any lines in " . $self->path . ", even though it has size!");
