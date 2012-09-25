@@ -128,12 +128,16 @@ sub cleanup_path_str {
 for my $type ('Path::Class::Dir', Dir, MaybeDir) {
     coerce $type, from Str, via {
         Path::Class::Dir->new(cleanup_path_str($_));
+    }, from ArrayRef, via {
+        Path::Class::Dir->new(map { cleanup_path_str($_) } @$_);
     };
 }
 
 for my $type ('Path::Class::File', File, MaybeFile, AbsoluteFile) {
     coerce $type, from Str, via {
         Path::Class::File->new(cleanup_path_str($_));
+    }, from ArrayRef, via { #*** this 'works', but also manages to store a non-functional ARRAY... string if used to create a VRPipe::File
+        Path::Class::File->new(map { cleanup_path_str($_) } @$_);
     };
 }
 
