@@ -122,7 +122,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
                 
                 # check that all other step states that output this same file
                 # are also our own step states
-                my $pager = VRPipe::StepOutputFile->search_paged({ file => $sof->file->id }, { prefetch => 'stepstate' });
+                my $pager = VRPipe::StepOutputFile->search_paged({ file => $sof->file->id, 'me.id' => { '!=' => $sof->id }, output_key => { '!=' => 'temp' } }, { prefetch => 'stepstate' });
                 PLOOP: while (my $other_sofs = $pager->next) {
                     foreach my $other_sof (@$other_sofs) {
                         my $other_ss = $other_sof->stepstate;

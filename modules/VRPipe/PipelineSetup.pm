@@ -139,15 +139,23 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     sub _des_search_args {
         my $self              = shift;
         my $include_withdrawn = shift;
-        return ({ pipelinesetup => $self->id, $include_withdrawn ? () : ('dataelement.withdrawn' => 0) }, { prefetch => 'dataelement' });
+        my $only_withdrawn    = shift;
+        my @terms             = ();
+        if ($only_withdrawn) {
+            @terms = ('dataelement.withdrawn' => 1);
+        }
+        elsif (!$include_withdrawn) {
+            @terms = ('dataelement.withdrawn' => 0);
+        }
+        return ({ pipelinesetup => $self->id, @terms }, { prefetch => 'dataelement' });
     }
     
-    method dataelementstates_pager (Bool :$include_withdrawn = 0) {
-        return VRPipe::DataElementState->search_paged($self->_des_search_args($include_withdrawn));
+    method dataelementstates_pager (Bool :$include_withdrawn = 0, Bool :$only_withdrawn = 0) {
+        return VRPipe::DataElementState->search_paged($self->_des_search_args($include_withdrawn, $only_withdrawn));
     }
     
-    method dataelementstates (Bool :$include_withdrawn = 0) {
-        return VRPipe::DataElementState->search($self->_des_search_args($include_withdrawn));
+    method dataelementstates (Bool :$include_withdrawn = 0, Bool :$only_withdrawn = 0) {
+        return VRPipe::DataElementState->search($self->_des_search_args($include_withdrawn, $only_withdrawn));
     }
     
     around desired_farm (Maybe[Str] $farm) {

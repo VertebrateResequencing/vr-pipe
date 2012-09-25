@@ -227,7 +227,7 @@ XSL
     <xsl:text> ---
 </xsl:text>
     
-    <xsl:if test="@display_mode!='list'">
+    <xsl:if test="(@display_mode!='list') and (@display_mode!='defunct')">
         <xsl:if test="@display_mode='full'">
             <xsl:text>Pipeline: </xsl:text>
             <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='name']"/>
@@ -322,6 +322,13 @@ Current submission state:
         <xsl:text>------
 
 </xsl:text>
+    </xsl:if>
+    <xsl:if test="@display_mode='defunct'">
+        <xsl:if test="./attribute[@name='problems']">
+            <xsl:value-of select="./attribute[@name='problems']"/>
+            <xsl:text>
+</xsl:text>
+        </xsl:if>
     </xsl:if>
 </xsl:template>
 

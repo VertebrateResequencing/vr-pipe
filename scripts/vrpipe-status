@@ -34,7 +34,8 @@ my $cmdline = VRPipe::Interface::CmdLine->new(
         ['setup=s@',     'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }],
         ['incomplete|i', 'Only show details of PipelineSetups that are incomplete (does not affect --list mode)'],
         ['brief|b',      'Do not show full config details of each PipelineSetup, just the completion state summary'],
-        ['list|l',       'Just list out the setup names and ids without details']
+        ['list|l',       'Just list out the setup names and ids without details'],
+        ['defunct|d',    'Only show a simplified report (ignores -i, -b and -l) on those PipelineSetups that have something fundamentally wrong with them and are candidates for deletion']
     ]
 );
 

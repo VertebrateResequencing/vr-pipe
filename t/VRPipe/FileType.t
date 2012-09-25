@@ -4,8 +4,8 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 27;
-    use VRPipeTest (required_exe => [qw(samtools bcftools)]);
+    use Test::Most tests => 33;
+    use VRPipeTest (required_exe => [qw(samtools bcftools fastqcheck)]);
     
     use_ok('VRPipe::FileType');
 }
@@ -40,6 +40,14 @@ ok $ft = VRPipe::FileType->create('vcf', { file => file(qw(t data file.vcf.gz))-
 is $ft->type, 'vcf', 'vcf type is correct';
 is $ft->check_type(), 1, 'a vcf file passes the check';
 is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [24, 19, 5], 'num_lines, num_header_lines and num_records work for a vcf, file';
+
+# fq
+ok $ft = VRPipe::FileType->create('fq', { file => file(qw(t data 2822_7_2.fastq))->absolute }), 'could create a fq filetype';
+is $ft->type, 'fq', 'fq type is correct';
+is $ft->check_type(), 1, 'a fq file passes the check';
+is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [250, 0, 250], 'num_lines, num_header_lines and num_records work for a fq, file';
+ok my $fq = VRPipe::File->create(path => file(qw(t data 2822_7_2.fastq))->absolute), 'could create a fq file';
+is_deeply [$fq->lines, $fq->lines(raw => 1)], [250, 1000], 'lines and raw lines as expected for fastq file';
 
 # cram
 my $ref = file(qw(t data human_g1k_v37.chr20.fa))->absolute->stringify;
