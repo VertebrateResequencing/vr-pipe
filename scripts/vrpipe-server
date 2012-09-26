@@ -154,7 +154,7 @@ sub start_server {
     $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
     
     # daemonize unless we're not supposed to
-    my $orig_dir = $backend->daemonize unless $foreground;
+    $backend->daemonize unless $foreground;
     
     $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
     my $watcher_error_sub = sub {

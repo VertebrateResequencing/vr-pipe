@@ -518,10 +518,14 @@ XSL
             # we change directory to the root of all. That is a courtesy to the
             # system, which without it would be prevented from unmounting the
             # filesystem we started in. However, when testing we have to allow
-            # for the possiblity of relative paths in fofn datasources, and so
-            # will need to know the original directory we were in
-            my $orig_dir = getcwd();
-            chdir '/' or die $!;
+            # for the possiblity of relative paths in fofn datasources, and we
+            # have to know where t/ and modules/ are, so we assume that it is ok
+            # to not chdir since the test will be over soon and the server auto-
+            # stopped
+            my $deployment = $self->deployment;
+            unless ($deployment eq 'testing') {
+                chdir '/' or die $!;
+            }
             
             # we set the user-configured permissions mask for file creation
             umask $self->umask;
@@ -546,7 +550,7 @@ XSL
             # in production (when we might be running as root) set the real user
             # identifier and the effective user identifier for the daemon
             # process before opening files
-            setuid($self->uid) if $self->deployment eq 'production';
+            setuid($self->uid) if $deployment eq 'production';
             
             # reopen STDERR for logging purposes
             my $log_dir      = $self->logging_directory;
@@ -554,7 +558,7 @@ XSL
             $log_basename =~ s/\W/_/g;
             open(STDERR, '>>', file($log_dir, 'vrpipe-server.' . $log_basename . '.log'));
             
-            return $orig_dir;
+            return 1;
         }
         
         # -parent-

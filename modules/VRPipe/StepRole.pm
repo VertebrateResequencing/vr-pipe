@@ -688,15 +688,12 @@ role VRPipe::StepRole {
             my %new_lib;
             foreach my $inc (@INC) {
                 unless (exists $orig_inc{$inc}) {
-                    $new_lib{ file($inc)->absolute } = 1;
+                    $new_lib{$inc} = 1;
                 }
             }
-            my @new_lib = keys %new_lib;
-            if (@new_lib) {
-                $use_lib = "use lib(qw(@new_lib)); ";
-            }
-            
-            $deploy = 'VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); ';
+            my @new_lib = map { dir($_)->absolute } ('t', 'modules', keys %new_lib);
+            $use_lib = "use lib(qw(@new_lib)); ";
+            $deploy  = 'VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); ';
         }
         
         my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "$use_lib$deploy$code"];
