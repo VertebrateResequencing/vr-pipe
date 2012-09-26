@@ -15,7 +15,7 @@ BEGIN {
 my $output_dir = get_output_dir('rna_seq_map_gsnap-test');
 ok my $pipeline = VRPipe::Pipeline->create(name => 'rna_seq_map_gsnap'), 'able to get the rna_seq_map_gsnap pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 

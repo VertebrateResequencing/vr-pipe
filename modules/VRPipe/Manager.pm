@@ -84,11 +84,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
         isa => PositiveInt
     );
     
-    has '_created_pipelines' => (
-        is  => 'rw',
-        isa => 'HashRef'
-    );
-    
     # public getters for our private attributes
     method running {
         return $self->_running;
@@ -126,19 +121,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
             my $p = $ps->pipeline;
             if ($pipeline_name) {
                 next unless $p->name eq $pipeline_name;
-            }
-            
-            # before spooling, whilst we are still in a single process, make
-            # sure that all pipelines have had their step members created using
-            # the steps method. *** steps() currently gives a memory leak, so
-            # that's the other reason we are careful to only call it once per
-            # pipeline
-            my $ps_id   = $ps->id;
-            my $created = $self->_created_pipelines;
-            unless (exists $created->{ $p->id }) {
-                $p->steps;
-                $created->{ $p->id } = 1;
-                $self->_created_pipelines($created);
             }
             
             # we can have step-specific limits on how many subs to run at

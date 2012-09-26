@@ -52,14 +52,14 @@ foreach my $step (@{ $frontend->opts('step') || [] }) {
 }
 
 foreach my $pipeline (@{ $frontend->opts('pipeline') || [] }) {
-    foreach my $stepmember ($pipeline->steps) {
+    foreach my $stepmember ($pipeline->step_members) {
         $steps{ $stepmember->step->id }->{all} = 1;
     }
 }
 
 foreach my $setup (@{ $frontend->opts('setup') || [] }) {
     my $setup_id = $setup->id;
-    foreach my $stepmember ($setup->pipeline->steps) {
+    foreach my $stepmember ($setup->pipeline->step_members) {
         $steps{ $stepmember->step->id }->{$setup_id} = 1;
     }
 }

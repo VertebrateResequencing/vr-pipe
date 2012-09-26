@@ -17,7 +17,7 @@ my $output_dir = get_output_dir('cram_test');
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'bam_cram_bam_test_pipeline'), 'able to get the bam_cram_bam_test_pipeline pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(test_import_bams fasta_index bam_metadata bam_index bam_to_cram cram_index cram_to_bam)], 'the pipeline has the correct steps';

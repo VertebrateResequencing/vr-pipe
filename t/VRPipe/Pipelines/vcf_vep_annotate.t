@@ -16,7 +16,7 @@ my $output_dir = get_output_dir('vcf_vep_annotate_pipeline');
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'vcf_vep_annotate'), 'able to get the vcf_vep_annotate pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(vep_analysis vcf_vep_consequences vcf_index);

@@ -168,7 +168,7 @@ if (@steps) {
         }
     }
 }
-my @step_members = $setup->pipeline->steps;
+my @step_members = $setup->pipeline->step_members;
 my @allowed_step_members;
 my %allowed_kinds;
 if ($limit_steps) {

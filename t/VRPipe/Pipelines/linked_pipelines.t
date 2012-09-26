@@ -18,14 +18,14 @@ ok my $pipeline      = VRPipe::Pipeline->create(name => 'test_pipeline'),   'abl
 ok my $link_pipeline = VRPipe::Pipeline->create(name => 'linked_pipeline'), 'able to get the linked_pipeline pipeline';
 
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_base_step_names = qw(test_step_one test_step_two test_step_three test_step_four);
 is_deeply \@s_names, \@expected_base_step_names, 'the base test pipeline has the correct steps';
 
 my @l_names;
-foreach my $stepmember ($link_pipeline->steps) {
+foreach my $stepmember ($link_pipeline->step_members) {
     push(@l_names, $stepmember->step->name);
 }
 my @expected_link_step_names = qw(text_merge test_step_one);

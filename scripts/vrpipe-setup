@@ -111,7 +111,7 @@ if ($setup) {
         }
         
         # delete all related rows in the db
-        my @step_members = $setup->pipeline->steps;
+        my @step_members = $setup->pipeline->step_members;
         my $estates_pager = $setup->dataelementstates_pager($cleanup ? (only_withdrawn => 1) : (include_withdrawn => 1));
         my @jobs_to_delete;
         while (my $estates = $estates_pager->next) {
@@ -328,7 +328,7 @@ else {
         $pipeline = $frontend->ask_for_object(question => "Pick a pipeline from the above list to run", class => 'Pipeline', column => 'name');
     }
     
-    my @sms = $pipeline->steps;
+    my @sms = $pipeline->step_members;
     my @steps = map { $_->step } @sms;
     
     # find the steps whoes input is the data element

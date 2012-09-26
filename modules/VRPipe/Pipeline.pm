@@ -84,10 +84,11 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
         is_nullable => 1
     );
     
-    __PACKAGE__->make_persistent(has_many => [steps => 'VRPipe::StepMember']);
+    __PACKAGE__->make_persistent(has_many => [stepmembers => 'VRPipe::StepMember']);
     
-    # step members is pretty much the same as steps(), only since we use our
-    # special search() method it can return a quick count(*) in scalar context
+    # step members is pretty much the same as stepmembers(), only since we use
+    # our special search() method it can return a quick count(*) in scalar
+    # context
     sub step_members {
         my $self = shift;
         return VRPipe::StepMember->search({ pipeline => $self->id });

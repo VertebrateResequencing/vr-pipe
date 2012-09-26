@@ -16,7 +16,7 @@ my $output_dir_clean = get_output_dir('test_pipeline_cleanup');
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'test_pipeline'), 'able to get the test_pipeline pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(test_step_one test_step_two test_step_three test_step_four);
@@ -26,7 +26,7 @@ $pipeline = VRPipe::Pipeline->create(name => 'test_pipeline');
 @s_names = ();
 my @s_nums = ();
 my $last_step;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     $last_step = $stepmember->step;
     push(@s_names, $last_step->name);
     push(@s_nums,  $stepmember->step_number);

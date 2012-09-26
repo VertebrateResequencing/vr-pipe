@@ -153,7 +153,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
         }
     }
     LIMIT_BREAK: foreach my $setup (@setups) {
-        my @step_members = $setup->pipeline->steps;
+        my @step_members = $setup->pipeline->step_members;
         my @allowed_step_members;
         my %allowed_kinds;
         if ($limit_steps) {

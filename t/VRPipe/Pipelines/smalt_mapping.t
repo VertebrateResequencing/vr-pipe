@@ -18,7 +18,7 @@ my $mapping_output_dir = get_output_dir('smalt_mapping');
 
 ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'fastq_mapping_with_smalt'), 'able to get a pre-written pipeline';
 my @s_names;
-foreach my $stepmember ($mapping_pipeline->steps) {
+foreach my $stepmember ($mapping_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(sequence_dictionary smalt_index fastq_import fastq_metadata fastq_split fastq_decompress smalt_map_to_sam sam_to_fixed_bam bam_add_readgroup bam_merge_lane_splits)], 'the pipeline has the correct steps';
