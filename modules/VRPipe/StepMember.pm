@@ -72,6 +72,7 @@ class VRPipe::StepMember extends VRPipe::Persistent {
     
     around step (PreviousStepOutput :$previous_step_outputs?, VRPipe::StepState :$step_state?) {
         my $step = $self->$orig();
+        VRPipe::Step->get(name => $step->name); # so that _from_non_persistent will work if we never got this step with a get() before
         $step->step_state($step_state)                       if $step_state;
         $step->previous_step_outputs($previous_step_outputs) if $previous_step_outputs;
         return $step;

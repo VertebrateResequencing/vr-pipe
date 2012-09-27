@@ -715,8 +715,11 @@ role VRPipe::StepRole {
     # using this lets you run a bunch of perl code wrapping a command line exe,
     # yet still keep the command line visible so you know the most important
     # bit of what was run
-    method dispatch_wrapped_cmd (ClassName $class, Str $method, ArrayRef $dispatch_args) {
+    method dispatch_wrapped_cmd (Str $class, Str $method, ArrayRef $dispatch_args) {
         my ($cmd, $req, $extra_args) = @$dispatch_args;
+        
+        eval "require $class;";
+        $self->throw("'$class' is not a valid class name: $@") if $@;
         
         $class->can($method) || $self->throw("$method is not a valid method of $class");
         my $code = $class->isa('VRPipe::Persistent') ? '' : "use $class; ";
