@@ -574,9 +574,7 @@ XSL
             eval "require $module;";
             unless ($@) {
                 my ($name) = $module =~ /VRPipe::Pipelines::(\w+)/;
-                my $persistent = VRPipe::Pipeline->create(name => $name);
-                my $obj = $module->new();
-                $persistent->_construct_pipeline($obj->_step_list);
+                VRPipe::Pipeline->create(name => $name);
             }
         }
         
