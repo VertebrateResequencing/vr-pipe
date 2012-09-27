@@ -53,7 +53,7 @@ class VRPipe::Steps::sex_to_ploidy with VRPipe::StepRole {
             my $self            = shift;
             my $options         = $self->options;
             my $assumed_sex     = $options->{assumed_sex};
-            my $sample_sex_file = Path::Class::File->new($options->{sample_sex_file});
+            my $sample_sex_file = file($options->{sample_sex_file});
             $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_file->is_absolute;
             
             my %bcfs;

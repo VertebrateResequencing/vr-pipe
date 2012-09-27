@@ -81,7 +81,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             my $dict_path = $self->inputs->{dict_file}->[0]->path;
             my $comment   = '';
             if ($options->{header_comment_file}) {
-                my $comment_path = Path::Class::File->new($options->{header_comment_file});
+                my $comment_path = file($options->{header_comment_file});
                 $self->throw("header_comment_file must be an absolute path if it is supplied") unless $comment_path->is_absolute;
                 $comment .= ", comment => q[$comment_path]";
             }

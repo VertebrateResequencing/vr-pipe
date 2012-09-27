@@ -68,7 +68,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
             
             my $sample_sex_file;
             if ($options->{sample_sex_file}) {
-                $sample_sex_file = Path::Class::File->new($options->{sample_sex_file});
+                $sample_sex_file = file($options->{sample_sex_file});
                 $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_file->is_absolute;
             }
             if ($self->inputs->{sites_file}) {

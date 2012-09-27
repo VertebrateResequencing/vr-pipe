@@ -76,7 +76,7 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
     
     around options {
         my $options         = $self->$orig;
-        my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
+        my $reference_fasta = file($options->{reference_fasta});
         $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
         return $options;
     }

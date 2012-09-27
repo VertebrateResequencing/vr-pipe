@@ -66,7 +66,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $minimum_records = $options->{minimum_records};
             my $post_filter     = $options->{post_calling_vcftools};
             
-            my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
+            my $reference_fasta = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
             
             if ($mpileup_opts =~ /-f|-b|$reference_fasta/) {
@@ -75,7 +75,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             
             my $sample_sex_file;
             if ($options->{sample_sex_file}) {
-                $sample_sex_file = Path::Class::File->new($options->{sample_sex_file});
+                $sample_sex_file = file($options->{sample_sex_file});
                 $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_file->is_absolute;
             }
             if ($self->inputs->{sites_file}) {

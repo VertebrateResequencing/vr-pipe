@@ -50,7 +50,7 @@ class VRPipe::Steps::karma_index with VRPipe::StepRole {
         return sub {
             my $self    = shift;
             my $options = $self->options;
-            my $ref     = Path::Class::File->new($options->{reference_fasta});
+            my $ref     = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $karma_exe = $options->{karma_exe};

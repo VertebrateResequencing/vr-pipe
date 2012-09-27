@@ -70,7 +70,7 @@ class VRPipe::Steps::glf_check_genotype with VRPipe::StepRole {
         return sub {
             my $self           = shift;
             my $options        = $self->options;
-            my $gtype_snps_bin = Path::Class::File->new($options->{hapmap2bin_sample_genotypes_file});
+            my $gtype_snps_bin = file($options->{hapmap2bin_sample_genotypes_file});
             $self->throw("hapmap2bin_sample_genotypes_file must be an absolute path") unless $gtype_snps_bin->is_absolute;
             my $glf_exe      = $options->{glf_exe};
             my $expected_key = $options->{expected_sample_metadata_key};
