@@ -120,14 +120,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     
     has 'desired_farm' => (
         is          => 'rw',
-        isa         => Text,
+        isa         => Varchar [64],
         traits      => ['VRPipe::Persistent::Attributes'],
         is_nullable => 1
     );
     
     has 'controlling_farm' => (
         is          => 'rw',
-        isa         => Text,
+        isa         => Varchar [64],
         traits      => ['VRPipe::Persistent::Attributes'],
         is_nullable => 1
     );
@@ -158,10 +158,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return VRPipe::DataElementState->search($self->_des_search_args($include_withdrawn, $only_withdrawn));
     }
     
-    around desired_farm (Maybe[Str] $farm) {
+    around desired_farm (Maybe[Str] $farm?) {
         my $current_farm = $self->$orig();
-        if ($farm && $farm ne $current_farm) {
-            $self->controlling_farm(undef);
+        if ($farm) {
+            if ($current_farm && $farm ne $current_farm) {
+                $self->controlling_farm(undef);
+            }
             return $self->$orig($farm);
         }
         return $current_farm;

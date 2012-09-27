@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 133;
+    use Test::Most tests => 135;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -213,6 +213,11 @@ is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id,
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => { dynamic_input => "$step1_bam_input", baz => 'loman' });
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrieved with a full spec';
+# (we test desired_farm specifically because we have an around alteration of it)
+is $setups[0]->desired_farm, undef, 'desired_farm defaults to undef';
+$setups[0]->desired_farm('foo');
+$setups[0]->update;
+is $setups[0]->desired_farm, 'foo', 'desired_farm could be set and retrieved';
 
 ok my $first_setup = VRPipe::PipelineSetup->get(id => 1), 'pipelinesetup1 could be gotten by id';
 is $first_setup->datasource->id, 1, 'it has the correct datasource';

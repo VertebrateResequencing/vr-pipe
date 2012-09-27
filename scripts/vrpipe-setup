@@ -534,10 +534,15 @@ else {
     my $output_root = $frontend->ask_question(question => "Please provide the absolute path to the root directory that output files will be written to", required => 1, $based_on ? (default => $based_on->output_root->stringify) : (), strip_leading_trailing_whitespace => 1);
     
     # what farm (vrpipe-server) should it run from?
-    my $farm_default = $based_on ? $based_on->desired_farm->stringify : '';
+    my $prev_desired_farm;
+    if ($based_on && $based_on->desired_farm) {
+        $prev_desired_farm = $based_on->desired_farm->stringify;
+    }
+    my $farm_default = $prev_desired_farm || 'random';
     my %farm_possibles = map { $_ => 1 } VRPipe::FarmServer->get_column_values('farm', {});
-    $farm_possibles{$farm_default} = 1 if $farm_default;
-    my $farm = $frontend->ask_question(question => "Which vrpipe-server (identified by the 'farm' name) should the setup be controlled by (entering nothing means a random server will be used)", required => 0, possibles => [keys %farm_possibles], $farm_default ? (default => $farm_default) : ());
+    $farm_possibles{$farm_default} = 1;
+    my $farm = $frontend->ask_question(question => "Which vrpipe-server (identified by the 'farm' name) should the setup be controlled by (entering nothing means a random server will be used)", required => 0, possibles => [keys %farm_possibles], default => $farm_default);
+    undef $farm if $farm eq 'random';
     my $farm_confirmation = $farm ? "controlled by farm '$farm'" : 'controlled by a random farm';
     
     # name?
