@@ -10,8 +10,8 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $calling_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_gatk_unified_genotyper'), 'able to get the snp_calling_gatk_unified_genotyper pipeline';
-ok my $concat_pipeline = VRPipe::Pipeline->get(name => 'vcf_concat'), 'able to get the vcf_concat pipeline';
+ok my $calling_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_unified_genotyper'), 'able to get the snp_calling_gatk_unified_genotyper pipeline';
+ok my $concat_pipeline = VRPipe::Pipeline->create(name => 'vcf_concat'), 'able to get the vcf_concat pipeline';
 
 my $calling_dir = get_output_dir('wgs_single_sample_gatk_calling_test');
 

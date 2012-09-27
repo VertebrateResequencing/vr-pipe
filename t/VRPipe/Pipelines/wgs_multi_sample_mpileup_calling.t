@@ -14,7 +14,7 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $calling_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup_via_bcf'), 'able to get the snp_calling_mpileup_via_bcf pipeline';
+ok my $calling_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_mpileup_via_bcf'), 'able to get the snp_calling_mpileup_via_bcf pipeline';
 
 my $calling_dir = get_output_dir('wgs_multi_sample_mpileup_calling_test');
 
@@ -111,8 +111,8 @@ is indel_count($restart_files[1]->absolute->stringify), 0, 'chunk_override_file 
 # run annotation pipeline
 my $vep_cache = file(qw(t data vep_cache))->absolute->stringify;
 
-ok my $annotation_pipeline = VRPipe::Pipeline->get(name => 'vcf_vep_annotate'), 'able to get the vcf_vep_annotate pipeline';
-ok my $concat_pipeline     = VRPipe::Pipeline->get(name => 'vcf_concat'),       'able to get the vcf_concat pipeline';
+ok my $annotation_pipeline = VRPipe::Pipeline->create(name => 'vcf_vep_annotate'), 'able to get the vcf_vep_annotate pipeline';
+ok my $concat_pipeline     = VRPipe::Pipeline->create(name => 'vcf_concat'),       'able to get the vcf_concat pipeline';
 
 VRPipe::PipelineSetup->create(
     name       => 'wgs test annotation',
@@ -187,7 +187,7 @@ is_deeply [VRPipe::File->get(path => $final_files[0])->metadata, VRPipe::File->g
 my $ceu_samples_file = file(qw(t data wgs_calling_ceu.samples))->absolute->stringify;
 my $asn_samples_file = file(qw(t data wgs_calling_asn.samples))->absolute->stringify;
 
-ok my $bcf_calling_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup_from_bcf'), 'able to get the snp_calling_mpileup_from_bcf pipeline';
+ok my $bcf_calling_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_mpileup_from_bcf'), 'able to get the snp_calling_mpileup_from_bcf pipeline';
 
 VRPipe::PipelineSetup->create(
     name       => 'wgs test CEU calling',
@@ -224,7 +224,7 @@ VRPipe::PipelineSetup->create(
 );
 
 # Recall on merged site list
-ok my $merge_pipeline = VRPipe::Pipeline->get(name => 'merge_vcfs_to_site_list_and_recall_from_bcf'), 'able to get the merge_vcfs_to_site_list pipeline';
+ok my $merge_pipeline = VRPipe::Pipeline->create(name => 'merge_vcfs_to_site_list_and_recall_from_bcf'), 'able to get the merge_vcfs_to_site_list pipeline';
 
 VRPipe::PipelineSetup->create(
     name       => 'merge continental vcfs and recall from merged list',

@@ -13,11 +13,11 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $gatk_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_gatk_unified_genotyper_and_annotate'), 'able to get the snp_calling_gatk_unified_genotyper_and_annotate pipeline';
-ok my $mpileup_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup'), 'able to get the snp_calling_mpileup pipeline';
+ok my $gatk_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_unified_genotyper_and_annotate'), 'able to get the snp_calling_gatk_unified_genotyper_and_annotate pipeline';
+ok my $mpileup_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_mpileup'), 'able to get the snp_calling_mpileup pipeline';
 
-ok my $filter_pipeline = VRPipe::Pipeline->get(name => 'vcf_annotate'), 'able to get the vcf_annotate pipeline';
-ok my $merge_pipeline  = VRPipe::Pipeline->get(name => 'vcf_merge'),    'able to get the vcf_merge pipeline';
+ok my $filter_pipeline = VRPipe::Pipeline->create(name => 'vcf_annotate'), 'able to get the vcf_annotate pipeline';
+ok my $merge_pipeline  = VRPipe::Pipeline->create(name => 'vcf_merge'),    'able to get the vcf_merge pipeline';
 
 my $calling_dir = get_output_dir('wgs_single_sample_calling_test');
 
