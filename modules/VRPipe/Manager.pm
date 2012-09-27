@@ -126,6 +126,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             # we can have step-specific limits on how many subs to run at
             # once; see if any are in place and set them globally for all
             # setups
+            my $ps_id = $ps->id;
             if ($ps->active && !exists $setups_checked_for_step_limits{$ps_id}) {
                 my $user_opts = $ps->options;
                 
