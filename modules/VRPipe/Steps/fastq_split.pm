@@ -87,7 +87,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             while (my ($ended, $fqs) = each %ended) {
                 next unless $fqs;
                 my $split_subdir = $ended . '_' . $chunk_size;
-                my $split_dir = Path::Class::Dir->new($out_root, $split_subdir);
+                my $split_dir = dir($out_root, $split_subdir);
                 
                 my @outs = VRPipe::Steps::fastq_split->fastq_split_outs(split_dir => $split_dir, fastqs => $fqs, chunk_size => $chunk_size);
                 foreach my $out (@outs) {
