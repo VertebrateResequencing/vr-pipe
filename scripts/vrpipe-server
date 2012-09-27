@@ -197,6 +197,8 @@ sub start_server {
     
     # setup the submission management system if we're supposed to
     my ($farm_server, $fs_id, @setups, %farm_watchers);
+    my $datasource_timer_interval = $deployment eq 'production' ? 300 : 10;
+    my $stalled_timer_interval    = $deployment eq 'production' ? 900 : 15;
     if ($farm) {
         # every x s we'll update which PipelineSetups we'll handle, and we'll
         # update $farm_server's heartbeat to note that we're still alive
@@ -252,7 +254,7 @@ sub start_server {
                         
                         &{$watcher_error_sub};
                     }
-                    elsif (0) {
+                    else {
                         # setup watchers for each datasource
                         my %datasources;
                         foreach my $setup (@setups) {
@@ -274,8 +276,8 @@ sub start_server {
                                 $watcher = EV::stat $ds->source, 0, $update_sub;
                             }
                             else {
-                                # update every 5mins
-                                $watcher = EV::periodic 0, 300, 0, $update_sub;
+                                # update every $datasource_timer_interval
+                                $watcher = EV::periodic 0, $datasource_timer_interval, 0, $update_sub;
                             }
                             
                             $farm_watchers{datasources}->{ $ds->id } = $watcher;
@@ -294,7 +296,7 @@ sub start_server {
         # necessary. We'll also notify users when their setups complete on the
         # latest number of dataelements.
         # checks that all our incomplete setups are doing something. for each not it does stalled-due-to-failure detection and sends stalled warning email to user (but only once). if not stalled due to failure, it does a full traditional spool and email (to user and admin) warns once about errors encountered while attempting that.
-        $farm_watchers{stall_check} = EV::periodic 0, 15, 0, sub { #900
+        $farm_watchers{stall_check} = EV::periodic 0, $stalled_timer_interval, 0, sub {
             foreach my $setup (@setups) {
                 next if $setup->currently_complete;
                 my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'] });
