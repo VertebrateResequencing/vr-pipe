@@ -200,14 +200,13 @@ sub ACTION_test {
     # it's not strictly necessary and would happen automatically anyway, but
     # we start vrpipe-server before testing:
     my $local_script = File::Spec->catfile('scripts', 'vrpipe-server');
-    my $modules_dir = 'modules';
     my $server;
-    if (-x $local_script && -d $modules_dir) {
+    if (-x $local_script && -d 'modules' && -d 't') {
         my $thisperl = $Config{perlpath};
         if ($^O ne 'VMS') {
             $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
         }
-        $server = "$thisperl -I$modules_dir $local_script --deployment testing";
+        $server = "$thisperl -Imodules -It $local_script --deployment testing";
     }
     #system("$server --farm testing_farm restart");
     warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
