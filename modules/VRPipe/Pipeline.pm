@@ -18,7 +18,7 @@ their data. The pipelines that they can run are defined by these objects. A
 Pipeline doesn't actually "do" anything, it just defines what is supposed to
 happen and in what order.
 
-It is possible to create a pipeline on the fly by C<get()>ing one of these
+It is possible to create a pipeline on the fly by C<create()>ing one of these
 objects (suppling a new unique name), and then associating existing or new
 StepMembers, StepAdaptors and StepBehvaiours. This is how the
 B<vrpipe-pipeline_create> frontend lets users create their own pipelines.
@@ -29,7 +29,7 @@ convert these into VRPipe::Pipeline (and associated) objects in the database.
 
 You must be wary, however, that the tricks cannot cope with the order of steps
 changing, steps being removed or inserted. Only adding an extra step on the end
-of a pipeline is safe. The advice is, test and stabalise a Pipeline, and once
+of a pipeline is safe. The advice is, test and stabilise a Pipeline, and once
 it is in production never change it. If it turns out there are changes to steps
 that have to be made, stop using that pipeline and create a new one with a
 different name.
@@ -85,6 +85,19 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
     );
     
     __PACKAGE__->make_persistent(has_many => [stepmembers => 'VRPipe::StepMember']);
+    
+    around create (ClassName|Object $self: %args) {
+        my $persistent = $self->$orig(%args);
+        
+        # if this pipeline is actually defined in .pm module file, we need to
+        # construct it
+        my $obj = $persistent->_from_non_persistent;
+        if ($obj) {
+            $persistent->_construct_pipeline($obj->_step_list);
+        }
+        
+        return $persistent;
+    }
     
     # step members is pretty much the same as stepmembers(), only since we use
     # our special search() method it can return a quick count(*) in scalar
