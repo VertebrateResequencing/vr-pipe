@@ -235,7 +235,7 @@ if ($count > 0 && $start_from_scratch) {
             }
             my @default_steps = $furthest_estate->our_step_numbers;
             
-            my $max = $pipeline->_num_steps;
+            my $max = $pipeline->num_steps;
             $answer = $frontend->ask_question(question => "Step numbers", default => join(' ', @default_steps), required => 1, possibles => [1 .. $max], allow_multiple => ' ');
             my @desired_steps = sort { $a <=> $b } grep { $_ =~ /^\d+$/ && $_ >= 1 && $_ <= $max } split(/\s+/, $answer);
             $frontend->output("Will redo steps ", join(', ', @desired_steps));

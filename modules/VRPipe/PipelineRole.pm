@@ -43,30 +43,71 @@ role VRPipe::PipelineRole {
     use Module::Find;
     
     requires 'name';
-    requires '_num_steps';
     requires 'description';
-    requires 'steps';
+    
+    has 'num_steps' => (
+        is      => 'rw',
+        isa     => 'Int',
+        lazy    => 1,
+        builder => '_build_num_steps'
+    );
     
     our %pipeline_modules; # we need to delay finding our pipeline modules until the last moment, in case of lib changes
     our $found_modules = 0;
     
-    method num_steps {
-        return $self->_num_steps;
+    method _build_num_steps {
+        if ($self->can('step_members')) {
+            return scalar $self->step_members;
+        }
+        else {
+            return scalar @{ $self->_step_list->[0] };
+        }
     }
     
-    method _increment_steps (PositiveInt $step_num) {
-        return $self->_num_steps($step_num);
+    method steps {
+        if ($self->can('step_members')) {
+            return [map { $_->step } $self->step_members];
+        }
+        elsif ($self->can('step_names')) {
+            return [map { VRPipe::Step->get(name => $_) } $self->step_names];
+        }
+        else {
+            $self->throw("Pipeline " . $self->name . " has no steps!");
+        }
+    }
+    
+    method adaptors (VRPipe::Pipeline $persistent?) {
+        if ($self->can('step_members')) {
+            return [VRPipe::StepAdaptor->search({ pipeline => $self->id })];
+        }
+        elsif ($self->can('adaptor_definitions') && $persistent) {
+            return [map { VRPipe::StepAdaptorDefiner->new(%{$_})->define($persistent) } $self->adaptor_definitions];
+        }
+        else {
+            return [];
+        }
+    }
+    
+    method behaviours (VRPipe::Pipeline $persistent?) {
+        if ($self->can('step_members')) {
+            return [VRPipe::StepBehaviour->search({ pipeline => $self->id })];
+        }
+        elsif ($self->can('behaviour_definitions') && $persistent) {
+            return [map { VRPipe::StepBehaviourDefiner->new(%{$_})->define($persistent) } $self->behaviour_definitions];
+        }
+        else {
+            return [];
+        }
     }
     
     method add_step (VRPipe::Step $step) {
         my $step_num = $self->num_steps() + 1;
         my $sm = VRPipe::StepMember->create(step => $step, pipeline => $self, step_number => $step_num);
-        $self->_increment_steps($step_num);
-        $self->update;
+        $self->num_steps($step_num);
         return $sm;
     }
     
-    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[VRPipe::StepAdaptorDefiner] $adaptor_defs, ArrayRef[VRPipe::StepBehaviourDefiner] $behaviour_defs) {
+    method _construct_pipeline (ArrayRef[VRPipe::Step] $steps, ArrayRef[VRPipe::StepAdaptor] $adaptors, ArrayRef[VRPipe::StepBehaviour] $behaviours) {
         # first check the pipeline hasn't already been constructed correctly
         my $all_ok   = 1;
         my $step_num = 0;
@@ -96,8 +137,7 @@ role VRPipe::PipelineRole {
             #*** not yet implemented
             
             # construct pipeline from scratch
-            $self->_num_steps(0);
-            $self->update;
+            $self->num_steps(0);
             @sms = ();
             foreach my $step (@$steps) {
                 push(@sms, $self->add_step($step));
@@ -106,8 +146,7 @@ role VRPipe::PipelineRole {
         
         # create adaptors, deleting ones we no longer want
         my %wanted_sas;
-        foreach my $definer (@$adaptor_defs) {
-            my $sa = $definer->define($self);
+        foreach my $sa (@$adaptors) {
             $wanted_sas{ $sa->id } = 1;
         }
         foreach my $sa (VRPipe::StepAdaptor->search({ pipeline => $self->id })) {
@@ -118,8 +157,7 @@ role VRPipe::PipelineRole {
         
         # create behaviours, deleting ones we no longer want
         my %wanted_sbs;
-        foreach my $definer (@$behaviour_defs) {
-            my $sb = $definer->define($self);
+        foreach my $sb (@$behaviours) {
             $wanted_sbs{ $sb->id } = 1;
         }
         foreach my $sb (VRPipe::StepBehaviour->search({ pipeline => $self->id })) {

@@ -70,13 +70,6 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
         is_key => 1
     );
     
-    has '_num_steps' => (
-        is      => 'rw',
-        isa     => IntSQL [4],
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => 0
-    );
-    
     has 'description' => (
         is          => 'rw',
         isa         => Text,
@@ -93,7 +86,7 @@ class VRPipe::Pipeline extends VRPipe::Persistent with VRPipe::PipelineRole {
         # construct it
         my $obj = $persistent->_from_non_persistent;
         if ($obj) {
-            $persistent->_construct_pipeline($obj->_step_list);
+            $persistent->_construct_pipeline($obj->steps, $obj->adaptors($persistent), $obj->behaviours($persistent));
         }
         
         return $persistent;

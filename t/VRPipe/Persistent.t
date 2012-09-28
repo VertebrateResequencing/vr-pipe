@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 135;
+    use Test::Most tests => 139;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -202,6 +202,8 @@ for (1 .. 5) {
     push(@stepms, VRPipe::StepMember->get(id => $_));
 }
 is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id, $stepms[2]->step_number], [3, 3, 1, 3], 'stepmember3 has the expected fields';
+
+is $pipelines[0]->num_steps, 5, 'num_steps worked';
 
 my @setups;
 my $step1_bam_input = file($output_dir, 'input.bam');
@@ -451,6 +453,12 @@ is $j_count, 1000, 'bulk_create_or_update worked when the same creation was requ
 # steps can be created by requesting a name corresponding to a pre-written
 # class in VRPipe::Steps::*
 ok my $prewritten_step = VRPipe::Step->get(name => "md5_file_production"), 'able to get a pre-written step using get() instead of create()';
+
+# so can pipelines; test that they get constructed ok
+ok my $prewritten_pipeline = VRPipe::Pipeline->create(name => 'test_pipeline'), 'able to get a pre-written pipeline using create()';
+is_deeply [map { $_->name } @{ $prewritten_pipeline->steps }], [qw(test_step_one test_step_two test_step_three test_step_four)], 'steps method worked';
+is_deeply [map { $_->id } @{ $prewritten_pipeline->adaptors }], [1, 2, 3, 4], 'adaptors method worked';
+is_deeply [map { $_->id } @{ $prewritten_pipeline->behaviours }], [1, 2, 3], 'behaviours method worked';
 
 my %heartbeats;
 # running jobs directly
