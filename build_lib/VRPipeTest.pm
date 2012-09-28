@@ -55,7 +55,7 @@ use File::Which qw(which);
 $SQL::Translator::Schema::DEBUG = 0; # suppress stupid warning in test harness
 $ENV{PERL_STRICTURES_EXTRA} = 0;
 
-BEGIN { unshift(@INC, './modules') }
+BEGIN { unshift(@INC, './modules', './t') }
 VRPipe::Persistent::SchemaBase->database_deployment('testing'); # do not change this under any circumstance!
 
 use constant WIN32 => $^O eq 'MSWin32';

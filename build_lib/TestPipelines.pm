@@ -51,7 +51,6 @@ use strict;
 use warnings;
 use Exporter 'import';
 use Path::Class;
-use lib "t";
 
 our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline get_bam_header get_bam_records finish);
 
