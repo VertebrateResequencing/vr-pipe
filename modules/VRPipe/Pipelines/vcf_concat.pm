@@ -39,26 +39,26 @@ class VRPipe::Pipelines::vcf_concat with VRPipe::PipelineRole {
         return 'vcf_concat';
     }
     
-    method _num_steps {
-        return 2;
-    }
-    
     method description {
         return 'Concatenate multiple vcfs using vcf-concat';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'vcf_concat', #1
+            'vcf_index',  #2
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'vcf_concat'), #1
-                VRPipe::Step->get(name => 'vcf_index'),  #2
-            ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'concat_vcf', to_key => 'vcf_files')],
-            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_input_vcfs', default_regulation => 0)]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 1, to_key   => 'vcf_files' },
+            { from_step => 1, to_step => 2, from_key => 'concat_vcf', to_key => 'vcf_files' },
         );
+    }
+    
+    method behaviour_definitions {
+        ({ after_step => 2, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_input_vcfs', default_regulation => 0 });
     }
 }
 

@@ -39,33 +39,34 @@ class VRPipe::Pipelines::snp_calling_gatk_unified_genotyper_and_filter_vcf with 
         return 'snp_calling_gatk_unified_genotyper_and_filter_vcf';
     }
     
-    method _num_steps {
-        return 7;
-    }
-    
     method description {
         return 'Call variants with the GATK universal genotyper, then hard-filter the results with GATK variant filtration';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'fasta_index',            #1 ## steps 1 and 2 to prevent runs on creating these files
+            'sequence_dictionary',    #2
+            'bam_index',              #3
+            'gatk_unified_genotyper', #4
+            'vcf_index',              #5
+            'gatk_variant_filter',    #6
+            'vcf_index'               #7
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'fasta_index'),            #1 ## steps 1 and 2 to prevent runs on creating these files
-                VRPipe::Step->get(name => 'sequence_dictionary'),    #2
-                VRPipe::Step->get(name => 'bam_index'),              #3
-                VRPipe::Step->get(name => 'gatk_unified_genotyper'), #4
-                VRPipe::Step->get(name => 'vcf_index'),              #5
-                VRPipe::Step->get(name => 'gatk_variant_filter'),    #6
-                VRPipe::Step->get(name => 'vcf_index')               #7
-            ],
-            
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 6, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 6, to_step => 7, from_key => 'filtered_vcf_files', to_key => 'vcf_files')],
-            
-            [VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [4, 5], regulated_by => 'delete_unfiltered_vcfs', default_regulation => 1)]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 3, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 4, to_key   => 'bam_files' },
+            { from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files' },
+            { from_step => 4, to_step => 6, from_key => 'gatk_vcf_file', to_key => 'vcf_files' },
+            { from_step => 6, to_step => 7, from_key => 'filtered_vcf_files', to_key => 'vcf_files' },
         );
+    }
+    
+    method behaviour_definitions {
+        ({ after_step => 7, behaviour => 'delete_outputs', act_on_steps => [4, 5], regulated_by => 'delete_unfiltered_vcfs', default_regulation => 1 });
     }
 }
 

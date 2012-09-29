@@ -38,39 +38,34 @@ class VRPipe::Pipelines::bam_base_quality_score_recalibration_gatk_v2 with VRPip
         return 'bam_base_quality_score_recalibration_gatk_v2';
     }
     
-    method _num_steps {
-        return 4;
-    }
-    
     method description {
-        return 'Recailbrate base quality scores, including insertion and deletion error models with GATK BaseRecalibrator v2';
+        return 'Recalibrate base quality scores, including insertion and deletion error models with GATK BaseRecalibrator v2';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'bam_index',                  #1
+            'gatk_base_recalibrator',     #2
+            'gatk_print_reads_with_bqsr', #3
+            'bam_index',                  #4
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'bam_index'),                  #1
-                VRPipe::Step->get(name => 'gatk_base_recalibrator'),     #2
-                VRPipe::Step->get(name => 'gatk_print_reads_with_bqsr'), #3
-                VRPipe::Step->get(name => 'bam_index'),                  #4
-            ],
-            
-            [
-                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key   => 'bam_files'),
-                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key   => 'bam_files'),
-                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key   => 'bam_files'),
-                VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files'),
-                VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'recalibrated_bam_files', to_key => 'bam_files')
-            ],
-            
-            [
-                VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0),
-                VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'delete_input_bams', default_regulation => 0),
-                VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1)
-            ]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 1, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 2, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 3, to_key   => 'bam_files' },
+            { from_step => 2, to_step => 3, from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
+            { from_step => 3, to_step => 4, from_key => 'recalibrated_bam_files', to_key => 'bam_files' }
+        );
+    }
+    
+    method behaviour_definitions {
+        (
+            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'delete_input_bams', default_regulation => 0 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1 }
         );
     }
 }

@@ -38,28 +38,31 @@ class VRPipe::Pipelines::merge_vcfs_to_site_list_and_recall_from_bcf with VRPipe
         return 'merge_vcfs_to_site_list_and_recall_from_bcf';
     }
     
-    method _num_steps {
-        return 3;
-    }
-    
     method description {
         return 'Create a merged site list from VCFs and recall at these sites from bcf.';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'vcf_create_merged_sites_list', #1 vcf files
+            'bcf_to_vcf',                   #2 bcf files, samples files, sites list
+            'vcf_index',                    #3
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'vcf_create_merged_sites_list'), #1 vcf files
-                VRPipe::Step->get(name => 'bcf_to_vcf'),                   #2 bcf files, samples files, sites list
-                VRPipe::Step->get(name => 'vcf_index'),                    #3
-            ],
-            
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'bcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'merged_sites_list', to_key => 'sites_list'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'vcf_files', to_key => 'vcf_files'),],
-            
-            [VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1), VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_bcf', default_regulation => 0),]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 1, to_key   => 'vcf_files' },
+            { from_step => 0, to_step => 2, to_key   => 'bcf_files' },
+            { from_step => 1, to_step => 2, from_key => 'merged_sites_list', to_key => 'sites_list' },
+            { from_step => 2, to_step => 3, from_key => 'vcf_files', to_key => 'vcf_files' },
+        );
+    }
+    
+    method behaviour_definitions {
+        (
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',    default_regulation => 1 },
+            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'remove_bcf', default_regulation => 0 }
         );
     }
 }

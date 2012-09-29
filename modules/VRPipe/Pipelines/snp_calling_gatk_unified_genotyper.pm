@@ -38,28 +38,25 @@ class VRPipe::Pipelines::snp_calling_gatk_unified_genotyper with VRPipe::Pipelin
         return 'snp_calling_gatk_unified_genotyper';
     }
     
-    method _num_steps {
-        return 5;
-    }
-    
     method description {
         return 'Run gatk unified genotyper';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'fasta_index',            #1 ## steps 1 and 2 to prevent runs on creating these files
+            'sequence_dictionary',    #2
+            'bam_index',              #3
+            'gatk_unified_genotyper', #4
+            'vcf_index',              #5
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'fasta_index'),            #1 ## steps 1 and 2 to prevent runs on creating these files
-                VRPipe::Step->get(name => 'sequence_dictionary'),    #2
-                VRPipe::Step->get(name => 'bam_index'),              #3
-                VRPipe::Step->get(name => 'gatk_unified_genotyper'), #4
-                VRPipe::Step->get(name => 'vcf_index'),              #5
-            ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'),],
-            [],
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 3, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 4, to_key   => 'bam_files' },
+            { from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files' }
         );
     }
 }

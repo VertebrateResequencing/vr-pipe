@@ -40,26 +40,30 @@ class VRPipe::Pipelines::snp_calling_mpileup_via_bcf with VRPipe::PipelineRole {
         return 'snp_calling_mpileup_via_bcf';
     }
     
-    method _num_steps {
-        return 4;
-    }
-    
     method description {
         return 'Run samtools mpileup generating both bcf and vcf files';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'bam_index',
+            'mpileup_bcf',
+            'bcf_to_vcf',
+            'vcf_index',
+        );
     }
     
-    method _step_list {
-        return (
-            [VRPipe::Step->get(name => 'bam_index'), VRPipe::Step->get(name => 'mpileup_bcf'), VRPipe::Step->get(name => 'bcf_to_vcf'), VRPipe::Step->get(name => 'vcf_index')],
-            
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'bcf_files', to_key => 'bcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 3, to_step => 4, from_key => 'vcf_files', to_key => 'vcf_files')],
-            
-            [VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'remove_bcfs', default_regulation => 0)]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 1, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 2, to_key   => 'bam_files' },
+            { from_step => 2, to_step => 3, from_key => 'bcf_files', to_key => 'bcf_files' },
+            { from_step => 3, to_step => 4, from_key => 'vcf_files', to_key => 'vcf_files' }
         );
+    }
+    
+    method behaviour_definitions {
+        ({ after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'remove_bcfs', default_regulation => 0 });
     }
 }
 
