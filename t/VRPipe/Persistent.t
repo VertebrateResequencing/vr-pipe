@@ -7,7 +7,7 @@ use File::Copy;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 139;
+    use Test::Most tests => 140;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
