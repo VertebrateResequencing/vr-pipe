@@ -54,7 +54,7 @@ VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type    => 'vrpipe',
         method  => 'group_by_metadata',
-        source  => '1[4]',
+        source  => '1[5]',
         options => { metadata_keys => 'population|split_sequence' }
     ),
     output_root => $calling_dir,

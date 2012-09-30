@@ -36,11 +36,10 @@ use VRPipe::Base;
 class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     method options_definition {
         return {
-            'vcf-isec_exe' => VRPipe::StepOption->create(
-                description   => 'path to your vcf-isec executable',
-                optional      => 1,
-                default_value => 'vcf-isec'
-            )
+            'vcf-isec_exe'      => VRPipe::StepOption->create(description => 'path to your vcf-isec executable',                                                                                                                                                                                         optional      => 1,          default_value => 'vcf-isec'),
+            vcf_isec_options    => VRPipe::StepOption->create(description => 'Options for the vcf-isec command. Does not support the --prefix (-p) option',                                                                                                                                              default_value => '-f -n +1', optional      => 1),
+            metadata_priority   => VRPipe::StepOption->create(description => 'String of the form key#value1:value2:value3 etc where each of the input vcf files has the "key" metadata. Input vcfs will be ordered according to the values listed. Values must be unique amongst the step input files.', optional      => 1),
+            post_merge_vcftools => VRPipe::StepOption->create(description => 'After merging with vcf-isec, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',                                                                    optional      => 1),
         };
     }
     
@@ -58,16 +57,38 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
         return sub {
             my $self = shift;
             
-            my $options  = $self->options;
-            my $isec_exe = $options->{'vcf-isec_exe'};
+            my $options           = $self->options;
+            my $isec_exe          = $options->{'vcf-isec_exe'};
+            my $metadata_priority = $options->{metadata_priority};
+            my $post_filter       = $options->{post_merge_vcftools};
             
-            my $req = $self->new_requirements(memory => 500, time => 1);
+            my ($key, $priority_list, @values);
+            if ($metadata_priority) {
+                ($key, $priority_list) = split(/#/, $metadata_priority);
+                @values = split(/:/, $priority_list);
+            }
+            
+            my @ordered_vcfs;
+            my $merged_basename = '';
+            if ($metadata_priority) {
+                my %vcf_paths;
+                foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
+                    my $value = $vcf->metadata->{$key};
+                    $self->throw("More than one input vcf has the metadata $value for key $key") if (exists $vcf_paths{$value});
+                    $vcf_paths{$value} = $vcf;
+                }
+                foreach my $value (@values) {
+                    $self->throw("None of the input vcfs have the metadata $value for key $key") unless (exists $vcf_paths{$value});
+                    push @ordered_vcfs, $vcf_paths{$value};
+                }
+            }
+            else {
+                @ordered_vcfs = @{ $self->inputs->{vcf_files} };
+            }
             
             my @input_set;
-            my $merged_basename = '';
-            foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
+            foreach my $vcf_file (@ordered_vcfs) {
                 push @input_set, $vcf_file->path;
-                
                 my $basename = $vcf_file->basename;
                 $basename =~ s/vcf.gz$//;
                 $merged_basename .= $basename;
@@ -77,9 +98,12 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
             my $merged_meta = $self->common_metadata($self->inputs->{vcf_files});
             my $merged_vcf = $self->output_file(output_key => 'merged_vcf', basename => $merged_basename, type => 'vcf', metadata => $merged_meta);
             
-            my $output_path = $merged_vcf->path;
-            my $this_cmd    = "$isec_exe -f -n +1 @input_set | bgzip -c > $output_path";
+            my $filter = $post_filter ? " | $post_filter" : '';
             
+            my $output_path = $merged_vcf->path;
+            my $this_cmd    = qq[$isec_exe -f -n +1 @input_set$filter | bgzip -c > $output_path];
+            
+            my $req = $self->new_requirements(memory => 500, time => 1);
             $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf] }]);
         };
     }

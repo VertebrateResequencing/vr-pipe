@@ -390,7 +390,7 @@ class VRPipe::FrontEnd {
         return;
     }
     
-    method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?) {
+    method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?, Bool :$strip_leading_trailing_whitespace?) {
         undef $possibles unless $possibles && @$possibles;
         if (defined $default && length($default) == 0) {
             undef $default;
@@ -452,6 +452,11 @@ class VRPipe::FrontEnd {
                 }
             }
         } while (!defined $answer);
+        
+        if ($answer && $strip_leading_trailing_whitespace) {
+            $answer =~ s/^\s+//;
+            $answer =~ s/\s+$//;
+        }
         
         return $answer;
     }

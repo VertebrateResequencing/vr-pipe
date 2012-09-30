@@ -59,6 +59,7 @@ class VRPipe::Job extends VRPipe::Persistent {
     use Cwd;
     use Sys::Hostname;
     use Net::SSH qw(ssh);
+    use VRPipe::Config;
     
     has 'cmd' => (
         is     => 'rw',
@@ -299,7 +300,24 @@ class VRPipe::Job extends VRPipe::Persistent {
             open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
             open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
             chdir($dir);
-            exec($cmd);
+            
+            # exec is supposed to get our $cmd to run whilst keeping the same
+            # $cmd_pid, but on some systems like Ubuntu the sh (dash) is a bit
+            # sucky: http://www.perlmonks.org/?node_id=785284
+            # We can't force list mode in the normal way because we actually
+            # require the use of the shell to do things like run multi-line
+            # commands and pipes etc. $cmd having a different pid to $cmd_pid
+            # matters because we need to know the correct pid if the server
+            # needs to kill it later. Instead we force the use of a better shell
+            # (default bash) for everything, which might be less efficient in
+            # some cases, but the difference is going to be meaningless for us.
+            my $shell = VRPipe::Config->new->exec_shell;
+            if ($shell) {
+                exec {$shell} $shell, '-c', $cmd;
+            }
+            else {
+                exec $cmd;
+            }
         }
         
         # wait for the cmd to finish
@@ -415,7 +433,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             eval {
                 local $SIG{ALRM} = sub { die "ssh timed out\n" };
                 alarm(15);
-                ssh("$user\@$host", "kill -9 $pid"); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
+                ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam "KILL", $pid']); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
                 #    Net::SSH::Perl is able to always log us in, but can take over a minute!
                 # *** we need to do something if the kill fails...
                 alarm(0);

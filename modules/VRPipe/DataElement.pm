@@ -70,8 +70,59 @@ class VRPipe::DataElement extends VRPipe::Persistent {
         return VRPipe::DataElementState->search({ dataelement => $self->id }, { prefetch => [qw(dataelement pipelinesetup)] });
     }
     
+    method files {
+        my $paid = $self->result->{paths} || return;
+        if (ref($paid)) {
+            # we used to store an array ref of file path strings in the db
+            return [map { VRPipe::File->get(path => $_) } @$paid];
+        }
+        return [VRPipe::PersistentArray->get(id => $paid)->member_instances];
+    }
+    
+    method paths {
+        return map { $_->path->stringify } @{ $self->files || return };
+    }
+    
     method start_from_scratch (VRPipe::PipelineSetup $setup, ArrayRef[PositiveInt] $step_numbers?) {
         VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $self)->start_from_scratch($step_numbers ? $step_numbers : ());
+    }
+    
+    # most datasources have {result}->{paths} which contains absolute file path
+    # strings. We convert these to VRPipe::File objects, and then to a
+    # PersistentArray and store just the id. This saves db space and ensures we
+    # can match the result regardless of order of paths, reducing spurious
+    # DataElement withdrawal and recreation
+    around bulk_create_or_update (ClassName|Object $self: @args) {
+        foreach my $args (@args) {
+            $self->_deflate_paths($args->{result});
+        }
+        
+        return $self->$orig(@args);
+    }
+    
+    around _get (ClassName|Object $self: Bool $create, %args) {
+        if (defined $args{result}) {
+            $self->_deflate_paths($args{result});
+        }
+        
+        return $self->$orig($create, %args);
+    }
+    
+    around search_rs (ClassName|Object $self: HashRef $search_args, Maybe[HashRef] $search_attributes?) {
+        if (defined $search_args->{result}) {
+            $self->_deflate_paths($search_args->{result});
+        }
+        
+        my @args = ($search_args);
+        push(@args, $search_attributes) if $search_attributes;
+        return $self->$orig(@args);
+    }
+    
+    sub _deflate_paths {
+        my ($self, $result) = @_;
+        if (defined $result->{paths} && ref($result->{paths})) {
+            $result->{paths} = VRPipe::PersistentArray->get(members => [map { VRPipe::File->get(path => $_) } @{ $result->{paths} }], any_order => 1)->id;
+        }
     }
 }
 

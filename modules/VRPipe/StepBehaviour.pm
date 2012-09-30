@@ -174,10 +174,9 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     
     method delete_inputs {
         my $data_element = $self->dataelement;
-        my $result       = $data_element->result;
-        my $paths        = $result->{paths} || $self->throw("data element " . $data_element->id . " gave a result with no paths");
-        foreach my $path (@$paths) {
-            VRPipe::File->get(path => file($path)->absolute)->unlink;
+        my $files = $data_element->files || $self->throw("data element " . $data_element->id . " gave a result with no paths");
+        foreach my $file (@$files) {
+            $file->unlink;
         }
     }
 }

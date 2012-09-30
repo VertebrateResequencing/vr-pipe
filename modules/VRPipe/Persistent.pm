@@ -762,17 +762,20 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             my ($self, $column_spec, $search_args, $search_attributes) = @_;
             my @columns = ref($column_spec) ? (@$column_spec) : ($column_spec);
             $search_attributes ||= {};
+            my $disable_inflation = delete $search_attributes->{disable_inflation};
             
             my $rs = $self->search_rs($search_args, { %$search_attributes, columns => \@columns });
             
             # do we have to inflate any of the columns?
             my @inflaters;
             my @is_to_inflate;
-            foreach my $i (0 .. $#columns) {
-                my $col = $columns[$i];
-                if (exists $flations{$col}) {
-                    $inflaters[$i] = $flations{$col}->{inflate};
-                    push(@is_to_inflate, $i);
+            unless ($disable_inflation) {
+                foreach my $i (0 .. $#columns) {
+                    my $col = $columns[$i];
+                    if (exists $flations{$col}) {
+                        $inflaters[$i] = $flations{$col}->{inflate};
+                        push(@is_to_inflate, $i);
+                    }
                 }
             }
             
@@ -1092,9 +1095,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         # there should not be any @extra, but some rare
                         # weirdness may give us duplicate rows in the db; take
                         # this opportunity to delete them
+                        my %extra_ids = map { $_->id => $_ } @extra;
                         foreach my $row (@extra) {
-                            $row->delete;
+                            eval { $row->delete; };
+                            delete $extra_ids{ $row->id } unless $@;
                         }
+                        
+                        # if we couldn't delete the extras (probably due to
+                        # foreign key issues), try deleting $return instead
+                        if (keys %extra_ids) {
+                            eval { $return->delete; };
+                            unless ($@) {
+                                ($return) = sort { $a->id <=> $b->id } values %extra_ids;
+                            }
+                        }
+                        
+                        # (if we still can't delete the dups, well, it probably
+                        #  isn't really a problem)
                     }
                     
                     if ($return) {

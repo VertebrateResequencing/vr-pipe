@@ -230,6 +230,13 @@ sub status {
     my $list            = $opts->{list};
     my $incomplete_only = $opts->{incomplete};
     my $brief           = $opts->{brief};
+    my $defunct_only    = $opts->{defunct};
+    if ($defunct_only) {
+        undef $list;
+        undef $incomplete_only;
+        undef $brief;
+        $opts->{deactivated} = 1;
+    }
     
     my $xml = '<title>Current status of PipelineSetups</title>';
     
@@ -252,6 +259,7 @@ sub status {
             my $datasource = $setup->datasource;
             my $num_elements;
             my $incomplete_pager;
+            my $ps_id = $setup->id;
             eval {
                 $num_elements = VRPipe::DataElement->search({ datasource => $datasource->id, withdrawn => 0 });
                 $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
@@ -259,13 +267,29 @@ sub status {
             my $ds_error = $@;
             if ($ds_error || !$incomplete_pager) {
                 $ds_error ||= 'Could not create an incomplete_element_states pager for setup ' . $setup->id;
-                $object .= $backend->xml_tag('attribute', "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n", qq[name="problems"]);
+                if ($defunct_only) {
+                    #*** due to prepare => 0 above, this will never happen, but
+                    #    to prepare => 1 in $defunct_only mode would be too slow
+                    my $prob = $ds_error ? 'a bad datasource' : 'no dataelements';
+                    $object .= $backend->xml_tag('attribute', "This has $prob; investigate with [vrpipe-status --setup $ps_id] and consider deleting it with [vrpipe-setup --setup $ps_id --delete]", qq[name="problems"]);
+                }
+                else {
+                    $object .= $backend->xml_tag('attribute', "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n", qq[name="problems"]);
+                }
                 push(@objects, $object);
                 next;
             }
             
             my $num_incomplete = $incomplete_pager->total_entries;
             next if $incomplete_only && !$num_incomplete;
+            
+            if ($defunct_only) {
+                if ($num_incomplete && $setup->active == 0) {
+                    $object .= $backend->xml_tag('attribute', "This is inactive but has $num_incomplete incomplete dataelements; if this setup was started but then abandoned (due to an error setting it up, or it being replaced by another setup) consider deleting it with [vrpipe-setup --setup $ps_id --delete]", qq[name="problems"]);
+                    push(@objects, $object);
+                }
+                next;
+            }
             
             my $pipeline     = $setup->pipeline;
             my $step_members = $pipeline->step_members;
@@ -330,9 +354,10 @@ sub status {
                 my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
                 
                 my %sub_stats;
-                while (my $subs = $pager->next) {
+                while (my $subs = $pager->next(no_resetting => 1)) {
                     foreach my $sub (@$subs) {
-                        my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+                        next if $sub->done;
+                        my $sub_state = $sub->failed ? 'failed' : 'scheduled';
                         if ($sub_state eq 'scheduled') {
                             my $job = $sub->job;
                             $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
@@ -363,7 +388,7 @@ sub status {
         }
         
         if (@objects) {
-            my $mode = $list ? 'list' : ($brief ? 'brief' : 'full');
+            my $mode = $list ? 'list' : ($brief ? 'brief' : ($defunct_only ? 'defunct' : 'full'));
             $xml .= '<objects>' . join('', map { qq[<object class="PipelineSetup" display_mode="$mode">] . $_ . '</object>' } @objects) . '</objects>';
         }
     }

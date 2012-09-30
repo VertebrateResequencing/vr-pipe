@@ -64,6 +64,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $bcf_view_opts   = $options->{bcftools_view_options};
             my $assumed_sex     = $options->{assumed_sex};
             my $minimum_records = $options->{minimum_records};
+            my $post_filter     = $options->{post_calling_vcftools};
             
             my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
@@ -82,6 +83,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
                 my $sites_file = $self->inputs->{sites_file}[0];
                 $bcf_view_opts .= " -l " . $sites_file->path;
             }
+            my $filter = $post_filter ? " | $post_filter" : '';
             
             my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
             my @bam_ids = map { $_->id } @{ $self->inputs->{bam_files} };
@@ -105,7 +107,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'samtools',
                     version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                    summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list | bcftools view $bcf_view_opts -s \$samples_file - | bgzip -c > \$vcf_file"
+                    summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list | bcftools view $bcf_view_opts -s \$samples_file -$filter | bgzip -c > \$vcf_file"
                 )
             );
             
@@ -114,7 +116,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             
             my $mpileup_cmd  = qq[$samtools mpileup $mpileup_opts -f $reference_fasta -b $bams_list_path];
             my $bcftools_cmd = qq[$bcftools view $bcf_view_opts -s $temp_samples_path];
-            my $cmd_line     = qq[$mpileup_cmd | $bcftools_cmd - | bgzip -c > ] . $vcf_file->path;
+            my $cmd_line     = qq[$mpileup_cmd | $bcftools_cmd -$filter | bgzip -c > ] . $vcf_file->path;
             
             my $args = qq['$cmd_line', '$temp_samples_path', source_file_ids => [qw(@bam_ids)], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
             $args .= qq[, sample_sex_file => '$sample_sex_file'] if $sample_sex_file;

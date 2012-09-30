@@ -278,7 +278,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         
         my @single_results;
         foreach my $lane ($self->_filtered_lanes(%args)) {
-            my %lane_info = $vrtrack->lane_info($lane->name);
+            my %lane_info = $vrtrack->lane_info($lane);
             my @lane_changed_details;
             
             my @files;
@@ -383,6 +383,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             my @meta_keys = split /\|/, $group_by_metadata;
             
             my $group_hash;
+            my %groups_missing_files;
             foreach my $result (@single_results) {
                 my @group_keys;
                 foreach my $key (@meta_keys) {
@@ -393,9 +394,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $group_key = join '|', @group_keys;
                 push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
                 push(@{ $group_hash->{$group_key}->{changed} }, @{ $result->{changed} }) if $result->{changed};
+                unless (@{ $result->{paths} }) {
+                    $groups_missing_files{$group_key} = 1;
+                }
             }
             
             while (my ($group, $data) = each %$group_hash) {
+                next if exists $groups_missing_files{$group};
                 push(@$results, { paths => $data->{paths}, group => $group, $data->{changed} ? (changed => $data->{changed}) : () });
             }
             

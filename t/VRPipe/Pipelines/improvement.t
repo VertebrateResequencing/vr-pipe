@@ -78,7 +78,7 @@ ok my $ds = VRPipe::DataSource->create(
 
 my @results = ();
 foreach my $element (@{ get_elements($ds) }) {
-    push(@results, $element->result);
+    push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file($improvement_output_dir, '2822_7.pe.bam')->absolute] }, { paths => [file($improvement_output_dir, '2822_6.pe.bam')->absolute] }, { paths => [file($improvement_output_dir, '2822_6.se.bam')->absolute] }, { paths => [file($improvement_output_dir, '2823_4.pe.bam')->absolute] }, { paths => [file($improvement_output_dir, '8324_8.pe.bam')->absolute] }], 'got correct results for fofn all';
 

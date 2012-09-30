@@ -75,12 +75,13 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             
             my $bam_id = 0;
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
-                my $meta   = $bam->metadata;
+                my $meta = $bam->metadata;
+                next unless $meta->{reads};
                 my $paired = $meta->{paired};
                 
                 my $source_bam = $bam->path->stringify;
                 my $fastq_meta = { source_bam => $source_bam };
-                foreach my $key (qw(lane insert_size mean_insert_size library sample center_name platform study split_sequence population continent)) {
+                foreach my $key (qw(lane insert_size mean_insert_size library sample center_name platform study split_sequence population continent chrom from to)) {
                     if (defined $meta->{$key}) {
                         $fastq_meta->{$key} = $meta->{$key};
                     }

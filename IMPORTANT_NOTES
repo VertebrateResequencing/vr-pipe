@@ -1,3 +1,154 @@
+# version 0.106:
+Further subtle issues have been discovered that may affect your VRPipe database
+following the upgrade to 0.103 and/or 0.104. If you have ever used version
+0.102 or earlier, it is STRONGLY recommended you do the following:
+    1) Install 0.106 as normal.
+    2) Make sure you have no VRPipe code running.
+    3) Log into your production database and execute the following command:
+    mysql> update datasource set _changed_marker = 'foo';
+    4) Run this Perl multi-liner (copy and paste it all in one go to your
+       terminal):
+perl -MVRPipe::Persistent::Schema -Mstrict -we 'foreach my $setup (VRPipe::PipelineSetup->search({})) { \
+    print STDERR ". "; \
+    eval { $setup->datasource->incomplete_element_states($setup); }; \
+} warn "\nAll done!\n";'
+    5) Run this Perl multi-liner (copy and paste it all in one go to your
+       terminal):
+perl -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    print STDERR ". "; \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next if ref($ps); \
+    my %correct_result; \
+    while (my ($key, $val) = each %$r) { \
+        $correct_result{$key} = $val; \
+    } \
+    $r->{paths} = 0; \
+    $r->{paths} = $ps; \
+    my ($orig) = VRPipe::DataElement->search({withdrawn => 1, datasource => $de->datasource->id, result => $r}); \
+    if ($orig && $orig->id < $de->id) { \
+        eval { VRPipe::StepState->search_rs({dataelement => $de->id})->delete; \
+               VRPipe::DataElementState->search_rs({dataelement => $de->id})->delete; \
+               $de->delete; }; \
+        if ($@) { \
+            $de->result($r); \
+            $de->withdrawn(1); \
+            $de->update; \
+        } \
+        $de = $orig; \
+        $de->withdrawn(0); \
+        $de->result(\%correct_result); \
+    } \
+    else { \
+        my ($result_str) = VRPipe::DataElement->get_column_values("result", { id => $de->id }, {disable_inflation => 1}); \
+        if ($result_str =~ /lane/) { \
+            if ($result_str =~ /paths.+lane/s) { \
+                $de->result($r); \
+            } \
+        } \
+        else { \
+            $de->result(\%correct_result); \
+        } \
+    } \
+    $de->update; \
+  } \
+  print STDERR "\n"; \
+}'
+    6) Start running VRPipe again normally
+
+# version 0.104:
+This is identical to 0.103, released only to correct the upgrade instructions
+below given for 0.103. Follow the advice given for 0.103, using this command
+line when you get to step 3) (NB: it might take hours to run):
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next unless ref($ps); \
+    next unless @$ps > 0; \
+    eval { $de->_deflate_paths($r); }; next if $@; \
+    my %new_result; \
+    while (my ($key, $val) = each %$r) { \
+        $new_result{$key} = $val; \
+    } \
+    $de->result(\%new_result); \
+    $de->update; \
+  } \
+}'
+
+If you had already completed your install of 0.103 and started running VRPipe
+already, you can correct errors that may be in your database by again following
+steps 1-5, but this time using the following 2 commands during step 3):
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next if ref($ps); \
+    my %correct_result; \
+    while (my ($key, $val) = each %$r) { \
+        $correct_result{$key} = $val; \
+    } \
+    $r->{paths} = 0; \
+    $r->{paths} = $ps; \
+    my ($orig) = VRPipe::DataElement->search({withdrawn => 1, datasource => $de->datasource->id, result => $r}); \
+    if ($orig) { \
+        eval { VRPipe::StepState->search_rs({dataelement => $de->id})->delete; \
+               VRPipe::DataElementState->search_rs({dataelement => $de->id})->delete; \
+               $de->delete; }; \
+        if ($@) { \
+            $de->result($r); \
+            $de->withdrawn(1); \
+            $de->update; \
+        } \
+        $de = $orig; \
+        $de->withdrawn(0); \
+    } \
+    $de->result(\%correct_result); \
+    $de->update; \
+  } \
+}'
+perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 1}); \
+while (my $des = $pager->next) { \
+  foreach my $de (@$des) { \
+    my $r = $de->result; \
+    my $ps = $r->{paths} || next; \
+    next if ref($ps); \
+    my ($corrected) = VRPipe::DataElement->search({withdrawn => 0, datasource => $de->datasource->id, result => $r}); \
+    unless ($corrected) { \
+        $de->result($r); \
+        $de->update; \
+    } \
+  } \
+}'
+
+# version 0.103:
+New CPAN module dependencies were added, and a new SiteConfig option should be
+answered, so be sure to rerun 'perl Build.PL' and answer 'y' to the first
+question, also running './Build installdeps' if indicated.
+This version makes a change to how some data is stored in the database, so if
+upgrading and you have a production database in use, it is VERY IMPORTANT that
+you do the following PRIOR to installation of 0.103:
+    1) make sure you have no VRPipe code running
+    2) cd to the root of your vr-pipe git clone directory, updated to the latest
+       code (ie. the directory containing this file)
+    3) run the following (copy and paste all the lines in one go to your
+       terminal):
+[redacted - see notes for version 0.104]
+    4) install this latest version of VRPipe in your normal way
+    5) start running VRPipe again
+
+# version 0.101:
+Now that we have more than 100 versions, all previous tags in the git repository
+have been renamed. If you have an existing clone, however, the old tags will
+still be there. If it bothers you, you can delete them, eg:
+perl -e 'for (1..99) { $old = "0.".sprintf("%02d", $_); system("git tag -d $old"); }'
+If you have your own fork, also delete from your origin:
+perl -e 'for (1..99) { $old = "0.".sprintf("%02d", $_); system("git push origin :refs/tags/$old"); }'
+
 # version 0.100:
 If you have used previous versions it is possible you have large Job stdout/err
 files hanging around that are just wasting disc space. You can delete these by

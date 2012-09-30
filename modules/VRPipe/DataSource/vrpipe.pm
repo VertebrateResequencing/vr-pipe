@@ -216,8 +216,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     
     sub _res_to_str {
         my $res = shift;
-        my $str = join('|', @{ $res->{paths} || [] });
-        foreach my $key ('lane', 'group', 'chrom', 'from', 'to') {
+        VRPipe::DataElement->_deflate_paths($res);
+        my $str = '';
+        foreach my $key ('paths', 'lane', 'group', 'chrom', 'from', 'to') {
             $str .= '|' . $res->{$key} if defined $res->{$key};
         }
         return $str;
@@ -260,10 +261,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                         my $force = exists $stepmembers->{$smid}->{all};
                         my $step_outs;
                         if ($smid == 0) {
-                            my $result = $element->result;
-                            my $paths = $result->{paths} || $self->throw("data element " . $element->id . " gave a result with no paths");
-                            foreach my $path (@$paths) {
-                                my $file = VRPipe::File->get(path => file($path)->absolute);
+                            foreach my $file (@{ $element->files || $self->throw("data element " . $element->id . " gave a result with no paths") }) {
                                 push @{ $step_outs->{ $file->type } }, $file;
                             }
                         }
