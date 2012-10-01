@@ -7,7 +7,7 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 6;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES GATK)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES GATK2)],
         required_exe => [qw(samtools)]
     );
     use TestPipelines;
