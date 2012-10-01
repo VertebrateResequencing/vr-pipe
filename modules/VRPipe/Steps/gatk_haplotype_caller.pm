@@ -43,7 +43,7 @@ use VRPipe::Base;
 #      [-L targets.interval_list]
 #      -o output.raw.snps.indels.vcf
 
-class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk {
+class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
     around options_definition {
         return {
             %{ $self->$orig }, # gatk options
