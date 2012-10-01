@@ -37,11 +37,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::FarmServer extends VRPipe::Persistent {
+class VRPipe::FarmServer extends VRPipe::Persistent::Living {
     use DateTime;
     use POSIX qw(ceil);
-    
-    our $dead_time = 60;
     
     has 'farm' => (
         is     => 'rw',
@@ -65,51 +63,13 @@ class VRPipe::FarmServer extends VRPipe::Persistent {
         is_nullable => 1
     );
     
-    has 'heartbeat' => (
-        is      => 'rw',
-        isa     => Datetime,
-        coerce  => 1,
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => sub { DateTime->now() }
-    );
-    
     __PACKAGE__->make_persistent();
-    
-    method time_since_heartbeat {
-        my $heartbeat = $self->heartbeat;
-        my $t         = time();
-        return $t - $heartbeat->epoch;
-    }
-    
-    method alive {
-        my $elapsed = $self->time_since_heartbeat;
-        my $alive   = $elapsed < $dead_time;
-        unless ($alive) {
-            # we could do something like remove our farm name from the
-            # controlling_farm of all PipelineSetups, but probably bad things
-            # would happen if a setup that was still running was suddenly
-            # controlled by a different farm. So once claimed, a setup will
-            # always run only on that farm, even when its server goes down and
-            # doesn't come back
-            $self->delete;
-        }
-        return $alive;
-    }
-    
-    method still_alive {
-        my $selfid = $self->id;
-        my $still_in_db = VRPipe::FarmServer->search({ id => $selfid });
-        return 0 unless $still_in_db;
-        $self->heartbeat(DateTime->now());
-        $self->update;
-        return 1;
-    }
     
     method claim_setups {
         my $own_farm_name = $self->farm;
         
         # delete any farms no longer alive
-        my $rs = $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $dead_time) } }, { for => 'update' }); #->delete;
+        my $rs = $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $self->dead_time) } }, { for => 'update' }); #->delete;
         while (my $fs = $rs->next) {
             $fs->delete;
         }
