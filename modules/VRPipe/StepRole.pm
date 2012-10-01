@@ -472,11 +472,6 @@ role VRPipe::StepRole {
         return $self->_missing($hash, $defs);
     }
     
-    method _run_coderef (Str $method_name) {
-        my $ref = $self->$method_name();
-        return &$ref($self);
-    }
-    
     method output_file (Str :$output_key?, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
         if (!$temporary && !$output_key) {
             $self->throw("output_key is required");
@@ -516,6 +511,37 @@ role VRPipe::StepRole {
         my $step_state = $self->step_state;
         $step_state->cmd_summary($cmd_summary);
         $step_state->update;
+    }
+    
+    method _run_coderef (Str $method_name) {
+        # $self is a VRPipe::Step, even when *_sub was defined in a
+        # VRPipe::Steps::subclass; to regain full benefits of inheritance in
+        # those *_sub subs, we'll load the real module and use that instead
+        # of $self
+        my $non_persistent = $self->_from_non_persistent;
+        my $return;
+        if ($non_persistent) {
+            #*** this is very ugly - is there a better way?
+            $non_persistent->step_state($self->step_state);
+            $non_persistent->previous_step_outputs($self->previous_step_outputs);
+            $non_persistent->_persistent_step($self);
+            
+            my $ref = $non_persistent->$method_name();
+            $return = &$ref($non_persistent);
+            
+            if ($method_name eq 'body_sub') {
+                $self->_set_output_files($non_persistent->_output_files);
+                $self->_set_temp_files($non_persistent->_temp_files);
+                $self->_last_output_dir($non_persistent->_last_output_dir);
+                $self->_set_dispatched($non_persistent->dispatched);
+            }
+        }
+        else {
+            my $ref = $self->$method_name();
+            $return = &$ref($self);
+        }
+        
+        return $return;
     }
     
     method parse {
@@ -561,27 +587,8 @@ role VRPipe::StepRole {
             }
         }
         
-        # $self is a VRPipe::Step, even when body_sub was defined in a
-        # VRPipe::Steps::subclass; to regain full benefits of inheritence in
-        # those body_sub subs, we'll load the real module and use that instead
-        # of $self
-        my $non_persistent = $self->_from_non_persistent;
-        if ($non_persistent) {
-            #*** this is very ugly - is there a better way?
-            $non_persistent->step_state($self->step_state);
-            $non_persistent->previous_step_outputs($self->previous_step_outputs);
-            $non_persistent->_persistent_step($self);
-            
-            $non_persistent->_run_coderef('body_sub');
-            
-            $self->_set_output_files($non_persistent->_output_files);
-            $self->_set_temp_files($non_persistent->_temp_files);
-            $self->_last_output_dir($non_persistent->_last_output_dir);
-            $self->_set_dispatched($non_persistent->dispatched);
-        }
-        else {
-            $self->_run_coderef('body_sub');
-        }
+        # actually run the body_sub
+        $self->_run_coderef('body_sub');
         
         # store output and temp files on the StepState
         my $output_files = $self->_output_files;
