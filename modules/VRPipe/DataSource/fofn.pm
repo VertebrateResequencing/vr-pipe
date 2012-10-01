@@ -78,6 +78,7 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
         foreach my $result ($self->_all_results(handle => $handle, skip_comments => 1, line_is_path => 1)) {
             push @paths, @{ $result->{paths} };
         }
+        return unless @paths;
         $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
     }
 }
