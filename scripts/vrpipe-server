@@ -394,7 +394,7 @@ sub status {
             my $incomplete_pager;
             my $ps_id = $setup->id;
             eval {
-                $num_elements = VRPipe::DataElement->search({ datasource => $datasource->id, withdrawn => 0 });
+                $num_elements = VRPipe::DataElementState->search({ pipelinesetup => $setup->id, 'dataelement.datasource' => $datasource->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
                 $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
             };
             my $ds_error = $@;
@@ -484,8 +484,15 @@ sub status {
                 my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
                 $object .= $backend->xml_tag('attribute', "$percent_complete\%", qq[name="completion" explanation="Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)"]);
                 
-                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
+                my $farm = $setup->controlling_farm;
+                if ($farm) {
+                    my ($farm_server) = VRPipe::FarmServer->search({ farm => $farm });
+                    if (!$farm_server || !$farm_server->alive) {
+                        $object .= $backend->xml_tag('attribute', "WARNING! setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm is currently alive", q[name="problems"]);
+                    }
+                }
                 
+                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
                 my %sub_stats;
                 while (my $subs = $pager->next(no_resetting => 1)) {
                     foreach my $sub (@$subs) {
@@ -507,6 +514,7 @@ sub status {
                         }
                     }
                 }
+                #*** else { well, what is happening to this setup then? }
             }
             else {
                 if ($num_elements == 0) {
