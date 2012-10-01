@@ -54,8 +54,6 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         default => sub { DateTime->now() }
     );
     
-    __PACKAGE__->make_persistent();
-    
     method time_since_heartbeat {
         my $heartbeat = $self->heartbeat;
         my $t         = time();
