@@ -37,6 +37,7 @@ class VRPipe::Steps::gatk_variant_recalibration_for_indels extends VRPipe::Steps
     around options_definition {
         my $opts_def = $self->$orig;
         delete $opts_def->{variant_recalibration_options};
+        delete $opts_def->{variant_recalibration_mode};
         return { %{$opts_def}, indel_recalibration_options => VRPipe::StepOption->create(description => 'Command line options for GATK VariantRecalibrator when in INDEL mode') };
     }
     
