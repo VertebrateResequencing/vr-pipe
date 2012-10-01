@@ -271,7 +271,16 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         if ($self->can('name')) {
             my $name  = $self->name;
             my $class = ref($self);
-            if (exists $factory_modules{$class} && exists $factory_modules{$class}->{$name}) {
+            
+            my $dir = $class . 's';
+            unless (exists $factory_modules{$class}) {
+                $factory_modules{$class} = { map { s/^.+:://; $_ => 1 } findallmod($dir) };
+            }
+            if (exists $factory_modules{$class} && $factory_modules{$class}->{$name}) {
+                unless (exists $factory_modules{factories}) {
+                    $factory_modules{factories} = { map { $_ => 1 } grep { /NonPersistentFactory$/ } findallmod('VRPipe') };
+                }
+                
                 my $factory_class = "${class}NonPersistentFactory";
                 if (exists $factory_modules{factories}->{$factory_class}) {
                     eval "require $factory_class;";
