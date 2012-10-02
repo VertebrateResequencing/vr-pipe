@@ -79,17 +79,15 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
             my $recal_file    = $self->inputs->{recalibration_file}[0];
             my $tranches_file = $self->inputs->{tranches_file}[0];
             
+            my $idx = 0;
             foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
                 my $vcf_path = $vcf->path;
                 my $vcf_meta = $vcf->metadata || {};
                 my $basename = $vcf->basename;
-                $basename =~ s/\.vcf(.gz)?$/.recal.vcf.gz/;
+                $basename =~ s/\.vcf(.gz)?$/.recal_$idx.vcf.gz/;
                 
                 my $recal_file_path    = $recal_file->path;
                 my $tranches_file_path = $tranches_file->path;
-                
-                my $vcf_recal_file = $self->output_file(output_key => 'recalibrated_vcfs', basename => $basename, type => 'vcf', metadata => $vcf_meta);
-                my $vcf_recal_path = $vcf_recal_file->path;
                 
                 # If VCFs are split by chromosome, save time by only walking along the chromosome
                 # Add interval set rule, so that if apply recalibration options contains -L option too (eg exome targets file)
@@ -97,10 +95,15 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
                 my $this_apply_recal_opts = $apply_recal_opts;
                 if (defined $vcf_meta->{chrom}) {
                     $this_apply_recal_opts .= " -L $$vcf_meta{chrom} --interval_set_rule INTERSECTION";
+                    $basename = "$$vcf_meta{chrom}.recal_$idx.vcf.gz";
                 }
+                
+                my $vcf_recal_file = $self->output_file(output_key => 'recalibrated_vcfs', basename => $basename, type => 'vcf', metadata => $vcf_meta);
+                my $vcf_recal_path = $vcf_recal_file->path;
                 
                 my $cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T ApplyRecalibration -R $ref --input $vcf_path -recalFile $recal_file_path -tranchesFile $tranches_file_path -o $vcf_recal_path -mode $mode $this_apply_recal_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_apply_recalibration', 'apply_recalibration_and_check', [$cmd, $req, { output_files => [$vcf_recal_file] }]);
+                $idx++;
             }
             
             $self->set_cmd_summary(
