@@ -101,7 +101,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     method BUILD {
         my $t = time();
         my $timer = EV::periodic 0, $self->heartbeat_interval, 0, sub {
-            $self->beat_heart;
+            $self->beat_heart if $self->_still_exists;
         };
         $self->heartbeat_timer($timer);
     }
@@ -113,7 +113,10 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     }
     
     method alive {
-        my $alive = $self->time_since_heartbeat <= $self->survival_time ? 1 : 0;
+        my $alive = $self->_still_exists;
+        if ($alive) {
+            $alive = $self->time_since_heartbeat <= $self->survival_time ? 1 : 0;
+        }
         unless ($alive) {
             $self->destroy_timer;
             $self->delete;
@@ -121,15 +124,14 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         return $alive;
     }
     
+    method _still_exists {
+        my $still_exists = $self->search({ id => $self->id });
+        return $still_exists;
+    }
+    
     method beat_heart {
-        my $still_in_db = $self->search({ id => $self->id });
-        unless ($still_in_db) {
-            $self->destroy_timer;
-            return 0;
-        }
         $self->heartbeat(DateTime->now());
         $self->update;
-        return 1;
     }
 }
 
