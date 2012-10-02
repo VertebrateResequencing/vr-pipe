@@ -71,7 +71,6 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         # delete any farms no longer alive
         my $rs = $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $self->survival_time) } }, { for => 'update' })->delete;
         
-        my @setups_to_trigger;
         my $transaction = sub {
             # unless we're only doing setups assigned directly to us, we want to
             # share setups evenly amongst all the farms
@@ -90,7 +89,6 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
                             foreach my $setup (@$setups) {
                                 $setup->controlling_farm($own_farm_name);
                                 $setup->update;
-                                push(@setups_to_trigger, $setup);
                             }
                             last;
                         }
@@ -110,19 +108,9 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
             foreach my $setup (VRPipe::PipelineSetup->search({ active => 1, desired_farm => $own_farm_name, controlling_farm => undef }, { for => 'update' })) {
                 $setup->controlling_farm($own_farm_name);
                 $setup->update;
-                push(@setups_to_trigger, $setup);
             }
         };
         $self->do_transaction($transaction, "Could not claim PipelineSetups for farm $own_farm_name");
-        
-        # since @setups_to_trigger were previously uncontrolled setups they are
-        # most likely brand new and have never been run before, which means
-        # there are no submissions for the farm server to manage; we'll start
-        # off proceedings with a full trigger on all dataelements
-        foreach my $setup (@setups_to_trigger) {
-            warn "claim_setups calling trigger on setup ", $setup->id, "\n";
-            $setup->trigger();
-        }
         
         return VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $own_farm_name });
     }

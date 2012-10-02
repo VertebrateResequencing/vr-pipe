@@ -170,6 +170,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     }
     
     method currently_complete {
+        # we consider ourselves incomplete if we have no dataelementstates
+        # assigned to us
+        my $num_elements = VRPipe::DataElementState->search({ pipelinesetup => $self->id });
+        return 0 unless $num_elements;
+        
+        # and we're incomplete if any of them have not completed all steps in
+        # our pipeline
         my $num_steps_to_complete = $self->pipeline->step_members;
         my $elements_incomplete = VRPipe::DataElementState->search({ pipelinesetup => $self->id, completed_steps => { '<' => $num_steps_to_complete }, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
         return $elements_incomplete ? 0 : 1;
