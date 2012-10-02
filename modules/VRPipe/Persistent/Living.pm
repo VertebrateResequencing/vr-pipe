@@ -63,11 +63,11 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         clearer => 'destroy_timer'
     );
     
-    has 'dead_time' => (
+    has 'survival_time' => (
         is      => 'rw',
         isa     => PositiveInt,
         lazy    => 1,
-        builder => '_build_default_dead_time'
+        builder => '_build_default_survival_time'
     );
     
     method _build_default_heartbeat_interval {
@@ -79,7 +79,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         }
     }
     
-    method _build_default_dead_time {
+    method _build_default_survival_time {
         my $interval = $self->heartbeat_interval;
         
         # try and allow for mysql server time being different to our host time,
@@ -113,7 +113,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     }
     
     method alive {
-        my $alive = $self->time_since_heartbeat <= $self->dead_time ? 1 : 0;
+        my $alive = $self->time_since_heartbeat <= $self->survival_time ? 1 : 0;
         unless ($alive) {
             $self->destroy_timer;
             $self->delete;
