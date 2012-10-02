@@ -69,10 +69,7 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         my $own_farm_name = $self->farm;
         
         # delete any farms no longer alive
-        my $rs = $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $self->dead_time) } }, { for => 'update' }); #->delete;
-        while (my $fs = $rs->next) {
-            $fs->delete;
-        }
+        my $rs = $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $self->dead_time) } }, { for => 'update' })->delete;
         
         my @setups_to_trigger;
         my $transaction = sub {

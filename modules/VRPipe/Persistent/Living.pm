@@ -39,12 +39,8 @@ use VRPipe::Base;
 
 class VRPipe::Persistent::Living extends VRPipe::Persistent {
     use DateTime;
-    
-    has 'dead_time' => (
-        is      => 'rw',
-        isa     => PositiveInt,
-        default => 60
-    );
+    use EV;
+    use AnyEvent;
     
     has 'heartbeat' => (
         is      => 'rw',
@@ -54,6 +50,62 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         default => sub { DateTime->now() }
     );
     
+    has 'heartbeat_interval' => (
+        is      => 'rw',
+        isa     => PositiveInt,
+        lazy    => 1,
+        builder => '_build_default_heartbeat_interval'
+    );
+    
+    has 'heartbeat_timer' => (
+        is      => 'rw',
+        isa     => 'Object',
+        clearer => 'destroy_timer'
+    );
+    
+    has 'dead_time' => (
+        is      => 'rw',
+        isa     => PositiveInt,
+        lazy    => 1,
+        builder => '_build_default_dead_time'
+    );
+    
+    method _build_default_heartbeat_interval {
+        if (VRPipe::Persistent::SchemaBase->database_deployment eq 'testing') {
+            return 3;
+        }
+        else {
+            return 60;
+        }
+    }
+    
+    method _build_default_dead_time {
+        my $interval = $self->heartbeat_interval;
+        
+        # try and allow for mysql server time being different to our host time,
+        # and other related timing vagaries
+        my $multiplier;
+        if ($interval < 60) {
+            $multiplier = 10;
+        }
+        elsif ($interval < 300) {
+            $multiplier = 3;
+        }
+        else {
+            $multiplier = 1;
+        }
+        
+        return $interval * $multiplier;
+    }
+    
+    method BUILD {
+        my $t = time();
+        my $timer = EV::periodic 0, $self->heartbeat_interval, 0, sub {
+            $self->beat_heart;
+        };
+        $self->heartbeat_timer($timer);
+    }
+    
     method time_since_heartbeat {
         my $heartbeat = $self->heartbeat;
         my $t         = time();
@@ -61,9 +113,9 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     }
     
     method alive {
-        my $elapsed = $self->time_since_heartbeat;
-        my $alive   = $elapsed < $self->dead_time;
+        my $alive = $self->time_since_heartbeat <= $self->dead_time ? 1 : 0;
         unless ($alive) {
+            $self->destroy_timer;
             $self->delete;
         }
         return $alive;
@@ -71,7 +123,10 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     
     method beat_heart {
         my $still_in_db = $self->search({ id => $self->id });
-        return 0 unless $still_in_db;
+        unless ($still_in_db) {
+            $self->destroy_timer;
+            return 0;
+        }
         $self->heartbeat(DateTime->now());
         $self->update;
         return 1;

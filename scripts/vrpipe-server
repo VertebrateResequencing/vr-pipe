@@ -231,7 +231,7 @@ sub start_server {
             else {
                 my $schema = $farm_server->result_source->schema;
                 fork_call {
-                    die "no longer in db\n" unless $farm_server->beat_heart; # this updates the heartbeat to say we're still alive, and also checks we're still actually in the db
+                    die "no longer in db\n" unless $farm_server->alive;
                     return map { $schema->freeze($_); } $farm_server->claim_setups();
                 }
                 sub {
