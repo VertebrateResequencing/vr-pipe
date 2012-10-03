@@ -335,26 +335,8 @@ class VRPipe::Interface::CmdLine {
         else {
             if ($response->code == 500) {
                 $self->error("Can't connect to VRPiper server at $base_url, will attempt to auto-start it...");
-                my $deployment = $self->opts('deployment');
-                my $script     = 'vrpipe-server';
-                if ($deployment eq 'testing') {
-                    # we might not have vrpipe-server in our PATH, and the
-                    # modules it needs might not be in our PERL5LIB, so allow
-                    # us to still work if we're running from the git repo root
-                    # dir (eg. during testing prior to an install). In fact, for
-                    # testing purposes, we prefer this to some version of the
-                    # files installed elsewhere.
-                    my $local_script = file('scripts', 'vrpipe-server');
-                    my $modules_dir = dir('modules');
-                    if (-x $local_script && -d $modules_dir) {
-                        my $thisperl = $Config{perlpath};
-                        if ($^O ne 'VMS') {
-                            $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
-                        }
-                        $script = "$thisperl -I$modules_dir $local_script";
-                    }
-                }
-                my $cmd = $script . ' --deployment ' . $deployment . ' start'; # (this confuses perltidy if put directly in the system() call)
+                my $script = $self->vrpipe_script_path('vrpipe-server', $self->opts('deployment'));
+                my $cmd = $script . ' start'; # (this confuses perltidy if put directly in the system() call)
                 system($cmd);
                 
                 # the vrpipe-server call returns ~instantly, but may take some
@@ -504,6 +486,34 @@ class VRPipe::Interface::CmdLine {
     
     method pick_number (Str :$question!, PositiveInt :$max!, PositiveInt :$default?) {
         return $self->ask_question(question => $question, possibles => [1 .. $max], required => 1, $default ? (default => $default) : ());
+    }
+    
+    # we might not have vrpipe-* in our PATH, and the modules it needs might not
+    # be in our PERL5LIB, so allow us to still work if we're running from the
+    # git repo root dir (eg. during testing prior to an install). In fact, for
+    # testing purposes, we prefer this to some version of the files installed
+    # elsewhere.
+    method vrpipe_script_path (Str $script, Str $deployment) {
+        my $path;
+        if ($deployment eq 'testing') {
+            my $local_script = File::Spec->catfile('scripts', $script);
+            if (-x $local_script && -d 'modules' && -d 't') {
+                my $thisperl = $Config{perlpath};
+                if ($^O ne 'VMS') {
+                    $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
+                }
+                $path = "$thisperl -Imodules -It $local_script";
+            }
+        }
+        else {
+            $path = $script;
+        }
+        
+        if ($deployment eq 'testing') {
+            $path .= " --deployment testing";
+        }
+        
+        return $path;
     }
 }
 
