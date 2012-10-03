@@ -56,6 +56,7 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use Email::Sender::Simple;
     use Email::Simple::Creator;
+    use Fcntl qw/ :flock /;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -406,10 +407,15 @@ XSL
         writer => '_set_uid'
     );
     
-    has 'logging_directory' => (
+    has 'log_file' => (
         is     => 'ro',
         isa    => 'Str',
-        writer => '_set_logging_directory'
+        writer => '_set_log_file'
+    );
+    
+    has '_log_file_in_use' => (
+        is  => 'rw',
+        isa => 'Bool'
     );
     
     has 'psgi_server' => (
@@ -494,12 +500,16 @@ XSL
         my $email_domain = $vrp_config->email_domain();
         $self->_set_email_domain("$email_domain");
         
-        $method_name = $deployment . '_scheduler_output_root';
-        my $log_dir = $vrp_config->$method_name();
-        $self->_set_logging_directory("$log_dir");
-        
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);
         $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
+        
+        $method_name = $deployment . '_scheduler_output_root';
+        my $log_dir      = $vrp_config->$method_name();
+        my $log_basename = $self->dsn;
+        $log_basename =~ s/\W/_/g;
+        my $log_file = file($log_dir, 'vrpipe-server.' . $log_basename . '.log');
+        $self->_set_log_file($log_file->stringify);
+        
         require VRPipe::Persistent::Schema;
     }
     
@@ -553,10 +563,7 @@ XSL
             setuid($self->uid) if $deployment eq 'production';
             
             # reopen STDERR for logging purposes
-            my $log_dir      = $self->logging_directory;
-            my $log_basename = $self->dsn;
-            $log_basename =~ s/\W/_/g;
-            open(STDERR, '>>', file($log_dir, 'vrpipe-server.' . $log_basename . '.log'));
+            $self->log_stderr;
             
             return 1;
         }
@@ -567,6 +574,13 @@ XSL
         # So we wait for the first child to exit
         waitpid($pid, 0);
         exit 0;
+    }
+    
+    method log_stderr {
+        my $ok = open(STDERR, '>>', $self->log_file);
+        if ($ok) {
+            $self->_log_file_in_use(1);
+        }
     }
     
     method install_pipelines_and_steps {
@@ -761,8 +775,26 @@ XSL
     method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Bool :$force_when_testing?) {
         chomp($msg);
         
-        # we always just warn, which ends up in the server log
-        warn "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
+        # we could just warn to log to the log file if one is in use, but we'll
+        # use flock to write to it for better multi-process behaviour
+        my $log_msg = "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
+        if ($self->_log_file_in_use) {
+            my $log_file = $self->log_file;
+            my $ok = open(my $fh, ">>", $log_file);
+            if ($ok) {
+                $ok = flock $fh, LOCK_EX;
+                if ($ok) {
+                    $ok = print $fh $log_msg;
+                }
+                close($fh);
+            }
+            unless ($ok) {
+                warn $log_msg, "Additionally, was unable to log to $log_file\n";
+            }
+        }
+        else {
+            warn $log_msg;
+        }
         
         if (($force_when_testing || $self->deployment eq 'production') && ($email_to || $email_admin)) {
             # email the desired users
