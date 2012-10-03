@@ -197,8 +197,7 @@ sub ACTION_realclean {
 sub ACTION_test {
     my $self = shift;
     
-    # it's not strictly necessary and would happen automatically anyway, but
-    # we start vrpipe-server before testing:
+    # we must start vrpipe-server before testing:
     my $local_script = File::Spec->catfile('scripts', 'vrpipe-server');
     my $server;
     if (-x $local_script && -d 'modules' && -d 't') {
