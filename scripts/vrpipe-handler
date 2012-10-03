@@ -1,0 +1,236 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use EV;
+use AnyEvent;
+use AnyEvent::Util qw(fork_call);
+use AnyEvent::ForkManager;
+use Sys::CPU;
+use VRPipe::Interface::CmdLine;
+use VRPipe::Interface::BackEnd;
+
+# handle options
+my $cmdline = VRPipe::Interface::CmdLine->new(
+    description => "Handle the running of setups or submissions while executing on a farm node.",
+    opt_spec    => [
+        ['One of two modes must be specified, and all the options for that mode must also be specified.'],
+        ['mode|m=s', 'setups|submissions - handle setups or submissions'],
+        [],
+        ['In --mode setups, supply the following options:'],
+        ['farm=s', 'Handle setups being controlled by this farm'],
+        [],
+        ['In --mode submissions, supply the following options:'],
+    ]
+);
+
+my $max_forks = Sys::CPU::cpu_count();
+
+# initialize the VRPipe backend
+my $deployment = $cmdline->opts('deployment');
+my $backend    = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+my $schema     = $backend->schema;
+
+# act on the given mode
+my $mode = $cmdline->opts('mode') || $cmdline->die_with_error("--mode must be supplied");
+if ($mode eq 'setups') {
+    my $farm = $cmdline->opts('farm');
+    $farm || $cmdline->die_with_error("--farm is required in setups $mode");
+    handle_setups($farm);
+}
+elsif ($mode eq 'submissions') {
+    $cmdline->die_with_error("$mode is not yet implemented");
+}
+else {
+    $cmdline->die_with_error("$mode is an invalid mode");
+}
+
+exit 0;
+
+sub handle_setups {
+    my $farm = shift;
+    $backend->log_stderr;
+    
+    $AnyEvent::Util::MAX_FORKS = $max_forks;
+    
+    # every 30s we'll check for new setups we're supposed to handle, and also
+    # confirm there is still a farmserver up for our farm (and exit if not)
+    my %setups;
+    my %datasource_watchers;
+    my %setup_watchers;
+    my $setups_timer_interval      = $deployment eq 'production' ? 30  : 5;
+    my $datasource_timer_interval  = $deployment eq 'production' ? 300 : 10;
+    my $setup_state_timer_interval = $deployment eq 'production' ? 900 : 15;
+    my $setups_watcher = EV::periodic 0, $setups_timer_interval, 0, sub {
+        fork_call {
+            VRPipe::FarmServer->search({ farm => $farm }) || die "no farmserver";
+            my @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
+            return map { $schema->freeze($_) } @setups;
+        }
+        sub {
+            my @setups = map { $schema->thaw($_) } @_;
+            my $err = $@;
+            if ($err) {
+                if ($err =~ /no farmserver/) {
+                    exit_handler("There is no longer a server for farm $farm");
+                }
+                else {
+                    exit_handler("There was a problem accessing the database");
+                }
+            }
+            else {
+                if (@setups) {
+                    # remove handling and watchers for setups no longer active/
+                    # controlled by our farm
+                    my %current_setup_ids = map { $_->id => 1 } @setups;
+                    foreach my $stored_setup_id (keys %setups) {
+                        unless (exists $current_setup_ids{$stored_setup_id}) {
+                            my $ds_id = $setups{$stored_setup_id}->datasource->id;
+                            $datasource_watchers{$ds_id}->{count}--;
+                            delete $datasource_watchers{$ds_id} if $datasource_watchers{$ds_id}->{count} == 0;
+                            delete $setup_watchers{$stored_setup_id};
+                            delete $setups{$stored_setup_id};
+                        }
+                    }
+                    
+                    # trigger new setups, in parallel
+                    my $fm = AnyEvent::ForkManager->new(max_workers => $max_forks);
+                    my @new_setups;
+                    foreach my $setup (@setups) {
+                        my $sid = $setup->id;
+                        next if exists $setups{$sid};
+                        $setups{$sid} = $setup;
+                        push(@new_setups, $setup);
+                        
+                        $fm->start(
+                            cb => sub {
+                                my ($fm, $setup, $backend) = @_;
+                                $backend->log(" - initial triggering setup $sid");
+                                $setup->trigger;
+                            },
+                            args => [$setup, $backend]
+                        );
+                    }
+                    $fm->wait_all_children;
+                    
+                    # create a watcher for each setup's datasource to keep it
+                    # up-to-date
+                    foreach my $setup (@new_setups) {
+                        my $ds    = $setup->datasource;
+                        my $ds_id = $ds->id;
+                        $datasource_watchers{$ds_id}->{count}++;
+                        next if defined $datasource_watchers{$ds_id}->{watcher};
+                        
+                        my $datasource_update_sub = sub {
+                            fork_call {
+                                $ds->elements;
+                                return;
+                            }
+                            sub {
+                                my $err = $@ || return;
+                                # email user about this once
+                                #*** auto-deactivate it?
+                                $backend->log("There is a problem with datasource $ds_id:\n$err");
+                            };
+                        };
+                        
+                        my $non_persistent = $ds->_from_non_persistent;
+                        my $watcher;
+                        if ($non_persistent && $non_persistent->does('VRPipe::DataSourceTextRole')) {
+                            # update when the source text file changes
+                            $watcher = EV::stat $ds->source, 0, $datasource_update_sub;
+                        }
+                        else {
+                            # update every 5mins
+                            $watcher = EV::periodic 0, $datasource_timer_interval, 0, $datasource_update_sub;
+                        }
+                        
+                        $datasource_watchers{$ds_id}->{watcher} = $watcher;
+                    }
+                    
+                    # create a watcher to check the state of each setup, so we
+                    # can notify user of stalled/ failed/ completed ones
+                    foreach my $setup (@new_setups) {
+                        my $sid = $setup->id;
+                        next if defined $setup_watchers{$sid};
+                        
+                        $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
+                            fork_call {
+                                return if $setup->currently_complete;
+                                
+                                my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                                if ($perma_fails) {
+                                    # email user once about this
+                                    #***
+                                    $backend->log("setup $sid has repeated failures that need user intervention");
+                                }
+                                else {
+                                    my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                                    unless ($incomplete_subs) {
+                                        $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
+                                        $setup->trigger;
+                                    }
+                                }
+                                
+                                return;
+                            }
+                            sub {
+                                my $err = $@ || return;
+                                # email user about this once
+                                #*** auto-deactivate it?
+                                $backend->log("There is a problem with setup $sid:\n$err");
+                            };
+                        };
+                    }
+                }
+                else {
+                    exit_handler("There are no longer any more setups to handle for farm $farm");
+                }
+            }
+        };
+    };
+    
+    # set up the signals we'll react to
+    $SIG{HUP}  = 'IGNORE';
+    $SIG{PIPE} = 'IGNORE';
+    my $sigterm_watcher = EV::signal 'TERM', sub { exit_handler("SIGTERM received"); };
+    my $sigint_watcher  = EV::signal 'INT',  sub { exit_handler("SIGINT received"); };
+    my $sigquit_watcher = EV::signal 'QUIT', sub { exit_handler("SIGQUIT received"); };
+    
+    # run the event loop
+    $backend->log("The setups handler for farm $farm is now running.");
+    EV::run;
+    
+    $backend->log("The setups handler for farm $farm is now exiting!");
+    exit 0;
+}
+
+sub exit_handler {
+    my $msg = shift;
+    $backend->log($msg . ", will gracefully exit setups handler.") if $mode eq 'setups';
+    EV::unloop;
+}
