@@ -128,11 +128,10 @@ sub handle_setups {
                         
                         $fm->start(
                             cb => sub {
-                                my ($fm, $setup, $backend) = @_;
-                                $backend->log(" - initial triggering setup $sid");
+                                my ($fm, $setup) = @_;
                                 $setup->trigger;
                             },
-                            args => [$setup, $backend]
+                            args => [$setup]
                         );
                     }
                     $fm->wait_all_children;
