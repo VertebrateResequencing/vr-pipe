@@ -109,6 +109,42 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $cmd = $self->stop_command;
         system("$cmd > /dev/null 2> /dev/null");
     }
+    
+    method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, VRPipe::Interface::BackEnd :$backend!, Bool :$maximise_time?) {
+        #*** to be implemented properly...
+        #system("$cmd &");
+        
+        # see if we've already submitted this to the scheduler
+        
+        # the cmd we submit needs a heartbeat, so that when we check if the
+        # command is running we can avoid querying the scheduler as much as
+        # possible - we wrap $cmd in worker
+        my $worker_cmd = qq[];
+        
+        # construct the command line that will submit our $cmd to the scheduler
+        my $scheduler_cmd_line = join(
+            ' ',
+            $self->submit_command,
+            $self->submit_args(
+                requirements => $requirements,
+                stdo_file    => '/dev/null',
+                stde_file    => '/dev/null',
+                cmd          => $worker_cmd
+            )
+        );
+        
+        # go ahead and submit it, getting back an id from the scheduler
+        my $sid = $self->get_sid($scheduler_cmd_line);
+        
+        #*** log calls here should also email admin once...
+        if ($sid) {
+            # remember we've done this
+            ...;
+        }
+        else {
+            $backend->log("The scheduler did not let us submit a job using this command line:\n$scheduler_cmd_line");
+        }
+    }
 
 =head2 submit
  
@@ -129,23 +165,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
 =cut
     
     method submit (VRPipe::Submission :$submission?, VRPipe::Requirements :$requirements?, ArrayRefOfPersistent :$array?, PositiveInt :$heartbeat_interval?) {
-        #my $scheduled_id = $sch->submit(submission => $VRPipe_jobmanager_submission);
-        # this gets requirements from the Submission object. It also auto-sets
-        # $submission->sid() to $scheduled_id (the return value, which is the value
-        # returned by the scheduler). _hid gets set to submission id and _aid
-        # to 0.
-        
-        #$scheduled_id = $sch->submit(array => $VRPipe_persistentarray,
-        #                      requirements => $VRPipe_jobmanager_requirements);
-        # for running more than one job in an array, you pass a PersistentArray object
-        # and a Requirments object (ie. where you have arranged that all the Submission
-        # objects in the array share this same Requirements). It gets each Submission
-        # object from the PersistentArray and auto-sets $submission->sid() to the
-        # $scheduled_id with the PersistentArray id and index in _hid and _aid.
-        # In both cases, it claims all Submission objects prior to interacting with
-        # the scheduler, and if the scheduler has a problem and the submission fails,
-        # we release all the Submission objects.
-        
         my $submissions;
         my $for;
         my $aid = -1;
@@ -218,38 +237,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         my $sid = $self->do_transaction($transaction, "Failed to claim & submit");
         
         return $sid;
-        
-        # When dealing with a PersistentArray, each Submission will get its own output
-        # files in the output_dir() based on which index it was in the PersistentArray.
-        # You access a particular Submission's output files with:
-        #my $o_file = $sch->stdout($VRPipe_jobmanager_submission);
-        # and likewise with ->stderr. It works out the hashing-id and index from the
-        # Submission->sid (for PersistentArray submits) or Submission->id (for single
-        # Submission submits). Having dealt with the output files, you can delete
-        # them:
-        #$sch->unlink_output($VRPipe_jobmanager_submission);
-        # this also prunes empy dirs.
-        
-        # the command that submit() actually schedules in the scheduler is a little
-        # perl -e that takes the referenced Submission id (working it out from the
-        # PersistentArray object and index if this was an PersistentArray submit),
-        # pulls out the Job and does ->run on that.
-        
-        # though some schedulers may have some kind of limit in place on the maximum
-        # number of jobs a user or the system as a whole can keep scheduled at once,
-        # we deliberatly don't model or support that limit here. If we do go over the
-        # limit we treat it as any other error from the scheduler: ->submit would just
-        # return false and ->last_submit_error would give the error as a string. The
-        # user is then free to try the submit again later. To help the user decide if
-        # we're under the limit or not before attempting a submit:
-        #my $max_jobs = $sch->max_jobs;
-        # this is the get-only max jobs as set in SiteConfig
-        #my $current_jobs = $sch->queued_jobs;
-        # this is the total number of jobs being tracked in the scheduling system for
-        # the current user.
-        # For testing purposes, VRPipe::Schedulers::Local will accept
-        # a practically-infinite-sized list (max_jobs is v.high), and handle tracking
-        # and serially running the jobs one-at-a-time itself.
     }
     
     method build_command_line (VRPipe::Requirements :$requirements!, PersistentObject :$for!, PositiveInt :$heartbeat_interval?) {

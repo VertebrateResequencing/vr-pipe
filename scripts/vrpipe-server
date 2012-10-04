@@ -199,8 +199,6 @@ sub start_server {
     # setup the submission management system if we're supposed to
     my ($farm_server, $farm_watcher, $handler_path, $called_handler);
     if ($farm) {
-        $handler_path = $cmdline->vrpipe_script_path('vrpipe-handler', $deployment);
-        
         # every 30s we'll update which PipelineSetups we'll handle
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
             unless ($farm_server) {
@@ -220,6 +218,7 @@ sub start_server {
                     # Step .pm modules into db if we haven't already
                     $backend->install_pipelines_and_steps unless $deployment eq 'testing';
                     $backend->log("Submission management started for farm $farm");
+                    $handler_path = $cmdline->vrpipe_script_path('vrpipe-handler', $deployment);
                 }
                 else {
                     $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
@@ -234,9 +233,14 @@ sub start_server {
                     # claim our setups
                     my @setups = $farm_server->claim_setups;
                     
+                    my $scheduler = VRPipe::Scheduler->get();
+                    
                     # make sure we have a setups handler running for our farm
-                    #...
-                    system("$handler_path --mode setups --farm $farm &") unless $called_handler;
+                    $scheduler->ensure_running(
+                        cmd          => "$handler_path --mode setups --farm $farm",
+                        requirements => VRPipe::Requirements->create(memory => 500, time => 1),
+                        backend      => $backend
+                    ) unless $called_handler;
                     
                     # make sure we have sufficient submission handlers running
                     #...
