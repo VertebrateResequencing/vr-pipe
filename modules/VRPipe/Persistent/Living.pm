@@ -43,11 +43,11 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     use AnyEvent;
     
     has 'heartbeat' => (
-        is      => 'rw',
-        isa     => Datetime,
-        coerce  => 1,
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => sub { DateTime->now() }
+        is          => 'rw',
+        isa         => Datetime,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
     );
     
     has 'heartbeat_interval' => (
@@ -57,10 +57,12 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         builder => '_build_default_heartbeat_interval'
     );
     
-    has 'heartbeat_timer' => (
+    has 'heart' => (
         is      => 'rw',
         isa     => 'Object',
-        clearer => 'destroy_timer'
+        lazy    => 1,
+        builder => '_build_heart',
+        handles => { start_beating => 'start', stop_beating => 'stop' }
     );
     
     has 'survival_time' => (
@@ -68,6 +70,14 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         isa     => PositiveInt,
         lazy    => 1,
         builder => '_build_default_survival_time'
+    );
+    
+    has 'reaction_to_being_murdered' => (
+        is      => 'rw',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_default_murder_reaction',
+        handles => { react_to_being_murdered => 'start', ignore_being_murdered => 'stop' }
     );
     
     method _build_default_heartbeat_interval {
@@ -98,17 +108,28 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         return $interval * $multiplier;
     }
     
-    method BUILD {
-        my $t = time();
-        my $timer = EV::periodic 0, $self->heartbeat_interval, 0, sub {
+    method _build_heart {
+        return EV::periodic_ns 0, $self->heartbeat_interval, 0, sub {
             $self->beat_heart if $self->_still_exists;
         };
-        $self->heartbeat_timer($timer);
+    }
+    
+    method _build_default_murder_reaction {
+        my $watcher;
+        $watcher = EV::periodic_ns 0, $self->heartbeat_interval, 0, sub {
+            return if $self->_still_exists;
+            $self->stop_beating;
+            $watcher->stop;
+            $self->delete if $self->_still_exists;
+            EV::unloop;
+            die "We were murdered by another process\n";
+        };
+        return $watcher;
     }
     
     method time_since_heartbeat {
-        my $heartbeat = $self->heartbeat;
-        my $t         = time();
+        my $heartbeat = $self->heartbeat || return 0;
+        my $t = time();
         return $t - $heartbeat->epoch;
     }
     
@@ -118,7 +139,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
             $alive = $self->time_since_heartbeat <= $self->survival_time ? 1 : 0;
         }
         unless ($alive) {
-            $self->destroy_timer;
+            $self->stop_beating;
             $self->delete;
         }
         return $alive;
@@ -132,6 +153,13 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     method beat_heart {
         $self->heartbeat(DateTime->now());
         $self->update;
+        $self->disconnect;
+    }
+    
+    method commit_suicide {
+        $self->stop_beating;
+        $self->delete if $self->_still_exists;
+        exit 0;
     }
 }
 
