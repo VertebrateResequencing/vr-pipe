@@ -56,6 +56,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::SchedulerMethodsFactory;
+    use VRPipe::Interface::CmdLine;
+    use DateTime;
     
     has 'type' => (
         is                   => 'rw',
@@ -110,16 +112,71 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         system("$cmd > /dev/null 2> /dev/null");
     }
     
-    method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, VRPipe::Interface::BackEnd :$backend!, Bool :$maximise_time?) {
-        #*** to be implemented properly...
-        #system("$cmd &");
-        
-        # see if we've already submitted this to the scheduler
+    method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, VRPipe::Interface::BackEnd :$backend!) {
+        # see if we've already running this $cmd
+        my ($runner) = VRPipe::Runner->search({ cmd => $cmd, aid => 0 });
+        if ($runner) {
+            return if $runner->running;
+            
+            # well, are we pending in the scheduler at least?
+            my $sid = $runner->sid;
+            if ($sid) {
+                my $time_scheduled = $runner->time_scheduled;
+                if ($time_scheduled > 300) {
+                    # we think we've been pending in the scheduler for 5mins
+                    # now, but are we really?
+                    my $status = $self->sid_status($sid, 0);
+                    if ($status =~ /PEND|RUN/) {
+                        if ($status eq 'RUN') {
+                            # if the scheduler thinks we're running, give it 10s
+                            # and recheck if we're running
+                            my $t = time();
+                            while (1) {
+                                last   if time() - $t > 10;
+                                return if $runner->running;
+                                sleep(1);
+                            }
+                            
+                            # hmmm, there's something strange going on, just
+                            # kill it
+                            $backend->log("The scheduler told us that $sid was running, but the corresponding Runner had no heartbeat!");
+                            $self->kill_sid($sid, 0, 5);
+                            $runner->delete;
+                        }
+                        else {
+                            # ok, we're pending, but emit a warning if we've
+                            # been pending for over 6hrs in case there's some
+                            # kind of problem with the scheduler/ farm
+                            #*** email admin only once about this
+                            if ($time_scheduled > 21600) {
+                                $backend->log("Runner for cmd [$cmd] has been pending in the scheduler (as $sid) for over 6hrs - is everything OK?");
+                            }
+                            return;
+                        }
+                    }
+                    else {
+                        # either we never actually got scheduled, or there's
+                        # some problem with the scheduled job, so kill it
+                        $self->kill_sid($sid, 0, 5);
+                        $runner->delete;
+                    }
+                }
+                else {
+                    # we're probably pending in the scheduler, let's just wait
+                    # 5mins and see if we start running
+                    return;
+                }
+            }
+            else {
+                $runner->delete;
+            }
+        }
         
         # the cmd we submit needs a heartbeat, so that when we check if the
         # command is running we can avoid querying the scheduler as much as
-        # possible - we wrap $cmd in worker
-        my $worker_cmd = qq[];
+        # possible - we wrap $cmd in a Runner
+        $runner = VRPipe::Runner->create(cmd => $cmd, aid => 0);
+        my $worker_cmd = VRPipe::Interface::CmdLine->vrpipe_perl_e(qq[VRPipe::Runner->get(cmd => q{$cmd}, aid => 0)->run], $backend->deployment);
         
         # construct the command line that will submit our $cmd to the scheduler
         my $scheduler_cmd_line = join(
@@ -138,8 +195,9 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         
         #*** log calls here should also email admin once...
         if ($sid) {
-            # remember we've done this
-            ...;
+            # store the sid and scheduled time on each Runner for this $cmd
+            $runner->sid($sid);
+            $runner->update;
         }
         else {
             $backend->log("The scheduler did not let us submit a job using this command line:\n$scheduler_cmd_line");
