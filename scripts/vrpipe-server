@@ -218,7 +218,7 @@ sub start_server {
                     # Step .pm modules into db if we haven't already
                     $backend->install_pipelines_and_steps unless $deployment eq 'testing';
                     $backend->log("Submission management started for farm $farm");
-                    $handler_path = $cmdline->vrpipe_script_path('vrpipe-handler', $deployment);
+                    $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                 }
                 else {
                     $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
