@@ -74,9 +74,8 @@ class VRPipe::Runner extends VRPipe::Persistent::Living {
     
     method run {
         # start our heartbeat so that another process can check if we're
-        # running, and also make sure we end if murdered by another process
+        # running (it will also stop us running if another process murders us)
         $self->start_beating;
-        $self->react_to_being_murdered;
         
         # now that we've done our job, erase our existence
         $self->commit_suicide;

@@ -86,7 +86,6 @@ BEGIN {
         # child
         open(STDERR, '>', $child_stderr_file);
         my $child_l = VRPipe::Runner->create(cmd => 'b');
-        $child_l->react_to_being_murdered;
         $child_l->start_beating;
         
         my $timeout = $sleep + $survival_time + 4;
@@ -124,7 +123,7 @@ BEGIN {
     ok my $fs = VRPipe::FarmServer->create(farm => 'foo', only_ours => 1), 'able to create a FarmServer';
     my $num_setups = $fs->claim_setups;
     is $num_setups, 2, 'claim_setups returned the correct number of setups when only_ours was used';
-    eval { $fs->commit_suicide; };
+    $fs->commit_suicide(no_die => 1);
     undef $fs;
     my $fs_count = VRPipe::FarmServer->search({});
     is $fs_count, 0, 'commit_suicide worked, removing the farmserver from the db';

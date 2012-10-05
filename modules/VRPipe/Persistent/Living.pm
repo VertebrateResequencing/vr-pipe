@@ -72,14 +72,6 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         builder => '_build_default_survival_time'
     );
     
-    has 'reaction_to_being_murdered' => (
-        is      => 'rw',
-        isa     => 'Object',
-        lazy    => 1,
-        builder => '_build_default_murder_reaction',
-        handles => { react_to_being_murdered => 'start', ignore_being_murdered => 'stop' }
-    );
-    
     method _build_default_heartbeat_interval {
         if (VRPipe::Persistent::SchemaBase->database_deployment eq 'testing') {
             return 3;
@@ -109,20 +101,16 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     }
     
     method _build_heart {
-        return EV::periodic_ns 0, $self->heartbeat_interval, 0, sub {
-            $self->beat_heart if $self->_still_exists;
-        };
-    }
-    
-    method _build_default_murder_reaction {
         my $watcher;
         $watcher = EV::periodic_ns 0, $self->heartbeat_interval, 0, sub {
-            return if $self->_still_exists;
-            $self->stop_beating;
-            $watcher->stop;
-            $self->delete if $self->_still_exists;
-            EV::unloop;
-            die "We were murdered by another process\n";
+            $self->beat_heart if $self->_still_exists;
+            if ($self->_still_exists) {
+                $self->beat_heart;
+            }
+            else {
+                EV::unloop;
+                die "We were murdered by another process\n";
+            }
         };
         return $watcher;
     }
@@ -139,8 +127,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
             $alive = $self->time_since_heartbeat <= $self->survival_time ? 1 : 0;
         }
         unless ($alive) {
-            $self->stop_beating;
-            $self->delete;
+            $self->commit_suicide(no_die => 1);
         }
         return $alive;
     }
@@ -156,10 +143,10 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         $self->disconnect;
     }
     
-    method commit_suicide {
+    method commit_suicide (Bool :$no_die = 0) {
         $self->stop_beating;
         $self->delete if $self->_still_exists;
-        die "committing suicide\n";
+        die "committing suicide\n" unless $no_die;
     }
 }
 
