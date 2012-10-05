@@ -72,6 +72,12 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         builder => '_build_default_survival_time'
     );
     
+    has 'die_when_murdered' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 1
+    );
+    
     method _build_default_heartbeat_interval {
         if (VRPipe::Persistent::SchemaBase->database_deployment eq 'testing') {
             return 3;
@@ -107,7 +113,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
             if ($self->_still_exists) {
                 $self->beat_heart;
             }
-            else {
+            elsif ($self->die_when_murdered) {
                 EV::unloop;
                 die "We were murdered by another process\n";
             }
@@ -116,15 +122,16 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     }
     
     method time_since_heartbeat {
-        my $heartbeat = $self->heartbeat || return 0;
-        my $t = time();
-        return $t - $heartbeat->epoch;
+        my $heartbeat = $self->heartbeat || return;
+        return time() - $heartbeat->epoch;
     }
     
     method alive {
         my $alive = $self->_still_exists;
         if ($alive) {
-            $alive = $self->time_since_heartbeat <= $self->survival_time ? 1 : 0;
+            my $time_since_heartbeat = $self->time_since_heartbeat;
+            return 0 unless defined $time_since_heartbeat;
+            $alive = $time_since_heartbeat <= $self->survival_time ? 1 : 0;
         }
         unless ($alive) {
             $self->commit_suicide(no_die => 1);

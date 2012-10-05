@@ -105,11 +105,11 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
-    method register_farm_server (Str $farm, Bool :$only_ours = 0) {
+    method register_farm_server (Str $farm, Bool :$only_ours = 0, Bool :$die_when_murdered = 0) {
         my $transaction = sub {
             my ($fs) = VRPipe::FarmServer->search({ farm => $farm }, { for => 'update' });
             return if ($fs && $fs->alive);
-            return VRPipe::FarmServer->create(farm => $farm, only_ours => $only_ours);
+            return VRPipe::FarmServer->create(farm => $farm, only_ours => $only_ours, die_when_murdered => $die_when_murdered);
         };
         
         return $self->do_transaction($transaction, "Could not register farm $farm");
