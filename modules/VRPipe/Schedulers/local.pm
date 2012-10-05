@@ -76,7 +76,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return $ls_script;
     }
     
-    method submit_args (VRPipe::Requirements :$requirements!, File :$stdo_file!, File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
+    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
         my $array_def = '';
         my $output_string;
         if ($array) {
