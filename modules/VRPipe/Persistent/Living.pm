@@ -159,7 +159,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     method commit_suicide {
         $self->stop_beating;
         $self->delete if $self->_still_exists;
-        exit 0;
+        die "committing suicide\n";
     }
 }
 
