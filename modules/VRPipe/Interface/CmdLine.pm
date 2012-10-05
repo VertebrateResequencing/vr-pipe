@@ -335,7 +335,7 @@ class VRPipe::Interface::CmdLine {
         else {
             if ($response->code == 500) {
                 $self->error("Can't connect to VRPiper server at $base_url, will attempt to auto-start it...");
-                my $script = $self->vrpipe_script_path('vrpipe-server', $self->opts('deployment'));
+                my $script = $self->vrpipe_script_command('vrpipe-server', $self->opts('deployment'));
                 my $cmd = $script . ' start'; # (this confuses perltidy if put directly in the system() call)
                 system($cmd);
                 
@@ -493,27 +493,49 @@ class VRPipe::Interface::CmdLine {
     # git repo root dir (eg. during testing prior to an install). In fact, for
     # testing purposes, we prefer this to some version of the files installed
     # elsewhere.
-    method vrpipe_script_path (Str $script, Str $deployment) {
-        my $path;
-        if ($deployment eq 'testing') {
-            my $local_script = File::Spec->catfile('scripts', $script);
-            if (-x $local_script && -d 'modules' && -d 't') {
-                my $thisperl = $Config{perlpath};
-                if ($^O ne 'VMS') {
-                    $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
-                }
-                $path = "$thisperl -Imodules -It $local_script";
-            }
+    method vrpipe_script_command (ClassName|Object $self: Str $script, Str $deployment) {
+        my $command = $self->vrpipe_perl_command($deployment);
+        
+        my $local_script = file('scripts', $script)->absolute;
+        if ($deployment eq 'testing' && -x $local_script) {
+            $command .= $local_script;
         }
         else {
-            $path = $script;
+            $command = $script;
         }
         
         if ($deployment eq 'testing') {
-            $path .= " --deployment testing";
+            $command .= " --deployment testing";
         }
         
-        return $path;
+        return $command;
+    }
+    
+    method vrpipe_perl_e (ClassName|Object $self: Str $code, Str $deployment) {
+        $self->throw("Supplied code must not contain any double quotes") if $code =~ /"/;
+        
+        my $command = $self->vrpipe_perl_command($deployment) . '-MVRPipe';
+        
+        if ($deployment eq 'testing') {
+            $command .= "=testing";
+        }
+        
+        $command .= qq[ -Mstrict -we "$code"];
+        
+        return $command;
+    }
+    
+    method vrpipe_perl_command (ClassName|Object $self: Str $deployment) {
+        my $command = $Config{perlpath};
+        if ($^O ne 'VMS') {
+            $command .= $Config{_exe} unless $command =~ m/$Config{_exe}$/i;
+        }
+        
+        if ($deployment eq 'testing' && -d 'modules' && -d 't') {
+            $command .= ' -I' . dir('modules')->absolute . ' -I' . dir('t')->absolute . ' ';
+        }
+        
+        return $command;
     }
 }
 
