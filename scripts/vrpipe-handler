@@ -136,6 +136,16 @@ sub handle_setups {
                     }
                     $fm->wait_all_children;
                     
+                    # when testing, we don't want to have this keep running
+                    # after all the setups have completed
+                    if ($deployment eq 'testing') {
+                        my $completed = 0;
+                        foreach my $setup (@setups) {
+                            $completed++ if $setup->currently_complete;
+                        }
+                        exit_handler("All the setups are currently complete") if $completed == @setups;
+                    }
+                    
                     # create a watcher for each setup's datasource to keep it
                     # up-to-date
                     foreach my $setup (@new_setups) {
