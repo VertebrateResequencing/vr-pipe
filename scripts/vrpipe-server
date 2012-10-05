@@ -197,7 +197,7 @@ sub start_server {
     }
     
     # setup the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $scheduler, $called_handler);
+    my ($farm_server, $farm_watcher, $handler_path, $scheduler);
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
@@ -240,7 +240,7 @@ sub start_server {
                             cmd          => "$handler_path --mode setups --farm $farm",
                             requirements => VRPipe::Requirements->create(memory => 500, time => 1),
                             backend      => $backend
-                        ) unless $called_handler;
+                        );
                         
                         # make sure we have sufficient submission handlers running
                         #...
@@ -263,10 +263,6 @@ sub start_server {
                             undef $farm_server;
                         }
                         &{$watcher_error_sub};
-                        $called_handler = 0;
-                    }
-                    else {
-                        $called_handler = 1;
                     }
                 };
             }
