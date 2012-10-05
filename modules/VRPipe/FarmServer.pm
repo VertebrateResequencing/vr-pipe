@@ -65,6 +65,10 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
     
     __PACKAGE__->make_persistent();
     
+    method BUILD {
+        $self->start_beating;
+    }
+    
     method claim_setups {
         my $own_farm_name = $self->farm;
         
