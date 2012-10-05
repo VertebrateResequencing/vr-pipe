@@ -233,17 +233,19 @@ sub start_server {
                     # claim our setups
                     my @setups = $farm_server->claim_setups;
                     
-                    my $scheduler = VRPipe::Scheduler->get();
-                    
-                    # make sure we have a setups handler running for our farm
-                    $scheduler->ensure_running(
-                        cmd          => "$handler_path --mode setups --farm $farm",
-                        requirements => VRPipe::Requirements->create(memory => 500, time => 1),
-                        backend      => $backend
-                    ) unless $called_handler;
-                    
-                    # make sure we have sufficient submission handlers running
-                    #...
+                    if (@setups) {
+                        my $scheduler = VRPipe::Scheduler->get();
+                        
+                        # make sure we have a setups handler running for our farm
+                        $scheduler->ensure_running(
+                            cmd          => "$handler_path --mode setups --farm $farm",
+                            requirements => VRPipe::Requirements->create(memory => 500, time => 1),
+                            backend      => $backend
+                        ) unless $called_handler;
+                        
+                        # make sure we have sufficient submission handlers running
+                        #...
+                    }
                     
                     return;
                 }
