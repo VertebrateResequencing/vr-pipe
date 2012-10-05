@@ -49,6 +49,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Runner extends VRPipe::Persistent::Living {
+    use AnyEvent::Util qw(fork_call);
+    
     has 'cmd' => (
         is     => 'rw',
         isa    => Text,
@@ -56,26 +58,69 @@ class VRPipe::Runner extends VRPipe::Persistent::Living {
         is_key => 1
     );
     
+    has 'aid' => (
+        is                   => 'rw',
+        isa                  => IntSQL [8],
+        traits               => ['VRPipe::Persistent::Attributes'],
+        default              => 0,
+        allow_key_to_default => 1,
+        is_key               => 1
+    );
+    
+    has 'sid' => (
+        is          => 'rw',
+        isa         => IntSQL [8],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
+    
+    has 'scheduled' => (
+        is          => 'rw',
+        isa         => Datetime,
+        coerce      => 1,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
+    
     __PACKAGE__->make_persistent();
     
     method running {
-        if ($self->alive && $self->heartbeat) {
+        if ($self->heartbeat && $self->alive) {
             return 1;
         }
         return 0;
     }
     
-    method pending {
-        if ($self->alive && !$self->heartbeat) {
-            return 1;
+    after sid (Maybe[Int] $sid?) {
+        if ($sid) {
+            $self->scheduled(DateTime->now());
         }
-        return 0;
+    }
+    
+    method time_scheduled {
+        return unless $self->sid;
+        my $scheduled = $self->scheduled || return;
+        return time() - $scheduled->epoch;
     }
     
     method run {
         # start our heartbeat so that another process can check if we're
         # running (it will also stop us running if another process murders us)
         $self->start_beating;
+        
+        # async fork our cmd
+        fork_call {
+            my $cmd = $self->cmd;
+            $self->disconnect;
+            system($cmd);
+            return;
+        }
+        sub {
+            EV::unloop;
+        };
+        
+        # start running
+        EV::run;
         
         # now that we've done our job, erase our existence
         $self->commit_suicide;
