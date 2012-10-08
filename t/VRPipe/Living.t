@@ -112,11 +112,12 @@ BEGIN {
     my ($output_dir, $pipeline, $step) = create_single_step_pipeline('bam_stats', 'bam_files');
     my $ds = VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.bam_fofn))->absolute);
     my %common_setup_args = (datasource => $ds, output_root => $output_dir, pipeline => $pipeline, options => {});
-    VRPipe::PipelineSetup->create(name => 'one',   %common_setup_args);
-    VRPipe::PipelineSetup->create(name => 'two',   %common_setup_args);
-    VRPipe::PipelineSetup->create(name => 'three', %common_setup_args, desired_farm => 'bar');
-    VRPipe::PipelineSetup->create(name => 'four',  %common_setup_args, desired_farm => 'foo');
-    VRPipe::PipelineSetup->create(name => 'five',  %common_setup_args, desired_farm => 'foo');
+    my @setups;
+    $setups[0] = VRPipe::PipelineSetup->create(name => 'one',   %common_setup_args);
+    $setups[1] = VRPipe::PipelineSetup->create(name => 'two',   %common_setup_args);
+    $setups[2] = VRPipe::PipelineSetup->create(name => 'three', %common_setup_args, desired_farm => 'bar');
+    $setups[3] = VRPipe::PipelineSetup->create(name => 'four',  %common_setup_args, desired_farm => 'foo');
+    $setups[4] = VRPipe::PipelineSetup->create(name => 'five',  %common_setup_args, desired_farm => 'foo');
     
     is_deeply [map { $_->controlling_farm } VRPipe::PipelineSetup->search({})], [undef, undef, undef, undef, undef], 'to start with, we have 5 uncontrolled setups';
     
@@ -125,12 +126,20 @@ BEGIN {
     is $num_setups, 2, 'claim_setups returned the correct number of setups when only_ours was used';
     $fs->commit_suicide(no_die => 1);
     undef $fs;
-    my $fs_count = VRPipe::FarmServer->search({});
+    my $fs_count = VRPipe::FarmServer->search({ farm => 'foo' });
     is $fs_count, 0, 'commit_suicide worked, removing the farmserver from the db';
     $fs = VRPipe::FarmServer->create(farm => 'foo');
+    # the testing server should be running, which would make claim_setups only
+    # claim 1 of the undesired setups; delete testing_farm first
+    VRPipe::FarmServer->search_rs({ farm => 'testing_farm' })->delete;
     $num_setups = $fs->claim_setups;
     is $num_setups, 4, 'claim_setups returned the correct number of setups when only_ours was not used';
     undef $fs;
+    
+    foreach my $setup (@setups) {
+        $setup->active(0);
+        $setup->update;
+    }
 }
 
 # Runner-specific tests
