@@ -205,7 +205,8 @@ role VRPipe::Base::FileMethods {
  Title   : tempdir
  Usage   : my $tempdir = $obj->tempdir(); 
  Function: Creates and returns the name of a new temporary directory. Just an
-           alias to File::Temp::newdir.
+           alias to File::Temp::newdir that defaults to storing within the
+           logging directory.
  Returns : The name of a new temporary directory.
  Args    : as per File::Temp::newdir
 
@@ -213,7 +214,28 @@ role VRPipe::Base::FileMethods {
     
     method tempdir {
         shift;
-        my $ft = File::Temp->newdir(@_);
+        my ($template, %args);
+        if (@_ >= 3) {
+            ($template, %args) = @_;
+        }
+        elsif (@_ == 2) {
+            %args = @_;
+        }
+        elsif (@_ == 1) {
+            $template = shift;
+        }
+        unless (defined $args{DIR} || $args{TMPDIR}) {
+            eval "require VRPipe::Persistent::SchemaBase;";
+            eval "require VRPipe::Config;";
+            my $vrp_config  = VRPipe::Config->new();
+            my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_logging_directory';
+            $args{DIR} = Path::Class::Dir->new($vrp_config->$method_name(), 'tmp');
+            unless (-d $args{DIR}) {
+                $self->make_path($args{DIR});
+            }
+        }
+        
+        my $ft = File::Temp->newdir($template ? ($template) : (), %args);
         $self->_remember_file_temp($ft);
         return Path::Class::Dir->new($ft->dirname);
     }

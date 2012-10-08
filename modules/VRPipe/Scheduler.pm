@@ -83,7 +83,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     }
     
     method default_output_root (ClassName|Object $self:) {
-        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_scheduler_output_root';
+        my $method_name = VRPipe::Persistent::SchemaBase->database_deployment . '_logging_directory';
         my $root        = $vrp_config->$method_name();
         return "$root";       # stringify what could be a VRPipe::Base::Configuration::Env
     }

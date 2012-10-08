@@ -173,12 +173,6 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
-    has production_scheduler_output_root => (
-        is              => 'rw',
-        question        => 'What root directory should production scheduler output go to?',
-        question_number => ++$question_number
-    );
-    
     has testing_scheduler => (
         is              => 'rw',
         question        => 'What job scheduler should be used for testing?',
@@ -187,10 +181,15 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
-    has testing_scheduler_output_root => (
+    has production_logging_directory => (
         is              => 'rw',
-        question        => 'What root directory should test scheduler output go to?',
-        default         => sub { File::Spec->tmpdir() },
+        question        => 'What directory should production logs, job STDOUT/ERR and temp files be stored in? (must be visible to all nodes)',
+        question_number => ++$question_number
+    );
+    
+    has testing_logging_directory => (
+        is              => 'rw',
+        question        => 'What directory should testing logs, job STDOUT/ERR and temp files be stored in? (must be visible to all nodes)',
         question_number => ++$question_number
     );
     

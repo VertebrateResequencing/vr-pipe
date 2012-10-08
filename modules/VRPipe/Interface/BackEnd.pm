@@ -503,7 +503,7 @@ XSL
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);
         $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
         
-        $method_name = $deployment . '_scheduler_output_root';
+        $method_name = $deployment . '_logging_directory';
         my $log_dir      = $vrp_config->$method_name();
         my $log_basename = $self->dsn;
         $log_basename =~ s/\W/_/g;

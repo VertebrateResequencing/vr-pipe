@@ -2,14 +2,21 @@
 use strict;
 use warnings;
 use Path::Class;
+use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 44;
+    use Test::Most tests => 46;
     use VRPipeTest;
 }
 
-my $vrobj   = VRPipe::Manager->get;
-my $tmp_dir = $vrobj->tempdir;
+my $vrobj      = VRPipe::Manager->get;
+my $tmp_dir    = $vrobj->tempdir;
+my $vrp_config = VRPipe::Config->new();
+my $log_dir    = $vrp_config->testing_logging_directory();
+like $tmp_dir, qr/^$log_dir/, 'tempdir defaults to be inside logging dir';
+my $fstd = File::Spec->tmpdir;
+my $true_tmp_dir = $vrobj->tempdir(DIR => $fstd);
+like $true_tmp_dir, qr/^$fstd/, 'tempdir root can be overridden';
 
 my $input_path = file($tmp_dir, 'input.txt');
 open(my $fh, '>', $input_path) or die "Could not write to $input_path\n";
