@@ -38,26 +38,16 @@ class VRPipe::Pipelines::bam_import_from_irods with VRPipe::PipelineRole {
         return 'bam_import_from_irods';
     }
     
-    method _num_steps {
-        return 1;
-    }
-    
     method description {
         return 'Copy bam files stored in iRODs to local disc.';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        ('irods_get_files_by_basename');
     }
     
-    method _step_list {
-        return (
-            [VRPipe::Step->get(name => 'irods_get_files_by_basename')],
-            
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'basenames')],
-            
-            []
-        );
+    method adaptor_definitions {
+        ({ from_step => 0, to_step => 1, to_key => 'basenames' });
     }
 }
 
