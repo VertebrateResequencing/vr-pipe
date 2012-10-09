@@ -380,6 +380,11 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             my $prefix   = $basename;
             $prefix =~ s/\.f[^.]+(?:\.gz)?$//;
             
+            # we must not $fq->resolve->stringify because this actually
+            # changes $fq, so subsequent things look at $fastqs may encounter
+            # files not in the VRPipe db (and so with no metadata)
+            my $source_fastq = file($fq)->resolve->stringify;
+            
             if ($splits == 1) {
                 my $suffix = $fq =~ /\.gz$/ ? 'fastq.gz' : 'fastq';
                 push(
@@ -387,7 +392,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                     VRPipe::File->create(
                         path => file($split_dir, "$prefix.1.$suffix"),
                         type => 'fq',
-                        metadata => { source_fastq => $fq->resolve->stringify }
+                        metadata => { source_fastq => $source_fastq }
                     )
                 );
             }
@@ -398,7 +403,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                         VRPipe::File->create(
                             path => file($split_dir, "$prefix.$split_num.fastq.gz"),
                             type => 'fq',
-                            metadata => { source_fastq => $fq->resolve->stringify }
+                            metadata => { source_fastq => $source_fastq }
                         )
                     );
                 }
