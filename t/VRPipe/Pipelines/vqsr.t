@@ -73,8 +73,11 @@ my @output_subdirs = output_subdirs(1, 1);
 foreach my $file (qw(recal recal.tranches recal.tranches.pdf recal.r recal.r.pdf)) {
     push(@output_files, file(@output_subdirs, '2_gatk_variant_recalibration_for_snps', 'SNP.' . $file));
 }
+my $idx = 0;
 foreach my $chr (qw(11 20)) {
-    push(@output_files, file(@output_subdirs, '3_gatk_apply_recalibration_for_snps', "vqsr.chr${chr}_reduced.recal.vcf.gz"));
+    push(@output_files, file(@output_subdirs, '3_gatk_apply_recalibration_for_snps', "${chr}.recal_$idx.vcf.gz"));
+    push(@output_files, file(@output_subdirs, '3_gatk_apply_recalibration_for_snps', "${chr}.recal_$idx.vcf.gz.tbi"));
+    $idx++;
 }
 ok handle_pipeline(@output_files), 'vqsr_for_snps pipeline ran okay and created all expected output files';
 

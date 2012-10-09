@@ -81,7 +81,7 @@ class VRPipe::Steps::gatk_variant_recalibration extends VRPipe::Steps::gatk {
                 )
             );
             
-            my $req = $self->new_requirements(memory => 1200, time => 1);
+            my $req = $self->new_requirements(memory => 4000, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
             
             my @vcfs = map { '-input ' . $_->path } @{ $self->inputs->{vcf_files} };

@@ -43,7 +43,8 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
                 description   => 'path to your vcf2consequences executable',
                 optional      => 1,
                 default_value => 'vcf2consequences_vep'
-            )
+            ),
+            post_consequences_vcftools => VRPipe::StepOption->create(description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations', optional => 1),
         };
     }
     
@@ -67,9 +68,10 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
         return sub {
             my $self = shift;
             
-            my $options  = $self->options;
-            my $con_exe  = $options->{'vcf2consequences_exe'};
-            my $con_opts = $options->{'vcf2consequences_options'};
+            my $options     = $self->options;
+            my $con_exe     = $options->{'vcf2consequences_exe'};
+            my $con_opts    = $options->{'vcf2consequences_options'};
+            my $post_filter = $options->{post_consequences_vcftools};
             
             if ($con_opts =~ /-[v,i]/) {
                 $self->throw("vcf2consequences_options should not include the -i or -v option");
@@ -86,6 +88,8 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
                 $vep_files{$source_vcf} = $path;
             }
             
+            my $filter = $post_filter ? " | $post_filter" : '';
+            
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 my $input_path = $vcf_file->path;
                 my $vep_txt_path = $vep_files{$input_path} || $self->throw("got no recal file for $input_path");
@@ -96,7 +100,7 @@ class VRPipe::Steps::vcf_vep_consequences with VRPipe::StepRole {
                 
                 my $output_path = $conseq_vcf->path;
                 
-                my $this_cmd = "$con_exe -v $input_path -i $vep_txt_path $con_opts | bgzip -c > $output_path";
+                my $this_cmd = "$con_exe -v $input_path -i $vep_txt_path $con_opts$filter | bgzip -c > $output_path";
                 
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_vep_consequences', 'consequence_vcf', [$this_cmd, $req, { output_files => [$conseq_vcf] }]);
             }
