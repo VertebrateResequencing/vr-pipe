@@ -38,13 +38,12 @@ use VRPipe::Interface::BackEnd;
 my $cmdline = VRPipe::Interface::CmdLine->new(
     description => "Handle the running of setups or submissions while executing on a farm node.",
     opt_spec    => [
-        ['One of two modes must be specified, and all the options for that mode must also be specified.'],
+        ['One of two modes must be specified, as must --farm.'],
         ['mode|m=s', 'setups|submissions - handle setups or submissions'],
+        ['farm=s',   'Handle setups being controlled by this farm'],
         [],
-        ['In --mode setups, supply the following options:'],
-        ['farm=s', 'Handle setups being controlled by this farm'],
-        [],
-        ['In --mode submissions, supply the following options:'],
+        ['In --mode submissions, you must also supply:'],
+        ['requirements|r=s', 'a requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }],
     ]
 );
 
@@ -57,13 +56,19 @@ my $schema     = $backend->schema;
 
 # act on the given mode
 my $mode = $cmdline->opts('mode') || $cmdline->die_with_error("--mode must be supplied");
+my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
+my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
+unless ($fs) {
+    $cmdline->die_with_error("There is no farm server running for farm '$farm'");
+}
+
 if ($mode eq 'setups') {
-    my $farm = $cmdline->opts('farm');
-    $farm || $cmdline->die_with_error("--farm is required in setups $mode");
-    handle_setups($farm);
+    handle_setups();
 }
 elsif ($mode eq 'submissions') {
-    $cmdline->die_with_error("$mode is not yet implemented");
+    my $req = $cmdline->opts('requirements');
+    $req || $cmdline->die_with_error("--requirements is required in submissions mode");
+    handle_submissions($req);
 }
 else {
     $cmdline->die_with_error("$mode is an invalid mode");
@@ -72,7 +77,6 @@ else {
 exit 0;
 
 sub handle_setups {
-    my $farm = shift;
     $backend->log_stderr;
     
     $AnyEvent::Util::MAX_FORKS = $max_forks;
@@ -87,7 +91,7 @@ sub handle_setups {
     my $setup_state_timer_interval = $deployment eq 'production' ? 900 : 15;
     my $setups_watcher = EV::periodic 0, $setups_timer_interval, 0, sub {
         fork_call {
-            VRPipe::FarmServer->search({ farm => $farm }) || die "no farmserver";
+            $fs->alive || die "no farmserver";
             my @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
             return map { $schema->freeze($_) } @setups;
         }
@@ -236,6 +240,13 @@ sub handle_setups {
     
     $backend->log("The setups handler for farm $farm is now exiting!");
     exit 0;
+}
+
+sub handle_submissions {
+    my $req = shift;
+    $backend->log_stderr;
+    
+    die "handle_submissions not yet implemented\n";
 }
 
 sub exit_handler {

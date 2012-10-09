@@ -126,7 +126,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             
             # well, are we pending in the scheduler at least?
             my $scheduled = VRPipe::Runner->search({ cmd => $cmd, sid => { '!=' => undef }, scheduled => { '!=' => undef } });
-            if ($scheduled == $count) {
+            if ($scheduled) {
                 my $not_started = VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef });
                 
                 # if we've been pending for less than 5mins, just assume that
@@ -137,65 +137,49 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 
                 # we think we've been pending in the scheduler for over 5mins
                 # now, but are we really?
-            
-            }
-        }
-        
-        my ($runner) = VRPipe::Runner->search({ cmd => $cmd, aid => 0 });
-        if ($runner) {
-            return if $runner->running;
-            
-            # well, are we pending in the scheduler at least?
-            my $sid = $runner->sid;
-            if ($sid) {
-                my $time_scheduled = $runner->time_scheduled;
-                if ($time_scheduled > 300) {
-                    # we think we've been pending in the scheduler for 5mins
-                    # now, but are we really?
-                    my $status = $self->sid_status($sid, 0);
-                    if ($status =~ /PEND|RUN/) {
-                        if ($status eq 'RUN') {
-                            # if the scheduler thinks we're running, give it 10s
-                            # and recheck if we're running
-                            my $t = time();
-                            while (1) {
-                                last   if time() - $t > 10;
-                                return if $runner->running;
-                                sleep(1);
+                my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, heartbeat => undef, scheduled => { '<=' => DateTime->from_epoch(epoch => time() - 300) } });
+                while (my $runners = $long_pend_pager - next) {
+                    foreach my $runner (@$runners) {
+                        my $sid = $runner->sid;
+                        my $aid = $runner->aid;
+                        
+                        my $status = $self->sid_status($sid, $aid);
+                        if ($status =~ /PEND|RUN/) {
+                            if ($status eq 'RUN') {
+                                # if the scheduler thinks we're running, give it
+                                # 10s and recheck if we're running
+                                my $t = time();
+                                while (1) {
+                                    last   if time() - $t > 10;
+                                    return if $runner->running;
+                                    sleep(1);
+                                }
+                                
+                                # hmmm, there's something strange going on, just
+                                # kill it
+                                $backend->log("The scheduler told us that $sid\[$aid\] was running, but the corresponding Runner had no heartbeat!");
+                                $self->kill_sid($sid, $aid, 5);
+                                $runner->delete;
                             }
-                            
-                            # hmmm, there's something strange going on, just
-                            # kill it
-                            $backend->log("The scheduler told us that $sid was running, but the corresponding Runner had no heartbeat!");
+                            else {
+                                # ok, we're pending, but emit a warning if we've
+                                # been pending for over 6hrs in case there's
+                                # some kind of problem with the scheduler/ farm
+                                #*** email admin only once about this
+                                if ($runner->time_scheduled > 21600) {
+                                    $backend->log("Runner for cmd [$cmd] has been pending in the scheduler (as $sid) for over 6hrs - is everything OK?");
+                                }
+                                return;
+                            }
+                        }
+                        else {
+                            # either we never actually got scheduled, or there's
+                            # some problem with the scheduled job, so kill it
                             $self->kill_sid($sid, 0, 5);
                             $runner->delete;
                         }
-                        else {
-                            # ok, we're pending, but emit a warning if we've
-                            # been pending for over 6hrs in case there's some
-                            # kind of problem with the scheduler/ farm
-                            #*** email admin only once about this
-                            if ($time_scheduled > 21600) {
-                                $backend->log("Runner for cmd [$cmd] has been pending in the scheduler (as $sid) for over 6hrs - is everything OK?");
-                            }
-                            return;
-                        }
-                    }
-                    else {
-                        # either we never actually got scheduled, or there's
-                        # some problem with the scheduled job, so kill it
-                        $self->kill_sid($sid, 0, 5);
-                        $runner->delete;
                     }
                 }
-                else {
-                    # we're probably pending in the scheduler, let's just wait
-                    # 5mins and see if we start running
-                    return;
-                }
-            }
-            else {
-                $runner->delete;
             }
         }
         

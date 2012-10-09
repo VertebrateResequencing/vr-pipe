@@ -269,7 +269,7 @@ sub start_server {
                         foreach my $cols (@$req_counts) {
                             my ($req_id, $count) = @$cols;
                             $scheduler->ensure_running(
-                                cmd          => "$handler_path --mode submissions --farm $farm --requirements => $req_id",
+                                cmd          => "$handler_path --mode submissions --farm $farm -r $req_id",
                                 count        => $count,
                                 requirements => VRPipe::Requirements->get(id => $req_id),
                                 backend      => $backend
