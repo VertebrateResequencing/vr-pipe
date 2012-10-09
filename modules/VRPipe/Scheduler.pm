@@ -112,8 +112,35 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         system("$cmd > /dev/null 2> /dev/null");
     }
     
-    method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, VRPipe::Interface::BackEnd :$backend!) {
-        # see if we've already running this $cmd
+    method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, VRPipe::Interface::BackEnd :$backend!, PositiveInt $count?) {
+        $count ||= 1;
+        
+        # see if we're already running this $cmd $count times
+        my ($runner) = VRPipe::Runner->search({ cmd => $cmd });
+        my $running = 0;
+        if ($runner) {
+            my $survival_time = $runner->survival_time;
+            $running = VRPipe::Runner->search({ cmd => $cmd, heartbeat => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } });
+            warn "got running $running vs count $count\n";
+            return if $running == $count;
+            
+            # well, are we pending in the scheduler at least?
+            my $scheduled = VRPipe::Runner->search({ cmd => $cmd, sid => { '!=' => undef }, scheduled => { '!=' => undef } });
+            if ($scheduled == $count) {
+                my $not_started = VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef });
+                
+                # if we've been pending for less than 5mins, just assume that
+                # everything is OK and that we are 'running'
+                my $short_pends = VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef, scheduled => { '>' => DateTime->from_epoch(epoch => time() - 300) } });
+                warn "short pends is $short_pends vs not started $not_started\n";
+                return if $short_pends == $not_started;
+                
+                # we think we've been pending in the scheduler for over 5mins
+                # now, but are we really?
+            
+            }
+        }
+        
         my ($runner) = VRPipe::Runner->search({ cmd => $cmd, aid => 0 });
         if ($runner) {
             return if $runner->running;

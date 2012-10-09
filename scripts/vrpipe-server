@@ -33,6 +33,7 @@ use VRPipe::Interface::CmdLine;
 use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
 use Sys::CPU;
+use POSIX qw(floor);
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -235,15 +236,45 @@ sub start_server {
                     my @setups = $farm_server->claim_setups;
                     
                     if (@setups) {
-                        # make sure we have a setups handler running for our farm
+                        # make sure we have a setups handler running for our
+                        # farm
                         $scheduler->ensure_running(
                             cmd          => "$handler_path --mode setups --farm $farm",
                             requirements => VRPipe::Requirements->create(memory => 500, time => 1),
                             backend      => $backend
                         );
                         
-                        # make sure we have sufficient submission handlers running
-                        #...
+                        # make sure we have sufficient submission handlers
+                        # running...
+                        
+                        # get the count of requirements
+                        my $req_counts = [VRPipe::Submission->search_rs({ '_done' => 0, retries => { '<=' => 3 }, scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
+                        
+                        if ($max_subs) {
+                            my $total_count = 0;
+                            foreach my $cols (@$req_counts) {
+                                $total_count += $cols->[1];
+                            }
+                            
+                            if ($total_count > $max_subs) {
+                                my $reducer = $max_subs / $total_count;
+                                foreach my $cols (@$req_counts) {
+                                    my (undef, $count) = @$cols;
+                                    $total_count += $count;
+                                    $cols->[1] = floor($cols->[1] * $reducer);
+                                }
+                            }
+                        }
+                        
+                        foreach my $cols (@$req_counts) {
+                            my ($req_id, $count) = @$cols;
+                            $scheduler->ensure_running(
+                                cmd          => "$handler_path --mode submissions --farm $farm --requirements => $req_id",
+                                count        => $count,
+                                requirements => VRPipe::Requirements->get(id => $req_id),
+                                backend      => $backend
+                            );
+                        }
                     }
                     
                     return;
@@ -259,7 +290,7 @@ sub start_server {
                         # getting dropped and recreated while the server is
                         # running
                         if ($err =~ /no longer in db/) {
-                            $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table (perhaps we were suspended for a long time?)", email_admin => 1);
+                            $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
                             undef $farm_server;
                         }
                         &{$watcher_error_sub};
