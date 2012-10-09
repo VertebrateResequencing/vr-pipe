@@ -1,0 +1,242 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use VRPipe::FrontEnd;
+use Path::Class;
+use File::Spec;
+use File::Find;
+use File::Copy;
+
+my $frontend = VRPipe::FrontEnd->new(
+    description => "Move files on disk, like unix 'mv', also updating the VRPipe database. Also let's you move output files of a particular pipeline to a new root directory.",
+    opt_spec    => [
+        [],
+        [q[To move specified files, use standard unix 'mv' arguments.]],
+        [],
+        [q[To move all the files output by a pipelinesetup supply both:]],
+        ['setup=s',    'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
+        ['new_root=s', q[The new PipelineSetup output root]],
+        [],
+        [q[Currently supported unix 'mv' options:]],
+        ['none yet...'],
+        [],
+        [q[Other options:]],
+        ['pretend|p', q[Only print out what files would be moved; don't actually move anything]],
+        ['verbose|v', q[Print out the files that are being moved (automatically on if using --pretend)]]
+    ]
+);
+
+my $pretend  = $frontend->opts('pretend');
+my $verbose  = $frontend->opts('verbose');
+my $force    = $frontend->opts('force');
+my $setup    = $frontend->get_pipelinesetups();
+my $new_root = $frontend->opts('new_root');
+my @paths    = @ARGV;
+
+if ((defined $setup ? 1 : 0) + (defined $new_root ? 1 : 0) == 1) {
+    $frontend->die_with_error(q[Both --setup and --new_root are required if either are used.]);
+}
+if ($pretend) {
+    $verbose = 1;
+}
+if (!$setup && !@paths) {
+    $frontend->die_with_error(qq[mv: missing file operand\nTry `vrpipe-rm --help' for more information.]);
+}
+
+if ($setup) {
+    my @step_members = $setup->pipeline->step_members;
+    my $old_root     = $setup->output_root;
+    $setup->make_path(dir($new_root)->absolute);
+    
+    # we need to deactivate and destroy any current submissions before the move
+    my $deactivated = 0;
+    unless ($pretend) {
+        if ($setup->active) {
+            $frontend->output("Temporarily deactivating the setup prior to moving files.") if $verbose;
+            $setup->active(0);
+            $setup->update;
+            $deactivated = 1;
+        }
+        
+        my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
+        my $outstanding = $pager->total_entries;
+        if ($outstanding) {
+            my $answer = $frontend->ask_question(question => "The setup has $outstanding submissions outstanding which will need to be killed and fully reset before the move can proceed - are you sure you want to do this?", possibles => [qw(y n)], required => 1);
+            if ($answer eq 'n') {
+                $frontend->output("You didn't confirm, so exiting");
+                if ($deactivated) {
+                    $frontend->output("Reactivating the setup.") if $verbose;
+                    $setup->active(1);
+                    $setup->update;
+                }
+                exit;
+            }
+            else {
+                my %sss;
+                $frontend->output("Deleting submissions...") if $verbose;
+                while (my $subs = $pager->next) {
+                    foreach my $sub (@$subs) {
+                        my $ss = $sub->stepstate;
+                        $sss{ $ss->id } = $ss;
+                    }
+                }
+                
+                foreach my $ss (values %sss) {
+                    $ss->start_over;
+                }
+                $frontend->output("Outstanding submissions deleted.") if $verbose;
+            }
+        }
+    }
+    
+    # loop through all elements
+    my $moved         = 0;
+    my $num_elements  = 0;
+    my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+    my %done_files;
+    while (my $estates = $estates_pager->next) {
+        foreach my $element_state (@$estates) {
+            # move outputs
+            my $element = $element_state->dataelement;
+            $num_elements++;
+            foreach my $stepm (@step_members) {
+                my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
+                $step_state || next;
+                
+                my $step_outs = $step_state->output_files(undef, only_unique_to_us => 1);
+                my $smid = $stepm->id;
+                
+                while (my ($kind, $files) = each %$step_outs) {
+                    my @files = grep { $_->e } @$files;
+                    next unless @files;
+                    
+                    foreach my $file (@files) {
+                        next if exists $done_files{ $file->id };
+                        $done_files{ $file->id } = 1;
+                        
+                        my $source   = $file->path;
+                        my $rel_path = File::Spec->abs2rel($source, $old_root);
+                        my $dest     = File::Spec->rel2abs($rel_path, $new_root);
+                        
+                        if ($verbose) {
+                            $frontend->output("$source => $dest");
+                        }
+                        
+                        unless ($pretend) {
+                            my $dest_dir = file($dest)->dir;
+                            unless (-d $dest_dir) {
+                                $file->make_path($dest_dir);
+                            }
+                            $file->move(VRPipe::File->create(path => $dest));
+                        }
+                        $moved++;
+                    }
+                }
+            }
+        }
+    }
+    
+    unless ($pretend) {
+        $setup->output_root($new_root);
+        $setup->update;
+        
+        if ($deactivated) {
+            $frontend->output("Reactivating the setup.") if $verbose;
+            $setup->active(1);
+            $setup->update;
+        }
+    }
+    
+    $frontend->output("$moved files ", ($pretend ? "would have been" : "were"), " moved for $num_elements elements") if $verbose;
+}
+
+my %protected_dirs;
+my %dirs_with_files;
+if (@paths) {
+    my $dest = pop(@paths);
+    chomp($dest);
+    if (@paths == 1 && !-d $dest) {
+        my $dest_dir = file($dest)->dir;
+        unless (-d $dest_dir) {
+            $frontend->die_with_error("mv: cannot move `$paths[0]' to `$dest': No such file or directory");
+        }
+    }
+    elsif (@paths > 1 && !-d $dest) {
+        $frontend->die_with_error("mv: target `$dest' is not a directory");
+    }
+    
+    foreach my $path (@paths) {
+        if (-e $path || -l $path) {
+            if (-d $path) {
+                $frontend->error("moving directories is not yet implemented, skipping `$path'");
+                #finddepth({ wanted => \&mv_path, no_chdir => 1 }, $path, $dest);
+            }
+            else {
+                mv_path($path, $dest);
+            }
+        }
+        else {
+            $frontend->error("mv: cannot stat `$path': No such file or directory");
+        }
+    }
+}
+
+sub mv_path {
+    my ($path, $dest) = @_;
+    
+    my ($vrfile) = VRPipe::File->search({ path => file($path)->absolute });
+    if ($pretend) {
+        $frontend->output("$path => $dest");
+    }
+    else {
+        my $worked = 0;
+        
+        if ($vrfile) {
+            my $vrdest;
+            if (-d $dest) {
+                $vrdest = VRPipe::File->create(path => file($dest, $vrfile->basename));
+            }
+            else {
+                $vrdest = VRPipe::File->create(path => file($dest));
+            }
+            $worked = $vrfile->move($vrdest);
+        }
+        else {
+            $worked = File::Copy::move($path, $dest);
+        }
+        
+        unless ($worked) {
+            $frontend->error("mv: cannot move `$path' to `$dest'");
+        }
+        elsif ($verbose) {
+            $frontend->output("$path => $dest");
+        }
+    }
+}
+
+exit;

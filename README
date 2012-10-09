@@ -105,6 +105,8 @@ VRPIPE_TEST_PIPELINES, when true, will fully test all the pipelines and steps
                $ ./Build test --test_files t/VRPipe/Pipelines/[name].t --verbose
 GATK, pointing to a directory containing GATK jar files, will enable tests that
       require GATK
+GATK2, pointing to a directory containing GATK version 2+ jar files, will enable
+      tests that require GATK version 2 or higher
 PICARD, pointing to a directory containing Picard jar files, will enable tests
       that require Picard
 CRAMTOOLS, pointing to a directory containing Cramtools jar files, will enable
@@ -175,6 +177,7 @@ when running vrpipe-setup, but are not required to use the software (ie. you can
 just manually enter the required path each time you setup the pipeline):
 
 GATK,GATK,/path/to/GATK_jar_files
+GATK2,GATK2,/path/to/GATK2_jar_files
 picard,PICARD,/path/to/picard_jar_files
 R,R_LIB,/path/to/R_library_files
 bismark,BISMARK_GENOME_FOLDER,/path/to/bismark_genome_files
