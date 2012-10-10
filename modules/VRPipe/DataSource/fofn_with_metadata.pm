@@ -88,6 +88,7 @@ class VRPipe::DataSource::fofn_with_metadata extends VRPipe::DataSource::delimit
         foreach my $result ($self->_all_results(handle => $handle)) {
             push @paths, @{ $result->{paths} };
         }
+        return unless @paths;
         $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
     }
     

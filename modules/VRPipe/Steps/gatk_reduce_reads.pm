@@ -39,7 +39,7 @@ use VRPipe::Base;
 #   -I myData.bam \
 #   -o myData.reduced.bam
 
-class VRPipe::Steps::gatk_reduce_reads extends VRPipe::Steps::gatk {
+class VRPipe::Steps::gatk_reduce_reads extends VRPipe::Steps::gatk_v2 {
     around options_definition {
         return { %{ $self->$orig }, reduce_reads_options => VRPipe::StepOption->create(description => 'command line options for GATK ReduceReads', optional => 1, default_value => '-l INFO --disable_bam_indexing'), };
     }

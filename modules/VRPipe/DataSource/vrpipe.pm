@@ -203,6 +203,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             push @paths,   @{ $result->{paths} };
             push @parents, $result->{parent};
         }
+        return unless @paths;
         $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
         
         # create corresponding dataelementlinks

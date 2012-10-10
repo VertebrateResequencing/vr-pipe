@@ -185,14 +185,9 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
         }
         
         # loop through completed elements
-        my $pipeline_length = @step_members;
         my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => $include_withdrawn);
         while (my $estates = $estates_pager->next) {
             foreach my $element_state (@$estates) {
-                unless ($element_state->completed_steps == $pipeline_length) {
-                    next;
-                }
-                
                 # get output files
                 my $element = $element_state->dataelement;
                 foreach my $stepm (@allowed_step_members) {

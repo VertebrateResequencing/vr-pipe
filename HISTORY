@@ -1,3 +1,12 @@
+0.108   Critical fixes for convex_plots and fastq_split steps
+0.107   New vrpipe-mv tool, useful for moving the output root directory of a
+        setup to a new location. vrpipe-fileinfo now reports on files produced
+        by dataelements that have not yet finished the pipeline.
+        GATK2-specific steps now default to finding the GATK2 jar file in a
+        GATK2 environment variable.
+        New convex plot generation pipeline.
+        Fixes for the grouping methods of some datasources, so that they do not
+        create empty, useless dataelements.
 0.106   Improved handling of paths entered on the command-line: leading and
         trailing whitespace is now stripped. New pipelines and steps for
         carrying out tasks with GATK v2. bwa_index step updated with support for

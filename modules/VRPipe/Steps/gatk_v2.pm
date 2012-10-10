@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::gatk_variant_recalibration_for_indels - a step
+VRPipe::Steps::gatk_v2 - a step
 
 =head1 DESCRIPTION
 
@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2011-2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,23 +33,16 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::gatk_variant_recalibration_for_indels extends VRPipe::Steps::gatk_variant_recalibration {
+class VRPipe::Steps::gatk_v2 extends VRPipe::Steps::gatk {
     around options_definition {
-        my $opts_def = $self->$orig;
-        delete $opts_def->{variant_recalibration_options};
-        delete $opts_def->{variant_recalibration_mode};
-        return { %{$opts_def}, indel_recalibration_options => VRPipe::StepOption->create(description => 'Command line options for GATK VariantRecalibrator when in INDEL mode') };
-    }
-    
-    around options {
-        my $options = $self->$orig();
-        $options->{variant_recalibration_options} = $options->{indel_recalibration_options};
-        $options->{variant_recalibration_mode}    = 'INDEL';
-        return $options;
+        return {
+            %{ $self->$orig },
+            gatk_path => VRPipe::StepOption->create(description => 'Path to directory containing GATK jar files for GATK version 2.0 and later', $ENV{GATK2} ? (default_value => $ENV{GATK2}) : $ENV{GATK} ? (default_value => $ENV{GATK}) : ()),
+        };
     }
     
     method description {
-        return "Recalibrates indel calls using Variant Quality Score Recalibration (VQSR)";
+        return "Generic step for using the GenomeAnalysisToolkit (GATK) version 2.0 and later";
     }
 }
 
