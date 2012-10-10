@@ -95,7 +95,7 @@ class VRPipe::Steps::convex_plots with VRPipe::StepRole {
 
     method run_plots (ClassName|Object $self: Str $r_libs, Str $cnv_fofn_path, Str $out_dir) {
 
-        use Statistics::R;
+        eval "use Statistics::R;";
         
         my $R = Statistics::R->new();
         $R->run(".libPaths('$r_libs')");
