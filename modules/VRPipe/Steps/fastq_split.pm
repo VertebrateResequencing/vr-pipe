@@ -170,7 +170,8 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             
             my $fq_file = VRPipe::File->get(path => $fq_path);
             $fq_file->update_stats_from_disc(); # necessary in case files are deleted and then we redo this step
-            $parent_metadata{$fq_path} = $fq_file->metadata;
+            my $source_path = file($fq_path)->resolve->stringify;
+            $parent_metadata{$source_path} = $fq_file->metadata;
             my $ifh = $fq_file->openr;
             push(@ins, [$ifh, $fq_file]);
             
@@ -344,6 +345,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             my $split_file  = VRPipe::File->get(path => $path);
             my $split_meta  = $split_file->metadata;
             my $parent_meta = $parent_metadata{ $split_meta->{source_fastq} };
+            $self->throw("no parent metadata for parent $split_meta->{source_fastq}") unless ($parent_meta && defined $parent_meta->{paired});
             
             while (my ($key, $val) = each %$parent_meta) {
                 $split_meta->{$key} = $val;
