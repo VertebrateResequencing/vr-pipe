@@ -64,19 +64,12 @@ class VRPipe::Steps::convex_plots with VRPipe::StepRole {
             }
             $cnv_fofn->close;
             
-            eval "use Statistics::R;";
-            my $R = Statistics::R->new();
-            $R->run(".libPaths('$r_libs')");
-            $R->run("require(CoNVex)");
-            
             my $cnv_fofn_path = $cnv_fofn->path;
-            $R->run("fofn='$cnv_fofn_path'");
-            $R->run("CNVfiles = as.character(read.table(fofn)[,1])");
-            $R->run("CNVcalls = GetCNVCalls(CNVfiles)");
-            
             my $out_dir = $cnv_fofn->dir;
-            $R->run("setwd('$out_dir')");
-            $R->run("PlotCNVStats(CNVcallsAll=CNVcalls)");
+
+            my $req = $self->new_requirements(memory => 1200, time => 1);
+            my $cmd = "use VRPipe::Steps::convex_plots; VRPipe::Steps::convex_plots->run_plots('$r_libs','$cnv_fofn_path','$out_dir');";
+            $self->dispatch_vrpipecode($cmd, $req);
         };
     }
     
@@ -99,6 +92,25 @@ class VRPipe::Steps::convex_plots with VRPipe::StepRole {
     method max_simultaneous {
         return 1;            # should only run once
     }
+
+    method run_plots (ClassName|Object $self: Str $r_libs, Str $cnv_fofn_path, Str $out_dir) {
+
+        eval "use Statistics::R;";
+        
+        my $R = Statistics::R->new();
+        $R->run(".libPaths('$r_libs')");
+        $R->run("require(CoNVex)");
+
+        $R->run("fofn='$cnv_fofn_path'");
+        $R->run("CNVfiles = as.character(read.table(fofn)[,1])");
+        $R->run("CNVcalls = GetCNVCalls(CNVfiles)");
+
+        $R->run("setwd('$out_dir')");
+        $R->run("PlotCNVStats(CNVcallsAll=CNVcalls)");
+
+        return 1;
+    }
+
 }
 
 1;
