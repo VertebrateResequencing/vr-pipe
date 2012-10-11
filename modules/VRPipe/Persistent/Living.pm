@@ -108,7 +108,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     
     method _build_heart {
         my $watcher;
-        $watcher = EV::periodic_ns 0, $self->heartbeat_interval, 0, sub {
+        $watcher = EV::timer_ns 0, $self->heartbeat_interval, sub {
             $self->beat_heart if $self->_still_exists;
             if ($self->_still_exists) {
                 $self->beat_heart;

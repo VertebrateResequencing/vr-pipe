@@ -43,7 +43,7 @@ my $cmdline = VRPipe::Interface::CmdLine->new(
         ['farm=s',   'Handle setups being controlled by this farm'],
         [],
         ['In --mode submissions, you must also supply:'],
-        ['requirements|r=s', 'a requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }],
+        ['requirements|r=s', 'a Requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }], ['scheduler|s=s', 'a Scheduler id', { persistent_object => 'Scheduler' }],
     ]
 );
 
@@ -53,6 +53,7 @@ my $max_forks = Sys::CPU::cpu_count();
 my $deployment = $cmdline->opts('deployment');
 my $backend    = VRPipe::Interface::BackEnd->new(deployment => $deployment);
 my $schema     = $backend->schema;
+$AnyEvent::Util::MAX_FORKS = $max_forks;
 
 # act on the given mode
 my $mode = $cmdline->opts('mode') || $cmdline->die_with_error("--mode must be supplied");
@@ -66,9 +67,11 @@ if ($mode eq 'setups') {
     handle_setups();
 }
 elsif ($mode eq 'submissions') {
-    my $req = $cmdline->opts('requirements');
-    $req || $cmdline->die_with_error("--requirements is required in submissions mode");
-    handle_submissions($req);
+    my $req       = $cmdline->opts('requirements');
+    my $scheduler = $cmdline->opts('requirements');
+    $req       || $cmdline->die_with_error("--requirements is required in submissions mode");
+    $scheduler || $cmdline->die_with_error("--scheduler is required in submissions mode");
+    handle_submissions($req, $scheduler);
 }
 else {
     $cmdline->die_with_error("$mode is an invalid mode");
@@ -79,8 +82,6 @@ exit 0;
 sub handle_setups {
     $backend->log_stderr;
     
-    $AnyEvent::Util::MAX_FORKS = $max_forks;
-    
     # every 30s we'll check for new setups we're supposed to handle, and also
     # confirm there is still a farmserver up for our farm (and exit if not)
     my %setups;
@@ -89,142 +90,138 @@ sub handle_setups {
     my $setups_timer_interval      = $deployment eq 'production' ? 30  : 5;
     my $datasource_timer_interval  = $deployment eq 'production' ? 300 : 10;
     my $setup_state_timer_interval = $deployment eq 'production' ? 900 : 15;
-    my $setups_watcher = EV::periodic 0, $setups_timer_interval, 0, sub {
-        fork_call {
+    my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
+        my @setups = ();
+        eval {
             $fs->alive || die "no farmserver";
-            my @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
-            return map { $schema->freeze($_) } @setups;
+            @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
+        };
+        if ($@) {
+            if ($@ =~ /no farmserver/) {
+                exit_handler("There is no longer a server for farm $farm");
+            }
+            else {
+                exit_handler("There was a problem accessing the database: $@");
+            }
         }
-        sub {
-            my @setups = map { $schema->thaw($_) } @_;
-            my $err = $@;
-            if ($err) {
-                if ($err =~ /no farmserver/) {
-                    exit_handler("There is no longer a server for farm $farm");
+        else {
+            if (@setups) {
+                # remove handling and watchers for setups no longer active/
+                # controlled by our farm
+                my %current_setup_ids = map { $_->id => 1 } @setups;
+                foreach my $stored_setup_id (keys %setups) {
+                    unless (exists $current_setup_ids{$stored_setup_id}) {
+                        my $ds_id = $setups{$stored_setup_id}->datasource->id;
+                        $datasource_watchers{$ds_id}->{count}--;
+                        delete $datasource_watchers{$ds_id} if $datasource_watchers{$ds_id}->{count} == 0;
+                        delete $setup_watchers{$stored_setup_id};
+                        delete $setups{$stored_setup_id};
+                    }
                 }
-                else {
-                    exit_handler("There was a problem accessing the database");
+                
+                # trigger new setups, in parallel
+                my $fm = AnyEvent::ForkManager->new(max_workers => $max_forks);
+                my @new_setups;
+                foreach my $setup (@setups) {
+                    my $sid = $setup->id;
+                    next if exists $setups{$sid};
+                    $setups{$sid} = $setup;
+                    push(@new_setups, $setup);
+                    
+                    $fm->start(
+                        cb => sub {
+                            my ($fm, $setup) = @_;
+                            $setup->trigger;
+                        },
+                        args => [$setup]
+                    );
+                }
+                $fm->wait_all_children;
+                
+                # when testing, we don't want to have this keep running
+                # after all the setups have completed
+                if ($deployment eq 'testing') {
+                    my $completed = 0;
+                    foreach my $setup (@setups) {
+                        $completed++ if $setup->currently_complete;
+                    }
+                    exit_handler("All the setups are currently complete") if $completed == @setups;
+                }
+                
+                # create a watcher for each setup's datasource to keep it
+                # up-to-date
+                foreach my $setup (@new_setups) {
+                    my $ds    = $setup->datasource;
+                    my $ds_id = $ds->id;
+                    $datasource_watchers{$ds_id}->{count}++;
+                    next if defined $datasource_watchers{$ds_id}->{watcher};
+                    
+                    my $datasource_update_sub = sub {
+                        fork_call {
+                            $ds->elements;
+                            return;
+                        }
+                        sub {
+                            my $err = $@ || return;
+                            # email user about this once
+                            #*** auto-deactivate it?
+                            $backend->log("There is a problem with datasource $ds_id:\n$err");
+                        };
+                    };
+                    
+                    my $non_persistent = $ds->_from_non_persistent;
+                    my $watcher;
+                    if ($non_persistent && $non_persistent->does('VRPipe::DataSourceTextRole')) {
+                        # update when the source text file changes
+                        $watcher = EV::stat $ds->source, 0, $datasource_update_sub;
+                    }
+                    else {
+                        # update every 5mins
+                        $watcher = EV::timer 0, $datasource_timer_interval, $datasource_update_sub;
+                    }
+                    
+                    $datasource_watchers{$ds_id}->{watcher} = $watcher;
+                }
+                
+                # create a watcher to check the state of each setup, so we
+                # can notify user of stalled/ failed/ completed ones
+                foreach my $setup (@new_setups) {
+                    my $sid = $setup->id;
+                    next if defined $setup_watchers{$sid};
+                    
+                    $setup_watchers{$sid} = EV::timer 0, $setup_state_timer_interval, sub {
+                        fork_call {
+                            return if $setup->currently_complete;
+                            
+                            my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                            if ($perma_fails) {
+                                # email user once about this
+                                #***
+                                $backend->log("setup $sid has repeated failures that need user intervention");
+                            }
+                            else {
+                                my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                                unless ($incomplete_subs) {
+                                    $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
+                                    $setup->trigger;
+                                }
+                            }
+                            
+                            return;
+                        }
+                        sub {
+                            my $err = $@ || return;
+                            # email user about this once
+                            #*** auto-deactivate it?
+                            $backend->log("There is a problem with setup $sid:\n$err");
+                        };
+                    };
                 }
             }
             else {
-                if (@setups) {
-                    # remove handling and watchers for setups no longer active/
-                    # controlled by our farm
-                    my %current_setup_ids = map { $_->id => 1 } @setups;
-                    foreach my $stored_setup_id (keys %setups) {
-                        unless (exists $current_setup_ids{$stored_setup_id}) {
-                            my $ds_id = $setups{$stored_setup_id}->datasource->id;
-                            $datasource_watchers{$ds_id}->{count}--;
-                            delete $datasource_watchers{$ds_id} if $datasource_watchers{$ds_id}->{count} == 0;
-                            delete $setup_watchers{$stored_setup_id};
-                            delete $setups{$stored_setup_id};
-                        }
-                    }
-                    
-                    # trigger new setups, in parallel
-                    my $fm = AnyEvent::ForkManager->new(max_workers => $max_forks);
-                    my @new_setups;
-                    foreach my $setup (@setups) {
-                        my $sid = $setup->id;
-                        next if exists $setups{$sid};
-                        $setups{$sid} = $setup;
-                        push(@new_setups, $setup);
-                        
-                        $fm->start(
-                            cb => sub {
-                                my ($fm, $setup) = @_;
-                                $setup->trigger;
-                            },
-                            args => [$setup]
-                        );
-                    }
-                    $fm->wait_all_children;
-                    
-                    # when testing, we don't want to have this keep running
-                    # after all the setups have completed
-                    if ($deployment eq 'testing') {
-                        my $completed = 0;
-                        foreach my $setup (@setups) {
-                            $completed++ if $setup->currently_complete;
-                        }
-                        exit_handler("All the setups are currently complete") if $completed == @setups;
-                    }
-                    
-                    # create a watcher for each setup's datasource to keep it
-                    # up-to-date
-                    foreach my $setup (@new_setups) {
-                        my $ds    = $setup->datasource;
-                        my $ds_id = $ds->id;
-                        $datasource_watchers{$ds_id}->{count}++;
-                        next if defined $datasource_watchers{$ds_id}->{watcher};
-                        
-                        my $datasource_update_sub = sub {
-                            fork_call {
-                                $ds->elements;
-                                return;
-                            }
-                            sub {
-                                my $err = $@ || return;
-                                # email user about this once
-                                #*** auto-deactivate it?
-                                $backend->log("There is a problem with datasource $ds_id:\n$err");
-                            };
-                        };
-                        
-                        my $non_persistent = $ds->_from_non_persistent;
-                        my $watcher;
-                        if ($non_persistent && $non_persistent->does('VRPipe::DataSourceTextRole')) {
-                            # update when the source text file changes
-                            $watcher = EV::stat $ds->source, 0, $datasource_update_sub;
-                        }
-                        else {
-                            # update every 5mins
-                            $watcher = EV::periodic 0, $datasource_timer_interval, 0, $datasource_update_sub;
-                        }
-                        
-                        $datasource_watchers{$ds_id}->{watcher} = $watcher;
-                    }
-                    
-                    # create a watcher to check the state of each setup, so we
-                    # can notify user of stalled/ failed/ completed ones
-                    foreach my $setup (@new_setups) {
-                        my $sid = $setup->id;
-                        next if defined $setup_watchers{$sid};
-                        
-                        $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
-                            fork_call {
-                                return if $setup->currently_complete;
-                                
-                                my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
-                                if ($perma_fails) {
-                                    # email user once about this
-                                    #***
-                                    $backend->log("setup $sid has repeated failures that need user intervention");
-                                }
-                                else {
-                                    my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
-                                    unless ($incomplete_subs) {
-                                        $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
-                                        $setup->trigger;
-                                    }
-                                }
-                                
-                                return;
-                            }
-                            sub {
-                                my $err = $@ || return;
-                                # email user about this once
-                                #*** auto-deactivate it?
-                                $backend->log("There is a problem with setup $sid:\n$err");
-                            };
-                        };
-                    }
-                }
-                else {
-                    exit_handler("There are no longer any more setups to handle for farm $farm");
-                }
+                exit_handler("There are no longer any more setups to handle for farm $farm");
             }
-        };
+        }
     };
     
     # set up the signals we'll react to
@@ -243,14 +240,149 @@ sub handle_setups {
 }
 
 sub handle_submissions {
-    my $req = shift;
+    my ($req, $scheduler) = @_;
     $backend->log_stderr;
+    my $req_id      = $req->id;
+    my $time_needed = $req->time;
+    my $end_time    = (time() + $scheduler->queue_time($req)) - 60;
+    $req->disconnect;
     
-    die "handle_submissions not yet implemented\n";
+    # reduces that list down to exclude subs that failed under our supervision,
+    # unless we're the only worker for this queue
+    
+    # if no submissions left, exit
+    
+    # look at all active setups to work out current step limits
+    
+    # grab the next submission from the list (avoiding race condition - use some
+    # modification of the claim system where the worker id is stored) that won't
+    # break the step limit (if none, sleep for 1m and loop)
+    
+    # runs sub's job cmd in a subprocess while monitoring its avg CPU, peak
+    # memory and total run time, and kills cmd and the whole worker if no longer
+    # in worker table. If we're running out of time we switch queues and update
+    # our entry in the worker table
+    
+    # records these things in the Job table on cmd exit along with exit code
+    
+    # does a sub->update_status kind of thing, storing on the submission the
+    # actual reservation details the worker is running under and if failed,
+    # reason for failure stored on submission as parsed exit code. also the
+    # worker id is removed from submission
+    
+    # if successful and if it was the last submission of its step and they're
+    # all complete now (avoiding race condition) it does a spool for only its
+    # own dataelement - ie. triggers the creation of submissions in the next
+    # step
+    
+    # if failed, sets the submission to be retried if appropriate
+    
+    # every 60s we'll pick a submission if we don't have one already, and update
+    # its stats
+    my $timer_interval = $deployment eq 'production' ? 60 : 5;
+    my ($submission, $job_pid, %failed_by_us);
+    my $watcher = EV::timer 0, $timer_interval, sub {
+        if ($submission) {
+            $backend->log("updating stats of submission " . $submission->id);
+            $job_pid || die "had a submission but not job pid?!\n";
+            
+            #...
+        }
+        else {
+            # pick the next available submission to work on
+            eval {
+                $fs->alive || die "no farmserver";
+                die "ran out of time" if (time() >= $end_time);
+                
+                # if any step limits are in place we first have to see how many
+                # of each step are currently running
+                my %step_counts;
+                if ($do_step_limits) {
+                    my $array_ref = VRPipe::Submission->get_column_values(
+                        ['step.name', 'count(step.name)'],
+                        { '_done' => 0, '_failed' => 0, 'job.running' => 1 },
+                        {
+                            join     => ['job', { stepstate => { stepmember => 'step' } }],
+                            group_by => ['step.name']
+                        }
+                    );
+                    foreach my $vals (@$array_ref) {
+                        $step_counts{ $vals->[0] } = $vals->[1];
+                    }
+                }
+                
+                my $num_handlers = VRPipe
+                  
+                  my $sub_pager = VRPipe::Submission->search_paged({ requirements => $req_id, '_done' => 0, [-or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0]], scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, prefetch => ['job', $do_step_limits ? ({ stepstate => { stepmember => 'step' } }) : ()] }, 20);
+                
+                SLOOP: while (my $subs = $sub_pager->next) {
+                    foreach my $sub (@$subs) {
+                        # if the job is a block_and_skip_if_ok job, we don't
+                        # actually block because of race condition issues, and
+                        # because of fail and restart issues. Instead we always
+                        # only actually submit if this submission is the first
+                        # incomplete submission created for this $job.
+                        my $job = $sub->job;
+                        if ($job->block_and_skip_if_ok) {
+                            my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
+                            next unless $first_sub->id == $sub->id;
+                        }
+                        
+                        # step limit handling
+                        if ($do_step_limits) {
+                            my $step_name = $sub->stepstate->stepmember->step->name;
+                            if (exists $step_limits{$step_name}) {
+                                $step_counts{$step_name}++;
+                                $submission = 0; # to stop us exiting due to no submission
+                                next if $step_counts{$step_name} > $step_limits{$step_name};
+                            }
+                        }
+                        
+                        # avoid submissions we have failed, in case there is a
+                        # node-specific problem
+                        
+                        # we'll pick this one to run
+                        $submission = $sub;
+                        last SLOOP;
+                    }
+                    $backend->log("had to go to next page to find a submission");
+                }
+                
+                if ($submission) {
+                    # start running the corresponding job cmd in a way that
+                    # we'll be able to monitor it
+                
+                }
+                
+                $req->disconnect;
+            };
+            if ($@) {
+                if ($@ =~ /no farmserver/) {
+                    exit_handler("There is no longer a server for farm $farm");
+                }
+                elsif ($@ =~ /ran out of time/) {
+                    exit_handler("There is not enough time to start working on a new submission");
+                }
+                else {
+                    exit_handler("There was a problem accessing the database: $@");
+                }
+            }
+            elsif (!defined $submission) {
+                exit_handler("No submissions to work on");
+            }
+        }
+      }
+      
+      # run the event loop
+      $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
+    EV::run;
+    
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting!");
+    exit 0;
 }
 
 sub exit_handler {
     my $msg = shift;
-    $backend->log($msg . ", will gracefully exit setups handler.") if $mode eq 'setups';
+    $backend->log($msg . ", will gracefully exit $mode handler."); # if $mode eq 'setups'
     EV::unloop;
 }
