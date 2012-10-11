@@ -707,7 +707,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             my %pks = map { $_ => 1 } @psuedo_keys;
             foreach my $hash ($search_mode ? ($args) : ($find_args, $args)) {
                 while (my ($key, $val) = each %$hash) {
-                    next if $key =~ /\./; # *** not sure how to handle columns from a table join
+                    next if $key =~ /\./;           # *** not sure how to handle columns from a table join
+                    next if $key =~ /\-(?:and|or)/; #*** we should recurse into the $val...
                     $self->throw("You cannot search for '$key' because $class does not have that column") unless exists $all_attribs{$key};
                     
                     unless ($search_mode) {
