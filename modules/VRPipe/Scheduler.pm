@@ -116,13 +116,14 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         $count ||= 1;
         
         # see if we're already running this $cmd $count times
-        my ($runner) = VRPipe::Runner->search({ cmd => $cmd });
+        my ($example_runner) = VRPipe::Runner->search({ cmd => $cmd });
         my $running = 0;
-        if ($runner) {
-            my $survival_time = $runner->survival_time;
-            $running = VRPipe::Runner->search({ cmd => $cmd, heartbeat => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } });
+        if ($example_runner) {
+            my $t             = time();
+            my $survival_time = $example_runner->survival_time;
+            $running = VRPipe::Runner->search({ cmd => $cmd, heartbeat => { '>' => DateTime->from_epoch(epoch => $t - $survival_time) } });
             warn "got running $running vs count $count\n";
-            return if $running == $count;
+            return if $running >= $count;
             
             # well, are we pending in the scheduler at least?
             my $scheduled = VRPipe::Runner->search({ cmd => $cmd, sid => { '!=' => undef }, scheduled => { '!=' => undef } });
@@ -131,19 +132,20 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 
                 # if we've been pending for less than 5mins, just assume that
                 # everything is OK and that we are 'running'
-                my $short_pends = VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef, scheduled => { '>' => DateTime->from_epoch(epoch => time() - 300) } });
+                my $five_mins_ago = DateTime->from_epoch(epoch => $t - 300);
+                my $short_pends = VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef, scheduled => { '>' => $five_mins_ago } });
                 warn "short pends is $short_pends vs not started $not_started\n";
-                return if $short_pends == $not_started;
+                return if $short_pends >= $not_started;
+                $running += $short_pends;
                 
                 # we think we've been pending in the scheduler for over 5mins
                 # now, but are we really?
-                my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, heartbeat => undef, scheduled => { '<=' => DateTime->from_epoch(epoch => time() - 300) } });
-                while (my $runners = $long_pend_pager - next) {
+                my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, heartbeat => undef, scheduled => { '<=' => $five_mins_ago } });
+                while (my $runners = $long_pend_pager->next) {
                     foreach my $runner (@$runners) {
                         my $sid = $runner->sid;
-                        my $aid = $runner->aid;
                         
-                        my $status = $self->sid_status($sid, $aid);
+                        my $status = $self->sid_status($sid, 0);
                         if ($status =~ /PEND|RUN/) {
                             if ($status eq 'RUN') {
                                 # if the scheduler thinks we're running, give it
@@ -157,8 +159,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                                 
                                 # hmmm, there's something strange going on, just
                                 # kill it
-                                $backend->log("The scheduler told us that $sid\[$aid\] was running, but the corresponding Runner had no heartbeat!");
-                                $self->kill_sid($sid, $aid, 5);
+                                $backend->log("The scheduler told us that $sid was running, but the corresponding Runner had no heartbeat!");
+                                $self->kill_sid($sid, 0, 5);
                                 $runner->delete;
                             }
                             else {
@@ -169,7 +171,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                                 if ($runner->time_scheduled > 21600) {
                                     $backend->log("Runner for cmd [$cmd] has been pending in the scheduler (as $sid) for over 6hrs - is everything OK?");
                                 }
-                                return;
+                                $running++;
                             }
                         }
                         else {
@@ -181,37 +183,57 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                     }
                 }
             }
+            else {
+                $backend->log("Runners for cmd [$cmd] were neither running nor scheduled!");
+                VRPipe::Runner->search_rs({ cmd => $cmd })->delete;
+            }
+            
+            return if $running >= $count;
         }
         
-        # the cmd we submit needs a heartbeat, so that when we check if the
-        # command is running we can avoid querying the scheduler as much as
-        # possible - we wrap $cmd in a Runner
-        $runner = VRPipe::Runner->create(cmd => $cmd, aid => 0);
-        my $worker_cmd = VRPipe::Interface::CmdLine->vrpipe_perl_e(qq[VRPipe::Runner->get(cmd => q{$cmd}, aid => 0)->run], $backend->deployment);
-        
-        # construct the command line that will submit our $cmd to the scheduler
-        my $scheduler_cmd_line = join(
-            ' ',
-            $self->submit_command,
-            $self->submit_args(
-                requirements => $requirements,
-                stdo_file    => '/dev/null',
-                stde_file    => '/dev/null',
-                cmd          => $worker_cmd
-            )
-        );
-        
-        # go ahead and submit it, getting back an id from the scheduler
-        my $sid = $self->get_sid($scheduler_cmd_line);
-        
-        #*** log calls here should also email admin once...
-        if ($sid) {
-            # store the sid and scheduled time on each Runner for this $cmd
-            $runner->sid($sid);
-            $runner->update;
+        my %aids_to_skip;
+        if ($running > 0) {
+            %aids_to_skip = map { $_ => 1 } VRPipe::Runner->get_column_values('aid', { cmd => $cmd });
+            return if keys %aids_to_skip >= $count;
         }
-        else {
-            $backend->log("The scheduler did not let us submit a job using this command line:\n$scheduler_cmd_line");
+        
+        # submit new Runners
+        foreach my $aid (0 .. ($count - 1)) {
+            next if delete $aids_to_skip{$aid};
+            
+            my $transaction = sub {
+                # the cmd we submit needs a heartbeat, so that when we check if the
+                # command is running we can avoid querying the scheduler as much as
+                # possible - we wrap $cmd in a Runner
+                my $runner = VRPipe::Runner->create(cmd => $cmd, aid => $aid);
+                my $worker_cmd = VRPipe::Interface::CmdLine->vrpipe_perl_e(qq[VRPipe::Runner->get(cmd => q{$cmd}, aid => $aid)->run], $backend->deployment);
+                
+                # construct the command line that will submit our $cmd to the scheduler
+                my $scheduler_cmd_line = join(
+                    ' ',
+                    $self->submit_command,
+                    $self->submit_args(
+                        requirements => $requirements,
+                        stdo_file    => '/dev/null',
+                        stde_file    => '/dev/null',
+                        cmd          => $worker_cmd
+                    )
+                );
+                
+                # go ahead and submit it, getting back an id from the scheduler
+                my $sid = $self->get_sid($scheduler_cmd_line);
+                
+                #*** issues here should also email admin once...
+                if ($sid) {
+                    # store the sid and scheduled time on the Runner for this $cmd
+                    $runner->sid($sid);
+                    $runner->update;
+                }
+                else {
+                    die "The scheduler did not let us submit a job using this command line:\n$scheduler_cmd_line\n";
+                }
+            };
+            $self->do_transaction($transaction, "Failed to submit a Runner");
         }
     }
 
