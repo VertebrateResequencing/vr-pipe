@@ -240,7 +240,7 @@ sub start_server {
                         # farm
                         $scheduler->ensure_running(
                             cmd          => "$handler_path --mode setups --farm $farm",
-                            requirements => VRPipe::Requirements->create(memory => 500, time => 1),
+                            requirements => VRPipe::Requirements->create(memory => 500, time => 3600),
                             backend      => $backend
                         );
                         
@@ -248,7 +248,8 @@ sub start_server {
                         # running...
                         
                         # get the count of requirements
-                        my $req_counts = [VRPipe::Submission->search_rs({ '_done' => 0, retries => { '<=' => 3 }, scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
+                        my $sched_id = $scheduler->id;
+                        my $req_counts = [VRPipe::Submission->search_rs({ '_done' => 0, [-or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0]], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
                         
                         if ($max_subs) {
                             my $total_count = 0;
@@ -269,7 +270,7 @@ sub start_server {
                         foreach my $cols (@$req_counts) {
                             my ($req_id, $count) = @$cols;
                             $scheduler->ensure_running(
-                                cmd          => "$handler_path --mode submissions --farm $farm -r $req_id",
+                                cmd          => "$handler_path --mode submissions --farm $farm -r $req_id, -s $sched_id",
                                 count        => $count,
                                 requirements => VRPipe::Requirements->get(id => $req_id),
                                 backend      => $backend

@@ -95,6 +95,10 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 'local';
     }
     
+    method queue_time (VRPipe::Requirements $requirements) {
+        return 1314000;
+    }
+    
     method switch_queue (PositiveInt $sid, Str $new_queue) {
         return;
     }

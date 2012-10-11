@@ -56,7 +56,7 @@ class VRPipe::Requirements extends VRPipe::Persistent {
     
     has 'time' => (
         is     => 'rw',
-        isa    => IntSQL [5],
+        isa    => IntSQL [9],
         traits => ['VRPipe::Persistent::Attributes'],
         is_key => 1
     );
@@ -98,6 +98,22 @@ class VRPipe::Requirements extends VRPipe::Persistent {
     );
     
     __PACKAGE__->make_persistent();
+    
+    # we used to store time as hours, but now as seconds
+    around time (Maybe[PositiveInt] $time?) {
+        if ($time) {
+            if ($time < 60) {
+                $time *= 60 * 60;
+            }
+            return $self->$orig($time);
+        }
+        
+        my $time = $self->$orig;
+        if ($time < 60) {
+            $time *= 60 * 60;
+        }
+        return $time;
+    }
 }
 
 1;

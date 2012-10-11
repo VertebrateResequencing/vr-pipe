@@ -640,6 +640,11 @@ role VRPipe::StepRole {
     }
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
+        # time used to be specified in hours, but now in seconds
+        if ($time < 60) {
+            $time *= 60 * 60;
+        }
+        
         # get the current mean+2sd memory and time of past runs of this step
         my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : $self->_persistent_step);
         my $rec_mem  = $ssu->recommended_memory;
@@ -662,8 +667,29 @@ role VRPipe::StepRole {
         }
         if (defined $options->{time_override} && $options->{time_override} > $time) {
             $time = $options->{time_override};
+            if ($time < 60) {
+                $time *= 60 * 60;
+            }
         }
         #*** and the other resources?...
+        
+        # round time up to the nearest xmins, depending on how much time is
+        # needed
+        my $rounder;
+        if ($time < 900) {
+            $rounder = 300; # 5mins
+        }
+        elsif ($time < 3600) {
+            $rounder = 900; # 15mins
+        }
+        elsif ($time < 43200) {
+            $rounder = 1800; # 30mins
+        }
+        else {
+            $rounder = 3600; # 60mins
+        }
+        my $lower_bound = $time - ($time % $rounder);
+        $time = $lower_bound + $rounder;
         
         return VRPipe::Requirements->create(
             memory => $memory,

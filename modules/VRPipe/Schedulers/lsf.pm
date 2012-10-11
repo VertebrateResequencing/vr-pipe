@@ -191,7 +191,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         
         # pick a queue, preferring ones that are more likely to run our job
         # the soonest
-        my $seconds   = ($requirements->time * 60 * 60); #*** there's an issue here that VRPipe::Requirements->time is in hrs, so we will never choose a queue with a runlimit less than 1 hr...
+        my $seconds   = $requirements->time;
         my $megabytes = $requirements->memory;
         my $chosen_queue;
         foreach my $queue (
@@ -214,6 +214,11 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         }
         
         return $chosen_queue;
+    }
+    
+    method queue_time (VRPipe::Requirements $requirements) {
+        my $queue = $self->determine_queue($requirements);
+        return $queues{$queue}->{runlimit};
     }
     
     method switch_queue (PositiveInt $sid, Str $new_queue) {
