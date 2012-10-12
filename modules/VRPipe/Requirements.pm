@@ -108,7 +108,7 @@ class VRPipe::Requirements extends VRPipe::Persistent {
             return $self->$orig($time);
         }
         
-        my $time = $self->$orig;
+        $time = $self->$orig;
         if ($time < 60) {
             $time *= 60 * 60;
         }
