@@ -140,28 +140,36 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 
                 # we think we've been pending in the scheduler for over 5mins
                 # now, but are we really?
+                my %status = $self->all_status;
                 my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, heartbeat => undef, scheduled => { '<=' => $five_mins_ago } });
                 while (my $runners = $long_pend_pager->next) {
                     foreach my $runner (@$runners) {
                         my $sid = $runner->sid;
                         
-                        my $status = $self->sid_status($sid, 0);
+                        my $status = $status{$sid} || 'UNKNOWN';
                         if ($status =~ /PEND|RUN/) {
                             if ($status eq 'RUN') {
                                 # if the scheduler thinks we're running, give it
                                 # 10s and recheck if we're running
-                                my $t = time();
+                                my $t                = time();
+                                my $actually_running = 0;
                                 while (1) {
-                                    last   if time() - $t > 10;
-                                    return if $runner->running;
+                                    last if time() - $t > 10;
+                                    if ($runner->running) {
+                                        $actually_running = 1;
+                                        $running++;
+                                        last;
+                                    }
                                     sleep(1);
                                 }
                                 
-                                # hmmm, there's something strange going on, just
-                                # kill it
-                                $backend->log("The scheduler told us that $sid was running, but the corresponding Runner had no heartbeat!");
-                                $self->kill_sid($sid, 0, 5);
-                                $runner->delete;
+                                unless ($actually_running) {
+                                    # hmmm, there's something strange going on, just
+                                    # kill it
+                                    $backend->log("The scheduler told us that $sid was running, but the corresponding Runner had no heartbeat!");
+                                    $self->kill_sid($sid, 0, 5);
+                                    $runner->delete;
+                                }
                             }
                             else {
                                 # ok, we're pending, but emit a warning if we've
@@ -202,13 +210,14 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             next if delete $aids_to_skip{$aid};
             
             my $transaction = sub {
-                # the cmd we submit needs a heartbeat, so that when we check if the
-                # command is running we can avoid querying the scheduler as much as
-                # possible - we wrap $cmd in a Runner
+                # the cmd we submit needs a heartbeat, so that when we check if
+                # the command is running we can avoid querying the scheduler as
+                # much as possible - we wrap $cmd in a Runner
                 my $runner = VRPipe::Runner->create(cmd => $cmd, aid => $aid);
                 my $worker_cmd = VRPipe::Interface::CmdLine->vrpipe_perl_e(qq[VRPipe::Runner->get(cmd => q{$cmd}, aid => $aid)->run], $backend->deployment);
                 
-                # construct the command line that will submit our $cmd to the scheduler
+                # construct the command line that will submit our $cmd to the
+                # scheduler
                 my $scheduler_cmd_line = join(
                     ' ',
                     $self->submit_command,
@@ -225,7 +234,8 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 
                 #*** issues here should also email admin once...
                 if ($sid) {
-                    # store the sid and scheduled time on the Runner for this $cmd
+                    # store the sid and scheduled time on the Runner for this
+                    # $cmd
                     $runner->sid($sid);
                     $runner->update;
                 }

@@ -135,6 +135,20 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 1;
     }
     
+    method all_status {
+        open(my $bfh, "$ls_script jobs |") || $self->warn("Could not call $ls_script jobs");
+        my %status = ();
+        if ($bfh) {
+            while (<$bfh>) {
+                if (/^(\d+)\s+\S+\s+(\S+)/) {
+                    $status{$1} = $2;
+                }
+            }
+            close($bfh);
+        }
+        return %status;
+    }
+    
     method sid_status (PositiveInt $sid, Int $aid) {
         my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
         open(my $bfh, "$ls_script jobs $id |") || $self->warn("Could not call vrpipe-local_scheduler jobs $id");
