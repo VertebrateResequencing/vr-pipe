@@ -90,52 +90,10 @@ class VRPipe::Submission extends VRPipe::Persistent {
         belongs_to => 'VRPipe::Scheduler'
     );
     
-    has '_sid' => (
-        is          => 'rw',
-        isa         => IntSQL [8],
-        traits      => ['VRPipe::Persistent::Attributes'],
-        is_nullable => 1
-    );
-    
-    has '_hid' => (
-        is          => 'rw',
-        isa         => IntSQL [8],
-        traits      => ['VRPipe::Persistent::Attributes'],
-        is_nullable => 1
-    );
-    
-    has '_aid' => (
-        is          => 'rw',
-        isa         => IntSQL [8],
-        traits      => ['VRPipe::Persistent::Attributes'],
-        is_nullable => 1
-    );
-    
     has 'retries' => (
         is      => 'rw',
         isa     => IntSQL [4],
         traits  => ['VRPipe::Persistent::Attributes'],
-        default => 0
-    );
-    
-    has '_scheduled' => (
-        is          => 'rw',
-        isa         => Datetime,
-        coerce      => 1,
-        traits      => ['VRPipe::Persistent::Attributes'],
-        is_nullable => 1
-    );
-    
-    has '_claim' => (
-        is      => 'rw',
-        isa     => 'Bool',
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => 0
-    );
-    
-    has '_own_claim' => (
-        is      => 'rw',
-        isa     => 'Bool',
         default => 0
     );
     
@@ -153,31 +111,24 @@ class VRPipe::Submission extends VRPipe::Persistent {
         default => 0
     );
     
+    has '_claim' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
+    
+    has '_own_claim' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
     method _build_default_scheduler {
         return VRPipe::Scheduler->create();
     }
     
     # public getters for our private attributes
-    method sid (PositiveInt $sid?) {
-        if ($sid) {
-            return unless $self->claim;
-            
-            $self->_sid($sid);
-            
-            $self->_scheduled(DateTime->now);
-            $self->release;
-            
-            return $sid;
-        }
-        else {
-            return $self->_sid;
-        }
-    }
-    
-    method scheduled {
-        return $self->_scheduled;
-    }
-    
     method done {
         return $self->_done;
     }
@@ -186,10 +137,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_failed;
     }
     
+    # other methods
     method claim {
-        return 0 if $self->scheduled;
-        return 0 if $self->sid;
-        
         if ($self->_claim) {
             return $self->_own_claim ? 1 : 0;
         }
@@ -201,8 +150,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
     }
     
-    # scheduling-related behaviour
     method release {
+        return unless $self->_own_claim;
         $self->_claim(0);
         $self->_own_claim(0);
         $self->update;
@@ -578,13 +527,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method _reset {
-        $self->_sid(undef);
         $self->_failed(0);
         $self->_done(0);
-        $self->_aid(undef);
-        $self->_scheduled(undef);
         $self->_claim(0);
-        $self->_hid(undef);
         $self->update;
         $self->reselect_values_from_db;
     }
