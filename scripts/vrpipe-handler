@@ -43,7 +43,8 @@ my $cmdline = VRPipe::Interface::CmdLine->new(
         ['farm=s',   'Handle setups being controlled by this farm'],
         [],
         ['In --mode submissions, you must also supply:'],
-        ['requirements|r=s', 'a Requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }], ['scheduler|s=s', 'a Scheduler id', { persistent_object => 'Scheduler' }],
+        ['requirements|r=s', 'a Requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }],
+        ['scheduler|s=s',    'a Scheduler id',                                                     { persistent_object => 'Scheduler' }]
     ]
 );
 
@@ -67,9 +68,9 @@ if ($mode eq 'setups') {
     handle_setups();
 }
 elsif ($mode eq 'submissions') {
-    my $req       = $cmdline->opts('requirements');
-    my $scheduler = $cmdline->opts('requirements');
-    $req       || $cmdline->die_with_error("--requirements is required in submissions mode");
+    my $req = $cmdline->opts('requirements');
+    $req || $cmdline->die_with_error("--requirements is required in submissions mode");
+    my $scheduler = $cmdline->opts('scheduler');
     $scheduler || $cmdline->die_with_error("--scheduler is required in submissions mode");
     handle_submissions($req, $scheduler);
 }
@@ -247,13 +248,6 @@ sub handle_submissions {
     my $end_time    = (time() + $scheduler->queue_time($req)) - 60;
     $req->disconnect;
     
-    # reduces that list down to exclude subs that failed under our supervision,
-    # unless we're the only worker for this queue
-    
-    # if no submissions left, exit
-    
-    # look at all active setups to work out current step limits
-    
     # grab the next submission from the list (avoiding race condition - use some
     # modification of the claim system where the worker id is stored) that won't
     # break the step limit (if none, sleep for 1m and loop)
@@ -294,28 +288,10 @@ sub handle_submissions {
                 $fs->alive || die "no farmserver";
                 die "ran out of time" if (time() >= $end_time);
                 
-                # if any step limits are in place we first have to see how many
-                # of each step are currently running
-                my %step_counts;
-                if ($do_step_limits) {
-                    my $array_ref = VRPipe::Submission->get_column_values(
-                        ['step.name', 'count(step.name)'],
-                        { '_done' => 0, '_failed' => 0, 'job.running' => 1 },
-                        {
-                            join     => ['job', { stepstate => { stepmember => 'step' } }],
-                            group_by => ['step.name']
-                        }
-                    );
-                    foreach my $vals (@$array_ref) {
-                        $step_counts{ $vals->[0] } = $vals->[1];
-                    }
-                }
+                my $sub_pager = VRPipe::Submission->search_paged({ requirements => $req_id, '_done' => 0, [-or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0]], scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'job.running' => 0 }, { join => { stepstate => 'pipelinesetup' }, prefetch => ['job', $do_step_limits ? ({ stepstate => { stepmember => 'step' } }) : ()] });
                 
-                my $num_handlers = VRPipe
-                  
-                  my $sub_pager = VRPipe::Submission->search_paged({ requirements => $req_id, '_done' => 0, [-or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0]], scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, prefetch => ['job', $do_step_limits ? ({ stepstate => { stepmember => 'step' } }) : ()] }, 20);
-                
-                SLOOP: while (my $subs = $sub_pager->next) {
+                my (%step_limits, %step_counts, %completed_setups);
+                SLOOP: while (my $subs = $sub_pager->next(no_resetting => 1)) {
                     foreach my $sub (@$subs) {
                         # if the job is a block_and_skip_if_ok job, we don't
                         # actually block because of race condition issues, and
@@ -328,20 +304,70 @@ sub handle_submissions {
                             next unless $first_sub->id == $sub->id;
                         }
                         
-                        # step limit handling
-                        if ($do_step_limits) {
-                            my $step_name = $sub->stepstate->stepmember->step->name;
-                            if (exists $step_limits{$step_name}) {
-                                $step_counts{$step_name}++;
-                                $submission = 0; # to stop us exiting due to no submission
-                                next if $step_counts{$step_name} > $step_limits{$step_name};
-                            }
-                        }
-                        
                         # avoid submissions we have failed, in case there is a
                         # node-specific problem
+                        if ($sub->failed && exists $failed_by_us{ $sub->id }) {
+                            # in case all the other handlers have failed it
+                            # as well (or in case there are no other
+                            # handlers), we'll forget we failed it if we've
+                            # considered running this 15 times. This also
+                            # gives us a time delay before retrying, in case
+                            # there was a transient problem
+                            $failed_by_us{ $sub->id }++;
+                            if ($failed_by_us{ $sub->id } >= 15) {
+                                $backend->log("will forget we failed sub " . $sub->id);
+                                delete $failed_by_us{ $sub->id };
+                            }
+                            $submission = 0; # to stop us exiting due to no submission
+                            next;
+                        }
                         
-                        # we'll pick this one to run
+                        # global step limit handling
+                        my $step    = $sub->stepstate->stepmember->step;
+                        my $step_id = $step->id;
+                        my $step_limit;
+                        if (exists $step_limits{$step_id}) {
+                            $step_limit = $step_limits{$step_id};
+                        }
+                        else {
+                            # figure out what the step limit is, if any, by
+                            # checking the config of every incomplete & active
+                            # setup that uses the step
+                            my @setups = VRPipe::PipelineSetup->search({ active => 1, 'step.id' => $step_id }, { join => { 'pipeline' => { 'stepmembers' => 'step' } } });
+                            if (@setups) {
+                                my $step_name = $step->name;
+                                foreach my $setup (@setups) {
+                                    unless (exists $completed_setups{ $setup->id }) {
+                                        $completed_setups{ $setup->id } = $setup->currently_complete;
+                                    }
+                                    next if $completed_setups{ $setup->id };
+                                    my $user_opts = $ps->options;
+                                    my $setup_limit = $setup->options->{ $step_name . '_max_simultaneous' } || next;
+                                    if (!defined $step_limit || $setup_limit < $step_limit) {
+                                        $step_limit = $setup_limit;
+                                    }
+                                }
+                            }
+                            if (!defined $step_limit) {
+                                # also check the step itself for a limit
+                                $step_limit = $step->max_simultaneous;
+                            }
+                            $step_limits{$step_id} = $step_limit || 0;
+                            
+                            if ($step_limit) {
+                                # see how many of this step are currently
+                                # running, globally
+                                $step_counts{$step_id} = VRPipe::Submission->search({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0, 'job.running' => 1 }, { join => ['job', { stepstate => 'stepmember' }] });
+                            }
+                        }
+                        if ($step_limit) {
+                            $submission = 0;
+                            next if $step_counts{$step_id} >= $step_limits{$step_id};
+                            $step_counts{$step_id}++;
+                        }
+                        
+                        # we'll claim this one to run
+                        #*** $sub->claim in a transaction...
                         $submission = $sub;
                         last SLOOP;
                     }
@@ -364,7 +390,7 @@ sub handle_submissions {
                     exit_handler("There is not enough time to start working on a new submission");
                 }
                 else {
-                    exit_handler("There was a problem accessing the database: $@");
+                    exit_handler("There was a problem picking/ running a new submission: $@");
                 }
             }
             elsif (!defined $submission) {
