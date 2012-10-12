@@ -251,6 +251,10 @@ sub start_server {
                         my $sched_id = $scheduler->id;
                         my $req_counts = [VRPipe::Submission->search_rs({ '_done' => 0, [-or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0]], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
                         
+                        # scale the counts according to $max_subs
+                        #*** and eventually, we should have a priority system
+                        #    where a particular setup can have higher priority
+                        #    than others...
                         if ($max_subs) {
                             my $total_count = 0;
                             foreach my $cols (@$req_counts) {
@@ -267,6 +271,7 @@ sub start_server {
                             }
                         }
                         
+                        # submit the submission handlers
                         foreach my $cols (@$req_counts) {
                             my ($req_id, $count) = @$cols;
                             $scheduler->ensure_running(
