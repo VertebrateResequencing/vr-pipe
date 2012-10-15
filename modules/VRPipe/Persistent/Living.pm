@@ -78,6 +78,12 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         default => 1
     );
     
+    has '_am_beating' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
     method _build_default_heartbeat_interval {
         if (VRPipe::Persistent::SchemaBase->database_deployment eq 'testing') {
             return 3;
@@ -109,19 +115,34 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     method _build_heart {
         my $watcher;
         $watcher = EV::timer_ns 0, $self->heartbeat_interval, sub {
-            $self->beat_heart if $self->_still_exists;
-            if ($self->_still_exists) {
-                $self->beat_heart;
+            if ($self->die_when_murdered) {
+                my $ok = 0;
+                if ($self->_still_exists) {
+                    $ok = $self->beat_heart;
+                }
+                if (!$ok) {
+                    $self->murder_response;
+                }
             }
-            elsif ($self->die_when_murdered) {
-                EV::unloop;
-                die "We were murdered by another process\n";
+            else {
+                $self->beat_heart;
             }
         };
         return $watcher;
     }
     
+    after start_beating {
+        $self->_am_beating(1);
+    }
+    
+    after stop_beating {
+        $self->_am_beating(0);
+    }
+    
     method time_since_heartbeat {
+        unless ($self->_am_beating) {
+            $self->reselect_values_from_db;
+        }
         my $heartbeat = $self->heartbeat || return;
         return time() - $heartbeat->epoch;
     }
@@ -148,12 +169,23 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         $self->heartbeat(DateTime->now());
         $self->update;
         $self->disconnect;
+        return 1;
+    }
+    
+    method end_it_all {
+        $self->stop_beating;
+        $self->delete if $self->_still_exists;
     }
     
     method commit_suicide (Bool :$no_die = 0) {
-        $self->stop_beating;
-        $self->delete if $self->_still_exists;
+        $self->end_it_all;
         die "committing suicide\n" unless $no_die;
+    }
+    
+    method murder_response {
+        $self->end_it_all;
+        EV::unloop;
+        die "We were murdered by another process\n";
     }
 }
 
