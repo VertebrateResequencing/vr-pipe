@@ -347,17 +347,18 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         }
         unless ($state->complete) {
             unless ($state->same_submissions_as) {
-                # are there a behaviours to trigger?
+                # are there any behaviours to trigger?
                 foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
                     $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
                 }
                 
                 # add to the StepStats
+                my %done_jobs;
                 foreach my $submission ($state->submissions) {
-                    my $sched_stdout = $submission->scheduler_stdout || next;
-                    my $memory = ceil($sched_stdout->memory || $submission->memory);
-                    my $time   = ceil($sched_stdout->time   || $submission->time);
-                    VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $memory, time => $time);
+                    my $job = $submission->job;
+                    next if $done_jobs{ $job->id };
+                    VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $job->peak_memory || 0, time => $job->wall_time);
+                    $done_jobs{ $job->id } = 1;
                 }
             }
             
