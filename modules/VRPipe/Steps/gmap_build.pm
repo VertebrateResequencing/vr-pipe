@@ -7,6 +7,8 @@ VRPipe::Steps::gmap_build - a step
 
 
 
+
+
 GMAP Build creates an index of a genomic sequence for mapping and alignment
 using GMAP (Genomic Mapping and Alignment Program for mRNA and EST sequences)
 and GSNAP (Genomic Short-read Nucleotide Alignment Program). (GMAP Build uses
@@ -76,7 +78,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             ),
             
             gmap_build_kmer_size => VRPipe::StepOption->create(
-                description   => 'name of genome',
+                description   => 'k-mer size used for building the genomic index. The memory requirements for building the index under various k-mer values: 12: 64 MB, 13: 256 MB, 14: 1GB, 15: 4GB. See the gmap README for more details.',
                 optional      => 0,
                 default_value => 15
               )
@@ -119,7 +121,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 $cmd .= ' -g';
             }
             $cmd .= ' ' . $input_file[0]->path;
-            warn $cmd;
+            
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => $cmd));
             
             $self->dispatch([$cmd, $self->new_requirements(memory => 4500, time => 1), { block_and_skip_if_ok => 1 }]);
