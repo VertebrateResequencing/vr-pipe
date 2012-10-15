@@ -54,12 +54,19 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Job extends VRPipe::Persistent {
+class VRPipe::Job extends VRPipe::Persistent::Living {
+    use EV;
+    use AnyEvent;
     use DateTime;
     use Cwd;
     use Sys::Hostname;
+    use Proc::Killfam;
     use Net::SSH qw(ssh);
     use VRPipe::Config;
+    use Proc::ProcessTable;
+    use POSIX qw(ceil);
+    
+    my $ppt = Proc::ProcessTable->new(cache_ttys => 1);
     
     has 'cmd' => (
         is     => 'rw',
@@ -77,20 +84,6 @@ class VRPipe::Job extends VRPipe::Persistent {
     );
     
     has 'block_and_skip_if_ok' => (
-        is      => 'rw',
-        isa     => 'Bool',
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => 0
-    );
-    
-    has 'running' => (
-        is      => 'rw',
-        isa     => 'Bool',
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => 0
-    );
-    
-    has 'finished' => (
         is      => 'rw',
         isa     => 'Bool',
         traits  => ['VRPipe::Persistent::Attributes'],
@@ -125,7 +118,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         is_nullable => 1
     );
     
-    has 'heartbeat' => (
+    has 'start_time' => (
         is          => 'rw',
         isa         => Datetime,
         coerce      => 1,
@@ -133,25 +126,9 @@ class VRPipe::Job extends VRPipe::Persistent {
         is_nullable => 1
     );
     
-    has 'heartbeat_interval' => (
-        is      => 'rw',
-        isa     => PositiveInt,
-        lazy    => 1,
-        builder => '_build_default_heartbeat_interval'
-    );
-    
-    has 'creation_time' => (
-        is      => 'rw',
-        isa     => Datetime,
-        coerce  => 1,
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => sub { DateTime->now() }
-    );
-    
-    has 'start_time' => (
+    has 'peak_memory' => (
         is          => 'rw',
-        isa         => Datetime,
-        coerce      => 1,
+        isa         => IntSQL [6],
         traits      => ['VRPipe::Persistent::Attributes'],
         is_nullable => 1
     );
@@ -171,16 +148,81 @@ class VRPipe::Job extends VRPipe::Persistent {
         default => sub { [] }
     );
     
-    __PACKAGE__->make_persistent();
+    has 'cmd_monitor' => (
+        is      => 'rw',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_cmd_monitor',
+        handles => { start_monitoring => 'start', stop_monitoring => 'stop' }
+    );
     
-    method _build_default_heartbeat_interval {
-        if (VRPipe::Persistent::SchemaBase->database_deployment eq 'testing') {
-            return 3;
-        }
-        else {
-            return 60;
-        }
+    has '_living_id' => (
+        is          => 'rw',
+        isa         => Varchar [32],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
+    
+    has '_watchers' => (
+        traits  => ['Array'],
+        is      => 'ro',
+        isa     => 'ArrayRef[Object]',
+        default => sub { [] },
+        handles => {
+            store_watcher => 'push'
+        },
+        clearer => 'clear_watchers'
+    );
+    
+    method _build_cmd_monitor {
+        my $watcher;
+        $watcher = EV::timer_ns 2, 10, sub {
+            $self->stop_monitoring if $self->end_time;
+            $self->_update_peak_memory;
+        };
+        return $watcher;
     }
+    
+    method _update_peak_memory (Bool :$no_rounding = 0) {
+        warn "_update_peak_memory called\n";
+        my ($host, $pid) = ($self->host, $self->pid);
+        if ($host && $pid && $host eq hostname() && kill(0, $pid)) {
+            my $pptp;
+            foreach my $p (@{ $ppt->table }) {
+                if ($p->pid == $pid) {
+                    $pptp = $p;
+                    last;
+                }
+            }
+            if ($pptp) {
+                # get current memory usage in MB
+                my $memory = $pptp->size; #*** or should this be rss?
+                $memory = ceil($memory / 1048576);
+                
+                # get the stored peak memory; to minimise number of
+                # updates we round this up to nearest 100MB
+                my $peak_mem = $self->peak_memory;
+                if ($peak_mem) {
+                    unless ($no_rounding) {
+                        my $rounder = 100;
+                        my $lower_bound = $peak_mem - ($peak_mem % $rounder);
+                        $peak_mem = $lower_bound + $rounder;
+                    }
+                }
+                else {
+                    $peak_mem = 0;
+                }
+                
+                if ($memory > $peak_mem) {
+                    $self->peak_memory($memory);
+                    $self->update;
+                }
+            }
+        }
+        $self->disconnect;
+    }
+    
+    __PACKAGE__->make_persistent();
     
     sub _get_args {
         my ($self, $args) = @_;
@@ -206,14 +248,11 @@ class VRPipe::Job extends VRPipe::Persistent {
     }
     
     method ok {
-        if ($self->finished && !$self->exit_code) {
+        my $exit_code = $self->exit_code;
+        if (defined $exit_code && $exit_code == 0 && $self->end_time) {
             return 1;
         }
         return 0;
-    }
-    
-    method pending {
-        return !($self->running || $self->finished);
     }
     
     method wall_time {
@@ -229,122 +268,165 @@ class VRPipe::Job extends VRPipe::Persistent {
         return $end_time - $start_time->epoch;
     }
     
-    method run (VRPipe::StepState :$stepstate?) {
+    method run (VRPipe::Submission :$submission?) {
         # check we're allowed to run, in a transaction to avoid race condition
         my $do_return   = 0;
         my $transaction = sub {
-            unless ($self->pending) {
+            if ($self->start_time) {
                 if ($self->ok) {
                     $do_return = 1;
                     return; # out of the txn_do
                 }
                 else {
-                    $self->throw("Job " . $self->id . " could not be run because it was not in the pending state");
+                    $self->throw("Job " . $self->id . " could not be run because it had already started elsewhere");
                 }
             }
             
-            # go ahead and run the cmd, also forking to run a heartbeat process
-            # at the same time
-            $self->running(1);
+            # set the start time
             $self->start_time(DateTime->now());
-            $self->finished(0);
             $self->exit_code(undef);
+            $self->_living_id("$self");
             $self->update;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         return if $do_return;
         
+        # fork ourselves off a child to run the cmd in. We wrap this up in a
+        # single-fire watcher so that nothing actually happens here without the
+        # caller doing EV::run
         $self->disconnect;
-        my $cmd_pid = fork();
-        my $heartbeat_pid;
-        if (!defined $cmd_pid) {
-            $self->throw("attempt to fork cmd failed: $!");
-        }
-        elsif ($cmd_pid) {
-            # parent, start a heartbeat process to monitor the cmd
-            $heartbeat_pid = fork();
-            if (!defined $heartbeat_pid) {
-                $self->throw("attempt to fork for heartbeat failed: $!");
+        my $delayed_fork = EV::timer 0, 0, sub {
+            my $cmd_pid = fork();
+            if (!defined $cmd_pid) {
+                $self->throw("attempt to fork cmd failed: $!");
             }
-            elsif ($heartbeat_pid == 0) {
-                # child, initiate a heartbeat that will end when the cmd stops
-                # running
-                my $interval = $self->heartbeat_interval;
-                sleep(1);
-                while (1) {
-                    my $still_running = kill(0, $cmd_pid);
-                    $self->heartbeat(DateTime->now());
-                    $self->update;
-                    $self->disconnect;
-                    sleep $interval;
+            elsif ($cmd_pid) {
+                # parent, start our heartbeat so that another process can check
+                # if we're running (it will also stop us running if another
+                # process murders us)
+                $self->start_beating;
+            }
+            elsif ($cmd_pid == 0) {
+                # child, run the command after changing to the correct dir and
+                # redirecting output to files
+                $self->pid($$);
+                $self->host(hostname());
+                $self->user(getlogin || getpwuid($<));
+                $self->update;
+                
+                # get all info from db and disconnect before using the info below
+                my $dir         = $self->dir;
+                my $cmd         = $self->cmd;
+                my $stdout_file = $self->stdout_file->path;
+                $stdout_file->dir->mkpath;
+                my $stderr_file = $self->stderr_file->path;
+                $self->disconnect;
+                
+                open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
+                open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
+                
+                chdir($dir);
+                # exec is supposed to get our $cmd to run whilst keeping the
+                # same $cmd_pid, but on some systems like Ubuntu the sh (dash)
+                # is a bit sucky: http://www.perlmonks.org/?node_id=785284 We
+                # can't force list mode in the normal way because we actually
+                # require the use of the shell to do things like run multi-line
+                # commands and pipes etc. $cmd having a different pid to
+                # $cmd_pid matters because we need to know the correct pid if
+                # the server needs to kill it later. Instead we force the use of
+                # a better shell (default bash) for everything, which might be
+                # less efficient in some cases, but the difference is going to
+                # be meaningless for us.
+                my $shell = VRPipe::Config->new->exec_shell;
+                if ($shell) {
+                    exec {$shell} $shell, '-c', $cmd;
                 }
-                exit(0);
+                else {
+                    exec $cmd;
+                }
             }
-        }
-        elsif ($cmd_pid == 0) {
-            # child, actually run the command after changing to the correct dir
-            # and redirecting output to files
-            $self->pid($$);
-            $self->host(hostname());
-            $self->user(getlogin || getpwuid($<));
-            $self->update;
             
-            # get all info from db and disconnect before using the info below
-            my $dir         = $self->dir;
-            my $cmd         = $self->cmd;
-            my $stdout_file = $self->stdout_file->path; #*** call here in child, then below in parent, creating 2 identical rows in db?... should not be possible!
-            $stdout_file->dir->mkpath;
-            my $stderr_file = $self->stderr_file->path; #*** but only 1 copy of the e?!
-            $self->disconnect;
+            # start our watcher that keeps track of peak memory usage
+            $self->start_monitoring;
             
-            open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
-            open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
-            chdir($dir);
+            # setup signal watchers for the various ways a scheduler might try
+            # to ask us to die; in response we will try and guess why and update
+            # resource requirements on all submissions that use us, then kill
+            # the cmd
+            foreach my $signal (qw(TERM INT QUIT USR1 USR2)) {
+                my $signal_watcher = EV::signal $signal, sub {
+                    $self->_update_peak_memory(no_rounding => 1);
+                    
+                    # get the requirements of the submission that was used to
+                    # run us
+                    if ($submission) {
+                        my $changed = 0;
+                        if ($self->peak_memory >= $submission->memory) {
+                            $submission->extra_memory;
+                            $changed = 1;
+                        }
+                        if ($self->wall_time >= $submission->scheduler->queue_time($submission->requirements)) {
+                            my $new_time = (ceil($self->wall_time / 60 / 60) + 1) * 60 * 60;
+                            $submission->extra_time($new_time - $submission->time);
+                            $changed = 1;
+                        }
+                        
+                        if ($changed) {
+                            # also change the requirements for all other subs
+                            # for us *** does this happen any more?
+                            my $new_req_id = $submission->requirements->id;
+                            VRPipe::Submission->search_rs({ job => $self->id, requirements => { '!=' => $new_req_id } })->update({ requirements => $new_req_id });
+                        }
+                    }
+                    
+                    $self->kill_job;
+                };
+                $self->store_watcher($signal_watcher);
+            }
             
-            # exec is supposed to get our $cmd to run whilst keeping the same
-            # $cmd_pid, but on some systems like Ubuntu the sh (dash) is a bit
-            # sucky: http://www.perlmonks.org/?node_id=785284
-            # We can't force list mode in the normal way because we actually
-            # require the use of the shell to do things like run multi-line
-            # commands and pipes etc. $cmd having a different pid to $cmd_pid
-            # matters because we need to know the correct pid if the server
-            # needs to kill it later. Instead we force the use of a better shell
-            # (default bash) for everything, which might be less efficient in
-            # some cases, but the difference is going to be meaningless for us.
-            my $shell = VRPipe::Config->new->exec_shell;
-            if ($shell) {
-                exec {$shell} $shell, '-c', $cmd;
-            }
-            else {
-                exec $cmd;
-            }
-        }
-        
-        # wait for the cmd to finish
-        my $exit_code = $self->_wait_for_child($cmd_pid);
-        $self->reselect_values_from_db;
-        
-        # update db details for the job
-        $self->end_time(DateTime->now());
-        $self->stdout_file->update_stats_from_disc(retries => 3);
-        $self->stderr_file->update_stats_from_disc(retries => 3);
-        my $o_files = $self->output_files;
-        if (@$o_files) {
-            foreach my $o_file (@$o_files) {
-                $o_file->update_stats_from_disc(retries => 3);
-            }
-        }
-        elsif ($stepstate) {
-            $stepstate->update_output_file_stats;
-        }
-        $self->running(0);
-        $self->finished(1);
-        $self->exit_code($exit_code);
-        $self->update;
-        
-        # reap the heartbeat
-        kill(9, $heartbeat_pid);
-        $self->_wait_for_child($heartbeat_pid);
+            #*** what we don't handle well is the situation where we get
+            #    SIGSTOPed, the node running us becomes unresponsive, this Job
+            #    starts up on another node, fails to kill our pid and starts
+            #    running cmd again, then this node comes back to life and we are
+            #    SIGCONTed. Our heartbeat will cause us to commit suicide, but
+            #    only after up to 60 seconds - plenty of time for our cmd_pid to
+            #    corrupt the output of the other running Job. I tried
+            #    experimenting with a SIGCONT watcher, and with turning trace on
+            #    for the child watcher, but these didn't seem to let me kill the
+            #    cmd_pid before it resumed
+            
+            # set up a watcher that detects when the child exits
+            my $child_watcher;
+            $child_watcher = EV::child $cmd_pid, 0, sub {
+                my $exit_code = $child_watcher->rstatus;
+                waitpid($cmd_pid, 0); # is this necessary??
+                $self->stop_monitoring;
+                
+                # finalise the job state
+                $self->reselect_values_from_db;
+                $self->stdout_file->update_stats_from_disc(retries => 3);
+                $self->stderr_file->update_stats_from_disc(retries => 3);
+                my $o_files = $self->output_files;
+                if (@$o_files) {
+                    foreach my $o_file (@$o_files) {
+                        $o_file->update_stats_from_disc(retries => 3);
+                    }
+                }
+                elsif ($submission) {
+                    $submission->stepstate->update_output_file_stats;
+                }
+                
+                $self->stop_beating;
+                $self->exit_code($exit_code);
+                $self->end_time(DateTime->now());
+                $self->_living_id(undef);
+                $self->update;
+                
+                $self->clear_watchers;
+            };
+            $self->store_watcher($child_watcher);
+        };
+        $self->store_watcher($delayed_fork);
     }
     
     method stdout_file {
@@ -365,106 +447,91 @@ class VRPipe::Job extends VRPipe::Persistent {
         return ".host_$host.pid_$pid";
     }
     
-    method _wait_for_child (Int $pid) {
-        if (waitpid($pid, 0) > 0) {
-            return $?;
-            #*** below code should be used elsewhere by some kind of front-end
-            #    reporting method, which would access the raw exit code from
-            #    ->exit_code instead of $?
-            #my ($rc, $sig, $core) = ($? >> 8, $? & 127, $? & 128);
-            #if ($core) {
-            #    $self->warn("$identifier dumped core");
-            #    return $core;
-            #}
-            #elsif ($sig == 9) {
-            #    $self->warn("$identifier was killed");
-            #    return $sig;
-            #}
-            #elsif ($rc) {
-            #    my $message = $sig ? " after receiving signal $sig" : '';
-            #    $self->warn("$identifier exited with code $rc$message");
-            #    return $rc;
-            #}
-            #else {
-            #    #warn "child $pid finished OK ($?)\n";
-            #    return $rc;
-            #}
-        }
-        else {
-            my $identifier = "child process $pid for command [" . $self->cmd . "]";
-            $self->warn("$identifier disappeared!");
-        }
-    }
-    
-    method time_since_heartbeat {
-        return unless $self->running;
-        my $heartbeat = $self->heartbeat || $self->start_time || $self->throw("job " . $self->id . " is running, yet has neither a heartbeat nor a start time");
-        my $t = time();
-        return $t - $heartbeat->epoch;
-    }
-    
-    method unresponsive {
-        my $interval = $self->heartbeat_interval;
-        my $elapsed = $self->time_since_heartbeat || 0;
-        
-        # try and allow for mysql server time being different to our host time,
-        # and other related timing vagueries
-        my $multiplier;
-        if ($interval < 60) {
-            $multiplier = 10;
-        }
-        elsif ($interval < 300) {
-            $multiplier = 3;
-        }
-        else {
-            $multiplier = 1;
-        }
-        
-        $self->debug("   -- checking if unresponsive with a heartbeat interval of $interval, elapsed time of $elapsed s since last heartbeat, and multiplier $multiplier");
-        
-        return $elapsed > ($interval * $multiplier) ? 1 : 0;
-    }
-    
     method kill_job {
-        return unless $self->running;
+        return unless $self->start_time;
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
+        $self->disconnect;
         if ($user && $host && $pid) {
-            $self->disconnect;
-            eval {
-                local $SIG{ALRM} = sub { die "ssh timed out\n" };
-                alarm(15);
-                ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam "KILL", $pid']); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
-                #    Net::SSH::Perl is able to always log us in, but can take over a minute!
-                # *** we need to do something if the kill fails...
-                alarm(0);
-            };
-            if ($@) {
-                die unless $@ eq "ssh timed out\n";
-                # *** and how do we handle not being able to ssh into the host
-                #     at all?
-                $self->warn("ssh to $host timed out, assuming that process $pid is dead...");
+            if (hostname() eq $host) {
+                killfam "KILL", $pid;
+            }
+            else {
+                warn "killing a job on another host\n";
+                eval {
+                    local $SIG{ALRM} = sub { die "ssh timed out\n" };
+                    alarm(15);
+                    ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam "KILL", $pid']); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
+                    #    Net::SSH::Perl is able to always log us in, but can take over a minute!
+                    # *** we need to do something if the kill fails...
+                    alarm(0);
+                };
+                if ($@) {
+                    die unless $@ eq "ssh timed out\n";
+                    # *** and how do we handle not being able to ssh into the host
+                    #     at all?
+                    $self->warn("ssh to $host timed out, assuming that process $pid is dead...");
+                }
+                
+                warn "setting the other-host job's end time and exit_code(9)\n";
+                $self->end_time(DateTime->now());
+                $self->exit_code(9);
+                $self->update;
+            }
+            
+            my $ofiles = $self->output_files;
+            foreach my $file (@$ofiles) {
+                $file->unlink;
             }
         }
-        $self->running(0);
-        $self->finished(1);
-        $self->end_time(DateTime->now());
-        $self->exit_code(9);
-        $self->update;
+    }
+    
+    around _still_exists {
+        # we don't delete ourselves from the db when dead, which means if we get
+        # paused and another version of us begins running elsewhere, it will
+        # have the same id. Instead, if another instance starts running it will
+        # have changed _living_id
+        if ($self->start_time) {
+            my $still_exists = $self->search({ id => $self->id, '_living_id' => "$self" });
+            return $still_exists;
+        }
+        else {
+            return 1;
+        }
+    }
+    
+    # we can't have a heartbeat unless we started
+    around time_since_heartbeat {
+        return unless $self->start_time;
+        return $self->$orig;
+    }
+    
+    around beat_heart {
+        return unless $self->start_time;
+        return $self->$orig;
+    }
+    
+    around end_it_all {
+        $self->stop_beating;
+        $self->stop_monitoring;
+        $self->clear_watchers;
+        $self->kill_job;
+        $self->reset_job;
+    }
+    
+    around murder_response {
+        $self->end_it_all;
     }
     
     method reset_job {
-        return if $self->running;
-        #*** race condition
-        $self->running(0);
-        $self->finished(0);
         $self->exit_code(undef);
         $self->pid(undef);
         $self->host(undef);
         $self->user(undef);
         $self->heartbeat(undef);
-        $self->creation_time(DateTime->now());
         $self->start_time(undef);
+        $self->peak_memory(undef);
         $self->end_time(undef);
+        $self->_living_id(undef);
         $self->update;
         return 1;
     }
