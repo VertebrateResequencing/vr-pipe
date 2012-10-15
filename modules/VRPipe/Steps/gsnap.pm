@@ -39,28 +39,37 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
     
     method options_definition {
         return {
-            gsnap_exe        => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                      optional => 1, default_value => 'gsnap'),
-            paired_end       => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.', optional => 1, default_value => '0'),
-            gsnap_db         => VRPipe::StepOption->create(description => 'gsnap db that gsnap already knows about e.g. mm9, mm10, hg19, etc',  optional => 0, default_value => 'mm9'),
-            gsnap_genome_dir => VRPipe::StepOption->create(description => 'path to gsnap genome directory',                                     optional => 0)
+            gsnap_exe        => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                                                                                                              optional => 1, default_value => 'gsnap'),
+            paired_end       => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.',                                                                                         optional => 1, default_value => '0'),
+            gsnap_db         => VRPipe::StepOption->create(description => 'gsnap db that gsnap already knows about e.g. mm9, mm10, hg19, etc',                                                                                          optional => 1, default_value => 'mm9'),
+            gsnap_genome_dir => VRPipe::StepOption->create(description => 'path to gsnap genome directory. If not set, will default to index known to the pipeline from a gmap_build step, or the default GMAP genome index directory', optional => 0)
         };
     }
     
     method inputs_definition {
         return {
             # sequence file - fastq for now
-            fastq_files => VRPipe::StepIODefinition->create(type => 'fq', max_files => -1, description => '1 or more fastq files')
+            fastq_files         => VRPipe::StepIODefinition->create(type => 'fq',  max_files => -1, description => '1 or more fastq files'),
+            gmap_index_txt_file => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0,  max_files   => -1, description => '0 or 1 index file')
         };
     }
     
     method body_sub {
         return sub {
-            my $self             = shift;
-            my $options          = $self->options;
-            my $gsnap_exe        = $options->{gsnap_exe};
-            my $gsnap_db         = $options->{gsnap_db};
-            my $paired           = $options->{paired_end};
-            my $gsnap_genome_dir = $options->{gsnap_genome_dir};
+            my $self      = shift;
+            my $options   = $self->options;
+            my $gsnap_exe = $options->{gsnap_exe};
+            my $gsnap_db  = $options->{gsnap_db};
+            my $paired    = $options->{paired_end};
+            my $gsnap_genome_dir;
+            if (defined($options->{gsnap_genome_dir})) {
+                $gsnap_genome_dir = $options->{gsnap_genome_dir};
+            }
+            elsif (defined($self->inputs->{gmap_index_txt_file})) {
+                $gsnap_genome_dir = Path::Class::File->new($self->inputs->{gmap_index_txt_file})->dir->stringify;
+            }
+            else { $gsnap_genome_dir = undef; }
+            
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gsnap', version => VRPipe::StepCmdSummary->determine_version($gsnap_exe . ' --version', 'GSNAP version  (.+) c'), summary => 'gsnap -d gsnap_db input_file'));
             my $req = $self->new_requirements(memory => 8000, time => 1); # more? 16GB RAM? Could be 8GB?
             my @input_file = @{ $self->inputs->{fastq_files} };
@@ -97,9 +106,10 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             }
             
             # deal with other options such as gunzip
-            
-            #construct command
-            $cmd = "$gsnap_exe $inputs -D $gsnap_genome_dir -d $gsnap_db -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
+            # construct command
+            $cmd = "$gsnap_exe $inputs";
+            $cmd .= " -D $gsnap_genome_dir " if (defined($gsnap_genome_dir));
+            $cmd .= " $gsnap_db -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
             $self->dispatch([qq[$cmd], $req, { output_files => [$output_file_1] }]);
         };
     
