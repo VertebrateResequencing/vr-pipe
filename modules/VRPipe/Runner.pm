@@ -103,7 +103,7 @@ class VRPipe::Runner extends VRPipe::Persistent::Living {
         return time() - $scheduled->epoch;
     }
     
-    method run {
+    method run (Str :$append?) {
         # start our heartbeat so that another process can check if we're
         # running (it will also stop us running if another process murders us)
         $self->start_beating;
@@ -111,6 +111,7 @@ class VRPipe::Runner extends VRPipe::Persistent::Living {
         # async fork our cmd
         fork_call {
             my $cmd = $self->cmd;
+            $cmd .= ' ' . $append if $append;
             $self->disconnect;
             system($cmd);
             return;
@@ -123,7 +124,7 @@ class VRPipe::Runner extends VRPipe::Persistent::Living {
         EV::run;
         
         # now that we've done our job, erase our existence
-        $self->commit_suicide;
+        $self->end_it_all;
     }
 }
 
