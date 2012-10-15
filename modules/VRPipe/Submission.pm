@@ -139,10 +139,20 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     # other methods
     method claim {
+        my $job = $self->job;
         if ($self->_claim) {
-            return $self->_own_claim ? 1 : 0;
+            if ($job->alive) {
+                return $self->_own_claim ? 1 : 0;
+            }
+            else {
+                $self->_own_claim(1);
+                return 1;
+            }
         }
         else {
+            if ($job->alive) {
+                $job->_reset_job;
+            }
             $self->_claim(1);
             $self->update;
             $self->_own_claim(1);
@@ -157,12 +167,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
         $self->update;
     }
     
-    method submit {
-        $self->scheduler->submit(submission => $self);
-    }
-    
     around scheduler {
-        if ($self->scheduled) {
+        if ($self->_claim) {
             return $self->$orig;
         }
         else {
@@ -172,7 +178,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method update_status {
         $self->reselect_values_from_db;
-        $self->throw("Cannot call update_status when the job " . $self->job->id . " is not finished") unless $self->job->finished;
+        $self->throw("Cannot call update_status when the job " . $self->job->id . " is not finished") unless $self->job->end_time;
         return if $self->done || $self->failed;
         
         if ($self->job->ok) {
@@ -184,59 +190,15 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $self->_failed(1);
         }
         
-        unless ($self->_hid) {
-            # we're a submission for a job that completed in a different
-            # submission, so we didn't actually run and have no output
-            $self->update;
-            return;
-        }
-        
-        #*** these 2 calls are probably the cause of massive delays when going
-        #    from jobs being finished to submissions being done... can we
-        #    optimise?
-        #    It is actualy the archive_output that causes the ~1s delays,
-        #    and it is not the filesystem operations, but the retrieval of
-        #    the 8 VRPipe::File objects... at the very least path column of file
-        #    table must be indexed, or delays go up to ~6s+
-        my $t1 = time();
-        $self->sync_scheduler;
-        my $t2 = time();
         $self->archive_output;
-        my $t3 = time();
-        $self->_sid(undef);
-        if ($t3 - $t1 > 2) {
-            my $ss_t = $t2 - $t1;
-            my $ao_t = $t3 - $t2;
-            $self->debug("in update_status, sync_scheduler took $ss_t seconds; archive_output took $ao_t seconds");
-        }
         
         $self->update;
-    }
-    
-    method sync_scheduler {
-        my $sid = $self->sid;
-        unless ($sid) {
-            return;
-        }
-        
-        # assume that if its been more than a minute since the job ended, the
-        # scheduler must have generated its output by now, so we don't have to
-        # ask the scheduler about this sid
-        my $job      = $self->job;
-        my $end_time = $self->job->end_time;
-        if ($end_time && (time() - $end_time->epoch > 60)) {
-            return;
-        }
-        
-        $self->scheduler->wait_for_sid($sid, $self->_aid, 5);
     }
     
     method archive_output {
         my @to_archive;
         push(@to_archive, [$self->job->stdout_file, $self->job_stdout_file, 1]);
         push(@to_archive, [$self->job->stderr_file, $self->job_stderr_file, 1]);
-        push(@to_archive, [$self->scheduler_stdout_file(orig => 1), $self->scheduler_stdout_file, 0]);
-        push(@to_archive, [$self->scheduler_stderr_file(orig => 1), $self->scheduler_stderr_file, 1]);
         
         my $count = 0;
         foreach my $toa (@to_archive) {
@@ -259,42 +221,18 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method _add_extra (Str $type, Int $extra) {
         my $new_req = $self->requirements->clone($type => $self->$type() + $extra);
         
-        # we need to check with the scheduler if the new requirements would put
-        # us in a different queue, and if so switch queues on any submission
-        # that is currently running the job
-        my ($switch_queue, $scheduler);
-        my $job = $self->job;
-        if ($job->running) {
-            $scheduler = $self->scheduler;
-            my $current_queue = $scheduler->determine_queue($self->requirements);
-            my $new_queue     = $scheduler->determine_queue($new_req);
-            if ($new_queue ne $current_queue) {
-                $switch_queue = $new_queue;
-            }
-        }
-        
         # we want to add extra * for all submissions that are for this sub's
         # job, incase it is not this sub in an array of block_and_skip jobs that
-        # gets retried; also, if we're switching queues, it will be the first
-        # sub that is actually running the job
-        my $pager = VRPipe::Submission->search_paged({ 'job' => $job->id }, { order_by => { -asc => 'id' } });
-        my $first = 1;
+        # gets retried *** is this still possible?
+        my $pager = VRPipe::Submission->search_paged({ 'job' => $self->job->id }, { order_by => { -asc => 'id' } });
         while (my $to_extras = $pager->next) {
             foreach my $to_extra (@$to_extras) {
-                if ($first && $switch_queue && $to_extra->sid && !$to_extra->done) {
-                    $self->debug("calling switch_queues(" . $to_extra->sid . ", $switch_queue)");
-                    $scheduler->switch_queue($to_extra->sid, $switch_queue);
-                }
-                $first = 0;
-                
                 $to_extra->requirements($new_req);
                 $to_extra->update;
             }
         }
         
         $self->reselect_values_from_db;
-        
-        return 1;
     }
     
     method memory {
@@ -323,7 +261,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->requirements->time;
     }
     
-    method extra_time (Int $extra = 1) {
+    method extra_time (Int $extra = 3600) {
         $self->_add_extra('time', $extra);
     }
     
@@ -363,77 +301,17 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method close_to_time_limit (Int $minutes = 30) {
+    method close_to_time_limit (Int $minutes = 5) {
         my $seconds = $minutes * 60;
         my $job     = $self->job;
-        return $job->wall_time > (($self->requirements->time * 60 * 60) - $seconds);
+        return $job->wall_time > (($self->requirements->time) - $seconds);
     }
     
-    # where have our scheduler and job stdout/err files gone?
+    # where have our job stdout/err files gone?
     method std_dir (Bool $orig = 0) {
-        my ($for) = $self->_for($orig);
+        my $for = $orig ? $self : $self->job;
         $for || return;
         return $self->scheduler->output_dir($for);
-    }
-    
-    method _for (Bool $orig = 0) {
-        my $hid = $self->_hid || return;
-        my $for = $self->job;
-        my $index;
-        if ($self->_aid) {
-            $for = VRPipe::PersistentArray->get(id => $hid) if $orig;
-            $index = $self->_aid;
-        }
-        else {
-            $for = $self if $orig;
-        }
-        return ($for, $index);
-    }
-    
-    method _scheduler_std_file (Str $method where {$_ eq 'scheduler_output_file' || $_ eq 'scheduler_error_file'}, Str $type, Bool $orig = 0) {
-        my $std_dir = $self->std_dir($orig) || return;
-        my $std_io_file;
-        if ($orig) {
-            $std_io_file = $self->scheduler->$method($std_dir);
-            my (undef, $index) = $self->_for($orig);
-            if ($index) {
-                $std_io_file .= '.' . $index;
-            }
-        }
-        else {
-            $std_io_file = file($std_dir, $method);
-        }
-        
-        return VRPipe::File->create(path => $std_io_file, type => $type);
-    }
-    
-    method scheduler_stdout_file (Bool :$orig = 0) {
-        return $self->_scheduler_std_file('scheduler_output_file', substr($self->scheduler->type, 0, 3), $orig);
-    }
-    
-    method scheduler_stderr_file (Bool :$orig = 0) {
-        return $self->_scheduler_std_file('scheduler_error_file', 'cat', $orig);
-    }
-    
-    method _std_parser (VRPipe::File $file, Str $type) {
-        $file->s || return;
-        return VRPipe::Parser->create($type, { file => $file->path }); # in case $file is not type $type, we send the path, not the object
-    }
-    
-    method scheduler_stdout {
-        my $file = $self->scheduler_stdout_file || return;
-        unless ($file->s) {
-            $file = $self->scheduler_stdout_file(orig => 1);
-        }
-        return $self->_std_parser($file, lc(substr($self->scheduler->type, 0, 3)));
-    }
-    
-    method scheduler_stderr {
-        my $file = $self->scheduler_stderr_file || return;
-        unless ($file->s) {
-            $file = $self->scheduler_stderr_file(orig => 1);
-        }
-        return $self->_std_parser($file, 'cat');
     }
     
     method _job_std_file (Str $kind where {$_ eq 'out' || $_ eq 'err'}) {
@@ -467,30 +345,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_std_parser($file, 'cat');
     }
     
-    method pend_time {
-        my $job = $self->job;
-        my $scheduled_time = $self->_scheduled || $self->throw("called pend_time, yet submission " . $self->id . " has not been scheduled!");
-        $scheduled_time = $scheduled_time->epoch;
-        if ($job->running || $job->finished) {
-            return $job->start_time->epoch - $scheduled_time;
-        }
-        else {
-            return time() - $scheduled_time;
-        }
-    }
-    
-    method unschedule_if_not_pending {
-        my $sid       = $self->sid || return;
-        my $aid       = $self->_aid;
-        my $scheduler = $self->scheduler;
-        
-        my $status = $scheduler->sid_status($sid, $aid);
-        return if $status eq 'PEND';
-        $scheduler->kill_sid($sid, $aid, 5);
-        
-        $self->_reset;
-    }
-    
     method retry {
         return unless ($self->done || $self->failed);
         
@@ -514,13 +368,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method _reset_job {
         my $job = $self->job;
-        unless ($job->finished) {
+        if ($job->start_time && !$job->end_time) {
             $job->kill_job;
-        }
-        
-        my $ofiles = $job->output_files;
-        foreach my $file (@$ofiles) {
-            $file->unlink;
         }
         
         $job->reset_job;
