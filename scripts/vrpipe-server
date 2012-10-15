@@ -231,6 +231,7 @@ sub start_server {
                 fork_call {
                     # check we're still valid
                     die "no longer in db\n" unless $farm_server->alive;
+                    $farm_server->stop_beating; # parent process is beating
                     
                     # claim our setups
                     my @setups = $farm_server->claim_setups;
@@ -249,7 +250,7 @@ sub start_server {
                         
                         # get the count of requirements
                         my $sched_id = $scheduler->id;
-                        my $req_counts = [VRPipe::Submission->search_rs({ '_done' => 0, [-or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0]], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
+                        my $req_counts = [VRPipe::Submission->search_rs({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
                         
                         # scale the counts according to $max_subs
                         #*** and eventually, we should have a priority system
@@ -275,10 +276,11 @@ sub start_server {
                         foreach my $cols (@$req_counts) {
                             my ($req_id, $count) = @$cols;
                             $scheduler->ensure_running(
-                                cmd          => "$handler_path --mode submissions --farm $farm -r $req_id, -s $sched_id",
-                                count        => $count,
-                                requirements => VRPipe::Requirements->get(id => $req_id),
-                                backend      => $backend
+                                cmd                         => "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id",
+                                count                       => $count,
+                                requirements                => VRPipe::Requirements->get(id => $req_id),
+                                backend                     => $backend,
+                                append_runner_option_to_cmd => 1
                             );
                         }
                     }
@@ -297,6 +299,7 @@ sub start_server {
                         # running
                         if ($err =~ /no longer in db/) {
                             $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
+                            $farm_server->end_it_all;
                             undef $farm_server;
                         }
                         &{$watcher_error_sub};
