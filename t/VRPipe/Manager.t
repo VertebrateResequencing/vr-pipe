@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 13;
+    use Test::Most tests => 12;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -144,8 +144,6 @@ ok my $manager = VRPipe::Manager->create(), 'can create a manager with no args';
 is $manager->id, 1, 'manager always has an id of 1';
 my @manager_setups = $manager->setups;
 is @manager_setups, 2, 'setups() returns the correct number of PipelineSetups';
-@manager_setups = $manager->setups(pipeline_name => 'multi_step_pipeline');
-is @manager_setups, 1, 'setups() returns the correct number of PipelineSetups when pipeline_name supplied';
 
 is handle_pipeline(@first_output_files, @second_output_files), 1, 'multi-step pipeline completed via Manager';
 
