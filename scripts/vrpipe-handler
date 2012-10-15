@@ -31,11 +31,11 @@ use AnyEvent;
 use AnyEvent::Util qw(fork_call);
 use AnyEvent::ForkManager;
 use Sys::CPU;
-use VRPipe::Interface::CmdLine;
+use VRPipe::FrontEnd;
 use VRPipe::Interface::BackEnd;
 
 # handle options
-my $cmdline = VRPipe::Interface::CmdLine->new(
+my $cmdline = VRPipe::FrontEnd->new(
     description => "Handle the running of setups or submissions while executing on a farm node.",
     opt_spec    => [
         ['One of two modes must be specified, as must --farm.'],
@@ -43,8 +43,9 @@ my $cmdline = VRPipe::Interface::CmdLine->new(
         ['farm=s',   'Handle setups being controlled by this farm'],
         [],
         ['In --mode submissions, you must also supply:'],
-        ['requirements|r=s', 'a Requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }],
-        ['scheduler|s=s',    'a Scheduler id',                                                     { persistent_object => 'Scheduler' }]
+        ['requirements|r=i', 'a Requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }],
+        ['scheduler|s=i',    'a Scheduler id',                                                     { persistent_object => 'Scheduler' }],
+        ['runner=i',         'a Runner id',                                                        { persistent_object => 'Runner' }]
     ]
 );
 
@@ -72,7 +73,9 @@ elsif ($mode eq 'submissions') {
     $req || $cmdline->die_with_error("--requirements is required in submissions mode");
     my $scheduler = $cmdline->opts('scheduler');
     $scheduler || $cmdline->die_with_error("--scheduler is required in submissions mode");
-    handle_submissions($req, $scheduler);
+    my $runner = $cmdline->opts('runner');
+    $runner || $cmdline->die_with_error("--runner is required in submissions mode");
+    handle_submissions($req, $scheduler, $runner);
 }
 else {
     $cmdline->die_with_error("$mode is an invalid mode");
@@ -241,54 +244,89 @@ sub handle_setups {
 }
 
 sub handle_submissions {
-    my ($req, $scheduler) = @_;
+    my ($req, $scheduler, $runner) = @_;
     $backend->log_stderr;
     my $req_id      = $req->id;
     my $time_needed = $req->time;
-    my $end_time    = (time() + $scheduler->queue_time($req)) - 60;
+    my $end_time    = (time() + $scheduler->queue_time($req)) - 65;
     $req->disconnect;
     
-    # grab the next submission from the list (avoiding race condition - use some
-    # modification of the claim system where the worker id is stored) that won't
-    # break the step limit (if none, sleep for 1m and loop)
-    
-    # runs sub's job cmd in a subprocess while monitoring its avg CPU, peak
-    # memory and total run time, and kills cmd and the whole worker if no longer
-    # in worker table. If we're running out of time we switch queues and update
-    # our entry in the worker table
-    
-    # records these things in the Job table on cmd exit along with exit code
-    
-    # does a sub->update_status kind of thing, storing on the submission the
-    # actual reservation details the worker is running under and if failed,
-    # reason for failure stored on submission as parsed exit code. also the
-    # worker id is removed from submission
-    
-    # if successful and if it was the last submission of its step and they're
-    # all complete now (avoiding race condition) it does a spool for only its
-    # own dataelement - ie. triggers the creation of submissions in the next
-    # step
-    
-    # if failed, sets the submission to be retried if appropriate
-    
     # every 60s we'll pick a submission if we don't have one already, and update
-    # its stats
+    # its status
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
     my ($submission, $job_pid, %failed_by_us);
     my $watcher = EV::timer 0, $timer_interval, sub {
         if ($submission) {
             $backend->log("updating stats of submission " . $submission->id);
-            $job_pid || die "had a submission but not job pid?!\n";
+            my $job = $submission->job;
+            if ($job->end_time) {
+                $submission->update_status;
+                
+                if ($submission->done) {
+                    # we completed successfully; if this was the last submission
+                    # of its step and they're all done now, do a trigger for
+                    # this dataelement to create submissions for the next step
+                    my $stepstate_id = $submission->stepstate->id;
+                    
+                    my $transaction = sub {
+                        # compare counts of total submissions for our step to
+                        # count of those done to see if the step is complete.
+                        # We can't just get quick counts though otherwise the
+                        # for => update lock doesn't do anything
+                        my @step_subs = VRPipe::Submission->search({ stepstate => $stepstate_id }, { for => 'update' });
+                        my $done = 0;
+                        foreach my $sub (@step_subs) {
+                            $done++ if $sub->done;
+                        }
+                        
+                        if ($done == @step_subs) {
+                            my $step_state = $submission->stepstate;
+                            $step_state->pipelinesetup->trigger($step_state->dataelement);
+                        }
+                    };
+                    $submission->do_transaction($transaction, "Failed to see if the step was done after submission " . $submission->id . " completed and trigger the next step");
+                }
+                elsif ($submission->failed) {
+                    # Job->run itself would have adjusted $submission's
+                    # requirements already if we failed due to running out of
+                    # time or memory; we just need to retry it if appropriate
+                    $submission->retry if $submission->retries < 3;
+                    $failed_by_us{ $submission->id } = 1;
+                }
+                
+                $submission->release;
+                undef $submission;
+            }
+            elsif ($submission->close_to_time_limit(5)) {
+                # user's scheduler might kill the submission if it runs too
+                # long in the queue it was initially submitted to; avoid
+                # this by changing queue as necessary
+                my $current_queue = $scheduler->determine_queue($req);
+                $submission->extra_time;
+                my $new_queue = $scheduler->determine_queue($submission->requirements);
+                
+                if ($new_queue ne $current_queue) {
+                    $scheduler->switch_queue($runner->sid, $new_queue);
+                }
+                
+                # we do not update $req, so that once this $submission has
+                # finished we should think that we've run out of time and kill
+                # ourselves, keeping vrpipe-server's estimation of how many
+                # handlers per req are running nice and accurate
+            }
             
-            #...
+            $req->disconnect;
         }
-        else {
+        unless ($submission) {
             # pick the next available submission to work on
             eval {
                 $fs->alive || die "no farmserver";
                 die "ran out of time" if (time() >= $end_time);
                 
-                my $sub_pager = VRPipe::Submission->search_paged({ requirements => $req_id, '_done' => 0, [-or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0]], scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'job.running' => 0 }, { join => { stepstate => 'pipelinesetup' }, prefetch => ['job', $do_step_limits ? ({ stepstate => { stepmember => 'step' } }) : ()] });
+                my $survival_time = $fs->survival_time;
+                my $dtf           = $schema->storage->datetime_parser;
+                
+                my $sub_pager = VRPipe::Submission->search_paged({ requirements => $req_id, '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => { stepstate => 'pipelinesetup' }, prefetch => ['job', { stepstate => { stepmember => 'step' } }] }, 100);
                 
                 my (%step_limits, %step_counts, %completed_setups);
                 SLOOP: while (my $subs = $sub_pager->next(no_resetting => 1)) {
@@ -306,7 +344,7 @@ sub handle_submissions {
                         
                         # avoid submissions we have failed, in case there is a
                         # node-specific problem
-                        if ($sub->failed && exists $failed_by_us{ $sub->id }) {
+                        if (exists $failed_by_us{ $sub->id }) {
                             # in case all the other handlers have failed it
                             # as well (or in case there are no other
                             # handlers), we'll forget we failed it if we've
@@ -341,7 +379,6 @@ sub handle_submissions {
                                         $completed_setups{ $setup->id } = $setup->currently_complete;
                                     }
                                     next if $completed_setups{ $setup->id };
-                                    my $user_opts = $ps->options;
                                     my $setup_limit = $setup->options->{ $step_name . '_max_simultaneous' } || next;
                                     if (!defined $step_limit || $setup_limit < $step_limit) {
                                         $step_limit = $setup_limit;
@@ -357,27 +394,43 @@ sub handle_submissions {
                             if ($step_limit) {
                                 # see how many of this step are currently
                                 # running, globally
-                                $step_counts{$step_id} = VRPipe::Submission->search({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0, 'job.running' => 1 }, { join => ['job', { stepstate => 'stepmember' }] });
+                                $step_counts{$step_id} = VRPipe::Submission->search({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0, 'job.heartbeat' => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } }, { join => ['job', { stepstate => 'stepmember' }] });
                             }
                         }
                         if ($step_limit) {
                             $submission = 0;
                             next if $step_counts{$step_id} >= $step_limits{$step_id};
-                            $step_counts{$step_id}++;
                         }
                         
                         # we'll claim this one to run
-                        #*** $sub->claim in a transaction...
-                        $submission = $sub;
-                        last SLOOP;
+                        my $transaction = sub {
+                            my ($sub_to_run) = VRPipe::Submission->search({ id => $sub->id }, { for => 'update' });
+                            if ($sub_to_run->claim) {
+                                $submission = $sub_to_run;
+                            }
+                        };
+                        $sub->do_transaction($transaction, "Failed to claim submission " . $sub->id);
+                        last SLOOP if $submission;
                     }
                     $backend->log("had to go to next page to find a submission");
                 }
                 
                 if ($submission) {
-                    # start running the corresponding job cmd in a way that
-                    # we'll be able to monitor it
-                
+                    if ($submission->failed) {
+                        # this shouldn't really happen, but perhaps is possible
+                        # if vrpipe-handler got killed in between setting the
+                        # sub to failed and calling retry; just blindly retry it
+                        # now since we've no way of knowing why it failed.
+                        $backend->log("blindly retrying submission " . $submission->id);
+                        $submission->retry;
+                        $submission->release;
+                        $submission = 0;
+                    }
+                    else {
+                        # start running the associated job
+                        $backend->log("will start running submission " . $submission->id . ", job " . $submission->job->id);
+                        $submission->job->run(submission => $submission);
+                    }
                 }
                 
                 $req->disconnect;
@@ -397,10 +450,10 @@ sub handle_submissions {
                 exit_handler("No submissions to work on");
             }
         }
-      }
-      
-      # run the event loop
-      $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
+    };
+    
+    # run the event loop
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
     EV::run;
     
     $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting!");
