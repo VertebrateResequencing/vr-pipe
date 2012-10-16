@@ -6,7 +6,7 @@ use File::Copy;
 use Path::Class qw(file dir);
 
 BEGIN {
-    use Test::Most tests => 12;
+    use Test::Most tests => 11;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -251,18 +251,9 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
     ok handle_pipeline(@ofiles), 'pipeline with a step that fails twice before working ran successfully';
     
     my @subs = VRPipe::Submission->search({ 'stepstate.pipelinesetup' => $ps_id }, { order_by => { -asc => 'me.id' }, join => ['stepstate'] });
-    my $sched_oks = 0;
     my %job_std;
     foreach my $sub (@subs) {
-        my $pars = $sub->scheduler_stdout;
-        my @times;
-        while ($pars->next_record) {
-            push(@times, $pars->time);
-        }
-        $sched_oks++ if @times >= 3;
-        
-        undef $pars;
-        $pars = $sub->job_stdout;
+        my $pars     = $sub->job_stdout;
         my $pr       = $pars->parsed_record;
         my $line_num = 0;
         while ($pars->next_record) {
@@ -283,7 +274,6 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
             last if $line_num == 3;
         }
     }
-    is $sched_oks, 3, 'The scheduler stdout of all 3 attempts on all 3 elements could be retrieved';
     is_deeply \%job_std,
       {
         out => { "1 - undef" => 3, "2 - stdout message: failing on purpose since this is try 2" => 3, "3 - stdout message: failing on purpose since this is try 1" => 3 },
