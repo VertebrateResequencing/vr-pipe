@@ -250,7 +250,7 @@ sub start_server {
                         
                         # get the count of requirements
                         my $sched_id = $scheduler->id;
-                        my $req_counts = [VRPipe::Submission->search_rs({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
+                        my $req_counts = [VRPipe::Submission->search_rs({ -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_done' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
                         
                         # scale the counts according to $max_subs
                         #*** and eventually, we should have a priority system
