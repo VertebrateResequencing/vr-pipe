@@ -257,7 +257,6 @@ sub handle_submissions {
     my ($submission, $job_pid, %failed_by_us);
     my $watcher = EV::timer 0, $timer_interval, sub {
         if ($submission) {
-            $backend->log("updating stats of submission " . $submission->id);
             my $job = $submission->job;
             if ($job->end_time) {
                 $submission->update_status;
@@ -412,7 +411,6 @@ sub handle_submissions {
                         $sub->do_transaction($transaction, "Failed to claim submission " . $sub->id);
                         last SLOOP if $submission;
                     }
-                    $backend->log("had to go to next page to find a submission");
                 }
                 
                 if ($submission) {
@@ -421,14 +419,14 @@ sub handle_submissions {
                         # if vrpipe-handler got killed in between setting the
                         # sub to failed and calling retry; just blindly retry it
                         # now since we've no way of knowing why it failed.
-                        $backend->log("blindly retrying submission " . $submission->id);
+                        $backend->log("$$ blindly retrying submission " . $submission->id);
                         $submission->retry;
                         $submission->release;
                         $submission = 0;
                     }
                     else {
                         # start running the associated job
-                        $backend->log("will start running submission " . $submission->id . ", job " . $submission->job->id);
+                        $backend->log("$$ will start running submission " . $submission->id . ", job " . $submission->job->id);
                         $submission->job->run(submission => $submission);
                     }
                 }
@@ -453,15 +451,15 @@ sub handle_submissions {
     };
     
     # run the event loop
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running $$.");
     EV::run;
     
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting!");
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting $$!");
     exit 0;
 }
 
 sub exit_handler {
     my $msg = shift;
-    $backend->log($msg . ", will gracefully exit $mode handler."); # if $mode eq 'setups'
+    $backend->log($msg . ", will gracefully exit $mode handler. $$"); # if $mode eq 'setups'
     EV::unloop;
 }
