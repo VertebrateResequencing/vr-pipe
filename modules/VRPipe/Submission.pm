@@ -48,7 +48,6 @@ use VRPipe::Base;
 
 class VRPipe::Submission extends VRPipe::Persistent {
     use Devel::GlobalDestruction;
-    use DateTime;
     use VRPipe::Parser;
     use POSIX qw(ceil);
     
@@ -140,18 +139,35 @@ class VRPipe::Submission extends VRPipe::Persistent {
     # other methods
     method claim {
         my $job = $self->job;
+        $self->reselect_values_from_db;
         if ($self->_claim) {
             if ($job->alive) {
-                return $self->_own_claim ? 1 : 0;
+                return 0;
             }
             else {
-                $self->_own_claim(1);
-                return 1;
+                if ($job->heartbeat) {
+                    # another process probably claimed this sub, started running
+                    # the job, but then died without releasing the claim: just
+                    # go ahead and take the claim for ourselves
+                    $self->_reset_job;
+                    $self->_own_claim(1);
+                    return 1;
+                }
+                else {
+                    # however, the other process may have claimed it and not yet
+                    # called run() and started the job's heartbeat
+                    return 0;
+                    
+                    #*** but we have an edge-case hole where the sub got claimed
+                    #    but that process never called run() or release(), in
+                    #    which case, we will always return 0 here and the job
+                    #    will never get run!
+                }
             }
         }
         else {
             if ($job->alive) {
-                $job->_reset_job;
+                $self->_reset_job;
             }
             $self->_claim(1);
             $self->update;
@@ -197,21 +213,25 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method archive_output {
         my @to_archive;
-        push(@to_archive, [$self->job->stdout_file, $self->job_stdout_file, 1]);
-        push(@to_archive, [$self->job->stderr_file, $self->job_stderr_file, 1]);
+        push(@to_archive, [$self->job->stdout_file, $self->job_stdout_file]);
+        push(@to_archive, [$self->job->stderr_file, $self->job_stderr_file]);
         
         my $count = 0;
         foreach my $toa (@to_archive) {
             $count++;
-            my ($source, $dest, $add_marker) = @$toa;
+            my ($source, $dest) = @$toa;
             next unless ($source && $dest);
             if (!ref($dest)) {
-                $self->throw("toa $count had dest $dest compared to source " . $source->path);
+                my $std_dir = $self->std_dir || 'no_std_dir';
+                my $path = file($std_dir, 'job_stderr');
+                my $vrfile = VRPipe::File->create(path => $path, type => 'cat');
+                my $vrfile_id = $vrfile ? $vrfile->id : 'no_id';
+                $self->throw("toa $count had dest $dest compared to source " . $source->path . "; should have been $path for vrfile $vrfile_id");
             }
             $self->concatenate(
                 $source, $dest,
                 unlink_source => 1,
-                add_marker    => $add_marker,
+                add_marker    => 1,
                 max_lines     => 1000
             );
         }
@@ -343,6 +363,11 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $file = $self->job->stderr_file;
         }
         return $self->_std_parser($file, 'cat');
+    }
+    
+    method _std_parser (VRPipe::File $file, Str $type) {
+        $file->s || return;
+        return VRPipe::Parser->create($type, { file => $file->path }); # in case $file is not type $type, we send the path, not the object
     }
     
     method retry {
