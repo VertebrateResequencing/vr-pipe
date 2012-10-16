@@ -122,7 +122,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             my $t             = time();
             my $survival_time = $example_runner->survival_time;
             $running = VRPipe::Runner->search({ cmd => $cmd, heartbeat => { '>' => DateTime->from_epoch(epoch => $t - $survival_time) } });
-            warn "got running $running vs count $count\n";
             return if $running >= $count;
             
             # well, are we pending in the scheduler at least?
@@ -134,14 +133,14 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 # everything is OK and that we are 'running'
                 my $five_mins_ago = DateTime->from_epoch(epoch => $t - 300);
                 my $short_pends = VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef, scheduled => { '>' => $five_mins_ago } });
-                warn "short pends is $short_pends vs not started $not_started\n";
-                return if $short_pends >= $not_started;
+                return if ($not_started && ($short_pends >= $not_started));
                 $running += $short_pends;
                 
-                # we think we've been pending in the scheduler for over 5mins
-                # now, but are we really?
-                my %status = $self->all_status;
-                my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, heartbeat => undef, scheduled => { '<=' => $five_mins_ago } });
+                # either we've been pending in the scheduler for over 5mins
+                # now, or there are dead Runners - confirm and cope
+                my %status          = $self->all_status;
+                my $dtf             = $backend->schema->storage->datetime_parser;
+                my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, -or => [[-and => { heartbeat => undef, scheduled => { '<=' => $five_mins_ago } }], heartbeat => { '<=' => $dtf->format_datetime(DateTime->from_epoch(epoch => $t - $survival_time)) }] });
                 while (my $runners = $long_pend_pager->next) {
                     foreach my $runner (@$runners) {
                         my $sid = $runner->sid;
@@ -217,7 +216,13 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 my $runner_id  = $runner->id;
                 my $run_args   = $append_runner_option_to_cmd ? "append => q[--runner $runner_id]" : '';
                 my $worker_cmd = VRPipe::Interface::CmdLine->vrpipe_perl_e(qq[VRPipe::Runner->get(id => $runner_id)->run($run_args)], $backend->deployment);
-                $backend->log("the worker cmd is [$worker_cmd]");
+                
+                # executing the Runner itself and vrpipe-handler means we have a
+                # minimum amount of memory; let's say 250MB?
+                my $req_to_use = $requirements;
+                if ($requirements->memory < 250) {
+                    $req_to_use = $requirements->clone(memory => 250);
+                }
                 
                 # construct the command line that will submit our $cmd to the
                 # scheduler
@@ -225,13 +230,12 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                     ' ',
                     $self->submit_command,
                     $self->submit_args(
-                        requirements => $requirements,
+                        requirements => $req_to_use,
                         stdo_file    => '/dev/null',
                         stde_file    => '/dev/null',
                         cmd          => $worker_cmd
                     )
                 );
-                $backend->log("the scheduler cmd is [$scheduler_cmd_line]");
                 
                 # go ahead and submit it, getting back an id from the scheduler
                 my $sid = $self->get_sid($scheduler_cmd_line);
