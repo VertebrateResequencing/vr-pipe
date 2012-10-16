@@ -11,7 +11,7 @@ BEGIN {
 }
 
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('sam_mark_duplicates', 'sam_files');
-is_deeply [$step->id, $step->description], [1, 'Mark duplicates in a sam files using picard'], 'Bismark methylation extractor step created and has correct description';
+is_deeply [$step->id, $step->description], [1, 'Mark duplicates in a sam files using picard'], 'Sam mark duplicates step created and has correct description';
 
 my $setup = VRPipe::PipelineSetup->create(
     name       => 'sam_mark_duplicates',

@@ -2,13 +2,12 @@
 use strict;
 use warnings;
 use Path::Class;
-# NOTE: GSNAP_DB_FOLDER something like mm9 does not require full path
-#       gsnap already knows this from installation.
+# NOTE: GSNAP_DB_FOLDER is something like "mm9", does not require full path
 
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES GSNAP_GENOME_DIR)],
         required_exe => [qw(gsnap)]
     );
     use TestPipelines;
@@ -28,7 +27,7 @@ my $setup = VRPipe::PipelineSetup->create(
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
-    options     => { gsnap_db => 'mm9', paired_end => 0 }
+    options     => { gsnap_db => 'mm9', paired_end => 0, gsnap_genome_dir => $ENV{GSNAP_GENOME_DIR} }
 );
 
 my @output_subdirs = output_subdirs(1);
