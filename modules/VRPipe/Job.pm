@@ -176,7 +176,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     
     method _build_cmd_monitor {
         my $watcher;
-        $watcher = EV::timer_ns 2, 10, sub {
+        $watcher = EV::timer_ns 1, 10, sub {
             $self->stop_monitoring if $self->end_time;
             $self->_update_peak_memory;
         };
@@ -184,9 +184,13 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     method _update_peak_memory (Bool :$no_rounding = 0) {
-        warn "_update_peak_memory called\n";
         my ($host, $pid) = ($self->host, $self->pid);
-        if ($host && $pid && $host eq hostname() && kill(0, $pid)) {
+        unless ($host && $pid) {
+            $self->reselect_values_from_db;
+            ($host, $pid) = ($self->host, $self->pid);
+        }
+        
+        if ($host && $pid && $host eq hostname()) {
             my $pptp;
             foreach my $p (@{ $ppt->table }) {
                 if ($p->pid == $pid) {
@@ -361,7 +365,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     # run us
                     if ($submission) {
                         my $changed = 0;
-                        if ($self->peak_memory >= $submission->memory) {
+                        my $peak_memory = $self->peak_memory || 0;
+                        if ($peak_memory >= $submission->memory) {
                             $submission->extra_memory;
                             $changed = 1;
                         }
@@ -456,7 +461,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 killfam "KILL", $pid;
             }
             else {
-                warn "killing a job on another host\n";
+                warn "$$ is killing a job on another host (job ", $self->id, ", pid $pid, host $host, our host = ", hostname(), "\n";
                 eval {
                     local $SIG{ALRM} = sub { die "ssh timed out\n" };
                     alarm(15);
@@ -472,7 +477,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     $self->warn("ssh to $host timed out, assuming that process $pid is dead...");
                 }
                 
-                warn "setting the other-host job's end time and exit_code(9)\n";
+                warn "$$ setting the other-host job's end time and exit_code(9)\n";
                 $self->end_time(DateTime->now());
                 $self->exit_code(9);
                 $self->update;
