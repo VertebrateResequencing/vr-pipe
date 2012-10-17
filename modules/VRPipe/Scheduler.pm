@@ -140,7 +140,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 # now, or there are dead Runners - confirm and cope
                 my %status          = $self->all_status;
                 my $dtf             = $backend->schema->storage->datetime_parser;
-                my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, -or => [[-and => { heartbeat => undef, scheduled => { '<=' => $five_mins_ago } }], heartbeat => { '<=' => $dtf->format_datetime(DateTime->from_epoch(epoch => $t - $survival_time)) }] });
+                my $long_pend_pager = VRPipe::Runner->search_paged({ cmd => $cmd, -or => [[-and => { heartbeat => undef, scheduled => { '<=' => $dtf->format_datetime($five_mins_ago) } }], heartbeat => { '<=' => $dtf->format_datetime(DateTime->from_epoch(epoch => $t - $survival_time)) }] });
                 while (my $runners = $long_pend_pager->next) {
                     foreach my $runner (@$runners) {
                         my $sid = $runner->sid;
