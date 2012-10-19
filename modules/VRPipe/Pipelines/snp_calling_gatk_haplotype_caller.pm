@@ -58,7 +58,7 @@ class VRPipe::Pipelines::snp_calling_gatk_haplotype_caller with VRPipe::Pipeline
                 VRPipe::Step->get(name => 'gatk_haplotype_caller'), #4
                 VRPipe::Step->get(name => 'vcf_index'),             #5
             ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'),],
+            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'sites_file'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'),],
             [
                 VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0),
                 VRPipe::StepBehaviourDefiner->new(after_step => 4, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'delete_input_bams', default_regulation => 0)

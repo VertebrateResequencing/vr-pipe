@@ -62,7 +62,7 @@ class VRPipe::Pipelines::snp_calling_gatk_unified_genotyper_and_filter_vcf with 
                 VRPipe::Step->get(name => 'vcf_index')               #7
             ],
             
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 6, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 6, to_step => 7, from_key => 'filtered_vcf_files', to_key => 'vcf_files')],
+            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'sites_file'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 6, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 6, to_step => 7, from_key => 'filtered_vcf_files', to_key => 'vcf_files')],
             
             [VRPipe::StepBehaviourDefiner->new(after_step => 7, behaviour => 'delete_outputs', act_on_steps => [4, 5], regulated_by => 'delete_unfiltered_vcfs', default_regulation => 1)]
         );

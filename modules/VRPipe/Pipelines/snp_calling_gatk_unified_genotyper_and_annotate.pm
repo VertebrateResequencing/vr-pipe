@@ -59,7 +59,7 @@ class VRPipe::Pipelines::snp_calling_gatk_unified_genotyper_and_annotate with VR
                 VRPipe::Step->get(name => 'vcf_annotate'),           #5
                 VRPipe::Step->get(name => 'vcf_index'),              #6
             ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 5, to_step => 6, from_key => 'annotated_vcf', to_key => 'vcf_files')],
+            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 3, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'bam_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 4, to_key => 'sites_file'), VRPipe::StepAdaptorDefiner->new(from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 5, to_step => 6, from_key => 'annotated_vcf', to_key => 'vcf_files')],
             [VRPipe::StepBehaviourDefiner->new(after_step => 6, behaviour => 'delete_outputs', act_on_steps => [4], regulated_by => 'cleanup', default_regulation => 1)],
         );
     }

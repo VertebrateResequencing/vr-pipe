@@ -13,6 +13,14 @@ VRPipe::Steps::gmap_build - a step
 
 
 
+
+
+
+
+
+
+
+
 GMAP Build creates an index of a genomic sequence for mapping and alignment
 using GMAP (Genomic Mapping and Alignment Program for mRNA and EST sequences)
 and GSNAP (Genomic Short-read Nucleotide Alignment Program). (GMAP Build uses
@@ -89,8 +97,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 description   => 'k-mer size used for building the genomic index. The memory requirements for building the index under various k-mer values: 12: 64 MB, 13: 256 MB, 14: 1GB, 15: 4GB. See the gmap README for more details.',
                 optional      => 0,
                 default_value => 15
-              )
-        
+            )
         };
     }
     
@@ -109,8 +116,8 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             my $gmap_build_genome                 = $options->{gmap_build_genome_name};
             my $gmap_build_gmap_default_directory = $options->{gmap_build_gmap_default_directory};
             my $gmap_build_kmer_size              = $options->{gmap_build_kmer_size};
-            
-            my $output_file = $self->output_file(
+            my $gmap_build_rebuild                = $options->{gmap_build_rebuild};
+            my $output_file                       = $self->output_file(
                 output_key => 'gmap_index_txt_file',
                 basename   => Path::Class::File->new($gmap_build_genome . ".chromosome")->stringify,
                 sub_dir    => Path::Class::Dir->new($gmap_build_genome)->stringify,
@@ -120,16 +127,15 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             my $version = VRPipe::StepCmdSummary->determine_version("perl " . $gmap_build_exe, 'version\W(.+).$');
             
             my $cmd .= $gmap_build_exe;
-            $cmd    .= ' -d ' . $gmap_build_genome;
-            $cmd    .= ' -k ' . $gmap_build_kmer_size;
             if (!$gmap_build_gmap_default_directory) {
                 $cmd .= ' -D ' . $output_file_dir;
             }
+            $cmd .= ' -d ' . $gmap_build_genome;
+            $cmd .= ' -k ' . $gmap_build_kmer_size;
             if ($gmap_build_gunzip_file) {
                 $cmd .= ' -g';
             }
             $cmd .= ' ' . $gmap_build_fasta_files;
-            
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => "gmap_build -d genome_name -k kmersize -D output_dir -g <FASTA_FILES>"));
             $self->dispatch([$cmd, $self->new_requirements(memory => 4500, time => 1), { block_and_skip_if_ok => 1 }]);
         };
