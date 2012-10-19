@@ -43,8 +43,8 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
             'includeChrX'         => VRPipe::StepOption->create(description => 'indicates whether to include Chr X in calulation', optional => 1, default_value => 0),
             'version'             => VRPipe::StepOption->create(description => 'SampleLogRatio script version', optional => 1, default_value => 3),
-            'minSamples'          => VRPipe::StepOption->create(description => 'Minimum #samples expected in the subset when estimating median reference', optional => 1, default_value => 25),
             'rpkm'                => VRPipe::StepOption->create(description => 'Use RPKM (aka FPKM) to correlate the samples', optional => 1, default_value => 0),
+            'minSamples'          => VRPipe::StepOption->create(description => 'Minimum #samples expected in the subset when estimating median reference', optional => 1, default_value => 25),
         };
     }
     
@@ -63,8 +63,8 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             my $convex_rscript_path = $options->{'convex_rscript_path'};
             my $includeChrX         = $options->{'includeChrX'};
             my $version             = $options->{'version'};
-            my $minSamples          = $options->{'minSamples'};
             my $rpkm                = $options->{'rpkm'};
+            my $minSamples          = $options->{'minSamples'};
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
             
@@ -99,7 +99,7 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             my $features_file_path = $features_file->path;
             push(@l2r_files, $features_file);
             
-            my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SampleLogRatioCall.R $sample_info_path,$regions_file,$features_file_path,$includeChrX,$version,$minSamples,$rpkm";
+            my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SampleLogRatioCall.R $sample_info_path,$regions_file,$features_file_path,$includeChrX,$version,$rpkm,$minSamples";
             
             $self->dispatch([$cmd, $req, { output_files => \@l2r_files }]);
         
