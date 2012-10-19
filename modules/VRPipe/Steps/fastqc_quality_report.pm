@@ -60,10 +60,13 @@ class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => $fastqc_exe_path_with_interpreter, version => VRPipe::StepCmdSummary->determine_version($fastqc . ' --version', '^FastQC v(.+)$'), summary => 'fastqc --noextract file1 '));
             my $req = $self->new_requirements(memory => 500, time => 1);
             
+            #my @a =  @{ $self->inputs->{fastq_files} };
+            #warn "here @a";
+            
             foreach my $seq_file (@{ $self->inputs->{fastq_files} }) {
                 my ($name) = fileparse($seq_file->basename, ('.fastq'));
                 my $report_file = $self->output_file(
-                    output_key => 'fastq_report_files',
+                    output_key => 'fastq_report_file',
                     basename   => $name . '_fastqc.zip',
                     type       => 'bin',
                     metadata   => $seq_file->metadata
@@ -77,7 +80,7 @@ class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { fastq_report_files => VRPipe::StepIODefinition->create(type => 'bin', description => 'a zip file containing the fastqc quality report files') };
+        return { fastq_report_file => VRPipe::StepIODefinition->create(type => 'bin', description => 'a zip file containing the fastqc quality report files') };
     }
     
     method post_process_sub {

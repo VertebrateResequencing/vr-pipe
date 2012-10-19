@@ -19,7 +19,7 @@ foreach my $stepmember ($pipeline->steps) {
     push(@s_names, $stepmember->step->name);
 }
 
-is_deeply \@s_names, [qw(fastqc_quality_report trimmomatic gsnap sam_sort sam_mark_duplicates)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(fastqc_quality_report gmap_build trimmomatic gsnap sam_sort sam_mark_duplicates)], 'the pipeline has the correct steps';
 
 my $pipelinesetup = VRPipe::PipelineSetup->create(
     name       => 'rna_seq_gsnap_map_test',
@@ -32,6 +32,8 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
+        gmap_build_fasta_files     => file(qw(t data sacCer3 chrI.fa.gz))->absolute,
+        gmap_build_kmer_size       => 12,
         trimmomatic_jar_path       => $ENV{TRIMMOMATIC_JAR_PATH},
         gsnap_db                   => 'mm9',
         paired_end                 => 1,
@@ -42,11 +44,11 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(
 
 my @output_subdirs = output_subdirs(1);
 
-my $outputfile_1 = file(@output_subdirs, '5_sam_mark_duplicates', 'ERR032995_160_lines_1.paired.trim.concordant_uniq.sort.markdup.sam');
-my $outputfile_2 = file(@output_subdirs, '4_sam_sort',            'ERR032995_160_lines_1.paired.trim.concordant_uniq.sort.sam');
-my $outputfile_3 = file(@output_subdirs, '3_gsnap',               'ERR032995_160_lines_1.paired.trim.concordant_uniq');
-my $outputfile_4 = file(@output_subdirs, '2_trimmomatic',         'ERR032995_160_lines_1.paired.trim.fastq');
-my $outputfile_5 = file(@output_subdirs, '2_trimmomatic',         'ERR032995_160_lines_2.paired.trim.fastq');
+my $outputfile_1 = file(@output_subdirs, '6_sam_mark_duplicates', 'ERR032995_160_lines_1.paired.trim.concordant_uniq.sort.markdup.sam');
+my $outputfile_2 = file(@output_subdirs, '5_sam_sort',            'ERR032995_160_lines_1.paired.trim.concordant_uniq.sort.sam');
+my $outputfile_3 = file(@output_subdirs, '4_gsnap',               'ERR032995_160_lines_1.paired.trim.concordant_uniq');
+my $outputfile_4 = file(@output_subdirs, '3_trimmomatic',         'ERR032995_160_lines_1.paired.trim.fastq');
+my $outputfile_5 = file(@output_subdirs, '3_trimmomatic',         'ERR032995_160_lines_2.paired.trim.fastq');
 my @outputfiles;
 push(@outputfiles, $outputfile_1, $outputfile_2, $outputfile_3, $outputfile_4, $outputfile_5);
 ok handle_pipeline(@outputfiles), 'rna-seq-pipeline ran ok, generating the expected output files';
