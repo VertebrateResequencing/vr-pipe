@@ -9,6 +9,10 @@ VRPipe::Steps::gmap_build - a step
 
 
 
+
+
+
+
 GMAP Build creates an index of a genomic sequence for mapping and alignment
 using GMAP (Genomic Mapping and Alignment Program for mRNA and EST sequences)
 and GSNAP (Genomic Short-read Nucleotide Alignment Program). (GMAP Build uses
@@ -54,6 +58,10 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
     
     method options_definition {
         return {
+            gmap_build_fasta_files => VRPipe::StepOption->create(
+                description => 'option to specify fasta files with absolute pathnames seperated by a single spaces, used for building genome index',
+                optional    => 0
+            ),
             gmap_build_gunzip_file => VRPipe::StepOption->create(
                 description   => 'option to gmap_build for building with gunzipped files. Default is for gunzip files.',
                 optional      => 1,
@@ -87,7 +95,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { fastq_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more fastq files') };
+        return {};
     }
     
     method body_sub {
@@ -95,18 +103,18 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
+            my $gmap_build_fasta_files            = $options->{gmap_build_fasta_files};
             my $gmap_build_exe                    = $options->{gmap_build_exe};
             my $gmap_build_gunzip_file            = $options->{gmap_build_gunzip_file};
             my $gmap_build_genome                 = $options->{gmap_build_genome_name};
             my $gmap_build_gmap_default_directory = $options->{gmap_build_gmap_default_directory};
             my $gmap_build_kmer_size              = $options->{gmap_build_kmer_size};
             
-            my @input_file  = @{ $self->inputs->{fastq_files} };
             my $output_file = $self->output_file(
                 output_key => 'gmap_index_txt_file',
-                basename   => Path::Class::File->new($gmap_build_genome, $gmap_build_genome . ".chromosome")->stringify,
+                basename   => Path::Class::File->new($gmap_build_genome . ".chromosome")->stringify,
+                sub_dir    => Path::Class::Dir->new($gmap_build_genome)->stringify,
                 type       => 'txt',
-                metadata   => $input_file[0]->metadata
             );
             my $output_file_dir = $output_file->dir->parent->stringify;
             my $version = VRPipe::StepCmdSummary->determine_version("perl " . $gmap_build_exe, 'version\W(.+).$');
@@ -120,10 +128,9 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             if ($gmap_build_gunzip_file) {
                 $cmd .= ' -g';
             }
-            $cmd .= ' ' . $input_file[0]->path;
+            $cmd .= ' ' . $gmap_build_fasta_files;
             
-            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => $cmd));
-            
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => "gmap_build -d genome_name -k kmersize -D output_dir -g <FASTA_FILES>"));
             $self->dispatch([$cmd, $self->new_requirements(memory => 4500, time => 1), { block_and_skip_if_ok => 1 }]);
         };
     }

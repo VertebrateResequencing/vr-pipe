@@ -42,7 +42,7 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             gsnap_exe        => VRPipe::StepOption->create(description => 'path to your gsnap executable',                                                                                                                              optional => 1, default_value => 'gsnap'),
             paired_end       => VRPipe::StepOption->create(description => 'Set to 1 if input files are paired end. Default is for single end.',                                                                                         optional => 1, default_value => '0'),
             gsnap_db         => VRPipe::StepOption->create(description => 'gsnap db that gsnap already knows about e.g. mm9, mm10, hg19, etc',                                                                                          optional => 1, default_value => 'mm9'),
-            gsnap_genome_dir => VRPipe::StepOption->create(description => 'path to gsnap genome directory. If not set, will default to index known to the pipeline from a gmap_build step, or the default GMAP genome index directory', optional => 0)
+            gsnap_genome_dir => VRPipe::StepOption->create(description => 'path to gsnap genome directory. If not set, will default to index known to the pipeline from a gmap_build step, or the default GMAP genome index directory', optional => 1)
         };
     }
     
@@ -56,12 +56,12 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self      = shift;
-            my $options   = $self->options;
-            my $gsnap_exe = $options->{gsnap_exe};
-            my $gsnap_db  = $options->{gsnap_db};
-            my $paired    = $options->{paired_end};
-            my $gsnap_genome_dir;
+            my $self             = shift;
+            my $options          = $self->options;
+            my $gsnap_exe        = $options->{gsnap_exe};
+            my $gsnap_db         = $options->{gsnap_db};
+            my $paired           = $options->{paired_end};
+            my $gsnap_genome_dir = "";
             if (defined($options->{gsnap_genome_dir})) {
                 $gsnap_genome_dir = $options->{gsnap_genome_dir};
             }
@@ -108,8 +108,9 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             # deal with other options such as gunzip
             # construct command
             $cmd = "$gsnap_exe $inputs";
-            $cmd .= " -D $gsnap_genome_dir " if (defined($gsnap_genome_dir));
-            $cmd .= " $gsnap_db -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
+            $cmd .= " -D $gsnap_genome_dir " if ($gsnap_genome_dir);
+            
+            $cmd .= " -d $gsnap_db -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
             $self->dispatch([qq[$cmd], $req, { output_files => [$output_file_1] }]);
         };
     
