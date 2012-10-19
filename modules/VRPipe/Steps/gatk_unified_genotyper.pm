@@ -75,17 +75,31 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
                 $self->throw("unified_genotyper_options should not include the reference, input or output options or UnifiedGenotyper task command");
             }
             
+            my $summary_opts = $genotyper_opts;
             if ($self->inputs->{sites_file}) {
                 $self->throw("unified_genotyper_options cannot contain the -alleles or --genotyping_mode (-gt_mode) options if a sites_file is an input to this step") if ($genotyper_opts =~ /-alleles/ || $genotyper_opts =~ /-gt_mode/ || $genotyper_opts =~ /--genotyping_mode/);
                 my $sites_file = $self->inputs->{sites_file}[0];
-                $genotyper_opts .= "--genotyping_mode GENOTYPE_GIVEN_ALLELES --alleles " . $sites_file->path;
+                $summary_opts   .= ' --genotyping_mode GENOTYPE_GIVEN_ALLELES --alleles $sites_file';
+                $genotyper_opts .= " --genotyping_mode GENOTYPE_GIVEN_ALLELES --alleles " . $sites_file->path;
+                my $sites_meta = $sites_file->metadata;
+                if (defined $$sites_meta{chrom} && defined $$sites_meta{from} && defined $$sites_meta{to}) {
+                    if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
+                        unless ($$vcf_meta{chrom} eq $$sites_meta{chrom} && $$vcf_meta{from} == $$sites_meta{from} && $$vcf_meta{to} == $$sites_meta{to}) {
+                            $self->throw("chrom/from/to metadata for output VCF and input sites file does not match");
+                        }
+                    }
+                    else {
+                        $$vcf_meta{chrom} = $$sites_meta{chrom};
+                        $$vcf_meta{from}  = $$sites_meta{from};
+                        $$vcf_meta{to}    = $$sites_meta{to};
+                    }
+                }
             }
             
             my $bams_list_path = $self->output_file(basename => 'bams.list', type => 'txt', temporary => 1)->path;
             my @input_ids = map { $_->id } @{ $self->inputs->{bam_files} };
             
-            my $summary_opts = $genotyper_opts;
-            my $basename     = 'gatk.vcf.gz';
+            my $basename = 'gatk.vcf.gz';
             if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
                 my ($chrom, $from, $to) = ($$vcf_meta{chrom}, $$vcf_meta{from}, $$vcf_meta{to});
                 $summary_opts   .= ' -L $region';
