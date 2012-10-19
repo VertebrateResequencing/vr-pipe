@@ -8,4 +8,5 @@ InDel ratio minimum:	PASSED	 # The Ins/Del ratio is greater than 0.68 (20641/281
 Insert size:	PASSED	 # Fail library, less than 80.0% of the inserts are within 25.0% of max peak (66.49%).
 Insert size (rev):	PASSED	 # Fail library, 80.0% of inserts are not within 25.0% of the max peak (33.54%).
 Overlap duplicate base percent:	PASSED	 # The percent of bases duplicated due to reads of a pair overlapping (1.7) is smaller than or equal to 4.
+InDels per Cycle:	FAILED	 # Some indels per cycle exceed 8X of the median
 Verdict:	PASSED
