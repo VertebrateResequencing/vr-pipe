@@ -52,6 +52,11 @@ class VRPipe::FrontEnd {
         required => 1
     );
     
+    has 'extra_args' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
+    
     has 'opt_spec' => (
         is      => 'rw',
         isa     => 'ArrayRef[ArrayRef]',
@@ -211,6 +216,9 @@ class VRPipe::FrontEnd {
         if ($has_long) {
             $o .= ' [long options...]';
         }
+        my $extra_args = $self->extra_args;
+        $o .= ' ' . $extra_args if $extra_args;
+        
         $usage = $self->description . "\n$script_name$o\n" . $usage;
         $self->_set_usage($usage);
         
@@ -390,7 +398,7 @@ class VRPipe::FrontEnd {
         return;
     }
     
-    method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?, Bool :$strip_leading_trailing_whitespace?) {
+    method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?, Bool :$strip_leading_trailing_whitespace = 1) {
         undef $possibles unless $possibles && @$possibles;
         if (defined $default && length($default) == 0) {
             undef $default;
@@ -459,6 +467,16 @@ class VRPipe::FrontEnd {
         }
         
         return $answer;
+    }
+    
+    method pick_option (Str $question, ArrayRef $options) {
+        $self->output($question);
+        my $option_num = 0;
+        foreach my $option (@$options) {
+            $option_num++;
+            $self->output("$option_num. $option");
+        }
+        return $self->pick_number(question => "Pick an option from the above list", max => $option_num);
     }
     
     method pick_number (Str :$question!, PositiveInt :$max!, PositiveInt :$default?) {
