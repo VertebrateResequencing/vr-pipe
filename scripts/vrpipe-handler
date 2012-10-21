@@ -94,6 +94,7 @@ sub handle_setups {
     my $setups_timer_interval      = $deployment eq 'production' ? 30  : 5;
     my $datasource_timer_interval  = $deployment eq 'production' ? 300 : 10;
     my $setup_state_timer_interval = $deployment eq 'production' ? 900 : 15;
+    my %currently_triggering;
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
@@ -125,6 +126,21 @@ sub handle_setups {
                 
                 # trigger new setups, in parallel
                 my $fm = AnyEvent::ForkManager->new(max_workers => $max_forks);
+                $fm->on_start(
+                    sub {
+                        my ($pm, $pid, $setup) = @_;
+                        #$currently_triggering{$setup->id} = 1;
+                        $backend->log("$$ set currently_triggering " . $setup->id . " to 1");
+                    }
+                );
+                $fm->on_finish(
+                    sub {
+                        my ($pm, $pid, $status, $setup) = @_;
+                        $backend->log("$$ on_finish got args (@_)");
+                        delete $currently_triggering{ $setup->id };
+                        $backend->log("$$ deleted currently_triggering " . $setup->id);
+                    }
+                );
                 my @new_setups;
                 foreach my $setup (@setups) {
                     my $sid = $setup->id;
@@ -134,13 +150,21 @@ sub handle_setups {
                     
                     $fm->start(
                         cb => sub {
-                            my ($fm, $setup) = @_;
+                            my ($fm, $setup, $ppid) = @_;
+                            $backend->log("$ppid is starting primary trigger of setup " . $setup->id . " in child $$");
                             $setup->trigger;
+                            $backend->log("$ppid completed primary trigger of setup " . $setup->id . " in child $$");
                         },
-                        args => [$setup]
+                        args => [$setup, $$]
                     );
                 }
-                $fm->wait_all_children;
+                $fm->wait_all_children(
+                    cb => sub {
+                        my ($pm) = @_;
+                        %currently_triggering = ();
+                        $backend->log("$$ deleted all currently_triggering");
+                    }
+                );
                 
                 # when testing, we don't want to have this keep running
                 # after all the setups have completed
@@ -193,7 +217,11 @@ sub handle_setups {
                     my $sid = $setup->id;
                     next if defined $setup_watchers{$sid};
                     
-                    $setup_watchers{$sid} = EV::timer 0, $setup_state_timer_interval, sub {
+                    $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
+                        $backend->log("$$ setup watcher, currently_triggering{$sid} is $currently_triggering{$sid}");
+                        return if $currently_triggering{$sid};
+                        $currently_triggering{$sid} = 1;
+                        my $ppid = $$;
                         fork_call {
                             return if $setup->currently_complete;
                             
@@ -206,14 +234,16 @@ sub handle_setups {
                             else {
                                 my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
                                 unless ($incomplete_subs) {
-                                    $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
+                                    $backend->log("$ppid in child $$ is forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
                                     $setup->trigger;
+                                    $backend->log("$ppid in child $$ completed the full trigger for setup $sid");
                                 }
                             }
                             
                             return;
                         }
                         sub {
+                            delete $currently_triggering{$sid};
                             my $err = $@ || return;
                             # email user about this once
                             #*** auto-deactivate it?
@@ -254,10 +284,32 @@ sub handle_submissions {
     # every 60s we'll pick a submission if we don't have one already, and update
     # its status
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
-    my ($submission, $job_pid, %failed_by_us);
+    use Time::HiRes qw(time);
+    my ($submission, $job_pid, %failed_by_us, $working, $no_subs_found);
+    my $handled_submissions = 0;
     my $watcher = EV::timer 0, $timer_interval, sub {
+        return if $working;
+        $working = 1;
+        warn "$$ entering EV::timer at ", time(), "\n";
+        
         if ($submission) {
             my $job = $submission->job;
+            
+            if ($deployment eq 'testing') {
+                my $still_in_db = VRPipe::Job->search({ id => $job->id });
+                unless ($still_in_db) {
+                    exit_handler("Looks like the database was dropped");
+                    return;
+                }
+            }
+            
+            if (!$job->start_time) {
+                # hmmm, this really shouldn't happen
+                $backend->log("$$ sub " . $submission->id . " job had not started?!");
+                $submission->release;
+                undef $submission;
+            }
+            
             if ($job->end_time) {
                 $submission->update_status;
                 
@@ -265,9 +317,11 @@ sub handle_submissions {
                     # we completed successfully; if this was the last submission
                     # of its step and they're all done now, do a trigger for
                     # this dataelement to create submissions for the next step
-                    my $stepstate_id = $submission->stepstate->id;
-                    
-                    my $transaction = sub {
+                    my $step_state   = $submission->stepstate;
+                    my $stepstate_id = $step_state->id;
+                    $backend->log("$$ sub " . $submission->id . " got done, will see if we should trigger...");
+                    my $trigger_next_step = 0;
+                    my $transaction       = sub {
                         # compare counts of total submissions for our step to
                         # count of those done to see if the step is complete.
                         # We can't just get quick counts though otherwise the
@@ -275,15 +329,33 @@ sub handle_submissions {
                         my @step_subs = VRPipe::Submission->search({ stepstate => $stepstate_id }, { for => 'update' });
                         my $done = 0;
                         foreach my $sub (@step_subs) {
-                            $done++ if $sub->done;
+                            $sub->done || last;
+                            $done++;
+                            $backend->log("$$ stepstate $stepstate_id had sub " . $sub->id . ", done now $done");
                         }
                         
                         if ($done == @step_subs) {
-                            my $step_state = $submission->stepstate;
-                            $step_state->pipelinesetup->trigger($step_state->dataelement);
+                            $trigger_next_step = 1;
                         }
                     };
-                    $submission->do_transaction($transaction, "Failed to see if the step was done after submission " . $submission->id . " completed and trigger the next step");
+                    $submission->do_transaction($transaction, "Failed to see if the step was done after submission " . $submission->id . " completed");
+                    
+                    if ($trigger_next_step) {
+                        # triggering from within the above transaction caused
+                        # strange problems, so we do it outside and risk the
+                        # the subs being marked done but no starting of next
+                        # step if we die during/before the trigger. The setups
+                        # handler will catch stalls for this reason
+                        $backend->log("$$ stepstate $stepstate_id completed all its subs, will trigger for dataelement " . $step_state->dataelement->id);
+                        $step_state->pipelinesetup->trigger($step_state->dataelement);
+                        
+                        # also trigger any dataelements that have the same
+                        # submissions as $step_state
+                        my @other_des = VRPipe::StepState->get_column_values('dataelement', { same_submissions_as => $step_state->id });
+                        foreach my $de (@other_des) {
+                            $step_state->pipelinesetup->trigger(VRPipe::DataElement->get(id => $de));
+                        }
+                    }
                 }
                 elsif ($submission->failed) {
                     # Job->run itself would have adjusted $submission's
@@ -291,9 +363,19 @@ sub handle_submissions {
                     # time or memory; we just need to retry it if appropriate
                     $submission->retry if $submission->retries < 3;
                     $failed_by_us{ $submission->id } = 1;
+                    
+                    $backend->log("$$ sub " . $submission->id . " got failed, it's job is $job with _signalled_to_death " . $job->_signalled_to_death . ", retried if appropriate...");
                 }
                 
                 $submission->release;
+                
+                my $signal = $job->_signalled_to_death;
+                if ($signal) {
+                    $backend->log("$$ sub " . $submission->id . " failed because we received a SIG$signal, so we will unloop and exit");
+                    EV::unloop;
+                    return;
+                }
+                
                 undef $submission;
             }
             elsif ($submission->close_to_time_limit(5)) {
@@ -329,7 +411,9 @@ sub handle_submissions {
                 
                 my (%step_limits, %step_counts, %completed_setups);
                 SLOOP: while (my $subs = $sub_pager->next(no_resetting => 1)) {
+                    warn "($$ sub_pager at time ", time(), "\n";
                     foreach my $sub (@$subs) {
+                        warn " ($$ sub ", $sub->id, " at time ", time(), "\n";
                         # if the job is a block_and_skip_if_ok job, we don't
                         # actually block because of race condition issues, and
                         # because of fail and restart issues. Instead we always
@@ -401,33 +485,20 @@ sub handle_submissions {
                             next if $step_counts{$step_id} >= $step_limits{$step_id};
                         }
                         
-                        # we'll claim this one to run
-                        my $transaction = sub {
-                            my ($sub_to_run) = VRPipe::Submission->search({ id => $sub->id }, { for => 'update' });
-                            if ($sub_to_run->claim) {
-                                $submission = $sub_to_run;
+                        # we'll try and claim this one to run
+                        undef $no_subs_found;
+                        my $now_running = $sub->claim_and_run(allowed_time => int($end_time - time()));
+                        if (defined $now_running) {
+                            if ($now_running) {
+                                $submission = $sub;
+                                $handled_submissions++;
                             }
-                        };
-                        $sub->do_transaction($transaction, "Failed to claim submission " . $sub->id);
+                            else {
+                                $submission = 0;
+                            }
+                        }
+                        
                         last SLOOP if $submission;
-                    }
-                }
-                
-                if ($submission) {
-                    if ($submission->failed) {
-                        # this shouldn't really happen, but perhaps is possible
-                        # if vrpipe-handler got killed in between setting the
-                        # sub to failed and calling retry; just blindly retry it
-                        # now since we've no way of knowing why it failed.
-                        $backend->log("$$ blindly retrying submission " . $submission->id);
-                        $submission->retry;
-                        $submission->release;
-                        $submission = 0;
-                    }
-                    else {
-                        # start running the associated job
-                        $backend->log("$$ will start running submission " . $submission->id . ", job " . $submission->job->id);
-                        $submission->job->run(submission => $submission);
                     }
                 }
                 
@@ -445,16 +516,23 @@ sub handle_submissions {
                 }
             }
             elsif (!defined $submission) {
-                exit_handler("No submissions to work on");
+                # wait for 5 failed attempts in a row to get a submission before
+                # exiting
+                $no_subs_found++;
+                if ($no_subs_found == 5) {
+                    exit_handler("No submissions to work on");
+                }
             }
         }
+        
+        $working = 0;
     };
     
     # run the event loop
     $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running $$.");
     EV::run;
     
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting $$!");
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions $$!");
     exit 0;
 }
 
