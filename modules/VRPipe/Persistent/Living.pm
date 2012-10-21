@@ -147,7 +147,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         return time() - $heartbeat->epoch;
     }
     
-    method alive {
+    method alive (Bool :$no_suicide = 0) {
         my $alive = $self->_still_exists;
         if ($alive) {
             my $time_since_heartbeat = $self->time_since_heartbeat;
@@ -155,7 +155,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
             $alive = $time_since_heartbeat <= $self->survival_time ? 1 : 0;
         }
         unless ($alive) {
-            $self->commit_suicide(no_die => 1);
+            $self->commit_suicide(no_die => 1) unless $no_suicide;
         }
         return $alive;
     }
