@@ -46,8 +46,10 @@ unless ($command) {
 # ask the user what each place-holder means
 my (%phs, %non_phs);
 my (@exe_names, %exe_name_to_ph, %option_args, %input_args, %output_args, %output_basenames);
-while ($command =~ /(\$\S+)/g) {
+while ($command =~ /\$(\w+)/g) {
     my $ph = $1;
+    next if exists $phs{$ph};
+    $phs{$ph} = 1;
     
     my @options = (
         'an exe',
@@ -56,17 +58,11 @@ while ($command =~ /(\$\S+)/g) {
         'an output file',
         'it is not a place-holder'
     );
-    my $chosen_option = $cmdline->pick_option("What is '$ph'?", \@options);
-    
-    $ph =~ s/^\$//;
+    my $chosen_option = $cmdline->pick_option("What is '\$$ph'?", \@options);
     if ($chosen_option == 5) {
         $non_phs{$ph} = 1;
         next;
     }
-    if (exists $phs{$ph}) {
-        $cmdline->die_with_error("You can't specify the same place-holder ('$ph') more than once");
-    }
-    $phs{$ph} = 1;
     
     if ($chosen_option == 1) {
         my $exe_name = $cmdline->ask_question(question => "What is the name of the executable?", default => $ph, required => 1);
@@ -101,7 +97,7 @@ while ($command =~ /(\$\S+)/g) {
         }
         
         my @basename_options = (
-            'Based on an input file name or option, replacing the extension',
+            'Based on an input file name or option, replacing the extension with a static value',
             'Based on an input file name or option, appending .' . $type,
             'Based on an input file name or option, where the cmd takes a basename with no extension but produces a file with an extension',
             'Based on the name of the step',
@@ -133,7 +129,10 @@ while ($command =~ /(\$\S+)/g) {
             $oph =~ s/^\$//;
             
             my $extension;
-            if ($basename_opt == 3) {
+            if ($basename_opt == 1) {
+                $extension = $cmdline->ask_question(question => "What should the extension of the basename be replaced with?", default => '.' . $type, required => 1);
+            }
+            elsif ($basename_opt == 3) {
                 $extension = $cmdline->ask_question(question => "What extension will the cmd add to the output file basename?", default => '.' . $type, required => 1);
             }
             else {
@@ -165,7 +164,7 @@ unless (@exe_names) {
         exit;
     }
     
-    my $exe_name = $cmdline->ask_question(question => "OK, but what is the name of your (main) exe? If you don't supply this, some useful reporting information will not be available when people use this Step.", required => 0);
+    my $exe_name = $cmdline->ask_question(question => "OK, but what is the name of your (main) exe? If you don't supply this, some useful reporting information will not be available when people use this Step", required => 0);
     push(@exe_names, $exe_name) if $exe_name;
 }
 
@@ -189,10 +188,11 @@ if (@exe_names) {
 }
 
 # ask for meta info about Step, and confirm
-my $memory    = $cmdline->ask_question(question => "How many MB of memory will running the cmd_line usually use?", required => 1);
-my $time      = $cmdline->ask_question(question => "How long will running the cmd_line usually take, in minutes?", required => 1);
-my $step_name = $cmdline->ask_question(question => "What would you like to call your new Step?",                   required => 1, not_allowed => \&VRPipe::FrontEnd::already_exists, na_args => [$cmdline, 'Step', 'name']);
-my $step_desc = $cmdline->ask_question(question => "Describe what this Step does",                                 required => 1);
+my $memory    = $cmdline->ask_question(question => "How many MB of memory will running the cmd_line usually use?",            required => 1);
+my $time      = $cmdline->ask_question(question => "How long will running the cmd_line usually take, in minutes?",            required => 1);
+my $max_sim   = $cmdline->ask_question(question => "How many simultaneous jobs doing this Step is safe? (0 means unlimited)", default  => 0, required => 1);
+my $step_name = $cmdline->ask_question(question => "What would you like to call your new Step?",                              required => 1, not_allowed => \&VRPipe::FrontEnd::already_exists, na_args => [$cmdline, 'Step', 'name']);
+my $step_desc = $cmdline->ask_question(question => "Describe what this Step does",                                            required => 1);
 
 #*** print out everything the user supplied, like vrpipe-setup does confirmation
 my $go_ahead = $cmdline->ask_question(question => "Having scrolled up and checked everything, is it all correct?", possibles => [qw(y n)], required => 1);
@@ -241,7 +241,7 @@ my $transaction = sub {
     
     # for the actual_cmd, properly define inputs and outputs
     foreach my $input (keys %input_args) {
-        $body_sub_str .= qq[\$$input = join(' ', \@{ \$self->inputs->{$input} }); ];
+        $body_sub_str .= qq[\$$input = join(' ', map { \$_->path } \@{ \$self->inputs->{$input} }); ];
     }
     
     # define the output files
@@ -257,12 +257,11 @@ my $transaction = sub {
             $body_sub_str .= qq[my \$${output}_basename = '$val'; ];
         }
         else {
-            $body_sub_str .= q[use File::Basename; ];
             if (exists $input_args{$val}) {
-                $body_sub_str .= qq[my \$${output}_basename = join('.', map { basename(\$_) } \@{ \$self->inputs->{$val} }); ];
+                $body_sub_str .= qq[my \$${output}_basename = join('.', map { \$_->basename } \@{ \$self->inputs->{$val} }); ];
             }
             else {
-                $body_sub_str .= qq[my \$${output}_basename = basename(\$$val); ];
+                $body_sub_str .= qq[my \$${output}_basename = file(\$$val)->basename; ];
             }
             
             if ($basename_opt == 1 || $basename_opt == 3) {
@@ -299,11 +298,12 @@ my $transaction = sub {
         body_sub           => $body_sub,
         outputs_definition => { resolve_args('StepIODefinition', \%output_args) },
         post_process_sub   => sub { return 1 },
+        max_simultaneous   => $max_sim
     );
 };
 VRPipe::Persistent->do_transaction($transaction, "There was a problem trying to create your Step; abandoned", $cmdline->schema);
 
-$cmdline->output("Your step '$step_name' was successfully created!");
+$cmdline->output("Your Step '$step_name' was successfully created!");
 
 exit;
 
