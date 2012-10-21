@@ -382,7 +382,8 @@ class VRPipe::FrontEnd {
             my $output = "$num. $key";
             my $obj    = $things{$key};
             if ($obj->can('description')) {
-                $output .= ' [' . $obj->description . ']';
+                my $desc = $obj->description || 'no description';
+                $output .= " [$desc]";
             }
             $self->output($output);
         }
