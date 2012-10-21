@@ -163,6 +163,17 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         is_nullable => 1
     );
     
+    has '_i_started_running' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
+    has '_signalled_to_death' => (
+        is  => 'rw',
+        isa => 'Str'
+    );
+    
     has '_watchers' => (
         traits  => ['Array'],
         is      => 'ro',
@@ -191,18 +202,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         }
         
         if ($host && $pid && $host eq hostname()) {
-            my $pptp;
-            foreach my $p (@{ $ppt->table }) {
-                if ($p->pid == $pid) {
-                    $pptp = $p;
-                    last;
-                }
-            }
-            if ($pptp) {
-                # get current memory usage in MB
-                my $memory = $pptp->size; #*** or should this be rss?
-                $memory = ceil($memory / 1048576);
-                
+            my $memory = $self->_current_memory($pid);
+            if ($memory) {
                 # get the stored peak memory; to minimise number of
                 # updates we round this up to nearest 100MB
                 my $peak_mem = $self->peak_memory;
@@ -224,6 +225,48 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             }
         }
         $self->disconnect;
+    }
+    
+    method _current_memory (PositiveInt $pid, Bool $include_self = 0) {
+        my $pptp;
+        foreach my $p (@{ $ppt->table }) {
+            if ($p->pid == $pid) {
+                $pptp = $p;
+                last;
+            }
+        }
+        if ($pptp) {
+            my $memory;
+            my $pgrp = $pptp->pgrp;
+            my %pids_to_skip;
+            unless ($include_self) {
+                my %parents;
+                foreach my $p (@{ $ppt->table }) {
+                    if ($p->pgrp == $pgrp) {
+                        $parents{ $p->pid } = $p->ppid;
+                    }
+                }
+                
+                my $next_to_skip = $$;
+                while (exists $parents{$next_to_skip}) {
+                    $pids_to_skip{$next_to_skip} = 1;
+                    $next_to_skip = $parents{$next_to_skip} || last;
+                }
+            }
+            
+            foreach my $p (@{ $ppt->table }) {
+                next if exists $pids_to_skip{ $p->pid };
+                if ($p->pgrp == $pgrp) {
+                    $memory += $p->rss;
+                }
+            }
+            
+            if ($memory) {
+                # return the current memory usage in MB
+                return ceil($memory / 1048576);
+            }
+        }
+        return;
     }
     
     __PACKAGE__->make_persistent();
@@ -272,33 +315,35 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         return $end_time - $start_time->epoch;
     }
     
-    method run (VRPipe::Submission :$submission?) {
+    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?) {
         # check we're allowed to run, in a transaction to avoid race condition
-        my $do_return   = 0;
+        my $do_return;
         my $transaction = sub {
             if ($self->start_time) {
                 if ($self->ok) {
                     $do_return = 1;
-                    return; # out of the txn_do
                 }
                 else {
-                    $self->throw("Job " . $self->id . " could not be run because it had already started elsewhere");
+                    $do_return = 0;
                 }
+                return; # out of the transaction
             }
             
             # set the start time
+            $self->reset_job;
             $self->start_time(DateTime->now());
-            $self->exit_code(undef);
             $self->_living_id("$self");
+            $self->_i_started_running(1);
             $self->update;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
-        return if $do_return;
+        if (defined $do_return) {
+            return $do_return;
+        }
         
         # fork ourselves off a child to run the cmd in. We wrap this up in a
         # single-fire watcher so that nothing actually happens here without the
         # caller doing EV::run
-        $self->disconnect;
         my $delayed_fork = EV::timer 0, 0, sub {
             my $cmd_pid = fork();
             if (!defined $cmd_pid) {
@@ -359,21 +404,37 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             # the cmd
             foreach my $signal (qw(TERM INT QUIT USR1 USR2)) {
                 my $signal_watcher = EV::signal $signal, sub {
-                    $self->_update_peak_memory(no_rounding => 1);
+                    $self->_update_peak_memory(no_rounding => 1); # the child should actually be killed by now, so this likey does nothing
+                    my $own_memory = $self->_current_memory($$, 1);
+                    my $total_memory = $own_memory;
                     
-                    # get the requirements of the submission that was used to
-                    # run us
+                    my $explanation = "VRPipe: the cmd received SIG$signal";
+                    
+                    # look at the requirements of the submission that was used
+                    # to run us
                     if ($submission) {
                         my $changed = 0;
                         my $peak_memory = $self->peak_memory || 0;
-                        if ($peak_memory >= $submission->memory) {
+                        $total_memory += $peak_memory;
+                        my $reserved_memory = $submission->memory;
+                        my $mem_cmp         = '<';
+                        if ($total_memory >= $reserved_memory) {
+                            $mem_cmp = '>';
                             $submission->extra_memory;
                             $changed = 1;
                         }
-                        if ($self->wall_time >= $submission->scheduler->queue_time($submission->requirements)) {
-                            my $new_time = (ceil($self->wall_time / 60 / 60) + 1) * 60 * 60;
-                            $submission->extra_time($new_time - $submission->time);
-                            $changed = 1;
+                        $explanation .= qq[; total memory used (cmd ${peak_memory}MB + vrpipe ${own_memory}MB) $mem_cmp reserved memory (${reserved_memory}MB)];
+                        
+                        if ($allowed_time) {
+                            my $wall_time = $self->wall_time;
+                            my $time_cmp  = '<';
+                            if ($wall_time >= $allowed_time) {
+                                $time_cmp = '>';
+                                my $new_time = (ceil($wall_time / 60 / 60) + 1) * 60 * 60;
+                                $submission->extra_time($new_time - $submission->time);
+                                $changed = 1;
+                            }
+                            $explanation .= qq[; wall time used (${wall_time}s) $time_cmp time allowed in queue (${allowed_time}s)];
                         }
                         
                         if ($changed) {
@@ -383,6 +444,14 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             VRPipe::Submission->search_rs({ job => $self->id, requirements => { '!=' => $new_req_id } })->update({ requirements => $new_req_id });
                         }
                     }
+                    
+                    my $stderr_file = $self->stderr_file;
+                    my $efh         = $stderr_file->openw;
+                    print $efh $explanation, "/n";
+                    $stderr_file->close;
+                    
+                    warn "$$ for job ", $self->id, ": ", $explanation, "/n";
+                    $self->_signalled_to_death($signal);
                     
                     $self->kill_job;
                 };
@@ -425,6 +494,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->exit_code($exit_code);
                 $self->end_time(DateTime->now());
                 $self->_living_id(undef);
+                $self->_i_started_running(0);
                 $self->update;
                 
                 $self->clear_watchers;
@@ -432,6 +502,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             $self->store_watcher($child_watcher);
         };
         $self->store_watcher($delayed_fork);
+        
+        return 1;
     }
     
     method stdout_file {
@@ -455,13 +527,15 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     method kill_job {
         return unless $self->start_time;
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
-        $self->disconnect;
+        #$self->disconnect;
         if ($user && $host && $pid) {
             if (hostname() eq $host) {
                 killfam "KILL", $pid;
             }
             else {
-                warn "$$ is killing a job on another host (job ", $self->id, ", pid $pid, host $host, our host = ", hostname(), "\n";
+                $self->verbose(1);
+                $self->warn("$$ is killing a job on another host (job " . $self->id . ", pid $pid, host $host, our host = " . hostname());
+                $self->verbose(0);
                 eval {
                     local $SIG{ALRM} = sub { die "ssh timed out\n" };
                     alarm(15);
@@ -495,7 +569,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         # paused and another version of us begins running elsewhere, it will
         # have the same id. Instead, if another instance starts running it will
         # have changed _living_id
-        if ($self->start_time) {
+        if ($self->_i_started_running) {
             my $still_exists = $self->search({ id => $self->id, '_living_id' => "$self" });
             return $still_exists;
         }
@@ -537,6 +611,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         $self->peak_memory(undef);
         $self->end_time(undef);
         $self->_living_id(undef);
+        $self->_i_started_running(0);
         $self->update;
         return 1;
     }
