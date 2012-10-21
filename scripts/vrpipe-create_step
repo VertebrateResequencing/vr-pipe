@@ -303,10 +303,12 @@ my $transaction = sub {
 };
 VRPipe::Persistent->do_transaction($transaction, "There was a problem trying to create your Step; abandoned", $cmdline->schema);
 
+$cmdline->output("Your step '$step_name' was successfully created!");
+
 exit;
 
 sub resolve_args {
-    my ($class, $args) = shift;
+    my ($class, $args) = @_;
     $class = 'VRPipe::' . $class;
     
     my @resolved = ();
