@@ -99,6 +99,7 @@ class_type('VRPipe::StepAdaptorDefiner');
 class_type('VRPipe::StepBehaviourDefiner');
 class_type('VRPipe::StepMember');
 class_type('VRPipe::Interface::BackEnd');
+class_type('VRPipe::DataElementState');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
