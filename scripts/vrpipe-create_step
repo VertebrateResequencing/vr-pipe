@@ -39,7 +39,7 @@ my $cmdline = VRPipe::FrontEnd->new(
 
 my $command = shift;
 unless ($command) {
-    $cmdline->error("a cmd_line_with_placeholders is required");
+    $cmdline->error("a cmd_line_with_placeholders is required\n");
     $cmdline->help;
 }
 
