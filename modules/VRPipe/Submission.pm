@@ -117,12 +117,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
         default => 0
     );
     
-    has '_own_claim' => (
-        is      => 'rw',
-        isa     => 'Bool',
-        default => 0
-    );
-    
     method _build_default_scheduler {
         return VRPipe::Scheduler->create();
     }
@@ -137,49 +131,98 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     # other methods
-    method claim {
-        my $job = $self->job;
-        $self->reselect_values_from_db;
-        if ($self->_claim) {
-            if ($job->alive) {
-                return 0;
-            }
-            else {
-                if ($job->heartbeat) {
-                    # another process probably claimed this sub, started running
-                    # the job, but then died without releasing the claim: just
-                    # go ahead and take the claim for ourselves
-                    $self->_reset_job;
-                    $self->_own_claim(1);
-                    return 1;
+    method _get_claim {
+        my $claimed_by_us;
+        use Time::HiRes qw(time);
+        my $transaction = sub {
+            my ($sub_to_claim) = VRPipe::Submission->search({ id => $self->id }, { for => 'update' });
+            my $job = $sub_to_claim->job;
+            if ($sub_to_claim->_claim) {
+                warn " [$$ claim for ", $self->id, "]: _claim is already set at time ", time(), "\n";
+                if ($job->alive(no_suicide => 1)) {
+                    warn " [$$ claim for ", $self->id, "]: the job is still alive at ", time(), "\n";
                 }
                 else {
-                    # however, the other process may have claimed it and not yet
-                    # called run() and started the job's heartbeat
-                    return 0;
-                    
-                    #*** but we have an edge-case hole where the sub got claimed
-                    #    but that process never called run() or release(), in
-                    #    which case, we will always return 0 here and the job
-                    #    will never get run!
+                    # clean up any 'stuck' submissions
+                    if ($job->heartbeat) {
+                        # another process probably claimed this sub, started
+                        # running the job, but then died without releasing the
+                        # claim: clean this up now
+                        warn " [$$ claim for ", $self->id, "]: the job is dead and has a heartbeat, so will clean up at ", time(), "\n";
+                        $sub_to_claim->_claim(0);
+                        $sub_to_claim->update;
+                        $sub_to_claim->_reset_job;
+                    }
+                    else {
+                        warn " [$$ claim for ", $self->id, "]: the job is dead but there is no heartbeat at ", time(), "\n";
+                        # however, the other process may have claimed it and not
+                        # yet called run() and started the job's heartbeat
+                        
+                        #*** but we have an edge-case hole where the sub got
+                        #    claimed but that process never called run() or
+                        #    release(), in which case, we will always return 0
+                        #    here and the job will never get run! But this
+                        #    should be impossible in practice because nothing
+                        #    calls _get_claim on its own: vrpipe-handler calls
+                        #    claim_and_run
+                    }
+                }
+                
+                # regardless of if it was stuck, we don't claim. If we fixed
+                # being stuck, the next attempt to claim will work
+                $claimed_by_us = 0;
+            }
+            else {
+                warn " [$$ claim for ", $self->id, "]: _claim is 0 at time ", time(), "\n";
+                $sub_to_claim->_claim(1);
+                $sub_to_claim->update;
+                if ($job->alive(no_suicide => 1)) {
+                    $sub_to_claim->_reset_job;
+                }
+                $claimed_by_us = 1;
+            }
+        };
+        $self->do_transaction($transaction, "Failed when trying to claim submission");
+        
+        $self->reselect_values_from_db;
+        return $claimed_by_us;
+    }
+    
+    method claim_and_run (PositiveInt :$allowed_time?) {
+        my $run_ok;
+        my $transaction = sub {
+            if ($self->_get_claim) {
+                if ($self->failed) {
+                    $self->retry;
+                    $run_ok = 0;
+                }
+                else {
+                    # start running the associated job
+                    warn "$$ will start running submission " . $self->id . ", job " . $self->job->id, "\n";
+                    $run_ok = $self->job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : ());
+                }
+                
+                unless ($run_ok && $self->job->start_time) {
+                    $self->release;
+                }
+                else {
+                    warn "$$ job start time is ", $self->job->start_time, "\n";
                 }
             }
+        };
+        $self->do_transaction($transaction, "Failed when trying to claim and run");
+        $self->disconnect;
+        
+        if ($run_ok) {
+            warn "$$ outside transaction, job start_time is ", $self->job->start_time, "\n";
         }
-        else {
-            if ($job->alive) {
-                $self->_reset_job;
-            }
-            $self->_claim(1);
-            $self->update;
-            $self->_own_claim(1);
-            return 1;
-        }
+        return $run_ok;
     }
     
     method release {
-        return unless $self->_own_claim;
+        use Time::HiRes qw(time);
+        warn " [$$ release for ", $self->id, "]: will set _claim to 0 at ", time(), "\n";
         $self->_claim(0);
-        $self->_own_claim(0);
         $self->update;
     }
     
@@ -311,12 +354,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method custom {
         return $self->requirements->custom;
-    }
-    
-    sub DEMOLISH {
-        return if in_global_destruction;
-        my $self = shift;
-        $self->release if $self->in_storage;
     }
     
     __PACKAGE__->make_persistent();
