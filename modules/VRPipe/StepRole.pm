@@ -691,6 +691,12 @@ role VRPipe::StepRole {
         my $lower_bound = $time - ($time % $rounder);
         $time = $lower_bound + $rounder;
         
+        # due to overheads of running things via vrpipe-handler, we have a
+        # minimum memory req of 500MB
+        if ($memory < 500) {
+            $memory = 500;
+        }
+        
         return VRPipe::Requirements->create(
             memory => $memory,
             time   => $time,
@@ -724,12 +730,11 @@ role VRPipe::StepRole {
                     $new_lib{$inc} = 1;
                 }
             }
-            my @new_lib = map { dir($_)->absolute } ('t', 'modules', keys %new_lib);
-            $use_lib = "use lib(qw(@new_lib)); ";
-            $deploy  = 'VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); ';
+            $use_lib = join(' ', map { '-I' . dir($_)->absolute } ('modules', 't', keys %new_lib)) . ' ';
+            $deploy = '=testing';
         }
         
-        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "$use_lib$deploy$code"];
+        my $cmd = qq[perl $use_lib-MVRPipe$deploy -e "$code"];
         $self->dispatch([$cmd, $req, $extra_args]);
     }
     
