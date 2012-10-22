@@ -226,6 +226,7 @@ my $transaction = sub {
     }
     
     # define the cmd_summary
+    $main_exe ||= $step_name;
     if ($main_exe) {
         $body_sub_str .= qq[\$self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => '$main_exe', version => ];
         if (@determine_version_args) {
