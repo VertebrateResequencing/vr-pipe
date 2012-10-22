@@ -772,7 +772,7 @@ XSL
         return \%opts;
     }
     
-    method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Bool :$force_when_testing?) {
+    method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Str :$long_msg?, Bool :$force_when_testing?) {
         chomp($msg);
         
         # we could just warn to log to the log file if one is in use, but we'll
@@ -804,11 +804,11 @@ XSL
             my $email = Email::Simple->create(
                 header => [
                     To => $email_to ? join(', ', map { "$_\@$domain" } @$email_to) : $admin_email,
-                    $admin_email && $email_to ? (Cc => $admin_email) : (),
+                    $email_admin && $email_to ? (Cc => $admin_email) : (),
                     From    => '"VRPipe Server" <vrpipe@do.not.reply>',
                     Subject => $subject || "VRPipe Server message",
                 ],
-                body => $msg . "\n",
+                body => $msg . "\n" . ($long_msg || ''),
             );
             my $sent = Email::Sender::Simple->try_to_send($email);
             
