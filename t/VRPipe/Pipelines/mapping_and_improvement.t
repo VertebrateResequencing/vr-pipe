@@ -21,7 +21,7 @@ my $mapping_output_dir = get_output_dir('mapping_with_improvement');
 ok my $mapping_pipeline = VRPipe::Pipeline->create(name => '1000genomes_illumina_mapping_with_improvement'), 'able to get a pre-written pipeline';
 
 my @s_names;
-foreach my $stepmember ($mapping_pipeline->steps) {
+foreach my $stepmember ($mapping_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(sequence_dictionary

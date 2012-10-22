@@ -57,7 +57,7 @@ class VRPipe::Steps::fasta_gc_stats extends VRPipe::Steps::plot_bamcheck {
             
             # we don't accept opts from user, since we handle them all ourselves
             # and they must not be overridden
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             my $plot_bc_opts = '-s ' . $ref;
             

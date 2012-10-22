@@ -32,16 +32,27 @@ use AnyEvent::Util qw(fork_call);
 use VRPipe::Interface::CmdLine;
 use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
+use Sys::CPU;
+use POSIX qw(floor);
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
     description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
     extra_args  => 'start|stop|restart|status',
-    opt_spec    => [['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR']]
+    opt_spec    => [
+        ['foreground|f',          'Do not daemonize - the server will run in the foreground, logging to STDERR'],
+        ['farm=s',                'Discover and dispatch submissions to the job scheduler identified by the supplied name (only 1 server can dispatch to each farm)'],
+        ['max_submissions|m=i',   'The maximum number of submissions to dispatch to the farm when in --farm mode (default is unlimited)'],
+        ['only_specified_setups', 'In --farm mode, normally any PipelineSetups that have no farm configured will be run on a random farm, so potentially via this server; turning this option on means this server will only handle setups configured for this farm']
+    ]
 );
+
 my $backend;
-my $deployment = $cmdline->opts('deployment');
-my $foreground = $cmdline->opts('foreground');
+my $deployment            = $cmdline->opts('deployment');
+my $foreground            = $cmdline->opts('foreground');
+my $farm                  = $cmdline->opts('farm');
+my $max_subs              = $cmdline->opts('max_submissions');
+my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 
 my $command = shift;
 unless ($command) {
@@ -55,13 +66,13 @@ my (undef, $port, $url) = @{ $cmdline->_ua_port_baseurl };
 my $exit = 0;
 if ($command eq 'status') {
     if ($status == 1) {
-        $cmdline->output("VRPipe server is running at $url");
+        $cmdline->output("VRPipe $deployment server is running at $url");
     }
     elsif ($status == 0) {
-        $cmdline->output("VRPipe server is not running");
+        $cmdline->output("VRPipe $deployment server is not running");
     }
     elsif ($status == -1) {
-        $cmdline->output("A server is listening on port $port, but is not responding like our own VRPipe server would");
+        $cmdline->output("A server is listening on port $port, but is not responding like our own VRPipe $deployment server would");
     }
 }
 elsif ($command eq 'stop') {
@@ -73,7 +84,7 @@ elsif ($command eq 'start') {
     $exit = !$started;
 }
 elsif ($command eq 'restart') {
-    $cmdline->output("Restarting VRPipe server...");
+    $cmdline->output("Restarting VRPipe $deployment server...");
     my $stopped = stop();
     my $started = 0;
     if ($stopped) {
@@ -101,40 +112,40 @@ sub stop {
             }
             
             if ($status == 0) {
-                $cmdline->output("VRPipe server was stopped");
+                $cmdline->output("VRPipe $deployment server was stopped");
                 return 1;
             }
             else {
-                $cmdline->output("VRPipe server claimed it would stop, but it still seems to be running");
+                $cmdline->output("VRPipe $deployment server claimed it would stop, but it still seems to be running");
                 return 0;
             }
         }
         else {
-            $cmdline->output("Failed to stop VRPipe server (it responded: '$response')");
+            $cmdline->output("Failed to stop VRPipe $deployment server (it responded: '$response')");
             return 0;
         }
     }
     elsif ($status == 0) {
-        $cmdline->output("VRPipe server was not running");
+        $cmdline->output("VRPipe $deployment server was not running");
         return 1;
     }
     elsif ($status == -1) {
-        $cmdline->output("Will not attempt to stop the VRPipe server listening on port $port, since it does not seem to be ours");
+        $cmdline->output("Will not attempt to stop the VRPipe $deployment server listening on port $port, since it does not seem to be ours");
         return 0;
     }
 }
 
 sub start {
     if ($status == 1) {
-        $cmdline->output("VRPipe server is already running");
+        $cmdline->output("VRPipe $deployment server is already running");
         return 1;
     }
     elsif ($status == 0) {
-        $cmdline->output("Will start VRPipe server at $url");
+        $cmdline->output("Will start VRPipe $deployment server at $url");
         start_server();
     }
     elsif ($status == -1) {
-        $cmdline->output("Will not attempt to start the VRPipe server, since another incompatible server is already listening on port $port");
+        $cmdline->output("Will not attempt to start the VRPipe $deployment server, since another incompatible server is already listening on port $port");
         return 0;
     }
 }
@@ -144,37 +155,40 @@ sub start_server {
     $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
     
     # daemonize unless we're not supposed to
-    my $orig_dir = $backend->daemonize unless $foreground;
+    $backend->daemonize unless $foreground;
     
-    # setup the timer for the local scheduler to process its queue
-    $AnyEvent::Util::MAX_FORKS = 1;
-    my $ls                         = VRPipe::LocalScheduler->new;
-    my $time_of_last_process_queue = time();
-    my $timer_interval             = $deployment eq 'production' ? 30 : 5;
-    my $ls_watcher                 = EV::timer_ns 0, $timer_interval, sub {
-        # don't do this more than once per x seconds
-        return unless time() - $time_of_last_process_queue >= $timer_interval;
+    $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
+    my $timer_interval = $deployment eq 'production' ? 30 : 5;
+    
+    my $watcher_error_sub = sub {
+        my $err = $@ || return;
         
+        # when testing, we likely start the server and call some database-
+        # requiring method before the VRPipe database has been created,
+        # so we make a nicer error message
+        if (ref($err)) {
+            $err = "$err"; # try and stringify it
+        }
+        my $email_admin = 1;
+        if ($err =~ /no such table/) {
+            $err         = 'VRPipe database not created yet, cannot do all functions';
+            $email_admin = 0;
+        }
+        $backend->log($err, email_admin => $email_admin);
+    };
+    
+    # set up the timer for the local scheduler to process its queue. (for timers
+    # we use periodic instead of timer because timer seems to have some bug
+    # where on the first invocation it happens twice at ~the same time, which
+    # can be terrible for us. periodic (usually) does not)
+    my $ls = VRPipe::LocalScheduler->new;
+    my $ls_watcher = EV::periodic_ns 0, $timer_interval, 0, sub {
         # we want to run process_queue every x seconds, but it may take
         # longer than x seconds to run and we don't want to wait, so we do
         # our own async fork (in order to call something that in turn will
         # do further async forks...). It doesn't seem to matter that our
         # children (presumably) have all our watchers running.
-        fork_call { $ls->process_queue; return; } sub {
-            $time_of_last_process_queue = time();
-            my $err = $@ || return;
-            
-            # when testing, we likely start the server and call
-            # process_queue before the VRPipe database has been created,
-            # so we make a nicer error message
-            if (ref($err)) {
-                $err = "$err"; # try and stringify it
-            }
-            if ($err =~ /no such table/) {
-                $err = 'VRPipe database not created yet, cannot process_queue for the local scheduler';
-            }
-            $backend->log($err);
-        };
+        fork_call { $ls->process_queue; return; } $watcher_error_sub;
     };
     
     # automatically start the local scheduler if we're supposed to be using the
@@ -183,7 +197,119 @@ sub start_server {
         $ls_watcher->start;
     }
     
-    # setup the http page requests we'll respond to
+    # setup the submission management system if we're supposed to
+    my ($farm_server, $farm_watcher, $handler_path, $scheduler);
+    if ($farm) {
+        # every 30s we'll update which PipelineSetups we'll handle
+        $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
+            unless ($farm_server) {
+                # ideally we only want to be in this if ($farm) section if we
+                # have managed to register_farm_server(), but we can only do
+                # that once the database is ready, which won't be the case
+                # whilst testing. So we use our timer to keep trying to get the
+                # farm_server whilst it fails due to database issues, but cancel
+                # the timer if we fail because another server is handling this
+                # farm
+                eval { $farm_server = $backend->register_farm_server($farm, only_ours => $only_specified_setups) };
+                if ($@) {
+                    &{$watcher_error_sub};
+                }
+                elsif ($farm_server) {
+                    # our database must be ready now, so load all Pipeline and
+                    # Step .pm modules into db if we haven't already
+                    $backend->install_pipelines_and_steps unless $deployment eq 'testing';
+                    $backend->log("Submission management started for farm $farm");
+                    $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
+                    $scheduler = VRPipe::Scheduler->create();
+                }
+                else {
+                    $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
+                    undef $farm_server;
+                }
+            }
+            else {
+                fork_call {
+                    # check we're still valid
+                    die "no longer in db\n" unless $farm_server->alive;
+                    $farm_server->stop_beating; # parent process is beating
+                    
+                    # claim our setups
+                    my @setups = $farm_server->claim_setups;
+                    
+                    if (@setups) {
+                        # make sure we have a setups handler running for our
+                        # farm
+                        $scheduler->ensure_running(
+                            cmd          => "$handler_path --mode setups --farm $farm",
+                            requirements => VRPipe::Requirements->create(memory => 500, time => 3600),
+                            backend      => $backend
+                        );
+                        
+                        # make sure we have sufficient submission handlers
+                        # running...
+                        
+                        # get the count of requirements
+                        my $sched_id = $scheduler->id;
+                        my $req_counts = [VRPipe::Submission->search_rs({ -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], '_done' => { '!=' => 1 }, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
+                        
+                        # scale the counts according to $max_subs
+                        #*** and eventually, we should have a priority system
+                        #    where a particular setup can have higher priority
+                        #    than others...
+                        if ($max_subs) {
+                            my $total_count = 0;
+                            foreach my $cols (@$req_counts) {
+                                $total_count += $cols->[1];
+                            }
+                            
+                            if ($total_count > $max_subs) {
+                                my $reducer = $max_subs / $total_count;
+                                foreach my $cols (@$req_counts) {
+                                    my (undef, $count) = @$cols;
+                                    $total_count += $count;
+                                    $cols->[1] = floor($cols->[1] * $reducer);
+                                }
+                            }
+                        }
+                        
+                        # submit the submission handlers
+                        foreach my $cols (@$req_counts) {
+                            my ($req_id, $count) = @$cols;
+                            $scheduler->ensure_running(
+                                cmd                         => "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id",
+                                count                       => $count,
+                                requirements                => VRPipe::Requirements->get(id => $req_id),
+                                backend                     => $backend,
+                                append_runner_option_to_cmd => 1
+                            );
+                        }
+                    }
+                    
+                    return;
+                }
+                sub {
+                    my $err = $@;
+                    if ($err) {
+                        # perhaps another process decided our $farm_server was
+                        # no longer alive and it has been deleted from the db?
+                        # let's still keep the farmserver watcher alive so we
+                        # will try and re-register as a farmserver - necessary
+                        # when running a bunch of tests where the database keeps
+                        # getting dropped and recreated while the server is
+                        # running
+                        if ($err =~ /no longer in db/) {
+                            $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
+                            $farm_server->end_it_all;
+                            undef $farm_server;
+                        }
+                        &{$watcher_error_sub};
+                    }
+                };
+            }
+        };
+    }
+    
+    # set up the http page requests we'll respond to
     $backend->register_psgi_pages(
         '/' => sub {
             $backend->psgi_text_response(200, 'html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>", shift);
@@ -200,7 +326,7 @@ sub start_server {
         }
     );
     
-    # setup the signals we'll react to
+    # set up the signals we'll react to
     $SIG{HUP}  = 'IGNORE';
     $SIG{PIPE} = 'IGNORE';
     my $sigterm_watcher = EV::signal 'TERM', sub { shutdown_server("SIGTERM received"); };
@@ -208,10 +334,10 @@ sub start_server {
     my $sigquit_watcher = EV::signal 'QUIT', sub { shutdown_server("SIGQUIT received"); };
     
     # run the event loop
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started (pid $$).");
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!');
     EV::run;
     
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!");
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!');
     exit 0;
 }
 
@@ -261,7 +387,7 @@ sub status {
             my $incomplete_pager;
             my $ps_id = $setup->id;
             eval {
-                $num_elements = VRPipe::DataElement->search({ datasource => $datasource->id, withdrawn => 0 });
+                $num_elements = VRPipe::DataElementState->search({ pipelinesetup => $setup->id, 'dataelement.datasource' => $datasource->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
                 $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
             };
             my $ds_error = $@;
@@ -351,8 +477,15 @@ sub status {
                 my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
                 $object .= $backend->xml_tag('attribute', "$percent_complete\%", qq[name="completion" explanation="Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)"]);
                 
-                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
+                my $farm = $setup->controlling_farm;
+                if ($farm) {
+                    my ($farm_server) = VRPipe::FarmServer->search({ farm => $farm });
+                    if (!$farm_server || !$farm_server->alive) {
+                        $object .= $backend->xml_tag('attribute', "WARNING! setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm is currently alive", q[name="problems"]);
+                    }
+                }
                 
+                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
                 my %sub_stats;
                 while (my $subs = $pager->next(no_resetting => 1)) {
                     foreach my $sub (@$subs) {
@@ -360,7 +493,7 @@ sub status {
                         my $sub_state = $sub->failed ? 'failed' : 'scheduled';
                         if ($sub_state eq 'scheduled') {
                             my $job = $sub->job;
-                            $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
+                            $sub_state = $job->end_time ? 'processing' : ($job->heartbeat ? 'running' : 'pending');
                         }
                         $sub_stats{$sub_state}++;
                     }
@@ -374,6 +507,7 @@ sub status {
                         }
                     }
                 }
+                #*** else { well, what is happening to this setup then? }
             }
             else {
                 if ($num_elements == 0) {

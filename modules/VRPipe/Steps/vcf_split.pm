@@ -53,7 +53,7 @@ class VRPipe::Steps::vcf_split with VRPipe::StepRole {
             my $tabix      = $options->{tabix_exe};
             my $chunk_size = $options->{chunk_size};
             
-            my $fai_file = Path::Class::File->new($options->{reference_index});
+            my $fai_file = file($options->{reference_index});
             $self->throw("reference_index must be an absolute path") unless $fai_file->is_absolute;
             
             my $pars = VRPipe::Parser->create('fai', { file => $fai_file });

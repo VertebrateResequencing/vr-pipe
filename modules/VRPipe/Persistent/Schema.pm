@@ -74,7 +74,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                   DataElementState DataElementLink
                   LocalSchedulerJob
                   LocalSchedulerJobState
-                  StepStats/
+                  StepStats FarmServer Runner MessageTracker/
             ]
         }
     );

@@ -54,7 +54,7 @@ class VRPipe::Steps::chunk_genomic_region with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
-            my $genomic_region_file = Path::Class::File->new($options->{genomic_region_file});
+            my $genomic_region_file = file($options->{genomic_region_file});
             $self->throw("genomic_region_file must be an absolute path") unless $genomic_region_file->is_absolute;
             
             my $chrom_list    = $options->{chrom_list};

@@ -41,25 +41,16 @@ class VRPipe::Pipelines::convex_plot_generation with VRPipe::PipelineRole {
         return 'convex_plot_generation';
     }
     
-    method _num_steps {
-        return 1;
-    }
-    
     method description {
         return 'Run CoNVex pipeline to Generate CNV call plots from set of Convex CNV calls';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        ('convex_plots');
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'convex_plots'), #
-            ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'cnv_files'),],
-            [],
-        );
+    method adaptor_definitions {
+        ({ from_step => 0, to_step => 1, to_key => 'cnv_files' });
     }
 }
 

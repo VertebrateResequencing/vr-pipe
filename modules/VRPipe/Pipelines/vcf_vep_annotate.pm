@@ -41,25 +41,31 @@ class VRPipe::Pipelines::vcf_vep_annotate with VRPipe::PipelineRole {
         return 'vcf_vep_annotate';
     }
     
-    method _num_steps {
-        return 3;
-    }
-    
     method description {
         return 'Annotate VCF files with consequences using VEP';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'vep_analysis',
+            'vcf_vep_consequences',
+            'vcf_index',
+        );
     }
     
-    method _step_list {
-        return (
-            [VRPipe::Step->get(name => 'vep_analysis'), VRPipe::Step->get(name => 'vcf_vep_consequences'), VRPipe::Step->get(name => 'vcf_index')],
-            
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vep_txt', to_key => 'vep_txt'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'conseq_vcf', to_key => 'vcf_files')],
-            
-            [VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_vcfs', default_regulation => 0), VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1)]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 1, to_key   => 'vcf_files' },
+            { from_step => 1, to_step => 2, from_key => 'vep_txt', to_key => 'vep_txt' },
+            { from_step => 0, to_step => 2, to_key   => 'vcf_files' },
+            { from_step => 2, to_step => 3, from_key => 'conseq_vcf', to_key => 'vcf_files' }
+        );
+    }
+    
+    method behaviour_definitions {
+        (
+            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_vcfs', default_regulation => 0 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',           default_regulation => 1 }
         );
     }
 }

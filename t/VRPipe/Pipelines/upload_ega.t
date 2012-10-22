@@ -20,7 +20,7 @@ system("rm $testdir/upload_log*");
 ok my $pipeline = VRPipe::Pipeline->create(name => 'upload_ega'), 'able to get the upload_ega pipeline';
 my @s_names;
 
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 

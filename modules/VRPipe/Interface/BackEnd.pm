@@ -53,6 +53,10 @@ class VRPipe::Interface::BackEnd {
     use POSIX qw(setsid setuid);
     use Cwd qw(chdir getcwd);
     use Time::Format;
+    use Module::Find;
+    use Email::Sender::Simple;
+    use Email::Simple::Creator;
+    use Fcntl qw/ :flock /;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -372,6 +376,18 @@ XSL
         writer => '_set_scheduler'
     );
     
+    has 'admin_user' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_admin_user'
+    );
+    
+    has 'email_domain' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_email_domain'
+    );
+    
     has 'schema' => (
         is      => 'ro',
         isa     => 'VRPipe::Persistent::Schema',
@@ -391,10 +407,15 @@ XSL
         writer => '_set_uid'
     );
     
-    has 'logging_directory' => (
+    has 'log_file' => (
         is     => 'ro',
         isa    => 'Str',
-        writer => '_set_logging_directory'
+        writer => '_set_log_file'
+    );
+    
+    has '_log_file_in_use' => (
+        is  => 'rw',
+        isa => 'Bool'
     );
     
     has 'psgi_server' => (
@@ -416,6 +437,14 @@ XSL
         }
     );
     
+    has 'manager' => (
+        is      => 'ro',
+        isa     => 'VRPipe::Manager',
+        lazy    => 1,
+        builder => '_create_manager',        # we can't have a default because we must delay the create call
+        handles => [qw(register_farm_server)]
+    );
+    
     has '_warnings' => (
         is      => 'ro',
         isa     => 'ArrayRef',
@@ -435,6 +464,10 @@ XSL
     method _build_psgi_server {
         my $port = $self->port;
         return Twiggy::Server->new(port => $port); # host `uname -n`; parse the ip address, use as host? Currently defaults to 0.0.0.0
+    }
+    
+    method _create_manager {
+        return VRPipe::Manager->create();
     }
     
     sub BUILD {
@@ -461,12 +494,22 @@ XSL
         my $scheduler = $vrp_config->$method_name();
         $self->_set_scheduler("$scheduler");
         
-        $method_name = $deployment . '_scheduler_output_root';
-        my $log_dir = $vrp_config->$method_name();
-        $self->_set_logging_directory("$log_dir");
+        my $admin_user = $vrp_config->admin_user();
+        $self->_set_admin_user("$admin_user");
+        
+        my $email_domain = $vrp_config->email_domain();
+        $self->_set_email_domain("$email_domain");
         
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);
         $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
+        
+        $method_name = $deployment . '_logging_directory';
+        my $log_dir      = $vrp_config->$method_name();
+        my $log_basename = $self->dsn;
+        $log_basename =~ s/\W/_/g;
+        my $log_file = file($log_dir, 'vrpipe-server.' . $log_basename . '.log');
+        $self->_set_log_file($log_file->stringify);
+        
         require VRPipe::Persistent::Schema;
     }
     
@@ -485,10 +528,14 @@ XSL
             # we change directory to the root of all. That is a courtesy to the
             # system, which without it would be prevented from unmounting the
             # filesystem we started in. However, when testing we have to allow
-            # for the possiblity of relative paths in fofn datasources, and so
-            # will need to know the original directory we were in
-            my $orig_dir = getcwd();
-            chdir '/' or die $!;
+            # for the possiblity of relative paths in fofn datasources, and we
+            # have to know where t/ and modules/ are, so we assume that it is ok
+            # to not chdir since the test will be over soon and the server auto-
+            # stopped
+            my $deployment = $self->deployment;
+            unless ($deployment eq 'testing') {
+                chdir '/' or die $!;
+            }
             
             # we set the user-configured permissions mask for file creation
             umask $self->umask;
@@ -513,15 +560,12 @@ XSL
             # in production (when we might be running as root) set the real user
             # identifier and the effective user identifier for the daemon
             # process before opening files
-            setuid($self->uid) if $self->deployment eq 'production';
+            setuid($self->uid) if $deployment eq 'production';
             
             # reopen STDERR for logging purposes
-            my $log_dir      = $self->logging_directory;
-            my $log_basename = $self->dsn;
-            $log_basename =~ s/\W/_/g;
-            open(STDERR, '>>', file($log_dir, 'vrpipe-server.' . $log_basename . '.log'));
+            $self->log_stderr;
             
-            return $orig_dir;
+            return 1;
         }
         
         # -parent-
@@ -530,6 +574,31 @@ XSL
         # So we wait for the first child to exit
         waitpid($pid, 0);
         exit 0;
+    }
+    
+    method log_stderr {
+        my $ok = open(STDERR, '>>', $self->log_file);
+        if ($ok) {
+            $self->_log_file_in_use(1);
+        }
+    }
+    
+    method install_pipelines_and_steps {
+        foreach my $module (findallmod(VRPipe::Pipelines)) {
+            eval "require $module;";
+            unless ($@) {
+                my ($name) = $module =~ /VRPipe::Pipelines::(\w+)/;
+                VRPipe::Pipeline->create(name => $name);
+            }
+        }
+        
+        foreach my $module (findallmod(VRPipe::Steps)) {
+            eval "require $module;";
+            unless ($@) {
+                my ($name) = $module =~ /VRPipe::Steps::(\w+)/;
+                VRPipe::Step->create(name => $name);
+            }
+        }
     }
     
     sub register_psgi_pages {
@@ -703,9 +772,50 @@ XSL
         return \%opts;
     }
     
-    method log (Str $msg) {
+    method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Str :$long_msg?, Bool :$force_when_testing?) {
         chomp($msg);
-        warn "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
+        
+        # we could just warn to log to the log file if one is in use, but we'll
+        # use flock to write to it for better multi-process behaviour
+        my $log_msg = "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
+        if ($self->_log_file_in_use) {
+            my $log_file = $self->log_file;
+            my $ok = open(my $fh, ">>", $log_file);
+            if ($ok) {
+                $ok = flock $fh, LOCK_EX;
+                if ($ok) {
+                    $ok = print $fh $log_msg;
+                }
+                close($fh);
+            }
+            unless ($ok) {
+                warn $log_msg, "Additionally, was unable to log to $log_file\n";
+            }
+        }
+        else {
+            warn $log_msg;
+        }
+        
+        if (($force_when_testing || $self->deployment eq 'production') && ($email_to || $email_admin)) {
+            # email the desired users
+            my $domain      = $self->email_domain;
+            my $admin_email = $self->admin_user . '@' . $domain;
+            
+            my $email = Email::Simple->create(
+                header => [
+                    To => $email_to ? join(', ', map { "$_\@$domain" } @$email_to) : $admin_email,
+                    $email_admin && $email_to ? (Cc => $admin_email) : (),
+                    From    => '"VRPipe Server" <vrpipe@do.not.reply>',
+                    Subject => $subject || "VRPipe Server message",
+                ],
+                body => $msg . "\n" . ($long_msg || ''),
+            );
+            my $sent = Email::Sender::Simple->try_to_send($email);
+            
+            unless ($sent) {
+                warn "$time{'yyyy/mm/dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
+            }
+        }
     }
     
     method xml_tag (Str $tag, Str $cdata, Str $attribs?) {

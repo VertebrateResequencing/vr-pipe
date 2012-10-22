@@ -13,7 +13,7 @@ my $output_dir = get_output_dir('breakdancer_analysis_pipeline');
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'breakdancer_analysis'), 'able to get the breakdancer_analysis pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(breakdancer_bam2cfg breakdancer_sv_detection);

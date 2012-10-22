@@ -38,27 +38,18 @@ class VRPipe::Pipelines::rna_seq_transcript_quantify_cufflinks with VRPipe::Pipe
         return 'rna_seq_transcript_quantify_cufflinks';
     }
     
-    method _num_steps {
-        return 1;
-    }
-    
     method description {
         return 'RNA-Seq transcript assembly and quantification pipeline employing Cufflinks.';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'cufflinks', # 1
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'cufflinks'), # 1
-            ],
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'sam_files')],
-            [
-            
-            ]
-        );
+    method adaptor_definitions {
+        ({ from_step => 0, to_step => 1, to_key => 'sam_files' });
     }
 }
 1;

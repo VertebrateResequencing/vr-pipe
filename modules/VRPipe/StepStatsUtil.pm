@@ -156,10 +156,7 @@ class VRPipe::StepStatsUtil {
     }
     
     method recommended_time (VRPipe::PipelineSetup :$pipelinesetup?) {
-        my $seconds = $self->_recommended('time', $pipelinesetup ? ($pipelinesetup) : ()) || return;
-        
-        # convert to hrs, rounded up
-        return ceil($seconds / 60 / 60);
+        return $self->_recommended('time', $pipelinesetup ? ($pipelinesetup) : ());
     }
 }
 

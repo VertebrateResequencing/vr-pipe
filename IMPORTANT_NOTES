@@ -85,6 +85,7 @@ steps 1-5, but this time using the following 2 commands during step 3):
 perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 0}); \
 while (my $des = $pager->next) { \
   foreach my $de (@$des) { \
+    print STDERR ". "; \
     my $r = $de->result; \
     my $ps = $r->{paths} || next; \
     next if ref($ps); \
@@ -95,7 +96,7 @@ while (my $des = $pager->next) { \
     $r->{paths} = 0; \
     $r->{paths} = $ps; \
     my ($orig) = VRPipe::DataElement->search({withdrawn => 1, datasource => $de->datasource->id, result => $r}); \
-    if ($orig) { \
+    if ($orig && $orig->id < $de->id) { \
         eval { VRPipe::StepState->search_rs({dataelement => $de->id})->delete; \
                VRPipe::DataElementState->search_rs({dataelement => $de->id})->delete; \
                $de->delete; }; \
@@ -106,10 +107,22 @@ while (my $des = $pager->next) { \
         } \
         $de = $orig; \
         $de->withdrawn(0); \
+        $de->result(\%correct_result); \
     } \
-    $de->result(\%correct_result); \
+    else { \
+        my ($result_str) = VRPipe::DataElement->get_column_values("result", { id => $de->id }, {disable_inflation => 1}); \
+        if ($result_str =~ /lane/) { \
+            if ($result_str =~ /paths.+lane/s) { \
+                $de->result($r); \
+            } \
+        } \
+        else { \
+            $de->result(\%correct_result); \
+        } \
+    } \
     $de->update; \
   } \
+  print STDERR "\n"; \
 }'
 perl -Imodules -MVRPipe::Persistent::Schema -Mstrict -we 'my $pager = VRPipe::DataElement->search_paged({withdrawn => 1}); \
 while (my $des = $pager->next) { \

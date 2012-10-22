@@ -72,7 +72,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
         return sub {
             my $self    = shift;
             my $options = $self->options;
-            my $ref     = Path::Class::File->new($options->{reference_fasta});
+            my $ref     = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $samtools = $options->{samtools_exe};
@@ -104,8 +104,8 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                 my $bam_dir  = $bam_file->dir;
                 my $sam_path = $sam->path;
                 my $bam_path = $bam_file->path;
-                my $nprefix  = Path::Class::File->new($bam_dir, $prefix_base . '.samtools_nsort_tmp');
-                my $cprefix  = Path::Class::File->new($bam_dir, $prefix_base . '.samtools_csort_tmp');
+                my $nprefix  = file($bam_dir, $prefix_base . '.samtools_nsort_tmp');
+                my $cprefix  = file($bam_dir, $prefix_base . '.samtools_csort_tmp');
                 
                 my $tr = $options->{fixed_bam_seq_from_reference} ? " -T $ref" : '';
                 my $this_cmd = "$samtools view -bSu $sam_path$tr | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd$u - $ref > $bam_path";

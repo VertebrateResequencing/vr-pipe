@@ -1,0 +1,158 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use VRPipe::FrontEnd;
+use VRPipe::StepAdaptorDefiner;
+use VRPipe::StepBehaviourDefiner;
+
+my $cmdline = VRPipe::FrontEnd->new(
+    description => "Create a new Pipeline from existing Steps.",
+    opt_spec    => []
+);
+
+# ask the user for the steps they want, and how they connect and behave
+my (@steps, @adaptor_definitions, @behaviour_definitions);
+my @allowed_inputs = ('datasource');
+my $step_num       = 0;
+while (1) {
+    my $step = $cmdline->ask_for_object(question => "Pick a Step from the above list", class => 'Step', column => 'name');
+    push(@steps, $step);
+    $step_num++;
+    
+    # ask where it gets its input from
+    my $input_defs = $step->inputs_definition;
+    while (my ($key, $siod) = each %$input_defs) {
+        my $max_files = $siod->max_files;
+        if ($max_files == -1) {
+            $max_files = 'unlimited';
+        }
+        my %input;
+        $input{$key} = $siod->description . '; type ' . $siod->type . '; ' . $siod->min_files . '..' . $max_files . ' files allowed';
+        $cmdline->display_hash("This step needs the following input", \%input);
+        my $input = $cmdline->ask_question(question => "Where does this input come from?", possibles => \@allowed_inputs, @allowed_inputs == 1 ? (default => $allowed_inputs[0]) : (), required => 1);
+        
+        if ($input eq 'datasource') {
+            push(@adaptor_definitions, { from_step => 0, to_step => $step_num, to_key => $key });
+        }
+        else {
+            my ($from_step, $from_key) = split(/:/, $input);
+            push(@adaptor_definitions, { from_step => $from_step, to_step => $step_num, from_key => $from_key, to_key => $key });
+        }
+    }
+    
+    # show the user what it outputs
+    my $output_defs = $step->outputs_definition;
+    if (keys %$output_defs) {
+        my %outputs;
+        while (my ($key, $siod) = each %$output_defs) {
+            my $max_files = $siod->max_files;
+            if ($max_files == -1) {
+                $max_files = 'unlimited';
+            }
+            $outputs{$key} = $siod->description . '; type ' . $siod->type . '; ' . $siod->min_files . '..' . $max_files . ' files allowed';
+            push(@allowed_inputs, $step_num . ':' . $key);
+        }
+        $cmdline->display_hash("Step $step_num has the following outputs", \%outputs);
+    }
+    
+    # ask if we need any behaviours
+    my $add_behaviour = $cmdline->ask_question(question => "Do you want to trigger any behaviours when this Step completes?", possibles => [qw(y n)], required => 1);
+    if ($add_behaviour eq 'y') {
+        while (1) {
+            my @possible_behaviours = ('delete_inputs');
+            push(@possible_behaviours, 'delete_outputs') if @allowed_inputs > 1;
+            my $behaviour = $cmdline->ask_question(question => "What behaviour should be triggered?", possibles => \@possible_behaviours, required => 0);
+            
+            if ($behaviour) {
+                my @act_on;
+                if ($behaviour eq 'delete_outputs') {
+                    my $step_nums = $cmdline->ask_question(question => "Which steps should have their outputs deleted? (separate multiple step numbers with spaces)", possibles => [1 .. $step_num - 1], default => $step_num - 1, allow_multiple => ' ', required => 1);
+                    @act_on = sort { $a <=> $b } grep { $_ =~ /^\d+$/ && $_ >= 1 && $_ < $step_num } split(/\s+/, $step_nums);
+                }
+                else {
+                    @act_on = (0);
+                }
+                
+                my $regulator = $cmdline->ask_question(question => "What user option can be used to turn this behaviour on and off?", $behaviour eq 'delete_outputs' ? (default => 'cleanup') : (), required => 1);
+                
+                my $default_reg = $cmdline->ask_question(question => "Should this behaviour be on by default?", possibles => [qw(y n)], default => $behaviour eq 'delete_outputs' ? 'y' : 'n', required => 1);
+                
+                push(@behaviour_definitions, { after_step => $step_num, behaviour => $behaviour, act_on_steps => [@act_on], regulated_by => $regulator, default_regulation => $default_reg eq 'y' ? 1 : 0 });
+            }
+            else {
+                $cmdline->output("You didn't select a behaviour, I'm guessing you changed your mind about triggering a behaviour...");
+            }
+            
+            my $add_another = $cmdline->ask_question(question => "Add another behaviour?", possibles => [qw(y n)], default => 'n', required => 1);
+            last if $add_another eq 'n';
+        }
+    }
+    
+    my $add_another = $cmdline->ask_question(question => "Step $step_num now defined. Add another step?", possibles => [qw(y n)], required => 1);
+    last if $add_another eq 'n';
+}
+
+# ask for meta info about the Pipeline, and confirm
+my $pipeline_name = $cmdline->ask_question(question => "What would you like to call your new Pipeline?", required => 1, not_allowed => \&VRPipe::FrontEnd::already_exists, na_args => [$cmdline, 'Pipeline', 'name']);
+my $pipeline_desc = $cmdline->ask_question(question => "Describe what this Pipeline does", required => 1);
+
+#*** print out everything the user supplied, like vrpipe-setup does confirmation
+my $go_ahead = $cmdline->ask_question(question => "Having scrolled up and checked everything, is it all correct?", possibles => [qw(y n)], required => 1);
+if ($go_ahead eq 'n') {
+    $cmdline->output("Abandoning this creation attempt, no harm done");
+    exit;
+}
+
+# construct the Pipeline and associated objects in a transaction
+my $transaction = sub {
+    # create the Pipeline
+    my $pipeline = VRPipe::Pipeline->create(
+        name        => $pipeline_name,
+        description => $pipeline_desc,
+    );
+    
+    # add the steps
+    foreach my $step (@steps) {
+        $pipeline->add_step($step);
+    }
+    
+    # create the step adaptors
+    foreach my $adaptor_definition (@adaptor_definitions) {
+        VRPipe::StepAdaptorDefiner->new(%{$adaptor_definition})->define($pipeline);
+    }
+    
+    # create the step behaviours
+    foreach my $behaviour_definition (@behaviour_definitions) {
+        VRPipe::StepBehaviourDefiner->new(%{$behaviour_definition})->define($pipeline);
+    }
+};
+VRPipe::Persistent->do_transaction($transaction, "There was a problem trying to create your Pipeline; abandoned", $cmdline->schema);
+
+$cmdline->output("Your Pipeline '$pipeline_name' was successfully created!");
+
+exit;

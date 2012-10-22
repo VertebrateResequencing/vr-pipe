@@ -53,10 +53,12 @@ role VRPipe::SchedulerMethodsRole {
     requires 'submit_command';
     requires 'submit_args';
     requires 'determine_queue';
+    requires 'queue_time';
     requires 'switch_queue';
     requires 'get_1based_index';
     requires 'get_sid';
     requires 'kill_sid';
+    requires 'all_status';
     requires 'sid_status';
 }
 

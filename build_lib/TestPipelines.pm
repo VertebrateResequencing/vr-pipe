@@ -51,7 +51,6 @@ use strict;
 use warnings;
 use Exporter 'import';
 use Path::Class;
-use lib "t";
 
 our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline get_bam_header get_bam_records finish);
 
@@ -80,9 +79,6 @@ sub handle_pipeline {
     my $gave_up    = 0;
     my $retriggers = 0;
     while (1) {
-        $manager->trigger;
-        $manager->handle_submissions(max_retries => $max_retries);
-        
         # check for repeated failures
         my $num_failed = VRPipe::Submission->search({ _failed => 1, retries => { '>=' => $max_retries } });
         if ($num_failed) {
@@ -93,7 +89,7 @@ sub handle_pipeline {
         
         if (all_pipelines_finished()) {
             # make sure linked pipelines have a chance to get all their data
-            # elements once their parent piplines have completed
+            # elements once their parent pipelines have completed
             $retriggers++;
             last if $retriggers >= 3;
         }
@@ -154,6 +150,11 @@ sub create_single_step_pipeline {
 sub all_pipelines_started {
     my @setups = $manager->setups;
     foreach my $setup (@setups) {
+        # a test might change a datasource then immediately test for the
+        # results, before the server calls elements in its watcher, so we call
+        # it manually ourselves every time
+        $setup->datasource->elements;
+        
         my $found = VRPipe::DataElement->search({ datasource => $setup->datasource->id, withdrawn => 0 });
         return 0 unless $found;
     }

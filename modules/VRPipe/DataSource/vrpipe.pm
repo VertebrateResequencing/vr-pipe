@@ -241,6 +241,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             my $total_steps     = $vrpipe_sources->{$setup_id}->{total_steps};
             
             my $elements_pager = $setup->datasource->elements;
+            next unless $elements_pager;
             my %element_state_completed_steps = map { $_->[0] => $_->[1] } @{ VRPipe::DataElementState->get_column_values(['dataelement', 'completed_steps'], { pipelinesetup => $setup_id }) || [] };
             
             my @per_element_output_files;

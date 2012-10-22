@@ -49,7 +49,7 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             my $self = shift;
             
             my $options        = $self->options;
-            my $disc_pool_file = Path::Class::File->new($options->{disc_pool_file});
+            my $disc_pool_file = file($options->{disc_pool_file});
             $self->throw("disc_pool_file must be an absolute path") unless $disc_pool_file->is_absolute;
             
             # parse the disc_pool_file; we don't cache these results in a class

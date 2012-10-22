@@ -13,8 +13,8 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $calling_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_gatk_haplotype_caller'), 'able to get the snp_calling_gatk_haplotype_caller pipeline';
-ok my $concat_pipeline = VRPipe::Pipeline->get(name => 'vcf_concat'), 'able to get the vcf_concat pipeline';
+ok my $calling_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_haplotype_caller'), 'able to get the snp_calling_gatk_haplotype_caller pipeline';
+ok my $concat_pipeline = VRPipe::Pipeline->create(name => 'vcf_concat'), 'able to get the vcf_concat pipeline';
 
 my $calling_dir = get_output_dir('haplotype_caller_test');
 

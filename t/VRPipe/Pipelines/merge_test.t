@@ -18,7 +18,7 @@ my $merge_output_dir = get_output_dir('merge_test');
 ok my $merge_pipeline = VRPipe::Pipeline->create(name => 'merge_test_pipeline'), 'able to get the merge_test_pipeline pipeline';
 
 my @s_names;
-foreach my $stepmember ($merge_pipeline->steps) {
+foreach my $stepmember ($merge_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(test_import_bams

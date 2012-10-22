@@ -54,7 +54,7 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
         return sub {
             my $self    = shift;
             my $options = $self->options;
-            my $ref     = Path::Class::File->new($options->{reference_fasta});
+            my $ref     = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $smalt_exe  = $options->{smalt_exe};
@@ -74,7 +74,7 @@ class VRPipe::Steps::smalt_index with VRPipe::StepRole {
             my $index_base = $smalt_opts;
             $index_base =~ s/[^ks0-9]//g;
             $index_base = $ref->basename . '_' . $index_base;
-            my $index_base_path = Path::Class::File->new($ref->dir, $index_base);
+            my $index_base_path = file($ref->dir, $index_base);
             my $cmd = $smalt_exe . ' index ' . $smalt_opts . ' ' . $index_base_path . ' ' . $ref;
             
             foreach my $suffix (qw(sma smi)) {

@@ -10,7 +10,7 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $vqsr_pipeline = VRPipe::Pipeline->get(name => 'vqsr_for_snps'), 'able to get the vqsr_for_snps pipeline';
+ok my $vqsr_pipeline = VRPipe::Pipeline->create(name => 'vqsr_for_snps'), 'able to get the vqsr_for_snps pipeline';
 
 my $vqsr_dir = get_output_dir('vqsr_filter_test');
 

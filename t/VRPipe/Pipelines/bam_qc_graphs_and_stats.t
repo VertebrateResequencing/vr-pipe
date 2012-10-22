@@ -16,7 +16,7 @@ my $target_output_dir = get_output_dir('bam_qc_graphs_and_stats_targeted');
 ok my $stats_pipeline = VRPipe::Pipeline->create(name => 'bam_qc_graphs_and_stats'), 'able to get the bam_qc_graphs_and_stats pipeline';
 
 my @s_names;
-foreach my $stepmember ($stats_pipeline->steps) {
+foreach my $stepmember ($stats_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(fasta_gc_stats

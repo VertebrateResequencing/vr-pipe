@@ -73,7 +73,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
                 my $split_bam_files = VRPipe::Steps::bam_split_by_sequence->split_bam_by_sequence($bam_path, split_dir => $split_dir, ignore => $$options{split_bam_ignore}, non_chrom => $$options{split_bam_non_chrom}, merge => $merge, make_unmapped => $$options{split_bam_make_unmapped}, all_unmapped => $$options{split_bam_all_unmapped}, only => $$options{split_bam_only}, include_mate => $$options{split_bam_include_mate}, pretend => 1);
                 my @output_files;
                 while (my ($split, $split_bam_path) = each %$split_bam_files) {
-                    my $split_bam = Path::Class::File->new($split_bam_path);
+                    my $split_bam = file($split_bam_path);
                     my $meta      = $bam->metadata;
                     delete $meta->{reads} if (exists $meta->{reads});
                     delete $meta->{bases} if (exists $meta->{bases});

@@ -472,11 +472,6 @@ role VRPipe::StepRole {
         return $self->_missing($hash, $defs);
     }
     
-    method _run_coderef (Str $method_name) {
-        my $ref = $self->$method_name();
-        return &$ref($self);
-    }
-    
     method output_file (Str :$output_key?, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
         if (!$temporary && !$output_key) {
             $self->throw("output_key is required");
@@ -516,6 +511,37 @@ role VRPipe::StepRole {
         my $step_state = $self->step_state;
         $step_state->cmd_summary($cmd_summary);
         $step_state->update;
+    }
+    
+    method _run_coderef (Str $method_name) {
+        # $self is a VRPipe::Step, even when *_sub was defined in a
+        # VRPipe::Steps::subclass; to regain full benefits of inheritance in
+        # those *_sub subs, we'll load the real module and use that instead
+        # of $self
+        my $non_persistent = $self->_from_non_persistent;
+        my $return;
+        if ($non_persistent) {
+            #*** this is very ugly - is there a better way?
+            $non_persistent->step_state($self->step_state);
+            $non_persistent->previous_step_outputs($self->previous_step_outputs);
+            $non_persistent->_persistent_step($self);
+            
+            my $ref = $non_persistent->$method_name();
+            $return = &$ref($non_persistent);
+            
+            if ($method_name eq 'body_sub') {
+                $self->_set_output_files($non_persistent->_output_files);
+                $self->_set_temp_files($non_persistent->_temp_files);
+                $self->_last_output_dir($non_persistent->_last_output_dir);
+                $self->_set_dispatched($non_persistent->dispatched);
+            }
+        }
+        else {
+            my $ref = $self->$method_name();
+            $return = &$ref($self);
+        }
+        
+        return $return;
     }
     
     method parse {
@@ -561,27 +587,8 @@ role VRPipe::StepRole {
             }
         }
         
-        # $self is a VRPipe::Step, even when body_sub was defined in a
-        # VRPipe::Steps::subclass; to regain full benefits of inheritence in
-        # those body_sub subs, we'll load the real module and use that instead
-        # of $self
-        my $non_persistent = $self->_from_non_persistent;
-        if ($non_persistent) {
-            #*** this is very ugly - is there a better way?
-            $non_persistent->step_state($self->step_state);
-            $non_persistent->previous_step_outputs($self->previous_step_outputs);
-            $non_persistent->_persistent_step($self);
-            
-            $non_persistent->_run_coderef('body_sub');
-            
-            $self->_set_output_files($non_persistent->_output_files);
-            $self->_set_temp_files($non_persistent->_temp_files);
-            $self->_last_output_dir($non_persistent->_last_output_dir);
-            $self->_set_dispatched($non_persistent->dispatched);
-        }
-        else {
-            $self->_run_coderef('body_sub');
-        }
+        # actually run the body_sub
+        $self->_run_coderef('body_sub');
         
         # store output and temp files on the StepState
         my $output_files = $self->_output_files;
@@ -633,6 +640,11 @@ role VRPipe::StepRole {
     }
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
+        # time used to be specified in hours, but now in seconds
+        if ($time < 60) {
+            $time *= 60 * 60;
+        }
+        
         # get the current mean+2sd memory and time of past runs of this step
         my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : $self->_persistent_step);
         my $rec_mem  = $ssu->recommended_memory;
@@ -655,8 +667,35 @@ role VRPipe::StepRole {
         }
         if (defined $options->{time_override} && $options->{time_override} > $time) {
             $time = $options->{time_override};
+            if ($time < 60) {
+                $time *= 60 * 60;
+            }
         }
         #*** and the other resources?...
+        
+        # round time up to the nearest xmins, depending on how much time is
+        # needed
+        my $rounder;
+        if ($time < 900) {
+            $rounder = 300; # 5mins
+        }
+        elsif ($time < 3600) {
+            $rounder = 900; # 15mins
+        }
+        elsif ($time < 43200) {
+            $rounder = 1800; # 30mins
+        }
+        else {
+            $rounder = 3600; # 60mins
+        }
+        my $lower_bound = $time - ($time % $rounder);
+        $time = $lower_bound + $rounder;
+        
+        # due to overheads of running things via vrpipe-handler, we have a
+        # minimum memory req of 500MB
+        if ($memory < 500) {
+            $memory = 500;
+        }
         
         return VRPipe::Requirements->create(
             memory => $memory,
@@ -688,18 +727,14 @@ role VRPipe::StepRole {
             my %new_lib;
             foreach my $inc (@INC) {
                 unless (exists $orig_inc{$inc}) {
-                    $new_lib{ file($inc)->absolute } = 1;
+                    $new_lib{$inc} = 1;
                 }
             }
-            my @new_lib = keys %new_lib;
-            if (@new_lib) {
-                $use_lib = "use lib(qw(@new_lib)); ";
-            }
-            
-            $deploy = 'VRPipe::Persistent::SchemaBase->database_deployment(q[testing]); ';
+            $use_lib = join(' ', map { '-I' . dir($_)->absolute } ('modules', 't', keys %new_lib)) . ' ';
+            $deploy = '=testing';
         }
         
-        my $cmd = qq[perl -MVRPipe::Persistent::Schema -e "$use_lib$deploy$code"];
+        my $cmd = qq[perl $use_lib-MVRPipe$deploy -e "$code"];
         $self->dispatch([$cmd, $req, $extra_args]);
     }
     
@@ -718,8 +753,11 @@ role VRPipe::StepRole {
     # using this lets you run a bunch of perl code wrapping a command line exe,
     # yet still keep the command line visible so you know the most important
     # bit of what was run
-    method dispatch_wrapped_cmd (ClassName $class, Str $method, ArrayRef $dispatch_args) {
+    method dispatch_wrapped_cmd (Str $class, Str $method, ArrayRef $dispatch_args) {
         my ($cmd, $req, $extra_args) = @$dispatch_args;
+        
+        eval "require $class;";
+        $self->throw("'$class' is not a valid class name: $@") if $@;
         
         $class->can($method) || $self->throw("$method is not a valid method of $class");
         my $code = $class->isa('VRPipe::Persistent') ? '' : "use $class; ";

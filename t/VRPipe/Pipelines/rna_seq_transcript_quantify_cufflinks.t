@@ -15,7 +15,7 @@ BEGIN {
 my $output_dir = get_output_dir('rna_seq_transcript_quantify_cufflinks-test');
 ok my $pipeline = VRPipe::Pipeline->create(name => 'rna_seq_transcript_quantify_cufflinks'), 'able to get the rna_seq_transcript_quantify_cufflinks pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 

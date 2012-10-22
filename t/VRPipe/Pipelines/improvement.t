@@ -18,7 +18,7 @@ my $improvement_output_dir = get_output_dir('bam_improvement');
 ok my $improvement_pipeline = VRPipe::Pipeline->create(name => 'bam_improvement'), 'able to get the bam_improvement pipeline';
 
 my @s_names;
-foreach my $stepmember ($improvement_pipeline->steps) {
+foreach my $stepmember ($improvement_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(sequence_dictionary

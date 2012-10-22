@@ -142,9 +142,13 @@ can run the scripts vrpipe-trigger_pipelines and vrpipe-dispatch_pipelines.
 Set up a pipeline using vrpipe-setup and then it will execute if you have the
 trigger and dispatch scripts running in the background.
 
-As a general point, any perl script you write that wants to use some VRPipe
-code should typically "use VRPipe::Persistent::Schema;". After that most things
-should work without further "use" statements.
+As a general point, any Perl script you write that wants to use some VRPipe
+code should typically "use VRPipe;". After that most things should work without
+further "use" statements. To choose the deployment you can "import" the one you
+want. eg. to work with your testing database:
+    use VRPipe 'testing';
+or on the command-line:
+$ perl -MVRPipe=testing -e '...'
 
 
 
