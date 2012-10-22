@@ -53,7 +53,7 @@ class VRPipe::Steps::test_step_four with VRPipe::StepRole {
                 );
                 
                 my ($in_path, $out_path) = ($in->path, $out->path);
-                my $this_cmd = "cat $in_path > $out_path";
+                my $this_cmd = "cat $in_path > $out_path; perl -e '\$s = q[a]x(1024*1024*100); sleep(5);'";
                 
                 $self->dispatch([$this_cmd, $req, { output_files => [$out] }]);
             }
