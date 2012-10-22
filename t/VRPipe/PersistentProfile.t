@@ -81,6 +81,8 @@ my @reqs      = map { VRPipe::Requirements->create(memory => $_->[0], time => $_
 my $pipeline  = VRPipe::Pipeline->create(name => 'test_pipeline');
 my $ds        = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
 my $ps        = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {});
+$ps->active(0);
+$ps->update;
 $ds->elements;
 my $ss = VRPipe::StepState->create(stepmember => 1, dataelement => 1, pipelinesetup => 1);
 my @job_args;
@@ -92,8 +94,8 @@ for my $i (1 .. 10000) {
     push(@sub_args, { job => $i + $job_offset, stepstate => 1, requirements => 1, scheduler => 1, '_done' => 1 });
 }
 for my $i (10001 .. 11000) {
-    push(@job_args, { cmd => "job $i", dir => '/tmp', $i > 10980 ? (running => 1) : () });
-    push(@sub_args, { job => $i + $job_offset, stepstate => 1, requirements => $i % 2 ? 2 : 3, scheduler => 1, '_done' => 0, $i > 10980 ? ('_sid' => 20) : () });
+    push(@job_args, { cmd => "job $i", dir => '/tmp', $i > 10980 ? (start_time => DateTime->now, heartbeat => DateTime->now) : () });
+    push(@sub_args, { job => $i + $job_offset, stepstate => 1, requirements => $i % 2 ? 2 : 3, scheduler => 1, '_done' => 0, $i > 10980 ? ('_claim' => 1) : () });
 }
 for my $i (11001 .. 12000) {
     push(@job_args, { cmd => "job $i", dir => '/tmp' });
@@ -103,12 +105,13 @@ VRPipe::Job->bulk_create_or_update(@job_args);
 VRPipe::Submission->bulk_create_or_update(@sub_args);
 elapsed($l, __LINE__);
 
-# now do something like Manager and Scheduler do
+# now do something like Manager and Scheduler used to do *** these tests need
+# updating to do something like vrpipe-handler does instead
 $l = start_clock(__LINE__);
 my $added = 0;
-my $count = VRPipe::Job->search({ 'running' => 1 });
+my $count = VRPipe::Job->search({ 'heartbeat' => { '!=' => undef } });
 my ($last_sub_id) = VRPipe::Submission->get_column_values('id', {}, { order_by => { -desc => 'id' }, rows => 1 });
-my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_sid' => undef, 'me.id' => { '<=' => $last_sub_id } }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
+my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_claim' => 0, 'me.id' => { '<=' => $last_sub_id } }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
 while (my $subs = $pager->next) {
     my $sub_loop = start_clock(__LINE__);
     my %batches;
@@ -151,26 +154,15 @@ sub submit {
     my $all_claimed     = 1;
     my $second_sub_loop = start_clock(__LINE__);
     foreach my $sub (@$submissions) {
-        my $claimed = $sub->claim;
+        my $claimed = $sub->_get_claim;
         unless ($claimed) {
             $all_claimed = 0;
             last;
         }
-        $sub->_hid($for->id);
-        $sub->_aid(++$aid);
     }
     elapsed($second_sub_loop, __LINE__, 1);
-    
-    my $sid_loop = start_clock(__LINE__);
-    my $sid      = $requirements->id . '1234';
-    if ($all_claimed) {
-        foreach my $sub (@$submissions) {
-            $sub->sid($sid);
-        }
-    }
-    elapsed($sid_loop, __LINE__, 1);
 }
-is_deeply [scalar(VRPipe::Submission->search({ '_sid' => 21234 })), scalar(VRPipe::Submission->search({ '_sid' => 31234 }))], [981, 980], 'all submissions were submitted';
+is scalar(VRPipe::Submission->search({ '_claim' => 1 })), 1981, 'all submissions were claimed';
 elapsed($l, __LINE__);
 
 report();
