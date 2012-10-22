@@ -78,7 +78,20 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             if ($self->inputs->{sites_file}) {
                 $self->throw("haplotype_caller_options cannot contain the -alleles or --genotyping_mode (-gt_mode) options if a sites_file is an input to this step") if ($haplotyper_opts =~ /-alleles/ || $haplotyper_opts =~ /-gt_mode/ || $haplotyper_opts =~ /--genotyping_mode/);
                 my $sites_file = $self->inputs->{sites_file}[0];
-                $haplotyper_opts .= "--genotyping_mode GENOTYPE_GIVEN_ALLELES --alleles " . $sites_file->path;
+                $haplotyper_opts .= " --genotyping_mode GENOTYPE_GIVEN_ALLELES --alleles " . $sites_file->path;
+                my $sites_meta = $sites_file->metadata;
+                if (defined $$sites_meta{chrom} && defined $$sites_meta{from} && defined $$sites_meta{to}) {
+                    if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
+                        unless ($$vcf_meta{chrom} eq $$sites_meta{chrom} && $$vcf_meta{from} == $$sites_meta{from} && $$vcf_meta{to} == $$sites_meta{to}) {
+                            $self->throw("chrom/from/to metadata for output VCF and input sites file does not match");
+                        }
+                    }
+                    else {
+                        $$vcf_meta{chrom} = $$sites_meta{chrom};
+                        $$vcf_meta{from}  = $$sites_meta{from};
+                        $$vcf_meta{to}    = $$sites_meta{to};
+                    }
+                }
             }
             
             my $bams_list_path = $self->output_file(basename => 'bams.list', type => 'txt', temporary => 1)->path;
