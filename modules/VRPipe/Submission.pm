@@ -176,9 +176,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 warn " [$$ claim for ", $self->id, "]: _claim is 0 at time ", time(), "\n";
                 $sub_to_claim->_claim(1);
                 $sub_to_claim->update;
-                if ($job->alive(no_suicide => 1)) {
-                    $sub_to_claim->_reset_job;
-                }
                 $claimed_by_us = 1;
             }
         };
@@ -198,24 +195,18 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 }
                 else {
                     # start running the associated job
-                    warn "$$ will start running submission " . $self->id . ", job " . $self->job->id, "\n";
                     $run_ok = $self->job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : ());
+                    warn "$$ we called submission job run for " . $self->id . ", job " . $self->job->id, ", and got run_ok $run_ok\n";
                 }
                 
                 unless ($run_ok && $self->job->start_time) {
                     $self->release;
-                }
-                else {
-                    warn "$$ job start time is ", $self->job->start_time, "\n";
                 }
             }
         };
         $self->do_transaction($transaction, "Failed when trying to claim and run");
         $self->disconnect;
         
-        if ($run_ok) {
-            warn "$$ outside transaction, job start_time is ", $self->job->start_time, "\n";
-        }
         return $run_ok;
     }
     
@@ -296,6 +287,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
         
         $self->reselect_values_from_db;
+        return 1;
     }
     
     method memory {
