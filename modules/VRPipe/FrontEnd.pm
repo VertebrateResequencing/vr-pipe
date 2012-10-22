@@ -424,6 +424,9 @@ class VRPipe::FrontEnd {
             if ($possibles) {
                 my $valid = 1;
                 my @answers = $allow_multiple ? split(/$allow_multiple/, $answer) : ($answer);
+                unless (@answers) {
+                    $valid = 0;
+                }
                 foreach my $sub_answer (@answers) {
                     unless (exists $allowed{$sub_answer}) {
                         $valid = 0;
