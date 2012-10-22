@@ -536,7 +536,7 @@ else {
     # what farm (vrpipe-server) should it run from?
     my $prev_desired_farm;
     if ($based_on && $based_on->desired_farm) {
-        $prev_desired_farm = $based_on->desired_farm->stringify;
+        $prev_desired_farm = $based_on->desired_farm;
     }
     my $farm_default = $prev_desired_farm || 'random';
     my %farm_possibles = map { $_ => 1 } VRPipe::FarmServer->get_column_values('farm', {});
