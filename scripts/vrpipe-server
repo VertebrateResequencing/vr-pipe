@@ -493,7 +493,7 @@ sub status {
                         my $sub_state = $sub->failed ? 'failed' : 'scheduled';
                         if ($sub_state eq 'scheduled') {
                             my $job = $sub->job;
-                            $sub_state = $job->finished ? 'processing' : ($job->running ? 'running' : 'pending');
+                            $sub_state = $job->end_time ? 'processing' : ($job->heartbeat ? 'running' : 'pending');
                         }
                         $sub_stats{$sub_state}++;
                     }
