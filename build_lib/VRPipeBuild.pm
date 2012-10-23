@@ -207,7 +207,7 @@ sub ACTION_test {
         }
         $server = "$thisperl -Imodules -It $local_script --deployment testing";
     }
-    #system("$server --farm testing_farm restart");
+    system("$server --farm testing_farm restart");
     warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
     
     $self->SUPER::ACTION_test(@_);
@@ -215,7 +215,7 @@ sub ACTION_test {
     # and then stop it afterwards. This is the real point of this override:
     # the testing server might stay alive on the users system until their next
     # reboot, which is wasteful if they never do any development or testing!
-    #system("$server stop");
+    system("$server stop");
 }
 
 # this method, called by create_build_script(), is just annoying and we don't
