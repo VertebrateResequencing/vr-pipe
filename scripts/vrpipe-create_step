@@ -46,8 +46,11 @@ unless ($command) {
 # ask the user what each place-holder means
 my (%phs, %non_phs);
 my (@exe_names, %exe_name_to_ph, %option_args, %input_args, %output_args, %output_basenames);
+my @all_phs;
 while ($command =~ /\$(\w+)/g) {
-    my $ph = $1;
+    push(@all_phs, $1);
+}
+foreach my $ph (@all_phs) {
     next if exists $phs{$ph};
     $phs{$ph} = 1;
     
@@ -113,19 +116,10 @@ while ($command =~ /\$(\w+)/g) {
             $output_basenames{$ph} = [5, $temp, $static];
         }
         else {
-            my $oph = $cmdline->ask_question(
-                question    => "Which place-holder contains the basename?",
-                required    => 1,
-                not_allowed => sub {
-                    my ($this_ph, $other_ph) = @_;
-                    $other_ph =~ s/^\$//;
-                    return "You can't use the output file's place-holder" if $other_ph eq $this_ph;
-                    $command =~ /(\$$other_ph)/;
-                    if   ($1) { return; }
-                    else      { return "'$other_ph' is not a place-holder in your cmd_line"; }
-                },
-                na_args => [$ph]
-            );
+            my %all_phs = map { $_ => 1 } @all_phs;
+            delete $all_phs{$ph};
+            my @possible_phs = sort keys %all_phs;
+            my $oph = $cmdline->ask_question(question => "Which place-holder contains the basename?", required => 1, possibles => \@possible_phs);
             $oph =~ s/^\$//;
             
             my $extension;
