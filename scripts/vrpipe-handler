@@ -173,7 +173,7 @@ sub handle_setups {
                     foreach my $setup (@setups) {
                         $completed++ if $setup->currently_complete;
                     }
-                    #exit_handler("All the setups are currently complete") if $completed == @setups;
+                    exit_handler("All the setups are currently complete") if $completed == @setups;
                 }
                 
                 # create a watcher for each setup's datasource to keep it
