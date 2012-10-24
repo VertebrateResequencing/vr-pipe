@@ -18,7 +18,7 @@ VRPipe::Persistent::Schema - the frontend for connecting to and getting at
 	print $job->id;
     }
     
-    $finished_jobs_rs = $schema->resultset('Job')->search({ finished => 1 });
+    $finished_jobs_rs = $schema->resultset('Job')->search({ exit_code => 0 });
 
 =head1 DESCRIPTION
 
