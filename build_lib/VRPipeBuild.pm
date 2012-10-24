@@ -210,7 +210,7 @@ sub ACTION_test {
     system("$server --farm testing_farm restart");
     warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
     
-    $self->SUPER::ACTION_test(@_);
+    eval { $self->SUPER::ACTION_test(@_); };
     
     # and then stop it afterwards. This is the real point of this override:
     # the testing server might stay alive on the users system until their next
