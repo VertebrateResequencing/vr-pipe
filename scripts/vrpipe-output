@@ -331,7 +331,7 @@ while (my $estates = $estates_pager->next) {
                         foreach my $key (@subdir_keys) {
                             if (defined $metadata->{$key}) {
                                 my $sub_dir = $metadata->{$key};
-                                $sub_dir =~ s/\W/_/g;
+                                $sub_dir =~ s/[^\w#]/_/g;
                                 push(@these_dirs, $sub_dir);
                             }
                         }
@@ -382,7 +382,7 @@ while (my $estates = $estates_pager->next) {
                     foreach my $key (@basename_keys) {
                         if (defined $metadata->{$key}) {
                             my $val = $metadata->{$key};
-                            $val           =~ s/\W/_/g;
+                            $val           =~ s/[^\w#]/_/g;
                             $this_basename =~ s/%$key%/$val/;
                         }
                         else {
