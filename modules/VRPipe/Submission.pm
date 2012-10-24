@@ -423,7 +423,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method _reset_job {
         my $job = $self->job;
         if ($job->start_time && !$job->end_time) {
-            $job->kill_job;
+            $job->kill_job($self);
         }
         
         $job->reset_job;
