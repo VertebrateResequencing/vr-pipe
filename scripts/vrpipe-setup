@@ -139,7 +139,7 @@ if ($setup) {
                             }
                             
                             if ($all_mine) {
-                                $job->kill_job unless $job->finished;
+                                $job->kill_job unless $job->end_time;
                             }
                             
                             # delete any stepstats for the submission
