@@ -89,6 +89,12 @@ class VRPipe::MessageTracker extends VRPipe::Persistent {
             return 0;
         }
     }
+    
+    method update_message (Str $message) {
+        my $digest = $self->digest($message);
+        $self->message($digest);
+        $self->update;
+    }
 }
 
 1;

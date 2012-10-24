@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 12;
+    use Test::Most tests => 15;
     use VRPipeTest;
 }
 
@@ -27,5 +27,10 @@ is $mt2->subject, '9438f03d0306250d65142c789b7787cc', 'the subject stored in the
 
 my $mt3 = VRPipe::MessageTracker->get(subject => 'overall setup state for setup 1');
 is_deeply [$mt3->id, $mt3->subject], [1, $subject], 'we can get() with the raw subject string as well';
+
+is $mt3->message, '65eba99f537b1391741560626b07e673', 'message was as expected before update_message()';
+$mt3->update_message('foobar');
+is $mt3->message, '3858f62230ac3c915f300c664312c63f', 'update_message() changed message in db';
+is $mt3->already_sent('foobar'), 1, 'passing the updated message to already_sent makes it return 1';
 
 exit;
