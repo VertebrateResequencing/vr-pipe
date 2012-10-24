@@ -144,6 +144,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     $basename .= $paired == 0 ? '.se' : '.pe';
                 }
                 $basename .= '.bam';
+                my @ofiles;
                 my $merge_file = $self->output_file(
                     output_key => 'merged_lane_bams',
                     basename   => $basename,
@@ -151,25 +152,32 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     metadata   => $metas{$paired}
                 );
                 my $merge_path = $merge_file->path;
+                push(@ofiles, $merge_file);
                 
-                $self->output_file(
-                    basename  => $basename . '.header',
-                    type      => 'txt',
-                    temporary => 1
+                push(
+                    @ofiles,
+                    $self->output_file(
+                        basename  => $basename . '.header',
+                        type      => 'txt',
+                        temporary => 1
+                    )
                 );
                 
                 if (@$in_bams == 1) {
                     my $sam_file = $basename;
                     $sam_file =~ s/\.bam$/.sam/;
-                    $self->output_file(
-                        basename  => $sam_file,
-                        type      => 'txt',
-                        temporary => 1
+                    push(
+                        @ofiles,
+                        $self->output_file(
+                            basename  => $sam_file,
+                            type      => 'txt',
+                            temporary => 1
+                        )
                     );
                 }
                 
                 my $this_cmd = "use VRPipe::Steps::bam_merge_lane_splits; VRPipe::Steps::bam_merge_lane_splits->merge_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$merge_path], step_state => $step_state, bams => [qw(@$in_bams)]);";
-                $self->dispatch_vrpipecode($this_cmd, $req); # deliberately do not include {output_files => [$merge_file]} so that any temp files we made will get their stats updated prior to auto-deletion
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@ofiles });
             }
         };
     }
