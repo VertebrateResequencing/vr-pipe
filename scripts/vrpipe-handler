@@ -130,13 +130,13 @@ sub handle_setups {
                     sub {
                         my ($pm, $pid, $setup) = @_;
                         #$currently_triggering{$setup->id} = 1;
-                        $backend->log("$$ set currently_triggering " . $setup->id . " to 1");
+                        #$backend->log("$$ set currently_triggering " . $setup->id . " to 1");
                     }
                 );
                 $fm->on_finish(
                     sub {
                         my ($pm, $pid, $status, $setup) = @_;
-                        $backend->log("$$ on_finish got args (@_)");
+                        #*** can't figure out why this sub is never called
                         delete $currently_triggering{ $setup->id };
                         $backend->log("$$ deleted currently_triggering " . $setup->id);
                     }
@@ -161,6 +161,7 @@ sub handle_setups {
                 $fm->wait_all_children(
                     cb => sub {
                         my ($pm) = @_;
+                        #*** can't figure out why this sub is never called
                         %currently_triggering = ();
                         $backend->log("$$ deleted all currently_triggering");
                     }
@@ -190,10 +191,20 @@ sub handle_setups {
                             return;
                         }
                         sub {
-                            my $err = $@ || return;
-                            # email user about this once
-                            #*** auto-deactivate it?
-                            $backend->log("There is a problem with datasource $ds_id:\n$err");
+                            my $err = $@;
+                            my $mt = VRPipe::MessageTracker->create(subject => "datasource $ds_id state");
+                            
+                            if ($err) {
+                                unless ($mt->already_sent("not working")) {
+                                    # email user about this once
+                                    #*** auto-deactivate it?
+                                    
+                                    $backend->log("There is a problem with datasource $ds_id for setup " . $setup->id, email_to => [$setup->user], subject => "Setup " . $setup->id . " has problems with its DataSource", long_msg => $err, force_when_testing => 1);
+                                }
+                            }
+                            else {
+                                $mt->update_message("working fine");
+                            }
                         };
                     };
                     
@@ -218,7 +229,6 @@ sub handle_setups {
                     next if defined $setup_watchers{$sid};
                     
                     $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
-                        $backend->log("$$ setup watcher, currently_triggering{$sid} is $currently_triggering{$sid}");
                         return if $currently_triggering{$sid};
                         $currently_triggering{$sid} = 1;
                         my $ppid = $$;
@@ -253,7 +263,7 @@ sub handle_setups {
                                 }
                                 
                                 # set the $mt message
-                                $mt->already_sent("running normally");
+                                $mt->update_message("running normally");
                             }
                             
                             return;
@@ -261,9 +271,12 @@ sub handle_setups {
                         sub {
                             delete $currently_triggering{$sid};
                             my $err = $@ || return;
-                            # email user/admin about this?
-                            #*** auto-deactivate it?
-                            $backend->log("There is a problem with setup $sid:\n$err");
+                            # email user as well? Not yet sure what these error
+                            # messages are like...
+                            my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
+                            unless ($mt->already_sent("unknown problem")) {
+                                $backend->log("There is a problem with setup $sid:\n$err", email_admin => 1, subject => "Setup $sid has problems", long_msg => $err, force_when_testing => 1);
+                            }
                         };
                     };
                 }
@@ -306,7 +319,6 @@ sub handle_submissions {
     my $watcher = EV::timer 0, $timer_interval, sub {
         return if $working;
         $working = 1;
-        warn "$$ entering EV::timer at ", time(), "\n";
         
         if ($submission) {
             my $job = $submission->job;
@@ -314,8 +326,15 @@ sub handle_submissions {
             if ($deployment eq 'testing') {
                 my $still_in_db = VRPipe::Job->search({ id => $job->id });
                 unless ($still_in_db) {
-                    exit_handler("Looks like the database was dropped");
-                    return;
+                    return exit_handler("Looks like the database was dropped");
+                }
+                
+                # in production we don't want to kill a job part-way through
+                # running it just because the server went down, but in testing
+                # it means the test finished, and we want to clean up any
+                # remaining handlers
+                unless ($fs->alive) {
+                    return exit_handler("Looks like the $farm server stopped");
                 }
             }
             
@@ -347,7 +366,7 @@ sub handle_submissions {
                         foreach my $sub (@step_subs) {
                             $sub->done || last;
                             $done++;
-                            $backend->log("$$ stepstate $stepstate_id had sub " . $sub->id . ", done now $done");
+                            $backend->log("$$ stepstate $stepstate_id had sub " . $sub->id . ", done now $done vs " . scalar(@step_subs));
                         }
                         
                         if ($done == @step_subs) {
@@ -387,9 +406,7 @@ sub handle_submissions {
                 
                 my $signal = $job->_signalled_to_death;
                 if ($signal) {
-                    $backend->log("$$ sub " . $submission->id . " failed because we received a SIG$signal, so we will unloop and exit");
-                    EV::unloop;
-                    return;
+                    return exit_handler($submission->id . " failed because we received a SIG$signal");
                 }
                 
                 undef $submission;
@@ -411,15 +428,17 @@ sub handle_submissions {
                 # ourselves, keeping vrpipe-server's estimation of how many
                 # handlers per req are running nice and accurate
             }
-            
-            $req->disconnect;
         }
         unless ($submission) {
+            if (time() >= $end_time) {
+                return exit_handler("There is not enough time to start working on a new submission");
+            }
+            unless ($fs->alive) {
+                return exit_handler("There is no longer a server for farm $farm");
+            }
+            
             # pick the next available submission to work on
             eval {
-                $fs->alive || die "no farmserver";
-                die "ran out of time" if (time() >= $end_time);
-                
                 my $survival_time = $fs->survival_time;
                 my $dtf           = $schema->storage->datetime_parser;
                 
@@ -427,9 +446,7 @@ sub handle_submissions {
                 
                 my (%step_limits, %step_counts, %completed_setups);
                 SLOOP: while (my $subs = $sub_pager->next(no_resetting => 1)) {
-                    warn "($$ sub_pager at time ", time(), "\n";
                     foreach my $sub (@$subs) {
-                        warn " ($$ sub ", $sub->id, " at time ", time(), "\n";
                         # if the job is a block_and_skip_if_ok job, we don't
                         # actually block because of race condition issues, and
                         # because of fail and restart issues. Instead we always
@@ -517,19 +534,9 @@ sub handle_submissions {
                         last SLOOP if $submission;
                     }
                 }
-                
-                $req->disconnect;
             };
             if ($@) {
-                if ($@ =~ /no farmserver/) {
-                    exit_handler("There is no longer a server for farm $farm");
-                }
-                elsif ($@ =~ /ran out of time/) {
-                    exit_handler("There is not enough time to start working on a new submission");
-                }
-                else {
-                    exit_handler("There was a problem picking/ running a new submission: $@");
-                }
+                exit_handler("There was a problem picking/ running a new submission: $@");
             }
             elsif (!defined $submission) {
                 # wait for 5 failed attempts in a row to get a submission before
@@ -541,6 +548,7 @@ sub handle_submissions {
             }
         }
         
+        $req->disconnect;
         $working = 0;
     };
     
