@@ -1,3 +1,5 @@
+0.110   Fixes to vrpipe-output to show input paths properly and allow # in
+        output basenames.
 0.109   Additional critical fixes for convex_plots and fastq_split steps.
 0.108   Critical fixes for convex_plots and fastq_split steps.
 0.107   New vrpipe-mv tool, useful for moving the output root directory of a
