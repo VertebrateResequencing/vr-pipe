@@ -453,7 +453,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     warn "$$ for job ", $self->id, ": ", $explanation, "/n";
                     $self->_signalled_to_death($signal);
                     
-                    $self->kill_job;
+                    $self->kill_job($submission);
                 };
                 $self->store_watcher($signal_watcher);
             }
@@ -524,7 +524,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         return ".host_$host.pid_$pid";
     }
     
-    method kill_job {
+    method kill_job (VRPipe::Submission $submission?) {
         return unless $self->start_time;
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
         #$self->disconnect;
@@ -558,8 +558,22 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             }
             
             my $ofiles = $self->output_files;
-            foreach my $file (@$ofiles) {
-                $file->unlink;
+            if (@$ofiles) {
+                foreach my $file (@$ofiles) {
+                    $file->unlink;
+                }
+            }
+            elsif ($submission) {
+                # if the Step only called dispatch once (ie. only 1 sub per
+                # StepState, Step author may not have specified job output
+                # files, leaving it up to automagial handling. See if our sub
+                # is the only one for the StepState
+                my $ss       = $submission->stepstate;
+                my @all_subs = $ss->submissions;
+                if (@all_subs == 1) {
+                    $ss->unlink_output_files;
+                    $ss->unlink_temp_files;
+                }
             }
         }
     }
