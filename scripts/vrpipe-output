@@ -283,6 +283,9 @@ while (my $estates = $estates_pager->next) {
         if (defined $list) {
             # print out useful info about the input
             $frontend->output("--- Data Element ", $element->id, " ---");
+            if (defined $element_result->{paths}) {
+                $element_result->{paths} = [$element->paths];
+            }
             my $dump = Dumper($element_result);
             $dump =~ s/\$VAR1 = \{\s*?\n/Input:\n/;
             $dump =~ s/\n\s+\};\s+//;
@@ -328,7 +331,7 @@ while (my $estates = $estates_pager->next) {
                         foreach my $key (@subdir_keys) {
                             if (defined $metadata->{$key}) {
                                 my $sub_dir = $metadata->{$key};
-                                $sub_dir =~ s/\W/_/g;
+                                $sub_dir =~ s/[^\w#]/_/g;
                                 push(@these_dirs, $sub_dir);
                             }
                         }
@@ -379,7 +382,7 @@ while (my $estates = $estates_pager->next) {
                     foreach my $key (@basename_keys) {
                         if (defined $metadata->{$key}) {
                             my $val = $metadata->{$key};
-                            $val           =~ s/\W/_/g;
+                            $val           =~ s/[^\w#]/_/g;
                             $this_basename =~ s/%$key%/$val/;
                         }
                         else {
