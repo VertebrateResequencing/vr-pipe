@@ -148,7 +148,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
                         # another process probably claimed this sub, started
                         # running the job, but then died without releasing the
                         # claim: clean this up now
-                        warn " [$$ claim for ", $self->id, "]: the job is dead and has a heartbeat, so will clean up at ", time(), "\n";
+                        warn " [$$ claim for ", $self->id, "]: the job is dead and has a heartbeat ", $job->heartbeat, " (", $job->heartbeat->epoch, " vs ", time(), "), so will clean up\n";
                         $sub_to_claim->_claim(0);
                         $sub_to_claim->update;
                         $sub_to_claim->_reset_job;
@@ -423,9 +423,11 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method _reset_job {
         my $job = $self->job;
         if ($job->start_time && !$job->end_time) {
+            warn " [$$ _reset_job for ", $self->id, "] will call job->kill_job\n";
             $job->kill_job($self);
         }
         
+        warn " [$$ _reset_job for ", $self->id, "] will call job->reset_job\n";
         $job->reset_job;
     }
     
