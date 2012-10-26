@@ -240,8 +240,9 @@ sub handle_setups {
                             
                             if ($setup->currently_complete) {
                                 unless ($mt->already_sent("complete with $num_states elements")) {
-                                    my $long = "To remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n";
-                                    $backend->log("Setup $sid has has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long, force_when_testing => 1);
+                                    my $name = $setup->name;
+                                    my $long = "To remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
+                                    $backend->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long, force_when_testing => 1);
                                 }
                                 
                                 return;
@@ -305,9 +306,10 @@ sub handle_setups {
 sub handle_submissions {
     my ($req, $scheduler, $runner) = @_;
     $backend->log_stderr;
-    my $req_id      = $req->id;
-    my $time_needed = $req->time;
-    my $end_time    = (time() + $scheduler->queue_time($req)) - 65;
+    my $req_id                = $req->id;
+    my $time_needed           = $req->time;
+    my $end_time              = (time() + $scheduler->queue_time($req)) - 65;
+    my $mins_before_switching = $time_needed < 600 ? 1 : 5;
     $req->disconnect;
     
     # every 60s we'll pick a submission if we don't have one already, and update
@@ -321,6 +323,9 @@ sub handle_submissions {
         $working = 1;
         
         if ($submission) {
+            $backend->log("$$ is checking status of sub " . $submission->id);
+            $submission->reselect_values_from_db; # we'd like to avoid doing any db access most times through here, but full triggers in another process fuck us up, as does some issue when switching queues??
+            $submission->disconnect;
             my $job = $submission->job;
             
             if ($deployment eq 'testing') {
@@ -343,6 +348,7 @@ sub handle_submissions {
                 $backend->log("$$ sub " . $submission->id . " job had not started?!");
                 $submission->release;
                 undef $submission;
+                return;
             }
             
             if ($job->end_time) {
@@ -411,7 +417,9 @@ sub handle_submissions {
                 
                 undef $submission;
             }
-            elsif ($submission->close_to_time_limit(5)) {
+            elsif ($submission->close_to_time_limit($mins_before_switching)) {
+                $backend->log("$$ sub " . $submission->id . " is close to time limit");
+                
                 # user's scheduler might kill the submission if it runs too
                 # long in the queue it was initially submitted to; avoid
                 # this by changing queue as necessary
@@ -421,12 +429,16 @@ sub handle_submissions {
                 
                 if ($new_queue ne $current_queue) {
                     $scheduler->switch_queue($runner->sid, $new_queue);
+                    $backend->log("$$ sub " . $submission->id . " (actually runner with sid " . $runner->sid . ") switched queue from $current_queue to $new_queue and submission now has req " . $submission->requirements->id . " with time " . $submission->time);
                 }
                 
                 # we do not update $req, so that once this $submission has
                 # finished we should think that we've run out of time and kill
                 # ourselves, keeping vrpipe-server's estimation of how many
                 # handlers per req are running nice and accurate
+            }
+            else {
+                $backend->log("$$ sub " . $submission->id . "'s job not finished yet");
             }
         }
         unless ($submission) {
