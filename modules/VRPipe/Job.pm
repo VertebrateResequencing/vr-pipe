@@ -316,6 +316,12 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?) {
+        my $debug = "  *$$ job " . $self->id;
+        if ($submission) {
+            $debug .= " sub " . $submission->id;
+        }
+        $debug .= '* ';
+        
         # check we're allowed to run, in a transaction to avoid race condition
         my $do_return;
         my $transaction = sub {
@@ -340,6 +346,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         if (defined $do_return) {
             return $do_return;
         }
+        warn "$debug got past transaction test, _living_id is ", $self->_living_id, " and _i_started_running is ", $self->_i_started_running, "\n";
         
         # fork ourselves off a child to run the cmd in. We wrap this up in a
         # single-fire watcher so that nothing actually happens here without the
@@ -354,6 +361,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 # if we're running (it will also stop us running if another
                 # process murders us)
                 $self->start_beating;
+                warn "$debug called start_beating\n";
             }
             elsif ($cmd_pid == 0) {
                 # child, run the command after changing to the correct dir and
@@ -397,6 +405,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             
             # start our watcher that keeps track of peak memory usage
             $self->start_monitoring;
+            warn "$debug called start_monitoring\n";
             
             # setup signal watchers for the various ways a scheduler might try
             # to ask us to die; in response we will try and guess why and update
@@ -447,10 +456,10 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     
                     my $stderr_file = $self->stderr_file;
                     my $efh         = $stderr_file->openw;
-                    print $efh $explanation, "/n";
+                    print $efh $explanation, "\n";
                     $stderr_file->close;
                     
-                    warn "$$ for job ", $self->id, ": ", $explanation, "/n";
+                    warn "$debug $explanation\n";
                     $self->_signalled_to_death($signal);
                     
                     $self->kill_job($submission);
@@ -498,6 +507,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->update;
                 
                 $self->clear_watchers;
+                warn "$debug child exited and we finalised everything\n";
             };
             $self->store_watcher($child_watcher);
         };
@@ -525,16 +535,22 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     method kill_job (VRPipe::Submission $submission?) {
+        my $debug = "  *$$ job " . $self->id;
+        if ($submission) {
+            $debug .= " sub " . $submission->id;
+        }
+        $debug .= '* ';
+        
         return unless $self->start_time;
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
-        #$self->disconnect;
         if ($user && $host && $pid) {
             if (hostname() eq $host) {
+                warn "$debug killing my own cmd_pid $pid\n";
                 killfam "KILL", $pid;
             }
             else {
                 $self->verbose(1);
-                $self->warn("$$ is killing a job on another host (job " . $self->id . ", pid $pid, host $host, our host = " . hostname());
+                $self->warn("$debug is killing a job on another host (pid $pid, host $host, our host = " . hostname());
                 $self->verbose(0);
                 eval {
                     local $SIG{ALRM} = sub { die "ssh timed out\n" };
@@ -550,16 +566,12 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     #     at all?
                     $self->warn("ssh to $host timed out, assuming that process $pid is dead...");
                 }
-                
-                warn "$$ setting the other-host job's end time and exit_code(9)\n";
-                $self->end_time(DateTime->now());
-                $self->exit_code(9);
-                $self->update;
             }
             
             my $ofiles = $self->output_files;
             if (@$ofiles) {
                 foreach my $file (@$ofiles) {
+                    warn "$debug will delete ", $file->path, "\n";
                     $file->unlink;
                 }
             }
@@ -571,8 +583,12 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 my $ss       = $submission->stepstate;
                 my @all_subs = $ss->submissions;
                 if (@all_subs == 1) {
+                    warn "$debug will delete all stepstate output files\n";
                     $ss->unlink_output_files;
                     $ss->unlink_temp_files;
+                }
+                else {
+                    warn "$debug can't delete any files\n";
                 }
             }
         }
@@ -607,11 +623,16 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         $self->stop_beating;
         $self->stop_monitoring;
         $self->clear_watchers;
-        $self->kill_job;
-        $self->reset_job;
     }
     
     around murder_response {
+        my ($submission) = VRPipe::Submissions->search({ job => $self->id });
+        my $debug = " *$$ job " . $self->id;
+        if ($submission) {
+            $debug .= " sub " . $submission->id;
+        }
+        $debug .= '* ';
+        warn "$debug murder_response\n";
         $self->end_it_all;
     }
     
