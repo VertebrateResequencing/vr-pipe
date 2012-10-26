@@ -981,9 +981,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             
             # there should not be any @extra, but some rare weirdness may give
             # us duplicate rows in the db; take this opportunity to delete them
+            my %extra_ids = map { $_->id => $_ } @extra;
             foreach my $row (@extra) {
-                $row->delete;
+                eval { $row->delete; };
+                delete $extra_ids{ $row->id } unless $@;
             }
+            
+            # if we couldn't delete the extras (probably due to foreign key
+            # issues), try deleting $return instead
+            if (keys %extra_ids) {
+                eval { $return->delete; };
+                unless ($@) {
+                    ($return) = sort { $a->id <=> $b->id } values %extra_ids;
+                }
+            }
+            
+            # (if we still can't delete the dups, well, it probably isn't really
+            #  a problem)
             
             if ($return) {
                 # update the row with any non-key args supplied
