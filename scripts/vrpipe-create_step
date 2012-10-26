@@ -119,8 +119,14 @@ foreach my $ph (@all_phs) {
             my %all_phs = map { $_ => 1 } @all_phs;
             delete $all_phs{$ph};
             my @possible_phs = sort keys %all_phs;
-            my $oph = $cmdline->ask_question(question => "Which place-holder contains the basename?", required => 1, possibles => \@possible_phs);
-            $oph =~ s/^\$//;
+            my $oph;
+            if (@possible_phs > 1) {
+                $oph = $cmdline->ask_question(question => "Which place-holder contains the basename?", required => 1, possibles => \@possible_phs);
+                $oph =~ s/^\$//;
+            }
+            else {
+                $oph = $possible_phs[0];
+            }
             
             my $extension;
             if ($basename_opt == 1) {
@@ -148,6 +154,33 @@ unless (keys %phs) {
 # ask the user about other output files
 #my $other_outputs = $cmdline->ask_question(question => "Does your cmd_line also create other output files not already defined by place-holders?", possibles => [qw(y n)], required => 1);
 #*** ...
+
+# ask the user if they want to transfer any metadata from input files to output
+# files
+my %meta_transfers;
+if (keys %input_args && keys %output_args) {
+    foreach my $okey (sort keys %output_args) {
+        my $go_ahead = $cmdline->ask_question(question => "When the output file for \$$okey is made, do you want to transfer any metadata to it from the input files?", possibles => [qw(y n)], default => 'y', required => 1);
+        if ($go_ahead eq 'y') {
+            my @inputs;
+            my @in_args = sort keys %input_args;
+            if (@in_args > 1) {
+                my $inputs = $cmdline->ask_question(question => "Which input files might have the metadata you want to transfer to \$$okey? (if multiple, separate with spaces)", possibles => \@in_args, allow_multiple => ' ', default => join(' ', @in_args), required => 1);
+                @inputs = split(/\s+/, $inputs);
+            }
+            else {
+                @inputs = @in_args;
+            }
+            
+            foreach my $input (@inputs) {
+                my $meta_keys = $cmdline->ask_question(question => "What metadata keys should be transfered from \$$input? (separate multiple with spaces, say 'all' to transfer everything)", default => 'all', required => 1);
+                my @meta_keys = split(/\s+/, $meta_keys);
+                
+                push(@{ $meta_transfers{$okey} }, [$input, @meta_keys]);
+            }
+        }
+    }
+}
 
 unless (@exe_names) {
     # ask the user for the name of the exe
@@ -267,7 +300,33 @@ my $transaction = sub {
             }
         }
         
-        $body_sub_str .= qq[\$$output = \$self->output_file(output_key => '$output', basename => \$${output}_basename, type => '$type', temporary => $temp)->path; ];
+        # transfer desired metadata, but only keys where the value is the same
+        # in all input files
+        my $metadata_str = '';
+        my $transfer     = $meta_transfers{$output};
+        if ($transfer) {
+            $body_sub_str .= qq[my \$${output}_meta = {}; ];
+            foreach my $aref (@$transfer) {
+                my ($input, @meta_keys) = @$aref;
+                $body_sub_str .= qq[foreach my \$ifile (\@{ \$self->inputs->{$input} }) { my \$imeta = \$ifile->metadata; ];
+                
+                if (@meta_keys == 1 && $meta_keys[0] eq 'all') {
+                    $body_sub_str .= 'foreach my $key (keys %$imeta) { ';
+                }
+                else {
+                    $body_sub_str .= "foreach my \$key (qw(@meta_keys)) { ";
+                }
+                $body_sub_str .= "my \$val = defined \$imeta->{\$key} ? \$imeta->{\$key} : next; \$${output}_meta->{\$key}->{\$val}++; ";
+                
+                $body_sub_str .= '} } ';
+            }
+            
+            $body_sub_str .= 'foreach my $key (keys %$' . $output . '_meta) { my $href = $' . $output . '_meta->{$key}; my @vals = keys %$href; if (@vals == 1) { $' . $output . '_meta->{$key} = $vals[0] } else { delete $' . $output . '_meta->{$key}; } } ';
+            
+            $metadata_str = ", metadata => \$${output}_meta";
+        }
+        
+        $body_sub_str .= qq[\$$output = \$self->output_file(output_key => '$output', basename => \$${output}_basename, type => '$type', temporary => $temp$metadata_str)->path; ];
         
         if ($basename_opt == 3) {
             $body_sub_str .= qq[\$$output =~ s/$extension_regex//; ];
