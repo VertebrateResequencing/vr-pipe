@@ -13,8 +13,8 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $mpileup_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_mpileup'), 'able to get the snp_calling_mpileup pipeline';
-ok my $gatk_pipeline = VRPipe::Pipeline->get(name => 'snp_calling_gatk_unified_genotyper'), 'able to get the snp_calling_gatk_unified_genotyper pipeline';
+ok my $mpileup_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_mpileup'), 'able to get the snp_calling_mpileup pipeline';
+ok my $gatk_pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_unified_genotyper'), 'able to get the snp_calling_gatk_unified_genotyper pipeline';
 
 my $calling_dir = get_output_dir('gatk_recalling_test');
 
