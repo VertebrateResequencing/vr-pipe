@@ -5,7 +5,7 @@ use Path::Class;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 46;
+    use Test::Most tests => 48;
     use VRPipeTest;
 }
 
@@ -153,6 +153,17 @@ my $symlink = file(qw(t data dirs for symlink higher.link))->absolute;
 $vrfile = VRPipe::File->create(path => $symlink);
 ok $vrfile->s, 's() worked for a complex relative symlink';
 is $vrfile->slurp, "the real file\n", 'slurp also worked on it';
+
+# test that copy/move fail when the destination disk lacks space
+$vrsource = VRPipe::File->get(path => $source_path);
+my $true_s = $vrsource->s;
+$vrsource->s(9223372036854775);
+$vrsource->update;
+$vrcopy->unlink;
+throws_ok { $vrsource->copy($vrcopy) } qr/There is not enough disk space available/, 'copy with a file too large for destination throws';
+$vrsource->s($true_s);
+$vrsource->update;
+throws_ok { $vrsource->_check_destination_space($vrcopy->path->absolute->dir, 100) } qr/There is not enough disk space remaining/, 'check for there being 100% remaining space at destination throws';
 
 # create_fofn
 my $fofn = VRPipe::File->create(path => file($tmp_dir, 'list.fofn'));
