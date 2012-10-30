@@ -329,6 +329,11 @@ else {
     }
     
     my @sms = $pipeline->step_members;
+    unless (@sms) {
+        # ensure that the chosen pipeline has actually been constructed
+        VRPipe::Pipeline->create(name => $pipeline->name);
+        @sms = $pipeline->step_members;
+    }
     my @steps = map { $_->step } @sms;
     
     # find the steps whoes input is the data element
