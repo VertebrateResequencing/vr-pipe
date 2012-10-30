@@ -184,20 +184,22 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
             @allowed_step_members = (@step_members);
         }
         
-        # loop through completed elements
+        # loop through elements
         my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => $include_withdrawn);
         while (my $estates = $estates_pager->next) {
             foreach my $element_state (@$estates) {
                 # get output files
                 my $element = $element_state->dataelement;
                 foreach my $stepm (@allowed_step_members) {
-                    my $stepstate = VRPipe::StepState->get(stepmember => $stepm, dataelement => $element, pipelinesetup => $setup);
+                    my ($stepstate) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
+                    $stepstate || next;
                     my $step_outs = $stepstate->output_files;
                     my $smid      = $stepm->id;
                     my $force     = exists $allowed_kinds{$smid}->{all};
                     my $step_name = $stepm->step->name;
                     my $step_num  = $stepm->step_number;
                     my $step_desc = "Step $step_num ($step_name)";
+                    
                     while (my ($kind, $files) = each %$step_outs) {
                         unless ($force) {
                             next unless exists $allowed_kinds{$smid}->{$kind};
