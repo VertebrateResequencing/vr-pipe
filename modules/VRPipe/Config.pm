@@ -53,6 +53,11 @@ class VRPipe::Config {
     use File::Which qw(which);
     use Cwd 'abs_path';
     
+    # we will suggest a default port that is randomly chosen from the "dynamic
+    # range" block of ports 49152-65535, minus 20 to allow user to then have
+    # multiple test server ports that are increments of their production port
+    my $default_port = int(rand(16364)) + 49152;
+    
     my $question_number = 0;
     
     has schema_directory => (
@@ -196,14 +201,14 @@ class VRPipe::Config {
     has production_interface_port => (
         is              => 'rw',
         question        => 'What port will the VRPipe interface be accessible on, when accessing your production database?',
-        default         => 9090,
+        default         => $default_port,
         question_number => ++$question_number
     );
     
     has testing_interface_port => (
         is              => 'rw',
         question        => 'What port will the VRPipe interface be accessible on, when accessing your testing database?',
-        default         => 9091,
+        default         => $default_port + 1,
         question_number => ++$question_number
     );
     
