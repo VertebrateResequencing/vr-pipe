@@ -151,9 +151,9 @@ sub handle_setups {
                     $fm->start(
                         cb => sub {
                             my ($fm, $setup, $ppid) = @_;
-                            $backend->log("$ppid is starting primary trigger of setup " . $setup->id . " in child $$");
+                            #$backend->log("$ppid is starting primary trigger of setup " . $setup->id . " in child $$");
                             $setup->trigger;
-                            $backend->log("$ppid completed primary trigger of setup " . $setup->id . " in child $$");
+                            #$backend->log("$ppid completed primary trigger of setup " . $setup->id . " in child $$");
                         },
                         args => [$setup, $$]
                     );

@@ -205,7 +205,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
                 my $element         = $estate->dataelement;
-                my $debug_id        = " == $$ setup " . $self->id . " trigger for " . ($supplied_data_element ? $supplied_data_element->id : 'all(' . $element->id . ')');
                 my $completed_steps = $estate->completed_steps;
                 next if $completed_steps == $num_steps;
                 
@@ -219,9 +218,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     );
                     
                     my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
-                    warn "$debug_id: looking at step ", $step->name, ", number $step_number of $num_steps\n";
                     if ($state->complete) {
-                        $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate, $debug_id);
+                        $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                         next;
                     }
                     
@@ -233,9 +231,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         unless ($unfinished) {
                             my $ok = $step->post_process();
                             if ($ok) {
-                                warn "$debug_id: submissions finished will _complete_state\n";
                                 # we just completed all the submissions from a previous parse
-                                $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate, $debug_id);
+                                $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                                 next;
                             }
                             else {
@@ -245,7 +242,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 $self->warn("submissions completed, but post_process failed");
                             }
                         }
-                        warn "$debug_id: unfinished submissions\n";
                         # else we have $unfinished unfinished submissions from a
                         # previous parse and are still running
                     }
@@ -253,7 +249,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         # this is the first time we're looking at this step for
                         # this data member for this pipelinesetup
                         my $completed;
-                        warn "$debug_id: no subs, will parse\n";
                         try {
                             $completed = $step->parse();
                         }
@@ -267,8 +262,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # on instant complete, parse calls post_process
                             # itself and only returns true if that was
                             # successfull
-                            $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate, $debug_id);
-                            warn "$debug_id: instant complete\n";
+                            $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                             next;
                         }
                         else {
@@ -316,7 +310,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     foreach my $arrayref (@$dispatched) {
                                         my ($cmd, $reqs, $job_args) = @$arrayref;
                                         my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state->submission_search_id, requirements => $reqs);
-                                        warn "$debug_id: created new sub ", $sub->id, "\n";
                                     }
                                 }
                             }
@@ -338,7 +331,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $all_done;
     }
     
-    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, PreviousStepOutput $previous_step_outputs, VRPipe::DataElementState $estate, Str $debug_id) {
+    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, PreviousStepOutput $previous_step_outputs, VRPipe::DataElementState $estate) {
         while (my ($key, $val) = each %{ $step->outputs() }) {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
@@ -364,11 +357,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         }
         
         my $completed_steps = $estate->completed_steps;
-        warn "$debug_id: state ", $state->id, " completed, $step_number > $completed_steps?\n";
         if ($step_number > $completed_steps) {
             $estate->completed_steps($step_number);
             $estate->update;
-            warn "$debug_id: estate ", $estate->id, " has now completed ", $estate->completed_steps, " steps\n";
         }
     
     }
