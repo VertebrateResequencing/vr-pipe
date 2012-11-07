@@ -315,7 +315,6 @@ sub handle_submissions {
     # every 60s we'll pick a submission if we don't have one already, and update
     # its status
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
-    use Time::HiRes qw(time);
     my ($submission, $job_pid, %failed_by_us, $working, $no_subs_found);
     my $handled_submissions = 0;
     my $watcher = EV::timer 0, $timer_interval, sub {
@@ -323,7 +322,6 @@ sub handle_submissions {
         $working = 1;
         
         if ($submission) {
-            $backend->log("$$ is checking status of sub " . $submission->id);
             $submission->reselect_values_from_db; # we'd like to avoid doing any db access most times through here, but full triggers in another process fuck us up, as does some issue when switching queues??
             $submission->disconnect;
             my $job = $submission->job;
@@ -345,7 +343,7 @@ sub handle_submissions {
             
             if (!$job->start_time) {
                 # hmmm, this really shouldn't happen
-                $backend->log("$$ sub " . $submission->id . " job had not started?!");
+                $backend->log("sub " . $submission->id . " job had not started?!");
                 $submission->release;
                 undef $submission;
                 return;
@@ -358,9 +356,8 @@ sub handle_submissions {
                     # we completed successfully; if this was the last submission
                     # of its step and they're all done now, do a trigger for
                     # this dataelement to create submissions for the next step
-                    my $step_state   = $submission->stepstate;
-                    my $stepstate_id = $step_state->id;
-                    $backend->log("$$ sub " . $submission->id . " got done, will see if we should trigger...");
+                    my $step_state        = $submission->stepstate;
+                    my $stepstate_id      = $step_state->id;
                     my $trigger_next_step = 0;
                     my $transaction       = sub {
                         # compare counts of total submissions for our step to
@@ -372,7 +369,6 @@ sub handle_submissions {
                         foreach my $sub (@step_subs) {
                             $sub->done || last;
                             $done++;
-                            $backend->log("$$ stepstate $stepstate_id had sub " . $sub->id . ", done now $done vs " . scalar(@step_subs));
                         }
                         
                         if ($done == @step_subs) {
@@ -387,7 +383,6 @@ sub handle_submissions {
                         # the subs being marked done but no starting of next
                         # step if we die during/before the trigger. The setups
                         # handler will catch stalls for this reason
-                        $backend->log("$$ stepstate $stepstate_id completed all its subs, will trigger for dataelement " . $step_state->dataelement->id);
                         $step_state->pipelinesetup->trigger($step_state->dataelement);
                         
                         # also trigger any dataelements that have the same
@@ -404,8 +399,6 @@ sub handle_submissions {
                     # time or memory; we just need to retry it if appropriate
                     $submission->retry if $submission->retries < 3;
                     $failed_by_us{ $submission->id } = 1;
-                    
-                    $backend->log("$$ sub " . $submission->id . " got failed, it's job is $job with _signalled_to_death " . $job->_signalled_to_death . ", retried if appropriate...");
                 }
                 
                 $submission->release;
@@ -418,8 +411,6 @@ sub handle_submissions {
                 undef $submission;
             }
             elsif ($submission->close_to_time_limit($mins_before_switching)) {
-                $backend->log("$$ sub " . $submission->id . " is close to time limit");
-                
                 # user's scheduler might kill the submission if it runs too
                 # long in the queue it was initially submitted to; avoid
                 # this by changing queue as necessary
@@ -429,16 +420,12 @@ sub handle_submissions {
                 
                 if ($new_queue ne $current_queue) {
                     $scheduler->switch_queue($runner->sid, $new_queue);
-                    $backend->log("$$ sub " . $submission->id . " (actually runner with sid " . $runner->sid . ") switched queue from $current_queue to $new_queue and submission now has req " . $submission->requirements->id . " with time " . $submission->time);
                 }
                 
                 # we do not update $req, so that once this $submission has
                 # finished we should think that we've run out of time and kill
                 # ourselves, keeping vrpipe-server's estimation of how many
                 # handlers per req are running nice and accurate
-            }
-            else {
-                $backend->log("$$ sub " . $submission->id . "'s job not finished yet");
             }
         }
         unless ($submission) {
@@ -481,7 +468,6 @@ sub handle_submissions {
                             # there was a transient problem
                             $failed_by_us{ $sub->id }++;
                             if ($failed_by_us{ $sub->id } >= 15) {
-                                $backend->log("will forget we failed sub " . $sub->id);
                                 delete $failed_by_us{ $sub->id };
                             }
                             $submission = 0; # to stop us exiting due to no submission

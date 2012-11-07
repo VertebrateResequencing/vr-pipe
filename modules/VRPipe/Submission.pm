@@ -133,28 +133,21 @@ class VRPipe::Submission extends VRPipe::Persistent {
     # other methods
     method _get_claim {
         my $claimed_by_us;
-        use Time::HiRes qw(time);
         my $transaction = sub {
             my ($sub_to_claim) = VRPipe::Submission->search({ id => $self->id }, { for => 'update' });
             my $job = $sub_to_claim->job;
             if ($sub_to_claim->_claim) {
-                warn " [$$ claim for ", $self->id, "]: _claim is already set at time ", time(), "\n";
-                if ($job->alive(no_suicide => 1)) {
-                    warn " [$$ claim for ", $self->id, "]: the job is still alive at ", time(), "\n";
-                }
-                else {
+                unless ($job->alive(no_suicide => 1)) {
                     # clean up any 'stuck' submissions
                     if ($job->heartbeat) {
                         # another process probably claimed this sub, started
                         # running the job, but then died without releasing the
                         # claim: clean this up now
-                        warn " [$$ claim for ", $self->id, "]: the job is dead and has a heartbeat ", $job->heartbeat, " (", $job->heartbeat->epoch, " vs ", time(), "), so will clean up\n";
                         $sub_to_claim->_claim(0);
                         $sub_to_claim->update;
                         $sub_to_claim->_reset_job;
                     }
                     else {
-                        warn " [$$ claim for ", $self->id, "]: the job is dead but there is no heartbeat at ", time(), "\n";
                         # however, the other process may have claimed it and not
                         # yet called run() and started the job's heartbeat
                         
@@ -173,7 +166,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 $claimed_by_us = 0;
             }
             else {
-                warn " [$$ claim for ", $self->id, "]: _claim is 0 at time ", time(), "\n";
                 $sub_to_claim->_claim(1);
                 $sub_to_claim->update;
                 $claimed_by_us = 1;
@@ -196,7 +188,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 else {
                     # start running the associated job
                     $run_ok = $self->job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : ());
-                    warn "$$ we called submission job run for " . $self->id . ", job " . $self->job->id, ", and got run_ok $run_ok\n";
                 }
                 
                 unless ($run_ok && $self->job->start_time) {
@@ -211,8 +202,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method release {
-        use Time::HiRes qw(time);
-        warn " [$$ release for ", $self->id, "]: will set _claim to 0 at ", time(), "\n";
         $self->_claim(0);
         $self->update;
     }
@@ -298,6 +287,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         unless ($extra) {
             # increase by 1GB or 30%, whichever is greater, and round up to
             # nearest 100
+            #*** increase to greater than max seen in stepstats?
             my $minimum_memory_increase    = 1000;
             my $memory_increase_percentage = 0.3;
             my $current_mem                = $self->memory;
@@ -423,11 +413,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method _reset_job {
         my $job = $self->job;
         if ($job->start_time && !$job->end_time) {
-            warn " [$$ _reset_job for ", $self->id, "] will call job->kill_job\n";
             $job->kill_job($self);
         }
         
-        warn " [$$ _reset_job for ", $self->id, "] will call job->reset_job\n";
         $job->reset_job;
     }
     
