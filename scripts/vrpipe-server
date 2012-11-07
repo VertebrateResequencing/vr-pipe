@@ -191,12 +191,6 @@ sub start_server {
         fork_call { $ls->process_queue; return; } $watcher_error_sub;
     };
     
-    # automatically start the local scheduler if we're supposed to be using the
-    # local scheduler
-    if ($backend->scheduler eq 'local') {
-        $ls_watcher->start;
-    }
-    
     # setup the submission management system if we're supposed to
     my ($farm_server, $farm_watcher, $handler_path, $scheduler);
     if ($farm) {
@@ -221,6 +215,12 @@ sub start_server {
                     $backend->log("Submission management started for farm $farm");
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $scheduler = VRPipe::Scheduler->create();
+                    
+                    # start the local scheduler if we're supposed to be using
+                    # the local scheduler
+                    if ($scheduler->type eq 'local') {
+                        $ls_watcher->start;
+                    }
                 }
                 else {
                     $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
@@ -301,6 +301,7 @@ sub start_server {
                             $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
                             $farm_server->end_it_all if $farm_server;
                             undef $farm_server;
+                            $ls_watcher->stop;
                         }
                         &{$watcher_error_sub};
                     }
