@@ -217,7 +217,7 @@ sub start_server {
                 elsif ($farm_server) {
                     # our database must be ready now, so load all Pipeline and
                     # Step .pm modules into db if we haven't already
-                    # $backend->install_pipelines_and_steps unless $deployment eq 'testing';
+                    $backend->install_pipelines_and_steps unless $deployment eq 'testing';
                     $backend->log("Submission management started for farm $farm");
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $scheduler = VRPipe::Scheduler->create();
