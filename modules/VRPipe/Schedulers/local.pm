@@ -114,7 +114,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             return $sid;
         }
         else {
-            $self->throw("Failed to submit to scheduler");
+            $self->throw("Failed to submit to scheduler given command $cmd");
         }
     }
     
