@@ -241,7 +241,7 @@ sub handle_setups {
                             if ($setup->currently_complete) {
                                 unless ($mt->already_sent("complete with $num_states elements")) {
                                     my $name = $setup->name;
-                                    my $long = "To remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
+                                    my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
                                     $backend->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
                                 }
                                 
