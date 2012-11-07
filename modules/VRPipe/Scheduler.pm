@@ -218,10 +218,12 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 my $worker_cmd = VRPipe::Interface::CmdLine->vrpipe_perl_e(qq[VRPipe::Runner->get(id => $runner_id)->run($run_args)], $backend->deployment);
                 
                 # executing the Runner itself and vrpipe-handler means we have a
-                # minimum amount of memory; let's say 250MB?
+                # minimum amount of memory; let's say 500MB? StepRole should
+                # already effect a 500MB minimum, so this shouldn't really
+                # be necessary
                 my $req_to_use = $requirements;
-                if ($requirements->memory < 250) {
-                    $req_to_use = $requirements->clone(memory => 250);
+                if ($requirements->memory < 500) {
+                    $req_to_use = $requirements->clone(memory => 500);
                 }
                 
                 # construct the command line that will submit our $cmd to the
