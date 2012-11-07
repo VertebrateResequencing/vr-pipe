@@ -137,10 +137,13 @@ $ vrpipe-db_upgrade
 
 
 To use:
-The daemons to run the system have not yet been written. In the mean time you
-can run the scripts vrpipe-trigger_pipelines and vrpipe-dispatch_pipelines.
-Set up a pipeline using vrpipe-setup and then it will execute if you have the
-trigger and dispatch scripts running in the background.
+Ensure that vrpipe-server is always running on a machine that can submit jobs
+to your job scheduler:
+$ vrpipe-server --farm my_farm start
+Now you can use vrpipe-create_step and vrpipe-create_pipeline to create
+pipelines if necessary. Then end-users can set up a pipeline using vrpipe-setup.
+vrpipe-setup and vrpipe-status will be the most commonly used scripts. Access to
+output files can be achieved with vrpipe-output.
 
 As a general point, any Perl script you write that wants to use some VRPipe
 code should typically "use VRPipe;". After that most things should work without
