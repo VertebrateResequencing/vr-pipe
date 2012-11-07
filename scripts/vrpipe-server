@@ -230,7 +230,7 @@ sub start_server {
             else {
                 fork_call {
                     # check we're still valid
-                    die "no longer in db\n" unless $farm_server->alive;
+                    die "no longer in db\n" unless ($farm_server && $farm_server->alive);
                     $farm_server->stop_beating; # parent process is beating
                     
                     # claim our setups
@@ -299,7 +299,7 @@ sub start_server {
                         # running
                         if ($err =~ /no longer in db/) {
                             $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
-                            $farm_server->end_it_all;
+                            $farm_server->end_it_all if $farm_server;
                             undef $farm_server;
                         }
                         &{$watcher_error_sub};
