@@ -1,3 +1,46 @@
+# version 0.111;
+If you are using a version earlier than 0.106, upgrade to that first,
+following the guidance below. * the sensibly cautious may wish to avoid
+upgrading to this version and wait for the next version instead *
+
+This version features substantial changes to core class APIs and the database.
+Run vrpipe-db_upgrade to upgrade your database. SiteConfig options have changed,
+so also be sure to rerun Build.PL and answer the new questions. vrpipe-server
+now takes over the role of vrpipe-trigger_pipelines and
+vrpipe-dispatch_pipelines so be sure to keep it running in the new --farm mode.
+
+If you have developed your own pipeline modules, these will need to be altered
+to match the new API:
+VRPipe::Pipeline no longer has _num_steps column, and PipelineRole gains a new
+construction implementation involving new methods that can be implemented in
+VRPipe::Pipelines::* modules: step_names(), adaptor_definitions() and
+behaviour_definitions(). See some supplied Pipeline modules for how to define
+these; you are defining the exact same things as before in pretty much the same
+way, but now it just looks nicer and takes fewer characters.
+VRPipe::Steps::* haven't changed in this version, but you should ensure that
+you supply {output_files => [$ofile]} to dispatch calls, if more than 1 dispatch
+occurs in the body_sub (and an output file is actually made). Also,
+VRPipe::Requirements->time is now in seconds instead of hours, with backwards
+compatibility for values under 60.
+
+Other changes you might need to be aware of:
+VRPipe::Pipeline no longer has a steps() method; use step_members() instead.
+Pipelines are now constructed by calling create() (instead of steps()), and all
+pipelines and steps can be created with
+VRPipe::Interface::BackEnd->install_pipelines_and_steps().
+Manager no longer handles triggering or dispatch of setups. PipelineSetup itself
+gains a trigger() method instead.
+New VRPipe::FarmServer class to track running servers. Manager lets
+vrpipe-server register_farm_server(). PipelineSetup gains a desired_farm and
+controlling_farm.
+PipelineSetup gains currently_complete() method.
+VRPipe::Scheduler: removed submit(), build_command_line(), run_on_node(),
+wait_for_sid() and the scheduler_*_file() methods. It now has an
+ensure_running() method instead of submit(). We no longer store or even look at
+scheduler output. A VRPipe::Submission is no longer something you submit to the
+farm, but something that vrpipe-handler (running on a farm node) will pick up to
+run.
+
 # version 0.106:
 Further subtle issues have been discovered that may affect your VRPipe database
 following the upgrade to 0.103 and/or 0.104. If you have ever used version
