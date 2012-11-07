@@ -258,9 +258,9 @@ sub handle_setups {
                             else {
                                 my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
                                 unless ($incomplete_subs) {
-                                    $backend->log("$ppid in child $$ is forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
+                                    $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
                                     $setup->trigger;
-                                    $backend->log("$ppid in child $$ completed the full trigger for setup $sid");
+                                    $backend->log("completed the forced full trigger for setup $sid");
                                 }
                                 
                                 # set the $mt message
@@ -551,15 +551,15 @@ sub handle_submissions {
     };
     
     # run the event loop
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running $$.");
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
     EV::run;
     
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions $$!");
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
     exit 0;
 }
 
 sub exit_handler {
     my $msg = shift;
-    $backend->log($msg . ", will gracefully exit $mode handler. $$"); # if $mode eq 'setups'
+    $backend->log($msg . ", will gracefully exit $mode handler."); # if $mode eq 'setups'
     EV::unloop;
 }
