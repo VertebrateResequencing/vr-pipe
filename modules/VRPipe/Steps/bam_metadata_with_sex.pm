@@ -55,7 +55,7 @@ class VRPipe::Steps::bam_metadata_with_sex extends VRPipe::Steps::bam_metadata {
             my %sample_sex;
             
             if ($sample_sex_file) {
-                my $sample_file = Path::Class::File->new($sample_sex_file);
+                my $sample_file = file($sample_sex_file);
                 $self->throw("sample_sex_file must be an absolute path") unless $sample_file->is_absolute;
                 
                 my $fh = $sample_file->openr;

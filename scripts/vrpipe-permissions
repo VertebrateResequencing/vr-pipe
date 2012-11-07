@@ -68,7 +68,7 @@ foreach my $step_name (@steps) {
         $desired_steps{names}->{$name}->{$kind} = 1;
     }
 }
-my @step_members = $setup->pipeline->steps;
+my @step_members = $setup->pipeline->step_members;
 my @allowed_step_members;
 my %allowed_kinds;
 if (@steps) {

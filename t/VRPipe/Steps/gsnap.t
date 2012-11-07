@@ -8,7 +8,7 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES GSNAP_GENOME_DIR)],
         required_exe => [qw(gsnap)]
     );
     use TestPipelines;
@@ -28,14 +28,15 @@ my $setup = VRPipe::PipelineSetup->create(
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
-    options     => { gsnap_db => 'mm9', paired_end => 1 }
+    options     => { gsnap_db => 'mm9', paired_end => 1, gsnap_genome_dir => $ENV{GSNAP_GENOME_DIR} }
 );
 
 my @output_subdirs = output_subdirs(1);
 my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'ERR032995_160_lines_1.concordant_uniq');
 my @outputfiles;
+warn $outputfile_1;
 push(@outputfiles, $outputfile_1);
-ok handle_pipeline(@outputfiles), 'gsnap pipeline ran ok, generating the expected output file';
+ok handle_pipeline(@outputfiles), 'gsnap step ran ok, generating the expected output file';
 
 #my $testfilecontents   = file( qw(t data ERR032995.concordant_uniq) )->slurp;
 #my $outputfilecontents = $outputfile_1->slurp;

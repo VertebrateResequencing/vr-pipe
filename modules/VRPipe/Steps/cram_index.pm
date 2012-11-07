@@ -48,7 +48,7 @@ class VRPipe::Steps::cram_index extends VRPipe::Steps::cramtools {
             my $options = $self->options;
             $self->handle_standard_options($options);
             
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $opts = $options->{cramtools_index_options};

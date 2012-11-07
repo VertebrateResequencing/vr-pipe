@@ -5,9 +5,12 @@ use Cwd;
 use Path::Class qw(file dir);
 use File::Copy;
 use Parallel::ForkManager;
+use DateTime;
+use EV;
+use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 133;
+    use Test::Most tests => 137;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -82,10 +85,9 @@ is $steps[0]->description, 'the 1st step', 'a different instance is affected aft
 my @jobs;
 my $epoch_time = time();
 ok $jobs[0] = VRPipe::Job->create(cmd => 'echo "job1";'), 'created a Job using create() with no dir';
-is_deeply [$jobs[0]->id, $jobs[0]->cmd, $jobs[0]->dir, $jobs[0]->running], [1, 'echo "job1";', cwd(), 0], 'job1 has the expected fields';
+is_deeply [$jobs[0]->id, $jobs[0]->cmd, $jobs[0]->dir], [1, 'echo "job1";', cwd()], 'job1 has the expected fields';
 undef $jobs[0];
 $jobs[0] = VRPipe::Job->get(cmd => 'echo "job1";');
-cmp_ok $jobs[0]->creation_time->epoch, '>=', $epoch_time, 'creation time defaulted to just now';
 is $jobs[0]->start_time, undef, 'start_time defaults to undef';
 $jobs[1] = VRPipe::Job->create(cmd => 'echo "job2";');
 $jobs[1]->pid(33);
@@ -105,11 +107,11 @@ my @reqs;
 ok $reqs[0] = VRPipe::Requirements->create(memory => 2000, time => 6), 'created a Requirments using create() with only memory and time';
 undef $reqs[0];
 $reqs[0] = VRPipe::Requirements->get(memory => 2000, time => 6);
-is_deeply [$reqs[0]->id, $reqs[0]->memory, $reqs[0]->time, $reqs[0]->cpus, $reqs[0]->tmp_space, $reqs[0]->local_space, $reqs[0]->custom], [1, 2000, 6, 1, 0, 0, {}], 'reqs1 has the expected fields';
+is_deeply [$reqs[0]->id, $reqs[0]->memory, $reqs[0]->time, $reqs[0]->cpus, $reqs[0]->tmp_space, $reqs[0]->local_space, $reqs[0]->custom], [1, 2000, 21600, 1, 0, 0, {}], 'reqs1 has the expected fields';
 ok $reqs[1] = VRPipe::Requirements->create(memory => 2000, time => 6, cpus => 2, tmp_space => 500, local_space => 0, custom => { loo => 'car' }), 'created a Requirments using fully specified create()';
 undef $reqs[1];
 $reqs[1] = VRPipe::Requirements->get(memory => 2000, time => 6, cpus => 2, tmp_space => 500, local_space => 0, custom => { loo => 'car' });
-is_deeply [$reqs[1]->id, $reqs[1]->memory, $reqs[1]->time, $reqs[1]->cpus, $reqs[1]->tmp_space, $reqs[1]->local_space, $reqs[1]->custom->{loo}], [2, 2000, 6, 2, 500, 0, 'car'], 'reqs2 has the expected fields and is a seperate new entry in the db';
+is_deeply [$reqs[1]->id, $reqs[1]->memory, $reqs[1]->time, $reqs[1]->cpus, $reqs[1]->tmp_space, $reqs[1]->local_space, $reqs[1]->custom->{loo}], [2, 2000, 21600, 2, 500, 0, 'car'], 'reqs2 has the expected fields and is a seperate new entry in the db';
 
 my @ds;
 ok $ds[0] = VRPipe::DataSource->create(type => 'list', method => 'all', source => 't/data/datasource.fivelist'), 'created a DataSource using create()';
@@ -203,6 +205,8 @@ for (1 .. 5) {
 }
 is_deeply [$stepms[2]->id, $stepms[2]->step->id, $stepms[2]->pipeline->id, $stepms[2]->step_number], [3, 3, 1, 3], 'stepmember3 has the expected fields';
 
+is $pipelines[0]->num_steps, 5, 'num_steps worked';
+
 my @setups;
 my $step1_bam_input = file($output_dir, 'input.bam');
 copy(file(qw(t data file.bam)), $step1_bam_input) || die "Could not copy to $step1_bam_input\n";
@@ -213,6 +217,11 @@ is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id,
 undef $setups[0];
 $setups[0] = VRPipe::PipelineSetup->get(name => 'ps1', datasource => $ds[0], output_root => $output_dir, pipeline => $pipelines[0], options => { dynamic_input => "$step1_bam_input", baz => 'loman' });
 is_deeply [$setups[0]->id, $setups[0]->datasource->id, $setups[0]->pipeline->id, $setups[0]->options->{baz}], [1, 1, 1, 'loman'], 'pipelinesetup1 has the expected fields when retrieved with a full spec';
+# (we test desired_farm specifically because we have an around alteration of it)
+is $setups[0]->desired_farm, undef, 'desired_farm defaults to undef';
+$setups[0]->desired_farm('foo');
+$setups[0]->update;
+is $setups[0]->desired_farm, 'foo', 'desired_farm could be set and retrieved';
 
 ok my $first_setup = VRPipe::PipelineSetup->get(id => 1), 'pipelinesetup1 could be gotten by id';
 is $first_setup->datasource->id, 1, 'it has the correct datasource';
@@ -236,7 +245,7 @@ throws_ok { VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates
 ok $subs[0] = VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[0], requirements => $reqs[0]), 'Submission could be made without required scheduler, which can default';
 undef $subs[0];
 $subs[0] = VRPipe::Submission->get(id => 1);
-is_deeply [$subs[0]->id, $subs[0]->job->cmd, $subs[0]->stepstate->id, $subs[0]->requirements->memory, $subs[0]->retries, $subs[0]->scheduled, $subs[0]->done], [1, 'echo "job1";', 1, 2000, 0, undef, 0], 'submission1 has the expected fields';
+is_deeply [$subs[0]->id, $subs[0]->job->cmd, $subs[0]->stepstate->id, $subs[0]->requirements->memory, $subs[0]->retries, $subs[0]->_claim, $subs[0]->done], [1, 'echo "job1";', 1, 2000, 0, 0, 0], 'submission1 has the expected fields';
 ok my $defaulted_scheduler = $subs[0]->scheduler, 'submission1 has a scheduler generated by default';
 is $defaulted_scheduler->id, $default_type eq 'lsf' ? 1 : 2, 'The scheduler was the default one';
 is $subs[0]->memory, 2000, 'requirement methods pass through to the requriements object';
@@ -421,10 +430,10 @@ my $j_count_exited = VRPipe::Job->search({ dir => '/fake_dir', exit_code => 0 })
 is_deeply [$j_count, $j_count_exited], [0, 1000], 'bulk_create_or_update worked when updating, and no duplicate rows were created';
 @job_args = ();
 foreach my $i (1 .. 10) {
-    push(@job_args, { cmd => "fake_job with running set $i", dir => '/fake_dir', running => 1 });
+    push(@job_args, { cmd => "fake_job with running set $i", dir => '/fake_dir', start_time => DateTime->now, heartbeat => DateTime->now });
 }
 VRPipe::Job->bulk_create_or_update({ cmd => "fake_job withouth running set", dir => '/fake_dir' }, @job_args);
-$j_count = VRPipe::Job->search({ running => 1 });
+$j_count = VRPipe::Job->search({ heartbeat => { '!=' => undef } });
 is $j_count, 10, 'bulk_create_or_update was able to create and set non keys when it was first supplied some args that lacked the non key column';
 
 my $fm = Parallel::ForkManager->new(2);
@@ -447,6 +456,12 @@ is $j_count, 1000, 'bulk_create_or_update worked when the same creation was requ
 # class in VRPipe::Steps::*
 ok my $prewritten_step = VRPipe::Step->get(name => "md5_file_production"), 'able to get a pre-written step using get() instead of create()';
 
+# so can pipelines; test that they get constructed ok
+ok my $prewritten_pipeline = VRPipe::Pipeline->create(name => 'test_pipeline'), 'able to get a pre-written pipeline using create()';
+is_deeply [map { $_->name } @{ $prewritten_pipeline->steps }], [qw(test_step_one test_step_two test_step_three test_step_four)], 'steps method worked';
+is_deeply [map { $_->id } @{ $prewritten_pipeline->adaptors }], [1, 2, 3, 4], 'adaptors method worked';
+is_deeply [map { $_->id } @{ $prewritten_pipeline->behaviours }], [1, 2, 3], 'behaviours method worked';
+
 my %heartbeats;
 # running jobs directly
 my $tempdir = $jobs[1]->tempdir();
@@ -454,7 +469,8 @@ $jobs[2] = VRPipe::Job->create(cmd => qq[echo "job3"; sleep 3; perl -e 'print "f
 is $jobs[2]->heartbeat_interval(1), 1, 'heartbeat_interval of a job can be set directly and transiently';
 $epoch_time = time();
 $jobs[2]->run;
-is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 1, 0], 'test job status got updated correctly for an ok job';
+run_job($jobs[2]);
+is_deeply [defined($jobs[2]->end_time), $jobs[2]->ok, $jobs[2]->exit_code], [1, 1, 0], 'test job status got updated correctly for an ok job';
 ok $jobs[2]->pid,  'pid was set';
 ok $jobs[2]->host, 'host was set';
 ok $jobs[2]->user, 'user was set';
@@ -473,9 +489,10 @@ ok my $stderr_file = $jobs[2]->stderr_file, 'got a stderr file';
 is $stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
 
 $jobs[2]->run;
+run_job($jobs[2]);
 is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
 ok $jobs[2]->reset_job, 'could reset a job';
-is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time], [0, 0, 0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
+is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time], [0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
 my $own_pid   = $$;
 my $child_pid = fork();
 if ($child_pid) {
@@ -485,37 +502,44 @@ if ($child_pid) {
     kill(9, $cmd_pid);
     waitpid($child_pid, 0);
     $jobs[2]->reselect_values_from_db;
-    is_deeply [$jobs[2]->finished, $jobs[2]->running, $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 0, 9], 'test job status got updated correctly for a job that was killed externally';
+    is_deeply [defined($jobs[2]->end_time), $jobs[2]->ok, $jobs[2]->exit_code], [1, 0, 9], 'test job status got updated correctly for a job that was killed externally';
     is $jobs[2]->stdout_file->slurp(chomp => 1), 'job3', 'stdout file had correct contents';
     is $jobs[2]->stderr_file->slurp(chomp => 1), '',     'stderr file was empty';
 }
 else {
     $jobs[2]->run;
+    run_job($jobs[2]);
     exit(0);
 }
 
 $jobs[3] = VRPipe::Job->create(cmd => qq[echo "job4"; perl -e 'die "bar\n"'], dir => $tempdir);
 $jobs[3]->heartbeat_interval(1);
 $jobs[3]->run;
-is_deeply [$jobs[3]->finished, $jobs[3]->running, $jobs[3]->ok, $jobs[3]->exit_code, $jobs[3]->heartbeat], [1, 0, 0, 65280, undef], 'test job status got updated correctly for a job that dies internally';
+run_job($jobs[3]);
+is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code], [1, 0, 65280], 'test job status got updated correctly for a job that dies internally';
 is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
 is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar',  'stderr file had the correct contents';
-throws_ok { $jobs[3]->run } qr/could not be run because it was not in the pending state/, 'run() on a failed job results in a throw';
+ok !$jobs[3]->run, 'run() on a failed job does not work';
 
-# running jobs via the scheduler
-$jobs[4] = VRPipe::Job->create(cmd => qq[perl -e 'foreach (1..5) { print "\$_\n"; sleep(1); }'], dir => $output_dir);
+# running jobs via a submission
+my $t_before = time();
+$jobs[4] = VRPipe::Job->create(cmd => qq[perl -e 'foreach (1..5) { print "\$_ ", time(), "\n"; sleep(1); }'], dir => $output_dir);
 my $test_sub = VRPipe::Submission->create(job => $jobs[4], stepstate => $stepstates[0], requirements => $reqs[0]);
-ok my $scheduled_id = $schedulers[2]->submit(submission => $test_sub), 'submit to the scheduler worked';
-my $tlimit = time() + 1800;
 wait_until_done($test_sub);
+my $t_after = time();
 ok $test_sub->done, 'submission ran to completion';
-is std_to_str($test_sub->job_stdout), "1\n2\n3\n4\n5\n", 'the submissions job did really run correctly';
+my $std_to_str_first_time = std_to_str($test_sub->job_stdout);
+like $std_to_str_first_time, qr/^1 (\d+)\n2 (\d+)\n3 (\d+)\n4 (\d+)\n5 (\d+)\n$/, 'the submissions job did really run correctly';
+my ($job_time) = $std_to_str_first_time =~ /^1 (\d+)/;
+my $job_time_correct = ($job_time >= $t_before) && ($job_time <= $t_after);
+ok $job_time_correct, 'the job output we checked really was just made seconds ago';
 $test_sub = VRPipe::Submission->create(job => $jobs[4], stepstate => $stepstates[1], requirements => $reqs[0]);
-$schedulers[2]->submit(submission => $test_sub);
 wait_until_done($test_sub);
 is std_to_str($test_sub->job_stdout), "\n", 'running the same job in a different submission does not really rerun the job';
 
-# job arrays
+# (these tests were originally supposed to test running multiple submissions
+#  simultaneously on the farm via the scheduler, but now they run them
+#  sequentially on the local cpu... should fix this...)
 my @subs_array;
 my @test_jobs;
 for my $i (1 .. 5) {
@@ -523,8 +547,6 @@ for my $i (1 .. 5) {
     push(@test_jobs, VRPipe::Job->create(cmd => qq[perl -e 'foreach (1..9) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
     push(@subs_array, VRPipe::Submission->create(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
 }
-ok $scheduled_id = $schedulers[2]->submit(array => \@subs_array), 'submit to the scheduler worked with an array';
-throws_ok { $schedulers[2]->submit(array => \@subs_array); } qr/failed to claim all submissions/, 'trying to submit the same submissions again causes a throw';
 %heartbeats = ();
 wait_until_done(@subs_array);
 my $good_outputs = 0;
@@ -544,30 +566,50 @@ $schedulers[2]->stop_scheduler;
 done_testing;
 exit;
 
-sub wait_until_done {
-    my $loops = 0;
-    my $all_done;
-    while (1) {
-        $all_done = 1;
-        foreach my $sub (@_) {
-            $sub->reselect_values_from_db;
-            if (!$sub->job->finished) {
-                $all_done = 0;
-                my $heartbeat = $sub->job->heartbeat || next;
-                $heartbeats{ $sub->id }->{ $heartbeat->epoch }++;
-            }
-        }
-        last if $all_done;
-        last if ++$loops > 1000;
-        last if time() > $tlimit;
-        sleep(1);
-    }
+sub run_job {
+    my $job = shift;
     
-    if ($all_done) {
-        foreach my $sub (@_) {
-            $sub->update_status;
+    my $watcher = EV::timer 0, 2, sub {
+        if ($job->end_time) {
+            EV::unloop;
         }
-    }
+    };
+    
+    EV::run;
+}
+
+sub wait_until_done {
+    my @subs = @_;
+    
+    my $count = 0;
+    my $sub;
+    my $watcher = EV::timer 0, 2, sub {
+        $count++;
+        if ($count > 500) {
+            EV::unloop;
+        }
+        
+        if (!$sub || $sub->done || $sub->failed) {
+            $sub = pop(@subs);
+            unless ($sub) {
+                EV::unloop;
+                return;
+            }
+            $sub->claim_and_run;
+        }
+        
+        my $job = $sub->job;
+        if ($job->end_time) {
+            $sub->update_status;
+            $sub->release;
+        }
+        else {
+            my $heartbeat = $sub->job->heartbeat || return;
+            $heartbeats{ $sub->id }->{ $heartbeat->epoch }++;
+        }
+    };
+    
+    EV::run;
 }
 
 sub std_to_str {

@@ -16,7 +16,7 @@ my $output_dir = get_output_dir('retroseq_analysis_pipeline');
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'retroseq_analysis'), 'able to get the retroseq_analysis pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(bam_index retroseq_discover retroseq_call);

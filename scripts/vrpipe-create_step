@@ -1,0 +1,376 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use VRPipe::FrontEnd;
+
+my $cmdline = VRPipe::FrontEnd->new(
+    description => "Create a new Step for integration in to a new Pipeline.",
+    extra_args  => 'cmd_line_with_placeholders',
+    opt_spec    => [
+        [],
+        [q[cmd_line_with_placeholders is the command line you want this step to run, with the variable parts replaced with place-holders: a name prefixed with a $ symbol. Eg. instead of 'cat -n /path1 /path2 > /path3' you would say '$cat $cat_options $cat_inputs > $cat_output' ]]
+    ]
+);
+
+my $command = shift;
+unless ($command) {
+    $cmdline->error("a cmd_line_with_placeholders is required\n");
+    $cmdline->help;
+}
+
+# ask the user what each place-holder means
+my (%phs, %non_phs);
+my (@exe_names, %exe_name_to_ph, %option_args, %input_args, %output_args, %output_basenames);
+my @all_phs;
+while ($command =~ /\$(\w+)/g) {
+    push(@all_phs, $1);
+}
+foreach my $ph (@all_phs) {
+    next if exists $phs{$ph};
+    $phs{$ph} = 1;
+    
+    my @options = (
+        'an exe',
+        'an option',
+        'an input file or files',
+        'an output file',
+        'it is not a place-holder'
+    );
+    my $chosen_option = $cmdline->pick_option("What is '\$$ph'?", \@options);
+    if ($chosen_option == 5) {
+        $non_phs{$ph} = 1;
+        next;
+    }
+    
+    if ($chosen_option == 1) {
+        my $exe_name = $cmdline->ask_question(question => "What is the name of the executable?", default => $ph, required => 1);
+        push(@exe_names, $exe_name);
+        $exe_name_to_ph{$exe_name} = $ph;
+        $option_args{ $exe_name . '_exe' } = { description => 'path to your ' . $exe_name . ' executable', optional => 1, default_value => $exe_name };
+    }
+    elsif ($chosen_option == 2) {
+        my $desc = $cmdline->ask_question(question => "Describe this option", required => 1);
+        my $required = $cmdline->ask_question(question => "Does the user always have to supply this option?", possibles => [qw(y n)], required => 1);
+        my $default => $cmdline->ask_question(question => "If you want a default for this option, supply it now", required => 0);
+        $option_args{$ph} = { description => $desc, $default ? (default_value => $default) : (), optional => $required eq 'y' ? 0 : 1 };
+    }
+    elsif ($chosen_option == 3) {
+        my $desc = $cmdline->ask_question(question => "Describe this input file or files",                               required  => 1);
+        my $type = $cmdline->ask_question(question => "What file type is expected?",                                     possibles => [$cmdline->sub_modules('FileType')], required => 1);
+        my $min  = $cmdline->ask_question(question => "What is the minimum number of files required?",                   default   => 1, required => 1);
+        my $max  = $cmdline->ask_question(question => "What is the maximum number of files allowed? (-1 for unlimited)", default   => 1, required => 1);
+        $input_args{$ph} = { description => $desc, type => $type, min_files => $min, max_files => $max };
+    }
+    elsif ($chosen_option == 4) {
+        my $desc = $cmdline->ask_question(question => "Describe this output file",   required  => 1);
+        my $type = $cmdline->ask_question(question => "What file type is expected?", possibles => [$cmdline->sub_modules('FileType')], required => 1);
+        my $temp = $cmdline->ask_question(question => "Is this a temporary file?",   possibles => ['y', 'n'], default => 'n', required => 1);
+        if ($temp eq 'y') {
+            $temp = 1;
+            $output_args{$ph} = {};
+        }
+        else {
+            $temp = 0;
+            $output_args{$ph} = { description => $desc, type => $type };
+        }
+        
+        my @basename_options = (
+            'Based on an input file name or option, replacing the extension with a static value',
+            'Based on an input file name or option, appending .' . $type,
+            'Based on an input file name or option, where the cmd takes a basename with no extension but produces a file with an extension',
+            'Based on the name of the step',
+            'A static value'
+        );
+        my $basename_opt = $cmdline->pick_option("How should the output file basename be determined?", \@basename_options);
+        
+        if ($basename_opt == 4) {
+            $output_basenames{$ph} = [4, $temp];
+        }
+        elsif ($basename_opt == 5) {
+            my $static = $cmdline->ask_question(question => "What should the basename be?", required => 1);
+            $output_basenames{$ph} = [5, $temp, $static];
+        }
+        else {
+            my %all_phs = map { $_ => 1 } @all_phs;
+            delete $all_phs{$ph};
+            my @possible_phs = sort keys %all_phs;
+            my $oph;
+            if (@possible_phs > 1) {
+                $oph = $cmdline->ask_question(question => "Which place-holder contains the basename?", required => 1, possibles => \@possible_phs);
+                $oph =~ s/^\$//;
+            }
+            else {
+                $oph = $possible_phs[0];
+            }
+            
+            my $extension;
+            if ($basename_opt == 1) {
+                $extension = $cmdline->ask_question(question => "What should the extension of the basename be replaced with?", default => '.' . $type, required => 1);
+            }
+            elsif ($basename_opt == 3) {
+                $extension = $cmdline->ask_question(question => "What extension will the cmd add to the output file basename?", default => '.' . $type, required => 1);
+            }
+            else {
+                $extension = '.' . $type;
+            }
+            
+            $output_basenames{$ph} = [$basename_opt, $temp, $oph, $extension];
+        }
+    }
+}
+unless (keys %phs) {
+    my $go_ahead = $cmdline->ask_question(question => "Your cmd_line has no place-holders; are you sure this is correct?", possibles => [qw(y n)], required => 1);
+    if ($go_ahead eq 'n') {
+        $cmdline->output("Abandoning this creation attempt, no harm done");
+        exit;
+    }
+}
+
+# ask the user about other output files
+#my $other_outputs = $cmdline->ask_question(question => "Does your cmd_line also create other output files not already defined by place-holders?", possibles => [qw(y n)], required => 1);
+#*** ...
+
+# ask the user if they want to transfer any metadata from input files to output
+# files
+my %meta_transfers;
+if (keys %input_args && keys %output_args) {
+    foreach my $okey (sort keys %output_args) {
+        my $go_ahead = $cmdline->ask_question(question => "When the output file for \$$okey is made, do you want to transfer any metadata to it from the input files?", possibles => [qw(y n)], default => 'y', required => 1);
+        if ($go_ahead eq 'y') {
+            my @inputs;
+            my @in_args = sort keys %input_args;
+            if (@in_args > 1) {
+                my $inputs = $cmdline->ask_question(question => "Which input files might have the metadata you want to transfer to \$$okey? (if multiple, separate with spaces)", possibles => \@in_args, allow_multiple => ' ', default => join(' ', @in_args), required => 1);
+                @inputs = split(/\s+/, $inputs);
+            }
+            else {
+                @inputs = @in_args;
+            }
+            
+            foreach my $input (@inputs) {
+                my $meta_keys = $cmdline->ask_question(question => "What metadata keys should be transfered from \$$input? (separate multiple with spaces, say 'all' to transfer everything)", default => 'all', required => 1);
+                my @meta_keys = split(/\s+/, $meta_keys);
+                
+                push(@{ $meta_transfers{$okey} }, [$input, @meta_keys]);
+            }
+        }
+    }
+}
+
+unless (@exe_names) {
+    # ask the user for the name of the exe
+    my $question = keys %phs ? "None of your place-holders were for the exe" : "You had no place-holders";
+    my $go_ahead = $cmdline->ask_question(question => "$question; are you sure you want to hard-code the path to your (main) exe?", possibles => [qw(y n)], required => 1);
+    if ($go_ahead eq 'n') {
+        $cmdline->output("Abandoning this creation attempt, no harm done");
+        exit;
+    }
+    
+    my $exe_name = $cmdline->ask_question(question => "OK, but what is the name of your (main) exe? If you don't supply this, some useful reporting information will not be available when people use this Step", required => 0);
+    push(@exe_names, $exe_name) if $exe_name;
+}
+
+# ask the user how we figure out the main exe version number
+my ($main_exe, @determine_version_args);
+if (@exe_names) {
+    if (@exe_names > 1) {
+        $main_exe = $cmdline->ask_question(question => q[What do you consider the "main" exe to be (that we'll report version information for)?], possibles => \@exe_names, required => 1);
+    }
+    else {
+        $main_exe = $exe_names[0];
+    }
+    
+    my $go_ahead = $cmdline->ask_question(question => "Is it possible to find out the version of '$main_exe' by running it?", possibles => [qw(y n)], required => 1);
+    if ($go_ahead eq 'y') {
+        my $version_args = $cmdline->ask_question(question => "What option do you supply '$main_exe' so that it outputs its version? (blank if no option required)", required => 0) || '';
+        my $version_cmd = $main_exe . ($version_args ? ' ' . $version_args : '');
+        my $version_regex = $cmdline->ask_question(question => "Supply a regex that captures the version number when '$version_cmd' is run", default => '(\d+\.\d+)', required => 1);
+        @determine_version_args = ($version_args, $version_regex);
+    }
+}
+
+# ask for meta info about Step, and confirm
+my $memory    = $cmdline->ask_question(question => "How many MB of memory will running the cmd_line usually use?",            required => 1);
+my $time      = $cmdline->ask_question(question => "How long will running the cmd_line usually take, in minutes?",            required => 1);
+my $max_sim   = $cmdline->ask_question(question => "How many simultaneous jobs doing this Step is safe? (0 means unlimited)", default  => 0, required => 1);
+my $step_name = $cmdline->ask_question(question => "What would you like to call your new Step?",                              required => 1, not_allowed => \&VRPipe::FrontEnd::already_exists, na_args => [$cmdline, 'Step', 'name']);
+my $step_desc = $cmdline->ask_question(question => "Describe what this Step does",                                            required => 1);
+
+#*** print out everything the user supplied, like vrpipe-setup does confirmation
+my $go_ahead = $cmdline->ask_question(question => "Having scrolled up and checked everything, is it all correct?", possibles => [qw(y n)], required => 1);
+if ($go_ahead eq 'n') {
+    $cmdline->output("Abandoning this creation attempt, no harm done");
+    exit;
+}
+
+# construct the Step and associated objects in a transaction
+my $transaction = sub {
+    my $body_sub_str = '{ my $self = shift; my $options = $self->options; ';
+    
+    # for cmd_summary and actual_cmd, define all the option (inc. exe) ph vars
+    foreach my $option (keys %option_args) {
+        $body_sub_str .= qq[my \$$option = \$options->{$option} || ''; ];
+    }
+    
+    # for cmd_summary, define all the other ph vars as literals
+    foreach my $var (keys %input_args, keys %output_args, keys %non_phs) {
+        $body_sub_str .= qq[my \$$var = '\$$var'; ];
+    }
+    
+    # make cmd_summary and actual_cmd strings with the exe corrected
+    my $cmd_summary = $command;
+    my $actual_cmd  = $command;
+    foreach my $exe_name (@exe_names) {
+        my $ph = $exe_name_to_ph{$exe_name};
+        $cmd_summary =~ s/\$$ph /$exe_name /g;
+        my $exe_variable = $exe_name . '_exe';
+        $actual_cmd =~ s/\$$ph /\$$exe_variable /g;
+    }
+    
+    # define the cmd_summary
+    $main_exe ||= $step_name;
+    if ($main_exe) {
+        $body_sub_str .= qq[\$self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => '$main_exe', version => ];
+        if (@determine_version_args) {
+            my $exe_variable = $main_exe . '_exe';
+            $body_sub_str .= qq[VRPipe::StepCmdSummary->determine_version(\$$exe_variable . ' $determine_version_args[0]', '$determine_version_args[1]')];
+        }
+        else {
+            $body_sub_str .= '0';
+        }
+        
+        $body_sub_str .= qq[, summary => "$cmd_summary")); ];
+    }
+    
+    # for the actual_cmd, properly define inputs and outputs
+    foreach my $input (keys %input_args) {
+        $body_sub_str .= qq[\$$input = join(' ', map { \$_->path } \@{ \$self->inputs->{$input} }); ];
+    }
+    
+    # define the output files
+    foreach my $output (keys %output_args) {
+        my $type = $output_args{$output}->{type};
+        
+        my ($basename_opt, $temp, $val, $extension) = @{ $output_basenames{$output} };
+        my $extension_regex = '\.[^\.]+$';
+        if ($basename_opt == 4) {
+            $body_sub_str .= qq[my \$${output}_basename = '${step_name}_output.$type'; ];
+        }
+        elsif ($basename_opt == 5) {
+            $body_sub_str .= qq[my \$${output}_basename = '$val'; ];
+        }
+        else {
+            if (exists $input_args{$val}) {
+                $body_sub_str .= qq[my \$${output}_basename = join('.', map { \$_->basename } \@{ \$self->inputs->{$val} }); ];
+            }
+            else {
+                $body_sub_str .= qq[my \$${output}_basename = file(\$$val)->basename; ];
+            }
+            
+            if ($basename_opt == 1 || $basename_opt == 3) {
+                $body_sub_str .= qq[\$${output}_basename =~ s/$extension_regex/$extension/; ];
+            }
+            elsif ($basename_opt == 2) {
+                $body_sub_str .= qq[\$${output}_basename .= '$extension'; ];
+            }
+        }
+        
+        # transfer desired metadata, but only keys where the value is the same
+        # in all input files
+        my $metadata_str = '';
+        my $transfer     = $meta_transfers{$output};
+        if ($transfer) {
+            $body_sub_str .= qq[my \$${output}_meta = {}; ];
+            foreach my $aref (@$transfer) {
+                my ($input, @meta_keys) = @$aref;
+                $body_sub_str .= qq[foreach my \$ifile (\@{ \$self->inputs->{$input} }) { my \$imeta = \$ifile->metadata; ];
+                
+                if (@meta_keys == 1 && $meta_keys[0] eq 'all') {
+                    $body_sub_str .= 'foreach my $key (keys %$imeta) { ';
+                }
+                else {
+                    $body_sub_str .= "foreach my \$key (qw(@meta_keys)) { ";
+                }
+                $body_sub_str .= "my \$val = defined \$imeta->{\$key} ? \$imeta->{\$key} : next; \$${output}_meta->{\$key}->{\$val}++; ";
+                
+                $body_sub_str .= '} } ';
+            }
+            
+            $body_sub_str .= 'foreach my $key (keys %$' . $output . '_meta) { my $href = $' . $output . '_meta->{$key}; my @vals = keys %$href; if (@vals == 1) { $' . $output . '_meta->{$key} = $vals[0] } else { delete $' . $output . '_meta->{$key}; } } ';
+            
+            $metadata_str = ", metadata => \$${output}_meta";
+        }
+        
+        $body_sub_str .= qq[\$$output = \$self->output_file(output_key => '$output', basename => \$${output}_basename, type => '$type', temporary => $temp$metadata_str)->path; ];
+        
+        if ($basename_opt == 3) {
+            $body_sub_str .= qq[\$$output =~ s/$extension_regex//; ];
+        }
+    }
+    
+    # define the dispatch and finish
+    $time *= 60;
+    $body_sub_str .= qq[\$self->dispatch(["$actual_cmd", \$self->new_requirements(memory => $memory, time => $time)]); ];
+    $body_sub_str .= '}';
+    
+    my $body_sub = eval "sub $body_sub_str";
+    unless ($body_sub) {
+        die "There was a problem constructing the body_sub; here's what I generated:\n$body_sub_str\n";
+    }
+    
+    # actually create the step
+    VRPipe::Step->create(
+        name               => $step_name,
+        description        => $step_desc,
+        options_definition => { resolve_args('StepOption', \%option_args) },
+        inputs_definition  => { resolve_args('StepIODefinition', \%input_args) },
+        body_sub           => $body_sub,
+        outputs_definition => { resolve_args('StepIODefinition', \%output_args) },
+        post_process_sub   => sub { return 1 },
+        max_simultaneous   => $max_sim
+    );
+};
+VRPipe::Persistent->do_transaction($transaction, "There was a problem trying to create your Step; abandoned", $cmdline->schema);
+
+$cmdline->output("Your Step '$step_name' was successfully created!");
+
+exit;
+
+sub resolve_args {
+    my ($class, $args) = @_;
+    $class = 'VRPipe::' . $class;
+    
+    my @resolved = ();
+    while (my ($key, $create_args) = each %$args) {
+        next unless keys %$create_args;
+        my $obj = $class->create(%$create_args);
+        push(@resolved, $key => $obj);
+    }
+    
+    return @resolved;
+}

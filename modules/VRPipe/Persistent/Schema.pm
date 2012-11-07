@@ -18,7 +18,7 @@ VRPipe::Persistent::Schema - the frontend for connecting to and getting at
 	print $job->id;
     }
     
-    $finished_jobs_rs = $schema->resultset('Job')->search({ finished => 1 });
+    $finished_jobs_rs = $schema->resultset('Job')->search({ exit_code => 0 });
 
 =head1 DESCRIPTION
 
@@ -60,7 +60,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     
-    our $VERSION = 25;
+    our $VERSION = 26;
     __PACKAGE__->load_classes({
             'VRPipe' => [
                 qw/Step Scheduler Job Requirements
@@ -74,7 +74,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                   DataElementState DataElementLink
                   LocalSchedulerJob
                   LocalSchedulerJobState
-                  StepStats/
+                  StepStats FarmServer Runner MessageTracker/
             ]
         }
     );

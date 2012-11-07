@@ -15,7 +15,7 @@ BEGIN {
 my $output_dir = get_output_dir('bis_seq_bismark-test');
 ok my $pipeline = VRPipe::Pipeline->create(name => 'bis_seq_bismark'), 'able to get the bis_seq_bismark pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 

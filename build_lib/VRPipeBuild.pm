@@ -69,6 +69,8 @@ sub required_modules {
         'DBIx::Class::DeploymentHandler' => 0,
         'Devel::GlobalDestruction'       => 0,
         'Digest::MD5'                    => 0,
+        'Email::Sender::Simple'          => 0,
+        'Email::Simple::Creator'         => 0,
         'EV'                             => 0,
         'File::Copy'                     => 0,
         'File::Fetch'                    => 0,
@@ -195,22 +197,20 @@ sub ACTION_realclean {
 sub ACTION_test {
     my $self = shift;
     
-    # it's not strictly necessary and would happen automatically anyway, but
-    # we start vrpipe-server before testing:
+    # we must start vrpipe-server before testing:
     my $local_script = File::Spec->catfile('scripts', 'vrpipe-server');
-    my $modules_dir = 'modules';
     my $server;
-    if (-x $local_script && -d $modules_dir) {
+    if (-x $local_script && -d 'modules' && -d 't') {
         my $thisperl = $Config{perlpath};
         if ($^O ne 'VMS') {
             $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
         }
-        $server = "$thisperl -I$modules_dir $local_script --deployment testing";
+        $server = "$thisperl -Imodules -It $local_script --deployment testing";
     }
-    system("$server start");
+    system("$server --farm testing_farm restart");
     warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
     
-    $self->SUPER::ACTION_test(@_);
+    eval { $self->SUPER::ACTION_test(@_); };
     
     # and then stop it afterwards. This is the real point of this override:
     # the testing server might stay alive on the users system until their next

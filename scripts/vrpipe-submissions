@@ -121,45 +121,25 @@ foreach my $sub (@subs) {
     
     my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
     $frontend->output("---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" is $sub_state, having been retried ", $sub->retries, " times");
-    my $job_state = $job->finished ? 'finished' : ($job->running ? 'running' : 'pending');
+    my $job_state = $job->end_time ? 'finished' : ($job->start_time ? 'running' : 'pending');
     my $job_extra = $job_state eq 'finished' ? ', having exited with code ' . $job->exit_code : '';
     $frontend->output("The job is $job_state$job_extra; its command line is:\n", $job->cmd);
     $frontend->output("The working directory for the job is ",                   $job->dir);
-    $frontend->output("We reserved ",                                            $req->memory, "MB memory and ", $req->time, "hrs of time");
+    $frontend->output("We reserved ",                                            $req->memory, "MB memory and ", ($req->time / (60 * 60)), "hrs of time");
     
     if ($sub_state ne 'scheduled' || $sub->retries > 0) {
-        my $pars            = $sub->scheduler_stdout;
-        my $scheduler_ofile = $sub->scheduler_stdout_file;
-        $scheduler_ofile &&= $scheduler_ofile->path;
-        $scheduler_ofile ||= 'unknown path';
-        if ($pars) {
-            my $so = $sub->scheduler_stdout_file->path;
-            my @details;
-            while ($pars->next_record) {
-                my $mem            = $pars->memory;
-                my $sec            = $pars->time;
-                my $days           = int($sec / (24 * 60 * 60));
-                my $hrs            = ($sec / (60 * 60)) % 24;
-                my $mins           = ($sec / 60) % 60;
-                my $remaining_secs = $sec % 60;
-                my $extra          = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
-                push(@details, [$mem, $sec, $extra]);
-            }
-            my $d = shift @details;
-            $frontend->output("The $scheduler output ($scheduler_ofile) says that actual memory used was $d->[0]MB and it took $d->[1] secs$d->[2]");
-            if (@details) {
-                foreach my $d (@details) {
-                    $frontend->output(" on the attempt before it says that actual memory used was $d->[0]MB and it took $d->[1] secs$d->[2]");
-                }
-            }
+        if ($job->end_time) {
+            my $mem            = $job->peak_memory;
+            my $sec            = $job->wall_time;
+            my $days           = int($sec / (24 * 60 * 60));
+            my $hrs            = ($sec / (60 * 60)) % 24;
+            my $mins           = ($sec / 60) % 60;
+            my $remaining_secs = $sec % 60;
+            my $extra          = $sec > 60 ? " ($days days, $hrs hrs, $mins mins, $remaining_secs secs)" : '';
+            $frontend->output("The job says that actual memory used was ${mem}MB and it took $sec secs$extra");
         }
         else {
-            $frontend->output("The $scheduler output ($scheduler_ofile) was missing, so actual memory and time used is unknown");
-        }
-        
-        $pars = $sub->scheduler_stderr;
-        if ($pars) {
-            show_output("The scheduler had some stderr:", $pars);
+            $frontend->output("(because the job has not finished right now, I don't know the memory/ time it actually used");
         }
     }
     

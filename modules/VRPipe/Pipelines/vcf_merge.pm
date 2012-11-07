@@ -38,28 +38,30 @@ class VRPipe::Pipelines::vcf_merge with VRPipe::PipelineRole {
         return 'vcf_merge';
     }
     
-    method _num_steps {
-        return 3;
-    }
-    
     method description {
         return 'Merge multiple VCF files with vcf-isec';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'vcf_index', #1
+            'vcf_merge', #2
+            'vcf_index', #3
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'vcf_index'), #1
-                VRPipe::Step->get(name => 'vcf_merge'), #2
-                VRPipe::Step->get(name => 'vcf_index'), #3
-            ],
-            
-            [VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 2, to_key => 'vcf_files'), VRPipe::StepAdaptorDefiner->new(from_step => 2, to_step => 3, from_key => 'merged_vcf', to_key => 'vcf_files')],
-            
-            [VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_input_vcfs', default_regulation => 0), VRPipe::StepBehaviourDefiner->new(after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'remove_input_vcfs', default_regulation => 0)]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 1, to_key   => 'vcf_files' },
+            { from_step => 0, to_step => 2, to_key   => 'vcf_files' },
+            { from_step => 2, to_step => 3, from_key => 'merged_vcf', to_key => 'vcf_files' },
+        );
+    }
+    
+    method behaviour_definitions {
+        (
+            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'remove_input_vcfs', default_regulation => 0 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'remove_input_vcfs', default_regulation => 0 }
         );
     }
 }

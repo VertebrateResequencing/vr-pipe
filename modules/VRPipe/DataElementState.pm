@@ -86,6 +86,31 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id }, { prefetch => 'stepmember' })) {
             next unless exists $step_numbers{ $ss->stepmember->step_number };
             $ss->start_over();
+            
+            # ss->start_over deletes submissions for this stepstate - or for the
+            # stepstate that this ss had same_submissions_as. We want to avoid
+            # the situation where this ss is left with the same_submissions_as
+            # another ss that has no submissions, and may be for a setup that
+            # depends on us and so will never get any submissions
+            if ($ss->same_submissions_as) {
+                # delete the ss, so that when PipelineSetup->trigger() creates
+                # it again, it will either get its own submissions, or have the
+                # same_submissions_as something that actually has submissions
+                $ss->delete;
+            }
+            else {
+                # if other stepstates have the same_submissions_as this ss,
+                # since we just deleted all our submissions they are now
+                # invalid; delete them so they'll be recreated in a valid way by
+                # PipelineSetup->trigger() at some point in the future
+                #*** except that, what if the trigger never happens, because the
+                #    other_ss setup is deactivated or complete? We won't see
+                #    all its output files with vrpipe-output, and other strange
+                #    things might happen... don't know how to solve this...
+                #foreach my $other_ss (VRPipe::StepState->search({ same_submissions_as => $ss->id })) {
+                #    eval { $other_ss->delete; };
+                #}
+            }
         }
         
         # each start_over() call will have set completed_steps(0) on us, but

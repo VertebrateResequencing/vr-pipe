@@ -1,0 +1,76 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2012 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use VRPipe::FrontEnd;
+use Path::Class;
+use File::Find;
+
+my $frontend = VRPipe::FrontEnd->new(
+    description => "See how much disk space VRPipe setup output files are using in a given location.",
+    #extra_args => 'root_directory',
+    opt_spec => [['skip_setup=s@', 'Pipeline setup (id or name) to skip; this option can be repeated', { persistent_object => 'PipelineSetup' }]]
+);
+
+my %skip_setup = map { $_->id => 1 } $frontend->option_was_set('skip_setup') ? @{ $frontend->opts('skip_setup') } : ();
+my $disk = shift;
+unless ($disk) {
+    $frontend->die_with_error("You must supply a disk root direcory");
+}
+chomp($disk);
+
+my %done_files;
+foreach my $s (VRPipe::PipelineSetup->search({ output_root => { like => $disk . '%' } })) {
+    my $sid = $s->id;
+    print STDERR "\n$sid ";
+    next if $skip_setup{$sid};
+    my $sn = $s->name;
+    
+    my $pager = VRPipe::StepOutputFile->search_paged({ 'stepstate.pipelinesetup' => $sid, 'stepstate.same_submissions_as' => undef, output_key => { '!=' => 'temp' }, }, { join => ['stepstate'], prefetch => 'file' }, 10000); # -or => [{e => 1, moved_to => undef}, {moved_to => { '!=' => undef} }]  # join file, 'file.path' => { like => $disk.'%' } or where this applies to moved_to file id
+    
+    while (my $sofs = $pager->next(no_resetting => 1)) {
+        print STDERR ", ";
+        foreach my $sof (@$sofs) {
+            my $f   = $sof->file;
+            my $fid = $f->id;
+            next if exists $done_files{$fid};
+            $done_files{$fid} = 1;
+            $f = $f->resolve;
+            my $rid = $f->id;
+            if ($rid != $fid) { next if exists $done_files{$rid} }
+            my $s = $f->s || next;
+            my $p = $f->path;
+            next unless $p =~ /^$disk/;
+            my $mtime = $f->mtime || '';
+            print join("\t", $sid, $sn, $p, $f->type, $s, $mtime), "\n";
+            print STDERR "! ";
+            $done_files{$rid} = 1;
+        }
+    }
+}
+
+exit;

@@ -69,7 +69,7 @@ class VRPipe::Steps::bam_substitution_rate with VRPipe::StepRole {
         return sub {
             my $self    = shift;
             my $options = $self->options;
-            my $ref     = Path::Class::File->new($options->{reference_fasta});
+            my $ref     = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $samtools_exe = $options->{samtools_exe};

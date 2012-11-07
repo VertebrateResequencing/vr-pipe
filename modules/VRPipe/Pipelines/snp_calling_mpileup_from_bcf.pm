@@ -40,32 +40,27 @@ class VRPipe::Pipelines::snp_calling_mpileup_from_bcf with VRPipe::PipelineRole 
         return 'snp_calling_mpileup_from_bcf';
     }
     
-    method _num_steps {
-        return 2;
-    }
-    
     method description {
         return 'Run bcftools to produce vcf from bcf files';
     }
     
-    method steps {
-        $self->throw("steps cannot be called on this non-persistent object");
+    method step_names {
+        (
+            'bcf_to_vcf',
+            'vcf_index'
+        );
     }
     
-    method _step_list {
-        return ([
-                VRPipe::Step->get(name => 'bcf_to_vcf'),
-                VRPipe::Step->get(name => 'vcf_index')
-            ],
-            
-            [
-                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key   => 'bcf_files'),
-                VRPipe::StepAdaptorDefiner->new(from_step => 0, to_step => 1, to_key   => 'sites_file'),
-                VRPipe::StepAdaptorDefiner->new(from_step => 1, to_step => 2, from_key => 'vcf_files', to_key => 'vcf_files')
-            ],
-            
-            [VRPipe::StepBehaviourDefiner->new(after_step => 2, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_bcfs', default_regulation => 0)]
+    method adaptor_definitions {
+        (
+            { from_step => 0, to_step => 1, to_key   => 'bcf_files' },
+            { from_step => 0, to_step => 1, to_key   => 'sites_file' },
+            { from_step => 1, to_step => 2, from_key => 'vcf_files', to_key => 'vcf_files' }
         );
+    }
+    
+    method behaviour_definitions {
+        ({ after_step => 2, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'remove_bcfs', default_regulation => 0 });
     }
 }
 

@@ -18,7 +18,7 @@ my $checking_output_dir = get_output_dir('bam_genotype_checking');
 ok my $gc_pipeline = VRPipe::Pipeline->create(name => 'bam_genotype_checking'), 'able to get a pre-written pipeline';
 
 my @s_names;
-foreach my $stepmember ($gc_pipeline->steps) {
+foreach my $stepmember ($gc_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(bin2hapmap_sites

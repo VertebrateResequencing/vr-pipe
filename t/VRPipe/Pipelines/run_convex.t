@@ -20,7 +20,7 @@ my $output_dir = get_output_dir('convex_read_depth_generation_pipeline');
 ok my $pipeline1 = VRPipe::Pipeline->create(name => 'convex_read_depth_generation'), 'able to create the convex_read_depth_generation pipeline';
 
 my @s_names;
-foreach my $stepmember ($pipeline1->steps) {
+foreach my $stepmember ($pipeline1->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 
@@ -71,7 +71,7 @@ ok handle_pipeline(@output_files, @final_files), 'rd pipeline ran and created al
 ok my $pipeline2 = VRPipe::Pipeline->create(name => 'convex_l2r_bp_generation'), 'able to create the convex_l2r_bp_generation pipeline';
 
 @s_names = ();
-foreach my $stepmember ($pipeline2->steps) {
+foreach my $stepmember ($pipeline2->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 
@@ -114,7 +114,7 @@ ok handle_pipeline(@output_files, @final_files), 'l2r pipeline ran and created a
 ok my $pipeline3 = VRPipe::Pipeline->create(name => 'convex_cnv_calling'), 'able to create the convex_cnv_calling pipeline';
 
 @s_names = ();
-foreach my $stepmember ($pipeline3->steps) {
+foreach my $stepmember ($pipeline3->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 

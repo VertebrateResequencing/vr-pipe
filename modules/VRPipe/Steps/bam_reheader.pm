@@ -81,7 +81,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             my $dict_path = $self->inputs->{dict_file}->[0]->path;
             my $comment   = '';
             if ($options->{header_comment_file}) {
-                my $comment_path = Path::Class::File->new($options->{header_comment_file});
+                my $comment_path = file($options->{header_comment_file});
                 $self->throw("header_comment_file must be an absolute path if it is supplied") unless $comment_path->is_absolute;
                 $comment .= ", comment => q[$comment_path]";
             }
@@ -101,14 +101,14 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 
                 my $headed_bam_path = $headed_bam_file->path;
                 
-                $self->output_file(
+                my $header_file = $self->output_file(
                     basename  => $basename . '.header',
                     type      => 'txt',
                     temporary => 1
                 );
                 
                 my $this_cmd = "use VRPipe::Steps::bam_reheader; VRPipe::Steps::bam_reheader->reheader_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$headed_bam_path], step_state => $step_state, bam => q[$bam_path]$comment);";
-                $self->dispatch_vrpipecode($this_cmd, $req); # deliberately do not include {output_files => [$headed_bam_file]} so that any temp files we made will get their stats updated prior to auto-deletion
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$headed_bam_file, $header_file] });
             }
         };
     }

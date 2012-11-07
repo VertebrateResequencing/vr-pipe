@@ -20,7 +20,7 @@ my $mapping_output_dir = get_output_dir('bam_mapping_with_stampy');
 ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'bam_mapping_with_stampy'), 'able to get the bam_mapping_with_stampy pipeline';
 
 my @s_names;
-foreach my $stepmember ($mapping_pipeline->steps) {
+foreach my $stepmember ($mapping_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(sequence_dictionary bwa_index stampy_buildgenome stampy_buildhash bam_metadata bam_name_sort bam_to_fastq fastq_split stampy_map_fastq sam_to_fixed_bam bam_merge_lane_splits)], 'the pipeline has the correct steps';
@@ -69,7 +69,7 @@ my $mapping_output_dir2 = get_output_dir('bam_mapping_with_stampy_divergent');
 ok my $mapping_pipeline2 = VRPipe::Pipeline->create(name => 'bam_mapping_with_stampy_divergent'), 'able to get the bam_mapping_with_stampy_divergent pipeline';
 
 @s_names = ();
-foreach my $stepmember ($mapping_pipeline2->steps) {
+foreach my $stepmember ($mapping_pipeline2->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(sequence_dictionary stampy_buildgenome stampy_buildhash bam_metadata bam_name_sort bam_to_fastq fastq_split stampy_map_fastq sam_to_fixed_bam bam_merge_lane_splits bam_substitution_rate stampy_map_fastq sam_to_fixed_bam bam_merge_lane_splits bamcheck)], 'the pipeline has the correct steps';

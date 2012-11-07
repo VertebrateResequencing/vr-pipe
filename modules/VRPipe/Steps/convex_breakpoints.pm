@@ -65,7 +65,7 @@ class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
             
             # Select first Read Depth file in pipeline if none provided as a param
             if ($rd_sample_file_name) {
-                my $rd_file = Path::Class::File->new($rd_sample_file_name);
+                my $rd_file = file($rd_sample_file_name);
                 $self->throw("rd_sample_file_name must be absolute path") unless $rd_file->is_absolute;
             }
             else {
@@ -73,7 +73,7 @@ class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
                 $rd_sample_file_name = $rd_file->path;
             }
             
-            my $bp_file = Path::Class::File->new($bp_file_name);
+            my $bp_file = file($bp_file_name);
             $self->throw("bp_file_name must be absolute path") unless $bp_file->is_absolute;
             
             my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/BreakpointsCall.R $rd_sample_file_name,$max_bin_size,$bp_file_name";

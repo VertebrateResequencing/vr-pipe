@@ -51,7 +51,7 @@ class VRPipe::Steps::fasta_index with VRPipe::StepRole {
             my $options  = $self->options;
             my $samtools = $options->{samtools_exe};
             
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path, $ref") unless $ref->is_absolute;
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'samtools', version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'), summary => 'samtools faidx $reference_fasta'));

@@ -60,7 +60,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             my $samtools     = $options->{samtools_exe};
             my $mpileup_opts = $options->{samtools_mpileup_options};
             
-            my $reference_fasta = Path::Class::File->new($options->{reference_fasta});
+            my $reference_fasta = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
             
             if ($mpileup_opts =~ /-f|-b|$reference_fasta/) {

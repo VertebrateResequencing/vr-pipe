@@ -88,6 +88,11 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 description   => 'Minimum insert to deletion ratio',
                 optional      => 1,
                 default_value => '0.68'
+            ),
+            auto_qc_max_ic_above_median => VRPipe::StepOption->create(
+                description   => 'Maximimum indels per cycle, factor above median',
+                optional      => 1,
+                default_value => '8'
             )
         };
     }
@@ -128,7 +133,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             while (my ($lane, $files) = each %by_lane) {
                 $self->throw("There was not exactly 1 bam file and 1 bamcheck file per lane for lane $lane (@$files)") unless @$files == 2;
                 
-                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_min_ins_to_del_ratio => $opts->{auto_qc_min_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent} );";
+                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_min_ins_to_del_ratio => $opts->{auto_qc_min_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent}, auto_qc_max_ic_above_median => $opts->{auto_qc_max_ic_above_median} );";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -142,7 +147,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         return "Considering the stats in the bamcheck file for a lane, and the metadata stored on the bam file and in the VRTrack database for the corresponding lane, automatically decide if the lane passes the quality check.";
     }
     
-    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_min_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?) {
+    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_min_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?,  Num :$auto_qc_max_ic_above_median? ) {
         my $bam_file = VRPipe::File->get(path => $bam);
         my $meta     = $bam_file->metadata;
         my $bc       = VRPipe::Parser->create('bamcheck', { file => $bamcheck });
@@ -381,6 +386,36 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                     push @qc_status, { test => 'Overlap duplicate base percent', status => $status, reason => $reason };
                 }
             }
+        }
+        
+        # Maximimum indels per cycle, check if the highest indels per cycle is bigger than Nx the median, where N is the parameter
+        if (defined $auto_qc_max_ic_above_median) {
+
+            $status = 1;
+            $reason = "All indels per cycle less then ${auto_qc_max_ic_above_median}X of the median";
+
+            # Get median and max of indel fwd/rev cycle counts
+            my $counts = $bc->indel_cycles();
+            my (@vals,@med,@max);
+            for my $row (@$counts) {
+                for (my $i=0; $i<4; $i++) {
+                    push @{$vals[$i]}, $$row[$i+1];
+                }
+            }
+            for (my $i=0; $i<4; $i++) {
+                my @sorted = sort { $a<=>$b } @{$vals[$i]};
+                my $n = int(scalar @sorted / 2);
+                $med[$i] = $sorted[$n];
+                $max[$i] = $sorted[-1];
+            }
+
+            for (my $i=0; $i<4; $i++) {
+                if ( $max[$i] > $auto_qc_max_ic_above_median*$med[$i] ) {
+                    $status = 0;
+                    $reason = "Some indels per cycle exceed ${auto_qc_max_ic_above_median}X of the median";
+                }
+            }
+            push @qc_status, { test => 'InDels per Cycle', status => $status, reason => $reason };
         }
         
         # now output the results

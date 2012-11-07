@@ -66,7 +66,7 @@ class VRPipe::Steps::bam_calculate_bq with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $samtools   = $options->{samtools_exe};

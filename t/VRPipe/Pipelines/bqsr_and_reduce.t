@@ -19,7 +19,7 @@ ok my $bqsr_pipeline = VRPipe::Pipeline->create(name => 'bam_base_quality_score_
 ok my $reduce_pipeline = VRPipe::Pipeline->create(name => 'bam_reduce_reads'), 'able to get the bam_reduce_reads pipeline';
 
 my @s_names;
-foreach my $stepmember ($bqsr_pipeline->steps, $reduce_pipeline->steps) {
+foreach my $stepmember ($bqsr_pipeline->step_members, $reduce_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(

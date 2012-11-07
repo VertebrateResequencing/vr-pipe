@@ -39,6 +39,8 @@ my $frontend = VRPipe::FrontEnd->new(
         [q[To delete pipeline outputs, supply both:]],
         ['setup=s',  'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
         ['steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]],
+        [q[Optionally, further specify:]],
+        ['filter=s',          q[Select files to delete based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions]],
         [],
         [q[Currently supported unix 'rm' options:]],
         ['force|f',     q[Ignore nonexistent files, never prompt]],
@@ -57,6 +59,17 @@ my $recurse = $frontend->opts('recursive');
 my $setup   = $frontend->get_pipelinesetups();
 my @steps   = $frontend->option_was_set('steps') ? @{ $frontend->opts('steps') } : ();
 my @paths   = @ARGV;
+
+my %filters;
+my $filter = $frontend->opts('filter');
+if ($filter) {
+    foreach my $keyval (split(',', $filter)) {
+        $keyval =~ s/^\s+//;
+        $keyval =~ s/\s+$//;
+        my ($key, $val) = $keyval =~ /^([^=]+)=(.+)/;
+        $filters{$key} = $val;
+    }
+}
 
 if ($setup || @steps) {
     unless ($setup) {
@@ -86,7 +99,7 @@ if ($setup) {
             $desired_steps{names}->{$name}->{$kind} = 1;
         }
     }
-    my @step_members = $setup->pipeline->steps;
+    my @step_members = $setup->pipeline->step_members;
     my @allowed_step_members;
     my %allowed_kinds;
     foreach my $stepm (@step_members) {
@@ -133,7 +146,16 @@ if ($setup) {
                     my @files = grep { $_->s } @$files;
                     next unless @files;
                     
-                    foreach my $file (@files) {
+                    FILE: foreach my $file (@files) {
+                        my $meta = $file->metadata;
+                        if ($filter) {
+                            foreach my $key (keys %filters) {
+                                my $val = $meta->{$key} || next FILE;
+                                my $regex = $filters{$key};
+                                next FILE unless $val =~ /$regex/;
+                            }
+                        }
+                        
                         next if exists $done_files{ $file->id };
                         $done_files{ $file->id } = 1;
                         

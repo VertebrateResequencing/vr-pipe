@@ -51,7 +51,7 @@ is $results, 5, 'got correct number of bams from the vrtrack db';
 
 ok my $import_qc_pipeline = VRPipe::Pipeline->create(name => 'bam_import_from_irods_and_vrtrack_qc'), 'able to get the bam_import_from_irods_and_vrtrack_qc pipeline';
 my @s_names;
-foreach my $stepmember ($import_qc_pipeline->steps) {
+foreach my $stepmember ($import_qc_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(irods_get_files_by_basename fasta_gc_stats bamcheck plot_bamcheck vrtrack_update_mapstats)], 'the pipeline has the correct steps';

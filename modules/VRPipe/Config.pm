@@ -53,6 +53,11 @@ class VRPipe::Config {
     use File::Which qw(which);
     use Cwd 'abs_path';
     
+    # we will suggest a default port that is randomly chosen from the "dynamic
+    # range" block of ports 49152-65535, minus 20 to allow user to then have
+    # multiple test server ports that are increments of their production port
+    my $default_port = int(rand(16364)) + 49152;
+    
     my $question_number = 0;
     
     has schema_directory => (
@@ -173,12 +178,6 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
-    has production_scheduler_output_root => (
-        is              => 'rw',
-        question        => 'What root directory should production scheduler output go to?',
-        question_number => ++$question_number
-    );
-    
     has testing_scheduler => (
         is              => 'rw',
         question        => 'What job scheduler should be used for testing?',
@@ -187,24 +186,29 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
-    has testing_scheduler_output_root => (
+    has production_logging_directory => (
         is              => 'rw',
-        question        => 'What root directory should test scheduler output go to?',
-        default         => sub { File::Spec->tmpdir() },
+        question        => 'What directory should production logs, job STDOUT/ERR and temp files be stored in? (must be visible to all nodes)',
+        question_number => ++$question_number
+    );
+    
+    has testing_logging_directory => (
+        is              => 'rw',
+        question        => 'What directory should testing logs, job STDOUT/ERR and temp files be stored in? (must be visible to all nodes)',
         question_number => ++$question_number
     );
     
     has production_interface_port => (
         is              => 'rw',
         question        => 'What port will the VRPipe interface be accessible on, when accessing your production database?',
-        default         => 9090,
+        default         => $default_port,
         question_number => ++$question_number
     );
     
     has testing_interface_port => (
         is              => 'rw',
         question        => 'What port will the VRPipe interface be accessible on, when accessing your testing database?',
-        default         => 9091,
+        default         => $default_port + 1,
         question_number => ++$question_number
     );
     
@@ -219,6 +223,19 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'When the VRPipe server runs, what user id should it run as?',
         default         => $<,
+        question_number => ++$question_number
+    );
+    
+    has email_domain => (
+        is              => 'rw',
+        question        => 'When the VRPipe server needs to email users, what domain can be used to form valid email addresses with their usernames?',
+        question_number => ++$question_number
+    );
+    
+    has admin_user => (
+        is              => 'rw',
+        question        => 'When the VRPipe server encounters problems, what user should be emailed?',
+        default         => 'root',
         question_number => ++$question_number
     );
     

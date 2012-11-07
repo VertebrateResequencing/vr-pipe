@@ -59,7 +59,7 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
             my $options = $self->options;
             $self->handle_standard_options($options);
             
-            my $ref = Path::Class::File->new($options->{reference_fasta});
+            my $ref = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $intervals_opts = $options->{target_intervals_options};
@@ -71,7 +71,7 @@ class VRPipe::Steps::gatk_target_interval_creator extends VRPipe::Steps::gatk {
             my $known_indels = $options->{known_indels_for_realignment};
             my @knowns = $known_indels =~ m/-\S+ (\S+)/g;
             @knowns || $self->throw('No known indel sites supplied');
-            my @known_files = map { Path::Class::File->new($_) } @knowns;
+            my @known_files = map { file($_) } @knowns;
             my $basename = join '_', map { $_->basename } @known_files;
             $basename =~ s/\.vcf(\.gz)?$//g;
             

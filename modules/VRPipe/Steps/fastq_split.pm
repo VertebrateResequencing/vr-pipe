@@ -90,11 +90,12 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                 my $split_dir = dir($out_root, $split_subdir);
                 
                 my @outs = VRPipe::Steps::fastq_split->fastq_split_outs(split_dir => $split_dir, fastqs => $fqs, chunk_size => $chunk_size);
+                my @ofiles;
                 foreach my $out (@outs) {
-                    $self->output_file(output_key => 'split_fastq_files', sub_dir => $split_subdir, basename => $out->basename, type => 'fq');
+                    push(@ofiles, $self->output_file(output_key => 'split_fastq_files', sub_dir => $split_subdir, basename => $out->basename, type => 'fq'));
                 }
                 
-                $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_split; VRPipe::Steps::fastq_split->fastq_split(split_dir => q[$split_dir], fastqs => [qw(@$fqs)], chunk_size => $chunk_size);], $req);
+                $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_split; VRPipe::Steps::fastq_split->fastq_split(split_dir => q[$split_dir], fastqs => [qw(@$fqs)], chunk_size => $chunk_size);], $req, { output_files => \@ofiles });
             }
         };
     }

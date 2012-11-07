@@ -14,7 +14,7 @@ my $output_dir = get_output_dir('gatk_realign_discovery');
 ok my $pipeline = VRPipe::Pipeline->create(name => 'bam_realignment_around_discovered_indels'), 'able to get the bam_realignment_around_discovered_indels pipeline';
 
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 
@@ -51,7 +51,7 @@ $output_dir = get_output_dir('gatk_snp_calling_and_filter');
 ok $pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_unified_genotyper_and_filter_vcf'), 'able to get the snp_calling_gatk_unified_genotyper_and_filter_vcf pipeline';
 
 @s_names = ();
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 

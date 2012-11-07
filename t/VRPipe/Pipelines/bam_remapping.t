@@ -18,7 +18,7 @@ my $mapping_output_dir = get_output_dir('bam_remapping');
 ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'bam_mapping_with_bwa'), 'able to get a pre-written pipeline';
 
 my @s_names;
-foreach my $stepmember ($mapping_pipeline->steps) {
+foreach my $stepmember ($mapping_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(sequence_dictionary bwa_index bam_metadata bam_name_sort bwa_aln_bam bwa_sam_using_bam sam_to_fixed_bam bam_reheader)], 'the pipeline has the correct steps';

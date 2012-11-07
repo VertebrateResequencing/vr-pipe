@@ -57,7 +57,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         return 'bsub';
     }
     
-    method submit_args (VRPipe::Requirements :$requirements!, File :$stdo_file!, File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
+    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
         # access the requirments object and build up the string based on memory,
         # time, cpu etc.
         my $queue = $self->determine_queue($requirements);
@@ -191,7 +191,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         
         # pick a queue, preferring ones that are more likely to run our job
         # the soonest
-        my $seconds   = ($requirements->time * 60 * 60); #*** there's an issue here that VRPipe::Requirements->time is in hrs, so we will never choose a queue with a runlimit less than 1 hr...
+        my $seconds   = $requirements->time;
         my $megabytes = $requirements->memory;
         my $chosen_queue;
         foreach my $queue (
@@ -214,6 +214,11 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         }
         
         return $chosen_queue;
+    }
+    
+    method queue_time (VRPipe::Requirements $requirements) {
+        my $queue = $self->determine_queue($requirements);
+        return $queues{$queue}->{runlimit};
     }
     
     method switch_queue (PositiveInt $sid, Str $new_queue) {
@@ -251,6 +256,20 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             sleep(1);
         }
         return 1;
+    }
+    
+    method all_status {
+        open(my $bfh, "bjobs |") || $self->warn("Could not call bjobs");
+        my %status = ();
+        if ($bfh) {
+            while (<$bfh>) {
+                if (/^(\d+)\s+\S+\s+(\S+)/) {
+                    $status{$1} = $2; #*** this does not handle job arrays properly
+                }
+            }
+            close($bfh);
+        }
+        return %status;
     }
     
     method sid_status (PositiveInt $sid, Int $aid) {

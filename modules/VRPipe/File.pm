@@ -64,6 +64,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use VRPipe::FileType;
     use File::Copy;
     use Cwd qw(abs_path);
+    use Filesys::DfPortable;
     
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
@@ -382,7 +383,9 @@ class VRPipe::File extends VRPipe::Persistent {
  Usage   : $obj->move($dest);
  Function: Move this file to another path. dest receives $obj's metadata, and
            $obj knows it was moved_to $dest. $dest only inherits $obj's parent
-           if $obj had one
+           if $obj had one. Pre-checks if there is sufficient disk space at the
+           destination, and also fails if destination has less that 5% disk
+           space remaining globally, to avoid breaking certain filesystems.
  Returns : n/a
  Args    : VRPipe::File destination file
            optionally, check_md5s => 1 to make sure the move was perfect by
@@ -403,6 +406,13 @@ class VRPipe::File extends VRPipe::Persistent {
         else {
             my $sp = $self->path;
             my $dp = $dest->path;
+            
+            # is it safe to move? (this check requires enough disk space for a
+            # copy, even though we may do a direct mv requiring no additional
+            # disk space if both sp and dp are on the same filesystem... but
+            # whatever)
+            $self->_check_destination_space($dp->dir);
+            
             $success = File::Copy::move($sp, $dp);
             
             $dest->update_stats_from_disc;
@@ -528,7 +538,10 @@ class VRPipe::File extends VRPipe::Persistent {
  Title   : copy (alias cp)
  Usage   : $obj->copy($dest);
  Function: Copy this file to another path, checking md5s to make sure the copy
-           was perfect. $dest receives $obk's metadata
+           was perfect. $dest receives $obk's metadata. Pre-checks if there is
+           sufficient disk space at the destination, and also fails if
+           destination has less that 5% disk space remaining globally, to avoid
+           breaking certain filesystems.
  Returns : n/a
  Args    : VRPipe::File source file, VRPipe::File destination file
 
@@ -543,6 +556,9 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($d_existed && $dest->md5 && $self->md5 && $self->md5 eq $dest->md5) {
             return 1;
         }
+        
+        # is it safe to copy?
+        $self->_check_destination_space($dest->path->dir);
         
         my $success = File::Copy::copy($sp, $dp);
         
@@ -572,6 +588,21 @@ class VRPipe::File extends VRPipe::Persistent {
         }
     }
     alias cp => 'copy';
+    
+    method _check_destination_space (Dir $dir, Int $percent_free_required = 5) {
+        # we won't use a dir if there is less than 5% disk space left on the
+        # disk it is mounted on. We obviously also won't use a dir if it doesn't
+        # have enough disk space to hold our file
+        my $ref = dfportable($dir);
+        if (defined($ref)) {
+            $self->throw("There is not enough disk space available at $dir to hold " . $self->path) if $ref->{bavail} < $self->s;
+            
+            my $total_bytes  = $ref->{blocks};
+            my $bytes_free   = $ref->{bfree};
+            my $percent_free = 100 - (100 / $total_bytes * $bytes_free); # ($ref->{per} is user-specific)
+            $self->throw("There is not enough disk space remaining at $dir ($percent_free\%) to safely copy or move files there.") if $percent_free < $percent_free_required;
+        }
+    }
     
     method update_stats_from_disc (PositiveInt :$retries = 1) {
         my $current_s     = $self->s;

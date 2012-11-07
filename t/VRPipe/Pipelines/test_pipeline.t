@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 28;
+    use Test::Most tests => 24;
     use VRPipeTest;
     use TestPipelines;
     
@@ -16,7 +16,7 @@ my $output_dir_clean = get_output_dir('test_pipeline_cleanup');
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'test_pipeline'), 'able to get the test_pipeline pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 my @expected_step_names = qw(test_step_one test_step_two test_step_three test_step_four);
@@ -26,7 +26,7 @@ $pipeline = VRPipe::Pipeline->create(name => 'test_pipeline');
 @s_names = ();
 my @s_nums = ();
 my $last_step;
-foreach my $stepmember ($pipeline->steps) {
+foreach my $stepmember ($pipeline->step_members) {
     $last_step = $stepmember->step;
     push(@s_names, $last_step->name);
     push(@s_nums,  $stepmember->step_number);
@@ -128,15 +128,8 @@ ok handle_pipeline(@output_files, @final_files), 'pipeline ran and recreated fil
 my $submission = VRPipe::Submission->create(id => 1);
 my $scheduler  = VRPipe::Scheduler->create();
 my $subm_dir   = dir($scheduler->output_root, qw(b f a 2 VRPipe__Job__1));
-is $submission->scheduler_stdout_file->path, file($subm_dir, 'scheduler_output_file'), 'scheduler_stdout_file was correct';
-is $submission->scheduler_stderr_file->path, file($subm_dir, 'scheduler_error_file'),  'scheduler_stderr_file was correct';
-is $submission->job_stdout_file->path,       file($subm_dir, 'job_stdout'),            'job_stdout_file was correct';
-is $submission->job_stderr_file->path,       file($subm_dir, 'job_stderr'),            'job_stderr_file was correct';
-my $pars = $submission->scheduler_stderr;
-$pars->next_record;
-is_deeply [@{ $pars->parsed_record }], [], 'scheduler_stderr had no content';
-my $parser = $submission->scheduler_stdout;
-ok $parser->does('VRPipe::ParserRole'), 'scheduler_stdout returns a parser';
+is $submission->job_stdout_file->path, file($subm_dir, 'job_stdout'), 'job_stdout_file was correct';
+is $submission->job_stderr_file->path, file($subm_dir, 'job_stderr'), 'job_stderr_file was correct';
 
 # let's test moving a mid-step output file and starting over a final step of the
 # non-cleaned pipeline, to confirm that it does not redo the mid-step but uses
@@ -177,9 +170,9 @@ $new_final->reselect_values_from_db;
 is_deeply [$oks, -e $orig_file->path, $orig_final->e, $new_final->e], [12, undef, 0, 1], 'only the final step file we deleted was recreated (with a new name) - not the step 3 file we moved';
 
 # now that the step has run a number of times, we should have recommended reqs
-is $ssu->recommended_memory, 100, 'recommended_memory returns a new value at the end';
-is $ssu->recommended_time,   1,   'recommended_time returns new value at the end';
-is $ssu->recommended_time(pipelinesetup => $test_pipelinesetup_clean), 1, 'recommended_time can return values specific to a particular pipelinesetup';
+is $ssu->recommended_memory, 300, 'recommended_memory returns a new value at the end';
+is $ssu->recommended_time,   100, 'recommended_time returns new value at the end';
+is $ssu->recommended_time(pipelinesetup => $test_pipelinesetup_clean), 100, 'recommended_time can return values specific to a particular pipelinesetup';
 is_deeply [($ssu->percentile_seconds(percent => 95))[0], ($ssu->percentile_seconds(percent => 95, pipelinesetup => $test_pipelinesetup_clean))[0]], [6, 3], 'percentile_seconds gives the correct counts the recommendations are based on';
 
 finish;
