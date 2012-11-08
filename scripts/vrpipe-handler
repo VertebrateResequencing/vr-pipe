@@ -231,7 +231,6 @@ sub handle_setups {
                     $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
                         return if $currently_triggering{$sid};
                         $currently_triggering{$sid} = 1;
-                        my $ppid = $$;
                         fork_call {
                             # we will email the user once when overall state
                             # changes
