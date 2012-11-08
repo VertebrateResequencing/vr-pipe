@@ -225,6 +225,11 @@ sub start_server {
                     # the local scheduler
                     if ($scheduler->type eq 'local') {
                         $ls_watcher->start;
+                        
+                        # we need at least 2 forks for this to work though
+                        if ($AnyEvent::Util::MAX_FORKS == 1) {
+                            $AnyEvent::Util::MAX_FORKS = 2;
+                        }
                     }
                 }
                 else {
