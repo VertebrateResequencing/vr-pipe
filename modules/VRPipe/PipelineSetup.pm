@@ -182,7 +182,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger ($supplied_data_element?) {
+    method trigger (VRPipe::DataElement :$dataelement?, VRPipe::Interface::BackEnd :$backend?) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -195,8 +195,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         # we either loop through all incomplete elementstates, or the
         # (single) elementstate for the supplied dataelement
         my $pager;
-        if ($supplied_data_element) {
-            $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $supplied_data_element->id, completed_steps => { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
+        if ($dataelement) {
+            $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $dataelement->id, completed_steps => { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
         }
         else {
             $pager = $datasource->incomplete_element_states($self, prepare => 1);
@@ -253,7 +253,15 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             $completed = $step->parse();
                         }
                         catch ($err) {
-                            warn $err;
+                            if ($backend) {
+                                my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $setup_id");
+                                unless ($mt->already_sent("parsing problem")) {
+                                    $backend->log("There is a problem with setup $setup_id:\n$err", email_to => [$self->user], email_admin => 1, subject => "Setup $setup_id has problems", long_msg => "When parsing step " . $step->name . " we hit the following error:\n\n" . $err);
+                                }
+                            }
+                            else {
+                                warn $err;
+                            }
                             $all_done = 0;
                             last;
                         }
