@@ -182,7 +182,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger (VRPipe::DataElement :$dataelement?, VRPipe::Interface::BackEnd :$backend?) {
+    method trigger (VRPipe::DataElement :$dataelement?) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -202,6 +202,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             $pager = $datasource->incomplete_element_states($self, prepare => 1);
         }
         my $all_done = 1;
+        my $error_message;
         while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
                 my $element         = $estate->dataelement;
@@ -253,16 +254,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             $completed = $step->parse();
                         }
                         catch ($err) {
-                            if ($backend) {
-                                my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $setup_id");
-                                unless ($mt->already_sent("parsing problem")) {
-                                    $backend->log("When trying to parse step " . $step->name . " for setup $setup_id we hit the following error:\n$err", email_to => [$self->user], email_admin => 1, subject => "Setup $setup_id has problems");
-                                }
-                            }
-                            else {
-                                $self->verbose(1);
-                                $self->warn("There is a problem with setup $setup_id (and we had no backend to send an email about this):\n" . $err);
-                                $self->verbose(0);
+                            unless ($error_message) {
+                                $error_message = "When trying to parse step " . $step->name . " for setup $setup_id we hit the following error:\n$err";
                             }
                             $all_done = 0;
                             last;
@@ -338,7 +331,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             }
         }
         
-        return $all_done;
+        return $error_message;
     }
     
     method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, PreviousStepOutput $previous_step_outputs, VRPipe::DataElementState $estate) {
