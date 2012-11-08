@@ -192,10 +192,12 @@ sub start_server {
     };
     
     # setup the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $scheduler);
+    my ($farm_server, $farm_watcher, $handler_path, $scheduler, $still_working);
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
+            return if $still_working;
+            
             unless ($farm_server) {
                 # ideally we only want to be in this if ($farm) section if we
                 # have managed to register_farm_server(), but we can only do
@@ -238,6 +240,7 @@ sub start_server {
                 }
             }
             else {
+                $still_working = 1;
                 fork_call {
                     # check we're still valid
                     die "no longer in db\n" unless ($farm_server && $farm_server->alive);
@@ -298,6 +301,7 @@ sub start_server {
                     return;
                 }
                 sub {
+                    $still_working = 0;
                     my $err = $@;
                     if ($err) {
                         # perhaps another process decided our $farm_server was
