@@ -256,7 +256,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             if ($backend) {
                                 my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $setup_id");
                                 unless ($mt->already_sent("parsing problem")) {
-                                    $backend->log("There is a problem with setup $setup_id:\n$err", email_to => [$self->user], email_admin => 1, subject => "Setup $setup_id has problems", long_msg => "We saw this when trying to parse step " . $step->name);
+                                    $backend->log("When trying to parse step " . $step->name . " for setup $setup_id we hit the following error:\n$err", email_to => [$self->user], email_admin => 1, subject => "Setup $setup_id has problems");
                                 }
                             }
                             else {
