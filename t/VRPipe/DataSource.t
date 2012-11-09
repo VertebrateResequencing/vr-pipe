@@ -286,7 +286,7 @@ SKIP: {
     #                 VRTrack in the future...
     system("update_vrmeta.pl --samples t/data/vrtrack.samples --index t/data/vrtrack.sequence.index --database $ENV{VRPIPE_VRTRACK_TESTDB} > /dev/null 2> /dev/null");
     
-    # alter processed on the lanes to enable useful tests
+    # alter things on the lanes to enable useful tests
     my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my $lanes = $vrtrack->processed_lane_hnames();
     my %expectations;
@@ -295,27 +295,27 @@ SKIP: {
         my $name = $lane->hierarchy_name;
         
         if ($i <= 50) {
-            $lane->is_processed('import' => 1);
-            push(@{ $expectations{import} }, $name);
+            $lane->auto_qc_status('passed');
+            push(@{ $expectations{auto_qc_passed} }, $name);
             if ($i > 10) {
-                $lane->is_processed('qc' => 1);
-                push(@{ $expectations{qc} }, $name);
-                if ($i > 45) {
-                    $lane->qc_status('passed');
-                    push(@{ $expectations{qc_status_passed} }, $name);
-                }
+                $lane->genotype_status('confirmed');
+                push(@{ $expectations{gt_status_confirmed} }, $name);
             }
             if ($i > 20) {
-                $lane->is_processed('mapped' => 1);
-                push(@{ $expectations{mapped} }, $name);
+                $lane->qc_status('pending');
+                push(@{ $expectations{pending} }, $name);
             }
             if ($i > 30) {
-                $lane->is_processed('improved' => 1);
-                push(@{ $expectations{improved} }, $name);
+                $lane->qc_status('no_qc');
+                push(@{ $expectations{no_qc} }, $name);
             }
             if ($i > 40) {
-                $lane->is_processed('stored' => 1);
-                push(@{ $expectations{stored} }, $name);
+                $lane->qc_status('failed');
+                push(@{ $expectations{failed} }, $name);
+            }
+            if ($i > 45) {
+                $lane->qc_status('passed');
+                push(@{ $expectations{qc_status_passed} }, $name);
             }
         }
         elsif ($i > 55) {
@@ -330,14 +330,14 @@ SKIP: {
         type    => 'vrtrack',
         method  => 'lanes',
         source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-        options => { import => 1, mapped => 0 }
+        options => { auto_qc_status => 'passed' }
       ),
       'could create a vrtrack datasource';
     my $results = 0;
     foreach my $element (@{ get_elements($ds) }) {
         $results++;
     }
-    is $results, 20, 'got correct number of results for vrtrack lanes mapped => 0';
+    is $results, 50, 'got correct number of results for vrtrack lanes auto_qc_status => passed';
     
     ## tests for _has_changed
     ok(!$ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives no change');
@@ -374,10 +374,10 @@ SKIP: {
     $lane_to_add_file_for->qc_status('pending');
     $lane_to_add_file_for->update;
     is $ds->_source_instance->_has_changed, 0, 'changing qc_status when it was not an option is ignored';
-    $lane_to_add_file_for->is_processed('mapped', 1);
+    $lane_to_add_file_for->auto_qc_status('failed');
     $lane_to_add_file_for->update;
-    is $ds->_source_instance->_has_changed, 1, 'changing is_processed when it was an option is detected';
-    $lane_to_add_file_for->is_processed('mapped', 0);
+    is $ds->_source_instance->_has_changed, 1, 'changing auto_qc_status when it was an option is detected';
+    $lane_to_add_file_for->auto_qc_status('no_qc');
     $lane_to_add_file_for->qc_status('no_qc');
     $lane_to_add_file_for->update;
     is $ds->_source_instance->_has_changed, 0, 'reverting lane back gives no change';
@@ -391,20 +391,20 @@ SKIP: {
         type    => 'vrtrack',
         method  => 'lanes',
         source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-        options => { qc_status => 'pending' }
+        options => { qc_status => 'investigate' }
     );
     $results = 0;
     foreach my $element (@{ get_elements($ds) }) {
         $results++;
     }
-    is $results, 0, 'initially got no results for vrtrack lanes qc_status => pending';
-    $lane_to_add_file_for->qc_status('pending');
+    is $results, 0, 'initially got no results for vrtrack lanes qc_status => investigate';
+    $lane_to_add_file_for->qc_status('investigate');
     $lane_to_add_file_for->update;
     $results = 0;
     foreach my $element (@{ get_elements($ds) }) {
         $results++;
     }
-    is $results, 1, 'after changing a lane to qc pending, got 1 dataelement';
+    is $results, 1, 'after changing a lane to qc investigate, got 1 dataelement';
     
     $ds = VRPipe::DataSource->create(
         type    => 'vrtrack',
@@ -437,7 +437,7 @@ SKIP: {
         type    => 'vrtrack',
         method  => 'lane_fastqs',
         source  => $ENV{VRPIPE_VRTRACK_TESTDB},
-        options => { import => 1, mapped => 0, local_root_dir => dir('t')->absolute->stringify, library_regex => 'g1k-sc-NA19190-YRI-1\|SC\|SRP000542\|NA19190' }
+        options => { qc_status => 'no_qc|pending', local_root_dir => dir('t')->absolute->stringify, library_regex => 'g1k-sc-NA19190-YRI-1\|SC\|SRP000542\|NA19190' }
       ),
       'could create a vrtrack datasource';
     
@@ -517,7 +517,7 @@ SKIP: {
     $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');
     my %expected_qc_passed_improved_bams;
     my %passed_hnames = map { $_ => 1 } @{ $expectations{qc_status_passed} };
-    foreach my $hname (@{ $expectations{qc} }) {
+    foreach my $hname (@{ $expectations{gt_status_confirmed} }) {
         my $vrlane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $hname);
         my $improved_bam = VRPipe::File->create(path => file($hname . '.improved.bam')->absolute);
         my $vrfile_name  = 'VRPipe::File::' . $improved_bam->id;
@@ -549,7 +549,7 @@ SKIP: {
         method  => 'lane_improved_bams',
         source  => $ENV{VRPIPE_VRTRACK_TESTDB},
         options => {
-            qc                => 1,
+            gt_status         => 'confirmed',
             qc_status         => 'passed',
             group_by_metadata => 'project|study|sample|library'
         }
