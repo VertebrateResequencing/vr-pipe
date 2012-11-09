@@ -170,8 +170,8 @@ $new_final->reselect_values_from_db;
 is_deeply [$oks, -e $orig_file->path, $orig_final->e, $new_final->e], [12, undef, 0, 1], 'only the final step file we deleted was recreated (with a new name) - not the step 3 file we moved';
 
 # now that the step has run a number of times, we should have recommended reqs
-is $ssu->recommended_memory, 300, 'recommended_memory returns a new value at the end';
-is $ssu->recommended_time,   100, 'recommended_time returns new value at the end';
+cmp_ok $ssu->recommended_memory, '>=', 300, 'recommended_memory returns a new value at the end';
+is $ssu->recommended_time, 100, 'recommended_time returns new value at the end';
 is $ssu->recommended_time(pipelinesetup => $test_pipelinesetup_clean), 100, 'recommended_time can return values specific to a particular pipelinesetup';
 is_deeply [($ssu->percentile_seconds(percent => 95))[0], ($ssu->percentile_seconds(percent => 95, pipelinesetup => $test_pipelinesetup_clean))[0]], [6, 3], 'percentile_seconds gives the correct counts the recommendations are based on';
 
