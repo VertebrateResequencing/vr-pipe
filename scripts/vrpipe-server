@@ -192,10 +192,12 @@ sub start_server {
     };
     
     # setup the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $scheduler);
+    my ($farm_server, $farm_watcher, $handler_path, $scheduler, $still_working);
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
+            return if $still_working;
+            
             unless ($farm_server) {
                 # ideally we only want to be in this if ($farm) section if we
                 # have managed to register_farm_server(), but we can only do
@@ -210,8 +212,13 @@ sub start_server {
                 }
                 elsif ($farm_server) {
                     # our database must be ready now, so load all Pipeline and
-                    # Step .pm modules into db if we haven't already
-                    $backend->install_pipelines_and_steps unless $deployment eq 'testing';
+                    # Step .pm modules into db if we haven't already. we do this
+                    # async since if it takes too long the farm_server will
+                    # think it died and we'll immediately lose it!
+                    unless ($deployment eq 'testing') {
+                        fork_call { $backend->install_pipelines_and_steps; return; } $watcher_error_sub;
+                    }
+                    
                     $backend->log("Submission management started for farm $farm");
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $scheduler = VRPipe::Scheduler->create();
@@ -220,6 +227,11 @@ sub start_server {
                     # the local scheduler
                     if ($scheduler->type eq 'local') {
                         $ls_watcher->start;
+                        
+                        # we need at least 2 forks for this to work though
+                        if ($AnyEvent::Util::MAX_FORKS == 1) {
+                            $AnyEvent::Util::MAX_FORKS = 2;
+                        }
                     }
                 }
                 else {
@@ -228,6 +240,7 @@ sub start_server {
                 }
             }
             else {
+                $still_working = 1;
                 fork_call {
                     # check we're still valid
                     die "no longer in db\n" unless ($farm_server && $farm_server->alive);
@@ -288,6 +301,7 @@ sub start_server {
                     return;
                 }
                 sub {
+                    $still_working = 0;
                     my $err = $@;
                     if ($err) {
                         # perhaps another process decided our $farm_server was

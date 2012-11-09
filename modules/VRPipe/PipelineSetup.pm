@@ -182,7 +182,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger ($supplied_data_element?) {
+    method trigger (VRPipe::DataElement :$dataelement?) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -195,13 +195,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         # we either loop through all incomplete elementstates, or the
         # (single) elementstate for the supplied dataelement
         my $pager;
-        if ($supplied_data_element) {
-            $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $supplied_data_element->id, completed_steps => { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
+        if ($dataelement) {
+            $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $dataelement->id, completed_steps => { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
         }
         else {
             $pager = $datasource->incomplete_element_states($self, prepare => 1);
         }
         my $all_done = 1;
+        my $error_message;
         while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
                 my $element         = $estate->dataelement;
@@ -253,7 +254,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             $completed = $step->parse();
                         }
                         catch ($err) {
-                            warn $err;
+                            unless ($error_message) {
+                                $error_message = "When trying to parse step " . $step->name . " for setup $setup_id we hit the following error:\n$err";
+                            }
                             $all_done = 0;
                             last;
                         }
@@ -328,7 +331,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             }
         }
         
-        return $all_done;
+        return $error_message;
     }
     
     method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, PreviousStepOutput $previous_step_outputs, VRPipe::DataElementState $estate) {

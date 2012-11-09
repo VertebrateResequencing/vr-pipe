@@ -1,3 +1,4 @@
+0.112   Critical bug fixes to 0.111, allowing it to work in production.
 0.111   Radical overhaul to how VRPipe actually gets command lines run - should
         result in much greater speed and efficiency, with no more sporadic
         periods where nothing seems to be happening when there is work to be

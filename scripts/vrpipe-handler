@@ -152,7 +152,7 @@ sub handle_setups {
                         cb => sub {
                             my ($fm, $setup, $ppid) = @_;
                             #$backend->log("$ppid is starting primary trigger of setup " . $setup->id . " in child $$");
-                            $setup->trigger;
+                            $setup->trigger();
                             #$backend->log("$ppid completed primary trigger of setup " . $setup->id . " in child $$");
                         },
                         args => [$setup, $$]
@@ -231,7 +231,6 @@ sub handle_setups {
                     $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
                         return if $currently_triggering{$sid};
                         $currently_triggering{$sid} = 1;
-                        my $ppid = $$;
                         fork_call {
                             # we will email the user once when overall state
                             # changes
@@ -240,9 +239,11 @@ sub handle_setups {
                             
                             if ($setup->currently_complete) {
                                 unless ($mt->already_sent("complete with $num_states elements")) {
-                                    my $name = $setup->name;
-                                    my $long = "To remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
-                                    $backend->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
+                                    unless ($num_states == 0) {
+                                        my $name = $setup->name;
+                                        my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
+                                        $backend->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
+                                    }
                                 }
                                 
                                 return;
@@ -257,14 +258,22 @@ sub handle_setups {
                             }
                             else {
                                 my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                                my $error_message;
                                 unless ($incomplete_subs) {
-                                    $backend->log("$ppid in child $$ is forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
-                                    $setup->trigger;
-                                    $backend->log("$ppid in child $$ completed the full trigger for setup $sid");
+                                    $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
+                                    $error_message = $setup->trigger();
+                                    $backend->log("completed the forced full trigger for setup $sid");
                                 }
                                 
                                 # set the $mt message
-                                $mt->update_message("running normally");
+                                if ($error_message) {
+                                    unless ($mt->already_sent("parsing problem")) {
+                                        $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                                    }
+                                }
+                                else {
+                                    $mt->update_message("running normally");
+                                }
                             }
                             
                             return;
@@ -272,11 +281,9 @@ sub handle_setups {
                         sub {
                             delete $currently_triggering{$sid};
                             my $err = $@ || return;
-                            # email user as well? Not yet sure what these error
-                            # messages are like...
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("unknown problem")) {
-                                $backend->log("There is a problem with setup $sid:\n$err", email_admin => 1, subject => "Setup $sid has problems", long_msg => $err);
+                                $backend->log("There is a problem with setup $sid:\n$err", email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems", long_msg => $err);
                             }
                         };
                     };
@@ -383,13 +390,13 @@ sub handle_submissions {
                         # the subs being marked done but no starting of next
                         # step if we die during/before the trigger. The setups
                         # handler will catch stalls for this reason
-                        $step_state->pipelinesetup->trigger($step_state->dataelement);
+                        $step_state->pipelinesetup->trigger(dataelement => $step_state->dataelement);
                         
                         # also trigger any dataelements that have the same
                         # submissions as $step_state
                         my @other_des = VRPipe::StepState->get_column_values('dataelement', { same_submissions_as => $step_state->id });
                         foreach my $de (@other_des) {
-                            $step_state->pipelinesetup->trigger(VRPipe::DataElement->get(id => $de));
+                            $step_state->pipelinesetup->trigger(dataelement => VRPipe::DataElement->get(id => $de));
                         }
                     }
                 }
@@ -518,7 +525,9 @@ sub handle_submissions {
                         
                         # we'll try and claim this one to run
                         undef $no_subs_found;
-                        my $now_running = $sub->claim_and_run(allowed_time => int($end_time - time()));
+                        my $allowed_time = int($end_time - time());
+                        last if $allowed_time < 60;
+                        my $now_running = $sub->claim_and_run(allowed_time => $allowed_time);
                         if (defined $now_running) {
                             if ($now_running) {
                                 $submission = $sub;
@@ -551,15 +560,15 @@ sub handle_submissions {
     };
     
     # run the event loop
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running $$.");
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
     EV::run;
     
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions $$!");
+    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
     exit 0;
 }
 
 sub exit_handler {
     my $msg = shift;
-    $backend->log($msg . ", will gracefully exit $mode handler. $$"); # if $mode eq 'setups'
+    $backend->log($msg . ", will gracefully exit $mode handler."); # if $mode eq 'setups'
     EV::unloop;
 }
