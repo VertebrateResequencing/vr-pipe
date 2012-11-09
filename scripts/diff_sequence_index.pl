@@ -46,18 +46,20 @@ HELP
 }
 
 # parse all the data out of the sequence index files
-my %of_interest = (study => 3,
-                   study_name => 4,
-                   center_name => 5,
-                   sample_id => 8,
-                   sample => 9,
-                   population => 10,
-                   platform => 12,
-                   library => 14,
-                   insert_size => 17,
-                   withdrawn => 20,
-                   reads => 23,
-                   bases => 24);
+my %of_interest = (
+    study       => 3,
+    study_name  => 4,
+    center_name => 5,
+    sample_id   => 8,
+    sample      => 9,
+    population  => 10,
+    platform    => 12,
+    library     => 14,
+    insert_size => 17,
+    withdrawn   => 20,
+    reads       => 23,
+    bases       => 24
+);
 my (%old_data, %new_data);
 parse($old_si, \%old_data);
 parse($new_si, \%new_data);
@@ -88,8 +90,8 @@ while (my ($lane, $old_data) = each %old_data) {
     next if $now_withdrawn;
     
     my %diffs;
-    my $old_md5s = join(',', sort keys %{$old_data->{md5s}});
-    my $new_md5s = join(',', sort keys %{$new_data->{md5s}});
+    my $old_md5s = join(',', sort keys %{ $old_data->{md5s} });
+    my $new_md5s = join(',', sort keys %{ $new_data->{md5s} });
     if ($old_md5s ne $new_md5s) {
         $diffs{md5s} = [$old_md5s, $new_md5s];
     }
@@ -105,7 +107,7 @@ while (my ($lane, $old_data) = each %old_data) {
         $changed++;
         print "Lane $lane has changed:\n";
         foreach my $key (sort keys %diffs) {
-            my ($old, $new) = @{$diffs{$key}};
+            my ($old, $new) = @{ $diffs{$key} };
             print "\t$key = $old => $new\n";
         }
     }
@@ -124,7 +126,7 @@ while (my ($lane, $new_data) = each %new_data) {
     my $old_data = $old_data{$lane};
     unless ($old_data) {
         $not_in_old{$lane} = 1;
-        $samples_not_in_old{$new_data->{sample}} = 1;
+        $samples_not_in_old{ $new_data->{sample} } = 1;
     }
 }
 my $num_new = keys %not_in_old;
@@ -135,7 +137,7 @@ if ($num_new) {
 }
 
 # report on withdrawn
-my $withdrawn = $withdrawn_stats{got_withdrawn} || 0;
+my $withdrawn  = $withdrawn_stats{got_withdrawn}  || 0;
 my $reinstated = $withdrawn_stats{got_reinstated} || 0;
 print "\n$withdrawn fastqs were withdrawn and $reinstated fastqs were reinstated\n";
 
@@ -143,7 +145,7 @@ exit;
 
 sub parse {
     my ($si_file, $hash) = @_;
-    my $pars = VRPipe::Parser->create('sequence_index', {file => $si_file});
+    my $pars = VRPipe::Parser->create('sequence_index', { file => $si_file });
     my $pr = $pars->parsed_record;
     
     while ($pars->next_record) {
@@ -151,9 +153,13 @@ sub parse {
         $unique_name =~ s/\s/_/g;
         my $lane_data = $hash->{$unique_name} || {};
         
-        $lane_data->{md5s}->{$pr->[1]} = 1;
+        $lane_data->{md5s}->{ $pr->[1] } = 1;
         
         while (my ($key, $index) = each %of_interest) {
+            if ($key eq 'reads' || $key eq 'bases') {
+                $lane_data->{$key} += $pr->[$index] =~ /\d+/ ? $pr->[$index] : 0;
+                next;
+            }
             $lane_data->{$key} = $pr->[$index];
         }
         
