@@ -4,34 +4,21 @@
 VRPipe - use VRPipe modules in your own Perl scripts
 
 =head1 SYNOPSIS
-<<<<<<< Updated upstream
     
     perl -MVRPipe -e '$vrfile = VRPipe::File->get(path => shift); ...' /tmp/foo
     perl -MVRPipe=testing -e '...'
     
-=======
-    
-    perl -MVRPipe -e '$vrfile = VRPipe::File->get(path => shift); ...' /tmp/foo
-    perl -MVRPipe=testing -e '...'
-
->>>>>>> Stashed changes     use VRPipe 'production'; # same as 'use VRPipe;'   
- use VRPipe 'testing';
+    use VRPipe 'production'; # same as 'use VRPipe;'   
+    use VRPipe 'testing';
 
 =head1 DESCRIPTION
 
 To use VRPipe in your scripts you have to choose the desired deployment and
 load the schema. This module provides a convenient way of doing this. Simply
-<<<<<<< Updated upstream
 using it loads all VRPipe::Persistent modules (which account for the majority
 of VRPipe modules), so you probably won't have to 'use' any others. Using the
 "import" syntax you can also easily choose your deployment (production, which
 is the default, or testing).
-=======
-using it loads all VRPipe::Persistent modules (which account for the majority of
-VRPipe modules), so you probably won't have to 'use' any others. Using the
-"import" syntax you can also easily choose your deployment (production, which is
-the default, or testing).
->>>>>>> Stashed changes
 
 =head1 AUTHOR
 

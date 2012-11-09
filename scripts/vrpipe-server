@@ -191,17 +191,13 @@ sub start_server {
         fork_call { $ls->process_queue; return; } $watcher_error_sub;
     };
     
-    # automatically start the local scheduler if we're supposed to be using the
-    # local scheduler
-    if ($backend->scheduler eq 'local') {
-        $ls_watcher->start;
-    }
-    
     # setup the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $scheduler);
+    my ($farm_server, $farm_watcher, $handler_path, $scheduler, $still_working);
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
+            return if $still_working;
+            
             unless ($farm_server) {
                 # ideally we only want to be in this if ($farm) section if we
                 # have managed to register_farm_server(), but we can only do
@@ -216,11 +212,27 @@ sub start_server {
                 }
                 elsif ($farm_server) {
                     # our database must be ready now, so load all Pipeline and
-                    # Step .pm modules into db if we haven't already
-                    # $backend->install_pipelines_and_steps unless $deployment eq 'testing';
+                    # Step .pm modules into db if we haven't already. we do this
+                    # async since if it takes too long the farm_server will
+                    # think it died and we'll immediately lose it!
+                    unless ($deployment eq 'testing') {
+                        fork_call { $backend->install_pipelines_and_steps; return; } $watcher_error_sub;
+                    }
+                    
                     $backend->log("Submission management started for farm $farm");
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $scheduler = VRPipe::Scheduler->create();
+                    
+                    # start the local scheduler if we're supposed to be using
+                    # the local scheduler
+                    if ($scheduler->type eq 'local') {
+                        $ls_watcher->start;
+                        
+                        # we need at least 2 forks for this to work though
+                        if ($AnyEvent::Util::MAX_FORKS == 1) {
+                            $AnyEvent::Util::MAX_FORKS = 2;
+                        }
+                    }
                 }
                 else {
                     $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
@@ -228,9 +240,10 @@ sub start_server {
                 }
             }
             else {
+                $still_working = 1;
                 fork_call {
                     # check we're still valid
-                    die "no longer in db\n" unless $farm_server->alive;
+                    die "no longer in db\n" unless ($farm_server && $farm_server->alive);
                     $farm_server->stop_beating; # parent process is beating
                     
                     # claim our setups
@@ -288,6 +301,7 @@ sub start_server {
                     return;
                 }
                 sub {
+                    $still_working = 0;
                     my $err = $@;
                     if ($err) {
                         # perhaps another process decided our $farm_server was
@@ -299,8 +313,9 @@ sub start_server {
                         # running
                         if ($err =~ /no longer in db/) {
                             $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
-                            $farm_server->end_it_all;
+                            $farm_server->end_it_all if $farm_server;
                             undef $farm_server;
+                            $ls_watcher->stop;
                         }
                         &{$watcher_error_sub};
                     }
@@ -334,10 +349,10 @@ sub start_server {
     my $sigquit_watcher = EV::signal 'QUIT', sub { shutdown_server("SIGQUIT received"); };
     
     # run the event loop
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!');
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
     EV::run;
     
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!');
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
     exit 0;
 }
 

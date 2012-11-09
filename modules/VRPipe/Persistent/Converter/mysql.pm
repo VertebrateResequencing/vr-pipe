@@ -124,7 +124,12 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
         my $rc = $schema->storage->dbh_do(
             sub {
                 my ($storage, $dbh, $table_name) = @_;
-                my $res = $dbh->selectall_arrayref("show index from $table_name");
+                
+                # first check we even have this table
+                my $res = $dbh->selectall_arrayref("show tables like '$table_name'");
+                return if @$res == 0;
+                
+                $res = $dbh->selectall_arrayref("show index from $table_name");
                 foreach (@$res) {
                     if ($_->[2] =~ /${table_name}_idx_/) {
                         my $col_name = $_->[4];

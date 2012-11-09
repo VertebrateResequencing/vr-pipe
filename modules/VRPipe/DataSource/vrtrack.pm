@@ -104,12 +104,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         
         # we care about options if supplied
         my $options = $self->options;
-        foreach my $opt (qw(import qc mapped stored deleted swapped altered_fastq improved snp_called)) {
-            if (defined $options->{$opt}) {
-                push(@$lane_changes, @{ VRTrack::Lane->_all_values_by_field($vrtrack_source, 'processed', 'hierarchy_name') });
-                last;
-            }
-        }
         foreach my $status (qw(auto_qc_status npg_qc_status qc_status gt_status)) {
             push(@$lane_changes, @{ VRTrack::Lane->_all_values_by_field($vrtrack_source, $status, 'hierarchy_name') }) if defined $options->{$status};
         }
@@ -130,29 +124,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return $digest;
     }
     
-    method _filtered_lanes (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?) {
+    method _filtered_lanes (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?) {
         my @lanes = $handle->get_lanes($project_regex ? (project_regex => $project_regex) : (), $sample_regex ? (sample_regex => $sample_regex) : (), $library_regex ? (library_regex => $library_regex) : ());
         
         my @filtered;
         foreach my $lane (@lanes) {
-            if (defined $import) {
-                my $processed = $lane->is_processed('import');
-                next if $processed != $import;
-            }
-            if (defined $qc) {
-                my $processed = $lane->is_processed('qc');
-                next if $processed != $qc;
-            }
-            if (defined $mapped) {
-                my $processed = $lane->is_processed('mapped');
-                next if $processed != $mapped;
-            }
-            if (defined $improved) {
-                my $processed = $lane->is_processed('improved');
-                next if $processed != $improved;
-            }
             if (defined $gt_status) {
-                my $this_status = $lane->gt_status;
+                my $this_status = $lane->genotype_status;
                 next if $this_status !~ /$gt_status/;
             }
             if (defined $qc_status) {
@@ -174,7 +152,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return @filtered;
     }
     
-    method lanes (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?) {
+    method lanes (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?) {
         my %args;
         $args{handle}         = $handle         if defined($handle);
         $args{project_regex}  = $project_regex  if defined($project_regex);
@@ -184,10 +162,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{qc_status}      = $qc_status      if defined($qc_status);
         $args{auto_qc_status} = $auto_qc_status if defined($auto_qc_status);
         $args{npg_qc_status}  = $npg_qc_status  if defined($npg_qc_status);
-        $args{import}         = $import         if defined($import);
-        $args{qc}             = $qc             if defined($qc);
-        $args{mapped}         = $mapped         if defined($mapped);
-        $args{improved}       = $improved       if defined($improved);
         
         my @element_args;
         foreach my $lane ($self->_filtered_lanes(%args)) {
@@ -196,7 +170,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $self->_create_elements(\@element_args);
     }
     
-    method lane_bams (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?, Str :$group_by_metadata?) {
+    method lane_bams (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Str :$group_by_metadata?) {
         my %args;
         $args{handle}            = $handle            if defined($handle);
         $args{local_root_dir}    = $local_root_dir    if defined($local_root_dir);
@@ -207,10 +181,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{qc_status}         = $qc_status         if defined($qc_status);
         $args{auto_qc_status}    = $auto_qc_status    if defined($auto_qc_status);
         $args{npg_qc_status}     = $npg_qc_status     if defined($npg_qc_status);
-        $args{import}            = $import            if defined($import);
-        $args{qc}                = $qc                if defined($qc);
-        $args{mapped}            = $mapped            if defined($mapped);
-        $args{improved}          = $improved          if defined($improved);
         $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on bam files
@@ -218,7 +188,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return $self->_lane_files(%args);
     }
     
-    method lane_improved_bams (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?, Str :$group_by_metadata?) {
+    method lane_improved_bams (Defined :$handle!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Str :$group_by_metadata?) {
         my %args;
         $args{handle}            = $handle            if defined($handle);
         $args{project_regex}     = $project_regex     if defined($project_regex);
@@ -228,10 +198,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{qc_status}         = $qc_status         if defined($qc_status);
         $args{auto_qc_status}    = $auto_qc_status    if defined($auto_qc_status);
         $args{npg_qc_status}     = $npg_qc_status     if defined($npg_qc_status);
-        $args{import}            = $import            if defined($import);
-        $args{qc}                = $qc                if defined($qc);
-        $args{mapped}            = $mapped            if defined($mapped);
-        $args{improved}          = $improved          if defined($improved);
         $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on improved bam files
@@ -239,7 +205,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return $self->_lane_files(%args);
     }
     
-    method lane_fastqs (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Bool :$import?, Bool :$qc?, Bool :$mapped?, Bool :$improved?, Str :$group_by_metadata?) {
+    method lane_fastqs (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Str :$group_by_metadata?) {
         my %args;
         $args{handle}            = $handle            if defined($handle);
         $args{local_root_dir}    = $local_root_dir    if defined($local_root_dir);
@@ -250,10 +216,6 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{qc_status}         = $qc_status         if defined($qc_status);
         $args{auto_qc_status}    = $auto_qc_status    if defined($auto_qc_status);
         $args{npg_qc_status}     = $npg_qc_status     if defined($npg_qc_status);
-        $args{import}            = $import            if defined($import);
-        $args{qc}                = $qc                if defined($qc);
-        $args{mapped}            = $mapped            if defined($mapped);
-        $args{improved}          = $improved          if defined($improved);
         $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on fastq files

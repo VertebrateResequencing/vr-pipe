@@ -494,7 +494,7 @@ class VRPipe::Interface::CmdLine {
     # testing purposes, we prefer this to some version of the files installed
     # elsewhere.
     method vrpipe_script_command (ClassName|Object $self: Str $script, Str $deployment) {
-        my $command = $self->vrpipe_perl_command($deployment);
+        my $command = $self->vrpipe_perl_command($deployment) . ' ';
         
         my $local_script = file('scripts', $script)->absolute;
         if ($deployment eq 'testing' && -x $local_script) {
@@ -514,7 +514,7 @@ class VRPipe::Interface::CmdLine {
     method vrpipe_perl_e (ClassName|Object $self: Str $code, Str $deployment) {
         $self->throw("Supplied code must not contain any double quotes") if $code =~ /"/;
         
-        my $command = $self->vrpipe_perl_command($deployment) . '-MVRPipe';
+        my $command = $self->vrpipe_perl_command($deployment) . ' -MVRPipe';
         
         if ($deployment eq 'testing') {
             $command .= "=testing";
@@ -532,7 +532,7 @@ class VRPipe::Interface::CmdLine {
         }
         
         if ($deployment eq 'testing' && -d 'modules' && -d 't') {
-            $command .= ' -I' . dir('modules')->absolute . ' -I' . dir('t')->absolute . ' ';
+            $command .= ' -I' . dir('modules')->absolute . ' -I' . dir('t')->absolute;
         }
         
         return $command;
