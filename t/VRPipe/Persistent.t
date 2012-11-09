@@ -516,7 +516,7 @@ $jobs[3] = VRPipe::Job->create(cmd => qq[echo "job4"; perl -e 'die "bar\n"'], di
 $jobs[3]->heartbeat_interval(1);
 $jobs[3]->run;
 run_job($jobs[3]);
-is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code], [1, 0, 65280], 'test job status got updated correctly for a job that dies internally';
+is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code =~ /65280|512/], [1, 0, 1], 'test job status got updated correctly for a job that dies internally';
 is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
 is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar',  'stderr file had the correct contents';
 ok !$jobs[3]->run, 'run() on a failed job does not work';
