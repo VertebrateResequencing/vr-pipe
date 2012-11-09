@@ -1,4 +1,10 @@
-# version 0.111;
+# version 0.112:
+This is a bug-fixed version of 0.111. It should be safe to upgrade to if you use
+LSF. The local scheduler does function and should be fine on multi-processor
+systems, but on some systems may be excruciatingly slow. See the notes below for
+0.111 if upgrading from a version earlier than that..
+
+# version 0.111:
 If you are using a version earlier than 0.106, upgrade to that first,
 following the guidance below. * the sensibly cautious may wish to avoid
 upgrading to this version and wait for the next version instead *
