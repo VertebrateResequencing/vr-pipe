@@ -218,6 +218,9 @@ sub handle_setups {
                     $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
                         return if $currently_triggering{$sid};
                         $currently_triggering{$sid} = 1;
+                        my $ds_id = $setup->datasource->id;
+                        $datasource_watchers{$ds_id}->{working} = 1;
+                        
                         fork_call {
                             # we will email the user once when overall state
                             # changes
@@ -268,6 +271,7 @@ sub handle_setups {
                         }
                         sub {
                             delete $currently_triggering{$sid};
+                            delete $datasource_watchers{$ds_id}->{working};
                             my $err = $@ || return;
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("unknown problem")) {
