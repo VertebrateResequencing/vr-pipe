@@ -254,7 +254,7 @@ sub start_server {
                         # farm
                         $scheduler->ensure_running(
                             cmd          => "$handler_path --mode setups --farm $farm",
-                            requirements => VRPipe::Requirements->create(memory => 500, time => 3600),
+                            requirements => VRPipe::Requirements->create(memory => 1500, time => 3600),
                             backend      => $backend
                         );
                         
