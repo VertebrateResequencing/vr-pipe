@@ -253,6 +253,10 @@ my $element1 = VRPipe::DataElement->create(datasource => 2, result => { paths =>
 my $element2 = VRPipe::DataElement->create(datasource => 3, result => { paths => [map { $_->stringify } @base_files[1, 5, 9]], group => '50' });
 is_deeply [$element1->withdrawn, $element2->withdrawn], [1, 1], 'elements correctly withdrawn after changing datasource';
 
+# test that we can make the dataelementstates of a given setup immutable, immune
+# to upstream changes in that the output files of the setup don't change
+#***
+
 # test that a child pipeline that deletes its input does not delete until the
 # parent has finished with that file
 my $output_dir_parent  = get_output_dir('parent_test_pipeline');
