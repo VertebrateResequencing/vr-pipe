@@ -1,3 +1,5 @@
+0.114   Critical fix for the setups handler: now setups actually get updated as
+        their datasources change.
 0.113   Improved memory reservation. vrtrack datasource now simplified by
         removing extraneous confusing options.
 0.112   Critical bug fixes to 0.111, allowing it to work in production.
