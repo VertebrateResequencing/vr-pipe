@@ -33,6 +33,7 @@ use AnyEvent::ForkManager;
 use Sys::CPU;
 use VRPipe::FrontEnd;
 use VRPipe::Interface::BackEnd;
+use Proc::Killfam;
 
 # handle options
 my $cmdline = VRPipe::FrontEnd->new(
@@ -125,22 +126,6 @@ sub handle_setups {
                 }
                 
                 # trigger new setups, in parallel
-                my $fm = AnyEvent::ForkManager->new(max_workers => $max_forks);
-                $fm->on_start(
-                    sub {
-                        my ($pm, $pid, $setup) = @_;
-                        #$currently_triggering{$setup->id} = 1;
-                        #$backend->log("$$ set currently_triggering " . $setup->id . " to 1");
-                    }
-                );
-                $fm->on_finish(
-                    sub {
-                        my ($pm, $pid, $status, $setup) = @_;
-                        #*** can't figure out why this sub is never called
-                        delete $currently_triggering{ $setup->id };
-                        $backend->log("$$ deleted currently_triggering " . $setup->id);
-                    }
-                );
                 my @new_setups;
                 foreach my $setup (@setups) {
                     my $sid = $setup->id;
@@ -148,24 +133,22 @@ sub handle_setups {
                     $setups{$sid} = $setup;
                     push(@new_setups, $setup);
                     
-                    $fm->start(
-                        cb => sub {
-                            my ($fm, $setup, $ppid) = @_;
-                            #$backend->log("$ppid is starting primary trigger of setup " . $setup->id . " in child $$");
-                            $setup->trigger();
-                            #$backend->log("$ppid completed primary trigger of setup " . $setup->id . " in child $$");
-                        },
-                        args => [$setup, $$]
-                    );
-                }
-                $fm->wait_all_children(
-                    cb => sub {
-                        my ($pm) = @_;
-                        #*** can't figure out why this sub is never called
-                        %currently_triggering = ();
-                        $backend->log("$$ deleted all currently_triggering");
+                    # (because I couldn't get AnyEvent::ForkManager->on_finish
+                    #  to work, we use fork_calls instead)
+                    $currently_triggering{$sid} = 1;
+                    my $ds_id = $setup->datasource->id;
+                    $datasource_watchers{$ds_id}->{working} = 1;
+                    fork_call {
+                        $setup->trigger();
+                        return;
                     }
-                );
+                    sub {
+                        delete $currently_triggering{$sid};
+                        delete $datasource_watchers{$ds_id}->{working};
+                        # we ignore trigger errors here and let the watcher
+                        # defined later catch and report about it
+                    };
+                }
                 
                 # when testing, we don't want to have this keep running
                 # after all the setups have completed
@@ -186,11 +169,15 @@ sub handle_setups {
                     next if defined $datasource_watchers{$ds_id}->{watcher};
                     
                     my $datasource_update_sub = sub {
+                        return if $datasource_watchers{$ds_id}->{working};
+                        $datasource_watchers{$ds_id}->{working} = 1;
                         fork_call {
+                            $ds->reselect_values_from_db;
                             $ds->elements;
                             return;
                         }
                         sub {
+                            delete $datasource_watchers{$ds_id}->{working};
                             my $err = $@;
                             my $mt = VRPipe::MessageTracker->create(subject => "datasource $ds_id state");
                             
@@ -235,6 +222,7 @@ sub handle_setups {
                             # we will email the user once when overall state
                             # changes
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
+                            $setup->reselect_values_from_db;
                             my $num_states = $setup->dataelementstates;
                             
                             if ($setup->currently_complete) {
@@ -307,6 +295,7 @@ sub handle_setups {
     EV::run;
     
     $backend->log("The setups handler for farm $farm is now exiting!");
+    killfam "KILL", $$; # kill any child processes that may be hanging around
     exit 0;
 }
 
@@ -564,6 +553,7 @@ sub handle_submissions {
     EV::run;
     
     $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
+    killfam "KILL", $$; # kill any child processes that may be hanging around
     exit 0;
 }
 

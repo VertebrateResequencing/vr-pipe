@@ -216,7 +216,9 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                     # likely that the datasource is now up to date and we don't
                     # have to do anything
                     if ($block) {
-                        $block    = 0;
+                        $block = 0;
+                        $self->reselect_values_from_db;
+                        $source->_changed_marker($self->_changed_marker);
                         $continue = $source->_has_changed;
                     }
                     
@@ -229,6 +231,9 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                 $self->do_transaction($transaction, "DataSource lock/block failed");
             } while ($block);
             return unless $continue;
+            
+            $self->reselect_values_from_db;
+            $source->_changed_marker($self->_changed_marker);
             
             # we have a lock, but can't risk our process getting killed and the
             # lock being left open, so we have to re-claim the lock every 15s
