@@ -413,9 +413,10 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     # look at the requirements of the submission that was used
                     # to run us
                     if ($submission) {
-                        my $changed = 0;
-                        my $peak_memory = $self->peak_memory || 0;
-                        $total_memory += $peak_memory;
+                        my $changed      = 0;
+                        my $peak_memory  = $self->peak_memory || 0;
+                        my $fudge_factor = 100;
+                        $total_memory += $peak_memory + $fudge_factor;
                         my $reserved_memory = $submission->memory;
                         my $mem_cmp         = '<';
                         if ($total_memory >= $reserved_memory) {
@@ -423,7 +424,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             $submission->extra_memory;
                             $changed = 1;
                         }
-                        $explanation .= qq[; total memory used (cmd ${peak_memory}MB + vrpipe ${own_memory}MB) $mem_cmp reserved memory (${reserved_memory}MB)];
+                        $explanation .= qq[; total memory used (cmd ${peak_memory}MB + vrpipe ${own_memory}MB + ${fudge_factor}MB fudge) $mem_cmp reserved memory (${reserved_memory}MB)];
                         
                         if ($allowed_time) {
                             my $wall_time = $self->wall_time;

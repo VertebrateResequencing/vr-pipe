@@ -254,7 +254,7 @@ sub start_server {
                         # farm
                         $scheduler->ensure_running(
                             cmd          => "$handler_path --mode setups --farm $farm",
-                            requirements => VRPipe::Requirements->create(memory => 500, time => 3600),
+                            requirements => VRPipe::Requirements->create(memory => 1500, time => 3600),
                             backend      => $backend
                         );
                         
@@ -349,10 +349,10 @@ sub start_server {
     my $sigquit_watcher = EV::signal 'QUIT', sub { shutdown_server("SIGQUIT received"); };
     
     # run the event loop
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!');
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
     EV::run;
     
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!');
+    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
     exit 0;
 }
 

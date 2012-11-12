@@ -1,3 +1,5 @@
+0.113   Improved memory reservation. vrtrack datasource now simplified by
+        removing extraneous confusing options.
 0.112   Critical bug fixes to 0.111, allowing it to work in production.
 0.111   Radical overhaul to how VRPipe actually gets command lines run - should
         result in much greater speed and efficiency, with no more sporadic

@@ -692,7 +692,8 @@ role VRPipe::StepRole {
         $time = $lower_bound + $rounder;
         
         # due to overheads of running things via vrpipe-handler, we have a
-        # minimum memory req of 500MB
+        # minimum memory req of 500MB and will increase memory by 250MB
+        $memory += 250;
         if ($memory < 500) {
             $memory = 500;
         }
