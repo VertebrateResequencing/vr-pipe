@@ -207,6 +207,10 @@ sub ACTION_test {
         }
         $server = "$thisperl -Imodules -It $local_script --deployment testing";
     }
+    unless ($server) {
+        die "Can't run tests because this doesn't seem to be the root of the git repository (executable scripts and/or modules directory were not found)\n";
+    }
+    
     system("$server --farm testing_farm restart");
     warn "If tests are interrupted, you can manually stop the server with this command: $server stop\n";
     
