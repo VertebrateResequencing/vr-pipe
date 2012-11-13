@@ -233,7 +233,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             return unless $continue;
             
             $self->reselect_values_from_db;
-            $source->_changed_marker($self->_changed_marker);
+            $source->_changed_marker($self->_changed_marker) if $self->_changed_marker;
             
             # we have a lock, but can't risk our process getting killed and the
             # lock being left open, so we have to re-claim the lock every 15s
