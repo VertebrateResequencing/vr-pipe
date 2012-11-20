@@ -21,6 +21,22 @@ VRPipe::Steps::gmap_build - a step
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 GMAP Build creates an index of a genomic sequence for mapping and alignment
 using GMAP (Genomic Mapping and Alignment Program for mRNA and EST sequences)
 and GSNAP (Genomic Short-read Nucleotide Alignment Program). (GMAP Build uses
@@ -63,6 +79,8 @@ use VRPipe::Base;
 
 class VRPipe::Steps::gmap_build with VRPipe::StepRole {
     use Data::Dumper;
+    use File::Copy;
+    use File::Basename;
     
     method options_definition {
         return {
@@ -86,17 +104,24 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 optional      => 1,
                 default_value => 0
             ),
-            
             gmap_build_genome_name => VRPipe::StepOption->create(
                 description   => 'name of genome',
                 optional      => 0,
                 default_value => 'mygenome'
             ),
-            
             gmap_build_kmer_size => VRPipe::StepOption->create(
                 description   => 'k-mer size used for building the genomic index. The memory requirements for building the index under various k-mer values: 12: 64 MB, 13: 256 MB, 14: 1GB, 15: 4GB. See the gmap README for more details.',
                 optional      => 0,
                 default_value => 15
+            ),
+            iit_file => VRPipe::StepOption->create(
+                description => 'option to specify iit file',
+                optional    => 1
+            ),
+            gmap_snpindex_exe => VRPipe::StepOption->create(
+                description   => 'path to your gmap_build executable',
+                optional      => 1,
+                default_value => 'snpindex'
             )
         };
     }
@@ -136,6 +161,21 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 $cmd .= ' -g';
             }
             $cmd .= ' ' . $gmap_build_fasta_files;
+            warn "command: " . $cmd;
+            print "command: " . $cmd;
+            
+            # option to create a snp index
+            if (defined $options->{iit_file}) {
+                my $iit_file = Path::Class::File->new($options->{iit_file});
+                # copy iit file to genome directory
+                my $snp_index_location = $output_file->dir;
+                File::Copy::copy($iit_file->absolute, $output_file->dir->parent);
+                my ($iit_name) = fileparse($iit_file->basename, '.iit');
+                $cmd .= "; snpindex -D $output_file_dir -d $gmap_build_genome -k $gmap_build_kmer_size -v $iit_name";
+            }
+            
+            warn "command: " . $cmd;
+            print "command: " . $cmd;
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => "gmap_build -d genome_name -k kmersize -D output_dir -g <FASTA_FILES>"));
             $self->dispatch([$cmd, $self->new_requirements(memory => 4500, time => 1), { block_and_skip_if_ok => 1 }]);
         };
