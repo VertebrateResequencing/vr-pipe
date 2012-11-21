@@ -4,39 +4,6 @@
 VRPipe::Steps::gmap_build - a step
 
 =head1 DESCRIPTION
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 GMAP Build creates an index of a genomic sequence for mapping and alignment
 using GMAP (Genomic Mapping and Alignment Program for mRNA and EST sequences)
 and GSNAP (Genomic Short-read Nucleotide Alignment Program). (GMAP Build uses
@@ -119,7 +86,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 optional    => 1
             ),
             gmap_snpindex_exe => VRPipe::StepOption->create(
-                description   => 'path to your gmap_build executable',
+                description   => 'path to your snpindex executable',
                 optional      => 1,
                 default_value => 'snpindex'
             )
