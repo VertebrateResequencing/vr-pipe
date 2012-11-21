@@ -24,7 +24,7 @@ my $setup = VRPipe::PipelineSetup->create(
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
-    options     => { gmap_build_kmer_size => 12, gmap_build_fasta_files => file(qw(t data sacCer3 chrI.fa.gz))->absolute }
+    options     => { iit_file => file(qw(t data sacCer3_fake_snps.iit))->absolute, gmap_build_kmer_size => 15, gmap_build_fasta_files => file(qw(t data sacCer3 chr1.fa.gz))->absolute }
 );
 
 my @output_subdirs = output_subdirs(1);
