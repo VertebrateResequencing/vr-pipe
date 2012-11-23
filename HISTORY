@@ -1,3 +1,5 @@
+0.116   Improved indication of possible stalled setups, and general fixes to
+        vrpipe-server.
 0.115   Critical fix for new datasources.
 0.114   Critical fix for the setups handler: now setups actually get updated as
         their datasources change.
