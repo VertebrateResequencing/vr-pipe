@@ -201,7 +201,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         else {
             $pager = $datasource->incomplete_element_states($self, prepare => 1);
         }
-        my $all_done = 1;
+        return unless $pager; #*** is it ever an error to have no pager?
+        
         my $error_message;
         while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
@@ -244,7 +245,19 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             }
                         }
                         # else we have $unfinished unfinished submissions from a
-                        # previous parse and are still running
+                        # previous parse and are still running... unless we have
+                        # the same submissions as something else, which might be
+                        # for a setup that is no longer active...
+                        elsif (!$error_message && $state->same_submissions_as) {
+                            my $other_state = $state->same_submissions_as;
+                            my $other_setup = $other_state->pipelinesetup;
+                            unless ($other_setup->active) {
+                                $error_message = "The submissions for step " . $step->name . " for setup $setup_id were first created by setup " . $other_setup->id . ", but that setup is no longer active, so $setup_id is stalled!";
+                            }
+                            # else, is it safe to assume the submissions of this
+                            # other setup are really running?
+                        }
+                    
                     }
                     else {
                         # this is the first time we're looking at this step for
@@ -257,7 +270,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             unless ($error_message) {
                                 $error_message = "When trying to parse step " . $step->name . " for setup $setup_id we hit the following error:\n$err";
                             }
-                            $all_done = 0;
                             last;
                         }
                         
@@ -325,7 +337,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         }
                     }
                     
-                    $all_done = 0;
                     last;
                 }
             }
