@@ -288,6 +288,7 @@ sub start_server {
                         # submit the submission handlers
                         foreach my $cols (@$req_counts) {
                             my ($req_id, $count) = @$cols;
+                            next unless $count;
                             $scheduler->ensure_running(
                                 cmd                         => "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id",
                                 count                       => $count,
@@ -522,7 +523,52 @@ sub status {
                         }
                     }
                 }
-                #*** else { well, what is happening to this setup then? }
+                else {
+                    # well, what is happening to this setup then? probably we
+                    # have the same submissions as some other setup
+                    $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
+                    my @step_members  = $pipeline->step_members;
+                    my $found_problem = 0;
+                    ESCHECKER: while (my $incompletes = $incomplete_pager->next) {
+                        foreach my $es (@$incompletes) {
+                            my $element         = $es->dataelement;
+                            my $completed_steps = $es->completed_steps;
+                            next if $completed_steps == $step_members;
+                            
+                            foreach my $member (@step_members) {
+                                my $step_number = $member->step_number;
+                                my ($state) = VRPipe::StepState->search({
+                                        stepmember    => $member,
+                                        dataelement   => $element,
+                                        pipelinesetup => $setup
+                                    }
+                                );
+                                next unless $state;
+                                next if $state->complete;
+                                
+                                my @submissions = $state->submissions;
+                                if (@submissions) {
+                                    my $other_state = $state->same_submissions_as;
+                                    if ($other_state) {
+                                        my $other_setup = $other_state->pipelinesetup->id;
+                                        if ($other_setup != $setup->id) {
+                                            $object .= $backend->xml_tag('attribute', "Note: this setup is dependent on work being done by setup $other_setup, so check the status of that to see what's happening.");
+                                            $found_problem = 1;
+                                            last ESCHECKER;
+                                        }
+                                    }
+                                }
+                                else {
+                                    $object .= $backend->xml_tag('attribute', "Note: currently processing step $step_number (" . $member->step->name . ").\nIt's possible something has gone wrong with this step and the setup is stalled; you should have received an email with further details in that case.");
+                                    $found_problem = 1;
+                                    last ESCHECKER;
+                                }
+                            }
+                        }
+                    }
+                    
+                    $object .= $backend->xml_tag('attribute', "Note: the setup hasn't completed but there are no submissions for it and I can't detect obvious problems; maybe it's in the middle of processing and something will happen soon.") unless $found_problem;
+                }
             }
             else {
                 if ($num_elements == 0) {
