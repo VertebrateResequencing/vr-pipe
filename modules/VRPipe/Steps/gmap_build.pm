@@ -94,7 +94,8 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return {};
+        return {
+        };
     }
     
     method body_sub {
@@ -128,11 +129,9 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 $cmd .= ' -g';
             }
             $cmd .= ' ' . $gmap_build_fasta_files;
-            warn "command: " . $cmd;
-            print "command: " . $cmd;
             
             # option to create a snp index
-            if (defined $options->{iit_file}) {
+            if ($options->{iit_file}) {
                 my $iit_file = Path::Class::File->new($options->{iit_file});
                 # copy iit file to genome directory
                 my $snp_index_location = $output_file->dir;
@@ -140,9 +139,6 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 my ($iit_name) = fileparse($iit_file->basename, '.iit');
                 $cmd .= "; snpindex -D $output_file_dir -d $gmap_build_genome -k $gmap_build_kmer_size -v $iit_name";
             }
-            
-            warn "command: " . $cmd;
-            print "command: " . $cmd;
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => "gmap_build -d genome_name -k kmersize -D output_dir -g <FASTA_FILES>"));
             $self->dispatch([$cmd, $self->new_requirements(memory => 4500, time => 1), { block_and_skip_if_ok => 1 }]);
         };
