@@ -167,7 +167,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                                     # kill it
                                     $backend->log("The scheduler told us that $sid was running, but the corresponding Runner had no heartbeat!");
                                     $self->kill_sid($sid, 0, 5);
-                                    $runner->delete;
+                                    eval { $runner->delete; };
                                 }
                             }
                             else {
@@ -185,7 +185,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                             # either we never actually got scheduled, or there's
                             # some problem with the scheduled job, so kill it
                             $self->kill_sid($sid, 0, 5);
-                            $runner->delete;
+                            eval { $runner->delete; };
                         }
                     }
                 }

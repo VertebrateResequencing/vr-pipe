@@ -26,7 +26,7 @@ my $setup = VRPipe::PipelineSetup->create(
         options => { delimiter => "\t" },
         source  => file(qw(t data gsnap_datasource.fofn))->absolute
     ),
-    output_root => $output_dir,
+    output_root => dir($output_dir)->absolute->stringify,
     pipeline    => $pipeline,
     options     => { gsnap_db => 'mm9', paired_end => 1, gsnap_genome_dir => $ENV{GSNAP_GENOME_DIR} }
 );

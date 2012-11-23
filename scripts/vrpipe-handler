@@ -33,6 +33,7 @@ use AnyEvent::ForkManager;
 use Sys::CPU;
 use VRPipe::FrontEnd;
 use VRPipe::Interface::BackEnd;
+use Proc::ProcessTable;
 use Proc::Killfam;
 
 # handle options
@@ -215,7 +216,7 @@ sub handle_setups {
                     my $sid = $setup->id;
                     next if defined $setup_watchers{$sid};
                     
-                    $setup_watchers{$sid} = EV::periodic 0, $setup_state_timer_interval, 0, sub {
+                    $setup_watchers{$sid} = EV::timer 0, $setup_state_timer_interval, sub {
                         return if $currently_triggering{$sid};
                         $currently_triggering{$sid} = 1;
                         my $ds_id = $setup->datasource->id;
@@ -275,7 +276,7 @@ sub handle_setups {
                             my $err = $@ || return;
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("unknown problem")) {
-                                $backend->log("There is a problem with setup $sid:\n$err", email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems", long_msg => $err);
+                                $backend->log("There is a problem with setup $sid:\n$err", email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
                             }
                         };
                     };
@@ -299,7 +300,7 @@ sub handle_setups {
     EV::run;
     
     $backend->log("The setups handler for farm $farm is now exiting!");
-    killfam "KILL", $$; # kill any child processes that may be hanging around
+    kill_remaining_children();
     exit 0;
 }
 
@@ -557,7 +558,7 @@ sub handle_submissions {
     EV::run;
     
     $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
-    killfam "KILL", $$; # kill any child processes that may be hanging around
+    kill_remaining_children();
     exit 0;
 }
 
@@ -565,4 +566,21 @@ sub exit_handler {
     my $msg = shift;
     $backend->log($msg . ", will gracefully exit $mode handler."); # if $mode eq 'setups'
     EV::unloop;
+}
+
+sub kill_remaining_children {
+    my $ppt = Proc::ProcessTable->new(cache_ttys => 1);
+    my $pgrp;
+    foreach my $p (@{ $ppt->table }) {
+        if ($p->pid == $$) {
+            $pgrp = $p->pgrp;
+            last;
+        }
+    }
+    foreach my $p (@{ $ppt->table }) {
+        next unless $p->pgrp == $pgrp;
+        my $pid = $p->pid;
+        next if $pid == $$;
+        killfam "KILL", $pid;
+    }
 }
