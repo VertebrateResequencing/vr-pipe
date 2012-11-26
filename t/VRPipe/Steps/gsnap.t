@@ -34,12 +34,10 @@ my $setup = VRPipe::PipelineSetup->create(
 my @output_subdirs = output_subdirs(1);
 my $outputfile_1 = file(@output_subdirs, '1_gsnap', 'ERR032995_160_lines_1.concordant_uniq');
 my @outputfiles;
-warn $outputfile_1;
 push(@outputfiles, $outputfile_1);
 ok handle_pipeline(@outputfiles), 'gsnap step ran ok, generating the expected output file';
 
-#my $testfilecontents   = file( qw(t data ERR032995.concordant_uniq) )->slurp;
-#my $outputfilecontents = $outputfile_1->slurp;
-#warn $outputfilecontents;
-#is($testfilecontents, $outputfilecontents, "output file contain expected data");
+my $testfilecontents   = file(qw(t data ERR032995.concordant_uniq))->slurp;
+my $outputfilecontents = $outputfile_1->slurp;
+is($testfilecontents, $outputfilecontents, "output file contain expected data");
 finish;
