@@ -468,7 +468,7 @@ role VRPipe::StepRole {
         # fails with a throw, the others would not enter the loop and look like
         # they had no missing output files and instantly complete, even though
         # they failed horribly)
-        foreach my $key (%$defs) {
+        foreach my $key (keys %$defs) {
             next if exists $hash->{$key};
             my $val = $defs->{$key};
             next if $val->min_files == 0;
