@@ -551,7 +551,7 @@ sub status {
                                     my $other_state = $state->same_submissions_as;
                                     if ($other_state) {
                                         my $other_setup = $other_state->pipelinesetup->id;
-                                        if ($other_setup != $setup->id) {
+                                        if ($other_setup != $setup->id && $other_state->complete != 1) {
                                             $object .= $backend->xml_tag('attribute', "Note: this setup is dependent on work being done by setup $other_setup, so check the status of that to see what's happening.");
                                             $found_problem = 1;
                                             last ESCHECKER;
