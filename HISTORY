@@ -1,3 +1,7 @@
+0.119   Critical fix for changes in previous version. Critical fix for
+        bam_split_by_region step, so it works with bams with arbitrary
+        split_sequence metadata. vrpipe-status stall messaging improved
+        slightly.
 0.118   Critical fix to prevent steps that fail due to not creating any output
         files from being considered completed OK.
 0.117   Fixes to gmap/gsnap step/pipeline.
