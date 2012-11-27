@@ -472,7 +472,7 @@ role VRPipe::StepRole {
             next if exists $hash->{$key};
             my $val = $defs->{$key};
             next if $val->min_files == 0;
-            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key (dataelement " . $self->data_element->id . "; stepstate " . $self->step_state->id . "; pipelinesetup " . $self->step_state->pipelinesetup->id . ")");
+            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key (dataelement " . $self->data_element->id . "; stepstate " . $self->step_state->id . "; step " . $self->step_state->stepmember->step_number . " (" . $self->step_state->stepmember->step->name . "); pipelinesetup " . $self->step_state->pipelinesetup->id . ")");
         }
         
         return $self->_missing($hash, $defs);
