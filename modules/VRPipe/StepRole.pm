@@ -462,9 +462,15 @@ role VRPipe::StepRole {
         my $defs = $self->outputs_definition;
         
         # check that we don't have any outputs defined in the definition that
-        # no files were made for
-        while (my ($key, $val) = each %$defs) {
+        # no files were made for (we must not use while each for the defs hash,
+        # since $defs is the same for multiple calls of this method for
+        # different dataelementstates in piplinesetup trigger(), and if one
+        # fails with a throw, the others would not enter the loop and look like
+        # they had no missing output files and instantly complete, even though
+        # they failed horribly)
+        foreach my $key (%$defs) {
             next if exists $hash->{$key};
+            my $val = $defs->{$key};
             next if $val->min_files == 0;
             $self->throw("'$key' was defined as an output, yet no output file was made with that output_key (dataelement " . $self->data_element->id . "; stepstate " . $self->step_state->id . "; pipelinesetup " . $self->step_state->pipelinesetup->id . ")");
         }
