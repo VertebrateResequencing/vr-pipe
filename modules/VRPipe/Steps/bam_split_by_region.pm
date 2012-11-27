@@ -80,13 +80,25 @@ class VRPipe::Steps::bam_split_by_region with VRPipe::StepRole {
                 my $chrom_select = $meta->{chrom} || $meta->{split_sequence} || '';
                 $chrom_select =~ s/^chrom//;
                 
+                # if none of the chunks overlap the bam chrom/split_sequence metadata
+                # it is likely that the chrom/split_sequence is some grouped amalgam
+                # like "mapped", so we undef the selection
+                my %selected_chroms;
+                if ($chrom_select) {
+                    foreach my $chunk (@$chunks) {
+                        my $chrom = $chunk->{chrom};
+                        $chrom =~ s/^chrom//;
+                        next if ($chrom ne $chrom_select);
+                        $selected_chroms{ $chunk->{chrom} } = 1;
+                    }
+                    $chrom_select = undef unless keys %selected_chroms;
+                }
+                
                 my (@regions, @output_files);
                 my $args = "q[$bam_path], split_dir => q[$split_dir], include_mate => $$options{split_bam_by_region_include_mate}";
                 foreach my $chunk (@$chunks) {
                     if ($chrom_select) {
-                        my $chrom = $chunk->{chrom};
-                        $chrom =~ s/^chrom//;
-                        next if ($chrom ne $chrom_select);
+                        next unless exists $selected_chroms{ $chunk->{chrom} };
                     }
                     my $region = "$$chunk{chrom}_$$chunk{from}-$$chunk{to}";
                     push(@regions, $region);
