@@ -1,3 +1,5 @@
+0.118   Critical fix to prevent steps that fail due to not creating any output
+        files from being considered completed OK.
 0.117   Fixes to gmap/gsnap step/pipeline.
 0.116   Improved indication of possible stalled setups, and general fixes to
         vrpipe-server.
