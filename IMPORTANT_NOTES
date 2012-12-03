@@ -1,3 +1,9 @@
+# version 0.120:
+Normally when VRPipe detects missing input or output files it will automatically
+restart the relevant step. This feature has been disabled in this version. You
+may wish to skip this version as a result; the feature will likely return in a
+future version.
+
 # version 0.112:
 This is a bug-fixed version of 0.111. It should be safe to upgrade to if you use
 LSF. The local scheduler does function and should be fine on multi-processor
