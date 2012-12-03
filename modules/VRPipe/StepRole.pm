@@ -629,9 +629,8 @@ role VRPipe::StepRole {
             my @missing = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@missing) {
-                $self->warn("Some output files are missing (@missing) for $debug_desc");
                 $stepstate->start_over;
-                return 0;
+                $self->throw("Some output files are missing (@missing) for $debug_desc, so the stepstate was started over");
             }
             else {
                 return 1;
@@ -639,9 +638,8 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
-            $self->warn("The post-processing part of $debug_desc");
             $stepstate->start_over;
-            return 0;
+            $self->throw("The post-processing part of $debug_desc failed, so the stepstate was started over");
         }
     }
     
