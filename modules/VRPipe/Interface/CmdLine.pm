@@ -322,6 +322,10 @@ class VRPipe::Interface::CmdLine {
     method check_server (Bool $no_auto_start_or_die = 0) {
         my ($ua, $port, $base_url) = @{ $self->_ua_port_baseurl };
         
+        # temporarily (or permanently?) forcing auto starting of server off, so
+        # that admin user is in control of the server starting
+        $no_auto_start_or_die = 1;
+        
         # try and get a response from the port
         my @post_args = ($base_url . '/dsn');
         my $response  = $ua->post(@post_args);
@@ -358,12 +362,13 @@ class VRPipe::Interface::CmdLine {
         # make sure the response is valid
         my $expected_dsn = $self->dsn;
         unless ($server_dsn eq $expected_dsn) {
+            my $msg = "There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all.\nIts reported dsn was:\n$server_dsn\n";
             if ($no_auto_start_or_die) {
-                $self->error("expected dsn $expected_dsn but got $server_dsn");
+                $self->error($msg);
                 return -1;
             }
             else {
-                $self->die_with_error("There is a server bound to port $port, but it is either not connected to the correct database ($expected_dsn), or is not a VRPipe server at all.\nIts reported dsn was:\n$server_dsn\n");
+                $self->die_with_error($msg);
             }
         }
         

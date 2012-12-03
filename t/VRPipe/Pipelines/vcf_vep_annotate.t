@@ -41,13 +41,13 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     }
 );
 
-my (@output_files, @final_files);
+my (@output_files);
 my $element_id = 0;
 foreach my $in ('test1', 'test2') {
     $element_id++;
     my @output_dirs = output_subdirs($element_id);
-    push(@final_files, file(@output_dirs, '2_vcf_vep_consequences', "${in}.conseq.vcf.gz"));
-    push(@final_files, file(@output_dirs, '2_vcf_vep_consequences', "${in}.conseq.vcf.gz.tbi"));
+    push(@output_files, file(@output_dirs, '2_vcf_vep_consequences', "${in}.conseq.vcf.gz"));
+    push(@output_files, file(@output_dirs, '2_vcf_vep_consequences', "${in}.conseq.vcf.gz.tbi"));
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 

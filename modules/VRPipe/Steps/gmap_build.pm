@@ -94,8 +94,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return {
-        };
+        return {};
     }
     
     method body_sub {
@@ -140,7 +139,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 $cmd .= "; snpindex -D $output_file_dir -d $gmap_build_genome -k $gmap_build_kmer_size -v $iit_name";
             }
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => "gmap_build -d genome_name -k kmersize -D output_dir -g <FASTA_FILES>"));
-            $self->dispatch([$cmd, $self->new_requirements(memory => 4500, time => 1), { block_and_skip_if_ok => 1 }]);
+            $self->dispatch([$cmd, $self->new_requirements(memory => 6500, time => 1), { block_and_skip_if_ok => 1 }]);
         };
     }
     

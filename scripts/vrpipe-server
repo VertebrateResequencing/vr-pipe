@@ -193,6 +193,7 @@ sub start_server {
     
     # setup the submission management system if we're supposed to
     my ($farm_server, $farm_watcher, $handler_path, $scheduler, $still_working);
+    my $fork_alarm_time = $deployment eq 'production' ? 300 : 30;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
@@ -216,7 +217,15 @@ sub start_server {
                     # async since if it takes too long the farm_server will
                     # think it died and we'll immediately lose it!
                     unless ($deployment eq 'testing') {
-                        fork_call { $backend->install_pipelines_and_steps; return; } $watcher_error_sub;
+                        fork_call {
+                            $backend->install_pipelines_and_steps;
+                            
+                            # also take the opportunity to clean out old Runners
+                            VRPipe::Runner->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $farm_server->survival_time) } })->delete;
+                            
+                            return;
+                        }
+                        $watcher_error_sub;
                     }
                     
                     $backend->log("Submission management started for farm $farm");
@@ -242,6 +251,13 @@ sub start_server {
             else {
                 $still_working = 1;
                 fork_call {
+                    # this fork_call should not take that long, but it is
+                    # critical that it not get stuck, or the server will seem to
+                    # still be running fine yet won't be submitting any jobs. So
+                    # we set up an alarm to kill it after a while
+                    local $SIG{ALRM} = sub { die "Taking suspiciously long to ensure that the handlers are running\n" };
+                    alarm $fork_alarm_time;
+                    
                     # check we're still valid
                     die "no longer in db\n" unless ($farm_server && $farm_server->alive);
                     $farm_server->stop_beating; # parent process is beating
@@ -299,6 +315,7 @@ sub start_server {
                         }
                     }
                     
+                    alarm 0;
                     return;
                 }
                 sub {
