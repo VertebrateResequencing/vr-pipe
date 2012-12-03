@@ -581,7 +581,7 @@ role VRPipe::StepRole {
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
-                        $self->debug("to regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", will start stepstate $state_id over again");
+                        $self->throw("To regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", we would need to start stepstate $state_id over again, but this has been disabled, so we are now stalled");
                         $state->start_over;
                     }
                 }
@@ -629,8 +629,8 @@ role VRPipe::StepRole {
             my @missing = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@missing) {
-                $stepstate->start_over;
-                $self->throw("Some output files are missing (@missing) for $debug_desc, so the stepstate was started over");
+                #$stepstate->start_over;
+                $self->throw("Some output files are missing (@missing) for $debug_desc, but automatic start_over has been disabled so we're now stalled"); # so the stepstate was started over
             }
             else {
                 return 1;
@@ -638,8 +638,8 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
-            $stepstate->start_over;
-            $self->throw("The post-processing part of $debug_desc failed, so the stepstate was started over");
+            #$stepstate->start_over;
+            $self->throw("The post-processing part of $debug_desc failed, but automatic start_over has been disabled so we're now stalled");
         }
     }
     
