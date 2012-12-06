@@ -121,11 +121,12 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
     method generate_filter (ClassName|Object $self: Str|File :$source!, Str|File :$dest!, Str :$samtools_exe!, Str :$samtools_irods_exe!, Str :$spatial_filter_exe!, Str :$tag_number!, Str :$filter_calibration_options!, Str :$lane!, Num :$tile_width!, Num :$tile_height! ) {
 
         my $cmd;
-        if ($tag_number eq 128) {
+        my ($run,undef) = split (/_/,$lane);
+
+        if ($tag_number eq '168') {
             # assumption is that the phix files are in irods under '/seq/'
 
             my $bam_file = "${lane}#${tag_number}.bam";
-            my ($run,undef) = split (/_/,$lane);
             $cmd = "$samtools_irods_exe view -u irods:/seq/$run/${lane}#${tag_number}.bam";
         }
         else {
@@ -135,7 +136,7 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
 
         unless ($tile_width > 0 && $tile_height> 0 ) {
             # Tile dimensions are not in the bam metadata, try to get from the RunParameters xml in irods
-            my $pipe = "iget /seq/$lane/runParameters.xml - |";
+            my $pipe = "iget /seq/$run/runParameters.xml - |";
             my $fh;
             open($fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
             while (<$fh>) {
@@ -148,7 +149,7 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
             }
             close($fh);
 
-            $self->throw("Could not iget Tile dimensions from /seq/$lane/RunParameters.xml") unless $tile_width > 0  && $tile_height > 0 ;
+            $self->throw("Could not iget Tile dimensions from /seq/$run/RunParameters.xml") unless $tile_width > 0  && $tile_height > 0 ;
         }
         
         $cmd .= "| $spatial_filter_exe --width $tile_width --height $tile_height $filter_calibration_options -c -F $dest -";
