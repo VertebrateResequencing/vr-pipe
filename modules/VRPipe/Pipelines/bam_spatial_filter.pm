@@ -38,7 +38,7 @@ class VRPipe::Pipelines::bam_spatial_filter with VRPipe::PipelineRole {
     }
     
     method description {
-        return 'Annotate VCF files with consequences using VEP';
+        return 'apply spatial filter to bams';
     }
     
     method step_names {
