@@ -231,7 +231,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     if (@submissions) {
                         my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->submission_search_id });
                         unless ($unfinished) {
-                            my $ok = $step->post_process();
+                            my $ok;
+                            eval { # (try catch not used because stupid perltidy is stupid)
+                                $ok = $step->post_process();
+                            };
+                            if ($@ && !$error_message) {
+                                $error_message = "When trying to post process step " . $step->name . " for setup $setup_id we hit the following error:\n$@";
+                            }
+                            
                             if ($ok) {
                                 # we just completed all the submissions from a previous parse
                                 $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
@@ -241,7 +248,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 # we warn instead of throw, because the step may
                                 # have discovered its output files are missing
                                 # and restarted itself
-                                $self->warn("submissions completed, but post_process failed");
+                                unless ($error_message) {
+                                    $error_message = "When trying to post process step " . $step->name . " for setup $setup_id, the submissions completed, but post processing failed";
+                                }
                             }
                         }
                         # else we have $unfinished unfinished submissions from a
@@ -257,7 +266,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # else, is it safe to assume the submissions of this
                             # other setup are really running?
                         }
-                    
                     }
                     else {
                         # this is the first time we're looking at this step for
@@ -350,12 +358,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
         unless ($state->complete) {
+            # are there any behaviours to trigger?
+            foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
+                $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
+            }
+            
             unless ($state->same_submissions_as) {
-                # are there any behaviours to trigger?
-                foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
-                    $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
-                }
-                
                 # add to the StepStats
                 my %done_jobs;
                 foreach my $submission ($state->submissions) {
