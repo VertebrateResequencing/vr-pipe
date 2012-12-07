@@ -1,3 +1,4 @@
+0.122   Fixed repeated emailing of the same setup problem.
 0.121   Potential fix for complex vrpipe datasources that fail to update as
         soon as they should. bam_spatial_filter pipeline fixes. Reduced chances
         of a setup not doing work when it should be doing work. Submission

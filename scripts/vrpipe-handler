@@ -285,13 +285,15 @@ sub handle_setups {
                                 $error_message = $setup->trigger();
                                 $backend->log("completed the forced full trigger for setup $sid");
                             }
-                            if ($error_message && !$perma_fails) {
-                                unless ($mt->already_sent("trigger problem")) {
-                                    $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                            unless ($perma_fails) {
+                                if ($error_message) {
+                                    unless ($mt->already_sent("trigger problem")) {
+                                        $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                                    }
                                 }
-                            }
-                            else {
-                                $mt->update_message("running normally");
+                                else {
+                                    $mt->update_message("running normally");
+                                }
                             }
                             
                             return;
