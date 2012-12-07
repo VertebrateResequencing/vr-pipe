@@ -169,7 +169,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         return VRPipe::DataElement->search_paged({ datasource => $self->id, withdrawn => 0 });
     }
     
-    method incomplete_element_states (VRPipe::PipelineSetup $setup, Bool :$include_withdrawn = 0, Bool :$prepare = 1) {
+    method incomplete_element_states (VRPipe::PipelineSetup $setup, Bool :$include_withdrawn = 0, Bool :$prepare = 1, Bool :$only_not_started = 0) {
         if ($prepare) {
             $self->_prepare_elements_and_states || return;
         }
@@ -177,7 +177,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         my $pipeline  = $setup->pipeline;
         my $num_steps = $pipeline->step_members;
         
-        return VRPipe::DataElementState->search_paged({ pipelinesetup => $setup->id, completed_steps => { '<', $num_steps }, $include_withdrawn ? () : ('dataelement.withdrawn' => 0) }, { prefetch => 'dataelement' });
+        return VRPipe::DataElementState->search_paged({ pipelinesetup => $setup->id, completed_steps => $only_not_started ? 0 : { '<', $num_steps }, $include_withdrawn ? () : ('dataelement.withdrawn' => 0) }, { prefetch => 'dataelement' });
     }
     
     method _prepare_elements_and_states (Bool $status_messages = 0) {
