@@ -140,7 +140,7 @@ sub handle_setups {
                     my $ds_id = $setup->datasource->id;
                     $datasource_watchers{$ds_id}->{working} = 1;
                     fork_call {
-                        $setup->trigger();
+                        $setup->trigger(first_step_only => 1);
                         return;
                     }
                     sub {
@@ -241,6 +241,7 @@ sub handle_setups {
                                 return;
                             }
                             
+                            # tell user about repeatedly failed subs
                             my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
                             if ($perma_fails) {
                                 unless ($mt->already_sent("has some perma fails")) {
@@ -248,24 +249,49 @@ sub handle_setups {
                                     $backend->log("Setup $sid has repeated failures that need user intervention", email_to => [$setup->user], subject => "Setup $sid has problems", long_msg => $long);
                                 }
                             }
-                            else {
-                                my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
-                                my $error_message;
-                                unless ($incomplete_subs) {
-                                    $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
-                                    $error_message = $setup->trigger();
-                                    $backend->log("completed the forced full trigger for setup $sid");
-                                }
-                                
-                                # set the $mt message
-                                if ($error_message) {
-                                    unless ($mt->already_sent("trigger problem")) {
-                                        $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                            
+                            # force a full trigger when we aren't complete but
+                            # have no incomplete subs
+                            my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                            my $error_message;
+                            if ($incomplete_subs) {
+                                # ok, we've started doing something for some
+                                # dataelements, but we should make sure that
+                                # any same_submissions_as stepstates haven't
+                                # gotten stuck, which seems to be an issue
+                                # (*** bug elsewhere?)
+                                my $step_state_pager = VRPipe::StepState->search_paged({ pipelinesetup => $sid, same_submissions_as => { '!=' => undef }, complete => 0 });
+                                if ($step_state_pager) {
+                                    while (my $step_states = $step_state_pager->next) {
+                                        foreach my $step_state (@$step_states) {
+                                            my $same = $step_state->same_submissions_as;
+                                            next unless $same->complete;
+                                            my $de = $step_state->dataelement;
+                                            $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
+                                            my $this_error = $setup->trigger(dataelement => $de);
+                                            if ($this_error && !$error_message) {
+                                                $error_message = $this_error;
+                                            }
+                                        }
                                     }
                                 }
-                                else {
-                                    $mt->update_message("running normally");
+                                
+                                # also make sure all dataelements have started
+                                # at least?
+                                #$error_message = $setup->trigger(first_step_only => 1, prepare_elements => 0);
+                            }
+                            else {
+                                $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
+                                $error_message = $setup->trigger();
+                                $backend->log("completed the forced full trigger for setup $sid");
+                            }
+                            if ($error_message && !$perma_fails) {
+                                unless ($mt->already_sent("trigger problem")) {
+                                    $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
                                 }
+                            }
+                            else {
+                                $mt->update_message("running normally");
                             }
                             
                             return;
@@ -403,11 +429,11 @@ sub handle_submissions {
                             my $other_setup = VRPipe::PipelineSetup->get(id => $sid);
                             my $other_error_message = $other_setup->trigger(dataelement => VRPipe::DataElement->get(id => $de));
                             
-                            if ($error_message) {
+                            if ($other_error_message) {
                                 my $sid = $other_setup->id;
                                 my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                                 unless ($mt->already_sent("trigger problem")) {
-                                    $backend->log($error_message, email_to => [$other_setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                                    $backend->log($other_error_message, email_to => [$other_setup->user], email_admin => 1, subject => "Setup $sid has problems");
                                 }
                             }
                         }
