@@ -182,7 +182,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger (VRPipe::DataElement :$dataelement?) {
+    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -196,10 +196,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         # (single) elementstate for the supplied dataelement
         my $pager;
         if ($dataelement) {
-            $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $dataelement->id, completed_steps => { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
+            $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $dataelement->id, completed_steps => $first_step_only ? 0 : { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
         }
         else {
-            $pager = $datasource->incomplete_element_states($self, prepare => 1);
+            $pager = $datasource->incomplete_element_states($self, prepare => $prepare_elements, only_not_started => $first_step_only);
         }
         return unless $pager; #*** is it ever an error to have no pager?
         
@@ -383,7 +383,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             $estate->completed_steps($step_number);
             $estate->update;
         }
-    
     }
 }
 

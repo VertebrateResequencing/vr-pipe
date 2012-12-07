@@ -81,7 +81,7 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
 
                 my $basename = $bam_file->basename;
                 $basename =~ s/\.bam/.spfilt.bam/;
-                my $out_file = $self->output_file( output_key => 'filtered_bams', basename => $basename, type => 'bam');
+                my $out_file = $self->output_file( output_key => 'filtered_bams', basename => $basename, type => 'bam', metadata=> $bam_file->metadata);
                 my $out_path = $out_file->path;
 
                 $mark_qcfail = ' -f ' if $mark_qcfail;   

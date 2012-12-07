@@ -581,7 +581,7 @@ role VRPipe::StepRole {
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
-                        $self->throw("To regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", we would need to start stepstate $state_id over again, but this has been disabled, so we are now stalled");
+                        $self->warn("To regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", we will start stepstate $state_id over again");
                         $state->start_over;
                     }
                 }
@@ -623,14 +623,14 @@ role VRPipe::StepRole {
     method post_process {
         my $ok         = $self->_run_coderef('post_process_sub');
         my $stepstate  = $self->step_state;
-        my $debug_desc = "step " . $self->name . " failed for data element " . $self->data_element->id . " and pipelinesetup " . $self->step_state->pipelinesetup->id . " (stepstate " . $stepstate->id . ")";
+        my $debug_desc = "step " . $self->name . " failed for dataelement " . $self->data_element->id . " and setup " . $self->step_state->pipelinesetup->id . " (stepstate " . $stepstate->id . ")";
         
         if ($ok) {
             my @missing = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@missing) {
-                #$stepstate->start_over;
-                $self->throw("Some output files are missing (@missing) for $debug_desc, but automatic start_over has been disabled so we're now stalled"); # so the stepstate was started over
+                $stepstate->start_over;
+                $self->warn("Some output files are missing (@missing) for $debug_desc, so the stepstate was started over");
             }
             else {
                 return 1;
@@ -638,8 +638,8 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
-            #$stepstate->start_over;
-            $self->throw("The post-processing part of $debug_desc failed, but automatic start_over has been disabled so we're now stalled");
+            $stepstate->start_over;
+            $self->warn("The post-processing part of $debug_desc failed, so the stepstate was started over");
         }
     }
     
