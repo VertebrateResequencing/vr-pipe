@@ -35,6 +35,7 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(
     pipeline    => $pipeline,
     options     => {
         spatial_filter_exe => '/software/solexa/bin/pb_calibration/v9.0/spatial_filter',
+        tag_number => 0,
         cleanup => 0,
     }
 );
