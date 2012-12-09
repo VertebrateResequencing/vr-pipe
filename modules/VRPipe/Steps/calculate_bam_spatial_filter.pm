@@ -126,6 +126,7 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
         if ($tag_number eq '168') {
             # assumption is that the phix files are in irods under '/seq/'
 
+            ($lane,undef) = split (/#/,$lane);   # strip out tag if present 
             my $bam_file = "${lane}#${tag_number}.bam";
             $cmd = "$samtools_irods_exe view -u irods:/seq/$run/${lane}#${tag_number}.bam";
         }
