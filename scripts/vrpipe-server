@@ -193,7 +193,8 @@ sub start_server {
     
     # setup the submission management system if we're supposed to
     my ($farm_server, $farm_watcher, $handler_path, $scheduler, $still_working);
-    my $fork_alarm_time = $deployment eq 'production' ? 300 : 30;
+    my $fork_alarm_time = $deployment eq 'production' ? 900 : 90;
+    my $survival_time;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
@@ -229,8 +230,9 @@ sub start_server {
                     }
                     
                     $backend->log("Submission management started for farm $farm");
-                    $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
-                    $scheduler = VRPipe::Scheduler->create();
+                    $handler_path  = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
+                    $scheduler     = VRPipe::Scheduler->create();
+                    $survival_time = $farm_server->survival_time;
                     
                     # start the local scheduler if we're supposed to be using
                     # the local scheduler
@@ -255,7 +257,7 @@ sub start_server {
                     # critical that it not get stuck, or the server will seem to
                     # still be running fine yet won't be submitting any jobs. So
                     # we set up an alarm to kill it after a while
-                    local $SIG{ALRM} = sub { die "Taking suspiciously long to ensure that the handlers are running\n" };
+                    local $SIG{ALRM} = sub { die "Taking suspiciously long to ensure that the handlers are running; is the VRPipe database running OK, and is the job scheduler responsive?\n" };
                     alarm $fork_alarm_time;
                     
                     # check we're still valid
@@ -268,11 +270,15 @@ sub start_server {
                     if (@setups) {
                         # make sure we have a setups handler running for our
                         # farm
+                        my %runners_still_needed;
+                        my $shcmd = "$handler_path --mode setups --farm $farm";
                         $scheduler->ensure_running(
-                            cmd          => "$handler_path --mode setups --farm $farm",
+                            cmd          => $shcmd,
                             requirements => VRPipe::Requirements->create(memory => 1500, time => 3600),
                             backend      => $backend
                         );
+                        my ($sh_runner) = VRPipe::Runner->search({ cmd => $shcmd });
+                        $runners_still_needed{ $sh_runner->id } = 1;
                         
                         # make sure we have sufficient submission handlers
                         # running...
@@ -301,17 +307,44 @@ sub start_server {
                             }
                         }
                         
-                        # submit the submission handlers
+                        # submit the submission handlers, noting which runners
+                        # (created by previous ensure_running calls) are still
+                        # needed
                         foreach my $cols (@$req_counts) {
                             my ($req_id, $count) = @$cols;
                             next unless $count;
+                            
+                            my $cmd = "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id";
+                            
                             $scheduler->ensure_running(
-                                cmd                         => "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id",
+                                cmd                         => $cmd,
                                 count                       => $count,
                                 requirements                => VRPipe::Requirements->get(id => $req_id),
                                 backend                     => $backend,
                                 append_runner_option_to_cmd => 1
                             );
+                            
+                            my $already_running = VRPipe::Runner->search({ cmd => $cmd, heartbeat => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } });
+                            if ($already_running < $count) {
+                                my $c = $already_running;
+                                foreach my $runner (VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef })) {
+                                    $c++;
+                                    last if $c > $count;
+                                    $runners_still_needed{ $runner->id } = 1;
+                                }
+                            }
+                        }
+                        
+                        # delete defunct runners, removing them from the job
+                        # scheduler as well
+                        foreach my $runner (VRPipe::Runner->search({ heartbeat => { '<=' => DateTime->from_epoch(epoch => time() - $survival_time) } })) {
+                            $scheduler->kill_sid($runner->sid, 0);
+                            $runner->delete;
+                        }
+                        foreach my $runner (VRPipe::Runner->search({ heartbeat => undef })) {
+                            next if exists $runners_still_needed{ $runner->id };
+                            $scheduler->kill_sid($runner->sid, 0);
+                            $runner->delete;
                         }
                     }
                     

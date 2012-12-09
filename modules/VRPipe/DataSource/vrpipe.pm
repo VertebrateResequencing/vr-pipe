@@ -374,17 +374,25 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
     
-    # The changed marker for vrpipe datasources will be a comma separated list of the number
-    # of elements in each of the pipelinesetups that have completed and the number that have
-    # been withdrawn. Any change in these numbers will lead to the dataelements being revised.
+    # The changed marker for vrpipe datasources will be a comma separated list
+    # of the number of elements in each of the pipelinesetups that have
+    # completed and the number that have been withdrawn. Any change in these
+    # numbers will lead to the dataelements being revised. We also include total
+    # number of unwithdrawn dataelements, to notice the change when a setup gets
+    # new dataelements which could result in the withdrawal of our dataelements
+    # (eg we depend on setups x and y, and y also depends on x, so when x
+    # completes a new de we would create a new x-only de since y was incomplete,
+    # and then while y runs on the new de we could not notice any change unless
+    # we include this total number)
     method _element_state_status_checksum {
         my $sources = $self->vrpipe_sources;
         my @complete_list;
         foreach my $setup_id (sort keys %{$sources}) {
             my $num_steps     = $sources->{$setup_id}->{total_steps};
+            my $total_active  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
             my $num_complete  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
             my $num_withdrawn = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 1 }, { join => 'dataelement' });
-            push @complete_list, ($num_complete, $num_withdrawn);
+            push @complete_list, ($total_active, $num_complete, $num_withdrawn);
         }
         my $digest = md5_hex join(',', @complete_list);
         return $digest;

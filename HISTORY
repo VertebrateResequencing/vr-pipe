@@ -1,3 +1,9 @@
+0.122   Fixed repeated emailing of the same setup problem.
+0.121   Potential fix for complex vrpipe datasources that fail to update as
+        soon as they should. bam_spatial_filter pipeline fixes. Reduced chances
+        of a setup not doing work when it should be doing work. Submission
+        handlers that are no longer needed are now killed as soon as possible,
+        providing a large efficiency improvement.
 0.120   Potential fix to stop vrpipe-server silently stalling. Errors
         encountered during a Step post_process are now emailed out. New
         bam_spatial_filter pipeline.
