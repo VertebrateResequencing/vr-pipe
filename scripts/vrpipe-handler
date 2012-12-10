@@ -172,13 +172,29 @@ sub handle_setups {
                     my $datasource_update_sub = sub {
                         return if $datasource_watchers{$ds_id}->{working};
                         $datasource_watchers{$ds_id}->{working} = 1;
+                        
                         fork_call {
                             $ds->reselect_values_from_db;
-                            $ds->elements;
+                            my $e_before = VRPipe::DataElement->search({ datasource => $ds->id, withdrawn => 0 });
+                            my $e_after_pager = $ds->elements;
+                            
+                            # if we just got new elements, trigger them for each
+                            # setup that uses this ds
+                            my @triggered_setups = ();
+                            if ($e_after_pager->total_entries != $e_before) {
+                                foreach my $ds_setup (VRPipe::PipelineSetup->search({ datasource => $ds->id, active => 1 }, { prefetch => ['datasource', 'pipeline'] })) {
+                                    # (it's too expensive/risky to set the
+                                    #  currently_triggering marker... it should
+                                    #  be ok to trigger first step only...)
+                                    $ds_setup->trigger(first_step_only => 1, prepare_elements => 0);
+                                }
+                            }
+                            
                             return;
                         }
                         sub {
                             delete $datasource_watchers{$ds_id}->{working};
+                            
                             my $err = $@;
                             my $mt = VRPipe::MessageTracker->create(subject => "datasource $ds_id state");
                             
@@ -275,10 +291,6 @@ sub handle_setups {
                                         }
                                     }
                                 }
-                                
-                                # also make sure all dataelements have started
-                                # at least?
-                                #$error_message = $setup->trigger(first_step_only => 1, prepare_elements => 0);
                             }
                             else {
                                 $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
