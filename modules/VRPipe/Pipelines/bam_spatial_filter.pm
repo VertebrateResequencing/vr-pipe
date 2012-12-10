@@ -6,6 +6,7 @@ VRPipe::Pipelines::bam_spatial_filter - a pipeline
 =head1 DESCRIPTION
 
 
+
 =head1 AUTHOR
 
 Chris Joyce <cj5@sanger.ac.uk>.
@@ -50,16 +51,14 @@ class VRPipe::Pipelines::bam_spatial_filter with VRPipe::PipelineRole {
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key => 'bam_files' },
+            { from_step => 0, to_step  => 1,              to_key  => 'bam_files' },
             { from_step => 1, from_key => 'filter_files', to_step => 2, to_key => 'filter_files' },
-            { from_step => 0, to_step => 2, to_key => 'bam_files' },
+            { from_step => 0, to_step  => 2,              to_key  => 'bam_files' },
         );
     }
     
     method behaviour_definitions {
-        (
-            { after_step => 1, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1 }
-        );
+        ({ after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 1 });
     }
 }
 
