@@ -5,7 +5,9 @@ VRPipe::Steps::apply_bam_spatial_filter - a step
 
 =head1 DESCRIPTION
 
-Runs spatial_filter to apply previously generated filter file to a set of bams. Generates either filtered bams, or files with problematic reads marked with the QC fail bit 0x200 (default).
+Runs spatial_filter to apply previously generated filter file to a set of bams.
+Generates either filtered bams, or files with problematic reads marked with the
+QC fail bit 0x200 (default).
 
 =head1 AUTHOR
 
@@ -13,7 +15,7 @@ Chris Joyce <cj5@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2012 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -34,11 +36,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
-    
     method options_definition {
         return {
-            spatial_filter_exe => VRPipe::StepOption->create( description => 'path to spatial_filter executable'),
-            mark_qcfail => VRPipe::StepOption->create( description => 'boolean; option to mark problematic reads as QCFAIL rather than filter out', optional => 1, default_value => 1),
+            spatial_filter_exe => VRPipe::StepOption->create(description => 'path to spatial_filter executable'),
+            mark_qcfail        => VRPipe::StepOption->create(description => 'boolean; option to mark problematic reads as QCFAIL rather than filter out', optional => 1, default_value => 1),
         };
     }
     
@@ -60,36 +61,36 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self = shift;
-            my $options = $self->options;
+            my $self               = shift;
+            my $options            = $self->options;
             my $spatial_filter_exe = $options->{spatial_filter_exe};
-            my $mark_qcfail = $options->{mark_qcfail};
+            my $mark_qcfail        = $options->{mark_qcfail};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-
+            
             # Get the filter file lane metadata, there should only be one per bam set
             my $filter_file = $self->inputs->{filter_files}[0];
             my $filter_path = $filter_file->path;
             my $filter_lane = $filter_file->metadata->{lane};
-
+            
             foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
                 my $bam_path = $bam_file->path;
-                my $lane = $bam_file->metadata->{lane};
+                my $lane     = $bam_file->metadata->{lane};
                 unless ($lane eq $filter_lane) {
                     $self->throw("bam lane $lane mismatches filter lane $filter_lane");
-                }        
-
+                }
+                
                 my $basename = $bam_file->basename;
                 $basename =~ s/\.bam/.spfilt.bam/;
-                my $out_file = $self->output_file( output_key => 'filtered_bams', basename => $basename, type => 'bam', metadata=> $bam_file->metadata);
+                my $out_file = $self->output_file(output_key => 'filtered_bams', basename => $basename, type => 'bam', metadata => $bam_file->metadata);
                 my $out_path = $out_file->path;
-
-                $mark_qcfail = ' -f ' if $mark_qcfail;   
-
+                
+                $mark_qcfail = ' -f ' if $mark_qcfail;
+                
                 my $cmd = "$spatial_filter_exe -a -F $filter_path $mark_qcfail $bam_path > $out_path";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::apply_bam_spatial_filter', 'apply_filter', [$cmd, $req, { output_files => [$out_file] }]);
             }
-
+        
         };
     }
     
@@ -114,22 +115,20 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
     method max_simultaneous {
         return 0;            # meaning unlimited
     }
-
+    
     method apply_filter (ClassName|Object $self: Str $cmd_line) {
-
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-
-        if ( $cmd_line =~ / -f / ) {
-
+        
+        if ($cmd_line =~ / -f /) {
             my ($in_path, $out_path) = $cmd_line =~ / (\S+) > (\S+)$/;
-
+            
             my $in_file  = VRPipe::File->get(path => $in_path);
             my $out_file = VRPipe::File->get(path => $out_path);
-
+            
             $out_file->update_stats_from_disc(retries => 3);
             my $expected_reads = $in_file->num_records;
-            my $actual_reads = $out_file->num_records;
-
+            my $actual_reads   = $out_file->num_records;
+            
             unless ($actual_reads == $expected_reads) {
                 $self->throw("cmd [$cmd_line] failed, $actual_reads reads in the output bam, $expected_reads reads in the original bam");
             }
