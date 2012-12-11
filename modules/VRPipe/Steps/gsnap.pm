@@ -66,7 +66,8 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
                 $gsnap_genome_dir = $options->{gsnap_genome_dir};
             }
             elsif (defined($self->inputs->{gmap_index_txt_file})) {
-                $gsnap_genome_dir = Path::Class::File->new($self->inputs->{gmap_index_txt_file})->dir->stringify;
+                my ($file) = @{ $self->inputs->{gmap_index_txt_file} };
+                $gsnap_genome_dir = $file->dir->stringify;
             }
             else { $gsnap_genome_dir = undef; }
             
