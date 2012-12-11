@@ -70,12 +70,31 @@ Possible problems you may encounter in installing your missing prerequisites:
   Proc::Killfam's dependencies. In that case, try manually installing an earlier
   version of it before retrying the Proc::Killfam install normally:
   cpan> install DURIST/Proc-ProcessTable-0.44.tar.gz
+# Some installs of Perl 5.8.8 can have trouble with Class::Accessor::Grouped (a
+  prerequisite of DBIx::Class), where some tests fail due to desired error
+  messages not looking quite right. This should be harmless in reality, so just
+  force install it:
+  cpan> force install Class::Accessor::Grouped
+  and then try the DBIx::Class installation again normally.
 # If you run into a problem installing XML::LibXML due to an inability to find
   the required libs, try using your OS package management system to install it,
   eg. for Ubuntu:
   sudo apt-get install libxml-libxml-perl
 # Likewise for XML::LibXSLT:
   sudo apt-get install libxml-libxslt-perl
+# If all the prerequisites seem to be installed but running 'perl Build.PL'
+  gives you an error message mentioning problems with any kind of Moose module,
+  one possibility is that you have a mixture of some new Moose modules and old
+  ones. You can solve this by updating all your Moose-related modules to their
+  latest versions. Eg. if you have cpanm installed, try:
+  $ cpanm Class::MOP Fey Fey::ORM MooseX::Aliases MooseX::ClassAttribute
+    MooseX::LazyRequire MooseX::Method::Signatures MooseX::NonMoose MooseX::POE
+    MooseX::Role::Cmd MooseX::Role::Parameterized MooseX::SemiAffordanceAccessor
+    MooseX::Singleton MooseX::StrictConstructor
+# If you get as far as running "./Build test" (see below), and find some tests
+  failing with an error message that mentions IO::Uncompress::Gunzip, try
+  installing the latest version of that:
+  cpan> install IO::Uncompress::Gunzip
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is
