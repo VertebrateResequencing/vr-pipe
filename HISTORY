@@ -1,3 +1,10 @@
+0.123   New elements for a setup now get triggered soon after the datasource
+        changes, instead of the next time the setup has 0 unfinished
+        submissions, resulting in a large speed-up potential.
+        Some critical database queries have potentially been optimised to
+        hopefully avoid overloading the database when many jobs are running at
+        once.
+        Fixes for the bam_spatial_filter and rna_seq_map_gsnap pipelines.
 0.122   Fixed repeated emailing of the same setup problem.
 0.121   Potential fix for complex vrpipe datasources that fail to update as
         soon as they should. bam_spatial_filter pipeline fixes. Reduced chances
