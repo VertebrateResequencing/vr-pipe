@@ -39,7 +39,7 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
     method options_definition {
         return {
             spatial_filter_exe => VRPipe::StepOption->create(description => 'path to spatial_filter executable'),
-            mark_qcfail        => VRPipe::StepOption->create(description => 'boolean; option to mark problematic reads as QCFAIL rather than filter out', optional => 1, default_value => 1),
+            mark_qcfail        => VRPipe::StepOption->create(description => 'boolean; option to mark problematic reads as QCFAIL rather than filter out', optional => 1, default_value => 0),
         };
     }
     
@@ -85,9 +85,9 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
                 my $out_file = $self->output_file(output_key => 'filtered_bams', basename => $basename, type => 'bam', metadata => $bam_file->metadata);
                 my $out_path = $out_file->path;
                 
-                $mark_qcfail = ' -f ' if $mark_qcfail;
+                my $qc_fail = $mark_qcfail ? '-f ' : '';
                 
-                my $cmd = "$spatial_filter_exe -a -F $filter_path $mark_qcfail $bam_path > $out_path";
+                my $cmd = "$spatial_filter_exe -a -F $filter_path $qc_fail $bam_path > $out_path";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::apply_bam_spatial_filter', 'apply_filter', [$cmd, $req, { output_files => [$out_file] }]);
             }
         
