@@ -109,12 +109,26 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             my $gmap_build_gmap_default_directory = $options->{gmap_build_gmap_default_directory};
             my $gmap_build_kmer_size              = $options->{gmap_build_kmer_size};
             my $gmap_build_rebuild                = $options->{gmap_build_rebuild};
-            my $output_file                       = $self->output_file(
-                output_key => 'gmap_index_txt_file',
-                basename   => Path::Class::File->new($gmap_build_genome . ".chromosome")->stringify,
-                sub_dir    => Path::Class::Dir->new($gmap_build_genome)->stringify,
-                type       => 'txt',
-            );
+            my $gmap_snpindex_exe                 = $options->{gmap_snpindex_exe};
+            
+            my $output_file;
+            if ($gmap_build_gmap_default_directory) {
+                #*** ? where is the default directory? Do we still make an
+                #      output file?
+                $self->throw("Using the gmap_build_gmap_default_directory not yet implemented");
+            }
+            else {
+                my ($fa_file) = split(' ', $gmap_build_fasta_files);
+                $output_file = $self->output_file(
+                    output_key => 'gmap_index_txt_file',
+                    basename   => file($gmap_build_genome . ".chromosome")->stringify,
+                    output_dir => dir(file($fa_file)->absolute->dir, 'gmap_build', $gmap_build_genome)->stringify,
+                    type       => 'txt'
+                );
+                
+                #*** aren't lots of other files made? VRPipe needs to know about
+                #    them all with more output_file() calls...
+            }
             my $output_file_dir = $output_file->dir->parent->stringify;
             my $version = VRPipe::StepCmdSummary->determine_version("perl " . $gmap_build_exe, 'version\W(.+).$');
             
@@ -131,13 +145,14 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             
             # option to create a snp index
             if ($options->{iit_file}) {
-                my $iit_file = Path::Class::File->new($options->{iit_file});
+                my $iit_file = file($options->{iit_file});
                 # copy iit file to genome directory
                 my $snp_index_location = $output_file->dir;
-                File::Copy::copy($iit_file->absolute, $output_file->dir->parent);
+                File::Copy::copy($iit_file->absolute, $output_file_dir);
                 my ($iit_name) = fileparse($iit_file->basename, '.iit');
-                $cmd .= "; snpindex -D $output_file_dir -d $gmap_build_genome -k $gmap_build_kmer_size -v $iit_name";
+                $cmd .= "; $gmap_snpindex_exe -D $output_file_dir -d $gmap_build_genome -k $gmap_build_kmer_size -v $iit_name";
             }
+            
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gmap_build', version => $version, summary => "gmap_build -d genome_name -k kmersize -D output_dir -g <FASTA_FILES>"));
             $self->dispatch([$cmd, $self->new_requirements(memory => 6500, time => 1), { block_and_skip_if_ok => 1 }]);
         };
