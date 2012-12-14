@@ -35,9 +35,11 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
-    method options_definition {
+class VRPipe::Steps::apply_bam_spatial_filter extends VRPipe::Steps::bamcheck {
+    around options_definition {
+        my $options = $self->$orig;
         return {
+            %{ $self->$orig },
             spatial_filter_exe => VRPipe::StepOption->create(description => 'path to spatial_filter executable'),
             mark_qcfail        => VRPipe::StepOption->create(description => 'boolean; option to mark problematic reads as QCFAIL rather than filter out', optional => 1, default_value => 0),
         };
@@ -65,10 +67,12 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
             my $options            = $self->options;
             my $spatial_filter_exe = $options->{spatial_filter_exe};
             my $mark_qcfail        = $options->{mark_qcfail};
+            my $bamcheck_exe = $options->{bamcheck_exe};
+            my $bc_opts = VRPipe::Steps::bamcheck->get_bamcheck_options($options);
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
-            # Get the filter file lane metadata, there should only be one per bam set
+            # Get the filter file lane metadata, there should only be one per lane
             my $filter_file = $self->inputs->{filter_files}[0];
             my $filter_path = $filter_file->path;
             my $filter_lane = $filter_file->metadata->{lane};
@@ -84,11 +88,18 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
                 $basename =~ s/\.bam/.spfilt.bam/;
                 my $out_file = $self->output_file(output_key => 'filtered_bams', basename => $basename, type => 'bam', metadata => $bam_file->metadata);
                 my $out_path = $out_file->path;
-                
+
                 my $qc_fail = $mark_qcfail ? '-f ' : '';
                 
-                my $cmd = "$spatial_filter_exe -a -F $filter_path $qc_fail $bam_path > $out_path";
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::apply_bam_spatial_filter', 'apply_filter', [$cmd, $req, { output_files => [$out_file] }]);
+                my $cmd = qq[use VRPipe::Steps::apply_bam_spatial_filter; VRPipe::Steps::apply_bam_spatial_filter->apply_filter(bam_path => q[$bam_path], out_path => q[$out_path], spatial_filter_exe => '$spatial_filter_exe', qc_fail => '$qc_fail', filter_path => '$filter_path', bamcheck_exe => '$bamcheck_exe', bc_opts => '$bc_opts');];
+
+                if ($mark_qcfail) {
+                    $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file] });
+                }
+                else {
+                    my $check_file = $self->output_file(output_key => 'bamcheck_files', basename => $out_file->basename . '.bamcheck', type => 'txt');
+                    $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file, $check_file] });
+                }
             }
         
         };
@@ -100,6 +111,16 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
                 type        => 'bam',
                 description => 'bam with spatially correlated errors either Wc fialed ot filtered out',
                 max_files   => -1
+            ),
+            bamcheck_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'the output of bamcheck on a bam',
+                min_files   => 0,
+                max_files   => -1,
+                metadata    => {
+                    source_bam => 'path to the bam file this bamcheck file was created from',
+                    lane       => 'lane name (a unique identifer for this sequencing run, aka read group)'
+                }
             )
         };
     }
@@ -115,15 +136,16 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
     method max_simultaneous {
         return 0;            # meaning unlimited
     }
-    
-    method apply_filter (ClassName|Object $self: Str $cmd_line) {
+
+    method apply_filter (ClassName|Object $self: Str|File :$bam_path!, Str|File :$out_path!, Str :$spatial_filter_exe!, Str :$qc_fail!, Str|File :$filter_path!, Str :$bamcheck_exe!, Str :$bc_opts! ) {
+
+        my $cmd_line = "$spatial_filter_exe -a -F $filter_path $qc_fail $bam_path > $out_path";
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-        
-        if ($cmd_line =~ / -f /) {
-            my ($in_path, $out_path) = $cmd_line =~ / (\S+) > (\S+)$/;
+
+        my $in_file  = VRPipe::File->get(path => $bam_path);
+        my $out_file = VRPipe::File->get(path => $out_path);
             
-            my $in_file  = VRPipe::File->get(path => $in_path);
-            my $out_file = VRPipe::File->get(path => $out_path);
+        if ($qc_fail) { # not null, check record count, no need to rebuild metadata
             
             $out_file->update_stats_from_disc(retries => 3);
             my $expected_reads = $in_file->num_records;
@@ -133,9 +155,12 @@ class VRPipe::Steps::apply_bam_spatial_filter with VRPipe::StepRole {
                 $self->throw("cmd [$cmd_line] failed, $actual_reads reads in the output bam, $expected_reads reads in the original bam");
             }
         }
+        else {
+            VRPipe::Steps::bamcheck->stats_from_bamcheck("$bamcheck_exe $bc_opts $out_path > $out_path.bamcheck");
+        }
         return 1;
     }
-
+    
 }
 
 1;
