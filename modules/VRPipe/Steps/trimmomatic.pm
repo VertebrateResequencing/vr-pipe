@@ -99,7 +99,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                 # expect a list of paired end files,  fastq.1 fastq.2 ..
                 my $it = natatime 2, @input_files;
                 while (my @pair = $it->()) {
-                    my ($name1) = fileparse($pair[0]->basename, ('.fastq'));
+                    my ($name1) = fileparse($pair[0]->basename, ('.fastq', '.fastq.gz', '.fq.gz', '.fq'));
                     my $out_file_1 = $self->output_file(
                         output_key => 'trimmed_files',
                         basename   => $name1 . '.paired.trim.fastq',
