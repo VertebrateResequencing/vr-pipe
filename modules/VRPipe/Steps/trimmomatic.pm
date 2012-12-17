@@ -75,7 +75,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
             # IF SINGLE END
             if (!$paired_end) {
                 foreach my $seq_file (@{ $self->inputs->{fastq_files} }) {
-                    my ($name) = fileparse($seq_file->basename, ('.fastq'));
+                    my ($name) = fileparse($seq_file->basename, ('.fastq', '.fastq.gz', '.fq', '.fq.gz'));
                     my $out_file = $self->output_file(
                         output_key => 'trimmed_files',
                         basename   => $name . '.trim.fastq',
