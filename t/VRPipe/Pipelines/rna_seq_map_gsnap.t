@@ -35,7 +35,8 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(
         gmap_build_fasta_files     => file(qw(t data sacCer3 chrI.fa.gz))->absolute,
         gmap_build_kmer_size       => 12,
         trimmomatic_jar_path       => $ENV{TRIMMOMATIC_JAR_PATH},
-        gsnap_db                   => 'mm9',
+        gsnap_genome_dir           => file(qw(t data sacCer3 gmap_build))->absolute,
+        gsnap_db                   => 'mygenome',
         paired_end                 => 1,
         sam_mark_duplicates_memory => 100,
         sam_mark_duplicates_time   => 1,
@@ -44,11 +45,11 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(
 
 my @output_subdirs = output_subdirs(1);
 
-my $outputfile_1 = file(@output_subdirs, '6_sam_mark_duplicates', 'ERR032995_160_lines_1.paired.trim.concordant_uniq.sort.markdup.sam');
-my $outputfile_2 = file(@output_subdirs, '5_sam_sort',            'ERR032995_160_lines_1.paired.trim.concordant_uniq.sort.sam');
-my $outputfile_3 = file(@output_subdirs, '4_gsnap',               'ERR032995_160_lines_1.paired.trim.concordant_uniq');
-my $outputfile_4 = file(@output_subdirs, '3_trimmomatic',         'ERR032995_160_lines_1.paired.trim.fastq');
-my $outputfile_5 = file(@output_subdirs, '3_trimmomatic',         'ERR032995_160_lines_2.paired.trim.fastq');
+my $outputfile_1 = file(@output_subdirs, '6_sam_mark_duplicates', 'SRR364359_1_100000lines.paired.trim.concordant_uniq.sort.markdup.sam');
+my $outputfile_2 = file(@output_subdirs, '5_sam_sort',            'SRR364359_1_100000lines.paired.trim.concordant_uniq.sort.sam');
+my $outputfile_3 = file(@output_subdirs, '4_gsnap',               'SRR364359_1_100000lines.paired.trim.concordant_uniq');
+my $outputfile_4 = file(@output_subdirs, '3_trimmomatic',         'SRR364359_1_100000lines.paired.trim.fastq');
+my $outputfile_5 = file(@output_subdirs, '3_trimmomatic',         'SRR364359_2_100000lines.paired.trim.fastq');
 my @outputfiles;
 push(@outputfiles, $outputfile_1, $outputfile_2, $outputfile_3, $outputfile_4, $outputfile_5);
 ok handle_pipeline(@outputfiles), 'rna-seq-pipeline ran ok, generating the expected output files';

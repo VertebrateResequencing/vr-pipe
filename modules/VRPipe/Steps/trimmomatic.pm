@@ -114,7 +114,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                         metadata   => $pair[0]->metadata
                     );
                     
-                    my ($name2) = fileparse($pair[1]->basename, ('.fastq', '.fasq.gz', '.fq', '.fq.gz'));
+                    my ($name2) = fileparse($pair[1]->basename, ('.fastq', '.fastq.gz', '.fq', '.fq.gz'));
                     my $out_file_3 = $self->output_file(
                         output_key => 'trimmed_files',
                         basename   => $name2 . '.paired.trim.fastq',
