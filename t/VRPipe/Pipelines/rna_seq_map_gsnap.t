@@ -53,5 +53,4 @@ my $outputfile_5 = file(@output_subdirs, '3_trimmomatic',         'SRR364359_2_1
 my @outputfiles;
 push(@outputfiles, $outputfile_1, $outputfile_2, $outputfile_3, $outputfile_4, $outputfile_5);
 ok handle_pipeline(@outputfiles), 'rna-seq-pipeline ran ok, generating the expected output files';
-warn $outputfile_1;
 finish;

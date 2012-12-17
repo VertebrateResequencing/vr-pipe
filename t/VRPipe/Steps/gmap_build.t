@@ -38,5 +38,4 @@ ok handle_pipeline(@outputfiles), 'gmap_build step ran ok, generating the expect
 my $testfilecontents   = file(qw(t data gmap_build_sacCer3_chrI.chromosome))->slurp;
 my $outputfilecontents = $outputfile_1->slurp;
 is($testfilecontents, $outputfilecontents, "output file contain expected data");
-warn $outputfile_1;
 finish;
