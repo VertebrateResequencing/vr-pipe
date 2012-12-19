@@ -106,15 +106,9 @@ class VRPipe::Persistent::Pager {
         # matching row and then searching for ids less than that.
         my @id_limit = ();
         unless (defined $rs->{cond}->{'me.id'}) {
-            my @refs = $rs->search_rs({}, { columns => ['me.id'] })->cursor->all; # avoid 'order_by => { -desc => 'me.id' }, rows => 1,' because it may be faster to send more data and sort in perl than it is to sort in the db
-            if (@refs && $refs[0]->[0]) {
-                my $max_id = 0;
-                foreach my $ref (@refs) {
-                    if ($ref->[0] > $max_id) {
-                        $max_id = $ref->[0];
-                    }
-                }
-                @id_limit = ('me.id' => { '<=' => $max_id });
+            my ($ref) = $rs->search_rs({}, { order_by => { -desc => 'me.id' }, rows => 1, columns => ['me.id'] })->cursor->all;
+            if ($ref && $ref->[0]) {
+                @id_limit = ('me.id' => { '<=' => $ref->[0] });
             }
         }
         

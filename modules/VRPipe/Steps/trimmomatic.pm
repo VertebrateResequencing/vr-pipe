@@ -75,7 +75,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
             # IF SINGLE END
             if (!$paired_end) {
                 foreach my $seq_file (@{ $self->inputs->{fastq_files} }) {
-                    my ($name) = fileparse($seq_file->basename, ('.fastq'));
+                    my ($name) = fileparse($seq_file->basename, ('.fastq', '.fastq.gz', '.fq', '.fq.gz'));
                     my $out_file = $self->output_file(
                         output_key => 'trimmed_files',
                         basename   => $name . '.trim.fastq',
@@ -99,7 +99,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                 # expect a list of paired end files,  fastq.1 fastq.2 ..
                 my $it = natatime 2, @input_files;
                 while (my @pair = $it->()) {
-                    my ($name1) = fileparse($pair[0]->basename, ('.fastq'));
+                    my ($name1) = fileparse($pair[0]->basename, ('.fastq', '.fastq.gz', '.fq.gz', '.fq'));
                     my $out_file_1 = $self->output_file(
                         output_key => 'trimmed_files',
                         basename   => $name1 . '.paired.trim.fastq',
@@ -114,7 +114,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                         metadata   => $pair[0]->metadata
                     );
                     
-                    my ($name2) = fileparse($pair[1]->basename, ('.fastq'));
+                    my ($name2) = fileparse($pair[1]->basename, ('.fastq', '.fastq.gz', '.fq', '.fq.gz'));
                     my $out_file_3 = $self->output_file(
                         output_key => 'trimmed_files',
                         basename   => $name2 . '.paired.trim.fastq',

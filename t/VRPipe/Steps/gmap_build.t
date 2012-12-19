@@ -28,8 +28,9 @@ my $setup = VRPipe::PipelineSetup->create(
       #options     => {  gmap_build_kmer_size => 15, gmap_build_fasta_files => file(qw(t data sacCer3 chr1.fa.gz))->absolute }
 );
 
-my @output_subdirs = output_subdirs(1);
-my $outputfile_1 = file(@output_subdirs, '1_gmap_build', 'mygenome', 'mygenome.chromosome');
+#my @output_subdirs = output_subdirs(1);
+#my $outputfile_1 = file(@output_subdirs, '1_gmap_build', 'mygenome', 'mygenome.chromosome');
+my $outputfile_1 = file(qw(t data sacCer3 gmap_build mygenome mygenome.chromosome));
 my @outputfiles;
 push(@outputfiles, $outputfile_1);
 
@@ -38,4 +39,3 @@ my $testfilecontents   = file(qw(t data gmap_build_sacCer3_chrI.chromosome))->sl
 my $outputfilecontents = $outputfile_1->slurp;
 is($testfilecontents, $outputfilecontents, "output file contain expected data");
 finish;
-

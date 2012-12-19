@@ -23,6 +23,11 @@ foreach my $stepmember ($pipeline->step_members) {
 }
 is_deeply \@s_names, [qw(calculate_bam_spatial_filter apply_bam_spatial_filter)], 'the pipeline has the correct steps';
 
+# ref genome must be an absolute path
+my $original_ref_fa = VRPipe::File->create(path => file(qw(t data S_suis_P17.fa))->absolute);
+my $ref_fa = VRPipe::File->create(path => file($output_dir, 'S_suis_P17.fa')->absolute);
+$original_ref_fa->copy($ref_fa);
+
 my $pipelinesetup = VRPipe::PipelineSetup->create(
     name       => 'bam_spatial_filter',
     datasource => VRPipe::DataSource->create(
@@ -35,7 +40,9 @@ my $pipelinesetup = VRPipe::PipelineSetup->create(
     pipeline    => $pipeline,
     options     => {
         spatial_filter_exe => '/software/solexa/bin/pb_calibration/v9.0/spatial_filter',
+        reference_fasta  => $ref_fa->path,
         tag_number => 0,
+        mark_qcfail => 0,
         cleanup => 0,
     }
 );

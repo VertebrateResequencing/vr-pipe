@@ -38,9 +38,8 @@ ok handle_pipeline(@zip), 'fastqc_quality_report pipeline ran ok, generating the
 
 # -- check content of fastqc_data.txt
 # Get output file
-my $zip = Archive::Zip->new($outputfile->stringify);
-
-my $fh = Archive::Zip::MemberRead->new($zip, "2822_6_1_fastqc/fastqc_data.txt");
+my $zip                = Archive::Zip->new($outputfile->stringify);
+my $fh                 = Archive::Zip::MemberRead->new($zip, "2822_6_1_fastqc/fastqc_data.txt");
 my $outputfile_content = '';
 my $line;
 while (defined($line = $fh->getline())) {

@@ -67,15 +67,15 @@ class VRPipe::Steps::fastqc_quality_report with VRPipe::StepRole {
                 my ($name) = fileparse($seq_file->basename, ('.fastq', '.fastq.gz', '.fq', '.fq.gz'));
                 my $report_file = $self->output_file(
                     output_key => 'fastq_report_file',
-                    output_dir => $seq_file->dir,
-                    basename   => $name . '_fastqc.zip',
-                    type       => 'bin',
-                    metadata   => $seq_file->metadata
+                    #output_dir => $seq_file->dir,
+                    basename => $name . '_fastqc.zip',
+                    type     => 'bin',
+                    metadata => $seq_file->metadata
                 );
                 my $seq_file_path   = $seq_file->path;
                 my $report_file_dir = $report_file->path->dir;
                 my $cmd             = qq[$fastqc_exe_path_with_interpreter --noextract $seq_file_path --outdir $report_file_dir];
-                $self->dispatch([$cmd, $req, { output_files => [$report_file], block_and_skip_if_ok => 1 }]);
+                $self->dispatch([$cmd, $req, { output_files => [$report_file] }]);
             }
         };
     }
