@@ -60,7 +60,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     
-    our $VERSION = 26;
+    our $VERSION = 27;
     __PACKAGE__->load_classes({
             'VRPipe' => [
                 qw/Step Scheduler Job Requirements
@@ -74,7 +74,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                   DataElementState DataElementLink
                   LocalSchedulerJob
                   LocalSchedulerJobState
-                  StepStats FarmServer Runner MessageTracker/
+                  StepStats FarmServer Runner MessageTracker
+                  SubmissionQueue/
             ]
         }
     );

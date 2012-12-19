@@ -153,6 +153,7 @@ sub start {
 sub start_server {
     # initialize the VRPipe backend
     $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+    my $dtf = $backend->schema->storage->datetime_parser;
     
     # daemonize unless we're not supposed to
     $backend->daemonize unless $foreground;
@@ -193,7 +194,7 @@ sub start_server {
     
     # setup the submission management system if we're supposed to
     my ($farm_server, $farm_watcher, $handler_path, $scheduler, $still_working);
-    my $fork_alarm_time = $deployment eq 'production' ? 900 : 90;
+    my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
     my $survival_time;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle
@@ -283,9 +284,104 @@ sub start_server {
                         # make sure we have sufficient submission handlers
                         # running...
                         
-                        # get the count of requirements
+                        # get the count of requirements. Sadly we can't do a
+                        # quick cursor->all because we need to take into account
+                        # step limits. We also build a queue of submissions so
+                        # that when the submission handlers run, the db query
+                        # they need to do is very simple and quick
                         my $sched_id = $scheduler->id;
-                        my $req_counts = [VRPipe::Submission->search_rs({ -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], '_done' => { '!=' => 1 }, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
+                        #my $req_counts = [VRPipe::Submission->search_rs({ -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], '_done' => { '!=' => 1 }, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
+                        my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => { stepstate => 'pipelinesetup' }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
+                        
+                        my (%req_counts, %step_limits, %step_counts, %completed_setups, @queue_args, %subs_to_run);
+                        while (my $subs = $sub_pager->next(no_resetting => 1)) {
+                            foreach my $sub (@$subs) {
+                                #*** ignore subs for setups with 0 dataelements?
+                                #    on the one hand it's really confusing in
+                                #    vrpipe-status to not see anything running
+                                #    but have lots of stuff in the job
+                                #    scheduler. On the other hand, it's nice to
+                                #    have those submissions handled while we
+                                #    wait for dataelements to reappear...
+                                
+                                # if the job is a block_and_skip_if_ok job, we
+                                # don't actually block because of race condition
+                                # issues, and because of fail and restart
+                                # issues. Instead we always only actually queue
+                                # if this submission is the first incomplete
+                                # submission created for this $job.
+                                my $job = $sub->job;
+                                if ($job->block_and_skip_if_ok) {
+                                    my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
+                                    next unless ($first_sub && $first_sub->id == $sub->id);
+                                }
+                                
+                                # global step limit handling
+                                my $step    = $sub->stepstate->stepmember->step;
+                                my $step_id = $step->id;
+                                my $step_limit;
+                                if (exists $step_limits{$step_id}) {
+                                    $step_limit = $step_limits{$step_id};
+                                }
+                                else {
+                                    # figure out what the step limit is, if any,
+                                    # by checking the config of every incomplete
+                                    # & active setup that uses the step
+                                    my @setups = VRPipe::PipelineSetup->search({ active => 1, 'step.id' => $step_id }, { join => { 'pipeline' => { 'stepmembers' => 'step' } } });
+                                    if (@setups) {
+                                        my $step_name = $step->name;
+                                        foreach my $setup (@setups) {
+                                            unless (exists $completed_setups{ $setup->id }) {
+                                                $completed_setups{ $setup->id } = $setup->currently_complete;
+                                            }
+                                            next if $completed_setups{ $setup->id };
+                                            my $setup_limit = $setup->options->{ $step_name . '_max_simultaneous' } || next;
+                                            if (!defined $step_limit || $setup_limit < $step_limit) {
+                                                $step_limit = $setup_limit;
+                                            }
+                                        }
+                                    }
+                                    if (!defined $step_limit) {
+                                        # also check the step itself for a limit
+                                        $step_limit = $step->max_simultaneous;
+                                    }
+                                    $step_limits{$step_id} = $step_limit || 0;
+                                    
+                                    if ($step_limit) {
+                                        # see how many of this step are currently
+                                        # running, globally
+                                        $step_counts{$step_id} = VRPipe::Submission->search({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0, 'job.heartbeat' => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } }, { join => ['job', { stepstate => 'stepmember' }] });
+                                    }
+                                }
+                                if ($step_limit) {
+                                    next if $step_counts{$step_id} >= $step_limits{$step_id};
+                                }
+                                
+                                # we'll want to make sure there'll be a
+                                # handler for this one
+                                my $req_id = $sub->requirements->id;
+                                $req_counts{$req_id}++;
+                                $step_counts{$step_id}++;
+                                
+                                # and it should be fast for the handler to
+                                # know it is supposed to run this sub, so we
+                                # develop a simple queue
+                                my $sub_id = $sub->id;
+                                push(@queue_args, { farm => $farm, req_id => $req_id, sub_id => $sub_id });
+                                $subs_to_run{$sub_id} = 1;
+                            }
+                        }
+                        
+                        # clear out the submission queue of subs we no longer
+                        # want to be run
+                        foreach my $row (VRPipe::SubmissionQueue->search({ farm => $farm })) {
+                            next if exists $subs_to_run{ $row->sub_id };
+                            $row->delete;
+                        }
+                        
+                        # add to the submission queue for those we do want to be
+                        # run
+                        VRPipe::SubmissionQueue->bulk_create_or_update(@queue_args);
                         
                         # scale the counts according to $max_subs
                         #*** and eventually, we should have a priority system
@@ -293,16 +389,15 @@ sub start_server {
                         #    than others...
                         if ($max_subs) {
                             my $total_count = 0;
-                            foreach my $cols (@$req_counts) {
-                                $total_count += $cols->[1];
+                            foreach my $count (values %req_counts) {
+                                $total_count += $count;
                             }
                             
                             if ($total_count > $max_subs) {
                                 my $reducer = $max_subs / $total_count;
-                                foreach my $cols (@$req_counts) {
-                                    my (undef, $count) = @$cols;
-                                    $total_count += $count;
-                                    $cols->[1] = floor($cols->[1] * $reducer);
+                                while (my ($req_id, $count) = each %req_counts) {
+                                    $req_counts{$req_id} = floor($count * $reducer);
+                                    $req_counts{$req_id} ||= 1;
                                 }
                             }
                         }
@@ -310,10 +405,7 @@ sub start_server {
                         # submit the submission handlers, noting which runners
                         # (created by previous ensure_running calls) are still
                         # needed
-                        foreach my $cols (@$req_counts) {
-                            my ($req_id, $count) = @$cols;
-                            next unless $count;
-                            
+                        while (my ($req_id, $count) = each %req_counts) {
                             my $cmd = "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id";
                             
                             $scheduler->ensure_running(

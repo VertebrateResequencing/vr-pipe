@@ -202,6 +202,12 @@ role VRPipe::Base::Configuration::Trait::Object {
                     my $fh = $key_file->openr();
                     $key = <$fh>;
                     $fh->close;
+                    unless (defined $key) {
+                        $self->throw("The encryption key file you specified ($key_file) has something in it, but isn't readable; please make it readable by yourself and the user that will run vrpipe-server.");
+                    }
+                    unless (length($key) == 33) {
+                        $self->throw("The encryption key file you specified ($key_file) has something in it, but the first line doesn't seem to specify a valid key - is it really a key file?");
+                    }
                     chomp($key);
                 }
                 else {

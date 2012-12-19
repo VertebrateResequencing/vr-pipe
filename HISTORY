@@ -1,3 +1,6 @@
+0.125   Fixed step limit handling that got broken in 0.124.
+0.124   Critical fixes to try and lower database load and minimise wasted jobs
+        submitted to the job scheduler.
 0.123   New elements for a setup now get triggered soon after the datasource
         changes, instead of the next time the setup has 0 unfinished
         submissions, resulting in a large speed-up potential.

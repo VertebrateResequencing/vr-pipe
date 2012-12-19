@@ -140,8 +140,8 @@ want to insert/update rows, use bulk_create_or_update().
     foreach my $i (1..1000) {
 	VRPipe::Job->create(cmd => "job $i", dir => '/fake_dir'); # SLOW
     }
-    # collect the arguements you would have given to get() and supply them in a
-    # list to bulk_create_or_update():
+    # collect the arguments you would have given to create() and supply them in
+    # a list to bulk_create_or_update():
     my @job_args;
     foreach my $i (1..1000) {
 	push(@job_args, { cmd => "job $i", dir => '/fake_dir' });
@@ -777,10 +777,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $self->_find_args($search_args, 1, $schema);
             
             # by default we'll order by id for consistency and repeatability
-            #*** actually, the speed penalty is too great to do this blindly
-            #unless ($search_attributes && exists $search_attributes->{order_by}) {
-            #    $search_attributes->{order_by} = { -asc => 'me.id' };
-            #}
+            unless ($search_attributes && exists $search_attributes->{order_by}) {
+                $search_attributes->{order_by} = { -asc => 'me.id' };
+            }
             
             return $rs->search($search_args, $search_attributes ? $search_attributes : ());
         });
