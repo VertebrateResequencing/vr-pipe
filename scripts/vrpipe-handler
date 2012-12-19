@@ -177,6 +177,7 @@ sub handle_setups {
                             $ds->reselect_values_from_db;
                             my $e_before = VRPipe::DataElement->search({ datasource => $ds->id, withdrawn => 0 });
                             my $e_after_pager = $ds->elements;
+                            return unless $e_after_pager; # we changed to having 0 dataelements
                             
                             # if we just got new elements, trigger them for each
                             # setup that uses this ds
