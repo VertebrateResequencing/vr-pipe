@@ -296,6 +296,14 @@ sub start_server {
                         my (%req_counts, %step_limits, %step_counts, %completed_setups, @queue_args, %subs_to_run);
                         while (my $subs = $sub_pager->next(no_resetting => 1)) {
                             foreach my $sub (@$subs) {
+                                #*** ignore subs for setups with 0 dataelements?
+                                #    on the one hand it's really confusing in
+                                #    vrpipe-status to not see anything running
+                                #    but have lots of stuff in the job
+                                #    scheduler. On the other hand, it's nice to
+                                #    have those submissions handled while we
+                                #    wait for dataelements to reappear...
+                                
                                 # if the job is a block_and_skip_if_ok job, we
                                 # don't actually block because of race condition
                                 # issues, and because of fail and restart
@@ -353,6 +361,7 @@ sub start_server {
                                 # handler for this one
                                 my $req_id = $sub->requirements->id;
                                 $req_counts{$req_id}++;
+                                $step_counts{$step_id}++;
                                 
                                 # and it should be fast for the handler to
                                 # know it is supposed to run this sub, so we
