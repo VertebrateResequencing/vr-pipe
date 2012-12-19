@@ -1,3 +1,7 @@
+# version 0.124:
+This version features a database schema change: run vrpipe-db_upgrade after
+installation.
+
 # version 0.121:
 This re-enables the feature discussed in the previous note: this version is safe
 to upgrade to.
