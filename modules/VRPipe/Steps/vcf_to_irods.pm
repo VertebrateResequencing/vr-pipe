@@ -41,8 +41,8 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
         return {
             'irods_root' => VRPipe::StepOption->create( description  => 'irods root path to which to add objects'),
             'has_index' => VRPipe::StepOption->create( description  => 'boolean, indicates vcf has an index which needs also adding to irods', optional => 1, default_value => 1),
-            'study' => VRPipe::StepOption->create( description  => 'study to which vcf belongs, to be added as metadata', optional => 1),
-            'release' => VRPipe::StepOption->create( description  => 'release to which vcf belongs, to be added as metadata', optional => 1),
+            'study' => VRPipe::StepOption->create( description  => 'study to which vcf belongs, to be added as irods metadata, if not found in vcf metadata', optional => 1),
+            'release' => VRPipe::StepOption->create( description  => 'release to which vcf belongs, to be added irods as metadata, if not found in vcf metadata', optional => 1),
         };
     }
 
@@ -133,12 +133,14 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
             $meta_count++;
         }
 
+        $study = $vcf_meta->{study} if $vcf_meta->{study};
         if ($study) {
             @cmd = ("imeta", "add", "-d", "$idir/$basename", "study", "$study");
             system(@cmd) && $self->throw("failed to run '@cmd'");
             $meta_count++;
         }
 
+        $release = $vcf_meta->{release} if $vcf_meta->{release};
         if ($release) {
             @cmd = ("imeta", "add", "-d", "$idir/$basename", "release", "$release");
             system(@cmd) && $self->throw("failed to run '@cmd'");
