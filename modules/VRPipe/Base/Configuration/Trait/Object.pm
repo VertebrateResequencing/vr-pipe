@@ -196,6 +196,9 @@ role VRPipe::Base::Configuration::Trait::Object {
                 unless ($key_file) {
                     $self->throw("Secure config options cannot be set without the encryption_key_file option being set");
                 }
+                if (-d $key_file) {
+                    $self->throw("The encryption key file you specified ($key_file) is a directory; please run this again and answer the question with a file path (the file doesn't have to exist, but it's parent directory should).");
+                }
                 
                 my $key;
                 if (-s $key_file) {
