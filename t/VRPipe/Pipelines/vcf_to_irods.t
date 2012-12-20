@@ -31,9 +31,9 @@ is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps'
 my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     name       => 'my vcf_to_irods pipeline setup',
     datasource => VRPipe::DataSource->create(
-        type   => 'fofn',
+        type   => 'fofn_with_metadata',
         method => 'all',
-        source => file(qw(t data datasource.vcf_fofn))
+        source => file(qw(t data datasource.vcf_fofnwm))
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
@@ -49,6 +49,7 @@ ok handle_pipeline(), 'pipeline ran ok';
 
 my @sample_meta;
 foreach my $vcf ("${irods_root}/7/4/b/6/e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/e/a/4/9/a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
+    system("imeta ls -d $vcf");
     my $sm = `imeta ls -d $vcf sample | grep value`;
     my (undef,$s) = split(/ /,$sm);
     chomp($s);
