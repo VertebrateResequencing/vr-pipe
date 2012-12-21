@@ -6,8 +6,8 @@ VRPipe::Steps::apply_bam_spatial_filter - a step
 =head1 DESCRIPTION
 
 Runs spatial_filter to apply previously generated filter file to a set of bams.
-Generates either filtered bams, or files with problematic reads marked with the
-QC fail bit 0x200 (default).
+Generates either filtered bams (default), or files with problematic reads marked with the
+QC fail bit 0x200.
 
 =head1 AUTHOR
 
@@ -88,17 +88,18 @@ class VRPipe::Steps::apply_bam_spatial_filter extends VRPipe::Steps::bamcheck {
                 $basename =~ s/\.bam/.spfilt.bam/;
                 my $out_file = $self->output_file(output_key => 'filtered_bams', basename => $basename, type => 'bam', metadata => $bam_file->metadata);
                 my $out_path = $out_file->path;
+                my $out_log = $self->output_file(output_key => 'filter_logs', basename => "$basename.log", type => 'txt');
 
                 my $qc_fail = $mark_qcfail ? '-f ' : '';
                 
                 my $cmd = qq[use VRPipe::Steps::apply_bam_spatial_filter; VRPipe::Steps::apply_bam_spatial_filter->apply_filter(bam_path => q[$bam_path], out_path => q[$out_path], spatial_filter_exe => '$spatial_filter_exe', qc_fail => '$qc_fail', filter_path => '$filter_path', bamcheck_exe => '$bamcheck_exe', bc_opts => '$bc_opts');];
 
                 if ($mark_qcfail) {
-                    $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file] });
+                    $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file, $out_log] });
                 }
                 else {
                     my $check_file = $self->output_file(output_key => 'bamcheck_files', basename => $out_file->basename . '.bamcheck', type => 'txt');
-                    $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file, $check_file] });
+                    $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file, $out_log, $check_file] });
                 }
             }
         
@@ -109,7 +110,12 @@ class VRPipe::Steps::apply_bam_spatial_filter extends VRPipe::Steps::bamcheck {
         return {
             filtered_bams => VRPipe::StepIODefinition->create(
                 type        => 'bam',
-                description => 'bam with spatially correlated errors either Wc fialed ot filtered out',
+                description => 'bam with spatially correlated errors either QC failed or filtered out',
+                max_files   => -1
+            ),
+            filter_logs => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'spatial filter log',
                 max_files   => -1
             ),
             bamcheck_files => VRPipe::StepIODefinition->create(
@@ -139,25 +145,48 @@ class VRPipe::Steps::apply_bam_spatial_filter extends VRPipe::Steps::bamcheck {
 
     method apply_filter (ClassName|Object $self: Str|File :$bam_path!, Str|File :$out_path!, Str :$spatial_filter_exe!, Str :$qc_fail!, Str|File :$filter_path!, Str :$bamcheck_exe!, Str :$bc_opts! ) {
 
-        my $cmd_line = "$spatial_filter_exe -a -F $filter_path $qc_fail $bam_path > $out_path";
+        my $cmd_line = "$spatial_filter_exe -a -F $filter_path $qc_fail $bam_path > $out_path 2>$out_path.log";
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
 
         my $in_file  = VRPipe::File->get(path => $bam_path);
         my $out_file = VRPipe::File->get(path => $out_path);
-            
+        my $log_file = VRPipe::File->get(path => "$out_path.log");
+
         if ($qc_fail) { # not null, check record count, no need to rebuild metadata
             
             $out_file->update_stats_from_disc(retries => 3);
-            my $expected_reads = $in_file->num_records;
-            my $actual_reads   = $out_file->num_records;
+            my $expected_recs = $in_file->num_records;
+            my $actual_recs   = $out_file->num_records;
             
-            unless ($actual_reads == $expected_reads) {
-                $self->throw("cmd [$cmd_line] failed, $actual_reads reads in the output bam, $expected_reads reads in the original bam");
+            unless ($actual_recs == $expected_recs) {
+                $self->throw("cmd [$cmd_line] failed, $actual_recs recs in the output bam, $expected_recs recs in the original bam");
             }
         }
         else {
+
             VRPipe::Steps::bamcheck->stats_from_bamcheck("$bamcheck_exe $bc_opts $out_path > $out_path.bamcheck");
-        }
+
+            # Reconcile read counts before and after filtering with log
+            my $reads_before = $in_file->metadata->{reads};
+
+            $out_file->reselect_values_from_db; # force metadata refresh
+            my $reads_after = $out_file->metadata->{reads};
+
+            $log_file->update_stats_from_disc(retries => 3);
+            my $logh = $log_file->openr;
+            my ($processed,$removed);
+            while (my $line = <$logh>) {
+                if ($line =~ /Processed\s+(\d+) traces/) {
+                    $processed = $1;
+                }
+                if ($line =~ /Removed\s+(\d+) traces/) {
+                    $removed = $1;
+                }
+            }
+            $self->throw("Cannot parse $out_path.log") unless defined $processed && defined $removed;
+            $self->throw("Faied to reconcile read counts: before - after [$reads_before - $reads_after] not equal to filtered $removed") unless $reads_before - $reads_after == $removed;
+                
+            }
         return 1;
     }
     
