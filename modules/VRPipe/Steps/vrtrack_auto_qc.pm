@@ -390,27 +390,26 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         
         # Maximimum indels per cycle, check if the highest indels per cycle is bigger than Nx the median, where N is the parameter
         if (defined $auto_qc_max_ic_above_median) {
-
             $status = 1;
             $reason = "All indels per cycle less then ${auto_qc_max_ic_above_median}X of the median";
-
+            
             # Get median and max of indel fwd/rev cycle counts
             my $counts = $bc->indel_cycles();
-            my (@vals,@med,@max);
+            my (@vals, @med, @max);
             for my $row (@$counts) {
-                for (my $i=0; $i<4; $i++) {
-                    push @{$vals[$i]}, $$row[$i+1];
+                for (my $i = 0; $i < 4; $i++) {
+                    push @{ $vals[$i] }, $$row[$i + 1];
                 }
             }
-            for (my $i=0; $i<4; $i++) {
-                my @sorted = sort { $a<=>$b } @{$vals[$i]};
+            for (my $i = 0; $i < 4; $i++) {
+                my @sorted = sort { $a <=> $b } @{ $vals[$i] };
                 my $n = int(scalar @sorted / 2);
                 $med[$i] = $sorted[$n];
                 $max[$i] = $sorted[-1];
             }
-
-            for (my $i=0; $i<4; $i++) {
-                if ( $max[$i] > $auto_qc_max_ic_above_median*$med[$i] ) {
+            
+            for (my $i = 0; $i < 4; $i++) {
+                if ($max[$i] > $auto_qc_max_ic_above_median * $med[$i]) {
                     $status = 0;
                     $reason = "Some indels per cycle exceed ${auto_qc_max_ic_above_median}X of the median";
                 }
@@ -527,7 +526,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         my $ndata       = scalar @$vals;
         my $total_count = 0;
         my $max         = 0;
-        for (my $i = 1; $i < $ndata; $i++) {    # skip IS=0
+        for (my $i = 1; $i < $ndata; $i++) {   # skip IS=0
             my $xval = $$vals[$i][0];
             my $yval = $$vals[$i][1];
             
@@ -541,7 +540,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         # see how many reads are within the max peak range
         $maxpeak_range *= 0.01;
         $count = 0;
-        for (my $i = 1; $i < $ndata; $i++) {    # skip IS=0
+        for (my $i = 1; $i < $ndata; $i++) { # skip IS=0
             my $xval = $$vals[$i][0];
             my $yval = $$vals[$i][1];
             
@@ -551,14 +550,14 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         }
         my $out_amount = 100 * $count / $total_count;
         
-        # how big must be the range in order to accomodate the requested amount
+        # how big must be the range in order to accommodate the requested amount
         # of data
         $data_amount *= 0.01;
         my $idiff = 0;
         $count = $$vals[$imaxpeak][1];
         while ($count / $total_count < $data_amount) {
             $idiff++;
-            if ($idiff < $imaxpeak)          { $count += $$vals[$imaxpeak - $idiff][1]; }   # skip IS=0
+            if ($idiff < $imaxpeak)          { $count += $$vals[$imaxpeak - $idiff][1]; } # skip IS=0
             if ($idiff + $imaxpeak < $ndata) { $count += $$vals[$imaxpeak + $idiff][1]; }
             
             # this should never happen, unless $data_range is bigger than 100%

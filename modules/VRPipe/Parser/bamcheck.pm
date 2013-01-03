@@ -16,32 +16,33 @@ VRPipe::Parser::bamcheck - parse bamcheck files
     
     # methods that return simple single values corresponding to the SN lines in
     # the bamcheck file:
-    my $val = $pars->sequences();
-    my $val = $pars->is_paired();
-    my $val = $pars->is_sorted();
-    my $val = $pars->first_fragments();
-    my $val = $pars->last_fragments();
-    my $val = $pars->reads_mapped();
-    my $val = $pars->reads_unmapped();
-    my $val = $pars->reads_unpaired();
-    my $val = $pars->reads_paired();
-    my $val = $pars->reads_duplicated();
-    my $val = $pars->reads_mq0();
-    my $val = $pars->total_length();
-    my $val = $pars->bases_mapped();
-    my $val = $pars->bases_mapped_cigar();
-    my $val = $pars->bases_trimmed();
-    my $val = $pars->bases_duplicated();
-    my $val = $pars->mismatches();
-    my $val = $pars->error_rate();
-    my $val = $pars->average_length();
-    my $val = $pars->maximum_length();
-    my $val = $pars->average_quality();
-    my $val = $pars->insert_size_average();
-    my $val = $pars->insert_size_standard_deviation();
-    my $val = $pars->inward_oriented_pairs();
-    my $val = $pars->outward_oriented_pairs();
-    my $val = $pars->pairs_with_other_orientation();
+    my $val = $pars->raw_total_sequences();
+    $val = $pars->sequences(); # number of sequences after any -f/F filtering
+    $val = $pars->is_paired();
+    $val = $pars->is_sorted();
+    $val = $pars->first_fragments();
+    $val = $pars->last_fragments();
+    $val = $pars->reads_mapped();
+    $val = $pars->reads_unmapped();
+    $val = $pars->reads_unpaired();
+    $val = $pars->reads_paired();
+    $val = $pars->reads_duplicated();
+    $val = $pars->reads_mq0();
+    $val = $pars->total_length();
+    $val = $pars->bases_mapped();
+    $val = $pars->bases_mapped_cigar();
+    $val = $pars->bases_trimmed();
+    $val = $pars->bases_duplicated();
+    $val = $pars->mismatches();
+    $val = $pars->error_rate();
+    $val = $pars->average_length();
+    $val = $pars->maximum_length();
+    $val = $pars->average_quality();
+    $val = $pars->insert_size_average();
+    $val = $pars->insert_size_standard_deviation();
+    $val = $pars->inward_oriented_pairs();
+    $val = $pars->outward_oriented_pairs();
+    $val = $pars->pairs_with_other_orientation();
     
     # COV lines give the coverage:
     my $cov_hash = $pars->coverage(); # keys are coverage in bp, vals are counts
@@ -96,6 +97,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
+    has 'raw_total_sequences' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_raw_total_sequences'
+    );
+    
     has 'sequences' => (
         is     => 'ro',
         isa    => 'Int',
@@ -422,9 +429,8 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                 my $value       = $2;
                 my $orig_method = $method;
                 $method =~ s/\s+/_/g;
-                $method = 'first_fragments' if $method eq '1st_fragments';
-                $method = 'bases_mapped_cigar'
-                  if $method eq 'bases_mapped_(cigar)';
+                $method = 'first_fragments'    if $method eq '1st_fragments';
+                $method = 'bases_mapped_cigar' if $method eq 'bases_mapped_(cigar)';
                 $method = lc('_' . $method);
                 unless ($self->can($method)) {
                     $self->warn("unexpected SN line $orig_method");

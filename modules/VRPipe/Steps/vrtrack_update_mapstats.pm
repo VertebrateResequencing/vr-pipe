@@ -122,7 +122,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 # fill in the mapstats based on our bam metadata
                 my $meta_key_prefix = $targets_mode ? 'targeted_' : '';
                 
-                $mapstats->raw_reads($meta->{ $meta_key_prefix . 'reads' });
+                $mapstats->raw_reads($meta->{ $meta_key_prefix . 'filtered_reads' } || $meta->{ $meta_key_prefix . 'reads' });
                 my $raw_bases = $meta->{ $meta_key_prefix . 'bases' };
                 $mapstats->raw_bases($raw_bases);
                 $mapstats->reads_mapped($meta->{ $meta_key_prefix . 'reads_mapped' });
