@@ -1,3 +1,6 @@
+0.126   Fixed spurious error messages when a setup changes to having 0 elements.
+        Improved error messages for missing input/output files. vrtrack_auto_qc
+        step updated to work with latest bamcheck.
 0.125   Fixed step limit handling that got broken in 0.124.
 0.124   Critical fixes to try and lower database load and minimise wasted jobs
         submitted to the job scheduler.
