@@ -320,6 +320,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     # the same as the other other stepstate's
                                     $state->same_submissions_as($same_as_us);
                                     $state->update;
+                                    
+                                    # now redo the loop; we probably already
+                                    # completed this step
+                                    redo;
                                 }
                                 else {
                                     # create new submissions for the relevant
