@@ -156,7 +156,8 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             # do something like have 'reads' metadata be only for targeted
             # regions, since that is used when processing bams to ensure no
             # truncation
-            $new_meta->{ $hash_key_prefix . 'reads' }            = $parser->sequences;
+            $new_meta->{ $hash_key_prefix . 'reads' }            = $parser->raw_total_sequences || $parser->sequences;
+            $new_meta->{ $hash_key_prefix . 'filtered_reads' }   = $parser->sequences;
             $new_meta->{ $hash_key_prefix . 'reads_mapped' }     = $parser->reads_mapped;
             $new_meta->{ $hash_key_prefix . 'bases' }            = $parser->total_length;
             $new_meta->{ $hash_key_prefix . 'bases_mapped' }     = $parser->bases_mapped;
