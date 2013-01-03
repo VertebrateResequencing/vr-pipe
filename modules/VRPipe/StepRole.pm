@@ -395,7 +395,7 @@ role VRPipe::StepRole {
     }
     
     method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {
-        my @missing;
+        my (@missing, @messages);
         # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
             my $def     = $defs->{$key};
@@ -412,6 +412,7 @@ role VRPipe::StepRole {
                     $resolved->update_stats_from_disc(retries => 3);
                     unless ($resolved->s) {
                         push(@missing, $file->path);
+                        push(@messages, $file->path . ($resolved->e ? " does not exist." : " is an empty file."));
                     }
                     elsif ($file->id != $resolved->id) {
                         $file->update_stats_from_disc;
@@ -424,7 +425,7 @@ role VRPipe::StepRole {
                     if ($check_s) {
                         my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
                         unless ($type->check_type) {
-                            $self->warn($resolved->path . " exists, but is the wrong type!");
+                            push(@messages, $resolved->path . " exists, but is the wrong type!");
                             $bad = 1;
                         }
                     }
@@ -436,7 +437,7 @@ role VRPipe::StepRole {
                             my $meta = $file->metadata;
                             foreach my $key (@needed) {
                                 unless (exists $meta->{$key}) {
-                                    $self->warn($file->path . " exists, but lacks metadata key $key, needed by def " . $def->id . "!");
+                                    push(@messages, $file->path . " exists, but lacks required metadata key $key!");
                                     $bad = 1;
                                 }
                             }
@@ -450,7 +451,7 @@ role VRPipe::StepRole {
             }
         }
         
-        return @missing;
+        return (\@missing, \@messages);
     }
     
     method missing_input_files {
@@ -554,11 +555,11 @@ role VRPipe::StepRole {
         # if we have missing input files, check to see if some other step
         # created them, and start those steps over in the hopes the files will
         # be recreated; otherwise throw
-        my @missing = $self->missing_input_files;
-        if (@missing) {
+        my ($missing, $messages) = $self->missing_input_files;
+        if (@$missing) {
             my $with_recourse = 0;
             my %states_to_restart;
-            foreach my $path (@missing) {
+            foreach my $path (@$missing) {
                 my $file = VRPipe::File->get(path => $path);
                 my $resolved = $file->resolve;
                 next if $resolved->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
@@ -575,7 +576,7 @@ role VRPipe::StepRole {
                 }
             }
             
-            if ($with_recourse == @missing) {
+            if ($with_recourse == @$missing) {
                 while (my ($state_id, $files) = each %states_to_restart) {
                     #*** would have to make inactive pipeline active as well...
                     #    how to make sure Manager parses this step soon?...
@@ -589,7 +590,7 @@ role VRPipe::StepRole {
             }
             else {
                 my $step_state = $self->step_state;
-                $self->throw("Required input files are missing for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "): [@missing]");
+                $self->throw("There is a problem with the input files for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "):\n" . join("\n", @$messages));
             }
         }
         
@@ -626,11 +627,11 @@ role VRPipe::StepRole {
         my $debug_desc = "step " . $self->name . " failed for dataelement " . $self->data_element->id . " and setup " . $self->step_state->pipelinesetup->id . " (stepstate " . $stepstate->id . ")";
         
         if ($ok) {
-            my @missing = $self->missing_output_files;
+            my ($missing, $messages) = $self->missing_output_files;
             $stepstate->unlink_temp_files;
-            if (@missing) {
+            if (@$missing) {
                 $stepstate->start_over;
-                $self->warn("Some output files are missing (@missing) for $debug_desc, so the stepstate was started over");
+                $self->warn("There was a problem with the output files for $debug_desc, so the stepstate was started over:\n" . join("\n", @$messages));
             }
             else {
                 return 1;

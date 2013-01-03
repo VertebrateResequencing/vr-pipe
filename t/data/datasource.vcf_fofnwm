@@ -1,0 +1,3 @@
+path	study	release
+t/data/test1.vcf.gz		
+t/data/test2.vcf.gz	STUDY2	RELEASE2

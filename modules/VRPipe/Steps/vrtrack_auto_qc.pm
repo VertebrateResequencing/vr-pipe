@@ -527,7 +527,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         my $ndata       = scalar @$vals;
         my $total_count = 0;
         my $max         = 0;
-        for (my $i = 0; $i < $ndata; $i++) {
+        for (my $i = 1; $i < $ndata; $i++) {    # skip IS=0
             my $xval = $$vals[$i][0];
             my $yval = $$vals[$i][1];
             
@@ -541,7 +541,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         # see how many reads are within the max peak range
         $maxpeak_range *= 0.01;
         $count = 0;
-        for (my $i = 0; $i < $ndata; $i++) {
+        for (my $i = 1; $i < $ndata; $i++) {    # skip IS=0
             my $xval = $$vals[$i][0];
             my $yval = $$vals[$i][1];
             
@@ -558,7 +558,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         $count = $$vals[$imaxpeak][1];
         while ($count / $total_count < $data_amount) {
             $idiff++;
-            if ($idiff <= $imaxpeak)         { $count += $$vals[$imaxpeak - $idiff][1]; }
+            if ($idiff < $imaxpeak)          { $count += $$vals[$imaxpeak - $idiff][1]; }   # skip IS=0
             if ($idiff + $imaxpeak < $ndata) { $count += $$vals[$imaxpeak + $idiff][1]; }
             
             # this should never happen, unless $data_range is bigger than 100%
@@ -568,7 +568,6 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         my $out_range2 = $idiff + $imaxpeak < $ndata ? $$vals[$imaxpeak + $idiff][0] - $$vals[$imaxpeak][0] : $$vals[-1][0] - $$vals[$imaxpeak][0];
         if ($out_range2 > $out_range) { $out_range = $out_range2; }
         $out_range = 100 * $out_range / $$vals[$imaxpeak][0];
-        
         return ($out_amount, $out_range);
     }
 }
