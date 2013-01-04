@@ -1,3 +1,5 @@
+0.128   Critical speed improvement for pipelines with one or more "block and
+        skip" steps. Improved step parsing error messages.
 0.127   In concert with the latest version of bamcheck, the bam import and
         improvement pipelines can now cope with the use of bamcheck -f/F.
 0.126   Fixed spurious error messages when a setup changes to having 0 elements.
