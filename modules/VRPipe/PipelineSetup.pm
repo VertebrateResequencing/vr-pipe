@@ -225,6 +225,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         next;
                     }
                     
+                    my $error_ident = 'step ' . $step->name . " for setup $setup_id (dataelement " . $element->id . ', stepstate ' . $state->id . ')';
+                    
                     # have we previously done the dispatch dance and are
                     # currently waiting on submissions to complete?
                     my @submissions = $state->submissions;
@@ -235,8 +237,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             eval { # (try catch not used because stupid perltidy is stupid)
                                 $ok = $step->post_process();
                             };
+                            
                             if ($@ && !$error_message) {
-                                $error_message = "When trying to post process step " . $step->name . " for setup $setup_id we hit the following error:\n$@";
+                                $error_message = "When trying to post process $error_ident we hit the following error:\n$@";
                             }
                             
                             if ($ok) {
@@ -249,7 +252,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 # have discovered its output files are missing
                                 # and restarted itself
                                 unless ($error_message) {
-                                    $error_message = "When trying to post process step " . $step->name . " for setup $setup_id, the submissions completed, but post processing failed";
+                                    $error_message = "When trying to post process $error_ident, the submissions completed, but post processing failed";
                                 }
                             }
                         }
@@ -261,7 +264,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             my $other_state = $state->same_submissions_as;
                             my $other_setup = $other_state->pipelinesetup;
                             unless ($other_setup->active) {
-                                $error_message = "The submissions for step " . $step->name . " for setup $setup_id were first created by setup " . $other_setup->id . ", but that setup is no longer active, so $setup_id is stalled!";
+                                $error_message = "The submissions for $error_ident were first created by setup " . $other_setup->id . ", but that setup is no longer active, so $setup_id is stalled!";
                             }
                             # else, is it safe to assume the submissions of this
                             # other setup are really running?
@@ -276,7 +279,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         }
                         catch ($err) {
                             unless ($error_message) {
-                                $error_message = "When trying to parse step " . $step->name . " for setup $setup_id we hit the following error:\n$err";
+                                $error_message = "When trying to parse $error_ident we hit the following error:\n$err";
                             }
                             last;
                         }
@@ -320,6 +323,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     # the same as the other other stepstate's
                                     $state->same_submissions_as($same_as_us);
                                     $state->update;
+                                    
+                                    # now redo the loop; we probably already
+                                    # completed this step
+                                    redo;
                                 }
                                 else {
                                     # create new submissions for the relevant
@@ -340,7 +347,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 # it is possible for a parse to result in a
                                 # different step being started over because
                                 # input files were missing
-                                $self->debug("step " . $step->id . " for data element " . $element->id . " for pipeline setup " . $self->id . " neither completed nor dispatched anything!");
+                                $self->debug("$error_ident neither completed nor dispatched anything!");
                             }
                         }
                     }
