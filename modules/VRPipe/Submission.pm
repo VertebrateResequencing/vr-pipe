@@ -385,6 +385,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method _std_parser (VRPipe::File $file, Str $type) {
+        # these files have a habit of disappearing?? Just check with disc that
+        # they really exist
+        $file->update_stats_from_disc;
         $file->s || return;
         return VRPipe::Parser->create($type, { file => $file->path }); # in case $file is not type $type, we send the path, not the object
     }
