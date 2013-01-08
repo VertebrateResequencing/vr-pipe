@@ -260,6 +260,10 @@ role VRPipe::Base::FileMethods {
 =cut
     
     method concatenate (VRPipe::File $source, VRPipe::File $destination, Bool :$unlink_source = 0, PositiveInt :$max_lines?, Bool :$add_marker = 1) {
+        # it's important that we have up-to-date e and s for source and dest
+        $source->update_stats_from_disc;
+        $destination->update_stats_from_disc;
+        
         my $copy_over = $source->s;
         if ($destination->s) {
             if ($add_marker) {
