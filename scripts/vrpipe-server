@@ -231,7 +231,8 @@ sub start_server {
                     }
                     
                     $backend->log("Submission management started for farm $farm");
-                    $handler_path  = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
+                    $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
+                    $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
                     $scheduler     = VRPipe::Scheduler->create();
                     $survival_time = $farm_server->survival_time;
                     
