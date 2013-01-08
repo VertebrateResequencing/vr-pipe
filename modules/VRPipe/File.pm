@@ -312,11 +312,17 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         else {
             if ($mode eq '<' && $backwards) {
-                my $rs       = $type->record_separator;
-                my @frb_args = ($path);
-                push(@frb_args, $rs) if $rs;
-                tie(*BW, 'File::ReadBackwards', @frb_args);
-                $fh = \*BW;
+                # we'll open it with File::ReadBackwards, but first check it can
+                # opened normally
+                my $ok = open(my $testfh, '<', $path);
+                if ($ok) {
+                    close($testfh);
+                    my $rs       = $type->record_separator;
+                    my @frb_args = ($path);
+                    push(@frb_args, $rs) if $rs;
+                    tie(*BW, 'File::ReadBackwards', @frb_args);
+                    $fh = \*BW;
+                }
             }
             else {
                 my @args = ($mode);
