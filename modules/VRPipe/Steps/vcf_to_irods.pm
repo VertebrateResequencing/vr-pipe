@@ -101,12 +101,15 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
         # eg 198f9d136fcd9b7f83b3bf32dc25f181: /uk10k/uk10k/STUDY/1/9/8/f/d136fcd9b7f83b3bf32dc25f181
 
         my $vcf_meta = $vcf_file->metadata;
+        $study = $vcf_meta->{study} if $vcf_meta->{study};
+        $self->throw("Must provde a study either in metadata or as param") unless $study;
+
         my $md5 = $vcf_meta->{md5};
         $self->throw("Could not get md5 checksum metadata for $input_vcf_path") unless $md5;
 
         my ($md51,$md52,$md53,$md54) = split(//,$md5);
         my $md55=substr($md5,5);
-        my $idir="$irods_root/$md51/$md52/$md53/$md54/$md55";
+        my $idir="$irods_root/$study/$md51/$md52/$md53/$md54/$md55";
 
         #add collection and object
         system("imkdir", "-p", "$idir") && $self->throw("failed to imkdir $idir");
@@ -147,14 +150,11 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
             $meta{sample}{$sample}=0;
         }
 
-        $study = $vcf_meta->{study} if $vcf_meta->{study};
-        if ($study) {
-            @cmd = ("imeta", "add", "-d", "$idir/$basename", "study", "$study");
-            if (system(@cmd)) {
-                $self->throw("failed to run '@cmd'") unless $update;
-            }
-            $meta{"study"}{$study}=0;
+        @cmd = ("imeta", "add", "-d", "$idir/$basename", "study", "$study");
+        if (system(@cmd)) {
+            $self->throw("failed to run '@cmd'") unless $update;
         }
+        $meta{study}{$study}=0;
 
         $release = $vcf_meta->{release} if $vcf_meta->{release};
         if ($release) {
@@ -162,7 +162,7 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
             if (system(@cmd)) {
                 $self->throw("failed to run '@cmd'") unless $update;
             }
-            $meta{"release"}{$release}=0;
+            $meta{release}{$release}=0;
         }
 
         # metadata check
@@ -181,7 +181,6 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
                 $self->throw("Could not get $k1 $k2 metadata for $idir/$basename") unless $meta{$k1}{$k2} > 0;
             }
         }
-
         return 1;
     }
 

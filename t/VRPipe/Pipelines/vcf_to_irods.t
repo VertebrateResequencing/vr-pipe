@@ -15,7 +15,7 @@ BEGIN {
 my $output_dir = get_output_dir('vcf_to_irods_pipeline');
 
 my $irods_root=$ENV{IRODS_TEST_ROOT};
-foreach my $vcf ("${irods_root}/7/4/b/6/e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/e/a/4/9/a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
+foreach my $vcf ("${irods_root}/STUDY2/7/4/b/6/e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/TEST_STUDY/e/a/4/9/a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
     system("irm","$vcf") unless system("ils $vcf >/dev/null 2>&1");
     system("irm","$vcf.tbi") unless system("ils $vcf.tbi >/dev/null 2>&1");
 }
@@ -48,7 +48,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
 ok handle_pipeline(), 'pipeline ran ok';
 
 my @sample_meta;
-foreach my $vcf ("${irods_root}/7/4/b/6/e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/e/a/4/9/a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
+foreach my $vcf ("${irods_root}/STUDY2/7/4/b/6/e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/TEST_STUDY/e/a/4/9/a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
     system("imeta ls -d $vcf");
     my $sm = `imeta ls -d $vcf sample | grep value`;
     my (undef,$s) = split(/ /,$sm);
