@@ -91,10 +91,12 @@ else {
                         next;
                     }
                     
-                    my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
+                    my ($sstate) = VRPipe::StepState->search({ stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup });
+                    $sstate || next;
                     if ($sstate->complete) {
-                        $frontend->error("weird, I meant to get a failed stepstate for estate ", $estate->id, " at step ", ($estate->completed_steps + 1), " but it was complete! Skipping");
-                        next;
+                        $estate->completed_steps($estate->completed_steps + 1);
+                        $estate->update;
+                        redo;
                     }
                     
                     my $found = VRPipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->submission_search_id });
