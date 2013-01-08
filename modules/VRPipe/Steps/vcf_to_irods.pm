@@ -185,7 +185,7 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
     }
 
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 50;
     }
     
 }
