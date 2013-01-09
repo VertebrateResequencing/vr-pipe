@@ -312,11 +312,17 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         else {
             if ($mode eq '<' && $backwards) {
-                my $rs       = $type->record_separator;
-                my @frb_args = ($path);
-                push(@frb_args, $rs) if $rs;
-                tie(*BW, 'File::ReadBackwards', @frb_args);
-                $fh = \*BW;
+                # we'll open it with File::ReadBackwards, but first check it can
+                # opened normally
+                my $ok = open(my $testfh, '<', $path);
+                if ($ok) {
+                    close($testfh);
+                    my $rs       = $type->record_separator;
+                    my @frb_args = ($path);
+                    push(@frb_args, $rs) if $rs;
+                    tie(*BW, 'File::ReadBackwards', @frb_args);
+                    $fh = \*BW;
+                }
             }
             else {
                 my @args = ($mode);
@@ -339,6 +345,8 @@ class VRPipe::File extends VRPipe::Persistent {
             else {
                 # we think the file exists, so sleep a second and try again
                 sleep(1);
+                $self->e($self->check_file_existence_on_disc);
+                $self->update;
                 return $self->open($mode, defined $permissions ? (permissions => $permissions) : (), defined $backwards ? (backwards => $backwards) : (), retry => ++$retry);
             }
         }

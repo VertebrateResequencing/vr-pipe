@@ -56,7 +56,7 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use Email::Sender::Simple;
     use Email::Simple::Creator;
-    use Fcntl qw/ :flock /;
+    use Fcntl qw/:flock SEEK_END/;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -782,9 +782,23 @@ XSL
             my $log_file = $self->log_file;
             my $ok = open(my $fh, ">>", $log_file);
             if ($ok) {
-                $ok = flock $fh, LOCK_EX;
+                my $flock_fail = sub {
+                    $msg     = "Unable to get a lock on log file $log_file.";
+                    $subject = "VRPipe Server message";
+                    undef $email_to;
+                    $email_admin = 1;
+                };
+                local $SIG{ALRM} = $flock_fail;
+                alarm 60;
+                $ok = flock($fh, LOCK_EX);
+                alarm 0;
                 if ($ok) {
+                    seek($fh, 0, SEEK_END);
                     $ok = print $fh $log_msg;
+                    flock($fh, LOCK_UN);
+                }
+                else {
+                    &$flock_fail;
                 }
                 close($fh);
             }

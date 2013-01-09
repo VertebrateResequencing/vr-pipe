@@ -1,3 +1,7 @@
+0.129   VRPipe can now cope better if job stdout/err files are deleted by some
+        external process. A linux-specific work-around has been implemented to
+        get correct memory usage stats on systems where Proc::ProcessTable gives
+        invalid results.
 0.128   Critical speed improvement for pipelines with one or more "block and
         skip" steps. Improved step parsing error messages.
 0.127   In concert with the latest version of bamcheck, the bam import and
