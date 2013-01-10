@@ -98,7 +98,7 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                 $rginfo_cmd .= " RGPU=$platform_unit";
                 my $sample = $self->command_line_safe_string($meta->{$sample_key} || $meta->{sample} || 'unknown_sample');
                 $rginfo_cmd .= " RGSM=$sample";
-                my $centre = $self->command_line_safe_string($meta->{centre_name} || 'unknown_centre');
+                my $centre = $self->command_line_safe_string($meta->{center_name} || 'unknown_centre');
                 $rginfo_cmd .= " RGCN=$centre";
                 my $study = $self->command_line_safe_string($meta->{study} || 'unknown_study');
                 $rginfo_cmd .= " RGDS=$study";
