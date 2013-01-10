@@ -186,10 +186,19 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     );
     
     method _build_cmd_monitor {
-        my $watcher;
-        $watcher = EV::timer_ns 1, 10, sub {
+        my ($watcher, $watcher_count);
+        # for the first 2 minutes, when a cmd is most likely to be quickly
+        # ramping up its memory usage, we update the peak memory every second
+        $watcher = EV::timer_ns 1, 1, sub {
             $self->stop_monitoring if $self->end_time;
             $self->_update_peak_memory;
+            
+            $watcher_count++;
+            if ($watcher_count == 120) {
+                # now when memory usage is probably more stable we update every
+                # 10 seconds
+                $watcher->set(9, 10);
+            }
         };
         return $watcher;
     }
@@ -221,6 +230,12 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 if ($memory > $peak_mem) {
                     $self->peak_memory($memory);
                     $self->update;
+                }
+                if ($memory < 0) {
+                    my $stderr_file = $self->stderr_file;
+                    my $efh         = $stderr_file->open('>>');
+                    print $efh "VRPipe: a bug in Proc::ProcessTable on your system means that we are getting negative RSS values, so we don't really know how much memory this command is using\n";
+                    $stderr_file->close;
                 }
             }
         }
@@ -257,7 +272,25 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             foreach my $p (@{ $ppt->table }) {
                 next if exists $pids_to_skip{ $p->pid };
                 if ($p->pgrp == $pgrp) {
-                    $memory += $p->rss;
+                    my $rss_bytes = $p->rss;
+                    
+                    # $p->rss is unreliable, returning negative or too low
+                    # values when over about 2GB on some 64bit machines; we'll
+                    # have to fall back on assuming this is a typical linux
+                    # machine and manually grep /proc
+                    my $this_pid = $p->pid;
+                    my $grep     = `grep VmRSS /proc/$this_pid/status 2>/dev/null`;
+                    my $grep_bytes;
+                    if ($grep && $grep =~ /(\d+) kB/) {
+                        $grep_bytes = $1 * 1024;
+                    }
+                    
+                    if ($grep_bytes && ($grep_bytes > $rss_bytes)) {
+                        $memory += $grep_bytes;
+                    }
+                    else {
+                        $memory += $rss_bytes;
+                    }
                 }
             }
             
@@ -447,7 +480,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     }
                     
                     my $stderr_file = $self->stderr_file;
-                    my $efh         = $stderr_file->openw;
+                    my $efh         = $stderr_file->open('>>');
                     print $efh $explanation, "\n";
                     $stderr_file->close;
                     

@@ -60,7 +60,7 @@ use VRPipe::Base;
 class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
     method options_definition {
         return {
-            sga_index_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '-d 10'),
+            sga_index_reference_options => VRPipe::StepOption->create(description => 'options to sga index to index the reference fasta file', optional => 1, default_value => '-d 10 -t 4'),
             sga_exe                     => VRPipe::StepOption->create(description => 'path to your sga executable',                            optional => 1, default_value => 'sga')
         };
     }
@@ -85,6 +85,10 @@ class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'sga', version => VRPipe::StepCmdSummary->determine_version($sga_exe, '^Version: (.+)$'), summary => 'sga index ' . $sga_opts . ' $reference_fasta'));
             $cmd .= ' ' . $ref_file->path;
             
+            my ($cpus) = $sga_opts =~ m/-t\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $sga_opts =~ m/--threads (\d+)/;
+            }
             my $prefix = $ref_file->basename;
             $prefix =~ s/\.(fa|fasta)(\.gz)?//;
             unless ($sga_opts =~ '--no-forward') {
@@ -95,7 +99,7 @@ class VRPipe::Steps::sga_index_reference with VRPipe::StepRole {
                 my $bwt_file = $self->output_file(output_key => 'sga_index_binary_files', output_dir => $ref_file->dir->stringify, basename => "$prefix.rbwt", type => 'bin');
                 my $sai_file = $self->output_file(output_key => 'sga_index_text_files',   output_dir => $ref_file->dir->stringify, basename => "$prefix.rsai", type => 'txt');
             }
-            $self->dispatch([$cmd, $self->new_requirements(memory => 16000, time => 1), { block_and_skip_if_ok => 1 }]);
+            $self->dispatch([$cmd, $self->new_requirements(memory => 32000, time => 1, $cpus ? (cpus => $cpus) : ()), { block_and_skip_if_ok => 1 }]);
         };
     }
     
