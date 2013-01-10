@@ -157,7 +157,7 @@ is $vrfile->slurp, "the real file\n", 'slurp also worked on it';
 # test that copy/move fail when the destination disk lacks space
 $vrsource = VRPipe::File->get(path => $source_path);
 my $true_s = $vrsource->s;
-$vrsource->s(9223372036854775);
+$vrsource->s(922337203685477);
 $vrsource->update;
 $vrcopy->unlink;
 throws_ok { $vrsource->copy($vrcopy) } qr/There is not enough disk space available/, 'copy with a file too large for destination throws';
