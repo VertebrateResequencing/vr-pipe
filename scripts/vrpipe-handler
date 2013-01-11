@@ -295,7 +295,7 @@ sub handle_setups {
                             }
                             else {
                                 $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
-                                $error_message = $setup->trigger();
+                                $error_message = $setup->trigger(prepare_elements => 0);
                                 $backend->log("completed the forced full trigger for setup $sid");
                             }
                             unless ($perma_fails) {
