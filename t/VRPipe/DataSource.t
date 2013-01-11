@@ -2,10 +2,12 @@
 use strict;
 use warnings;
 use Path::Class;
+use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 55;
+    use Test::Most tests => 76;
     use VRPipeTest;
+    use TestPipelines;
     
     use_ok('VRPipe::DataSourceFactory');
 }
@@ -261,6 +263,133 @@ foreach my $file (file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'fi
     }
 }
 is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking all method when using the ploidy option';
+
+# test that chained vrpipe datasources update properly as they complete
+{
+    # first create a fofn ds and setup that a vrpipe ds can be based on
+    my $single_step = VRPipe::Step->create(
+        name              => 'a_step',
+        inputs_definition => { the_input => VRPipe::StepIODefinition->create(type => 'any', description => 'the input', max_files => 2) },
+        body_sub          => sub {
+            my $self = shift;
+            my ($input, $input2) = @{ $self->inputs->{the_input} };
+            my $basename = $input->basename;
+            my ($type) = $basename =~ /\.(bam|cat|txt)/;
+            if ($input2) {
+                $basename .= '.' . $input2->basename;
+            }
+            my $ofile = $self->output_file(output_key => 'the_output', basename => $basename . '.o', type => 'txt', metadata => { type => $type });
+            # later on, we don't want the second element of the second setup to
+            # instantly complete, but everything else should
+            if ($basename eq 'file.cat.o') {
+                $self->dispatch("echo foo > " . $ofile->path);
+                return 0;
+            }
+            else {
+                my $fh = $ofile->openw;
+                print $fh "foo\n";
+                $ofile->close;
+                return 1;
+            }
+        },
+        outputs_definition => { the_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'the output', metadata => { type => 'the type' }) },
+        post_process_sub   => sub          { return 1; },
+        description        => 'a step'
+    );
+    
+    my $single_step_pipeline = VRPipe::Pipeline->create(name => 'a_pipeline', description => 'a pipeline');
+    $single_step_pipeline->add_step($single_step);
+    VRPipe::StepAdaptor->create(pipeline => $single_step_pipeline, to_step => 1, adaptor_hash => { the_input => { data_element => 0 } });
+    
+    my $fofn_ds = VRPipe::DataSource->create(
+        type    => 'fofn',
+        method  => 'all',
+        source  => file(qw(t data datasource.fofn))->absolute->stringify,
+        options => {}
+    );
+    
+    my $output_root = get_output_dir('datasource_ps1_output');
+    my $ps1 = VRPipe::PipelineSetup->create(name => 'ps1', datasource => $fofn_ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
+    
+    is $fofn_ds->_changed_marker, undef, 'fofn changed marker starts out undefined';
+    get_elements($fofn_ds);
+    is $fofn_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'fofn changed marker got set after elements call';
+    
+    # now make a vrpipe ds and setup based on the fofn one
+    my $vrpipe_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => {}
+    );
+    
+    my $output_root2 = get_output_dir('datasource_ps2_output');
+    my $ps2 = VRPipe::PipelineSetup->create(name => 'ps2', datasource => $vrpipe_ds, output_root => $output_root2, pipeline => $single_step_pipeline, active => 0);
+    
+    is $vrpipe_ds->_changed_marker, undef, 'vrpipe changed marker starts out undefined';
+    my $ps2_element_count = @{ get_elements($vrpipe_ds) };
+    is $vrpipe_ds->_changed_marker, '2ac25fb69c8eda2a27dd365bd531d13b', 'vrpipe changed marker got set after elements call';
+    is $ps2_element_count, 0, 'since ps1 has completed no elements, ps2 has no elements';
+    
+    # now make a vrpipe ds and setup that relies on both ps1 and ps2
+    my $group_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 'ps1[1]|ps2[1]',
+        options => { metadata_keys => 'type' }
+    );
+    
+    my $output_root3 = get_output_dir('datasource_ps3_output');
+    my $ps3 = VRPipe::PipelineSetup->create(name => 'ps3', datasource => $group_ds, output_root => $output_root3, pipeline => $single_step_pipeline, active => 0);
+    
+    is $group_ds->_changed_marker, undef, 'group changed marker starts out undefined';
+    my $ps3_element_count = @{ get_elements($group_ds) };
+    is $group_ds->_changed_marker, '1ad98ff0de2294b7f085afbe63019bd5', 'group changed marker got set after elements call';
+    is $ps3_element_count, 0, 'since ps1 and ps2 have completed no elements, ps3 has no elements';
+    
+    # complete a single ps1 dataelement
+    my ($ps1_de1, $ps1_de2, $ps1_de3) = VRPipe::DataElement->search({ datasource => $fofn_ds->id });
+    $ps1->trigger(dataelement => $ps1_de1);
+    get_elements($fofn_ds);
+    is $fofn_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'fofn changed marker unchanged after completing 1 ps1 element';
+    $ps2_element_count = @{ get_elements($vrpipe_ds) };
+    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker changed after completing 1 ps1 element';
+    is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
+    $ps3_element_count = @{ get_elements($group_ds) };
+    is $group_ds->_changed_marker, 'aa41d2f4c899fa5b4fc8c0d19f32048f', 'group changed marker changed after completing 1 ps1 element';
+    is $ps3_element_count, 0, 'since ps1 and ps2 are incomplete, ps3 has no elements';
+    
+    # complete a single ps2 dataelement
+    my ($ps2_de1) = VRPipe::DataElement->search({ datasource => $vrpipe_ds->id });
+    $ps2->trigger(dataelement => $ps2_de1);
+    $ps2_element_count = @{ get_elements($vrpipe_ds) };
+    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker unchanged after completing its element';
+    is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
+    $ps3_element_count = @{ get_elements($group_ds) };
+    is $group_ds->_changed_marker, '7cbec880d86bbc41ab65f65fd233d8b8', 'group changed marker changed after completing 1 ps2 element';
+    is $ps3_element_count, 0, 'since ps1 and ps2 are still incomplete, ps3 has no elements';
+    
+    # complete all of ps1, then trigger all 3 setups simultaneously
+    $ps1->trigger;
+    my $fm = Parallel::ForkManager->new(3);
+    foreach my $setup ($ps1, $ps2, $ps3) {
+        $fm->start and next;
+        $setup->trigger();
+        $fm->finish(0);
+    }
+    $fm->wait_all_children;
+    
+    $ps2_element_count = @{ get_elements($vrpipe_ds) };
+    is $vrpipe_ds->_changed_marker, 'efc81219f56d7c2ed7838431e0ebac35', 'vrpipe changed marker changed after ps1 completed';
+    is $ps2_element_count, 3, 'since ps1 has completed 3 elements, ps2 has 3 elements';
+    
+    # there was a bug that meant the following test would fail due to elements
+    # getting created based on just ps1's files, since ps2 got ignored. Due to
+    # timing issues with the parallel forks, it didn't alwas fail though; ps3
+    # needs to trigger fractions of a second after ps2
+    $ps3_element_count = VRPipe::DataElement->search({ datasource => $group_ds->id });
+    is $ps3_element_count, 0, 'since ps2 is still incomplete, ps3 has no elements';
+}
 
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VRTrack::Factory setup
