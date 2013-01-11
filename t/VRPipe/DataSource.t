@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 76;
+    use Test::Most tests => 74;
     use VRPipeTest;
     use TestPipelines;
     
@@ -311,7 +311,6 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     my $output_root = get_output_dir('datasource_ps1_output');
     my $ps1 = VRPipe::PipelineSetup->create(name => 'ps1', datasource => $fofn_ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
     
-    is $fofn_ds->_changed_marker, undef, 'fofn changed marker starts out undefined';
     get_elements($fofn_ds);
     is $fofn_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'fofn changed marker got set after elements call';
     
@@ -393,6 +392,9 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VRTrack::Factory setup
+# (the '_has_changed gives no change' tests were written at a time when
+#  _has_changed did not set _changed_marker, so are a little weird now but were
+#  kept anyway)
 SKIP: {
     my $num_tests = 26;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
@@ -479,8 +481,9 @@ SKIP: {
     $new_lane->update;
     ok($ds->_source_instance->_has_changed, 'vrtrack datasource _has_changed gives change after new lane insertion in test vrtrack db');
     
-    # Go back to unchanged state by deleting this lane. Check we don't have any changes
+    # go back to previous state by deleting this lane
     $new_lane->delete;
+    $ds->_source_instance->_has_changed;
     ok(!$ds->_source_instance->_has_changed, 'vrtrack datasource _has_change gives no change after inserted lane deleted in test vrtrack db');
     
     # add a file to another lane and check for changes
@@ -509,6 +512,7 @@ SKIP: {
     $lane_to_add_file_for->auto_qc_status('no_qc');
     $lane_to_add_file_for->qc_status('no_qc');
     $lane_to_add_file_for->update;
+    $ds->_source_instance->_has_changed;
     is $ds->_source_instance->_has_changed, 0, 'reverting lane back gives no change';
     $lane_to_add_file_for->is_withdrawn(1);
     $lane_to_add_file_for->update;
@@ -614,6 +618,7 @@ SKIP: {
     $newfile = $lane_to_add_file_for->add_file('new.bam');
     $newfile->type(5);
     $newfile->update;
+    $ds->_source_instance->_has_changed;
     is $ds->_source_instance->_has_changed, 0, 'vrtrack datasource _has_changed gives no change after adding a bam file in test vrtrack db, with method lane_fastqs';
     $newfile->delete;
     
@@ -625,6 +630,7 @@ SKIP: {
     is $ds->_source_instance->_has_changed, 1, 'datasource _has_changed got change after md5 change in file table in test vrtrack db, with method lane_fastqs';
     $file->md5('cac33e4fc8ff2801978cfd5a223f5064');
     $file->update;
+    $ds->_source_instance->_has_changed;
     is $ds->_source_instance->_has_changed, 0, 'reverting file md5 back gives no change';
     
     # if we change the insert_size in vrtrack, this should cause the datasource
