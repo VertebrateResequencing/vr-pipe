@@ -82,7 +82,7 @@ role VRPipe::DataSourceRole {
         my $method = $self->method;
         $self->can($method) || $self->throw("Invalid method '$method' for " . ref($self));
         $self->$method(%{ $self->options }, handle => $handle);
-        $self->_update_changed_marker;
+        # $self->_update_changed_marker; # datasource _prepare... does this, no need to duplicate
     }
     
     method get_methods {

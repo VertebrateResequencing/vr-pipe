@@ -165,13 +165,13 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         # we don't return $self->$orig because that returns all associated
         # elements; we need to first create all elements, and then only return
         # elements that are still "current" (haven't been deleted in the source)
-        $self->_prepare_elements_and_states($status_messages) || return;
+        $self->_prepare_elements_and_states($status_messages);
         return VRPipe::DataElement->search_paged({ datasource => $self->id, withdrawn => 0 });
     }
     
     method incomplete_element_states (VRPipe::PipelineSetup $setup, Bool :$include_withdrawn = 0, Bool :$prepare = 1, Bool :$only_not_started = 0) {
         if ($prepare) {
-            $self->_prepare_elements_and_states || return;
+            $self->_prepare_elements_and_states;
         }
         
         my $pipeline  = $setup->pipeline;
@@ -231,9 +231,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                 $self->do_transaction($transaction, "DataSource lock/block failed");
             } while ($block);
             return unless $continue;
-            
             $self->reselect_values_from_db;
-            $source->_changed_marker($self->_changed_marker) if $self->_changed_marker;
             
             # we have a lock, but can't risk our process getting killed and the
             # lock being left open, so we have to re-claim the lock every 15s
@@ -283,7 +281,6 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             
             # we're done, so update changed marker
             $self->_changed_marker($source->_changed_marker);
-            $self->update;
             
             # cleanup the lock process and set _lock() to 1 minute ago (we can't
             # undef it, but doing this gives the same result)

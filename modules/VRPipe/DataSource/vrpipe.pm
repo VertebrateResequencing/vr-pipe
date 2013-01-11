@@ -443,8 +443,10 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     # Need to find a way to detect when files in the vrpipe
     # datasource have changed - including when metadata changes.
     method _has_changed {
-        my $old_complete = $self->_changed_marker || return 1;
+        my $old_complete = $self->_changed_marker;
         my $new_complete = $self->_element_state_status_checksum;
+        $self->_changed_marker($new_complete);
+        $old_complete || return 1;
         # my $new_complete = $self->_element_state_file_checksum;
         return ($new_complete ne $old_complete) ? 1 : 0;
     }

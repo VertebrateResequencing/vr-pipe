@@ -108,7 +108,7 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
         $self->throw("Could not get md5 checksum metadata for $input_vcf_path") unless $md5;
 
         my ($md51,$md52,$md53,$md54) = split(//,$md5);
-        my $md55=substr($md5,5);
+        my $md55=substr($md5,4);
         my $idir="$irods_root/$study/$md51/$md52/$md53/$md54/$md55";
 
         #add collection and object

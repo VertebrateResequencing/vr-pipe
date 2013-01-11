@@ -216,6 +216,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 my $runner_id  = $runner->id;
                 my $run_args   = $append_runner_option_to_cmd ? "append => q[--runner $runner_id]" : '';
                 my $worker_cmd = VRPipe::Interface::CmdLine->vrpipe_perl_e(qq[VRPipe::Runner->get(id => $runner_id)->run($run_args)], $backend->deployment);
+                $worker_cmd =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
                 
                 # executing the Runner itself and vrpipe-handler means we have a
                 # minimum amount of memory; let's say 500MB? StepRole should

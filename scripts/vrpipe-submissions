@@ -149,7 +149,7 @@ foreach my $sub (@subs) {
             show_output("The job itself produced some stdout:", $pars);
         }
         else {
-            show_output("(The job stdout file " . $sub->job_stdout_file . " was missing)");
+            $frontend->output("(The job stdout file " . $sub->job_stdout_file->path . " was missing)");
         }
         
         my $pars2 = $sub->job_stderr;
@@ -157,7 +157,7 @@ foreach my $sub (@subs) {
             show_output("The job itself produced some stderr:", $pars2);
         }
         else {
-            show_output("(The job stderr file " . $sub->job_stderr_file . " was missing)");
+            $frontend->output("(The job stderr file " . $sub->job_stderr_file->path . " was missing)");
         }
     }
     

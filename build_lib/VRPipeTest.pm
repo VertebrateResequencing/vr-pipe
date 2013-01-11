@@ -216,8 +216,9 @@ sub max_retries {
 }
 
 sub get_elements {
-    my $ds       = shift;
-    my $pager    = $ds->elements;
+    my $ds    = shift;
+    my $pager = $ds->elements;
+    return [] unless $pager;
     my @elements = ();
     while (my $elements = $pager->next) {
         push(@elements, @$elements);
