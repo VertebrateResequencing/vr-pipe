@@ -1,3 +1,5 @@
+0.130   Critical fix for vrpipe datasources to prevent invalid dataelement
+        generation.
 0.129   VRPipe can now cope better if job stdout/err files are deleted by some
         external process. A linux-specific work-around has been implemented to
         get correct memory usage stats on systems where Proc::ProcessTable gives
