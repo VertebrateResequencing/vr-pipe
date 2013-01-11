@@ -556,12 +556,13 @@ class VRPipe::File extends VRPipe::Persistent {
 =cut
     
     method copy (VRPipe::File $dest) {
-        my $sp        = $self->path;
-        my $dp        = $dest->path;
+        my $sp = $self->path;
+        my $dp = $dest->path;
+        $dest->update_stats_from_disc;
         my $d_existed = $dest->e;
         
         # has it already been copied successfully?
-        if ($d_existed && $dest->md5 && $self->md5 && $self->md5 eq $dest->md5) {
+        if ($d_existed && (!$self->md5 || ($dest->md5 && $self->md5 && $self->md5 eq $dest->md5))) {
             return 1;
         }
         
@@ -569,8 +570,8 @@ class VRPipe::File extends VRPipe::Persistent {
         $self->_check_destination_space($dest->path->dir);
         
         my $success = File::Copy::copy($sp, $dp);
-        
         $dest->update_stats_from_disc;
+        
         unless ($success) {
             unless ($d_existed) {
                 $dest->remove;
