@@ -51,9 +51,11 @@ role VRPipe::DataSourceTextRole with VRPipe::DataSourceRole {
     }
     
     method _has_changed {
-        my $old_md5 = $self->_changed_marker || return 1;
+        my $old_md5 = $self->_changed_marker;
         my $file    = $self->source_file;
         my $new_md5 = $self->file_md5($file);
+        $self->_changed_marker($new_md5);
+        $old_md5 || return 1;
         if ($new_md5 ne $old_md5) {
             $file->update_md5($new_md5);
             return 1;

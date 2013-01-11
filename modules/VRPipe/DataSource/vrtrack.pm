@@ -76,9 +76,11 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     }
     
     method _has_changed {
-        return 1 unless defined($self->_changed_marker); #on first instantiation _changed_marker is undefined, defaults to changed in this case
-        return 1 if ($self->_vrtrack_lane_file_checksum ne $self->_changed_marker); #checks for new or deleted lanes or changed files(including deleted/added files)
-        return 0;
+        my $old      = $self->_changed_marker;
+        my $checksum = $self->_vrtrack_lane_file_checksum;
+        $self->_changed_marker($checksum);
+        $old || return 1; # on first instantiation _changed_marker is undefined, defaults to changed in this case
+        return ($checksum ne $old) ? 1 : 0;
     }
     
     method _update_changed_marker {
