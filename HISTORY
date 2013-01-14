@@ -1,3 +1,6 @@
+0.131   Fixed VRPipe's internal confirmation of the existance of step output
+        files so that it is no longer restarts jobs if the output file had
+        previously beem moved elsewhere and deleted.
 0.130   Critical fix for vrpipe datasources to prevent invalid dataelement
         generation.
 0.129   VRPipe can now cope better if job stdout/err files are deleted by some

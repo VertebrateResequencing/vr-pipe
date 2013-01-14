@@ -407,16 +407,24 @@ role VRPipe::StepRole {
             foreach my $file (@$val) {
                 $file->reselect_values_from_db;
                 my $resolved = $file->resolve;
-                if ($check_s && !$resolved->s) {
+                # we may be in a situation where $file has been moved elsewhere
+                # in the past, but now we've recreated a possibly different
+                # $file, so $resolved is out-of-date (or possibly doesn't exist
+                # any more)
+                if ($check_s && (!$resolved->s || !$file->s)) {
                     # double-check incase the step did not update_stats_from_disc
                     $resolved->update_stats_from_disc(retries => 3);
-                    unless ($resolved->s) {
-                        push(@missing, $file->path);
-                        push(@messages, $file->path . ($resolved->e ? " does not exist." : " is an empty file."));
-                    }
-                    elsif ($file->id != $resolved->id) {
-                        $file->update_stats_from_disc;
-                    }
+                    $file->update_stats_from_disc(retries => 3) unless $resolved->id == $file->id;
+                }
+                if ($file->e && (!$resolved->s || $file->mtime > $resolved->mtime)) {
+                    $file->moved_to(undef);
+                    $file->update;
+                    $resolved = $file;
+                }
+                
+                if ($check_s && !$resolved->s) {
+                    push(@missing, $file->path);
+                    push(@messages, $file->path . ($resolved->e ? " does not exist." : " is an empty file."));
                 }
                 else {
                     my $bad = 0;
