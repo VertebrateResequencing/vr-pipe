@@ -783,10 +783,13 @@ XSL
             my $ok = open(my $fh, ">>", $log_file);
             if ($ok) {
                 my $flock_fail = sub {
-                    $msg     = "Unable to get a lock on log file $log_file.";
-                    $subject = "VRPipe Server message";
-                    undef $email_to;
-                    $email_admin = 1;
+                    # failure to lock tends to be permanent, with the only
+                    # apparent solution being to delete the log file; let's just
+                    # assume the user is doing their own log rotation and so
+                    # we're not losing too much stuff by this blind deletion...
+                    close($fh);
+                    unlink($log_file);
+                    $ok = 0;
                 };
                 local $SIG{ALRM} = $flock_fail;
                 alarm 60;

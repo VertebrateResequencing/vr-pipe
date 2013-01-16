@@ -15,6 +15,7 @@ BEGIN {
 my $output_dir = get_output_dir('vcf_to_irods_pipeline');
 
 my $irods_root=$ENV{IRODS_TEST_ROOT};
+$irods_root =~ s/\/$//;
 foreach my $vcf ("${irods_root}/STUDY2/7/4/b/6/1e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/TEST_STUDY/e/a/4/9/0a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
     system("irm","$vcf") unless system("ils $vcf >/dev/null 2>&1");
     system("irm","$vcf.tbi") unless system("ils $vcf.tbi >/dev/null 2>&1");
