@@ -63,6 +63,7 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
             
             my $options = $self->options;
             my $irods_root = $options->{irods_root};
+            $irods_root =~ s/\/$//;
             my $has_index = $options->{has_index};
             my $study = $options->{study};
             my $release = $options->{release};
