@@ -292,7 +292,7 @@ sub start_server {
                         # they need to do is very simple and quick
                         my $sched_id = $scheduler->id;
                         #my $req_counts = [VRPipe::Submission->search_rs({ -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], '_done' => { '!=' => 1 }, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
-                        my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => { stepstate => 'pipelinesetup' }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
+                        my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
                         
                         my (%req_counts, %step_limits, %step_counts, %completed_setups, @queue_args, %subs_to_run);
                         while (my $subs = $sub_pager->next(no_resetting => 1)) {
@@ -644,7 +644,7 @@ sub status {
                     }
                 }
                 
-                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id }, { join => ['stepstate'], prefetch => 'job' });
+                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id, 'dataelement.withdrawn' => 0 }, { join => { 'stepstate' => 'dataelement' }, prefetch => 'job' });
                 my %sub_stats;
                 while (my $subs = $pager->next(no_resetting => 1)) {
                     foreach my $sub (@$subs) {
