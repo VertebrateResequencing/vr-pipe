@@ -1,3 +1,4 @@
+0.133   Critical fix for submissions that pended forever.
 0.132   Emergency change in behaviour when the log file can not be locked:
         instead of emailing the admin, the log file is simply deleted. This is
         to prevent thousands of email messages being sent and also should allow
