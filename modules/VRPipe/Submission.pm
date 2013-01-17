@@ -151,13 +151,27 @@ class VRPipe::Submission extends VRPipe::Persistent {
                         # however, the other process may have claimed it and not
                         # yet called run() and started the job's heartbeat
                         
-                        #*** but we have an edge-case hole where the sub got
-                        #    claimed but that process never called run() or
-                        #    release(), in which case, we will always return 0
-                        #    here and the job will never get run! But this
-                        #    should be impossible in practice because nothing
-                        #    calls _get_claim on its own: vrpipe-handler calls
-                        #    claim_and_run
+                        # but we have an edge-case hole where the sub got
+                        # claimed but that process never called run() or
+                        # release(), in which case, we will always return 0 here
+                        # and the job will never get run! So we wait 5mins for
+                        # the job to start running, and if it doesn't we release
+                        # the claim
+                        my $started_running = 0;
+                        for (1 .. 5) {
+                            sleep(60);
+                            $job->reselect_values_from_db;
+                            if ($job->start_time) {
+                                $started_running = 1;
+                                last;
+                            }
+                        }
+                        
+                        unless ($started_running) {
+                            $sub_to_claim->_claim(0);
+                            $sub_to_claim->update;
+                            $sub_to_claim->_reset_job;
+                        }
                     }
                 }
                 
