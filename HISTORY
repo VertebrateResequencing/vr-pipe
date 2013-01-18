@@ -1,3 +1,6 @@
+0.136   Reduces database contention whilst selecting submissions to run, which
+        should increase speed and help avoid running out of database
+        connections.
 0.135   Critical fix to avoid 0.133's fix from locking up the database for too
         long (and to unstick even more pending submissions).
 0.134   Fixed bug that meant submissions were queued to run and reported on in
