@@ -154,14 +154,14 @@ class VRPipe::Submission extends VRPipe::Persistent {
                         # but we have an edge-case hole where the sub got
                         # claimed but that process never called run() or
                         # release(), in which case, we will always return 0 here
-                        # and the job will never get run! So we wait 5mins for
+                        # and the job will never get run! So we wait 60s for
                         # the job to start running, and if it doesn't we release
                         # the claim
                         my $started_running = 0;
-                        for (1 .. 5) {
-                            sleep(60);
+                        for (1 .. 12) {
+                            sleep(5);
                             $job->reselect_values_from_db;
-                            if ($job->start_time) {
+                            if ($job->end_time || $job->alive(no_suicide => 1)) {
                                 $started_running = 1;
                                 last;
                             }
