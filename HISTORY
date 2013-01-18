@@ -1,3 +1,5 @@
+0.135   Critical fix to avoid 0.133's fix from locking up the database for too
+        long (and to unstick even more pending submissions).
 0.134   Fixed bug that meant submissions were queued to run and reported on in
         vrpipe-status even if they were for dataelements that were withdrawn,
         which was very wasteful and confusing.
