@@ -503,7 +503,7 @@ sub handle_submissions {
             
             # pick the next available submission to work on
             eval {
-                my $queue_pager = VRPipe::SubmissionQueue->search_paged({ req_id => $req_id, 'farm' => $farm }, {}, 100);
+                my $queue_pager = VRPipe::SubmissionQueue->search_paged({ req_id => $req_id, 'farm' => $farm }, {}, 1000);
                 
                 SLOOP: while (my $rows = $queue_pager->next(no_resetting => 1)) {
                     # reduce contention of multiple handler processes all trying
