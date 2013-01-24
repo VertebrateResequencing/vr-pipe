@@ -31,11 +31,12 @@ use VRPipe::FrontEnd;
 my $frontend = VRPipe::FrontEnd->new(
     description => "See details related to incomplete element states.",
     opt_spec    => [
-        ['element=i',   'Show details for this single element state only',                                                               { persistent_object => 'DataElementState' }],
-        ['setup=s@',    'Only show details for the given PipelineSetup (by id or name); you can repeat this option',                     { persistent_object => 'PipelineSetup' }],
-        ['failed|f',    q[Only show elements that have have stalled in a pipeline due to repeated failures that couldn't be overcome automatically]],
-        ['retries|r=i', q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default           => 3 }],
-        ['all|a',       q[Normally only details of incomplete elements are given; this shows even ones that are done (may be very slow)]],
+        ['element=i',         'Show details for this single element state only',                                                               { persistent_object => 'DataElementState' }],
+        ['setup=s@',          'Only show details for the given PipelineSetup (by id or name); you can repeat this option',                     { persistent_object => 'PipelineSetup' }],
+        ['failed|f',          q[Only show elements that have have stalled in a pipeline due to repeated failures that couldn't be overcome automatically]],
+        ['retries|r=i',       q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default           => 3 }],
+        ['exclude_withdrawn', q[Normally all element states are considered; this option will exclude those for withdrawn elements],            { default           => 0 }],
+        ['all|a',             q[Normally only details of incomplete elements are given; this shows even ones that are done (may be very slow)]],
         [],
         [q[After the above options have been used to filter the list of all elements, and their details have been printed to screen, the following options will let you take action on those elements (after a confirmation prompt):]],
         ['start_from_scratch', q[For each pipeline you will be asked for a list of steps, and these will be fully reset so it is as if those steps had never been run for all the element states that went through that pipeline]],
@@ -47,6 +48,7 @@ my $frontend = VRPipe::FrontEnd->new(
 my $desired_ele        = $frontend->option_was_set('element');
 my $failed             = $frontend->opts('failed');
 my $retries            = $frontend->opts('retries');
+my $exclude_withdrawn  = $frontend->opts('exclude_withdrawn');
 my $all                = $frontend->opts('all');
 my $start_from_scratch = $frontend->opts('start_from_scratch');
 my $no_report          = $frontend->opts('no_report');
@@ -68,10 +70,10 @@ if ($desired_ele) {
 else {
     foreach my $setup ($frontend->get_pipelinesetups()) {
         if ($all) {
-            @element_states = $setup->dataelementstates(include_withdrawn => 1);
+            @element_states = $setup->dataelementstates(include_withdrawn => !$exclude_withdrawn);
         }
         else {
-            my $estates_pager = $setup->datasource->incomplete_element_states($setup, include_withdrawn => 1, prepare => 0);
+            my $estates_pager = $setup->datasource->incomplete_element_states($setup, include_withdrawn => !$exclude_withdrawn, prepare => 0);
             my @estates;
             while (my $estates = $estates_pager->next) {
                 push(@estates, @$estates);
@@ -160,7 +162,7 @@ foreach my $estate (@element_states) {
                 $num_done++;
             }
             else {
-                if ($sub->job->running) {
+                if ($sub->job->alive) {
                     $num_running++;
                 }
                 else {
