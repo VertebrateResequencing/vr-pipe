@@ -161,7 +161,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
                         for (1 .. 12) {
                             sleep(5);
                             $job->reselect_values_from_db;
-                            if ($job->end_time || $job->alive(no_suicide => 1)) {
+                            if ($job->alive(no_suicide => 1)) {
                                 $started_running = 1;
                                 last;
                             }
@@ -170,7 +170,10 @@ class VRPipe::Submission extends VRPipe::Persistent {
                         unless ($started_running) {
                             $sub_to_claim->_claim(0);
                             $sub_to_claim->update;
-                            $sub_to_claim->_reset_job;
+                            
+                            unless (defined $job->exit_code && $job->end_time) {
+                                $sub_to_claim->_reset_job;
+                            }
                         }
                     }
                 }
