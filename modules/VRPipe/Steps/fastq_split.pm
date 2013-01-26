@@ -209,6 +209,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
         my %base_counts;
         my %seq_base_counts;
         my $seqs = 0;
+        $ins[0]->[1]->disconnect;
         while (1) {
             # get the next entry (4 lines) from each input fastq
             my @seqs;
@@ -271,8 +272,9 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                     $seq_base_counts{ file($split_dir, "$prefix.$old_split.fastq.gz")->stringify } = [$seqs - 1, $base_counts{$i}, $mate, $old_split];
                     
                     my $split_file = VRPipe::File->get(path => file($split_dir, "$prefix.$split_num.fastq.gz"), type => 'fq');
-                    $ref->[1]        = $split_file;
-                    $ref->[2]        = $split_file->openw;
+                    $ref->[1] = $split_file;
+                    $ref->[2] = $split_file->openw;
+                    $split_file->disconnect;
                     $base_counts{$i} = 0;
                 }
                 

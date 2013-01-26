@@ -66,7 +66,7 @@ class VRPipe::Steps::trimmomatic extends VRPipe::Steps::java {
                 output_key => 'trimmomatic_log',
                 basename   => 'trimmomatic.log',
                 type       => 'txt',
-                #temporary  => 1
+                temporary  => 1,
                 #metadata => $seq_file->metadata
             );
             my $log_file_path = $log_file->path;
