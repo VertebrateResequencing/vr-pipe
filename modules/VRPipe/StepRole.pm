@@ -619,37 +619,40 @@ role VRPipe::StepRole {
             $step_state->update;
         }
         
-        # return true if we've finished the step
         my $dispatched = $self->num_dispatched;
         if ($dispatched) {
             return 0;
         }
         else {
+            # nothing dispatched, run the post_process and return any errors
+            # from that
             return $self->post_process;
         }
     }
     
     method post_process {
-        my $ok         = $self->_run_coderef('post_process_sub');
-        my $stepstate  = $self->step_state;
-        my $debug_desc = "step " . $self->name . " failed for dataelement " . $self->data_element->id . " and setup " . $self->step_state->pipelinesetup->id . " (stepstate " . $stepstate->id . ")";
+        my $ok        = $self->_run_coderef('post_process_sub');
+        my $stepstate = $self->step_state;
         
+        my $error;
         if ($ok) {
             my ($missing, $messages) = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@$missing) {
                 $stepstate->start_over;
-                $self->warn("There was a problem with the output files for $debug_desc, so the stepstate was started over:\n" . join("\n", @$messages));
+                $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
             }
             else {
-                return 1;
+                return;
             }
         }
         else {
             $stepstate->unlink_temp_files;
             $stepstate->start_over;
-            $self->warn("The post-processing part of $debug_desc failed, so the stepstate was started over");
+            $error = "The post_process_sub did not return true, so the stepstate was started over.";
         }
+        
+        return $error;
     }
     
     method new_requirements (Int :$memory!, Int :$time!, Int :$cpus?, Int :$tmp_space?, Int :$local_space?, HashRef :$custom?) {
