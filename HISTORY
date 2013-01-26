@@ -1,3 +1,7 @@
+0.137   Fixed some areas where database connections were left open for a long
+        time idling, wasting them. Improved (and reduced extraneous) error
+        messages when post-processing steps. Further fix for submissions that
+        could pend for forever.
 0.136   Reduces database contention whilst selecting submissions to run, which
         should increase speed and help avoid running out of database
         connections.
