@@ -92,6 +92,7 @@ class VRPipe::Steps::cufflinks with VRPipe::StepRole {
             my $cmd = "cufflinks --num-threads 32 --frag-bias-correct $reference_fasta --GTF-guide $known_genes_path --upper-quartile-norm --max-mle-iterations 10000 --total-hits-norm --max-bundle-frags 100000000";
             $cmd .= " -M $gene_mask_path" unless ($gene_mask_path eq '');
             $cmd .= " -o $output_file_dir --multi-read-correct $input_file_path";
+            warn "dispatching: $cmd";
             my $out = $self->dispatch([qq[$cmd], $req, { output_files => [$output_file_1, $output_file_2, $output_file_3] }]);
           }
     }
