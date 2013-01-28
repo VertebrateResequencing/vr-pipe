@@ -439,6 +439,38 @@ sub start_server {
                             $scheduler->kill_sid($runner->sid, 0);
                             $runner->delete;
                         }
+                        
+                        #*** due to some unknown issue we also get submission
+                        # handlers that have heartbeats but never actually
+                        # claim and start running a submission; detect and kill
+                        # those off too
+                        my @unclaimed_req_ids = VRPipe::Submission->get_column_values('requirements', { '_claim' => 0, '_done' => 0, '_failed' => 0, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] } });
+                        my @unrunning_req_ids = VRPipe::Submission->get_column_values('requirements', { '_done' => 0, '_failed' => 0, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => { stepstate => ['pipelinesetup', 'dataelement'] } });
+                        my %unclaimed_req_ids;
+                        foreach my $req_id (@unclaimed_req_ids) {
+                            $unclaimed_req_ids{$req_id}++;
+                        }
+                        my %unrunning_req_ids;
+                        foreach my $req_id (@unrunning_req_ids) {
+                            $unrunning_req_ids{$req_id}++;
+                        }
+                        my %limbo_req_ids;
+                        while (my ($req_id, $unclaim_count) = each %unclaimed_req_ids) {
+                            my $unrun_count = $unrunning_req_ids{$req_id} || next;
+                            if ($unclaim_count == $unrun_count) {
+                                $limbo_req_ids{$req_id} = 1;
+                            }
+                        }
+                        
+                        foreach my $runner (VRPipe::Runner->search({ scheduled => { '<=' => DateTime->from_epoch(epoch => time() - 1800) } })) {
+                            my $cmd = $runner->cmd;
+                            if ($cmd =~ /-r (\d+)/) {
+                                my $req_id = $1;
+                                next unless exists $limbo_req_ids{$req_id};
+                                my $sid = $runner->sid || next;
+                                $scheduler->kill_sid($sid, 0);
+                            }
+                        }
                     }
                     
                     alarm 0;
