@@ -95,11 +95,12 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
         my $bam_file = VRPipe::File->get(path => $bam_path);
         my $bai_file = VRPipe::File->get(path => $bai_path);
         
-        $bam_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-        
         $bai_file->update_stats_from_disc(retries => 3);
-        
+        unless ($bai_file->e) {
+            $bam_file->disconnect;
+            system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+            $bai_file->update_stats_from_disc(retries => 3);
+        }
         my $correct_magic = [qw(102 101 111 001)];
         
         if ($bai_file->check_magic($bai_file->path, $correct_magic)) {

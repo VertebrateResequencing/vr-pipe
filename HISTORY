@@ -1,3 +1,5 @@
+0.139   Fixes error introduced in 0.138. bam_index step now checks if the index
+        already exists and skips actually indexing if it does.
 0.138   Another fix for submissions that could pend forever.
 0.137   Fixed some areas where database connections were left open for a long
         time idling, wasting them. Improved (and reduced extraneous) error

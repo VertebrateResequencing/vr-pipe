@@ -445,7 +445,7 @@ sub start_server {
                         # claim and start running a submission; detect and kill
                         # those off too
                         my @unclaimed_req_ids = VRPipe::Submission->get_column_values('requirements', { '_claim' => 0, '_done' => 0, '_failed' => 0, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] } });
-                        my @unrunning_req_ids = VRPipe::Submission->get_column_values('requirements', { '_done' => 0, '_failed' => 0, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => { stepstate => ['pipelinesetup', 'dataelement'] } });
+                        my @unrunning_req_ids = VRPipe::Submission->get_column_values('requirements', { '_done' => 0, '_failed' => 0, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => ['job', { stepstate => ['pipelinesetup', 'dataelement'] }] });
                         my %unclaimed_req_ids;
                         foreach my $req_id (@unclaimed_req_ids) {
                             $unclaimed_req_ids{$req_id}++;
