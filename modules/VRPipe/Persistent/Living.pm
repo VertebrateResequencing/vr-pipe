@@ -125,7 +125,7 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
                 }
             }
             else {
-                $self->beat_heart;
+                $self->beat_heart || $self->stop_beating;
             }
         };
         return $watcher;

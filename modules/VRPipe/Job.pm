@@ -558,7 +558,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     method kill_job (VRPipe::Submission $submission?) {
-        return unless $self->start_time;
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
         if ($user && $host && $pid) {
             if (hostname() eq $host) {
@@ -625,6 +624,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     around beat_heart {
+        $self->reselect_values_from_db;
         return unless $self->start_time;
         return $self->$orig;
     }
@@ -636,7 +636,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     around murder_response {
-        my ($submission) = VRPipe::Submissions->search({ job => $self->id });
         $self->end_it_all;
     }
     

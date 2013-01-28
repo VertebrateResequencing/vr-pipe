@@ -389,6 +389,7 @@ sub handle_submissions {
                 $backend->log("sub " . $submission->id . " job had not started?!");
                 $submission->release;
                 undef $submission;
+                $job->reset_job;
                 return;
             }
             
