@@ -269,10 +269,13 @@ sub handle_setups {
                             }
                             
                             # force a full trigger when we aren't complete but
-                            # have no incomplete subs
+                            # have fewer incomplete subs than elements
                             my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                            my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
+                            my $incomplete_elements = $ie_pager->total_entries;
+                            
                             my $error_message;
-                            if ($incomplete_subs) {
+                            if ($incomplete_subs && $incomplete_subs > $incomplete_elements) {
                                 # ok, we've started doing something for some
                                 # dataelements, but we should make sure that
                                 # any same_submissions_as stepstates haven't
@@ -295,10 +298,11 @@ sub handle_setups {
                                 }
                             }
                             else {
-                                $backend->log("forcing a full trigger for setup $sid because we aren't complete, but have no incomplete submissions");
+                                $backend->log("forcing a full trigger for setup $sid because we have fewer incomplete submissions than elements");
                                 $error_message = $setup->trigger(prepare_elements => 0);
                                 $backend->log("completed the forced full trigger for setup $sid");
                             }
+                            
                             unless ($perma_fails) {
                                 if ($error_message) {
                                     unless ($mt->already_sent("trigger problem")) {
