@@ -99,7 +99,7 @@ VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type    => 'vrpipe',
         method  => 'all',
-        source  => 'my archive pipeline setup',
+        source  => 'my test pipeline setup[4]',
         options => {}
     ),
     output_root => $archive_output_dir,

@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 75;
+    use Test::Most tests => 81;
     use VRPipeTest;
     
     use_ok('VRPipe::Parser');
@@ -142,6 +142,14 @@ is $p->insert_size_standard_deviation, 70.9,           'bamcheck insert_size_sta
 $p = VRPipe::Parser->create('bamcheck', { file => file(qw(t data parser.bamcheck_mq0)) });
 is $p->reads_mq0,                    1859041, 'reads_mq0 worked';
 is $p->pairs_with_other_orientation, 5857,    'pairs_with_other_orientation worked';
+# and even newer ones with -F have even more lines:
+$p = VRPipe::Parser->create('bamcheck', { file => file(qw(t data parser.bamcheck_filtered)) });
+is $p->sequences,                      20500182, 'sequences worked';
+is $p->raw_total_sequences,            32687988, 'raw_total_sequences worked';
+is $p->filtered_sequences,             12187806, 'filtered_sequences worked';
+is $p->reads_qc_failed,                0,        'reads_qc_failed worked';
+is $p->non_primary_alignments,         0,        'non_primary_alignments worked';
+is $p->pairs_on_different_chromosomes, 15878,    'pairs_on_different_chromosomes worked';
 # use a bamcheck with a simple COV section to test coverage methods
 $p = VRPipe::Parser->create('bamcheck', { file => file(qw(t data parser.bamcheck_simplecov)) });
 is_deeply [$p->coverage(0), $p->coverage(1), $p->coverage(2), $p->coverage(3), $p->coverage(4), $p->coverage(5), $p->coverage(6), $p->coverage(7)], [0, 27893, 6485, 1188, 355, 49, 49, 0], 'coverage worked';

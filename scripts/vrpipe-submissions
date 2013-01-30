@@ -31,12 +31,12 @@ use VRPipe::FrontEnd;
 my $frontend = VRPipe::FrontEnd->new(
     description => "See details related to incomplete submissions.",
     opt_spec    => [
-        ['submission=i', 'Show details for this single submission only',                                                                  { persistent_object => 'Submission' }],
-        ['setup=s',      'Only show details for submissions belonging to the given PipelineSetup (by id or name)',                        { persistent_object => 'PipelineSetup' }],
+        ['submission=i', 'Show details for this single submission only',                                                                                                             { persistent_object => 'Submission' }],
+        ['setup=s',      'Only show details for submissions belonging to the given PipelineSetup (by id or name)',                                                                   { persistent_object => 'PipelineSetup' }],
         ['step=s',       'Only show details for submissions created for the step with this name'],
         ['failed|f',     q[Only show submissions that have stalled due to repeated failures that couldn't be overcome automatically]],
-        ['retries|r=i',  q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default           => 3 }],
-        ['done',         q[Only show submissions that have succeeded],                                                                    { default           => 0 }],
+        ['retries|r=i',  q[When using --failed, before something is considered to have stalled it must have been retried this number or more times (0 means any number of retries)], { default           => 3 }],
+        ['done',         q[Only show submissions that have succeeded],                                                                                                               { default           => 0 }],
         ['all|a',        q[Normally only details of incomplete submissions are given; this shows everything (may be very slow)]],
         ['limit|l=i',    q[Only show this number of submissions]],
         [],
@@ -84,7 +84,7 @@ if ($desired_sub) {
 }
 else {
     @subs = VRPipe::Submission->search({
-            $all ? () : ("_done" => $done), $failed ? ("_failed" => 1, $retries ? (retries => $retries) : ()) : (),
+            $all ? () : ("_done" => $done), $failed ? ("_failed" => 1, $retries ? (retries => { '>=' => $retries }) : ()) : (),
             $setup ? ('stepstate.pipelinesetup' => $setup->id) : (),
             $desired_step ? ('step.name' => $desired_step) : ()
         },

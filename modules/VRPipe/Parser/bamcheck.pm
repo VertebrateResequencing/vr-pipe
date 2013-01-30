@@ -103,6 +103,12 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
         writer => '_raw_total_sequences'
     );
     
+    has 'filtered_sequences' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_filtered_sequences'
+    );
+    
     has 'sequences' => (
         is     => 'ro',
         isa    => 'Int',
@@ -167,6 +173,24 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
         is     => 'ro',
         isa    => 'Int',
         writer => '_reads_mq0'
+    );
+    
+    has 'reads_qc_failed' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_reads_qc_failed'
+    );
+    
+    has 'non_primary_alignments' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_non_primary_alignments'
+    );
+    
+    has 'pairs_on_different_chromosomes' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_pairs_on_different_chromosomes'
     );
     
     has 'total_length' => (
@@ -428,7 +452,7 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                 my $method      = $1;
                 my $value       = $2;
                 my $orig_method = $method;
-                $method =~ s/\s+/_/g;
+                $method =~ s/[\s-]+/_/g;
                 $method = 'first_fragments'    if $method eq '1st_fragments';
                 $method = 'bases_mapped_cigar' if $method eq 'bases_mapped_(cigar)';
                 $method = lc('_' . $method);
