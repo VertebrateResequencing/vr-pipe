@@ -1,0 +1,9 @@
+path	lane
+t/data/hs_chr20.a.bam	a
+t/data/hs_chr20.a.bam.bai	a
+t/data/hs_chr20.b.bam	b
+t/data/hs_chr20.b.bam.bai	b
+t/data/hs_chr20.c.bam	c
+t/data/hs_chr20.c.bam.bai	c
+t/data/hs_chr20.d.bam	d
+t/data/hs_chr20.d.bam.bai	d
