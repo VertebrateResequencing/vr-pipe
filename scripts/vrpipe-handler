@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -48,7 +48,9 @@ my $cmdline = VRPipe::FrontEnd->new(
         ['In --mode submissions, you must also supply:'],
         ['requirements|r=i', 'a Requirements id to define which submissions we should try to run', { persistent_object => 'Requirements' }],
         ['scheduler|s=i',    'a Scheduler id',                                                     { persistent_object => 'Scheduler' }],
-        ['runner=i',         'a Runner id',                                                        { persistent_object => 'Runner' }]
+        ['runner=i',         'a Runner id',                                                        { persistent_object => 'Runner' }],
+        [],
+        ['debug', 'turn lots of debugging output on, and allow it to work without a server running']
     ]
 );
 
@@ -59,13 +61,20 @@ my $deployment = $cmdline->opts('deployment');
 my $backend    = VRPipe::Interface::BackEnd->new(deployment => $deployment);
 my $schema     = $backend->schema;
 $AnyEvent::Util::MAX_FORKS = $max_forks;
+my $debug = $cmdline->opts('debug');
 
 # act on the given mode
 my $mode = $cmdline->opts('mode') || $cmdline->die_with_error("--mode must be supplied");
 my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
-my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
-unless ($fs) {
-    $cmdline->die_with_error("There is no farm server running for farm '$farm'");
+my $fs;
+if ($debug) {
+    $backend->set_verbose_global(1);
+}
+else {
+    ($fs) = VRPipe::FarmServer->search({ farm => $farm });
+    unless ($fs) {
+        $cmdline->die_with_error("There is no farm server running for farm '$farm'");
+    }
 }
 
 if ($mode eq 'setups') {
@@ -87,7 +96,7 @@ else {
 exit 0;
 
 sub handle_setups {
-    $backend->log_stderr;
+    $backend->log_stderr unless $debug;
     
     # every 30s we'll check for new setups we're supposed to handle, and also
     # confirm there is still a farmserver up for our farm (and exit if not)
@@ -101,7 +110,7 @@ sub handle_setups {
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
-            $fs->alive || die "no farmserver";
+            unless ($debug) { $fs->alive || die "no farmserver" }
             @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
         };
         if ($@) {
@@ -141,12 +150,14 @@ sub handle_setups {
                     my $ds_id = $setup->datasource->id;
                     $datasource_watchers{$ds_id}->{working} = 1;
                     fork_call {
+                        $backend->debug("will trigger first_step_only for new setup $sid");
                         $setup->trigger(first_step_only => 1);
                         return;
                     }
                     sub {
                         delete $currently_triggering{$sid};
                         delete $datasource_watchers{$ds_id}->{working};
+                        $backend->debug("finished first_step_only trigger of setup $sid");
                         # we ignore trigger errors here and let the watcher
                         # defined later catch and report about it
                     };
@@ -170,6 +181,8 @@ sub handle_setups {
                     $datasource_watchers{$ds_id}->{count}++;
                     next if defined $datasource_watchers{$ds_id}->{watcher};
                     
+                    $backend->debug("will create watcher for ds $ds_id for setup " . $setup->id);
+                    
                     my $datasource_update_sub = sub {
                         return if $datasource_watchers{$ds_id}->{working};
                         $datasource_watchers{$ds_id}->{working} = 1;
@@ -177,6 +190,7 @@ sub handle_setups {
                         fork_call {
                             $ds->reselect_values_from_db;
                             my $e_before = VRPipe::DataElement->search({ datasource => $ds->id, withdrawn => 0 });
+                            $backend->debug("will call ds->elements for ds $ds_id");
                             my $e_after_pager = $ds->elements;
                             return unless $e_after_pager; # we changed to having 0 dataelements
                             
@@ -188,7 +202,9 @@ sub handle_setups {
                                     # (it's too expensive/risky to set the
                                     #  currently_triggering marker... it should
                                     #  be ok to trigger first step only...)
+                                    $backend->debug("datasource $ds_id had new elements, so will trigger first_step_only for setup " . $ds_setup->id);
                                     $ds_setup->trigger(first_step_only => 1, prepare_elements => 0);
+                                    $backend->debug("finished first_step_only trigger for setup " . $ds_setup->id);
                                 }
                             }
                             
@@ -300,7 +316,7 @@ sub handle_setups {
                             else {
                                 $backend->log("forcing a full trigger for setup $sid because we have fewer incomplete submissions than elements");
                                 $error_message = $setup->trigger(prepare_elements => 0);
-                                $backend->log("completed the forced full trigger for setup $sid");
+                                $backend->log("completed the forced full trigger for setup $sid with error message " . length($error_message));
                             }
                             
                             unless ($perma_fails) {
@@ -310,8 +326,12 @@ sub handle_setups {
                                     }
                                 }
                                 else {
+                                    $backend->debug("no error - running normally");
                                     $mt->update_message("running normally");
                                 }
+                            }
+                            else {
+                                $backend->debug("had pera fails, so did not output error");
                             }
                             
                             return;
@@ -352,7 +372,7 @@ sub handle_setups {
 
 sub handle_submissions {
     my ($req, $scheduler, $runner) = @_;
-    $backend->log_stderr;
+    $backend->log_stderr unless $debug;
     my $req_id                = $req->id;
     my $time_needed           = $req->time;
     my $end_time              = (time() + $scheduler->queue_time($req)) - 65;
@@ -369,6 +389,7 @@ sub handle_submissions {
         $working = 1;
         
         if ($submission) {
+            $backend->debug("looking at sub " . $submission->id);
             $submission->reselect_values_from_db; # we'd like to avoid doing any db access most times through here, but full triggers in another process fuck us up, as does some issue when switching queues??
             my $job = $submission->job;
             $submission->disconnect;
@@ -383,7 +404,7 @@ sub handle_submissions {
                 # running it just because the server went down, but in testing
                 # it means the test finished, and we want to clean up any
                 # remaining handlers
-                unless ($fs->alive) {
+                if (!$debug && !$fs->alive) {
                     return exit_handler("Looks like the $farm server stopped");
                 }
             }
@@ -401,6 +422,7 @@ sub handle_submissions {
                 $submission->update_status;
                 
                 if ($submission->done) {
+                    $backend->debug("sub " . $submission->id . " is done");
                     # we completed successfully; if this was the last submission
                     # of its step and they're all done now, do a trigger for
                     # this dataelement to create submissions for the next step
@@ -432,7 +454,9 @@ sub handle_submissions {
                         # step if we die during/before the trigger. The setups
                         # handler will catch stalls for this reason
                         my $setup = $step_state->pipelinesetup;
+                        $backend->debug("will trigger next step");
                         my $error_message = $setup->trigger(dataelement => $step_state->dataelement);
+                        $backend->debug("done triggering next step");
                         
                         if ($error_message) {
                             my $sid = $setup->id;
@@ -445,6 +469,7 @@ sub handle_submissions {
                         # also trigger any dataelements that have the same
                         # submissions as $step_state
                         my $others = VRPipe::StepState->get_column_values([qw(pipelinesetup dataelement)], { same_submissions_as => $step_state->id });
+                        $backend->debug("will trigger others");
                         foreach my $psde (@$others) {
                             my ($sid, $de) = @$psde;
                             my $other_setup = VRPipe::PipelineSetup->get(id => $sid);
@@ -458,6 +483,7 @@ sub handle_submissions {
                                 }
                             }
                         }
+                        $backend->debug("done triggering others");
                     }
                 }
                 elsif ($submission->failed) {
@@ -471,6 +497,7 @@ sub handle_submissions {
                 # release the submission. The above trigger may have deleted it
                 # though, so avoid the ugly (but harmless) error message in the
                 # logs by evaling it
+                $backend->debug("will release submission " . $submission->id);
                 eval { $submission->release; };
                 
                 my $signal = $job->_signalled_to_death;
@@ -502,14 +529,14 @@ sub handle_submissions {
             if (time() >= $end_time) {
                 return exit_handler("There is not enough time to start working on a new submission");
             }
-            unless ($fs->alive) {
+            if (!$debug && !$fs->alive) {
                 return exit_handler("There is no longer a server for farm $farm");
             }
             
             # pick the next available submission to work on
             eval {
                 my $queue_pager = VRPipe::SubmissionQueue->search_paged({ req_id => $req_id, 'farm' => $farm }, {}, 1000);
-                
+                $backend->debug("looking for new submission");
                 SLOOP: while (my $rows = $queue_pager->next(no_resetting => 1)) {
                     # reduce contention of multiple handler processes all trying
                     # to check and lock the same submission by shuffling $rows
@@ -532,6 +559,7 @@ sub handle_submissions {
                             # gives us a time delay before retrying, in case
                             # there was a transient problem
                             $failed_by_us{ $sub->id }++;
+                            $backend->debug("sub " . $sub->id . " has been failed " . $failed_by_us{ $sub->id } . " times by us");
                             if ($failed_by_us{ $sub->id } >= 15) {
                                 delete $failed_by_us{ $sub->id };
                             }
@@ -549,10 +577,15 @@ sub handle_submissions {
                                 $submission = $sub;
                                 $handled_submissions++;
                                 $row->delete;
+                                $backend->debug("successfully claimed and ran sub " . $sub->id);
                             }
                             else {
+                                $backend->debug("claim_and_run for sub " . $sub->id . " returned defined, but is not running");
                                 $submission = 0;
                             }
+                        }
+                        else {
+                            $backend->debug("tried to claim_and_run sub " . $sub->id . " but that returned undef");
                         }
                         
                         last SLOOP if $submission;
