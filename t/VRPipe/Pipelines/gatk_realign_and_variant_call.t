@@ -26,6 +26,13 @@ my $ref_dir = dir($output_dir, 'ref');
 $pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'pombe_ref.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
+my $input_bam_orig = file(qw(t data pombe.bam));
+my $input_bam = file($output_dir, 'pombe.bam');
+copy($input_bam_orig, $input_bam);
+my $pombe_fofn = file($output_dir, 'pombe_bam.fofnwm');
+my $fh = $pombe_fofn->openw;
+print $fh "path\tsample\tlibrary\tlane\n$input_bam\tJB952\t4074418\t7211_8#94\n";
+close($fh);
 
 VRPipe::PipelineSetup->create(
     name       => 'indel realignment',
@@ -33,7 +40,7 @@ VRPipe::PipelineSetup->create(
         type    => 'fofn_with_metadata',
         method  => 'all',
         options => {},
-        source  => file(qw(t data pombe_bam.fofnwm))->absolute->stringify
+        source  => $pombe_fofn->stringify
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
@@ -43,9 +50,16 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-ok handle_pipeline(), 'pipeline ran';
+my $realigned_bam = file(output_subdirs(1), '4_bam_realignment_around_discovered_indels', 'pombe.realign.bam');
+my $input_bai = $input_bam . '.bai';
+ok handle_pipeline($realigned_bam, $input_bai), 'pipeline ran';
 
 #*** needs proper tests
+
+# we'll also test that the system copes with both bam and bai file being
+# deleted externally to vrpipe before a chained pipeline that needs the bam runs
+unlink($realigned_bam);
+unlink($input_bai);
 
 $output_dir = get_output_dir('gatk_snp_calling_and_filter');
 ok $pipeline = VRPipe::Pipeline->create(name => 'snp_calling_gatk_unified_genotyper_and_filter_vcf'), 'able to get the snp_calling_gatk_unified_genotyper_and_filter_vcf pipeline';

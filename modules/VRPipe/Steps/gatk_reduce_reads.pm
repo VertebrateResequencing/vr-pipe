@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -47,6 +47,11 @@ class VRPipe::Steps::gatk_reduce_reads extends VRPipe::Steps::gatk_v2 {
     method inputs_definition {
         return {
             bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
+            bai_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                max_files   => -1,
+                description => 'index files for the input bam files'
+            )
         };
     }
     

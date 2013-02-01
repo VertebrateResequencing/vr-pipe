@@ -47,6 +47,11 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
                 max_files   => -1,
                 description => '1 or more bam files'
             ),
+            bai_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                max_files   => -1,
+                description => 'index files for the input bam files'
+            ),
             intervals_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 max_files   => -1,

@@ -54,8 +54,13 @@ class VRPipe::Steps::gatk_unified_genotyper extends VRPipe::Steps::gatk {
     
     method inputs_definition {
         return {
-            bam_files  => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
-            sites_file => VRPipe::StepIODefinition->create(type => 'vcf', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'),
+            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
+            bai_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                max_files   => -1,
+                description => 'index files for the input bam files'
+            ),
+            sites_file => VRPipe::StepIODefinition->create(type => 'vcf', min_files => 0, max_files => 1, description => 'Optional sites file for calling only at the given sites'),
         };
     }
     

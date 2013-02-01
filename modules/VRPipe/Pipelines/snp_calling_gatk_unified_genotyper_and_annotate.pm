@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -57,6 +57,7 @@ class VRPipe::Pipelines::snp_calling_gatk_unified_genotyper_and_annotate with VR
         (
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 0, to_step => 4, to_key   => 'bam_files' },
+            { from_step => 3, to_step => 4, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 0, to_step => 4, to_key   => 'sites_file' },
             { from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files' },
             { from_step => 5, to_step => 6, from_key => 'annotated_vcf', to_key => 'vcf_files' }

@@ -57,6 +57,7 @@ class VRPipe::Pipelines::bam_realignment_around_discovered_indels with VRPipe::P
             { from_step => 0, to_step => 2, to_key   => 'bam_files' },
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 0, to_step => 4, to_key   => 'bam_files' },
+            { from_step => 2, to_step => 4, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 3, to_step => 4, from_key => 'intervals_file', to_key => 'intervals_file' },
         );
     }

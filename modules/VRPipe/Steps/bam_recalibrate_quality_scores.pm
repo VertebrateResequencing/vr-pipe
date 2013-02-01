@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -48,7 +48,12 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
     
     method inputs_definition {
         return {
-            bam_files               => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
+            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
+            bai_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                max_files   => -1,
+                description => 'index files for the input bam files'
+            ),
             bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from count covariates step')
         };
     }
