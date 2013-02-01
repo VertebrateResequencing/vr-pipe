@@ -1,3 +1,12 @@
+# version 0.140:
+A number of steps that previously assumed their bam input files were indexed now
+explicitly require a 'bai_inputs' input. If you have written your own pipelines
+that use these steps, you may have to add a bam_index step, or an adaptor if you
+already had a bam_index step.
+The archive_files step no longer advertises an output file, so you can no longer
+use the output of an archive_files pipeline as the source of a vrpipe
+datasource.
+
 # version 0.130:
 Alterations to the API of datasources were made in this version. If you have
 created your own datasource module, note that now _update_changed_marker()

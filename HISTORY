@@ -1,3 +1,12 @@
+0.140   Worked around an issue that could result in only a few of a setup's
+        incomplete dataelements being worked on. bamcheck parser updated for
+        compatibility with latest version of bamcheck.
+        The archive_files pipeline no longer advertises that it outputs any
+        files, to avoid rare risk of file loss due to resets at the wrong
+        moment.
+        Altered many steps and pipelines so that the requirement of bam index
+        files is properly known by the system, allowing automatic resets to
+        work properly.
 0.139   Fixes error introduced in 0.138. bam_index step now checks if the index
         already exists and skips actually indexing if it does.
 0.138   Another fix for submissions that could pend forever.
