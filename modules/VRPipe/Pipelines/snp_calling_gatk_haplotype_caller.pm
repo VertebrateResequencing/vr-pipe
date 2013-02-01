@@ -65,7 +65,7 @@ class VRPipe::Pipelines::snp_calling_gatk_haplotype_caller with VRPipe::Pipeline
     method behaviour_definitions {
         (
             { after_step => 4, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
-            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'delete_input_bams', default_regulation => 0 }
+            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'delete_input_bams', default_regulation => 0 }
         );
     }
 }
