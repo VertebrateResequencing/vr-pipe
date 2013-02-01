@@ -424,7 +424,7 @@ role VRPipe::StepRole {
                 
                 if ($check_s && !$resolved->s) {
                     push(@missing, $file->path);
-                    push(@messages, $file->path . ($resolved->e ? " does not exist." : " is an empty file."));
+                    push(@messages, $file->path . ($resolved->e ? " is an empty file." : " does not exist."));
                 }
                 else {
                     my $bad = 0;
