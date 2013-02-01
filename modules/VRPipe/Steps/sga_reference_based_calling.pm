@@ -80,17 +80,20 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
             unless ($cpus) {
                 ($cpus) = $sga_opts =~ m/--threads (\d+)/;
             }
+            my $idx = 0;
             foreach my $fq (@{ $self->inputs->{sga_indexed_variant_reads} }) {
                 my $memory_estimate = $self->estimate_memory($ref_file, $fq);
                 my $req = $self->new_requirements(memory => $memory_estimate, time => 1, $cpus ? (cpus => $cpus) : ());
-                my $prefix = $fq->basename;
+                my $prefix = "$idx." . $fq->basename;
                 $prefix =~ s/\.(fq|fastq)(\.gz)?$//;
-                my $base_vcf      = $self->output_file(output_key => 'sga_base_vcf_files',      basename => qq[$prefix.base.vcf],    type => 'vcf', metadata => $fq->metadata);
-                my $variant_vcf   = $self->output_file(output_key => 'sga_variant_vcf_files',   basename => qq[$prefix.variant.vcf], type => 'vcf', metadata => $fq->metadata);
-                my $calls_vcf     = $self->output_file(output_key => 'sga_calls_vcf_files',     basename => qq[$prefix.calls.vcf],   type => 'vcf', metadata => $fq->metadata);
-                my $strings_fasta = $self->output_file(output_key => 'sga_strings_fasta_files', basename => qq[$prefix.strings.fa],  type => 'txt', metadata => $fq->metadata);
+                my $base_vcf      = $self->output_file(output_key => 'sga_base_vcf_files',      basename => qq[$prefix.base.vcf],     type => 'vcf', metadata => $fq->metadata);
+                my $variant_vcf   = $self->output_file(output_key => 'sga_variant_vcf_files',   basename => qq[$prefix.variant.vcf],  type => 'vcf', metadata => $fq->metadata);
+                my $calls_vcf     = $self->output_file(output_key => 'sga_calls_vcf_files',     basename => qq[$prefix.calls.vcf],    type => 'vcf', metadata => $fq->metadata);
+                my $evidence_bam  = $self->output_file(output_key => 'sga_evidence_bam_files',  basename => qq[$prefix.evidence.bam], type => 'bam', metadata => $fq->metadata);
+                my $strings_fasta = $self->output_file(output_key => 'sga_strings_fasta_files', basename => qq[$prefix.strings.fa],   type => 'txt', metadata => $fq->metadata);
                 my $cmd           = qq[$sga_exe graph-diff $sga_opts -p $prefix --variant ] . $fq->path . qq[ --reference ] . $ref_file->path;
                 $self->dispatch([$cmd, $req, { output_files => [$base_vcf, $variant_vcf, $calls_vcf, $strings_fasta] }]);
+                $idx++;
             }
         };
     }
@@ -100,6 +103,7 @@ class VRPipe::Steps::sga_reference_based_calling with VRPipe::StepRole {
             sga_base_vcf_files      => VRPipe::StepIODefinition->create(type => 'vcf', description => 'base variant calls made by sga graph-diff', max_files => -1),
             sga_variant_vcf_files   => VRPipe::StepIODefinition->create(type => 'vcf', description => 'variant calls made by sga graph-diff',      max_files => -1),
             sga_calls_vcf_files     => VRPipe::StepIODefinition->create(type => 'vcf', description => 'calls made by sga graph-diff',              max_files => -1),
+            sga_evidence_bam_files  => VRPipe::StepIODefinition->create(type => 'bam', description => 'calls made by sga graph-diff',              max_files => -1),
             sga_strings_fasta_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'strings fasta made by sga graph-diff',      max_files => -1, check_existence => 0)
         };
     }
