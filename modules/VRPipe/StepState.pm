@@ -242,7 +242,10 @@ class VRPipe::StepState extends VRPipe::Persistent {
     }
     
     method start_over {
-        $self->debug("start_over called for stepstate " . $self->id);
+        if ($self->verbose >= 1) {
+            # (we want a stacktrace, so a debug() call isn't good enough)
+            $self->warn("start_over called for stepstate " . $self->id);
+        }
         
         # first reset all associated submissions in order to reset their jobs
         foreach my $sub ($self->submissions) {
