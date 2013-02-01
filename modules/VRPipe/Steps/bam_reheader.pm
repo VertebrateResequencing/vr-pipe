@@ -172,7 +172,19 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         my $bam_file        = VRPipe::File->get(path => $bam);
         my $headed_bam_file = VRPipe::File->get(path => $output);
         
+        my %tech_to_platform = (
+            SLX       => 'ILLUMINA',
+            '454'     => 'LS454',
+            SOLID     => 'ABI_SOLID',
+            ILLUMINA  => 'ILLUMINA',
+            'LS454'   => 'LS454',
+            ABI_SOLID => 'ABI_SOLID',
+        );
+        
         my $existing_meta = $bam_file->metadata;
+        if (exists $tech_to_platform{ $existing_meta->{platform} }) {
+            $existing_meta->{platform} = $tech_to_platform{ $existing_meta->{platform} };
+        }
         
         # construct the RG lines from the bam metadata if the lane metadata is present
         # otherwise copy the RG lines from the existing header
