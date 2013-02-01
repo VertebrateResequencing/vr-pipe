@@ -157,7 +157,7 @@ role VRPipe::Base::Debuggable {
         if ($self->verbose > 0) {
             $self->log($message);
             $message .= "\n" unless $message =~ /\n$/;
-            CORE::warn $message;
+            CORE::warn "$time{'hh:mm:ss'} $$ | ", $message;
         }
     }
 
@@ -272,7 +272,7 @@ role VRPipe::Base::Debuggable {
             $prefix = "----------\n$time{'yyyy/mm/dd'}\n----------\n";
         }
         
-        $prefix .= "$time{'hh:mm:ss'} | ";
+        $prefix .= "$time{'hh:mm:ss'} $$ | ";
         
         # for some reason Carp's shortmess and longmess methods aren't returning
         # the same thing as what carp()/croak() produce! hacky work-around...

@@ -44,7 +44,8 @@ class VRPipe::Pipelines::bam_genotype_checking with VRPipe::PipelineRole {
     
     method step_names {
         (
-            'bin2hapmap_sites',         #1
+            'bin2hapmap_sites', #1
+            #*** we should have a bam_index step in here?
             'mpileup_bcf_hapmap',       #2
             'glf_check_genotype',       #3
             'gtypex_genotype_analysis', #4

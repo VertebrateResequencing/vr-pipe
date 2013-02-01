@@ -56,6 +56,7 @@ class VRPipe::Pipelines::bam_base_quality_score_recalibration_gatk_v2 with VRPip
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
             { from_step => 0, to_step => 2, to_key   => 'bam_files' },
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
+            { from_step => 1, to_step => 3, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 2, to_step => 3, from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
             { from_step => 3, to_step => 4, from_key => 'recalibrated_bam_files', to_key => 'bam_files' }
         );

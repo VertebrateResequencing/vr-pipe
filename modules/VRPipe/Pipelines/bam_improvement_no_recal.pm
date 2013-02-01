@@ -60,6 +60,7 @@ class VRPipe::Pipelines::bam_improvement_no_recal with VRPipe::PipelineRole {
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 4, to_step => 5, from_key => 'intervals_file', to_key => 'intervals_file' },
             { from_step => 0, to_step => 5, to_key   => 'bam_files' },
+            { from_step => 3, to_step => 5, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 5, to_step => 6, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 6, to_step => 7, from_key => 'bq_bam_files', to_key => 'bam_files' },
             { from_step => 1, to_step => 7, from_key => 'reference_dict', to_key => 'dict_file' },

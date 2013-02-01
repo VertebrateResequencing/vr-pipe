@@ -56,6 +56,7 @@ class VRPipe::Pipelines::snp_calling_gatk_unified_genotyper with VRPipe::Pipelin
         (
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 0, to_step => 4, to_key   => 'bam_files' },
+            { from_step => 3, to_step => 4, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 0, to_step => 4, to_key   => 'sites_file' },
             { from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files' }
         );

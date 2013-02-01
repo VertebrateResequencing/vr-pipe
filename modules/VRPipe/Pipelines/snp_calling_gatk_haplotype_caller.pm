@@ -56,6 +56,7 @@ class VRPipe::Pipelines::snp_calling_gatk_haplotype_caller with VRPipe::Pipeline
         (
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 0, to_step => 4, to_key   => 'bam_files' },
+            { from_step => 3, to_step => 4, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 0, to_step => 4, to_key   => 'sites_file' },
             { from_step => 4, to_step => 5, from_key => 'gatk_vcf_file', to_key => 'vcf_files' },
         );
@@ -64,7 +65,7 @@ class VRPipe::Pipelines::snp_calling_gatk_haplotype_caller with VRPipe::Pipeline
     method behaviour_definitions {
         (
             { after_step => 4, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
-            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'delete_input_bams', default_regulation => 0 }
+            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'delete_input_bams', default_regulation => 0 }
         );
     }
 }

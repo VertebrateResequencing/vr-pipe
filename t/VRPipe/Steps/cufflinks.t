@@ -1,4 +1,5 @@
-#!/usr/bin/env perl n 24 20:58:20 GMT 2013use strict;
+#!/usr/bin/env perl
+use strict;
 use warnings;
 use Path::Class;
 
@@ -23,12 +24,8 @@ my $setup = VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        reference_fasta => file(qw(t data sacCer3 chr1.fa))->absolute,
-        #reference_fasta => file(qw(.. .. lust rna-seq general_files mouse_ref mm9.fa))->absolute,
-        #known_genes_path => file(qw(.. .. lust rna-seq general_files knownGeneMm9.gtf))->absolute,
-        #known_genes_path => file(qw(t data knownGeneMm9.gtf))->absolute,
+        reference_fasta  => file(qw(t data sacCer3 chr1.fa))->absolute,
         known_genes_path => file(qw(t data sacCer3 sacCer3_arabicChrA.chr1.gtf))->absolute,
-        #gene_mask_path => file(qw(t data GeneMaskMm9.gtf))->absolute
     }
 );
 
@@ -40,7 +37,4 @@ my $outputfile_4   = file(@output_subdirs, '3_cufflinks', "skipped.gtf");
 my @outputfiles;
 push @outputfiles, $outputfile_1, $outputfile_2, $outputfile_3; # $outputfile_4; check these when I sort out better test data
 
-#SKIP: {
-#    skip "main test disabled due to lack of test data", 1;
 ok handle_pipeline(@outputfiles), 'cufflinks pipeline ran ok, generating the expected files';
-#}

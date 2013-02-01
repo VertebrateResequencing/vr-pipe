@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -61,6 +61,11 @@ class VRPipe::Steps::bam_realignment_around_known_indels extends VRPipe::Steps::
                 type        => 'bam',
                 max_files   => -1,
                 description => '1 or more bam files'
+            ),
+            bai_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                max_files   => -1,
+                description => 'index files for the input bam files'
             ),
             intervals_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',

@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -63,10 +63,12 @@ class VRPipe::Pipelines::bam_improvement with VRPipe::PipelineRole {
             { from_step => 0, to_step => 3,  to_key   => 'bam_files' },
             { from_step => 4, to_step => 5,  from_key => 'intervals_file', to_key => 'intervals_file' },
             { from_step => 0, to_step => 5,  to_key   => 'bam_files' },
+            { from_step => 3, to_step => 5,  from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 5, to_step => 6,  from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 5, to_step => 7,  from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 7, to_step => 8,  from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
             { from_step => 5, to_step => 8,  from_key => 'realigned_bam_files', to_key => 'bam_files' },
+            { from_step => 6, to_step => 8,  from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 8, to_step => 9,  from_key => 'recalibrated_bam_files', to_key => 'bam_files' },
             { from_step => 9, to_step => 10, from_key => 'bq_bam_files', to_key => 'bam_files' },
             { from_step => 1, to_step => 10, from_key => 'reference_dict', to_key => 'dict_file' },

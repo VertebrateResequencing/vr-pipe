@@ -37,6 +37,7 @@ class VRPipe::Steps::gatk_apply_recalibration_for_snps extends VRPipe::Steps::ga
     around options_definition {
         my $opts_def = $self->$orig;
         delete $opts_def->{apply_recalibration_options};
+        delete $opts_def->{apply_recalibration_mode};
         return { %{$opts_def}, apply_recalibration_options_for_snps => VRPipe::StepOption->create(description => 'command line options for GATK ApplyRecalibration for SNPs') };
     }
     

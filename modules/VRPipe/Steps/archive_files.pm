@@ -82,12 +82,22 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             my $md5 = $dmd5->hexdigest;
             my @chars = split("", $md5);
             
-            my $ofile = $self->output_file(
-                output_key => 'moved_file',
-                basename   => $file->basename,
-                output_dir => dir($root_dir, @chars[0 .. 3], $ifile_id),
-                type       => $file->type,
-                metadata   => $file->metadata
+            #*** we avoid specifying an output file so that a reset at the wrong
+            # moment in time will not result in our moved file getting deleted
+            # after the source has also been deleted
+            #my $ofile = $self->output_file(
+            #    output_key => 'moved_file',
+            #    basename   => $file->basename,
+            #    output_dir => dir($root_dir, @chars[0 .. 3], $ifile_id),
+            #    type       => $file->type,
+            #    metadata   => $file->metadata
+            #)->path;
+            my $dir = dir($root_dir, @chars[0 .. 3], $ifile_id);
+            $self->make_path($dir);
+            my $ofile = VRPipe::File->create(
+                path     => file($dir, $file->basename),
+                type     => $file->type,
+                metadata => $file->metadata
             )->path;
             
             # VRPipe::File->move will do a copy, check md5s, and only then
@@ -98,12 +108,7 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return {
-            moved_file => VRPipe::StepIODefinition->create(
-                type        => 'any',
-                description => 'the input file at its new location'
-            )
-        };
+        return {};
     }
     
     method post_process_sub {

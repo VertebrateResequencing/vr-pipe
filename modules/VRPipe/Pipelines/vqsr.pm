@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::vqsr_for_snps - a pipeline
+VRPipe::Pipelines::vqsr - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,21 +33,21 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vqsr_for_snps with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vqsr with VRPipe::PipelineRole {
     method name {
-        return 'vqsr_for_snps';
+        return 'vqsr';
     }
     
     method description {
-        return 'Filter SNPs with VQSR.';
+        return 'Filter VCFs with VQSR.';
     }
     
     method step_names {
         (
-            'vcf_index',                           #1
-            'gatk_variant_recalibration_for_snps', #2
-            'gatk_apply_recalibration_for_snps',   #3
-            'vcf_index',                           #4
+            'vcf_index',                  #1
+            'gatk_variant_recalibration', #2
+            'gatk_apply_recalibration',   #3
+            'vcf_index',                  #4
         );
     }
     

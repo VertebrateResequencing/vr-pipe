@@ -65,6 +65,15 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
         };
     }
     
+    our %tech_to_platform = (
+        SLX       => 'ILLUMINA',
+        '454'     => 'LS454',
+        SOLID     => 'ABI_SOLID',
+        ILLUMINA  => 'ILLUMINA',
+        'LS454'   => 'LS454',
+        ABI_SOLID => 'ABI_SOLID',
+    );
+    
     method body_sub {
         return sub {
             my $self    = shift;
@@ -88,6 +97,9 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $meta = $bam->metadata;
+                if (exists $tech_to_platform{ $meta->{platform} }) {
+                    $meta->{platform} = $tech_to_platform{ $meta->{platform} };
+                }
                 my $rginfo_cmd;
                 $rginfo_cmd = "RGID=" . $meta->{lane};
                 my $library = $self->command_line_safe_string($meta->{library} || 'unknown_library');

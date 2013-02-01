@@ -56,6 +56,7 @@ class VRPipe::Pipelines::snp_calling_mpileup with VRPipe::PipelineRole {
         (
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
             { from_step => 0, to_step => 2, to_key   => 'bam_files' },
+            { from_step => 1, to_step => 2, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 2, to_step => 3, from_key => 'vcf_files', to_key => 'vcf_files' }
         );
     }

@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -80,10 +80,12 @@ class VRPipe::Pipelines::1000genomes_454_mapping_with_improvement with VRPipe::P
             { from_step => 10, to_step => 11, from_key => 'merged_lane_bams', to_key => 'bam_files' },
             { from_step => 12, to_step => 13, from_key => 'intervals_file', to_key => 'intervals_file' },
             { from_step => 10, to_step => 13, from_key => 'merged_lane_bams', to_key => 'bam_files' },
+            { from_step => 11, to_step => 13, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 13, to_step => 14, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 13, to_step => 15, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 15, to_step => 16, from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
             { from_step => 13, to_step => 16, from_key => 'realigned_bam_files', to_key => 'bam_files' },
+            { from_step => 14, to_step => 16, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 16, to_step => 17, from_key => 'recalibrated_bam_files', to_key => 'bam_files' },
             { from_step => 17, to_step => 18, from_key => 'bq_bam_files', to_key => 'bam_files' },
             { from_step => 1,  to_step => 18, from_key => 'reference_dict', to_key => 'dict_file' },

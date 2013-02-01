@@ -1,0 +1,62 @@
+# This file was produced by bamcheck (2012-09-04)
+# The command line was:  bamcheck -r hs37d5.fa -q 20 -F 0x200 9004_5#48.bam
+# Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
+SN	raw total sequences:	32687988
+SN	filtered sequences:	12187806
+SN	sequences:	20500182
+SN	is paired:	1
+SN	is sorted:	1
+SN	1st fragments:	10250091
+SN	last fragments:	10250091
+SN	reads mapped:	19554575
+SN	reads unmapped:	945607
+SN	reads unpaired:	174557
+SN	reads paired:	19380018
+SN	reads duplicated:	144761
+SN	reads MQ0:	1243370
+SN	reads QC failed:	0
+SN	non-primary alignments:	0
+SN	total length:	2050018200
+SN	bases mapped:	1955457500
+SN	bases mapped (cigar):	1946583363
+SN	bases trimmed:	21504939
+SN	bases duplicated:	14476100
+SN	mismatches:	20725689
+SN	error rate:	1.064721e-02
+SN	average length:	100
+SN	maximum length:	100
+SN	average quality:	33.5
+SN	insert size average:	318.3
+SN	insert size standard deviation:	77.2
+SN	inward oriented pairs:	9644278
+SN	outward oriented pairs:	12222
+SN	pairs with other orientation:	17442
+SN	pairs on different chromosomes:	15878
+# First Fragment Qualitites. Use `grep ^FFQ | cut -f 2-` to extract this part.
+# Columns correspond to qualities and rows to cycles. First column is the cycle number.
+FFQ	1	4150	166	1874	1728	1509	0	0	0	469	93	0	6434	4078	1567	536	4920	3954	0	27578	5407	0	8285	10265	0	8942	0	0	43744	0	297168	191309	156851	745772	357606	459983	0	7905703	0	0	0	0	0	0	0	0	0	0
+# Last Fragment Qualitites. Use `grep ^LFQ | cut -f 2-` to extract this part.
+# Columns correspond to qualities and rows to cycles. First column is the cycle number.
+LFQ	1	1049	373	1172	55137	153355	341871	428843	941620	134750	15925	2791	6206	44085	4982	0	0	0	0	26044	0	0	182808	0	16018	34130	26689	0	23409	3334616	4414409	59809	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+# Mismatches per cycle and quality. Use `grep ^MPC | cut -f 2-` to extract this part.
+# Columns correspond to qualities, rows to cycles. First column is the cycle number, second
+# is the number of N's and the rest is the number of mismatches
+MPC	1	3925	73	165	1294	20805	39432	80147	72051	135741	14456	1814	138	780	1108	220	1	130	85	0	537	10	0	1443	107	44	141	108	0	188	10258	14411	686	416	1743	896	1079	0	17858	0	0	0	0	0	0	0	0	0
+# GC Content of first fragments. Use `grep ^GCF | cut -f 2-` to extract this part.
+GCF	0.75	0
+# GC Content of last fragments. Use `grep ^GCL | cut -f 2-` to extract this part.
+GCL	0.25	1309
+# ACGT content per cycle. Use `grep ^GCC | cut -f 2-` to extract this part. The columns are: cycle, and A,C,G,T counts [%]
+GCC	0	29.42	19.01	21.95	29.62
+# Insert sizes. Use `grep ^IS | cut -f 2-` to extract this part. The columns are: pairs total, inward oriented pairs, outward oriented pairs, other pairs
+IS	0	13	0	3	10
+# Read lengths. Use `grep ^RL | cut -f 2-` to extract this part. The columns are: read length, count
+RL	100	20500182
+# Indel distribution. Use `grep ^ID | cut -f 2-` to extract this part. The columns are: length, number of insertions, number of deletions
+ID	1	789440	626578
+# Indels per cycle. Use `grep ^IC | cut -f 2-` to extract this part. The columns are: cycle, number of insertions (fwd), .. (rev) , number of deletions (fwd), .. (rev)
+IC	1	0	0	63	862
+# Coverage distribution. Use `grep ^COV | cut -f 2-` to extract this part.
+COV	[1-1]	1	898082034
+# GC-depth. Use `grep ^GCD | cut -f 2-` to extract this part. The columns are: GC%, unique sequence percentiles, 10th, 25th, 50th, 75th and 90th depth percentile
+GCD	0.0	0.001	0.000	0.000	0.000	0.000	0.000
