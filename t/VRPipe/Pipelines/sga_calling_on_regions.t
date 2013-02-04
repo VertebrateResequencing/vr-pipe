@@ -101,8 +101,8 @@ foreach my $element_id (7, 8) {
     foreach my $suffix (qw(fq.gz popidx bwt sai)) {
         push(@calling_files, file(@output_subdirs, '4_fastq_merge_and_index', 'merged.' . $suffix));
     }
-    foreach my $suffix (qw(base.vcf calls.vcf variant.vcf)) {
-        push(@calling_files, file(@output_subdirs, '6_sga_reference_based_calling', 'merged.' . $suffix));
+    foreach my $suffix (qw(base.vcf calls.vcf evidence.bam variant.vcf)) {
+        push(@calling_files, file(@output_subdirs, '6_sga_reference_based_calling', '0.merged.' . $suffix));
     }
 }
 
