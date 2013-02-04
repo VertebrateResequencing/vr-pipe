@@ -471,6 +471,29 @@ sub start_server {
                                 $scheduler->kill_sid($sid, 0);
                             }
                         }
+                        
+                        #*** submission handlers sometimes get stuck doing
+                        # nothing, working on reqs that are no longer needed;
+                        # kill these also... ideally we want the handlers to
+                        # stick around for a while in case new subs for that req
+                        # get created, but killing stuck ones is more important
+                        # for now
+                        $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => { '>=' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) } }, { join => ['job', { stepstate => ['pipelinesetup', 'dataelement'] }], prefetch => 'requirements' });
+                        while (my $subs = $sub_pager->next(no_resetting => 1)) {
+                            foreach my $sub (@$subs) {
+                                # we don't want to delete anything handling this
+                                my $req_id = $sub->requirements->id;
+                                $req_counts{$req_id}++;
+                            }
+                        }
+                        foreach my $runner (VRPipe::Runner->search({})) {
+                            my $cmd = $runner->cmd;
+                            my ($req_id) = $cmd =~ qr{ -r (\d+)};
+                            $req_id || next;
+                            next if $req_counts{$req_id};
+                            $scheduler->kill_sid($runner->sid, 0);
+                            $runner->delete;
+                        }
                     }
                     
                     alarm 0;
