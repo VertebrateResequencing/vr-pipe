@@ -1,3 +1,7 @@
+0.141   Critical fix for bug in PipelineSetup introduced in 0.140. Setup handler
+        fixed to avoid unnecessary full triggers. Submission handlers can
+        sometimes get stuck doing nothing when they are no longer needed; the
+        server now kills them off where possible.
 0.140   Worked around an issue that could result in only a few of a setup's
         incomplete dataelements being worked on. bamcheck parser updated for
         compatibility with latest version of bamcheck.
