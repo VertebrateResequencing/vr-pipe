@@ -291,7 +291,7 @@ sub handle_setups {
                             my $incomplete_elements = $ie_pager->total_entries;
                             
                             my $error_message;
-                            if ($incomplete_subs && $incomplete_subs > $incomplete_elements) {
+                            if ($incomplete_subs && $incomplete_subs >= $incomplete_elements) {
                                 # ok, we've started doing something for some
                                 # dataelements, but we should make sure that
                                 # any same_submissions_as stepstates haven't
@@ -314,9 +314,11 @@ sub handle_setups {
                                 }
                             }
                             else {
-                                $backend->log("forcing a full trigger for setup $sid because we have fewer incomplete submissions than elements");
+                                $backend->log("forcing a full trigger for setup $sid because we have fewer incomplete submissions ($incomplete_subs) than elements ($incomplete_elements)");
+                                $setup->verbose(1) unless $debug;
                                 $error_message = $setup->trigger(prepare_elements => 0);
-                                $backend->log("completed the forced full trigger for setup $sid with error message " . length($error_message));
+                                $setup->verbose(0) unless $debug;
+                                $backend->log("completed the forced full trigger for setup $sid");
                             }
                             
                             unless ($perma_fails) {
@@ -331,7 +333,7 @@ sub handle_setups {
                                 }
                             }
                             else {
-                                $backend->debug("had pera fails, so did not output error");
+                                $backend->debug("had perma fails, so did not output error");
                             }
                             
                             return;
