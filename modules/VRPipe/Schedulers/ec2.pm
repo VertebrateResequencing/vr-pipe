@@ -13,6 +13,8 @@ This class provides L<Amazon
 EC2|http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Welcome.html>-specific
 command lines for use by L<VRPipe::Scheduler>.
 
+It depends upon VM::EC2, which you must manually install.
+
 For this to work you must have exactly one AMI with the name 'vrpipe-install',
 and it must be private to you. You can create such an AMI by starting with our
 public AMI and customising for your needs. The AMI must boot up to an
@@ -51,10 +53,20 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
-    use VM::EC2;
+    # eval this so that test suite can pass syntax check on this module when
+    # VM::EC2 is not installed
+    eval "use VM::EC2;";
+    use VRPipe::Config;
+    my $vrp_config = VRPipe::Config->new();
+    use VRPipe::Persistent::SchemaBase;
     
     our %queues;
-    our ($ami, $access_key, $secret_key, $region);
+    our $ami;
+    our $access_key = $vrp_config->ec2_access_key;
+    our $secret_key = $vrp_config->ec2_secret_key;
+    our $url        = $vrp_config->ec2_url;
+    our ($region)   = $url =~ /ec2\.(.+?)\.amazonaws/;
+    our $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
     
     method start_command {
         return 'sleep 1'; #*** not really applicable
@@ -65,23 +77,34 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     }
     
     method submit_command {
-        return 'perl -MVRPipe::Scheduler::ec2 -e "VRPipe::Scheduler::ec2->submit(@ARGV)"'; # we call a method in this module to submit
+        # we call a method in this module to submit
+        my $perl = VRPipe::Interface::CmdLine->vrpipe_perl_command($deployment);
+        return $perl . ' -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit(@ARGV)"';
     }
     
     method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
-        # access the requirments object and build up the string based on memory,
-        # time, cpu etc.
-        my $queue = $self->determine_queue($requirements);
+        # access the requirements object and build up the string based on
+        # memory, time, cpu etc.
+        my $instance_type = $self->determine_queue($requirements);
         # *** ...
         my $megabytes          = $requirements->memory;
-        my $m                  = $megabytes * 1000;
-        my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
+        my $requirments_string = "instance $instance_type memory $megabytes";
         my $cpus               = $requirements->cpus;
         if ($cpus > 1) {
-            $requirments_string .= " -n$cpus -R 'span[hosts=1]'";
+            $requirments_string .= " cpus $cpus";
         }
         
-        return qq[$requirments_string '$cmd'];
+        return qq[$requirments_string cmd '$cmd'];
+    }
+    
+    sub submit {
+        my ($self, %args) = @_;
+        my $instance_type = $args{'instance'} || $self->throw("No instance supplied");
+        my $megabytes     = $args{'memory'}   || $self->throw("No memory supplied");
+        my $cmd           = $args{'cmd'}      || $self->throw("No cmd supplied");
+        
+        #*** not yet implemented
+        warn "would submit cmd [$cmd] to instance [$instance_type], requiring [$megabytes]MB\n";
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
@@ -123,9 +146,11 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 $self->throw("There was not exactly 1 vrpipe-install AMI owned by you");
             }
             $ami = $amis[0]->imageId;
+            warn "got ami $ami\n";
         }
         
         #*** not yet implemented
+        my $sid;
         
         #my $output = `$cmd`;
         #my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
