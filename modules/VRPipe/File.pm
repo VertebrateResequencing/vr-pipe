@@ -443,9 +443,9 @@ class VRPipe::File extends VRPipe::Persistent {
                 $dest->update_symlink($symlink);
             }
             
-            $self->remove; # to update stats and _lines and actually delete us
             $self->moved_to($dest);
             $self->update;
+            $self->remove; # to update stats and _lines and actually delete us
             return 1;
         }
         else {
