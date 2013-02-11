@@ -275,7 +275,11 @@ class VRPipe::File extends VRPipe::Persistent {
         $self->throw("Only modes <, > and >> are supported") unless $mode =~ /^(?:<|>)+$/;
         
         if ($mode eq '<' && !$self->e) {
-            $self->throw("File '$path' does not exist, so cannot be opened for reading");
+            $self->update_stats_from_disc;
+            # give it a second chance...
+            if (!$self->e) {
+                $self->throw("File '$path' does not exist, so cannot be opened for reading");
+            }
         }
         
         my $fh;
