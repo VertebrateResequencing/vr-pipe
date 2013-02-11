@@ -403,7 +403,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method move (VRPipe::File $dest, Bool :$check_md5s = 0) {
         # have we already been moved there?
-        if (!$self->e && $dest->e && $self->moved_to->id == $dest->id) {
+        if (!$self->e && $dest->e && $self->moved_to && $self->moved_to->id == $dest->id) {
             return 1;
         }
         
@@ -447,6 +447,11 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->moved_to($dest);
             $self->update;
             return 1;
+        }
+        else {
+            my $sp = $self->path;
+            my $dp = $dest->path;
+            $self->throw("move of $sp => $dp failed");
         }
     }
     alias mv => 'move';
