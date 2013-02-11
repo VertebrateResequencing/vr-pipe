@@ -5,7 +5,7 @@ use Path::Class;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 11;
+    use Test::Most tests => 15;
     use VRPipeTest;
     
     use_ok('VRPipe::Scheduler');
@@ -35,6 +35,30 @@ SKIP: {
     is $scheduler->determine_queue($requirements), 'long', 'determine_queue() gave long queue for 10MB and 13hr';
     $requirements = VRPipe::Requirements->create(memory => 1, time => 49);
     is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave basement queue for 10MB and 49hr';
+}
+
+# ec2
+SKIP: {
+    eval "require VM::EC2;";
+    skip "VM::EC2 is not installed", 4 if $@;
+    
+    ok $scheduler = VRPipe::Scheduler->create(type => 'ec2'), q[able to get the ec2 scheduler using get(type => 'ec2')];
+    is $scheduler->type, 'ec2', 'the type really is ec2';
+    
+    $requirements = VRPipe::Requirements->create(memory => 100, time => 120);
+    is $scheduler->determine_queue($requirements), 'm1.medium', 'determine_queue() gave m1.medium instance for 100MB and 2mins';
+    
+    my $scheduler_cmd_line = join(
+        ' ',
+        $scheduler->submit_command,
+        $scheduler->submit_args(
+            requirements => $requirements,
+            stdo_file    => '/dev/null',
+            stde_file    => '/dev/null',
+            cmd          => 'the command to run'
+        )
+    );
+    is $scheduler_cmd_line, q[perl -Imodules -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit(@ARGV)" instance m1.medium memory 100 cmd 'the cmd "wgg"'], 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
 }
 
 done_testing;
