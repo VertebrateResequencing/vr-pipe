@@ -569,13 +569,12 @@ class VRPipe::File extends VRPipe::Persistent {
         my $sp = $self->path;
         my $dp = $dest->path;
         $self->throw("source ($sp) and destination ($dp) of a copy cannot be the same") if $sp eq $dp;
-        $self->update_stats_from_disc;
         $dest->update_stats_from_disc;
         my $d_existed = $dest->e;
         
         # has it already been copied successfully?
         if ($d_existed) {
-            if (!$self->e) {
+            if (!$self->check_file_existence_on_disc) {
                 # ... we'll just have to hope the copy was good
                 $self->warn("The destination ($dp) exists, but the source ($sp) doesn't - will assume the copy worked previously");
                 return 1;
