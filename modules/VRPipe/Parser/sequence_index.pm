@@ -161,7 +161,7 @@ class VRPipe::Parser::sequence_index with VRPipe::ParserRole {
         my @data = split(/\t/, $line);
         chomp($data[-1]);
         if (@data != 26 && @data != 25) {
-            $self->warn("Expected 26 or 25 columns, got " . scalar @data . ": " . join(",", @data) . "\n");
+            $self->throw("Expected 26 or 25 columns, got " . scalar @data . ": " . join(",", @data) . "\n");
             return;
         }
         
