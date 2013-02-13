@@ -382,6 +382,7 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($worked) {
             $self->_lines(undef);
             $self->parent(undef);
+            $self->md5(undef);
             $self->update;
         }
         return $worked;
@@ -567,12 +568,25 @@ class VRPipe::File extends VRPipe::Persistent {
     method copy (VRPipe::File $dest) {
         my $sp = $self->path;
         my $dp = $dest->path;
+        $self->throw("source ($sp) and destination ($dp) of a copy cannot be the same") if $sp eq $dp;
         $dest->update_stats_from_disc;
         my $d_existed = $dest->e;
         
         # has it already been copied successfully?
-        if ($d_existed && (!$self->md5 || ($dest->md5 && $self->md5 && $self->md5 eq $dest->md5))) {
-            return 1;
+        if ($d_existed) {
+            if (!$self->check_file_existence_on_disc) {
+                # ... we'll just have to hope the copy was good
+                $self->warn("The destination ($dp) exists, but the source ($sp) doesn't - will assume the copy worked previously");
+                return 1;
+            }
+            elsif ($dest->md5 && $self->md5 && $self->md5 eq $dest->md5) {
+                # copy was definitely already good
+                return 1;
+            }
+            else {
+                # we can't trust the copy; delete it and we'll copy it again
+                $dest->remove;
+            }
         }
         
         # is it safe to copy?
