@@ -275,7 +275,11 @@ class VRPipe::File extends VRPipe::Persistent {
         $self->throw("Only modes <, > and >> are supported") unless $mode =~ /^(?:<|>)+$/;
         
         if ($mode eq '<' && !$self->e) {
-            $self->throw("File '$path' does not exist, so cannot be opened for reading");
+            $self->update_stats_from_disc;
+            # give it a second chance...
+            if (!$self->e) {
+                $self->throw("File '$path' does not exist, so cannot be opened for reading");
+            }
         }
         
         my $fh;
@@ -378,6 +382,7 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($worked) {
             $self->_lines(undef);
             $self->parent(undef);
+            $self->md5(undef);
             $self->update;
         }
         return $worked;
@@ -403,7 +408,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method move (VRPipe::File $dest, Bool :$check_md5s = 0) {
         # have we already been moved there?
-        if (!$self->e && $dest->e && $self->moved_to->id == $dest->id) {
+        if (!$self->e && $dest->e && $self->moved_to && $self->moved_to->id == $dest->id) {
             return 1;
         }
         
@@ -443,10 +448,15 @@ class VRPipe::File extends VRPipe::Persistent {
                 $dest->update_symlink($symlink);
             }
             
-            $self->remove; # to update stats and _lines and actually delete us
             $self->moved_to($dest);
             $self->update;
+            $self->remove; # to update stats and _lines and actually delete us
             return 1;
+        }
+        else {
+            my $sp = $self->path;
+            my $dp = $dest->path;
+            $self->throw("move of $sp => $dp failed");
         }
     }
     alias mv => 'move';
@@ -558,12 +568,25 @@ class VRPipe::File extends VRPipe::Persistent {
     method copy (VRPipe::File $dest) {
         my $sp = $self->path;
         my $dp = $dest->path;
+        $self->throw("source ($sp) and destination ($dp) of a copy cannot be the same") if $sp eq $dp;
         $dest->update_stats_from_disc;
         my $d_existed = $dest->e;
         
         # has it already been copied successfully?
-        if ($d_existed && (!$self->md5 || ($dest->md5 && $self->md5 && $self->md5 eq $dest->md5))) {
-            return 1;
+        if ($d_existed) {
+            if (!$self->check_file_existence_on_disc) {
+                # ... we'll just have to hope the copy was good
+                $self->warn("The destination ($dp) exists, but the source ($sp) doesn't - will assume the copy worked previously");
+                return 1;
+            }
+            elsif ($dest->md5 && $self->md5 && $self->md5 eq $dest->md5) {
+                # copy was definitely already good
+                return 1;
+            }
+            else {
+                # we can't trust the copy; delete it and we'll copy it again
+                $dest->remove;
+            }
         }
         
         # is it safe to copy?

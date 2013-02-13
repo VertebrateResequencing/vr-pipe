@@ -278,6 +278,11 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                                 next ELEMENT if $complete_elements;
                             }
                             $step_outs = $stepstate->output_files;
+                            # We expect some output files, otherwise, what are we trying to source??
+                            if ($complete_elements && !(keys %{$step_outs})) {
+                                $self->throw("No output files found for stepstate " . $stepstate->id . ", dataelement " . $element_id . " from pipelinesetup " . $setup_id);
+                            }
+                        
                         }
                         while (my ($kind, $files) = each %{$step_outs}) {
                             unless ($force) {

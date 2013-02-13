@@ -49,6 +49,15 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
         delete $options->{bamcheck_options};
         delete $options->{reference_fasta};
         delete $options->{exome_targets_file};
+        
+        # and we add an option to avoid adding original_pg_chain, which is
+        # inappropriate and possibly too large to store on eg. merged bams
+        $options->{store_original_pg_chain} = VRPipe::StepOption->create(
+            description   => 'If your input bam was not created by VRPipe and will subsequently go through the bam_reheader step, keep this on; otherwise be sure to turn it off.',
+            optional      => 1,
+            default_value => 1
+        );
+        
         return $options;
     }
     
@@ -58,6 +67,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
             
             my $options      = $self->options;
             my $bamcheck_exe = $options->{bamcheck_exe};
+            my $store_pg     = $options->{store_original_pg_chain};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
@@ -77,7 +87,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
                 
                 # we'll also check the header for existing PG lines and store
                 # those as metadata
-                unless (defined $meta->{original_pg_chain}) {
+                if ($store_pg && !defined $meta->{original_pg_chain}) {
                     $self->dispatch_vrpipecode("use VRPipe::Steps::bam_metadata; VRPipe::Steps::bam_metadata->store_pg_chain(bam => q[$ifile]);", $req);
                 }
             }

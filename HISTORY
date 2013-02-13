@@ -1,3 +1,8 @@
+0.142   Critical fix for File copy() and move() methods so that interrupted
+        attempts are no longer considered successful on a retry. bam_metadata
+        step now has a store_original_pg_chain option, which when turned off
+        allows it to be used on bams produced by VRPipe in a single-step
+        pipeline. 
 0.141   Critical fix for bug in PipelineSetup introduced in 0.140. Setup handler
         fixed to avoid unnecessary full triggers. Submission handlers can
         sometimes get stuck doing nothing when they are no longer needed; the
