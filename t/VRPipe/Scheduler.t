@@ -58,7 +58,7 @@ SKIP: {
             cmd          => 'the command to run'
         )
     );
-    is $scheduler_cmd_line, q[perl -Imodules -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit(@ARGV)" instance m1.medium memory 100 cmd 'the cmd "wgg"'], 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
+    like $scheduler_cmd_line, qr/perl .+ -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit(@ARGV)" instance m1.medium memory 100 cmd 'the cmd to run'/, 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
 }
 
 done_testing;
