@@ -55,10 +55,11 @@ SKIP: {
             requirements => $requirements,
             stdo_file    => '/dev/null',
             stde_file    => '/dev/null',
-            cmd          => 'the command to run'
+            cmd          => 'the cmd to run'
         )
     );
-    like $scheduler_cmd_line, qr/perl .+ -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit(\@ARGV)" instance m1.medium memory 100 cmd 'the cmd to run'/, 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
+    my $expected = q[perl .+ -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit\(@ARGV\)" instance m1.medium memory 100 cmd 'the cmd to run'];
+    like $scheduler_cmd_line, qr/$expected/, 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
 }
 
 done_testing;
