@@ -15,16 +15,11 @@ command lines for use by L<VRPipe::Scheduler>.
 
 It depends upon VM::EC2, which you must manually install.
 
-For this to work you must have exactly one AMI with the name 'vrpipe-install',
-and it must be private to you. You can create such an AMI by starting with our
-public AMI and customising for your needs. The AMI must boot up to an
+For this to work the server must be running on an AMI that boots up to an
 environment with a working VRPipe installation and all the software you need to
 run. The VRPipe installation must be configured to use ec2 as the job
 scheduler, and you must have provided the access and secret keys (which can be
 found at https://portal.aws.amazon.com/gp/aws/securityCredentials?).
-
-You must also have a security group called 'vrpipe-security' which at a minimum
-must allow ssh between ec2 instances.
 
 =head1 AUTHOR
 
@@ -60,13 +55,43 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
     
+    #*** are instance type details not query-able? Do we have to hard-code it?
+    our %instance_types = (
+        'm1.small'   => [1, 1700,  1,    0.065, 0.065], # cores, MB, ECU(speed), cost/hr, cost/hr/speed
+        'm1.medium'  => [1, 3750,  2,    0.130, 0.07],
+        'm1.large'   => [2, 7500,  2,    0.260, 0.13],
+        'm1.xlarge'  => [4, 15000, 2,    0.520, 0.26],
+        'm3.xlarge'  => [4, 15000, 3.25, 0.550, 0.17],
+        'm3.2xlarge' => [8, 30000, 3.25, 1.100, 0.34],
+        't1.micro'   => [1, 613,   1,    0.020, 0.02],
+        'm2.xlarge'  => [2, 17100, 3.25, 0.460, 0.14],
+        'm2.2xlarge' => [4, 34200, 3.25, 0.920, 0.28],
+        'm2.4xlarge' => [8, 68400, 3.25, 1.840, 0.57],
+        'c1.medium'  => [2, 1700,  2.5,  0.165, 0.07],
+        'c1.xlarge'  => [8, 7000,  2.5,  0.660, 0.26]
+    );
+    
+    # we expect that the majority of what we run will be single cpu, cpu
+    # intensive jobs. Therefore we want to pick the type that will get the work
+    # done quickest considering only one of its cores, at the lowest cost:
+    # cost/hr/speed. But when the cost/hr/speed is very close for types that are
+    # very different in speed, it makes more sense to pick the faster one since
+    # fewer hours may be used. Because of this we just hard-code a preferred
+    # order that makes the most sense.
+    our @ordered_types = ('t1.micro', 'c1.medium', 'm1.small', 'm1.medium', 'm1.large', 'm2.xlarge', 'm3.xlarge', 'c1.xlarge', 'm1.xlarge', 'm2.2xlarge', 'm3.2xlarge', 'm2.4xlarge');
+    
     our %queues;
-    our $ami;
-    our $access_key = $vrp_config->ec2_access_key;
-    our $secret_key = $vrp_config->ec2_secret_key;
-    our $url        = $vrp_config->ec2_url;
-    our ($region)   = $url =~ /ec2\.(.+?)\.amazonaws/;
-    our $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
+    our $access_key        = $vrp_config->ec2_access_key;
+    our $secret_key        = $vrp_config->ec2_secret_key;
+    our $url               = $vrp_config->ec2_url;
+    our ($region)          = $url =~ /ec2\.(.+?)\.amazonaws/;
+    our $key_name          = $vrp_config->ec2_private_key_name;
+    our $ec2               = VM::EC2->new(-access_key => $access_key, -secret_key => $secret_key, -region => $region);
+    our $meta              = $ec2->instance_metadata;
+    our $ami               = $meta->imageId;
+    our @security_groups   = $meta->securityGroups;
+    our $availability_zone = $meta->availabilityZone;
+    our $deployment        = VRPipe::Persistent::SchemaBase->database_deployment;
     
     method start_command {
         return 'sleep 1'; #*** not really applicable
@@ -99,26 +124,74 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     
     sub submit {
         my ($self, %args) = @_;
-        my $instance_type = $args{'instance'} || $self->throw("No instance supplied");
-        my $megabytes     = $args{'memory'}   || $self->throw("No memory supplied");
-        my $cmd           = $args{'cmd'}      || $self->throw("No cmd supplied");
+        my $instance_type = $args{instance} || $self->throw("No instance supplied");
+        my $megabytes     = $args{memory}   || $self->throw("No memory supplied");
+        my $cmd           = $args{cmd}      || $self->throw("No cmd supplied");
         
         #*** not yet implemented
         warn "would submit cmd [$cmd] to instance [$instance_type], requiring [$megabytes]MB\n";
+        
+        # is there already an instance running with 'room' for our command?
+        my $instance;
+        my @current_instances = $ec2->describe_instances({
+                'image-id'          => $ami,
+                'availability-zone' => $availability_zone,
+                'instance-type'     => $instance_type,
+                #'tag:Key'                        => 'Value'
+            }
+        );
+        
+        unless ($instance_id) {
+            # launch a new instance
+            ($instance) = $ec2->run_instances(
+                -image_id               => $ami,
+                -instance_type          => $instance_type,
+                -client_token           => $ec2->token,
+                -key_name               => $key_name,
+                -security_group         => \@security_groups,
+                -availability_zone      => $availability_zone,
+                -min_count              => 1,
+                -max_count              => 1,
+                -termination_protection => 0,
+                -shutdown_behavior      => 'terminate'
+            ) or $self->throw($ec2->error_str);
+            
+            $ec2->wait_for_instances($instance);
+            my $status = $instance->current_status;
+            $self->throw("Created a new instance but it didn't start running normally") unless $status eq 'running';
+        }
+        
+        if ($instance) {
+            $instance_id = $instance->instanceId;
+            warn "selected instance $instance_id\n";
+            
+            #...
+            
+            sleep(20);
+            warn "will terminate the instance\n";
+            $instance->terminate;
+        }
+        else {
+            $self->throw("Could not find or create an instance to submit the command to");
+        }
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
         # based on the requirements we want to select an appropriate ec2
         # instance type to run the job on
+        my $megabytes = $requirements->memory;
+        my $cpus      = $requirements->cpus;
         
-        #my $megabytes = $requirements->memory;
-        #my $chosen_queue;
-        #*** not yet implemented
-        #return $chosen_queue;
+        # we hard-coded a preferred order for types above; select the first
+        # type in the list that meets our requirements
+        foreach my $type (@ordered_types) {
+            my ($available_cpus, $available_megabytes) = @{ $instance_types{$type} };
+            next if $available_cpus < $cpus;
+            next if $available_megabytes < $megabytes;
+            return $type;
+        }
         
-        #*** for now we just hard-code m1.medium, which is 1 core, 3.7GB
-        
-        return 'm1.medium';
+        $self->throw("No EC2 instance type is compatible with running jobs requiring $cpus cpus and $megabytes MB of memory");
     }
     
     method queue_time (VRPipe::Requirements $requirements) {
@@ -137,23 +210,8 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     }
     
     method get_sid (Str $cmd) {
-        my $ec2;
-        unless ($ami) {
-            # get user's private vrpipe-install AMI if we don't already know it
-            $ec2 = VM::EC2->new(-access_key => $access_key, -secret_key => $secret_key, -region => $region);
-            my @amis = $ec2->describe_images(-owner => "self", -filter => { name => "vrpipe-install" }) or $self->throw("desribe_images call failed: " . $ec2->error_str);
-            unless (@amis == 1) {
-                $self->throw("There was not exactly 1 vrpipe-install AMI owned by you");
-            }
-            $ami = $amis[0]->imageId;
-            warn "got ami $ami\n";
-        }
-        
-        #*** not yet implemented
-        my $sid;
-        
-        #my $output = `$cmd`;
-        #my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
+        my $output = `$cmd`;
+        my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
         
         if ($sid) {
             return $sid;
