@@ -247,7 +247,16 @@ class VRPipe::StepState extends VRPipe::Persistent {
             $self->warn("start_over called for stepstate " . $self->id);
         }
         
-        # first reset all associated submissions in order to reset their jobs
+        # first remove output file rows from the db; we do this before deleting
+        # subs to avoid a race condition where delete subs while another process
+        # is parsing this, sees no subs and does a parse and creates new sofs
+        # immediately before we then delete them
+        $self->unlink_output_files(only_unique_to_us => 1);
+        foreach my $sof ($self->_output_files) {
+            $sof->delete;
+        }
+        
+        # reset all associated submissions in order to reset their jobs
         foreach my $sub ($self->submissions) {
             $sub->start_over;
             
@@ -264,14 +273,8 @@ class VRPipe::StepState extends VRPipe::Persistent {
         VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
         
         # now reset self
-        $self->unlink_output_files(only_unique_to_us => 1);
         $self->complete(0);
         $self->update;
-        
-        # remove output file rows from the db
-        foreach my $sof ($self->_output_files) {
-            $sof->delete;
-        }
     }
 }
 
