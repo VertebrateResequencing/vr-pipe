@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 74;
+    use Test::Most tests => 76;
     use VRPipeTest;
     use TestPipelines;
     
@@ -161,7 +161,7 @@ ok $ds = VRPipe::DataSource->create(
     source  => file(qw(t data datasource.sequence_index))->absolute->stringify,
     options => { local_root_dir => dir('./')->absolute->stringify }
   ),
-  'could create a sequence_index datasource';
+  'could create a sequence_index datasource with lane_fastqs method';
 
 @results = ();
 foreach my $element (@{ get_elements($ds) }) {
@@ -191,6 +191,20 @@ is_deeply $meta,
     mate           => file(qw(t data 2822_6_2.fastq))->absolute->stringify
   },
   'a VRPipe::File created by source has the correct metadata';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'sequence_index',
+    method  => 'sample_fastqs',
+    source  => file(qw(t data datasource.sequence_index))->absolute->stringify,
+    options => { local_root_dir => dir('./')->absolute->stringify }
+  ),
+  'could create a sequence_index datasource with sample_fastqs method';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply \@results, [{ paths => [file(qw(t data 2822_6.fastq))->absolute, file(qw(t data 2822_6_1.fastq))->absolute, file(qw(t data 2822_6_2.fastq))->absolute, file(qw(t data 2822_7_1.fastq))->absolute, file(qw(t data 2822_7_2.fastq))->absolute, file(qw(t data 2823_4_1.fastq))->absolute, file(qw(t data 2823_4_2.fastq))->absolute], sample => 'SAMPLE01' }, { paths => [file(qw(t data 8324_8_1.fastq))->absolute, file(qw(t data 8324_8_2.fastq))->absolute], sample => 'SAMPLE02' }], 'got correct results for sequence_index sample_fastqs';
 
 my $fai      = file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify;
 my $override = file(qw(t data wgs_calling_override_options))->absolute->stringify;
