@@ -300,10 +300,20 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 $self->debug($sm_error);
                             }
                             else {
-                                $self->debug("same submissions as");
+                                # we could also have same_submissions_as
+                                # something for a withdrawn dataelement, in
+                                # which case we'll also be stalled
+                                if ($other_state->dataelement->withdrawn) {
+                                    $state->same_submissions_as(undef);
+                                    $state->update;
+                                    $self->debug("same submissions as for a withdrawn dataelement, unset same_submissions_as");
+                                }
+                                else {
+                                    # else, is it safe to assume the submissions
+                                    # of this other setup are really running?
+                                    $self->debug("same submissions as");
+                                }
                             }
-                            # else, is it safe to assume the submissions of this
-                            # other setup are really running?
                         }
                         else {
                             $self->debug("had submissions and I guess they're running normally");
@@ -320,6 +330,43 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         }
                         catch ($err) {
                             $parse_return = $err;
+                        }
+                        
+                        # if we're the primary for a block_and_skip job and have
+                        # just been started over to get here, our stepoutputfile
+                        # might have changed, so we need to update all the other
+                        # stepstates that have same subs as us
+                        unless ($parse_return) {
+                            my %sof_file_to_key = map { $_->file->id => $_->output_key } $state->_output_files;
+                            foreach my $same (VRPipe::StepState->search({ same_submissions_as => $state->id })) {
+                                my %correct_sofs;
+                                foreach my $sof ($same->_output_files) {
+                                    my $this_file = $sof->file->id;
+                                    if (exists $sof_file_to_key{$this_file}) {
+                                        unless ($sof->output_key eq $sof_file_to_key{$this_file}) {
+                                            $sof->output_key($sof_file_to_key{$this_file});
+                                            $sof->update;
+                                        }
+                                        $correct_sofs{$this_file} = 1;
+                                    }
+                                    else {
+                                        $sof->delete;
+                                    }
+                                }
+                                
+                                while (my ($file, $key) = each %sof_file_to_key) {
+                                    next if exists $correct_sofs{$file};
+                                    VRPipe::StepOutputFile->create(stepstate => $same, file => $file, output_key => $key);
+                                }
+                                
+                                # also, set the dataelementstate to 0 and done to 0,
+                                # as if we had done a start_over on this state
+                                # (whilst avoiding the complications of really doing
+                                #  one)
+                                VRPipe::DataElementState->get(pipelinesetup => $same->pipelinesetup, dataelement => $same->dataelement, completed_steps => 0);
+                                $same->complete(0);
+                                $same->update;
+                            }
                         }
                         
                         # $parse_return is 0 if we dispatched something, undef
@@ -344,7 +391,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     my ($cmd, undef, $job_args) = @$arrayref;
                                     my ($job) = VRPipe::Job->search({ dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd });
                                     last unless $job;
-                                    my @submissions = VRPipe::Submission->search({ job => $job->id }, { prefetch => 'stepstate' });
+                                    my @submissions = VRPipe::Submission->search({ job => $job->id, -or => [{ '_done' => 1 }, { 'dataelement.withdrawn' => 0 }] }, { prefetch => 'stepstate', join => { stepstate => 'dataelement' } });
                                     last unless @submissions;
                                     foreach my $sub (@submissions) {
                                         $other_states{ $sub->stepstate->id }++;
@@ -363,7 +410,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 
                                 if ($same_as_us) {
                                     # we just say that $state's submissions are
-                                    # the same as the other other stepstate's
+                                    # the same as the other stepstate's
                                     $state->same_submissions_as($same_as_us);
                                     $state->update;
                                     $self->debug("same subs as $same_as_us");
