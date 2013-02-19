@@ -252,29 +252,36 @@ class VRPipe::StepState extends VRPipe::Persistent {
         # is parsing this, sees no subs and does a parse and creates new sofs
         # immediately before we then delete them
         $self->unlink_output_files(only_unique_to_us => 1);
-        foreach my $sof ($self->_output_files) {
-            $sof->delete;
-        }
         
-        # reset all associated submissions in order to reset their jobs
-        foreach my $sub ($self->submissions) {
-            $sub->start_over;
-            
-            # delete any stepstats there might be for us
-            foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
-                $ss->delete;
+        # everything else needs to be in a transaction or we risk leaving our
+        # selves in a partial invalid state with eg. no submissions, no output
+        # files, but claiming we are complete
+        my $transaction = sub {
+            foreach my $sof ($self->_output_files) {
+                $sof->delete;
             }
             
-            $sub->delete;
-        }
-        
-        # clear the dataelementstate to 0 steps completed; not important to try
-        # and figure out the correct number of steps to set it to
-        VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
-        
-        # now reset self
-        $self->complete(0);
-        $self->update;
+            # reset all associated submissions in order to reset their jobs
+            foreach my $sub ($self->submissions) {
+                $sub->start_over;
+                
+                # delete any stepstats there might be for us
+                foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
+                    $ss->delete;
+                }
+                
+                $sub->delete;
+            }
+            
+            # clear the dataelementstate to 0 steps completed; not important to try
+            # and figure out the correct number of steps to set it to
+            VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
+            
+            # now reset self
+            $self->complete(0);
+            $self->update;
+        };
+        $self->do_transaction($transaction, "StepState start_over for " . $self->id . " failed, though we did unlink the output files");
     }
 }
 
