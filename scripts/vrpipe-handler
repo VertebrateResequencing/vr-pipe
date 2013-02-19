@@ -86,7 +86,7 @@ elsif ($mode eq 'submissions') {
     my $scheduler = $cmdline->opts('scheduler');
     $scheduler || $cmdline->die_with_error("--scheduler is required in submissions mode");
     my $runner = $cmdline->opts('runner');
-    $runner || $cmdline->die_with_error("--runner is required in submissions mode");
+    $runner || $cmdline->die_with_error("--runner is required in submissions mode") unless $debug;
     handle_submissions($req, $scheduler, $runner);
 }
 else {
