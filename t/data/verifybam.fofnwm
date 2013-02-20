@@ -1,3 +1,3 @@
 path	vcf
-t/data/sample1.bam	t/data/sample1.vcf
-t/data/sample2.bam	t/data/sample2.vcf
+t/data/sample1.bam	t/data/sample1.vcf.gz
+t/data/sample2.bam	t/data/sample2.vcf.gz
