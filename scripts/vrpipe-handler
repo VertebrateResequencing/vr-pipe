@@ -50,7 +50,8 @@ my $cmdline = VRPipe::FrontEnd->new(
         ['scheduler|s=i',    'a Scheduler id',                                                     { persistent_object => 'Scheduler' }],
         ['runner=i',         'a Runner id',                                                        { persistent_object => 'Runner' }],
         [],
-        ['debug', 'turn lots of debugging output on, and allow it to work without a server running']
+        ['debug', 'turn lots of debugging output on, and allow it to work without a server running'],
+        ['submission=i', 'a Submission id to directly specify which submission to handle in --debug mode', { persistent_object => 'Submission' }],
     ]
 );
 
@@ -82,12 +83,16 @@ if ($mode eq 'setups') {
 }
 elsif ($mode eq 'submissions') {
     my $req = $cmdline->opts('requirements');
-    $req || $cmdline->die_with_error("--requirements is required in submissions mode");
+    $req || $cmdline->die_with_error("--requirements is required in submissions mode") unless $debug;
     my $scheduler = $cmdline->opts('scheduler');
     $scheduler || $cmdline->die_with_error("--scheduler is required in submissions mode");
     my $runner = $cmdline->opts('runner');
     $runner || $cmdline->die_with_error("--runner is required in submissions mode") unless $debug;
-    handle_submissions($req, $scheduler, $runner);
+    my $given_sub = $cmdline->opts('submission');
+    if ($given_sub) {
+        $req = $given_sub->requirements;
+    }
+    handle_submissions($req, $scheduler, $runner, $given_sub);
 }
 else {
     $cmdline->die_with_error("$mode is an invalid mode");
@@ -373,7 +378,7 @@ sub handle_setups {
 }
 
 sub handle_submissions {
-    my ($req, $scheduler, $runner) = @_;
+    my ($req, $scheduler, $runner, $given_sub) = @_;
     $backend->log_stderr unless $debug;
     my $req_id                = $req->id;
     my $time_needed           = $req->time;
@@ -385,6 +390,7 @@ sub handle_submissions {
     # update its status
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
     my ($submission, $job_pid, %failed_by_us, $working, $no_subs_found);
+    $submission = $given_sub if $given_sub;
     my $handled_submissions = 0;
     my $watcher = EV::timer int(rand($timer_interval)), $timer_interval, sub {
         return if $working;
