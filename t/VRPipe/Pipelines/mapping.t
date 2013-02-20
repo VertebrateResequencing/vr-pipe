@@ -34,7 +34,7 @@ my $si_datasource = VRPipe::DataSource->create(
     options => { local_root_dir => dir(".")->absolute->stringify }
 );
 my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
-    name        => 's_suis mapping',
+    name        => 's_suis mapping 1',
     datasource  => $si_datasource,
     output_root => $mapping_output_dir,
     pipeline    => $mapping_pipeline,
@@ -72,7 +72,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
 # forking in Manager->trigger
 my $mapping_output_dir2 = get_output_dir('mapping_cleanup');
 VRPipe::PipelineSetup->create(
-    name        => 's_suis mapping',
+    name        => 's_suis mapping 2',
     datasource  => $si_datasource,
     output_root => $mapping_output_dir2,
     pipeline    => $mapping_pipeline,

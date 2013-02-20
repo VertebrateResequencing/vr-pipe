@@ -1050,6 +1050,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         return $self->_get(1, @_);
     }
     
+    # we want to auto-retry all update attempts that fail due to Lock timeouts
+    # or similar
+    around update {
+        my $transaction = sub {
+            $self->$orig;
+        };
+        $self->do_transaction($transaction, "update failed");
+    }
+    
     # bulk inserts from populate() are fast, but we can easily end up with
     # duplicate rows using it, so we use a more careful but sadly slower
     # wrapper. It updates existing rows just like get().

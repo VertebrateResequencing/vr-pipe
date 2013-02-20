@@ -86,7 +86,7 @@ elsif ($mode eq 'submissions') {
     my $scheduler = $cmdline->opts('scheduler');
     $scheduler || $cmdline->die_with_error("--scheduler is required in submissions mode");
     my $runner = $cmdline->opts('runner');
-    $runner || $cmdline->die_with_error("--runner is required in submissions mode");
+    $runner || $cmdline->die_with_error("--runner is required in submissions mode") unless $debug;
     handle_submissions($req, $scheduler, $runner);
 }
 else {
@@ -492,6 +492,7 @@ sub handle_submissions {
                     # Job->run itself would have adjusted $submission's
                     # requirements already if we failed due to running out of
                     # time or memory; we just need to retry it if appropriate
+                    $backend->debug("sub " . $submission->id . " is failed, previously with " . $submission->retries . ' retries');
                     $submission->retry if $submission->retries < 3;
                     $failed_by_us{ $submission->id } = 1;
                 }
@@ -513,18 +514,23 @@ sub handle_submissions {
                 # user's scheduler might kill the submission if it runs too
                 # long in the queue it was initially submitted to; avoid
                 # this by changing queue as necessary
+                $backend->debug("sub " . $submission->id . " is close to time limit");
                 my $current_queue = $scheduler->determine_queue($req);
                 $submission->extra_time;
                 my $new_queue = $scheduler->determine_queue($submission->requirements);
                 
                 if ($new_queue ne $current_queue) {
-                    $scheduler->switch_queue($runner->sid, $new_queue);
+                    $backend->debug("sub " . $submission->id . " will switch to queue $new_queue from $current_queue");
+                    $scheduler->switch_queue($runner->sid, $new_queue) if $runner;
                 }
                 
                 # we do not update $req, so that once this $submission has
                 # finished we should think that we've run out of time and kill
                 # ourselves, keeping vrpipe-server's estimation of how many
                 # handlers per req are running nice and accurate
+            }
+            else {
+                $backend->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
             }
         }
         unless ($submission) {

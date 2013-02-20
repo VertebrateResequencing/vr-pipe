@@ -681,10 +681,13 @@ role VRPipe::StepRole {
         if (defined $options->{memory_override} && $options->{memory_override} > $memory) {
             $memory = $options->{memory_override};
         }
-        if (defined $options->{time_override} && $options->{time_override} > $time) {
-            $time = $options->{time_override};
-            if ($time < 60) {
-                $time *= 60 * 60;
+        if (defined $options->{time_override}) {
+            my $override_time = $options->{time_override};
+            if ($override_time < 60) {
+                $override_time *= 60 * 60;
+            }
+            if ($override_time > $time) {
+                $time = $override_time;
             }
         }
         #*** and the other resources?...
