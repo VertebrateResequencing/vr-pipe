@@ -384,13 +384,17 @@ sub handle_submissions {
     my $time_needed           = $req->time;
     my $end_time              = (time() + $scheduler->queue_time($req)) - 65;
     my $mins_before_switching = $time_needed < 600 ? 1 : 5;
+    if ($given_sub) {
+        # make sure there's something in the submissionqueue for this sub
+        VRPipe::SubmissionQueue->create(farm => $farm, req_id => $req_id, sub_id => $given_sub->id);
+    }
     $req->disconnect;
     
     # every so often we'll pick a submission if we don't have one already, and
     # update its status
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
     my ($submission, $job_pid, %failed_by_us, $working, $no_subs_found);
-    $submission = $given_sub if $given_sub;
+    
     my $handled_submissions = 0;
     my $watcher = EV::timer int(rand($timer_interval)), $timer_interval, sub {
         return if $working;
@@ -549,7 +553,7 @@ sub handle_submissions {
             
             # pick the next available submission to work on
             eval {
-                my $queue_pager = VRPipe::SubmissionQueue->search_paged({ req_id => $req_id, 'farm' => $farm }, {}, 1000);
+                my $queue_pager = VRPipe::SubmissionQueue->search_paged({ req_id => $req_id, 'farm' => $farm, $given_sub ? (sub_id => $given_sub->id) : () }, {}, 1000);
                 $backend->debug("looking for new submission");
                 SLOOP: while (my $rows = $queue_pager->next(no_resetting => 1)) {
                     # reduce contention of multiple handler processes all trying
