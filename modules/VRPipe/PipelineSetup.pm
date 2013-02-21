@@ -54,6 +54,7 @@ use VRPipe::Base;
 
 class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use POSIX qw(ceil);
+    use DateTime;
     
     has 'name' => (
         is     => 'rw',
@@ -494,6 +495,40 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             $estate->completed_steps($step_number);
             $estate->update;
         }
+    }
+    
+    method log_event (Str $msg, Bool :$record_stack?, Int :$dataelement = 0, Int :$stepstate = 0, Int :$submission = 0, Int :$job = 0) {
+        #return unless $self->verbose; # at some point we'll only use this in testing?
+        
+        # we don't store the same event over and over again: check what the last
+        # msg stored was
+        my ($last) = VRPipe::PipelineSetupLog->search({ ps_id => $self->id }, { order_by => { -desc => 'me.id' }, rows => 1 });
+        if ($last->message eq $msg && $last->de_id == $dataelement && $last->ss_id == $stepstate && $last->sub_id == $submission && $last->job_id == $job) {
+            return;
+        }
+        
+        return VRPipe::PipelineSetupLog->create(
+            ps_id   => $self->id,
+            message => $msg,
+            date    => DateTime->now(),
+            $record_stack ? (stack => $self->stack_trace) : (),
+            de_id  => $dataelement,
+            ss_id  => $stepstate,
+            sub_id => $submission,
+            job_id => $job
+        );
+    }
+    
+    method logs (Str :$like?, Int :$dataelement?, Int :$stepstate?, Int :$submission?, Int :$job?, Bool :$include_undefined?) {
+        return VRPipe::PipelineSetupLog->search({
+                ps_id => $self->id,
+                $like ? (message => { like => $like }) : (),
+                $dataelement ? (de_id  => $include_undefined ? { -in => [0, $dataelement] } : $dataelement) : (),
+                $stepstate   ? (ss_id  => $include_undefined ? { -in => [0, $stepstate] }   : $stepstate)   : (),
+                $submission  ? (sub_id => $include_undefined ? { -in => [0, $submission] }  : $submission)  : (),
+                $job         ? (job_id => $include_undefined ? { -in => [0, $job] }         : $job)         : ()
+            }
+        );
     }
 }
 

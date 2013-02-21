@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 137;
+    use Test::Most tests => 151;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -232,6 +232,29 @@ $setups[0]->reselect_values_from_db;
 is $setups[0]->datasource->id, 2, 'and since we did an update, other instances are affected as well';
 $first_setup->datasource($ds[0]);
 $first_setup->update;
+
+ok my $log = VRPipe::PipelineSetupLog->create(ps_id => 1, message => "foo bar", date => DateTime->now()), 'able to call PipelineSetupLog->create';
+is $log->ps_id,   1,         'ps_id() worked';
+is $log->message, 'foo bar', 'message() worked';
+ok !$log->stack, 'strack() defaults to undef';
+$first_setup->log_event('created and changed');
+is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed'], 'logs() returned all the logs for the first setup';
+is_deeply [map { $_->message } $first_setup->logs(like => 'created%')], ['created and changed'], q[logs with like returned all the logs for the first setup with matching string];
+sleep(2);
+$first_setup->log_event('created and changed');
+is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed'], 'log_event with the same message does not work twice in a row';
+$first_setup->log_event('car');
+$first_setup->log_event('created and changed');
+is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed', 'car', 'created and changed'], 'log_event does allow the same message to be recorded more than once';
+is_deeply [$log->de_id, $log->ss_id, $log->sub_id, $log->job_id], [0, 0, 0, 0], 'de_id, ss_id, sub_id, job_id default to 0';
+$log = $first_setup->log_event("funion", record_stack => 1, dataelement => 1, stepstate => 2, submission => 3, job => 4);
+is_deeply [$log->de_id, $log->ss_id, $log->sub_id, $log->job_id], [1, 2, 3, 4], 'de_id, ss_id, sub_id, job_id can all be set during log_event';
+ok $log->stack, 'stack() can be set during log_event';
+$first_setup->log_event("funion2", dataelement => 1);
+$first_setup->log_event("funion3", dataelement => 2);
+is_deeply [map { $_->message } $first_setup->logs(dataelement => 1)], ['funion', 'funion2'], 'logs() limited to a given dataelement returned only matching logs';
+is_deeply [map { $_->message } $first_setup->logs(dataelement => 1, stepstate => 2)], ['funion'], 'logs() limited to a given dataelement and stepstate returned more restricted matching log';
+is_deeply [map { $_->message } $first_setup->logs(dataelement => 1, stepstate => 2, include_undefined => 1)], ['foo bar', 'created and changed', 'car', 'created and changed', 'funion', 'funion2'], 'logs() limited to a given dataelement and stepstate with include_undefined on returned all logs except for de 2';
 
 my @stepstates;
 ok $stepstates[0] = VRPipe::StepState->create(stepmember => $stepms[0], dataelement => $de[0], pipelinesetup => $setups[0]), 'created a StepState using create()';
