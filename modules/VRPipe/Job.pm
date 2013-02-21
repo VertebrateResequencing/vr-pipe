@@ -511,6 +511,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 
                 # finalise the job state
                 $self->reselect_values_from_db;
+                $self->throw("During job state finalisation for job " . $self->id . " we found we weren't alive") unless ($self->alive && $self->pid);
                 $self->stdout_file->update_stats_from_disc(retries => 3);
                 $self->stderr_file->update_stats_from_disc(retries => 3);
                 my $o_files = $self->output_files;
