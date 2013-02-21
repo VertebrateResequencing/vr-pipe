@@ -389,7 +389,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     $size = $1;
                     ($cname, $size, $is_numeric) = $converter->get_column_info(size => $size, is_numeric => 0);
                 }
-                elsif ($cname eq 'Text') {
+                elsif ($cname eq 'Text' || $cname eq 'Str') {
                     ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'Bool') {
@@ -694,54 +694,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             }
             
-            # when dealing with refs, if we pass the ref to find(), it will
-            # auto-flatten it and screw up the find call; search() will just try
-            # to search for the reference and fail. find/search based on the
-            # deflated string instead. Also find based on Peristent ids, not the
-            # object references. Also convert DateTime objects as necessary for
-            # searches
-            my $dtf;
-            if ($search_mode && $schema) {
-                $dtf = $schema->storage->datetime_parser;
-            }
-            my %pks = map { $_ => 1 } @psuedo_keys;
+            # deflate refs
             foreach my $hash ($search_mode ? ($args) : ($find_args, $args)) {
-                while (my ($key, $val) = each %$hash) {
-                    next if $key =~ /\./;           # *** not sure how to handle columns from a table join
-                    next if $key =~ /\-(?:and|or)/; #*** we should recurse into the $val...
-                    $self->throw("You cannot search for '$key' because $class does not have that column") unless exists $all_attribs{$key};
-                    
-                    unless ($search_mode) {
-                        next unless exists $pks{$key}; # *** not really sure why get() doesn't work on eg. steps if we don't skip non-keys
-                    }
-                    
-                    if ($val && ref($val)) {
-                        if (UNIVERSAL::can($val, 'can')) {
-                            if ($val->isa('VRPipe::Persistent')) {
-                                $hash->{$key} = $val->id;
-                            }
-                            elsif ($dtf && $val->isa('DateTime')) {
-                                $hash->{$key} = $dtf->format_datetime($val);
-                            }
-                            elsif ($val->can('stringify')) {
-                                $hash->{$key} = $val->stringify;
-                            }
-                        }
-                        elsif (exists $flations{$key}) {
-                            $hash->{$key} = &{ $flations{$key}->{deflate} }($val);
-                        }
-                        elsif ($dtf && ref($val) eq 'HASH') {
-                            # we might have a DateTime as a value
-                            while (my ($hash_key, $hash_val) = each %$val) {
-                                if (ref($hash_val) && UNIVERSAL::can($hash_val, 'can') && $hash_val->isa('DateTime')) {
-                                    $val->{$hash_key} = $dtf->format_datetime($hash_val);
-                                }
-                            }
-                        }
-                    }
-                }
+                $self->_deflate_args($hash, $search_mode, $schema);
             }
             
+            # separate out non-persistent args
             my $non_persistent_args = {};
             foreach my $key (@non_persistent) {
                 exists $args->{$key} || next;
@@ -751,10 +709,73 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return [$find_args, $non_persistent_args];
         });
         
+        $meta->add_method('_deflate_args' => sub { 
+            my ($self, $args, $search_mode, $schema, $new_hash) = @_;
+            my $dtf;
+            if ($search_mode) {
+                $schema ||= $GLOBAL_CONNECTED_SCHEMA || VRPipe::Persistent::Schema->connect;
+                $dtf = $schema->storage->datetime_parser;
+            }
+            
+            my $hash;
+            if ($new_hash) {
+                $hash = {};
+            }
+            else {
+                $hash = $args;
+            }
+            
+            # when dealing with refs, if we pass the ref to find(), it will
+            # auto-flatten it and screw up the find call; search() will just try
+            # to search for the reference and fail. find/search based on the
+            # deflated string instead. Also find based on Peristent ids, not the
+            # object references. Also convert DateTime objects as necessary for
+            # searches
+            my %pks = map { $_ => 1 } @psuedo_keys;
+            while (my ($key, $val) = each %$args) {
+                $hash->{$key} = $val if $new_hash;
+                next if $key =~ /\./;              # *** not sure how to handle columns from a table join
+                next if $key =~ /\-(?:and|or|in)/; #*** we should recurse into the $val...
+                $self->throw("You cannot search for '$key' because $class does not have that column") unless exists $all_attribs{$key};
+                
+                unless ($search_mode) {
+                    next unless exists $pks{$key}; # *** not really sure why get() doesn't work on eg. steps if we don't skip non-keys
+                }
+                
+                if ($val && ref($val)) {
+                    if (UNIVERSAL::can($val, 'can')) {
+                        if ($val->isa('VRPipe::Persistent')) {
+                            $hash->{$key} = $val->id;
+                        }
+                        elsif ($dtf && $val->isa('DateTime')) {
+                            $hash->{$key} = $dtf->format_datetime($val);
+                        }
+                        elsif ($val->can('stringify')) {
+                            $hash->{$key} = $val->stringify;
+                        }
+                    }
+                    elsif (exists $flations{$key}) {
+                        $hash->{$key} = &{ $flations{$key}->{deflate} }($val);
+                    }
+                    elsif ($dtf && ref($val) eq 'HASH') {
+                        # we might have a DateTime as a value
+                        while (my ($hash_key, $hash_val) = each %$val) {
+                            $hash->{$key}->{$hash_key} = $hash_val if $new_hash;
+                            if (ref($hash_val) && UNIVERSAL::can($hash_val, 'can') && $hash_val->isa('DateTime')) {
+                                $val->{$hash_key} = $dtf->format_datetime($hash_val);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return $hash;
+        });
+        
         $meta->add_method('clone' => sub { 
             my ($self, %args) = @_;
             ref($self) || $self->throw("clone can only be called on an instance");
-            $self->throw("id be supplied to clone") if $args{id};
+            $self->throw("id cannot be supplied to clone") if $args{id};
             
             foreach my $key (@psuedo_keys) {
                 unless (defined $args{$key}) {
@@ -969,6 +990,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my $fa                  = $self->_find_args(\%args);
         my %find_args           = %{ $fa->[0] || {} };
         my %non_persistent_args = %{ $fa->[1] || {} };
+        # the _find_args call did not deflate DateTimes, which we need for
+        # search calls:
+        my %search_args = %{ $self->_deflate_args(\%find_args, 1, undef, 1) || {} };
         
         my $transaction = sub {
             # $rs->find_or_create(...) needs all required attributes
@@ -977,14 +1001,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             # split up the find and create calls. Actually, search() is
             # faster than find(), and not sure we need any of the fancy
             # munging that find() does for us.
-            my ($return, @extra) = $rs->search(\%find_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %find_args;
+            my ($return, @extra) = $rs->search(\%search_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %search_args;
             
             # there should not be any @extra, but some rare weirdness may give
             # us duplicate rows in the db; take this opportunity to delete them
             my %extra_ids = map { $_->id => $_ } @extra;
             foreach my $row (@extra) {
+                my $row_id = $row->id;
                 eval { $row->delete; };
-                delete $extra_ids{ $row->id } unless $@;
+                delete $extra_ids{$row_id} unless $@;
             }
             
             # if we couldn't delete the extras (probably due to foreign key
