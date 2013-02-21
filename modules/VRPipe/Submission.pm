@@ -422,12 +422,17 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method start_over {
+        my $ss = $self->stepstate;
+        $ss->pipelinesetup->log_event("Submission->start_over was called", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id, record_stack => 1);
+        
         # reset the job
         $self->_reset_job;
         
         # reset ourself and also set retries to 0
         $self->retries(0);
         $self->_reset;
+        
+        $ss->pipelinesetup->log_event("Submission->start_over call returning", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id);
     }
     
     method _reset_job {

@@ -591,6 +591,7 @@ role VRPipe::StepRole {
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
                         $self->warn("To regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", we will start stepstate $state_id over again");
+                        $state->pipelinesetup->log_event("Calling StepState->start_over to regenerate needed input files (@$files)", stepstate => $state->id, dataelement => $state->dataelement->id);
                         $state->start_over;
                     }
                 }
@@ -639,6 +640,7 @@ role VRPipe::StepRole {
             my ($missing, $messages) = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@$missing) {
+                $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process had a problem with the output files: " . join("\n", @$messages), stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
                 $stepstate->start_over;
                 $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
             }
@@ -648,6 +650,7 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
+            $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process did not return true", stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
             $stepstate->start_over;
             $error = "The post_process_sub did not return true, so the stepstate was started over.";
         }

@@ -503,7 +503,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         # we don't store the same event over and over again: check what the last
         # msg stored was
         my ($last) = VRPipe::PipelineSetupLog->search({ ps_id => $self->id }, { order_by => { -desc => 'me.id' }, rows => 1 });
-        if ($last->message eq $msg && $last->de_id == $dataelement && $last->ss_id == $stepstate && $last->sub_id == $submission && $last->job_id == $job) {
+        if ($last && $last->message eq $msg && $last->de_id == $dataelement && $last->ss_id == $stepstate && $last->sub_id == $submission && $last->job_id == $job) {
             return;
         }
         

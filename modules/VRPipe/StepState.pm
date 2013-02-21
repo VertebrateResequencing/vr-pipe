@@ -248,6 +248,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             # (we want a stacktrace, so a debug() call isn't good enough)
             $self->warn("start_over called for stepstate " . $self->id);
         }
+        $self->pipelinesetup->log_event("StepState->start_over was called", stepstate => $self->id, dataelement => $self->dataelement->id, record_stack => 1);
         
         # before doing anything, record which output files we'll need to delete,
         # but don't actually delete anything until we've done all the db
@@ -276,6 +277,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 
                 # reset all associated submissions in order to reset their jobs
                 foreach my $sub ($self->submissions) {
+                    $self->pipelinesetup->log_event("Calling Submission->start_over during a StepState->start_over", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
                     $sub->start_over;
                     
                     # delete any stepstats there might be for us
@@ -311,6 +313,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         } while ($self->complete);
         
         $self->reselect_values_from_db;
+        $self->pipelinesetup->log_event("StepState->start_over call returning, complete() is " . $self->complete, stepstate => $self->id, dataelement => $self->dataelement->id);
         $self->debug("stepstate " . $self->id . " complete now " . $self->complete);
         $self->verbose($orig_v);
     }

@@ -85,6 +85,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         # start_over() them
         foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id }, { prefetch => 'stepmember' })) {
             next unless exists $step_numbers{ $ss->stepmember->step_number };
+            $ss->pipelinesetup->log_event("Calling StepState->start_over as part of a start_from_scratch for DataElement " . $ss->dataelement->id, stepstate => $ss->id, dataelement => $ss->dataelement->id);
             $ss->start_over();
             
             # ss->start_over deletes submissions for this stepstate - or for the
