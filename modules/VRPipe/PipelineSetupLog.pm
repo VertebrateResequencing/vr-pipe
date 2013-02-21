@@ -106,6 +106,24 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
     );
     
     __PACKAGE__->make_persistent();
+    
+    method stringify {
+        my $date = $self->date;
+        my $str  = "$date [ps " . $self->ps_id;
+        foreach my $method (qw(de_id ss_id sub_id job_id)) {
+            my $val = $self->$method;
+            if ($val) {
+                my ($thing) = $method =~ /^(.+?)_/;
+                $str .= ", $thing $val";
+            }
+        }
+        
+        my $msg = $self->message;
+        chomp($msg);
+        $str .= "] | " . $self->message . "\n";
+        
+        return $str;
+    }
 }
 
 1;
