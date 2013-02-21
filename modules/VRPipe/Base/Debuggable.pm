@@ -18,7 +18,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011,2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -181,6 +181,16 @@ role VRPipe::Base::Debuggable {
         my $t          = time();
         my $first_line = "FATAL ERROR at epoch $t in $cwd";
         
+        my $throw_message = "\n-----------------------------------------------------------------------------\n";
+        $throw_message .= $first_line . "\n\n" . $message . "\n\n" . $self->stack_trace;
+        $throw_message .= "\n-----------------------------------------------------------------------------\n\n";
+        
+        $self->log($throw_message, 2);
+        
+        die $throw_message;
+    }
+    
+    sub stack_trace {
         my $capture = IO::Capture::Stderr->new();
         $capture->start();
         cluck();
@@ -194,7 +204,7 @@ role VRPipe::Base::Debuggable {
                 if ($line =~ /^    \S+Debuggable::throw.+ called at (.+)/) {
                     $line = "Thrown from $1";
                 }
-                elsif ($line =~ /^ at \S+Debuggable.pm line \d+$/) {
+                elsif ($line =~ /^ at \S+Debuggable.pm line \d+/ || $line =~ /^    \S+Debuggable::stack_trace.+ called at/) {
                     next;
                 }
                 
@@ -202,13 +212,7 @@ role VRPipe::Base::Debuggable {
             }
         }
         
-        my $throw_message = "\n-----------------------------------------------------------------------------\n";
-        $throw_message .= $first_line . "\n\n" . $message . "\n\n" . join("\n", @confess);
-        $throw_message .= "\n-----------------------------------------------------------------------------\n\n";
-        
-        $self->log($throw_message, 2);
-        
-        die $throw_message;
+        return join("\n", @confess);
     }
 
 =head2 write_logs
