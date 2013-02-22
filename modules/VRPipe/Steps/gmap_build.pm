@@ -93,7 +93,7 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             gmap_build_circular => VRPipe::StepOption->create(
                 description   => 'Circular chromosomes (seperate with comma)',
                 optional      => 1,
-                default_value => 'ChrM'
+                default_value => 'chrM'
             )
         };
     }
