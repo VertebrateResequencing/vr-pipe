@@ -31,7 +31,7 @@ SKIP: {
         ),
         output_root => dir($output_dir)->absolute->stringify,
         pipeline    => $pipeline,
-        options     => { gsnap_db => 'mygenome', paired_end => 1, gsnap_add_metadata_to_sam_read_group => 1, gsnap_genome_dir => $gmap_build_dir->absolute->stringify }
+        options     => { gsnap_db => 'sacCer3', paired_end => 1, gsnap_add_metadata_to_sam_read_group => 1, gsnap_genome_dir => $gmap_build_dir->absolute->stringify }
     );
     
     my @output_subdirs = output_subdirs(1);

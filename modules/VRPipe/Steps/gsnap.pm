@@ -48,7 +48,10 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             
             readgroup_sm_from_metadata_key => VRPipe::StepOption->create(description => 'The SM of the readgroup will come from metadata associated with the fastq; this option chooses which metadata key to get the value from',                                                                                        optional => 1, default_value => 'sample'),
             gsnap_sam_use_0M               => VRPipe::StepOption->create(description => ' Insert 0M in CIGAR between adjacent insertions and deletions in output sam. Required by Picard, but can cause errors in other tools.',                                                                                          optional => 1, default_value => 1),
-            gsnap_force_xs_dir             => VRPipe::StepOption->create(description => 'For RNA-Seq alignments, disallows XS:A:? when the sense direction is unclear, and replaces this value arbitrarily with XS:A:+. May be useful for some programs, such as Cufflinks, that cannot handle XS:A:?. See gsnap --help', optional => 1, default_value => 1)
+            gsnap_force_xs_dir             => VRPipe::StepOption->create(description => 'For RNA-Seq alignments, disallows XS:A:? when the sense direction is unclear, and replaces this value arbitrarily with XS:A:+. May be useful for some programs, such as Cufflinks, that cannot handle XS:A:?. See gsnap --help', optional => 1, default_value => 1),
+            gsnap_format                   => VRPipe::StepOption->create(description => "Another format type, leave blank for gsnap default",                                                                                                                                                                             optional => 1, default_value => 'sam'),
+            gsnap_other_options            => VRPipe::StepOption->create(description => "Other gsnap options",                                                                                                                                                                                                            optional => 1, default_value => '-t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam')
+        
         };
     }
     
@@ -81,7 +84,8 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             my $gsnap_add_metadata_to_sam_read_group = $options->{gsnap_add_metadata_to_sam_read_group};
             my $sample_key                           = $options->{readgroup_sm_from_metadata_key};
             my $gsnap_force_xs_dir                   = $options->{gsnap_force_xs_dir};
-            
+            my $gsnap_format                         = $options->{gsnap_output};
+            my $gsnap_other_options                  = $options->{gsnap_other_options};
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'gsnap', version => VRPipe::StepCmdSummary->determine_version($gsnap_exe . ' --version', 'GSNAP version  (.+) c'), summary => 'gsnap -d gsnap_db input_file'));
             my $req = $self->new_requirements(memory => 16000, time => 1); # more? 16GB RAM? Could be 8GB?
             my @input_file = @{ $self->inputs->{fastq_files} };
@@ -121,9 +125,10 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
             # deal with other options such as gunzip
             # construct command
             $cmd = "$gsnap_exe $inputs";
-            $cmd .= " -D $gsnap_genome_dir " if ($gsnap_genome_dir);
-            $cmd .= " --gunzip "             if ($gunzipped);
-            $cmd .= " --sam-use-0M "         if ($gsnap_add_0M_to_cigar);
+            $cmd .= " -D $gsnap_genome_dir "   if ($gsnap_genome_dir);
+            $cmd .= " --gunzip "               if ($gunzipped);
+            $cmd .= " --sam-use-0M "           if ($gsnap_add_0M_to_cigar);
+            $cmd .= " --format=$gsnap_format " if ($gsnap_format);
             if ($gsnap_add_metadata_to_sam_read_group) {
                 my $meta = $input_file[0]->metadata;
                 my $library = $self->command_line_safe_string($meta->{library} || 'unknown_library');
@@ -139,8 +144,8 @@ class VRPipe::Steps::gsnap with VRPipe::StepRole {
                 $cmd .= " --read-group-id $study";
             }
             $cmd .= " --force-xs-dir " if ($gsnap_force_xs_dir);
-            $cmd .= " -d $gsnap_db -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
-            #warn $cmd;
+            $cmd .= " -d $gsnap_db " . $gsnap_other_options . " --split-output=$output_file_dir/$name";
+            # -t 12 -B 4 -N 1 --npaths=1 --filter-chastity=both --clip-overlap --fails-as-input --quality-protocol=sanger --format=sam --split-output=$output_file_dir/$name";
             $self->dispatch([qq[$cmd], $req, { output_files => [$output_file_1] }]);
         };
     
