@@ -57,7 +57,7 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
     
     has 'message' => (
         is     => 'rw',
-        isa    => Varchar [254],
+        isa    => 'Str',
         traits => ['VRPipe::Persistent::Attributes'],
         is_key => 1
     );
@@ -107,7 +107,7 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method stringify {
+    method stringify (Bool :$show_traces = 0) {
         my $date = $self->date;
         my $str  = "$date [ps " . $self->ps_id;
         foreach my $method (qw(de_id ss_id sub_id job_id)) {
@@ -121,6 +121,14 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
         my $msg = $self->message;
         chomp($msg);
         $str .= "] | " . $self->message . "\n";
+        
+        if ($show_traces) {
+            my $trace = $self->stack;
+            if ($trace) {
+                chomp($trace);
+                $str .= $trace . "\n";
+            }
+        }
         
         return $str;
     }
