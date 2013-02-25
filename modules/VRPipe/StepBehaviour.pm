@@ -67,7 +67,7 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     );
     
     has 'behaviour' => (
-        is      => 'ro',
+        is      => 'rw',
         isa     => Varchar [64],
         traits  => ['VRPipe::Persistent::Attributes'],
         is_key  => 1,
