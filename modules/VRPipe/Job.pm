@@ -352,7 +352,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
-        my $ss = $submission->stepstate;
+        my $ss = $submission->stepstate if $submission;
         
         # check we're allowed to run, in a transaction to avoid race condition
         my $do_return;
@@ -360,10 +360,10 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             if ($self->start_time) {
                 if ($self->ok) {
                     $do_return = 1;
-                    $ss->pipelinesetup->log_event("Job->run() called, but we're already finished ok", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                    $ss->pipelinesetup->log_event("Job->run() called, but we're already finished ok", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                 }
                 else {
-                    $ss->pipelinesetup->log_event("Job->run() called, but we're already started running and not finished yet", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                    $ss->pipelinesetup->log_event("Job->run() called, but we're already started running and not finished yet", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                     $do_return = 0;
                 }
                 return; # out of the transaction
@@ -375,7 +375,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             $self->_living_id("$self");
             $self->_i_started_running(1);
             $self->update;
-            $ss->pipelinesetup->log_event("Job->run() called and set our start_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+            $ss->pipelinesetup->log_event("Job->run() called and set our start_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $do_return) {
@@ -491,7 +491,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     my $efh         = $stderr_file->open('>>');
                     print $efh $explanation, "\n";
                     $stderr_file->close;
-                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                     
                     $self->_signalled_to_death($signal);
                     
@@ -518,7 +518,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 waitpid($cmd_pid, 0); # is this necessary??
                 $self->stop_monitoring;
                 
-                $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                 
                 # finalise the job state
                 if ($self->pid) {
@@ -585,8 +585,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id }, { rows => 1 });
         }
-        my $ss = $submission->stepstate;
-        $ss->pipelinesetup->log_event("Job->kill_job() called", dataelement => $ss->dataelement->id, stepstate => $ss->id, job => $self->id, record_stack => 1);
+        my $ss = $submission->stepstate if $submission;
+        $ss->pipelinesetup->log_event("Job->kill_job() called", dataelement => $ss->dataelement->id, stepstate => $ss->id, job => $self->id, record_stack => 1) if $ss;
         
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
         if ($user && $host && $pid) {
