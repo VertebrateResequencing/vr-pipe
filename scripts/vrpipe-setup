@@ -83,9 +83,11 @@ if ($setup) {
     if ($deactivate || $reactivate) {
         if ($deactivate) {
             $setup->active(0);
+            $setup->log_event("vrpipe-setup --deactivated called");
         }
         elsif ($reactivate) {
             $setup->active(1);
+            $setup->log_event("vrpipe-setup --reactivated called");
         }
         $setup->update;
         
@@ -581,6 +583,7 @@ else {
         my $ds = VRPipe::DataSource->create(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args);
         my $ps = VRPipe::PipelineSetup->create(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args, user => $user, $farm ? (desired_farm => $farm) : ());
         $frontend->output("\nYour new PipelineSetup has been created!\nName: $setup_name; Id: ", $ps->id, " (remember at least one of these for use later)");
+        $ps->log_event("vrpipe-setup used to create this new PipelineSetup");
     }
     else {
         $frontend->output("Abandoning the setup, nothing was done");
