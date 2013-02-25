@@ -203,8 +203,12 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
                 $element || next;
                 foreach my $estate ($element->element_states) {
+                    $estate->pipelinesetup->log_event("sequence_index DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
                     $estate->start_from_scratch;
                 }
+                
+                #*** problems happen if we start_from_scratch some of them, but
+                # then get killed before updating the metadata...
                 
                 # only now that we've started from scratch do we we alter the
                 # metadata
@@ -354,8 +358,12 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
                 $element || next;
                 foreach my $estate ($element->element_states) {
+                    $estate->pipelinesetup->log_event("sequence_index DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
                     $estate->start_from_scratch;
                 }
+                
+                #*** problems happen if we start_from_scratch some of them, but
+                # then get killed before updating the metadata...
                 
                 # only now that we've started from scratch do we we alter the
                 # metadata

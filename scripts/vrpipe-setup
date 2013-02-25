@@ -103,11 +103,13 @@ if ($setup) {
         
         my $setup_id = $setup->id;
         $frontend->output($cleanup ? "Working on wiping out all trace of the withdrawn DataElements of setup $setup_id..." : "Working on wiping out all trace of setup $setup_id...");
+        my $mode_name = $cleanup ? "cleanup" : ($reset ? "reset" : "delete");
         
         # deactivate it first
         unless ($cleanup) {
             $setup->active(0);
             $setup->update;
+            $setup->log_event("vrpipe-setup --$mode_name deactivated the PipelineSetup");
         }
         
         # delete all related rows in the db
@@ -139,6 +141,7 @@ if ($setup) {
                             }
                             
                             if ($all_mine) {
+                                $setup->log_event("vrpipe-setup --$mode_name will kill Job because it is unique to this Setup", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
                                 $job->kill_job unless $job->end_time;
                             }
                             
@@ -147,12 +150,14 @@ if ($setup) {
                                 $ss->delete;
                             }
                             
+                            $setup->log_event("vrpipe-setup --$mode_name will delete Submission", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
                             $sub->delete;
                             push(@jobs_to_delete, $job) if $all_mine;
                         }
                     }
                     
                     # delete output files not also created by some other setup
+                    $setup->log_event("vrpipe-setup --$mode_name will unlink all output files unique to this StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
                     $step_state->unlink_output_files(only_unique_to_us => 1);
                     
                     # delete sofs
@@ -163,33 +168,43 @@ if ($setup) {
                     # undef any same_submissions_as that reference us
                     VRPipe::StepState->search_rs({ same_submissions_as => $step_state->id })->update({ same_submissions_as => undef });
                     
+                    $setup->log_event("vrpipe-setup --$mode_name will delete the StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
                     $step_state->delete;
                 }
                 
+                my $dataelement = $element_state->dataelement;
+                $setup->log_event("vrpipe-setup --$mode_name will delete the DataElementState", dataelement => $dataelement->id);
                 $element_state->delete;
                 if ($cleanup) {
-                    eval { $element_state->dataelement->delete; };
+                    eval {
+                        $setup->log_event("vrpipe-setup --$mode_name will delete the DataElement", dataelement => $dataelement->id);
+                        $dataelement->delete;
+                    };
                 }
             }
         }
         $frontend->progress_indicator(1);
         
         foreach my $job (@jobs_to_delete) {
+            $setup->log_event("vrpipe-setup --$mode_name will delete Job because it is unique to this Setup", job => $job->id);
             $job->delete;
         }
         
         if ($cleanup) {
             $frontend->output("Setup $setup_id has been cleaned up.");
+            $setup->log_event("vrpipe-setup --$mode_name has cleaned up the Setup");
         }
         else {
             # also delete the pipelinesetup and links if in delete mode
             if ($delete) {
                 VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
                 $setup->delete;
+                $setup->log_event("vrpipe-setup --$mode_name has deleted the Setup");
                 $frontend->output("Setup $setup_id has been reset and deleted.");
             }
             else {
                 $frontend->output("Setup $setup_id has been reset and is now deactivated.");
+                $setup->log_event("vrpipe-setup --$mode_name has reset the Setup");
             }
         }
     }

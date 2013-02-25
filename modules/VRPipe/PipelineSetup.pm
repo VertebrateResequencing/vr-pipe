@@ -266,6 +266,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 unless ($pp_error) {
                                     # we just completed all the submissions from a
                                     # previous parse
+                                    $self->log_event("PipelineSetup->trigger found all Submissions were complete and the post_process was successful", dataelement => $element->id, stepstate => $state->id);
                                     $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                                     $self->debug("completed on pre-existing subs");
                                     next;
@@ -274,6 +275,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     # we warn instead of throw, because the step may
                                     # have discovered its output files are missing
                                     # and restarted itself
+                                    $self->log_event("PipelineSetup->trigger found all Submissions were complete but the post_process had problems: $pp_error", dataelement => $element->id, stepstate => $state->id);
                                     $sm_error = "When trying to post process $error_ident after the submissions completed we hit the following error:\n$pp_error";
                                     $self->debug($sm_error);
                                 }
@@ -307,6 +309,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 if ($other_state->dataelement->withdrawn) {
                                     $state->same_submissions_as(undef);
                                     $state->update;
+                                    $self->log_event("PipelineSetup->trigger found that this StepState had the same submissions as for a withdrawn DataElement, so same_submissions_as was cleared", dataelement => $element->id, stepstate => $state->id);
                                     $self->debug("same submissions as for a withdrawn dataelement, unset same_submissions_as");
                                 }
                                 else {
@@ -347,17 +350,20 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         unless ($sof->output_key eq $sof_file_to_key{$this_file}) {
                                             $sof->output_key($sof_file_to_key{$this_file});
                                             $sof->update;
+                                            $self->log_event("PipelineSetup->trigger after parse() for StepState " . $state->id . " found that the key for File $this_file changed to $sof_file_to_key{$this_file}, so StepOutputFile updated", dataelement => $same->dataelement->id, stepstate => $same->id);
                                         }
                                         $correct_sofs{$this_file} = 1;
                                     }
                                     else {
                                         $sof->delete;
+                                        $self->log_event("PipelineSetup->trigger after parse() for StepState " . $state->id . " found that the $this_file was no longer an output, so StepOutputFile deleted", dataelement => $same->dataelement->id, stepstate => $same->id);
                                     }
                                 }
                                 
                                 while (my ($file, $key) = each %sof_file_to_key) {
                                     next if exists $correct_sofs{$file};
                                     VRPipe::StepOutputFile->create(stepstate => $same, file => $file, output_key => $key);
+                                    $self->log_event("PipelineSetup->trigger after parse() for StepState " . $state->id . " found that $file was a new output, so StepOutputFile created", dataelement => $same->dataelement->id, stepstate => $same->id);
                                 }
                                 
                                 # also, set the dataelementstate to 0 and done to 0,
@@ -367,6 +373,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 VRPipe::DataElementState->get(pipelinesetup => $same->pipelinesetup, dataelement => $same->dataelement, completed_steps => 0);
                                 $same->complete(0);
                                 $same->update;
+                                $self->log_event("PipelineSetup->trigger after parse() for StepState " . $state->id . " reset out complete to 0 since we had the same submissions as it", dataelement => $same->dataelement->id, stepstate => $same->id);
                             }
                         }
                         
@@ -374,10 +381,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         # if we completed instantly and already ran post_process
                         # successfully, or is an error string
                         if ($parse_return) {
+                            $self->log_event("PipelineSetup->trigger called parse() but hit the following error: $parse_return", dataelement => $element->id, stepstate => $state->id);
                             $sm_error = "When trying to parse $error_ident we hit the following error:\n$parse_return";
                             $self->debug($sm_error);
                         }
                         elsif (!defined $parse_return) {
+                            $self->log_event("PipelineSetup->trigger called parse(), which dispatched nothing and completed instantly", dataelement => $element->id, stepstate => $state->id);
                             $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                             $self->debug("instant complete after parse");
                             next;
@@ -414,6 +423,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     # the same as the other stepstate's
                                     $state->same_submissions_as($same_as_us);
                                     $state->update;
+                                    $self->log_event("PipelineSetup->trigger called parse(), which dispatched the same submissions as StepState " . $same_as_us->id, dataelement => $element->id, stepstate => $state->id);
                                     $self->debug("same subs as $same_as_us");
                                     
                                     # (now we'll redo the loop; we probably
@@ -428,9 +438,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     # that same_submissions_as stepstate, not
                                     # for $state, hence the use of
                                     # $state->submission_search_id)
+                                    $self->log_event("PipelineSetup->trigger called parse(), which dispatched new things", dataelement => $element->id, stepstate => $state->id);
                                     foreach my $arrayref (@$dispatched) {
                                         my ($cmd, $reqs, $job_args) = @$arrayref;
                                         my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state->submission_search_id, requirements => $reqs);
+                                        $self->log_event("PipelineSetup->trigger called parse(), and the dispatch created a new Submission", dataelement => $element->id, stepstate => $state->id, submission => $sub->id, job => $sub->job->id);
                                     }
                                     $self->debug("created new subs");
                                     last;
@@ -469,32 +481,40 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         while (my ($key, $val) = each %{ $step->outputs() }) {
             $previous_step_outputs->{$key}->{$step_number} = $val;
         }
-        unless ($state->complete) {
-            # are there any behaviours to trigger?
-            foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
-                $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
-            }
-            
-            unless ($state->same_submissions_as) {
-                # add to the StepStats
-                my %done_jobs;
-                foreach my $submission ($state->submissions) {
-                    my $job = $submission->job;
-                    next if $done_jobs{ $job->id };
-                    VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $job->peak_memory || 0, time => $job->wall_time);
-                    $done_jobs{ $job->id } = 1;
-                }
-            }
-            
-            $state->complete(1);
-            $state->update;
-        }
         
-        my $completed_steps = $estate->completed_steps;
-        if ($step_number > $completed_steps) {
-            $estate->completed_steps($step_number);
-            $estate->update;
-        }
+        my $transaction = sub {
+            unless ($state->complete) {
+                $self->log_event("PipelineSetup->trigger found the StepState is now complete", dataelement => $estate->dataelement->id, stepstate => $state->id);
+                
+                # are there any behaviours to trigger?
+                foreach my $behaviour (VRPipe::StepBehaviour->search({ pipeline => $pipeline->id, after_step => $step_number })) {
+                    $self->log_event("PipelineSetup->trigger is triggering behaviour " . $behaviour->behaviour, dataelement => $estate->dataelement->id, stepstate => $state->id);
+                    $behaviour->behave(data_element => $state->dataelement, pipeline_setup => $state->pipelinesetup);
+                }
+                
+                unless ($state->same_submissions_as) {
+                    # add to the StepStats
+                    my %done_jobs;
+                    foreach my $submission ($state->submissions) {
+                        my $job = $submission->job;
+                        next if $done_jobs{ $job->id };
+                        VRPipe::StepStats->create(step => $step, pipelinesetup => $state->pipelinesetup, submission => $submission, memory => $job->peak_memory || 0, time => $job->wall_time);
+                        $done_jobs{ $job->id } = 1;
+                    }
+                }
+                
+                $state->complete(1);
+                $state->update;
+            }
+            
+            my $completed_steps = $estate->completed_steps;
+            if ($step_number > $completed_steps) {
+                $estate->completed_steps($step_number);
+                $estate->update;
+                $self->log_event("PipelineSetup->trigger found the DataElementState has completed $step_number steps", dataelement => $estate->dataelement->id);
+            }
+        };
+        $self->do_transaction($transaction, "Failed to complete state for StepState " . $state->id);
     }
     
     method log_event (Str $msg, Bool :$record_stack?, Int :$dataelement = 0, Int :$stepstate = 0, Int :$submission = 0, Int :$job = 0) {

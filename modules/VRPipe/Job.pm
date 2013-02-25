@@ -349,14 +349,21 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?) {
+        unless ($submission) {
+            ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
+        }
+        my $ss = $submission->stepstate;
+        
         # check we're allowed to run, in a transaction to avoid race condition
         my $do_return;
         my $transaction = sub {
             if ($self->start_time) {
                 if ($self->ok) {
                     $do_return = 1;
+                    $ss->pipelinesetup->log_event("Job->run() called, but we're already finished ok", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
                 }
                 else {
+                    $ss->pipelinesetup->log_event("Job->run() called, but we're already started running and not finished yet", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
                     $do_return = 0;
                 }
                 return; # out of the transaction
@@ -368,6 +375,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             $self->_living_id("$self");
             $self->_i_started_running(1);
             $self->update;
+            $ss->pipelinesetup->log_event("Job->run() called and set our start_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $do_return) {
@@ -483,6 +491,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     my $efh         = $stderr_file->open('>>');
                     print $efh $explanation, "\n";
                     $stderr_file->close;
+                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
                     
                     $self->_signalled_to_death($signal);
                     
@@ -509,11 +518,16 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 waitpid($cmd_pid, 0); # is this necessary??
                 $self->stop_monitoring;
                 
+                $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                
                 # finalise the job state
-                $self->reselect_values_from_db;
-                $self->throw("During job state finalisation for job " . $self->id . " we found we weren't alive") unless ($self->alive && $self->pid);
-                $self->stdout_file->update_stats_from_disc(retries => 3);
-                $self->stderr_file->update_stats_from_disc(retries => 3);
+                if ($self->pid) {
+                    #*** somehow we can not have a pid, which breaks the
+                    # following 2 calls
+                    $self->stdout_file->update_stats_from_disc(retries => 3);
+                    $self->stderr_file->update_stats_from_disc(retries => 3);
+                }
+                
                 my $o_files = $self->output_files;
                 if (@$o_files) {
                     foreach my $o_file (@$o_files) {
@@ -525,11 +539,20 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 }
                 
                 $self->stop_beating;
-                $self->exit_code($exit_code);
-                $self->end_time(DateTime->now());
-                $self->_living_id(undef);
-                $self->_i_started_running(0);
-                $self->update;
+                $self->reselect_values_from_db;
+                my $transaction = sub {
+                    unless ($self->heartbeat) {
+                        #*** things get wonky if somehow we've completed running
+                        # before a heartbeat occurred, so add one now
+                        $self->hearbeat(DateTime->now);
+                    }
+                    $self->exit_code($exit_code);
+                    $self->end_time(DateTime->now());
+                    $self->_living_id(undef);
+                    $self->_i_started_running(0);
+                    $self->update;
+                };
+                $self->do_transaction($transaction, "Failed to finalise Job state after the child exited");
                 
                 $self->clear_watchers;
             };
@@ -559,14 +582,18 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     method kill_job (VRPipe::Submission $submission?) {
+        unless ($submission) {
+            ($submission) = VRPipe::Submission->search({ job => $self->id }, { rows => 1 });
+        }
+        my $ss = $submission->stepstate;
+        $ss->pipelinesetup->log_event("Job->kill_job() called", dataelement => $ss->dataelement->id, stepstate => $ss->id, job => $self->id, record_stack => 1);
+        
         my ($user, $host, $pid) = ($self->user, $self->host, $self->pid);
         if ($user && $host && $pid) {
             if (hostname() eq $host) {
                 killfam "KILL", $pid;
             }
             else {
-                $self->verbose(1);
-                $self->verbose(0);
                 eval {
                     local $SIG{ALRM} = sub { die "ssh timed out\n" };
                     alarm(15);

@@ -612,6 +612,7 @@ role VRPipe::StepRole {
             my $step_state = $self->step_state;
             $step_state->output_files($output_files);
             $step_state->update;
+            $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFiles", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
         }
         my $temp_files = $self->_temp_files;
         if (@$temp_files) {

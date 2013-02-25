@@ -162,6 +162,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 }
                 
                 foreach my $file_id (@files_to_forget) {
+                    $self->pipelinesetup->log_event("Deleting StepOutputFile for " . VRPipe::File->get(id => $file_id)->path . " because output_files() call with a new hash did not have this file in it", dataelement => $self->dataelement, stepstate => $self->id);
                     VRPipe::StepOutputFile->get(stepstate => $self, file => $file_id, output_key => $key)->delete;
                 }
             }
@@ -268,10 +269,12 @@ class VRPipe::StepState extends VRPipe::Persistent {
             $self->reselect_values_from_db;
             my $transaction = sub {
                 # first remove output file rows from the db; we do this before
-                # deleting subs to avoid a race condition where delete subs while
-                # another process is parsing this, sees no subs and does a parse and
-                # creates new sofs immediately before we then delete them
+                # deleting subs to avoid a race condition where delete subs
+                # while another process is parsing this, sees no subs and does a
+                # parse and creates new sofs immediately before we then delete
+                # them
                 foreach my $sof ($self->_output_files) {
+                    $self->pipelinesetup->log_event("StepState->start_over call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
                     $sof->delete;
                 }
                 
@@ -285,6 +288,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                         $ss->delete;
                     }
                     
+                    $self->pipelinesetup->log_event("StepState->start_over call deleting Submission", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
                     $sub->delete;
                 }
                 
