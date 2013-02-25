@@ -68,14 +68,14 @@ my $debug = $cmdline->opts('debug');
 my $mode = $cmdline->opts('mode') || $cmdline->die_with_error("--mode must be supplied");
 my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
 my $fs;
-if ($debug) {
-    $backend->set_verbose_global(1);
-}
-else {
+unless ($debug) {
     ($fs) = VRPipe::FarmServer->search({ farm => $farm });
     unless ($fs) {
         $cmdline->die_with_error("There is no farm server running for farm '$farm'");
     }
+}
+if ($debug || $deployment eq 'testing') {
+    $backend->set_verbose_global(1);
 }
 
 if ($mode eq 'setups') {
@@ -156,7 +156,9 @@ sub handle_setups {
                     $datasource_watchers{$ds_id}->{working} = 1;
                     fork_call {
                         $backend->debug("will trigger first_step_only for new setup $sid");
+                        $setup->verbose(1) unless $debug;
                         $setup->trigger(first_step_only => 1);
+                        $setup->verbose(0) unless $debug;
                         return;
                     }
                     sub {
@@ -197,18 +199,28 @@ sub handle_setups {
                             my $e_before = VRPipe::DataElement->search({ datasource => $ds->id, withdrawn => 0 });
                             $backend->debug("will call ds->elements for ds $ds_id");
                             my $e_after_pager = $ds->elements;
-                            return unless $e_after_pager; # we changed to having 0 dataelements
+                            unless ($e_after_pager) {
+                                # we changed to having 0 dataelements
+                                foreach my $s (VRPipe::PipelineSetup->search({ datasource => $ds->id })) {
+                                    $s->log_event("vrpipe-handler for setups called datasource->elements and got 0 dataelements");
+                                }
+                                return;
+                            }
                             
                             # if we just got new elements, trigger them for each
                             # setup that uses this ds
                             my @triggered_setups = ();
-                            if ($e_after_pager->total_entries != $e_before) {
+                            my $e_after          = $e_after_pager->total_entries;
+                            if ($e_after != $e_before) {
                                 foreach my $ds_setup (VRPipe::PipelineSetup->search({ datasource => $ds_id, active => 1 }, { prefetch => ['datasource', 'pipeline'] })) {
                                     # (it's too expensive/risky to set the
                                     #  currently_triggering marker... it should
                                     #  be ok to trigger first step only...)
                                     $backend->debug("datasource $ds_id had new elements, so will trigger first_step_only for setup " . $ds_setup->id);
+                                    $ds_setup->log_event("vrpipe-handler for setups called datasource->elements which changed the number of dataelements from $e_before => $e_after");
+                                    $ds_setup->verbose(1) unless $debug;
                                     $ds_setup->trigger(first_step_only => 1, prepare_elements => 0);
+                                    $ds_setup->verbose(0) unless $debug;
                                     $backend->debug("finished first_step_only trigger for setup " . $ds_setup->id);
                                 }
                             }
@@ -226,7 +238,10 @@ sub handle_setups {
                                     # email user about this once
                                     #*** auto-deactivate it?
                                     
-                                    $backend->log("There is a problem with datasource $ds_id for setup " . $setup->id, email_to => [$setup->user], subject => "Setup " . $setup->id . " has problems with its DataSource", long_msg => $err);
+                                    foreach my $s (VRPipe::PipelineSetup->search({ datasource => $ds->id })) {
+                                        $s->log_event("vrpipe-handler for setups called found that DataSource $ds_id has problems: $err");
+                                        $backend->log("There is a problem with datasource $ds_id for setup " . $s->id, email_to => [$s->user], subject => "Setup " . $s->id . " has problems with its DataSource", long_msg => $err);
+                                    }
                                 }
                             }
                             else {
@@ -271,6 +286,7 @@ sub handle_setups {
                             if ($setup->currently_complete) {
                                 unless ($mt->already_sent("complete with $num_states elements")) {
                                     unless ($num_states == 0) {
+                                        $setup->log_event("vrpipe-handler for setups found completed the setup with $num_states DataElements");
                                         my $name = $setup->name;
                                         my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
                                         $backend->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
@@ -284,6 +300,7 @@ sub handle_setups {
                             my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
                             if ($perma_fails) {
                                 unless ($mt->already_sent("has some perma fails")) {
+                                    $setup->log_event("vrpipe-handler for setups called found repeated failures for the setup that need user intervention");
                                     my $long = "Investigate the problems by running:\n\$ vrpipe-submissions --setup $sid --failed\n(add --list 1 to limit the amount of output)\n\nOnce the issue has been resolved, give the failed submissions another try by running:\n\$ vrpipe-submissions --setup $sid --failed --start_over --no_report\n(or replace --start_over with --full_reset if your fix would change the command line that needs to be run)\n";
                                     $backend->log("Setup $sid has repeated failures that need user intervention", email_to => [$setup->user], subject => "Setup $sid has problems", long_msg => $long);
                                 }
@@ -310,7 +327,9 @@ sub handle_setups {
                                             next unless $same->complete;
                                             my $de = $step_state->dataelement;
                                             $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
+                                            $setup->verbose(1) unless $debug;
                                             my $this_error = $setup->trigger(dataelement => $de);
+                                            $setup->verbose(0) unless $debug;
                                             if ($this_error && !$error_message) {
                                                 $error_message = $this_error;
                                             }
@@ -329,6 +348,7 @@ sub handle_setups {
                             unless ($perma_fails) {
                                 if ($error_message) {
                                     unless ($mt->already_sent("trigger problem")) {
+                                        $setup->log_event("vrpipe-handler for setups hit problems during trigger(): $error_message");
                                         $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
                                     }
                                 }
@@ -349,6 +369,7 @@ sub handle_setups {
                             my $err = $@ || return;
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("unknown problem")) {
+                                $setup->log_event("vrpipe-handler for setups encountered an nknown problem: $err");
                                 $backend->log("There is a problem with setup $sid:\n$err", email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
                             }
                         };
@@ -423,17 +444,21 @@ sub handle_submissions {
             
             if (!$job->start_time) {
                 # hmmm, this really shouldn't happen
+                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions had started to run a Job, yet it has no start_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                 $backend->log("sub " . $submission->id . " job had not started?!");
-                $submission->release;
+                $submission->_reset_job;
+                $submission->_reset;
                 undef $submission;
                 $job->reset_job;
                 return;
             }
             
             if ($job->end_time) {
+                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions was monitoring a Job which now has an end_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                 $submission->update_status;
                 
                 if ($submission->done) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission is done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     $backend->debug("sub " . $submission->id . " is done");
                     # we completed successfully; if this was the last submission
                     # of its step and they're all done now, do a trigger for
@@ -460,6 +485,7 @@ sub handle_submissions {
                     $submission->do_transaction($transaction, "Failed to see if the step was done after submission " . $submission->id . " completed");
                     
                     if ($trigger_next_step) {
+                        $step_state->pipelinesetup->log_event("vrpipe-handler for submissions noted that all Submissions for this StepState are done, so will trigger the next Step", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
                         # triggering from within the above transaction caused
                         # strange problems, so we do it outside and risk the
                         # the subs being marked done but no starting of next
@@ -467,13 +493,16 @@ sub handle_submissions {
                         # handler will catch stalls for this reason
                         my $setup = $step_state->pipelinesetup;
                         $backend->debug("will trigger next step");
+                        $setup->verbose(1) unless $debug;
                         my $error_message = $setup->trigger(dataelement => $step_state->dataelement);
+                        $setup->verbose(0) unless $debug;
                         $backend->debug("done triggering next step");
                         
                         if ($error_message) {
                             my $sid = $setup->id;
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("trigger problem")) {
+                                $step_state->pipelinesetup->log_event("vrpipe-handler for submissions failed to trigger the next step: $error_message", dataelement => $step_state->dataelement->id);
                                 $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
                             }
                         }
@@ -485,12 +514,15 @@ sub handle_submissions {
                         foreach my $psde (@$others) {
                             my ($sid, $de) = @$psde;
                             my $other_setup = VRPipe::PipelineSetup->get(id => $sid);
+                            $other_setup->verbose(1) unless $debug;
                             my $other_error_message = $other_setup->trigger(dataelement => VRPipe::DataElement->get(id => $de));
+                            $other_setup->verbose(0) unless $debug;
                             
                             if ($other_error_message) {
                                 my $sid = $other_setup->id;
                                 my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                                 unless ($mt->already_sent("trigger problem")) {
+                                    $other_setup->log_event("vrpipe-handler for submissions failed to trigger the next step: $other_error_message", dataelement => $de);
                                     $backend->log($other_error_message, email_to => [$other_setup->user], email_admin => 1, subject => "Setup $sid has problems");
                                 }
                             }
@@ -502,6 +534,7 @@ sub handle_submissions {
                     # Job->run itself would have adjusted $submission's
                     # requirements already if we failed due to running out of
                     # time or memory; we just need to retry it if appropriate
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission is failed (now " . $submission->retries . " retries)", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     $backend->debug("sub " . $submission->id . " is failed, previously with " . $submission->retries . ' retries');
                     $submission->retry if $submission->retries < 3;
                     $failed_by_us{ $submission->id } = 1;
@@ -511,10 +544,14 @@ sub handle_submissions {
                 # though, so avoid the ugly (but harmless) error message in the
                 # logs by evaling it
                 $backend->debug("will release submission " . $submission->id);
-                eval { $submission->release; };
+                eval {
+                    $submission->release;
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions released the Submission it was handling", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                };
                 
                 my $signal = $job->_signalled_to_death;
                 if ($signal) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it received a SIG$signal", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     return exit_handler($submission->id . " failed because we received a SIG$signal");
                 }
                 
@@ -531,6 +568,7 @@ sub handle_submissions {
                 
                 if ($new_queue ne $current_queue) {
                     $backend->debug("sub " . $submission->id . " will switch to queue $new_queue from $current_queue");
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions is close to the time limit, so switching from queue $current_queue to $new_queue", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     $scheduler->switch_queue($runner->sid, $new_queue) if $runner;
                 }
                 
@@ -595,14 +633,17 @@ sub handle_submissions {
                                 $submission = $sub;
                                 $handled_submissions++;
                                 $row->delete;
+                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                                 $backend->debug("successfully claimed and ran sub " . $sub->id);
                             }
                             else {
+                                $sub->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run, managed to claim the Submission yet the Job didn't start running", stepstate => $sub->stepstate->id, dataelement => $sub->stepstate->dataelement->id, submission => $sub->id, job => $sub->job->id);
                                 $backend->debug("claim_and_run for sub " . $sub->id . " returned defined, but is not running");
                                 $submission = 0;
                             }
                         }
                         else {
+                            $sub->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run, but failed to claim this Submission", stepstate => $sub->stepstate->id, dataelement => $sub->stepstate->dataelement->id, submission => $sub->id, job => $sub->job->id);
                             $backend->debug("tried to claim_and_run sub " . $sub->id . " but that returned undef");
                         }
                         
