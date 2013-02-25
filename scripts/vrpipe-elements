@@ -245,6 +245,7 @@ if ($count > 0 && $start_from_scratch) {
             $frontend->output("Will redo steps ", join(', ', @desired_steps));
             
             foreach my $estate (@$estates) {
+                $estate->pipelinesetup->log_event("vrpipe-elements --start_from_scratch will call DataElementState->start_from_scratch", dataelement => $estate->dataelement->id);
                 $estate->start_from_scratch(\@desired_steps);
             }
             $frontend->output("Done");
