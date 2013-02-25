@@ -89,6 +89,11 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
                 description   => 'path to your snpindex executable',
                 optional      => 1,
                 default_value => 'snpindex'
+            ),
+            gmap_build_circular => VRPipe::StepOption->create(
+                description   => 'Circular chromosomes (seperate with comma)',
+                optional      => 1,
+                default_value => 'chrM'
             )
         };
     }
@@ -110,8 +115,9 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             my $gmap_build_kmer_size              = $options->{gmap_build_kmer_size};
             my $gmap_build_rebuild                = $options->{gmap_build_rebuild};
             my $gmap_snpindex_exe                 = $options->{gmap_snpindex_exe};
-            
+            my $gmap_build_circular               = $options->{gmap_build_circular};
             my $output_file;
+            
             if ($gmap_build_gmap_default_directory) {
                 #*** ? where is the default directory? Do we still make an
                 #      output file?
@@ -141,6 +147,8 @@ class VRPipe::Steps::gmap_build with VRPipe::StepRole {
             if ($gmap_build_gunzip_file) {
                 $cmd .= ' -g';
             }
+            
+            $cmd .= ' -c ' . $gmap_build_circular if ($gmap_build_circular);
             $cmd .= ' ' . $gmap_build_fasta_files;
             
             # option to create a snp index
