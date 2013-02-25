@@ -376,7 +376,12 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     method remove {
-        my $path   = $self->path;
+        my $path = $self->path;
+        my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
+        while (my ($ss_id, $ss) = each %stepstates) {
+            $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path", dataelement => $ss->dataelement->id, stepstate => $ss->id, record_stack => 1);
+        }
+        
         my $worked = $self->path->remove;
         $self->update_stats_from_disc;
         if ($worked) {
@@ -412,14 +417,18 @@ class VRPipe::File extends VRPipe::Persistent {
             return 1;
         }
         
+        my $sp         = $self->path;
+        my $dp         = $dest->path;
+        my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
+        while (my ($ss_id, $ss) = each %stepstates) {
+            $ss->pipelinesetup->log_event("File->move() called for StepOutputFile $sp => $dp", dataelement => $ss->dataelement->id, stepstate => $ss->id);
+        }
+        
         my $success;
         if ($check_md5s) {
             $success = $self->copy($dest);
         }
         else {
-            my $sp = $self->path;
-            my $dp = $dest->path;
-            
             # is it safe to move? (this check requires enough disk space for a
             # copy, even though we may do a direct mv requiring no additional
             # disk space if both sp and dp are on the same filesystem... but
