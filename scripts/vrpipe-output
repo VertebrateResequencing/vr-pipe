@@ -429,23 +429,29 @@ while (my $estates = $estates_pager->next) {
                     }
                 }
                 
-                my $dest               = file($this_output_dir, $this_basename);
-                my $dest_path          = $dest->stringify;
-                my $dest_resolved_path = $dest->resolve->absolute->stringify;   # Path::Class::File->resolve actually changes $dest
-                my $resolved_output    = $output_file->resolve;
+                my $dest            = file($this_output_dir, $this_basename);
+                my $dest_path       = $dest->stringify;
+                my $resolved_output = $output_file->resolve;
                 
                 # make sure it doesn't already exist
                 my $source     = $resolved_output->path;
                 my $do_symlink = 1;
                 if (-e $dest_path) {
-                    if (-l $dest_path && ($dest_resolved_path eq $source || $dest_resolved_path eq $output_file->path)) {
-                        $do_symlink = 0;
-                    }
-                    elsif (-l $dest_path && $force_overwrite) {
-                        VRPipe::File->create(path => $dest_path)->remove;
+                    if (-l $dest_path) {
+                        my $dest_resolved_path = $dest->resolve->absolute->stringify; # Path::Class::File->resolve actually changes $dest
+                        if ($dest_resolved_path eq $source || $dest_resolved_path eq $output_file->path) {
+                            $do_symlink = 0;                                          # symlink is already there, and correct
+                        }
+                        elsif ($force_overwrite) {
+                            VRPipe::File->create(path => $dest_path)->remove;         # remove symlink so new one can build
+                        }
+                        else {
+                            $frontend->error("Can't create symlink $source => $dest_path since the destination already exists and isn't a symlink pointing to the source; skipping. Use --force_overwrite to overwrite this symlink.");
+                            $do_symlink = 0;
+                        }
                     }
                     else {
-                        $frontend->error("Can't create symlink $source => $dest_path since the destination already exists and isn't a symlink pointing to the source; skipping");
+                        $frontend->error("Can't create symlink $source => $dest_path since the destination already exists and isn't a symlink; skipping");
                         $do_symlink = 0;
                     }
                 }
