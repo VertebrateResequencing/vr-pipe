@@ -249,7 +249,7 @@ while (my $estates = $estates_pager->next) {
                 unless ($force) {
                     next unless exists $allowed_kinds{$smid}->{$kind};
                 }
-                my @files = grep { $_->s || $_->resolve->s } @$files;
+                my @files = $list ? (@$files) : (grep { $_->s || $_->resolve->s } @$files);
                 next unless @files;
                 
                 my @file_data;
