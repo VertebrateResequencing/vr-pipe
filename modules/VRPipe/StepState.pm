@@ -266,8 +266,9 @@ class VRPipe::StepState extends VRPipe::Persistent {
         # complete set to 1; make sure by repeating.
         my $retries = 6;
         do {
-            $self->reselect_values_from_db;
             my $transaction = sub {
+                $self->reselect_values_from_db;
+                
                 # first remove output file rows from the db; we do this before
                 # deleting subs to avoid a race condition where delete subs
                 # while another process is parsing this, sees no subs and does a
