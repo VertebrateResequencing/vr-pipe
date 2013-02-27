@@ -631,6 +631,31 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return unless $self->in_storage;
             
             if (my $current_storage = $self->get_from_storage({ force_pool => 'master' })) {
+                my $changed = 0;
+                while (my ($key, $val) = each %{ $current_storage->{_column_data} }) {
+                    my $self_val = $self->{_column_data}->{$key};
+                    if ((defined $val && !defined $self_val) || (defined $self_val && !defined $val) || (defined $val && defined $self_val && "$val" ne "$self_val")) {
+                        $changed = 1;
+                        last;
+                    }
+                }
+                
+                unless ($changed) {
+                    # in some transactions where concurrent processes may be
+                    # checking and changing the value of a column, even if that
+                    # row is locked for update things can still apparently screw
+                    # up and we sometimes don't see the latest db value here;
+                    # sleep for a second to try and ensure we do.
+                    
+                    #*** is there a further way to avoid doing this other than
+                    # testing for lack of change? Obviously the 1s sleep really
+                    # slows everything down...
+                    
+                    # select(undef, undef, undef, 0.5); # waiting for less than a second sometimes isn't enough
+                    sleep(1);
+                    $current_storage = $self->get_from_storage({ force_pool => 'master' });
+                }
+                
                 $self->{_column_data} = $current_storage->{_column_data};
                 delete $self->{_inflated_column};
                 delete $self->{related_resultsets};
