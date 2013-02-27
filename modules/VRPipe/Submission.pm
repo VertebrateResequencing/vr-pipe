@@ -161,7 +161,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                         my $started_running = 0;
                         for (1 .. 12) {
                             sleep(5);
-                            $job->reselect_values_from_db;
                             if ($job->alive(no_suicide => 1)) {
                                 $started_running = 1;
                                 last;
