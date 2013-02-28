@@ -646,11 +646,11 @@ sub handle_submissions {
                             $sub->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run, but failed to claim this Submission", stepstate => $sub->stepstate->id, dataelement => $sub->stepstate->dataelement->id, submission => $sub->id, job => $sub->job->id);
                             $backend->debug("tried to claim_and_run sub " . $sub->id . " but that returned undef");
                         }
-                        $sub->disconnect;
                         
                         last SLOOP if $submission;
                     }
                 }
+                $req->disconnect;
             };
             if ($@) {
                 exit_handler("There was a problem picking/ running a new submission: $@");
