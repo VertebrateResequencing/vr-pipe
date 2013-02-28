@@ -357,30 +357,33 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         # check we're allowed to run, in a transaction to avoid race condition
         my $do_return;
         my $transaction = sub {
-            if ($self->start_time) {
-                if ($self->ok) {
+            my ($locked_job) = $self->search({ id => $self->id }, { for => 'update' });
+            
+            if ($locked_job->start_time) {
+                if ($locked_job->ok) {
                     $do_return = 1;
-                    $ss->pipelinesetup->log_event("Job->run() called, but we're already finished ok", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                    $ss->pipelinesetup->log_event("Job->run() called, but we've already finished ok", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                 }
                 else {
-                    $ss->pipelinesetup->log_event("Job->run() called, but we're already started running and not finished yet", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                    $ss->pipelinesetup->log_event("Job->run() called, but we've already started running and not finished yet", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                     $do_return = 0;
                 }
                 return; # out of the transaction
             }
             
             # set the start time
-            $self->reset_job;
-            $self->start_time(DateTime->now());
-            $self->_living_id("$self");
+            $locked_job->reset_job;
+            $locked_job->start_time(DateTime->now());
+            $locked_job->_living_id("$self");
             $self->_i_started_running(1);
-            $self->update;
+            $locked_job->update;
             $ss->pipelinesetup->log_event("Job->run() called and set our start_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $do_return) {
             return $do_return;
         }
+        $self->reselect_values_from_db;
         
         # fork ourselves off a child to run the cmd in. We wrap this up in a
         # single-fire watcher so that nothing actually happens here without the
@@ -646,8 +649,20 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     
     # we can't have a heartbeat unless we started
     around time_since_heartbeat {
-        return unless $self->start_time;
-        return $self->$orig;
+        my $start_time = $self->start_time || return;
+        
+        # also, to help with edge-cases, if we only just started and have not
+        # yet beat our heart, we'll consider our start_time to be our beat time
+        if (!$self->heartbeat) {
+            my $elapsed = time() - $start_time->epoch;
+            if ($elapsed < $self->survival_time) {
+                return $elapsed;
+            }
+            return;
+        }
+        else {
+            return $self->$orig;
+        }
     }
     
     around beat_heart {
