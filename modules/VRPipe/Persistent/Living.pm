@@ -148,7 +148,8 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
     }
     
     method time_since_heartbeat {
-        return time() - $self->heartbeat->epoch;
+        my $heartbeat = $self->heartbeat || return;
+        return time() - $heartbeat->epoch;
     }
     
     method alive (Bool :$no_suicide = 0) {
