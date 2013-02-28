@@ -539,12 +539,11 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 }
                 
                 $self->stop_beating;
-                $self->reselect_values_from_db;
                 my $transaction = sub {
                     unless ($self->heartbeat) {
                         #*** things get wonky if somehow we've completed running
                         # before a heartbeat occurred, so add one now
-                        $self->hearbeat(DateTime->now);
+                        $self->heartbeat(DateTime->now);
                     }
                     $self->exit_code($exit_code);
                     $self->end_time(DateTime->now());

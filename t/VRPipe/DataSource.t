@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 76;
+    use Test::Most tests => 77;
     use VRPipeTest;
     use TestPipelines;
     
@@ -68,6 +68,33 @@ foreach my $element (@{ get_elements($ds) }) {
     push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute] }], 'got correct results for fofn group_all';
+
+# test that _prepare_elements_and_states only happens once simultaneously
+my $fm           = Parallel::ForkManager->new(4);
+my $num_prepared = 0;
+$fm->run_on_finish(
+    sub {
+        my ($pid, $prepared) = @_;
+        $num_prepared++ if $prepared;
+    }
+);
+for (1 .. 4) {
+    $fm->start and next;
+    my $child_ds = VRPipe::DataSource->create(
+        type    => 'fofn',
+        method  => 'all',
+        source  => file(qw(t data datasource.fofn2))->absolute->stringify,
+        options => {}
+    );
+    # force them to be considered changed, as if this was a ds that took a long
+    # time to prepare the first time
+    $child_ds->_changed_marker('foo');
+    $child_ds->_source_instance->_changed_marker('foo');
+    my $prepared = $child_ds->_prepare_elements_and_states;
+    $fm->finish($prepared);
+}
+$fm->wait_all_children;
+is $num_prepared, 1, '_prepare_elements_and_states only occurs once at a time';
 
 # delimited
 ok $ds = VRPipe::DataSource->create(

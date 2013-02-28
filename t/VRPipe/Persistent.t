@@ -502,7 +502,7 @@ my $end_time       = $jobs[2]->end_time->epoch;
 my $heartbeat_time = $jobs[2]->heartbeat->epoch;
 my $ok             = $start_time >= $epoch_time && $start_time <= $epoch_time + 1;
 ok $ok, 'start_time is correct';
-$ok = $end_time > $start_time && $end_time <= $start_time + 4;
+$ok = $end_time > $start_time && $end_time <= $start_time + 6;
 ok $ok, 'end_time is correct';
 $ok = $heartbeat_time > $start_time && $heartbeat_time <= $end_time;
 ok $ok, 'time of last heartbeat correct';

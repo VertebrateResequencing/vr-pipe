@@ -139,10 +139,15 @@ class VRPipe::Persistent::Living extends VRPipe::Persistent {
         $self->_am_beating(0);
     }
     
-    method time_since_heartbeat {
-        unless ($self->_am_beating) {
-            $self->reselect_values_from_db;
+    around heartbeat (Datetime $datetime?) {
+        if ($datetime) {
+            return $self->$orig($datetime);
         }
+        $self->reselect_values_from_db unless $self->_am_beating;
+        return $self->$orig;
+    }
+    
+    method time_since_heartbeat {
         my $heartbeat = $self->heartbeat || return;
         return time() - $heartbeat->epoch;
     }
