@@ -165,6 +165,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method check_file_existence_on_disc (File $path?) {
         $path ||= $self->path;         # optional so that we can call this without a db connection by supplying the path
+        $self->throw("no path!") unless $path;
         my $e = -e $path;
         return $e || 0;
     }
@@ -649,7 +650,6 @@ class VRPipe::File extends VRPipe::Persistent {
         my $current_s     = $self->s;
         my $current_mtime = $self->mtime;
         my $path          = $self->path;
-        $self->disconnect;
         
         my ($new_e, $new_s, $new_mtime);
         my $trys = 0;
