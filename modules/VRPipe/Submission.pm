@@ -26,7 +26,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -133,13 +133,21 @@ class VRPipe::Submission extends VRPipe::Persistent {
     # other methods
     method _get_claim {
         my $claimed_by_us;
-        my $transaction = sub {
+        my $job_already_done = 0;
+        my $transaction      = sub {
             my ($sub_to_claim) = VRPipe::Submission->search({ id => $self->id }, { for => 'update' });
             my $job = $sub_to_claim->job;
             if ($sub_to_claim->_claim) {
                 unless ($job->alive(no_suicide => 1)) {
                     # clean up any 'stuck' submissions
                     if ($job->heartbeat) {
+                        if ($job->ok) {
+                            # we are probably for a Job that completed
+                            # successfully under another Submission
+                            $job_already_done = 1;
+                            return;
+                        }
+                        
                         # another process probably claimed this sub, started
                         # running the job, but then died without releasing the
                         # claim: clean this up now
@@ -197,10 +205,17 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 # and then the process died before job could be updated; check
                 # that the job isn't dead
                 if ($job->alive(no_suicide => 1)) {
+                    if ($job->ok) {
+                        $job_already_done = 1;
+                    }
                     $sub_to_claim->_claim(1);
                     $sub_to_claim->update;
                 }
                 elsif ($job->start_time) {
+                    if ($job->ok) {
+                        $job_already_done = 1;
+                        return;
+                    }
                     $self->stepstate->pipelinesetup->log_event("claim_and_run() found that the Submission was unclaimed yet the Job is dead having started: will reset the Job", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $job->id);
                     $sub_to_claim->_reset_job;
                 }
@@ -212,6 +227,13 @@ class VRPipe::Submission extends VRPipe::Persistent {
             }
         };
         $self->do_transaction($transaction, "Failed when trying to claim submission");
+        
+        if ($job_already_done) {
+            $self->_claim(1);
+            $self->update;
+            $self->update_status;
+            return 1;
+        }
         
         $self->reselect_values_from_db;
         return $claimed_by_us;
@@ -225,6 +247,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
                     $self->stepstate->pipelinesetup->log_event("claim_and_run() failed to get the claim, and since the Submission is failed will retry()", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
                     $self->retry;
                     $run_ok = 0;
+                }
+                elsif ($self->done) {
+                    $run_ok = 1;
                 }
                 else {
                     # start running the associated job
