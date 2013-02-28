@@ -194,7 +194,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                 my $split_file = $outs[$i]->[1];
                 $split_file->unlink;
                 symlink($fq_file->path, $split_file->path); # don't use $fq_file->symlink because $split_file->metadata must be different
-                
+                $split_file->update_stats_from_disc;
                 my $meta = $fq_file->metadata;
                 delete $meta->{expected_md5};
                 $meta->{chunk} = 1;
