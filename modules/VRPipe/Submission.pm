@@ -179,6 +179,10 @@ class VRPipe::Submission extends VRPipe::Persistent {
                             # already, and we might also have set Submission to
                             # done... not sure what to do about failures to
                             # update database as expected...
+                            if ($job->ok) {
+                                $job_already_done = 1;
+                                return;
+                            }
                         }
                         
                         unless ($started_running) {
@@ -229,6 +233,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         $self->do_transaction($transaction, "Failed when trying to claim submission");
         
         if ($job_already_done) {
+            $self->reselect_values_from_db;
             $self->_claim(1);
             $self->update;
             $self->update_status;
@@ -264,7 +269,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
             }
         };
         $self->do_transaction($transaction, "Failed when trying to claim and run");
-        $self->disconnect;
         
         return $run_ok;
     }
@@ -498,6 +502,15 @@ class VRPipe::Submission extends VRPipe::Persistent {
         if ($job->start_time && !$job->end_time) {
             $self->stepstate->pipelinesetup->log_event("Submission->_reset_job() call will kill the currently running Job", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
             $job->kill_job($self);
+        }
+        else {
+            # delete its output
+            my $ofiles = $job->output_files;
+            if (@$ofiles) {
+                foreach my $file (@$ofiles) {
+                    $file->unlink;
+                }
+            }
         }
         
         $job->reset_job;
