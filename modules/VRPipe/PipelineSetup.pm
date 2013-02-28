@@ -276,7 +276,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     unless ($pp_error) {
                                         # we just completed all the submissions from a
                                         # previous parse
-                                        $self->log_event("$$ PipelineSetup->trigger found all Submissions were complete and the post_process was successful", dataelement => $element->id, stepstate => $state->id);
+                                        $self->log_event("PipelineSetup->trigger found all Submissions were complete and the post_process was successful", dataelement => $element->id, stepstate => $state->id);
                                         $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                                         $self->debug("completed on pre-existing subs");
                                         $do_next = 1;
