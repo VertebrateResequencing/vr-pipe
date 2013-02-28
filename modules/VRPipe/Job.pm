@@ -523,24 +523,11 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 
                 $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                 
-                # finalise the job state
-                if ($self->pid) {
-                    #*** somehow we can not have a pid, which breaks the
-                    # following 2 calls
-                    $self->stdout_file->update_stats_from_disc(retries => 3);
-                    $self->stderr_file->update_stats_from_disc(retries => 3);
-                }
-                
-                my $o_files = $self->output_files;
-                if (@$o_files) {
-                    foreach my $o_file (@$o_files) {
-                        $o_file->update_stats_from_disc(retries => 3);
-                    }
-                }
-                elsif ($submission) {
-                    $submission->stepstate->update_output_file_stats;
-                }
-                
+                #*** ideally we want to update_stats_from_disc on all our
+                # output files, but that is time consuming and potentially
+                # risky: we can end up exiting during that phase before we
+                # stop beating and set our end_time and exit_code, which is more
+                # critical
                 $self->stop_beating;
                 my $transaction = sub {
                     unless ($self->heartbeat) {
@@ -557,6 +544,26 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->do_transaction($transaction, "Failed to finalise Job state after the child exited");
                 
                 $self->clear_watchers;
+                
+                #*** theoretically updating file existence now might be too
+                # late, but we assume StepRole will recheck file existence
+                # on files that seem to be missing anyway
+                if ($self->pid) {
+                    #*** somehow we can not have a pid, which breaks the
+                    # following 2 calls
+                    $self->stdout_file->update_stats_from_disc(retries => 3);
+                    $self->stderr_file->update_stats_from_disc(retries => 3);
+                }
+                
+                my $o_files = $self->output_files;
+                if (@$o_files) {
+                    foreach my $o_file (@$o_files) {
+                        $o_file->update_stats_from_disc(retries => 3);
+                    }
+                }
+                elsif ($submission) {
+                    $submission->stepstate->update_output_file_stats;
+                }
             };
             $self->store_watcher($child_watcher);
         };
