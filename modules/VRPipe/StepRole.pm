@@ -411,7 +411,7 @@ role VRPipe::StepRole {
                 # in the past, but now we've recreated a possibly different
                 # $file, so $resolved is out-of-date (or possibly doesn't exist
                 # any more)
-                if ($check_s && (!$resolved->s || !$file->s)) {
+                if ($check_s) {
                     # double-check incase the step did not update_stats_from_disc
                     $resolved->update_stats_from_disc(retries => 3);
                     $file->update_stats_from_disc(retries => 3) unless $resolved->id == $file->id;
@@ -433,7 +433,7 @@ role VRPipe::StepRole {
                     if ($check_s) {
                         my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
                         unless ($type->check_type) {
-                            push(@messages, $resolved->path . " exists, but is the wrong type!");
+                            push(@messages, $resolved->path . " exists, but is the wrong type (not a " . $resolved->type . " file)!");
                             $bad = 1;
                         }
                     }
@@ -612,7 +612,8 @@ role VRPipe::StepRole {
             my $step_state = $self->step_state;
             $step_state->output_files($output_files);
             $step_state->update;
-            $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFiles", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
+            my $ofiles = join(', ', map { $_->file->path } @$output_files);
+            $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFiles [$ofiles]", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
         }
         my $temp_files = $self->_temp_files;
         if (@$temp_files) {
