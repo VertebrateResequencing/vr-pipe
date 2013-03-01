@@ -412,7 +412,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         $flations{$name} = {
                             inflate => sub {
                                 my $hash = thaw(shift);
-                                while (my ($key, $serialized) = each %$hash) { my ($class, $id) = split('~', $serialized); $hash->{$key} = $class->get(id => $id); }
+                                while (my ($key, $serialized) = each %$hash) { my ($class, $id) = split('~', $serialized); my ($instance) = $class->search({ id => $id }); $hash->{$key} = $instance if $instance; }
                                 return $hash;
                             },
                             deflate => sub {
@@ -430,7 +430,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                                     my @array;
                                     foreach my $serialized (@$array_ref) {
                                         my ($class, $id) = split('~', $serialized);
-                                        push(@array, $class->get(id => $id));
+                                        my ($instance) = $class->search({ id => $id });
+                                        push(@array, $instance) if $instance;
                                     }
                                     $hash->{$key} = \@array;
                                 }
@@ -456,7 +457,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                             inflate => sub {
                                 my $array = thaw(shift);
                                 my @inflated;
-                                foreach my $serialized (@$array) { my ($class, $id) = split('~', $serialized); push(@inflated, $class->get(id => $id)); }
+                                foreach my $serialized (@$array) { my ($class, $id) = split('~', $serialized); my ($instance) = $class->search({ id => $id }); push(@inflated, $instance) if $instance; }
                                 return \@inflated;
                             },
                             deflate => sub {
