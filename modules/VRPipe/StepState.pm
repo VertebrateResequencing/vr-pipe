@@ -267,7 +267,9 @@ class VRPipe::StepState extends VRPipe::Persistent {
         my $retries = 6;
         do {
             my $transaction = sub {
-                $self->reselect_values_from_db;
+                # lock our row so that another process doesn't trigger us while
+                # we're in the middle of deleting submissions
+                my ($locked_self) = $self->search({ id => $self->id }, { for => 'update' });
                 
                 # first remove output file rows from the db; we do this before
                 # deleting subs to avoid a race condition where delete subs
@@ -280,7 +282,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 }
                 
                 # reset all associated submissions in order to reset their jobs
-                foreach my $sub ($self->submissions) {
+                foreach my $sub ($locked_self->submissions) {
                     $self->pipelinesetup->log_event("Calling Submission->start_over during a StepState->start_over", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
                     $sub->start_over;
                     
@@ -298,8 +300,8 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
                 
                 # now reset self
-                $self->complete(0);
-                $self->update;
+                $locked_self->complete(0);
+                $locked_self->update;
             };
             $self->do_transaction($transaction, "StepState start_over for " . $self->id . " failed");
             $self->reselect_values_from_db;
