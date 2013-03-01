@@ -612,7 +612,12 @@ role VRPipe::StepRole {
             my $step_state = $self->step_state;
             $step_state->output_files($output_files);
             $step_state->update;
-            my $ofiles = join(', ', map { $_->file->path } @$output_files);
+            my @ofiles;
+            while (my ($key, $files) = each %$output_files) {
+                push(@ofiles, map { $_->path } @$files);
+            }
+            my %ofiles = map { $_ => 1 } @ofiles;
+            my $ofiles = join(', ', keys %ofiles);
             $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFiles [$ofiles]", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
         }
         my $temp_files = $self->_temp_files;
