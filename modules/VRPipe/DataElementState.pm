@@ -130,9 +130,16 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         foreach my $child (@children) {
             $child->pipelinesetup->log_event("DataElementState->start_from_scratch for des " . $self->id . " called start_from_scratch on us because we are its child", dataelement => $child->dataelement->id);
             $child->start_from_scratch();
+            $child->withdraw; # withdraw the child - it will be unwithdrawn when the parent has been rerun
         }
         
         $self->pipelinesetup->log_event("DataElementState->start_from_scratch set completed_steps to 0 and will now return", dataelement => $self->dataelement->id);
+    }
+    
+    method withdraw {
+        my $de = $self->dataelement;
+        $de->withdrawn(1);
+        $de->update;
     }
     
     method our_step_numbers {
