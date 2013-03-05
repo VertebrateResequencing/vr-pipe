@@ -383,7 +383,7 @@ class VRPipe::File extends VRPipe::Persistent {
             $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path", dataelement => $ss->dataelement->id, stepstate => $ss->id, record_stack => 1);
         }
         
-        my $worked = $self->path->remove;
+        my $worked = $path->remove;
         $self->update_stats_from_disc;
         if ($worked) {
             $self->_lines(undef);
