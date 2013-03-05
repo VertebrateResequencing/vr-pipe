@@ -39,6 +39,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['setup=s@',          'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' }],
         ['step=s@',           q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated]],
         ['include_withdrawn', q[When getting files generated for setups, also include those for withdrawn dataelements]],
+        ['include_removed',   q[When getting files generated for setups, also include files which have been deleted from from disk]],
         
         ['limit|l=i', 'Show info only on the first --limit number of files that match the above criteria'],
         [],
@@ -51,6 +52,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['lines',       'Show the number of lines in the file'],
         ['size',        'Show the size of the file in bytes'],
         ['md5',         'Show the md5 checksum for the file (if it has been previously calculated)'],
+        ['resolve',     'Show resolved file paths'],
         [],
         [q[Choose how to display the information (these are mutually exclusive):]],
         ['display=s',     q[report=present a multi-line report for each file (forced on when setup_info, cmd_summary or cmd_lines are in use); tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], { default => 'report' }],
@@ -80,6 +82,8 @@ my $desired_metadata = $frontend->opts('metadata');
 if ($do_tab && $do_metadata && !$desired_metadata) {
     $frontend->die_with_error("When using --display tab, --metadata must be given an argument");
 }
+my $resolve  = $frontend->option_was_set('resolve');
+my $show_all = $frontend->option_was_set('include_removed');
 
 my %output_types;
 foreach my $type (qw(setup_info cmd_summary cmd_lines time metadata lines size md5)) {
@@ -204,7 +208,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
                         unless ($force) {
                             next unless exists $allowed_kinds{$smid}->{$kind};
                         }
-                        my @these_files = grep { $_->s || $_->resolve->s } @$files;
+                        my @these_files = $show_all ? (@$files) : (grep { $_->s || $_->resolve->s } @$files);
                         
                         foreach my $file (@these_files) {
                             my $fid = $file->id;
@@ -243,7 +247,7 @@ if ($do_tab) {
 # output file info
 foreach my $fid (sort { $a <=> $b } keys %files) {
     my $file = $files{$fid};
-    my $path = $file->path->stringify;
+    my $path = $resolve ? $file->resolve->path->stringify : $file->path->stringify;
     unless ($file->s) {
         $file = $file->resolve;
     }
