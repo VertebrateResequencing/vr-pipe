@@ -315,9 +315,9 @@ class VRPipe::StepState extends VRPipe::Persistent {
             
             $retries--;
             if ($retries <= 0) {
-                $self->throw("Database is refusing to update StepState " . $self->id . " complete 1 => 0");
+                $self->throw("Database is refusing to update StepState " . $self->id . " complete 1 => 0 and get rid of submissions");
             }
-        } while ($self->complete);
+        } while ($self->complete && $self->submissions);
         
         $self->reselect_values_from_db;
         $self->pipelinesetup->log_event("StepState->start_over call returning, complete() is " . $self->complete, stepstate => $self->id, dataelement => $self->dataelement->id);
