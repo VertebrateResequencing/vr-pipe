@@ -45,7 +45,7 @@ my $frontend = VRPipe::FrontEnd->new(
         [],
         [q[Choose what information to display (by default just outputs the current path to the file):]],
         ['setup_info',  'Show details about the PipelineSetup that created the file'],
-        ['cmd_summary', 'Show a simplyfied summary of what commands where used to generate the file (may not be available for all pipelines or steps)'],
+        ['cmd_summary', 'Show a simplified summary of what commands where used to generate the file (may not be available for all pipelines or steps)'],
         ['cmd_lines',   'Show the real complete command lines that were executed in order to generate the file'],
         ['time',        'Show the total wall time that the cmd_lines took to run, in seconds'],
         ['metadata:s',  'Show the metadata associated with the file; optionally you can supply a comma separated list of metadata keys to restrict the output'],
