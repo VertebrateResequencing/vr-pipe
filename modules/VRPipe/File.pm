@@ -383,7 +383,7 @@ class VRPipe::File extends VRPipe::Persistent {
             $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path", dataelement => $ss->dataelement->id, stepstate => $ss->id, record_stack => 1);
         }
         
-        my $worked = $self->path->remove;
+        my $worked = $path->remove;
         $self->update_stats_from_disc;
         if ($worked) {
             $self->_lines(undef);
@@ -687,7 +687,7 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($raw || !$lines) {
             my $type = $raw ? 'any' : $self->type;
             my $ft = VRPipe::FileType->create($type, { file => $self->path });
-            $self->disconnect;
+            $self->disconnect if $s > 640000;
             $lines = $ft->num_lines;
             unless ($raw) {
                 $self->_lines($lines);
@@ -712,7 +712,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         my $records = 0;
         my $ft = VRPipe::FileType->create($self->type, { file => $self->path });
-        $self->disconnect;
+        $self->disconnect if $s > 640000;
         $records = $ft->num_records;
         
         return $records;
