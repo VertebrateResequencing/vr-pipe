@@ -35,7 +35,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        'vep_options'              => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --offline --cache --dir $vep_cache",
+        'vep_options'              => "--sift b --polyphen b --hgnc --format vcf --force_overwrite --offline --cache --dir $vep_cache",
         'vcf2consequences_options' => "--gerp $gerp_cache",
         cleanup                    => 1
     }
