@@ -449,86 +449,16 @@ sub handle_submissions {
                 $submission->_reset_job;
                 $submission->_reset;
                 undef $submission;
-                $job->reset_job;
                 return;
             }
             
             if ($job->end_time) {
                 $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions was monitoring a Job which now has an end_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                $submission->update_status;
+                $submission->archive_output;
                 
                 if ($submission->done) {
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission is done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission was done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     $backend->debug("sub " . $submission->id . " is done");
-                    # we completed successfully; if this was the last submission
-                    # of its step and they're all done now, do a trigger for
-                    # this dataelement to create submissions for the next step
-                    my $step_state        = $submission->stepstate;
-                    my $stepstate_id      = $step_state->id;
-                    my $trigger_next_step = 0;
-                    my $transaction       = sub {
-                        # compare counts of total submissions for our step to
-                        # count of those done to see if the step is complete.
-                        # We can't just get quick counts though otherwise the
-                        # for => update lock doesn't do anything
-                        my @step_subs = VRPipe::Submission->search({ stepstate => $stepstate_id }, { for => 'update' });
-                        my $done = 0;
-                        foreach my $sub (@step_subs) {
-                            $sub->done || last;
-                            $done++;
-                        }
-                        
-                        if ($done == @step_subs) {
-                            $trigger_next_step = 1;
-                        }
-                    };
-                    $submission->do_transaction($transaction, "Failed to see if the step was done after submission " . $submission->id . " completed");
-                    
-                    if ($trigger_next_step) {
-                        $step_state->pipelinesetup->log_event("vrpipe-handler for submissions noted that all Submissions for this StepState are done, so will trigger the next Step", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
-                        # triggering from within the above transaction caused
-                        # strange problems, so we do it outside and risk the
-                        # the subs being marked done but no starting of next
-                        # step if we die during/before the trigger. The setups
-                        # handler will catch stalls for this reason
-                        my $setup = $step_state->pipelinesetup;
-                        $backend->debug("will trigger next step");
-                        $setup->verbose(1) unless $debug;
-                        my $error_message = $setup->trigger(dataelement => $step_state->dataelement);
-                        $setup->verbose(0) unless $debug;
-                        $backend->debug("done triggering next step");
-                        
-                        if ($error_message) {
-                            my $sid = $setup->id;
-                            my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
-                            unless ($mt->already_sent("trigger problem")) {
-                                $step_state->pipelinesetup->log_event("vrpipe-handler for submissions failed to trigger the next step: $error_message", dataelement => $step_state->dataelement->id);
-                                $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
-                            }
-                        }
-                        
-                        # also trigger any dataelements that have the same
-                        # submissions as $step_state
-                        my $others = VRPipe::StepState->get_column_values([qw(pipelinesetup dataelement)], { same_submissions_as => $step_state->id });
-                        $backend->debug("will trigger others");
-                        foreach my $psde (@$others) {
-                            my ($sid, $de) = @$psde;
-                            my $other_setup = VRPipe::PipelineSetup->get(id => $sid);
-                            $other_setup->verbose(1) unless $debug;
-                            my $other_error_message = $other_setup->trigger(dataelement => VRPipe::DataElement->get(id => $de));
-                            $other_setup->verbose(0) unless $debug;
-                            
-                            if ($other_error_message) {
-                                my $sid = $other_setup->id;
-                                my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
-                                unless ($mt->already_sent("trigger problem")) {
-                                    $other_setup->log_event("vrpipe-handler for submissions failed to trigger the next step: $other_error_message", dataelement => $de);
-                                    $backend->log($other_error_message, email_to => [$other_setup->user], email_admin => 1, subject => "Setup $sid has problems");
-                                }
-                            }
-                        }
-                        $backend->debug("done triggering others");
-                    }
                 }
                 elsif ($submission->failed) {
                     # Job->run itself would have adjusted $submission's
@@ -539,15 +469,6 @@ sub handle_submissions {
                     $submission->retry if $submission->retries < 3;
                     $failed_by_us{ $submission->id } = 1;
                 }
-                
-                # release the submission. The above trigger may have deleted it
-                # though, so avoid the ugly (but harmless) error message in the
-                # logs by evaling it
-                $backend->debug("will release submission " . $submission->id);
-                eval {
-                    $submission->release;
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions released the Submission it was handling", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                };
                 
                 my $signal = $job->_signalled_to_death;
                 if ($signal) {
@@ -591,61 +512,67 @@ sub handle_submissions {
             
             # pick the next available submission to work on
             eval {
-                my $queue_pager = VRPipe::SubmissionQueue->search_paged({ req_id => $req_id, 'farm' => $farm, $given_sub ? (sub_id => $given_sub->id) : () }, {}, 1000);
+                my $queue_pager = VRPipe::SubmissionQueue->search_paged({ req_id => $req_id, farm => $farm, $given_sub ? (sub_id => $given_sub->id) : () }, {}, 1000);
                 $backend->debug("looking for new submission");
                 SLOOP: while (my $rows = $queue_pager->next(no_resetting => 1)) {
                     # reduce contention of multiple handler processes all trying
                     # to check and lock the same submission by shuffling $rows
                     my @shuffled = shuffle(@$rows);
                     
-                    foreach my $row (@shuffled) {
-                        my ($sub) = VRPipe::Submission->search({ id => $row->sub_id });
-                        if (!$sub || $sub->done == 1) {
-                            $row->delete;
-                            next;
-                        }
-                        
-                        # avoid submissions we have failed, in case there is a
-                        # node-specific problem
-                        if (exists $failed_by_us{ $sub->id }) {
-                            # in case all the other handlers have failed it
-                            # as well (or in case there are no other
-                            # handlers), we'll forget we failed it if we've
-                            # considered running this 15 times. This also
-                            # gives us a time delay before retrying, in case
-                            # there was a transient problem
-                            $failed_by_us{ $sub->id }++;
-                            $backend->debug("sub " . $sub->id . " has been failed " . $failed_by_us{ $sub->id } . " times by us");
-                            if ($failed_by_us{ $sub->id } >= 15) {
-                                delete $failed_by_us{ $sub->id };
+                    foreach my $raw_row (@shuffled) {
+                        my $transaction = sub {
+                            my ($row) = VRPipe::SubmissionQueue->search({ id => $raw_row->id }, { for => 'update' });
+                            return unless $row;
+                            my ($sub) = VRPipe::Submission->search({ id => $row->sub_id }, { for => 'update' });
+                            if (!$sub || $sub->done == 1) {
+                                $row->delete;
+                                return;
                             }
-                            $submission = 0; # to stop us exiting due to no submission
-                            next;
-                        }
-                        
-                        # we'll try and claim this one to run
-                        undef $no_subs_found;
-                        my $allowed_time = int($end_time - time());
-                        last if $allowed_time < 60;
-                        my $now_running = $sub->claim_and_run(allowed_time => $allowed_time);
-                        if (defined $now_running) {
-                            if ($now_running) {
+                            
+                            # avoid submissions we have failed, in case there is a
+                            # node-specific problem
+                            if (exists $failed_by_us{ $sub->id }) {
+                                # in case all the other handlers have failed it
+                                # as well (or in case there are no other
+                                # handlers), we'll forget we failed it if we've
+                                # considered running this 15 times. This also
+                                # gives us a time delay before retrying, in case
+                                # there was a transient problem
+                                $failed_by_us{ $sub->id }++;
+                                $backend->debug("sub " . $sub->id . " has been failed " . $failed_by_us{ $sub->id } . " times by us");
+                                if ($failed_by_us{ $sub->id } >= 15) {
+                                    delete $failed_by_us{ $sub->id };
+                                }
+                                $submission = 0; # to stop us exiting due to no submission
+                                return;
+                            }
+                            
+                            # we'll try and claim this one to run
+                            undef $no_subs_found;
+                            my $allowed_time = int($end_time - time());
+                            last if $allowed_time < 60;
+                            my $response = $sub->claim_and_run(allowed_time => $allowed_time);
+                            if ($response == 0) {
+                                # there was some problem with this sub and it just
+                                # got reset; let's ignore it for now
+                            }
+                            elsif ($response == 2 || $response == 3) {
+                                # the job already exited and the sub is done/failed,
+                                # or the job is currently running under another
+                                # process; in either case remove this from the
+                                # submission queue
+                                $row->delete;
+                            }
+                            elsif ($response == 1) {
+                                # we just started running the sub's job
                                 $submission = $sub;
                                 $handled_submissions++;
                                 $row->delete;
-                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
+                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                                 $backend->debug("successfully claimed and ran sub " . $sub->id);
                             }
-                            else {
-                                $sub->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run, managed to claim the Submission yet the Job didn't start running", stepstate => $sub->stepstate->id, dataelement => $sub->stepstate->dataelement->id, submission => $sub->id, job => $sub->job->id);
-                                $backend->debug("claim_and_run for sub " . $sub->id . " returned defined, but is not running");
-                                $submission = 0;
-                            }
-                        }
-                        else {
-                            $sub->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run, but failed to claim this Submission", stepstate => $sub->stepstate->id, dataelement => $sub->stepstate->dataelement->id, submission => $sub->id, job => $sub->job->id);
-                            $backend->debug("tried to claim_and_run sub " . $sub->id . " but that returned undef");
-                        }
+                        };
+                        $req->do_transaction($transaction, "Failed to pick out a Submission from the queue");
                         
                         last SLOOP if $submission;
                     }

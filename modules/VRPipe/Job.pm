@@ -34,7 +34,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -65,6 +65,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     use VRPipe::Config;
     use Proc::ProcessTable;
     use POSIX qw(ceil);
+    use VRPipe::Interface::BackEnd;
     
     my $ppt = Proc::ProcessTable->new(cache_ttys => 1);
     
@@ -354,19 +355,22 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         }
         my $ss = $submission->stepstate if $submission;
         
+        # we'll have 3 responses: -1 = job already exited; 0 = job already
+        # running; 1 = we just started running it
+        my $response;
+        
         # check we're allowed to run, in a transaction to avoid race condition
-        my $do_return;
         my $transaction = sub {
             my ($locked_job) = $self->search({ id => $self->id }, { for => 'update' });
             
             if ($locked_job->start_time) {
-                if ($locked_job->ok) {
-                    $do_return = 1;
-                    $ss->pipelinesetup->log_event("Job->run() called, but we've already finished ok", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                if ($locked_job->end_time) {
+                    $response = -1;
+                    $ss->pipelinesetup->log_event("Job->run() called, but we already have an end_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                 }
                 else {
                     $ss->pipelinesetup->log_event("Job->run() called, but we've already started running and not finished yet", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
-                    $do_return = 0;
+                    $response = 0;
                 }
                 return; # out of the transaction
             }
@@ -380,8 +384,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             $ss->pipelinesetup->log_event("Job->run() called and set our start_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
-        if (defined $do_return) {
-            return $do_return;
+        if (defined $response) {
+            return $response;
         }
         $self->reselect_values_from_db;
         
@@ -528,21 +532,129 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 # risky: we can end up exiting during that phase before we
                 # stop beating and set our end_time and exit_code, which is more
                 # critical
-                $self->stop_beating;
-                my $transaction = sub {
-                    unless ($self->heartbeat) {
-                        #*** things get wonky if somehow we've completed running
-                        # before a heartbeat occurred, so add one now
-                        $self->heartbeat(DateTime->now);
+                my $retries            = 6;
+                my $transaction_worked = 0;
+                do {
+                    $retries--;
+                    if ($retries <= 0) {
+                        $self->throw("Database is refusing to update Job " . $self->id . " and its Submission");
                     }
-                    $self->exit_code($exit_code);
-                    $self->end_time(DateTime->now());
-                    $self->_living_id(undef);
-                    $self->_i_started_running(0);
-                    $self->update;
-                };
-                $self->do_transaction($transaction, "Failed to finalise Job state after the child exited");
+                    
+                    my $transaction = sub {
+                        # update ourselves
+                        my ($locked_job) = $self->search({ id => $self->id }, { for => 'update' });
+                        unless ($locked_job->heartbeat) {
+                            #*** things get wonky if somehow we've completed running
+                            # before a heartbeat occurred, so add one now
+                            $locked_job->heartbeat(DateTime->now);
+                        }
+                        $locked_job->exit_code($exit_code);
+                        $locked_job->end_time(DateTime->now());
+                        $locked_job->_living_id(undef);
+                        $self->_i_started_running(0);
+                        $locked_job->update;
+                        
+                        # update our Submission
+                        if ($submission) {
+                            # lock the setup and the sub
+                            my $step_state = $submission->stepstate;
+                            my ($setup) = VRPipe::PipelineSetup->search({ id => $step_state->pipelinesetup->id }, { for => 'update' });
+                            my ($locked_sub) = VRPipe::Submission->search({ id => $submission->id }, { for => 'update' });
+                            
+                            if ($locked_job->ok) {
+                                $setup->log_event("At end of Job->run() call found that the Job was ok, so Submission->done will be set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
+                                
+                                # say the sub is done
+                                $locked_sub->_done(1);
+                                $locked_sub->_failed(0);
+                                $locked_sub->_claim(0);
+                                
+                                # we completed successfully; if this was the last submission
+                                # of its step and they're all done now, do a trigger for
+                                # this dataelement to create submissions for the next step
+                                my $backend = VRPipe::Interface::BackEnd->new(deployment => VRPipe::Persistent::SchemaBase->database_deployment);
+                                
+                                # compare counts of total submissions for our step to
+                                # count of those done to see if the step is complete.
+                                # We can't just get quick counts though otherwise the
+                                # for => update lock doesn't do anything
+                                my ($locked_ss) = VRPipe::StepState->search({ id => $step_state->submission_search_id }, { for => 'update' });
+                                my $stepstate_id = $locked_ss->id;
+                                my @step_subs    = VRPipe::Submission->search({ stepstate => $stepstate_id }, { for => 'update' });
+                                my $done         = 0;
+                                foreach my $sub (@step_subs) {
+                                    next if $sub->id == $locked_sub->id;
+                                    $sub->done || last;
+                                    $done++;
+                                }
+                                $locked_sub->update;
+                                
+                                if ($done == @step_subs - 1) {
+                                    $setup->log_event("At end of Job->run() noted that all Submissions for this Job's Submission's StepState are done, so will trigger the next Step", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
+                                    my $error_message = $setup->trigger(dataelement => $step_state->dataelement);
+                                    
+                                    if ($error_message) {
+                                        my $sid = $setup->id;
+                                        my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
+                                        unless ($mt->already_sent("trigger problem")) {
+                                            $setup->log_event("At end of Job->run() failed to trigger the next step: $error_message", dataelement => $step_state->dataelement->id);
+                                            $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                                        }
+                                    }
+                                    
+                                    # also trigger any dataelements that have the same
+                                    # submissions as $step_state
+                                    my $others = VRPipe::StepState->get_column_values([qw(pipelinesetup dataelement)], { same_submissions_as => $stepstate_id });
+                                    foreach my $psde (@$others) {
+                                        my ($sid, $de) = @$psde;
+                                        my $other_setup = VRPipe::PipelineSetup->get(id => $sid);
+                                        my $other_error_message = $other_setup->trigger(dataelement => VRPipe::DataElement->get(id => $de));
+                                        
+                                        if ($other_error_message) {
+                                            my $sid = $other_setup->id;
+                                            my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
+                                            unless ($mt->already_sent("trigger problem")) {
+                                                $other_setup->log_event("At end of Job->run() failed to trigger the next step: $other_error_message", dataelement => $de);
+                                                $backend->log($other_error_message, email_to => [$other_setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else {
+                                # say the sub is failed
+                                $locked_sub->_done(0);
+                                $locked_sub->_failed(1);
+                                $locked_sub->_claim(0);
+                                $locked_sub->update;
+                                
+                                $setup->log_event("At end of Job->run() call found that the Job was not ok, so Submission->failed set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
+                            }
+                            
+                            $self->reselect_values_from_db;
+                            $submission->reselect_values_from_db;
+                            $setup->log_event("At end of Job->run() call, leaving transaction, sub _done is " . $submission->_done . ", _failed is " . $submission->_failed . " and our start/end_time & exit_code is " . $self->start_time . '/' . $self->end_time . ' & ' . $self->exit_code, dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
+                        }
+                    };
+                    $self->do_transaction($transaction, "Failed to finalise Job and Submission state after the cmd-running child exited");
+                    
+                    $self->reselect_values_from_db;
+                    if ($ss) {
+                        $submission->reselect_values_from_db;
+                        unless ($self->start_time && $self->end_time && defined $self->exit_code && ($submission->done || $submission->failed)) {
+                            $ss->pipelinesetup->log_event("Job->run() transaction thought it set exit_code and end_time as well as Submission done/failed, but the database disagrees", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                        }
+                        else {
+                            $ss->pipelinesetup->log_event("Job->run() set exit_code and end_time as well as Submission done/failed", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                            $transaction_worked = 1;
+                        }
+                    }
+                } while (!$transaction_worked);
                 
+                # stop beating now (not before the above, since that can
+                # take a while, and we don't want another process thinking
+                # we died before setting end_time)
+                $self->stop_beating;
                 $self->clear_watchers;
                 
                 #*** theoretically updating file existence now might be too
