@@ -196,11 +196,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         # we either loop through all incomplete elementstates, or the
         # (single) elementstate for the supplied dataelement
         my $pager;
+        my $mode;
         if ($dataelement) {
+            $mode = 'single de';
             $self->debug("trigger on single de for setup " . $self->id);
             $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $dataelement->id, completed_steps => $first_step_only ? 0 : { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
         }
         else {
+            $mode = 'all des';
             $pager = $datasource->incomplete_element_states($self, prepare => $prepare_elements, only_not_started => $first_step_only);
             $self->debug("trigger on all for setup " . $self->id . ", got " . $pager->total_entries . " incomplete element states");
         }
@@ -228,6 +231,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     );
                     
                     $self->debug("working on stepstate " . $created_state->id);
+                    $self->log_event("PipelineSetup->trigger called in $mode mode, complete is " . $created_state->complete, dataelement => $element->id, stepstate => $created_state->id);
                     
                     # we need to lock state so that 2 parses or post_process
                     # don't run at the same time, 1 completing the state, the
@@ -236,14 +240,17 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     my ($do_next, $do_last);
                     my $transaction = sub {
                         my ($state) = VRPipe::StepState->search({ id => $created_state->id }, { for => 'update' });
-                        $state->reselect_values_from_db;
                         
                         my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
+                        $self->log_event("PipelineSetup->trigger called in $mode mode, inside transaction, complete is " . $state->complete, dataelement => $element->id, stepstate => $state->id);
                         if ($state->complete) {
                             $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                             $self->debug("completed");
                             $do_next = 1;
                             return;
+                        }
+                        else {
+                            $self->log_event("PipelineSetup->trigger, was not already complete", dataelement => $element->id, stepstate => $state->id);
                         }
                         
                         undef $sm_error;
@@ -254,17 +261,20 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         my @submissions = $state->submissions;
                         if (@submissions) {
                             $self->debug("had submissions");
-                            my $unfinished = VRPipe::Submission->search({ '_done' => 0, stepstate => $state->submission_search_id });
-                            unless ($unfinished) {
+                            $self->log_event("PipelineSetup->trigger had subs", dataelement => $element->id, stepstate => $state->id);
+                            my @unfinished = VRPipe::Submission->get_column_values('id', { '_done' => 0, stepstate => $state->submission_search_id });
+                            unless (@unfinished) {
                                 # check we're not the victim of a race condition and
                                 # that we still have submissions
                                 my $done = VRPipe::Submission->search({ '_done' => 1, stepstate => $state->submission_search_id });
                                 my $total = VRPipe::Submission->search({ stepstate => $state->submission_search_id });
+                                $self->log_event("PipelineSetup->trigger saw $done done subs and $total total subs", dataelement => $element->id, stepstate => $state->id);
                                 
                                 if ($total && $done == $total) {
                                     # run post_process
                                     my $pp_error;
                                     $self->debug("will post_process");
+                                    $self->log_event("PipelineSetup->trigger, will post_process", dataelement => $element->id, stepstate => $state->id);
                                     eval { # (try catch not used because stupid perltidy is stupid)
                                         $pp_error = $step->post_process();
                                     };
@@ -332,6 +342,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             }
                             else {
                                 $self->debug("had submissions and I guess they're running normally");
+                                $self->log_event("PipelineSetup->trigger had subs which seem to be running normally (unfinished subs: @unfinished)", dataelement => $element->id, stepstate => $state->id);
                                 $do_last = 1;
                                 return;
                             }
@@ -341,6 +352,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # this data member for this pipelinesetup
                             my $parse_return;
                             $self->debug("will parse");
+                            $self->log_event("PipelineSetup->trigger will parse", dataelement => $element->id, stepstate => $state->id);
                             try {
                                 $parse_return = $step->parse();
                             }
@@ -473,6 +485,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     };
                     $self->do_transaction($transaction, "Failed to handle StepState " . $created_state->id . " during trigger()");
                     
+                    $do_next ||= 0;
+                    $do_last ||= 0;
+                    $redos   ||= 0;
+                    $created_state->reselect_values_from_db;
+                    $self->log_event("PipelineSetup->trigger called in $mode mode, after transaction, do_next $do_next, do_last $do_last, redos $redos, complete is " . $created_state->complete, dataelement => $element->id, stepstate => $created_state->id);
+                    
                     next if $do_next;
                     last if $do_last;
                     
@@ -539,17 +557,26 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     method log_event (Str $msg, Bool :$record_stack?, Int :$dataelement = 0, Int :$stepstate = 0, Int :$submission = 0, Int :$job = 0) {
         #return unless $self->verbose; # at some point we'll only use this in testing?
         
-        # we don't store the same event over and over again: check what the last
-        # msg stored was
-        my ($last) = VRPipe::PipelineSetupLog->search({ ps_id => $self->id }, { order_by => { -desc => 'me.id' }, rows => 1 });
-        if ($last && $last->message eq $msg && $last->de_id == $dataelement && $last->ss_id == $stepstate && $last->sub_id == $submission && $last->job_id == $job) {
-            return;
+        my $dt = DateTime->now();
+        
+        #*** PipelineSetupLogs don't always seem to get created, so first warn
+        # what PipelineSetupLog->stringify would give us
+        if ($self->verbose > 0) {
+            my $str = "$dt [ps " . $self->id;
+            $str .= ", de $dataelement" if $dataelement;
+            $str .= ", ss $stepstate"   if $stepstate;
+            $str .= ", sub $submission" if $submission;
+            $str .= ", job $job"        if $job;
+            $str .= "] pid $$ | " . $msg;
+            chomp($str);
+            warn $str, "\n";
         }
         
         return VRPipe::PipelineSetupLog->create(
             ps_id   => $self->id,
             message => $msg,
-            date    => DateTime->now(),
+            date    => $dt,
+            pid     => $$,
             $record_stack ? (stack => $self->stack_trace) : (),
             de_id  => $dataelement,
             ss_id  => $stepstate,

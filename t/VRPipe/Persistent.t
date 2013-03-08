@@ -233,16 +233,15 @@ is $setups[0]->datasource->id, 2, 'and since we did an update, other instances a
 $first_setup->datasource($ds[0]);
 $first_setup->update;
 
-ok my $log = VRPipe::PipelineSetupLog->create(ps_id => 1, message => "foo bar", date => DateTime->now()), 'able to call PipelineSetupLog->create';
+ok my $log = VRPipe::PipelineSetupLog->create(ps_id => 1, message => "foo bar", date => DateTime->now(), pid => $$), 'able to call PipelineSetupLog->create';
 is $log->ps_id,   1,         'ps_id() worked';
 is $log->message, 'foo bar', 'message() worked';
 ok !$log->stack, 'strack() defaults to undef';
+is $log->pid, $$, 'pid() workd';
 $first_setup->log_event('created and changed');
 is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed'], 'logs() returned all the logs for the first setup';
 is_deeply [map { $_->message } $first_setup->logs(like => 'created%')], ['created and changed'], q[logs with like returned all the logs for the first setup with matching string];
 sleep(2);
-$first_setup->log_event('created and changed');
-is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed'], 'log_event with the same message does not work twice in a row';
 $first_setup->log_event('car');
 $first_setup->log_event('created and changed');
 is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed', 'car', 'created and changed'], 'log_event does allow the same message to be recorded more than once';

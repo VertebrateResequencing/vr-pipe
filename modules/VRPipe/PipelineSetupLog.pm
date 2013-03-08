@@ -69,6 +69,13 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
         is_nullable => 1
     );
     
+    has 'pid' => (
+        is     => 'rw',
+        isa    => IntSQL [6],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
+    
     has 'de_id' => (
         is                   => 'rw',
         isa                  => IntSQL [9],                        # Int, not Persistent, to allow psuedo-NULL of 0
@@ -120,7 +127,7 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
         
         my $msg = $self->message;
         chomp($msg);
-        $str .= "] | " . $self->message . "\n";
+        $str .= "] pid " . $self->pid . ' | ' . $self->message . "\n";
         
         if ($show_traces) {
             my $trace = $self->stack;
