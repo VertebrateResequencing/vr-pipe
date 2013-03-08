@@ -33,7 +33,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -266,6 +266,11 @@ class VRPipe::StepState extends VRPipe::Persistent {
         # complete set to 1; make sure by repeating.
         my $retries = 6;
         do {
+            $retries--;
+            if ($retries <= 0) {
+                $self->throw("Database is refusing to update StepState " . $self->id . " complete 1 => 0 and get rid of submissions");
+            }
+            
             my $transaction = sub {
                 # lock our row so that another process doesn't trigger us while
                 # we're in the middle of deleting submissions
@@ -311,11 +316,6 @@ class VRPipe::StepState extends VRPipe::Persistent {
             # disk)
             foreach my $file (@files_to_unlink) {
                 $file->unlink;
-            }
-            
-            $retries--;
-            if ($retries <= 0) {
-                $self->throw("Database is refusing to update StepState " . $self->id . " complete 1 => 0 and get rid of submissions");
             }
         } while ($self->complete && $self->submissions);
         
