@@ -44,6 +44,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]],
         ['deactivate',    'Turn off the given --setup'],
         ['reactivate',    'Turn on the given --setup'],
+        ['touch',         'Force a refresh of the dataelements corresponding to the given --setup'],
         ['reset',         'Wipe out all progress on the --setup, returning everything to the state it was just after you first created the setup, and leaves it in a deactivated state'],
         ['cleanup',       'Like --reset, but only for DataElements that are now withdrawn (use to recover wasted disk space)'],
         ['delete',        'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it']
@@ -55,6 +56,7 @@ my $setup         = $frontend->get_pipelinesetups();
 my $extra_options = $frontend->opts('extra_options');
 my $deactivate    = $frontend->opts('deactivate');
 my $reactivate    = $frontend->opts('reactivate');
+my $touch         = $frontend->opts('touch');
 my $reset         = $frontend->opts('reset');
 my $cleanup       = $frontend->opts('cleanup');
 my $delete        = $frontend->opts('delete');
@@ -209,6 +211,14 @@ if ($setup) {
                 $setup->log_event("vrpipe-setup --$mode_name has reset the Setup");
             }
         }
+    }
+    elsif ($touch) {
+        my $datasource = $setup->datasource;
+        $datasource->_changed_marker(undef);
+        $datasource->update;
+        $setup->log_event("vrpipe-setup --touch called");
+        
+        $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
     }
     else {
         # allow the user to change pipeline setup options

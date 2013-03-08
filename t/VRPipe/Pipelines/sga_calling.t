@@ -72,13 +72,11 @@ my @input_files;
 my %samples = ('NA20340' => 1, 'HG02449' => 2, 'NA20281' => 3, 'HG01958' => 4, 'NA19381' => 5, 'NA19334' => 6);
 while (my ($sample, $element_id) = each %samples) {
     my @output_subdirs = output_subdirs($element_id, 1);
-    my $id = 0;
     foreach my $chrom (qw(11 20)) {
         push(@input_files, file(@output_subdirs, '1_bam_split_by_sequence', qq[chrom$chrom.$sample.bam]));
-        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_$id.1.fastq]));
-        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_$id.2.fastq]));
-        push(@input_files, file(@output_subdirs, '4_sga_preprocess',        qq[chrom$chrom.${sample}_$id.processed.fq.gz]));
-        $id++;
+        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_1.fastq]));
+        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',          qq[chrom$chrom.${sample}_2.fastq]));
+        push(@input_files, file(@output_subdirs, '4_sga_preprocess',        qq[chrom$chrom.${sample}.processed.fq.gz]));
     }
 }
 
