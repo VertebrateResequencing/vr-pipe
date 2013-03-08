@@ -623,7 +623,7 @@ sub wait_until_done {
         
         my $job = $sub->job;
         if ($job->end_time) {
-            $sub->update_status;
+            $sub->archive_output;
             $sub->release;
         }
         else {
