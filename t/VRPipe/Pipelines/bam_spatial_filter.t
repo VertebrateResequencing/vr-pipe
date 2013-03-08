@@ -27,7 +27,7 @@ while (<$ifh>) {
     my ($run,undef) = split(/_/,$lane);
 
     system("imkdir -p ${irods_root}/$run");
-    system("iput -f $bam ${irods_root}/$run/$lane#168.bam");
+    system("iput -R uk10k-green -f $bam ${irods_root}/$run/$lane#168.bam");
     #system("ils ${irods_root}/$run/$lane#168.bam");
 }
 
