@@ -387,7 +387,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # this is where we want the job stdo/e to be archived to, not where the
         # job initially spits it out to
         my $std_dir = $self->std_dir || return;
-        return VRPipe::File->create(path => file($std_dir, 'job_std' . $kind), type => 'cat');
+        my $file = VRPipe::File->create(path => file($std_dir, 'job_std' . $kind), type => 'cat');
+        $file->update_stats_from_disc;
+        return $file;
     }
     
     method job_stdout_file {
