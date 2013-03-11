@@ -52,7 +52,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['lines',       'Show the number of lines in the file'],
         ['size',        'Show the size of the file in bytes'],
         ['md5',         'Show the md5 checksum for the file (if it has been previously calculated)'],
-        ['resolve',     'Show resolved file paths'],
+        ['unresolved',  'Show the unresolved file paths (original paths before files were moved)'],
         [],
         [q[Choose how to display the information (these are mutually exclusive):]],
         ['display=s',     q[report=present a multi-line report for each file (forced on when setup_info, cmd_summary or cmd_lines are in use); tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], { default => 'report' }],
@@ -82,8 +82,8 @@ my $desired_metadata = $frontend->opts('metadata');
 if ($do_tab && $do_metadata && !$desired_metadata) {
     $frontend->die_with_error("When using --display tab, --metadata must be given an argument");
 }
-my $resolve  = $frontend->option_was_set('resolve');
-my $show_all = $frontend->option_was_set('include_removed');
+my $unresolved = $frontend->option_was_set('unresolved');
+my $show_all   = $frontend->option_was_set('include_removed');
 
 my %output_types;
 foreach my $type (qw(setup_info cmd_summary cmd_lines time metadata lines size md5)) {
@@ -247,7 +247,7 @@ if ($do_tab) {
 # output file info
 foreach my $fid (sort { $a <=> $b } keys %files) {
     my $file = $files{$fid};
-    my $path = $resolve ? $file->resolve->path->stringify : $file->path->stringify;
+    my $path = $unresolved ? $file->path->stringify : $file->resolve->path->stringify;
     unless ($file->s) {
         $file = $file->resolve;
     }
