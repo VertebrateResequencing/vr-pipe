@@ -34,6 +34,7 @@ use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
 use Sys::CPU;
 use POSIX qw(floor);
+use List::Util 'shuffle';
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -272,39 +273,30 @@ sub start_server {
                     if (@setups) {
                         # make sure we have a setups handler running for our
                         # farm
-                        my %runners_still_needed;
                         my $shcmd = "$handler_path --mode setups --farm $farm";
+                        $backend->log("will ensure the setups handler is running");
                         $scheduler->ensure_running(
                             cmd          => $shcmd,
-                            requirements => VRPipe::Requirements->create(memory => 1500, time => 3600),
-                            backend      => $backend
+                            requirements => VRPipe::Requirements->create(memory => 1500, time => 3600)
                         );
-                        my ($sh_runner) = VRPipe::Runner->search({ cmd => $shcmd });
-                        $runners_still_needed{ $sh_runner->id } = 1;
                         
                         # make sure we have sufficient submission handlers
                         # running...
                         
                         # get the count of requirements. Sadly we can't do a
                         # quick cursor->all because we need to take into account
-                        # step limits. We also build a queue of submissions so
-                        # that when the submission handlers run, the db query
-                        # they need to do is very simple and quick
+                        # step limits. Also, to avoid handlers running a slow,
+                        # complex query and possibly hitting transaction lock/
+                        # database update inconsistency issues, instead of them
+                        # selecting a Submission to run we will assign a
+                        # a Submission, communicating via SidToSub objects; here
+                        # we just note the submissions we want to assign
                         my $sched_id = $scheduler->id;
-                        #my $req_counts = [VRPipe::Submission->search_rs({ -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], '_done' => { '!=' => 1 }, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1 }, { join => { stepstate => 'pipelinesetup' }, select => ['requirements', { count => 'requirements' }], group_by => 'requirements' })->cursor->all];
-                        my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
+                        my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
                         
-                        my (%req_counts, %step_limits, %step_counts, %completed_setups, @queue_args, %subs_to_run);
+                        my (%req_counts, %step_limits, %step_counts, %completed_setups, %subs_to_assign);
                         while (my $subs = $sub_pager->next(no_resetting => 1)) {
                             foreach my $sub (@$subs) {
-                                #*** ignore subs for setups with 0 dataelements?
-                                #    on the one hand it's really confusing in
-                                #    vrpipe-status to not see anything running
-                                #    but have lots of stuff in the job
-                                #    scheduler. On the other hand, it's nice to
-                                #    have those submissions handled while we
-                                #    wait for dataelements to reappear...
-                                
                                 # if the job is a block_and_skip_if_ok job, we
                                 # don't actually block because of race condition
                                 # issues, and because of fail and restart
@@ -364,25 +356,10 @@ sub start_server {
                                 $req_counts{$req_id}++;
                                 $step_counts{$step_id}++;
                                 
-                                # and it should be fast for the handler to
-                                # know it is supposed to run this sub, so we
-                                # develop a simple queue
-                                my $sub_id = $sub->id;
-                                push(@queue_args, { farm => $farm, req_id => $req_id, sub_id => $sub_id });
-                                $subs_to_run{$sub_id} = 1;
+                                # we'll want to assign this one
+                                $subs_to_assign{$req_id}->{ $sub->id } = 1;
                             }
                         }
-                        
-                        # clear out the submission queue of subs we no longer
-                        # want to be run
-                        foreach my $row (VRPipe::SubmissionQueue->search({ farm => $farm })) {
-                            next if exists $subs_to_run{ $row->sub_id };
-                            $row->delete;
-                        }
-                        
-                        # add to the submission queue for those we do want to be
-                        # run
-                        VRPipe::SubmissionQueue->bulk_create_or_update(@queue_args);
                         
                         # scale the counts according to $max_subs
                         #*** and eventually, we should have a priority system
@@ -403,96 +380,97 @@ sub start_server {
                             }
                         }
                         
-                        # submit the submission handlers, noting which runners
-                        # (created by previous ensure_running calls) are still
-                        # needed
+                        # submit the submission handlers to the scheduler
+                        my %running_in_scheduler;
                         while (my ($req_id, $count) = each %req_counts) {
                             my $cmd = "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id";
                             
-                            $scheduler->ensure_running(
-                                cmd                         => $cmd,
-                                count                       => $count,
-                                requirements                => VRPipe::Requirements->get(id => $req_id),
-                                backend                     => $backend,
-                                append_runner_option_to_cmd => 1
+                            $backend->log("will ensure that $count sub handlers are running for [$cmd]");
+                            my @running_sids = $scheduler->ensure_running(
+                                cmd          => $cmd,
+                                count        => $count,
+                                requirements => VRPipe::Requirements->get(id => $req_id),
                             );
                             
-                            my $already_running = VRPipe::Runner->search({ cmd => $cmd, heartbeat => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } });
-                            if ($already_running < $count) {
-                                my $c = $already_running;
-                                foreach my $runner (VRPipe::Runner->search({ cmd => $cmd, heartbeat => undef })) {
-                                    $c++;
-                                    last if $c > $count;
-                                    $runners_still_needed{ $runner->id } = 1;
+                            foreach my $sid_aid (@running_sids) {
+                                $running_in_scheduler{$sid_aid} = 1;
+                                $backend->log("this command running under $sid_aid");
+                            }
+                        }
+                        
+                        # assign sub_ids to sidtosubs
+                        my %already_assigned = map { $_ => 1 } VRPipe::SidToSub->get_column_values('sub_id', { farm => $farm, sub_id => { '!=' => undef } });
+                        while (my ($req_id, $sub_hash) = each %subs_to_assign) {
+                            $subs_to_assign{$req_id} = [shuffle grep { !exists $already_assigned{$_} } keys %{$sub_hash}];
+                        }
+                        foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm, sub_id => undef })) {
+                            my $req_id = $sidtosub->req_id;
+                            my $sub_id = pop @{ $subs_to_assign{$req_id} || [] } || next;
+                            $backend->log("assigning sidtosub " . $sidtosub->id . " sub $sub_id for req $req_id");
+                            $sidtosub->sub_id($sub_id);
+                            $sidtosub->update;
+                        }
+                        
+                        # delete any old defunct or stuck SidToSubs, and kill
+                        # them from the scheduler as well
+                        my $leeway = 300;
+                        foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm })) {
+                            $backend->log("checking if sidtosub " . $sidtosub->id . "is defunct");
+                            my $sid = $sidtosub->sid;
+                            my $aid = $sidtosub->aid;
+                            if (exists $running_in_scheduler{"$sid\[$aid]"}) {
+                                # check that it has not been longer than 5mins
+                                # between sid_id being assigned and the sub's
+                                # job starting
+                                $backend->log("it is currently running");
+                                my $sub_id = $sidtosub->sub_id || next;
+                                $backend->log("it has been assigned a sub_id");
+                                my ($sub) = VRPipe::Submission->search({ id => $sub_id });
+                                if ($sub) {
+                                    # if sub done/failed, the handler will soon
+                                    # unset sub_id and we want it to hang around
+                                    # until we assign it a new one
+                                    next if ($sub->done || $sub->failed);
+                                    $backend->log("that sub isn't done yet");
+                                    
+                                    # if the job has started and is running, all
+                                    # is well
+                                    my $tsh = $sub->job->time_since_heartbeat;
+                                    next if $tsh && $tsh <= $leeway;
+                                    $backend->log("the job is dead or hasn't started yet");
+                                    
+                                    next if $sidtosub->time_since_assignment <= $leeway;
+                                    $backend->log("it's been over 5mins since assignment");
+                                }
+                                
+                                $backend->log("we'll kill sid $sid $aid");
+                                $scheduler->kill_sid($sid, $aid);
+                            }
+                            
+                            # if we got this far it means either we're running
+                            # with an assigned sub but aren't doing anything
+                            # with it (we are stuck), or we're not running so
+                            # must have exited
+                            $backend->log("we'll delete the sidtosub");
+                            $sidtosub->delete;
+                        }
+                        
+                        # kill anything running in the scheduler for which there
+                        # has not been a sidtosub created for over 5 mins
+                        foreach my $sid_aid (keys %running_in_scheduler) {
+                            my ($sid, $aid) = $sid_aid =~ /(\d+)\[(\d+)/;
+                            my $created = VRPipe::SidToSub->search({ farm => $farm, sid => $sid, aid => $aid });
+                            unless ($created) {
+                                my $run_time = $scheduler->run_time($sid, $aid);
+                                $backend->log("sid $sid $aid has been running for $run_time seconds");
+                                if ($run_time > $leeway) {
+                                    $backend->log("we'll kill sid $sid $aid because it never created a sidtosub");
+                                    $scheduler->kill_sid($sid, $aid);
                                 }
                             }
-                        }
-                        
-                        # delete defunct runners, removing them from the job
-                        # scheduler as well
-                        foreach my $runner (VRPipe::Runner->search({ heartbeat => { '<=' => DateTime->from_epoch(epoch => time() - $survival_time) } })) {
-                            $scheduler->kill_sid($runner->sid, 0);
-                            $runner->delete;
-                        }
-                        foreach my $runner (VRPipe::Runner->search({ heartbeat => undef })) {
-                            next if exists $runners_still_needed{ $runner->id };
-                            $scheduler->kill_sid($runner->sid, 0);
-                            $runner->delete;
-                        }
-                        
-                        #*** due to some unknown issue we also get submission
-                        # handlers that have heartbeats but never actually
-                        # claim and start running a submission; detect and kill
-                        # those off too
-                        my @unclaimed_req_ids = VRPipe::Submission->get_column_values('requirements', { '_claim' => 0, '_done' => 0, '_failed' => 0, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] } });
-                        my @unrunning_req_ids = VRPipe::Submission->get_column_values('requirements', { '_done' => 0, '_failed' => 0, scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => [-or => [undef, { '<' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) }]] }, { join => ['job', { stepstate => ['pipelinesetup', 'dataelement'] }] });
-                        my %unclaimed_req_ids;
-                        foreach my $req_id (@unclaimed_req_ids) {
-                            $unclaimed_req_ids{$req_id}++;
-                        }
-                        my %unrunning_req_ids;
-                        foreach my $req_id (@unrunning_req_ids) {
-                            $unrunning_req_ids{$req_id}++;
-                        }
-                        my %limbo_req_ids;
-                        while (my ($req_id, $unclaim_count) = each %unclaimed_req_ids) {
-                            my $unrun_count = $unrunning_req_ids{$req_id} || next;
-                            if ($unclaim_count == $unrun_count) {
-                                $limbo_req_ids{$req_id} = 1;
+                            else {
+                                $backend->log("sid $sid $aid has $created sidtosubs");
                             }
-                        }
-                        
-                        foreach my $runner (VRPipe::Runner->search({ scheduled => { '<=' => DateTime->from_epoch(epoch => time() - 1800) } })) {
-                            my $cmd = $runner->cmd;
-                            if ($cmd =~ /-r (\d+)/) {
-                                my $req_id = $1;
-                                next unless exists $limbo_req_ids{$req_id};
-                                my $sid = $runner->sid || next;
-                                $scheduler->kill_sid($sid, 0);
-                            }
-                        }
-                        
-                        #*** submission handlers sometimes get stuck doing
-                        # nothing, working on reqs that are no longer needed;
-                        # kill these also... ideally we want the handlers to
-                        # stick around for a while in case new subs for that req
-                        # get created, but killing stuck ones is more important
-                        # for now
-                        $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, 'job.heartbeat' => { '>=' => $dtf->format_datetime(DateTime->from_epoch(epoch => time() - $survival_time)) } }, { join => ['job', { stepstate => ['pipelinesetup', 'dataelement'] }], prefetch => 'requirements' });
-                        while (my $subs = $sub_pager->next(no_resetting => 1)) {
-                            foreach my $sub (@$subs) {
-                                # we don't want to delete anything handling this
-                                my $req_id = $sub->requirements->id;
-                                $req_counts{$req_id}++;
-                            }
-                        }
-                        foreach my $runner (VRPipe::Runner->search({})) {
-                            my $cmd = $runner->cmd;
-                            my ($req_id) = $cmd =~ qr{ -r (\d+)};
-                            $req_id || next;
-                            next if $req_counts{$req_id};
-                            $scheduler->kill_sid($runner->sid, 0);
-                            $runner->delete;
                         }
                     }
                     
