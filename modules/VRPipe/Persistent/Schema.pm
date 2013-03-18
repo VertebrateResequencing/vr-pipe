@@ -36,7 +36,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -60,7 +60,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     
-    our $VERSION = 29;
+    our $VERSION = 28;
     __PACKAGE__->load_classes({
             'VRPipe' => [
                 qw/Step Scheduler Job Requirements
