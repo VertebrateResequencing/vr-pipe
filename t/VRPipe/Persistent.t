@@ -518,9 +518,14 @@ is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jo
 my $own_pid   = $$;
 my $child_pid = fork();
 if ($child_pid) {
-    sleep(1);
-    $jobs[2]->reselect_values_from_db;
-    my $cmd_pid = $jobs[2]->pid;
+    my $cmd_pid;
+    for (1 .. 10) {
+        sleep(1);
+        $jobs[2]->reselect_values_from_db;
+        $cmd_pid = $jobs[2]->pid;
+        last if $cmd_pid;
+    }
+    $cmd_pid || die "could not get pid of job's run child";
     kill(9, $cmd_pid);
     waitpid($child_pid, 0);
     $jobs[2]->reselect_values_from_db;
@@ -541,7 +546,7 @@ run_job($jobs[3]);
 is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code =~ /65280|512/], [1, 0, 1], 'test job status got updated correctly for a job that dies internally';
 is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
 is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar',  'stderr file had the correct contents';
-ok !$jobs[3]->run, 'run() on a failed job does not work';
+is $jobs[3]->run, -1, 'run() on a failed job does not work';
 
 # running jobs via a submission
 my $t_before = time();
@@ -592,6 +597,7 @@ sub run_job {
     my $job = shift;
     
     my $watcher = EV::timer 0, 2, sub {
+        $job->reselect_values_from_db;
         if ($job->end_time) {
             EV::unloop;
         }
@@ -611,7 +617,7 @@ sub wait_until_done {
             EV::unloop;
         }
         
-        if (!$sub || $sub->done || $sub->failed) {
+        if (!$sub) {
             $sub = pop(@subs);
             unless ($sub) {
                 EV::unloop;
@@ -620,10 +626,10 @@ sub wait_until_done {
             $sub->claim_and_run;
         }
         
-        my $job = $sub->job;
-        if ($job->end_time) {
+        $sub->reselect_values_from_db;
+        if ($sub->done || $sub->failed) {
             $sub->archive_output;
-            $sub->release;
+            undef $sub;
         }
         else {
             my $heartbeat = $sub->job->heartbeat || return;
