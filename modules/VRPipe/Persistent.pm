@@ -984,9 +984,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
         
         # reselect in case another process committed a change
-        my $before = $row->_serialize_row;
-        $row->reselect_values_from_db;
-        my $after = $row->_serialize_row;
+        # my $before = $row->_serialize_row;
+        # $row->reselect_values_from_db;
+        # my $after = $row->_serialize_row;
         
         # even with the benefit of 'read committed' transactional isolation
         # level we can still end up sometimes reading old data, so if we were
@@ -996,25 +996,27 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # locking to take at least 1 second! Bleugh
         #*** we could also do something like change the lock timeout, but this
         # requires MySQL 5.5+
-        if ($before eq $after) {
-            if (time() > $before_lock_time) {
-                die "forcing transaction retry to get latest db values\n";
-            }
-            $self->{'_lock_row_called'} = 1;
+        # if ($before eq $after) {
+        if (time() > $before_lock_time) {
+            die "forcing transaction retry to get latest db values\n";
         }
+        $self->{'_lock_row_called'} = 1;
+        # }
+        
+        $row->reselect_values_from_db;
     }
     
-    sub _serialize_row {
-        my $self = shift;
-        my @key_vals;
-        foreach my $key (sort keys %{ $self->{_column_data} }) {
-            next unless defined $self->{_column_data}->{$key};
-            push(@key_vals, "$key=>$self->{_column_data}->{$key}");
-        }
-        my $ref = ref($self);
-        my $id  = $self->id;
-        return "$ref $id " . join('|', @key_vals);
-    }
+    # sub _serialize_row {
+    #     my $self = shift;
+    #     my @key_vals;
+    #     foreach my $key (sort keys %{$self->{_column_data}}) {
+    #         next unless defined $self->{_column_data}->{$key};
+    #         push(@key_vals, "$key=>$self->{_column_data}->{$key}");
+    #     }
+    #     my $ref = ref($self);
+    #     my $id = $self->id;
+    #     return "$ref $id ".join('|', @key_vals);
+    # }
     
     # get method expects all the psuedo keys and will get or create the
     # corresponding row in the db
