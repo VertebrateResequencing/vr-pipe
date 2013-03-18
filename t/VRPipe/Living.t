@@ -6,16 +6,16 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 22;
+    use Test::Most tests => 21;
     use VRPipeTest;
     use TestPipelines;
 }
 
 # Test core-functionality common to all Living objects
 {
-    # we use Runner as the example, which is exactly like the Living base
+    # we use FarmServer as the example, which is exactly like the Living base
     # except that it has some extra methods
-    my $l = VRPipe::Runner->create(cmd => 'a');
+    my $l = VRPipe::FarmServer->create(farm => 'a');
     $l->start_beating;
     my ($heartbeat_interval, $survival_time, $sleep);
     
@@ -23,7 +23,7 @@ BEGIN {
     my @watchers;
     $watchers[0] = EV::timer 0, 0, sub {
         is $l->alive, 1, 'created a Living object and it is alive';
-        my $l_count = VRPipe::Runner->search({});
+        my $l_count = VRPipe::FarmServer->search({ farm => { '!=' => 'testing_farm' } });
         is $l_count, 1, 'we have an entry in the db';
         ok my $heartbeat_time = $l->heartbeat->epoch, 'it had a heartbeat';
         ok $heartbeat_interval = $l->heartbeat_interval, 'it had a heartbeat_interval';
@@ -43,7 +43,7 @@ BEGIN {
                 my $time_until_dead = $survival_time - $sleep + 2;
                 $watchers[3] = EV::timer $time_until_dead, 0, sub {
                     is $l->alive, 0, 'after waiting longer than survival_time without a heartbeat, we died';
-                    $l_count = VRPipe::Runner->search({});
+                    $l_count = VRPipe::FarmServer->search({ farm => { '!=' => 'testing_farm' } });
                     is $l_count, 0, 'our entry was removed from the db';
                     EV::unloop;
                 };
@@ -64,9 +64,9 @@ BEGIN {
     elsif ($child_pid) {
         # parent
         $watchers[0] = EV::timer $sleep, 0, sub {
-            my $l_count = VRPipe::Runner->search({ cmd => 'b' });
+            my $l_count = VRPipe::FarmServer->search({ farm => 'b' });
             is $l_count, 1, 'child process created a Living object and parent was able to find it';
-            my $test_l = VRPipe::Runner->get(cmd => 'b');
+            my $test_l = VRPipe::FarmServer->get(farm => 'b');
             is $test_l->alive, 1, 'it is alive';
             
             # suspend the child for longer than survival_time
@@ -85,7 +85,7 @@ BEGIN {
     elsif ($child_pid == 0) {
         # child
         open(STDERR, '>', $child_stderr_file);
-        my $child_l = VRPipe::Runner->create(cmd => 'b');
+        my $child_l = VRPipe::FarmServer->create(farm => 'b');
         $child_l->start_beating;
         
         my $timeout = $sleep + $survival_time + 4;
@@ -140,11 +140,6 @@ BEGIN {
         $setup->active(0);
         $setup->update;
     }
-}
-
-# Runner-specific tests
-{
-    ok my $r = VRPipe::Runner->create(cmd => 'ls'), 'able to create a Runner';
 }
 
 exit;
