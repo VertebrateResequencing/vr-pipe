@@ -876,6 +876,94 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return ($rs, $sub);
         });
         
+        # txn_do with auto-retries on deadlock
+        $meta->add_method('do_transaction' => sub { 
+            my ($self, $transaction, $error_message_prefix, $schema) = @_;
+            $schema ||= $self->result_source->schema;
+            
+            #*** using READ COMMITTED is breaking some transactions and not
+            # behaving consistently as expected: disabling for now until this is
+            # investigated further
+            # if ($schema->storage->transaction_depth == 0) {
+            #     my $isolation_level_change_sql = $converter->get_isolation_read_committed_sql;
+            #     if ($isolation_level_change_sql) {
+            #         $schema->storage->dbh_do(
+            #             sub {
+            #                 my ($storage, $dbh) = @_;
+            #                 $dbh->do($isolation_level_change_sql);
+            #                 #*** SET SESSION innodb_lock_wait_timeout = 1 requires MySQL 5.5
+            #             }
+            #         );
+            #     }
+            # }
+            
+            my $transaction_with_sleep = sub {
+                my $transaction_start_time = time();
+                my $return                 = &$transaction;
+                
+                # for lock_row() hack to function, all transactions must take
+                # at least 1 second *** why doesn't merely using READ COMMITTED
+                # work?!
+                if (ref($self) && $self->{'_lock_row_called'}) {
+                    unless (time() - $transaction_start_time > 0) {
+                        sleep(1);
+                    }
+                    delete $self->{'_lock_row_called'};
+                }
+                
+                return $return;
+            };
+            
+            my $retries     = 0;
+            my $max_retries = 10;
+            my $row;
+            my $get_row = defined wantarray();
+            while ($retries <= $max_retries) {
+                try {
+                    if ($get_row) {
+                        $row = $schema->txn_do($transaction_with_sleep);
+                    }
+                    else {
+                        # there is a large speed increase in bulk_create_or_update
+                        # if we call txn_do in void context
+                        $schema->txn_do($transaction_with_sleep);
+                    }
+                }
+                catch ($err) {
+                    $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
+                    
+                    # we should attempt retries when we fail due to a create()
+                    # attempt when some other process got the update lock on
+                    # the find() first; we don't look at the $err message
+                    # because that may be driver-specific, and because we may
+                    # be nested and so $err could be unrelated
+                    if ($retries < $max_retries) {
+                        #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
+                        #warn "will retry get due to txn failure: $err\n";
+                        
+                        # actually, we will check the $err message, and if it is
+                        # definitely a restart situation, we won't increment
+                        # retries
+                        unless ($err =~ /Deadlock|try restarting transaction|forcing transaction retry to get latest db values/) {
+                            $retries++;
+                        }
+                        sleep(1);
+                        
+                        next;
+                    }
+                    else {
+                        $self->throw("$error_message_prefix: $err");
+                    }
+                }
+                last;
+            }
+            
+            if ($get_row) {
+                return $row;
+            }
+            return;
+        });
+        
         # set up meta data to add indexes for the key columns after schema deploy
         $meta->add_attribute('cols_to_idx' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
@@ -883,96 +971,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
     }
     
-    # txn_do with auto-retries on deadlock
-    sub do_transaction {
-        my ($self, $transaction, $error_message_prefix, $schema) = @_;
-        $schema ||= $self->result_source->schema;
-        
-        # $schema->storage->dbh_do(
-        #     sub {
-        #         my ($storage, $dbh) = @_;
-        #         $dbh->do("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
-        #         *** this doesn't work because:
-        #         Binary logging not possible. Message: Transaction level 'READ-COMMITTED' in InnoDB is not safe for binlog mode 'STATEMENT'
-        #         *** SET binlog_format = 'ROW'; doesn't work, because you need
-        #         SUPER privileges
-        #         *** SET SESSION innodb_lock_wait_timeout = 1
-        #         requires MySQL 5.5
-        #     }
-        # );
-        
-        my $transaction_with_sleep = sub {
-            my $transaction_start_time = time();
-            my $return                 = &$transaction;
-            
-            # for lock_row() to function, all transactions must
-            # take at least 1 second *** really, we need to just change
-            # isolation level to READ COMMITTED, then we can avoid this...
-            if (ref($self) && $self->{'_lock_row_called'}) {
-                unless (time() - $transaction_start_time > 0) {
-                    sleep(1);
-                }
-                delete $self->{'_lock_row_called'};
-            }
-            
-            return $return;
-        };
-        
-        my $retries     = 0;
-        my $max_retries = 10;
-        my $row;
-        my $get_row = defined wantarray();
-        while ($retries <= $max_retries) {
-            try {
-                if ($get_row) {
-                    $row = $schema->txn_do($transaction_with_sleep);
-                }
-                else {
-                    # there is a large speed increase in bulk_create_or_update
-                    # if we call txn_do in void context
-                    $schema->txn_do($transaction_with_sleep);
-                }
-            }
-            catch ($err) {
-                $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-                
-                # we should attempt retries when we fail due to a create()
-                # attempt when some other process got the update lock on
-                # the find() first; we don't look at the $err message
-                # because that may be driver-specific, and because we may
-                # be nested and so $err could be unrelated
-                if ($retries < $max_retries) {
-                    #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
-                    #warn "will retry get due to txn failure: $err\n";
-                    
-                    # actually, we will check the $err message, and if it is
-                    # definitely a restart situation, we won't increment
-                    # retries
-                    unless ($err =~ /Deadlock|try restarting transaction|forcing transaction retry to get latest db values/) {
-                        $retries++;
-                    }
-                    sleep(1);
-                    
-                    next;
-                }
-                else {
-                    $self->throw("$error_message_prefix: $err");
-                }
-            }
-            last;
-        }
-        
-        if ($get_row) {
-            return $row;
-        }
-        return;
-    }
-    
     # in a do_transaction() sub, use this to lock the table row of the
     # Persistent instance you'll update, or just don't want to be changed by
-    # another process while you're working. It should be the first thing done
-    # in a transaction sub. You MUST call this method on the same instance that
-    # you use to call do_transaction()
+    # another process while you're working. lock_row() calls should really be
+    # the first thing done in a do_transaction() sub.
     sub lock_row {
         my ($self, $row) = @_;
         
@@ -981,29 +983,37 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # get the lock
         my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
         
-        # we now have the lock. But if multiple processes all entered the
-        # transaction before the first gets the lock, then after the first one
-        # finishes and releases the lock, the second one will get the lock but
-        # will still be seeing the database as it was when it started its
-        # transaction, ie. out-of-date since the first one probably changed
-        # things. We need to force the transaction to restart in this case, so
-        # it will see the latest db values
-        #*** the only way I can guess if we were waiting on a lock is if time
-        # passed, so I must also force all transactions to take 1 second in
-        # do_transaction :(
-        #*** the correct way to fix this would be to change the isolation level
-        # of the transaction from MySQL's REPEATABLE READ to READ COMMITTED,
-        # then I could just do a reselect after getting the lock... but I can't
-        # do that (see commented section in do_transaction), and what about
-        # SQLite, which might only do SERIALIZABLE?
+        # reselect in case another process committed a change
+        my $before = $row->_serialize_row;
+        $row->reselect_values_from_db;
+        my $after = $row->_serialize_row;
+        
+        # even with the benefit of 'read committed' transactional isolation
+        # level we can still end up sometimes reading old data, so if we were
+        # not the first process to get the lock and we were waiting, we'll force
+        # the transaction to restart
+        #*** for this hack to work, we must force all transactions that do row
+        # locking to take at least 1 second! Bleugh
         #*** we could also do something like change the lock timeout, but this
         # requires MySQL 5.5+
-        if (time() > $before_lock_time) {
-            die "forcing transaction retry to get latest db values\n";
+        if ($before eq $after) {
+            if (time() > $before_lock_time) {
+                die "forcing transaction retry to get latest db values\n";
+            }
+            $self->{'_lock_row_called'} = 1;
         }
-        $row->reselect_values_from_db;
-        
-        $self->{'_lock_row_called'} = 1;
+    }
+    
+    sub _serialize_row {
+        my $self = shift;
+        my @key_vals;
+        foreach my $key (sort keys %{ $self->{_column_data} }) {
+            next unless defined $self->{_column_data}->{$key};
+            push(@key_vals, "$key=>$self->{_column_data}->{$key}");
+        }
+        my $ref = ref($self);
+        my $id  = $self->id;
+        return "$ref $id " . join('|', @key_vals);
     }
     
     # get method expects all the psuedo keys and will get or create the
