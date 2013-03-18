@@ -13,8 +13,8 @@ bubbles in aligned BAM files, generating a filter file for subsequent filtering
 out or marking. Create a lane-wide filter file from a give tag file, defaults
 to tag 168 (the reads aligning to the solexa phiX control) - this allows us to
 set consistent thresholds for all bams in the lane. The phix cotrol lane is
-assumed to be in irods. Creation of a seperate filter from each bam is possible 
-by setting tag_number to zero - probably not to be recommended.
+assumed to be in irods. Creation of a seperate filter from each bam is possible
+ by setting tag_number to zero - probably not to be recommended.
 
 =head1 AUTHOR
 
@@ -49,9 +49,9 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
                 description => 'Generate a lane-wide filter from this tag, eg the tag 168 (phiX control) file. Set to 0 to generate filter from the bam itself',
                 optional    => 1, default_value => 168
             ),
-            'irods_root' => VRPipe::StepOption->create( description  => 'irods root path under which runParameters xml and Phix Control are held.', optional => 1, default_value => '/seq'),
-            samtools_exe               => VRPipe::StepOption->create(description => 'path to your samtools executable',       optional => 1, default_value => 'samtools'),
-            samtools_irods_exe         => VRPipe::StepOption->create(description => 'path to your samtools_irods executable', optional => 1, default_value => 'samtools_irods'),
+            'irods_root'               => VRPipe::StepOption->create(description => 'irods root path under which runParameters xml and Phix Control are held.', optional => 1, default_value => '/seq'),
+            samtools_exe               => VRPipe::StepOption->create(description => 'path to your samtools executable',                                         optional => 1, default_value => 'samtools'),
+            samtools_irods_exe         => VRPipe::StepOption->create(description => 'path to your samtools_irods executable',                                   optional => 1, default_value => 'samtools_irods'),
             spatial_filter_exe         => VRPipe::StepOption->create(description => 'path to spatial_filter executable'),
             filter_calibration_options => VRPipe::StepOption->create(
                 description   => 'spatial_filter calibration options, excluding tile width and height, and output filter filename',
@@ -100,10 +100,14 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
             my $basename = $bam_file->basename;
             $basename .= '.filt';
             
-            my $out_file = $self->output_file(output_key => 'filter_files', basename => $basename, type => 'txt', metadata => { lane => $lane });
+            # (the output files sometimes look like text files, sometimes like
+            #  binary files, so we say they are type 'any')
+            my $out_file = $self->output_file(output_key => 'filter_files', basename => $basename, type => 'any', metadata => { lane => $lane });
             my $out_path = $out_file->path;
-            my $out_log = $self->output_file(output_key => 'filter_logs', basename => "$basename.log", type => 'txt');
+            my $out_log  = $self->output_file(output_key => 'filter_logs', basename => "$basename.log", type => 'txt');
             
+           $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'spatial_filter', version => VRPipe::StepCmdSummary->determine_version("$spatial_filter_exe -v", '^spatial_filter: Version v(\S+)'), summary => 'spatial_filter --width $tile_width --height $tile_height ' . $filter_calibration_options . ' -c -F $dest'));
+
             my $cmd = qq[use VRPipe::Steps::calculate_bam_spatial_filter; VRPipe::Steps::calculate_bam_spatial_filter->generate_filter(source => q[$bam_path], dest => q[$out_path], samtools_exe => '$samtools', samtools_irods_exe => '$samtools_irods_exe', irods_root => '$irods_root', spatial_filter_exe => '$spatial_filter_exe', tag_number => $tag_number, filter_calibration_options => '$filter_calibration_options', lane => '$lane', tile_width => '$tile_width', tile_height => '$tile_height');];
             
             $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file, $out_log] });
@@ -114,7 +118,7 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
     method outputs_definition {
         return {
             filter_files => VRPipe::StepIODefinition->create(
-                type        => 'txt',
+                type        => 'any',
                 description => 'filter file identifying bam regions with spatially correlated errors',
                 max_files   => -1
             ),
@@ -135,7 +139,7 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method generate_filter (ClassName|Object $self: Str|File :$source!, Str|File :$dest!, Str :$samtools_exe!, Str :$samtools_irods_exe!, Str :$irods_root!, Str :$spatial_filter_exe!, Str :$tag_number!, Str :$filter_calibration_options!, Str :$lane!, Num :$tile_width!, Num :$tile_height! ) {
@@ -181,7 +185,7 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
         unless ($filt_file->s) {
             $self->throw("Failed to generate filter file: '$cmd'");
         }
-
+        
         # basic logfile check
         my $log_file = VRPipe::File->get(path => "$dest.log");
         $log_file->update_stats_from_disc;
@@ -189,7 +193,7 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
         while (my $line = <$logh>) {
             $self->throw("Failed to calculate filter, invalid bam") if ($line =~ /invalid BAM binary header/);
         }
-
+        
         return 1;
     }
 }

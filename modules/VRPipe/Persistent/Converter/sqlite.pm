@@ -110,6 +110,12 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
     method index_creation_style {
         return 'all';
     }
+    
+    method get_isolation_read_committed_sql {
+        #*** hmmm, can SQLite do read-committed-type behaviour? If not, can we
+        # support it?
+        return '';
+    }
 }
 
 1;

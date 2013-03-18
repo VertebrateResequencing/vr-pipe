@@ -44,6 +44,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]],
         ['deactivate',    'Turn off the given --setup'],
         ['reactivate',    'Turn on the given --setup'],
+        ['touch',         'Force a refresh of the dataelements corresponding to the given --setup'],
         ['reset',         'Wipe out all progress on the --setup, returning everything to the state it was just after you first created the setup, and leaves it in a deactivated state'],
         ['cleanup',       'Like --reset, but only for DataElements that are now withdrawn (use to recover wasted disk space)'],
         ['delete',        'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it']
@@ -55,6 +56,7 @@ my $setup         = $frontend->get_pipelinesetups();
 my $extra_options = $frontend->opts('extra_options');
 my $deactivate    = $frontend->opts('deactivate');
 my $reactivate    = $frontend->opts('reactivate');
+my $touch         = $frontend->opts('touch');
 my $reset         = $frontend->opts('reset');
 my $cleanup       = $frontend->opts('cleanup');
 my $delete        = $frontend->opts('delete');
@@ -83,9 +85,11 @@ if ($setup) {
     if ($deactivate || $reactivate) {
         if ($deactivate) {
             $setup->active(0);
+            $setup->log_event("vrpipe-setup --deactivated called");
         }
         elsif ($reactivate) {
             $setup->active(1);
+            $setup->log_event("vrpipe-setup --reactivated called");
         }
         $setup->update;
         
@@ -103,11 +107,13 @@ if ($setup) {
         
         my $setup_id = $setup->id;
         $frontend->output($cleanup ? "Working on wiping out all trace of the withdrawn DataElements of setup $setup_id..." : "Working on wiping out all trace of setup $setup_id...");
+        my $mode_name = $cleanup ? "cleanup" : ($reset ? "reset" : "delete");
         
         # deactivate it first
         unless ($cleanup) {
             $setup->active(0);
             $setup->update;
+            $setup->log_event("vrpipe-setup --$mode_name deactivated the PipelineSetup");
         }
         
         # delete all related rows in the db
@@ -139,6 +145,7 @@ if ($setup) {
                             }
                             
                             if ($all_mine) {
+                                $setup->log_event("vrpipe-setup --$mode_name will kill Job because it is unique to this Setup", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
                                 $job->kill_job unless $job->end_time;
                             }
                             
@@ -147,12 +154,14 @@ if ($setup) {
                                 $ss->delete;
                             }
                             
+                            $setup->log_event("vrpipe-setup --$mode_name will delete Submission", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
                             $sub->delete;
                             push(@jobs_to_delete, $job) if $all_mine;
                         }
                     }
                     
                     # delete output files not also created by some other setup
+                    $setup->log_event("vrpipe-setup --$mode_name will unlink all output files unique to this StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
                     $step_state->unlink_output_files(only_unique_to_us => 1);
                     
                     # delete sofs
@@ -163,35 +172,53 @@ if ($setup) {
                     # undef any same_submissions_as that reference us
                     VRPipe::StepState->search_rs({ same_submissions_as => $step_state->id })->update({ same_submissions_as => undef });
                     
+                    $setup->log_event("vrpipe-setup --$mode_name will delete the StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
                     $step_state->delete;
                 }
                 
+                my $dataelement = $element_state->dataelement;
+                $setup->log_event("vrpipe-setup --$mode_name will delete the DataElementState", dataelement => $dataelement->id);
                 $element_state->delete;
                 if ($cleanup) {
-                    eval { $element_state->dataelement->delete; };
+                    eval {
+                        $setup->log_event("vrpipe-setup --$mode_name will delete the DataElement", dataelement => $dataelement->id);
+                        $dataelement->delete;
+                    };
                 }
             }
         }
         $frontend->progress_indicator(1);
         
         foreach my $job (@jobs_to_delete) {
+            $setup->log_event("vrpipe-setup --$mode_name will delete Job because it is unique to this Setup", job => $job->id);
             $job->delete;
         }
         
         if ($cleanup) {
             $frontend->output("Setup $setup_id has been cleaned up.");
+            $setup->log_event("vrpipe-setup --$mode_name has cleaned up the Setup");
         }
         else {
             # also delete the pipelinesetup and links if in delete mode
             if ($delete) {
                 VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
                 $setup->delete;
+                $setup->log_event("vrpipe-setup --$mode_name has deleted the Setup");
                 $frontend->output("Setup $setup_id has been reset and deleted.");
             }
             else {
                 $frontend->output("Setup $setup_id has been reset and is now deactivated.");
+                $setup->log_event("vrpipe-setup --$mode_name has reset the Setup");
             }
         }
+    }
+    elsif ($touch) {
+        my $datasource = $setup->datasource;
+        $datasource->_changed_marker(undef);
+        $datasource->update;
+        $setup->log_event("vrpipe-setup --touch called");
+        
+        $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
     }
     else {
         # allow the user to change pipeline setup options
@@ -566,6 +593,7 @@ else {
         my $ds = VRPipe::DataSource->create(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args);
         my $ps = VRPipe::PipelineSetup->create(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args, user => $user, $farm ? (desired_farm => $farm) : ());
         $frontend->output("\nYour new PipelineSetup has been created!\nName: $setup_name; Id: ", $ps->id, " (remember at least one of these for use later)");
+        $ps->log_event("vrpipe-setup used to create this new PipelineSetup");
     }
     else {
         $frontend->output("Abandoning the setup, nothing was done");

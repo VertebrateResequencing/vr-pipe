@@ -26,7 +26,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -130,92 +130,115 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_failed;
     }
     
-    # other methods
-    method _get_claim {
-        my $claimed_by_us;
+    method claim_and_run (PositiveInt :$allowed_time?) {
+        # we'll return one of a number of responses: 0 = there was some problem
+        # so the job and sub were reset; 1 = this process just now claimed the
+        # sub and started running the job; 2 = the job is already exited and the
+        # sub marked as done/failed; 3 = another process is currently running
+        # the job
+        my $response;
+        
+        # we'll also return the job instance that we called run() on, since that
+        # will hold non-persistent data for _signalled_to_death
+        my $job_instance;
         my $transaction = sub {
-            my ($sub_to_claim) = VRPipe::Submission->search({ id => $self->id }, { for => 'update' });
-            my $job = $sub_to_claim->job;
-            if ($sub_to_claim->_claim) {
-                unless ($job->alive(no_suicide => 1)) {
-                    # clean up any 'stuck' submissions
-                    if ($job->heartbeat) {
-                        # another process probably claimed this sub, started
-                        # running the job, but then died without releasing the
-                        # claim: clean this up now
-                        $sub_to_claim->_claim(0);
-                        $sub_to_claim->update;
-                        $sub_to_claim->_reset_job;
+            $self->stepstate->pipelinesetup->log_event("claim_and_run() entered transaction", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
+            
+            # lock the Sub and Job rows before trying to claim
+            $self->lock_row($self);
+            my $job = $self->job;
+            $self->lock_row($job);
+            
+            my $ss             = $self->stepstate;
+            my $ps             = $ss->pipelinesetup;
+            my %log_event_args = (dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $self->id, job => $job->id);
+            $ps->log_event("claim_and_run() got row locks for Submission and Job", %log_event_args);
+            
+            # first check if the job has already started or finished
+            if ($self->done || $self->failed || (defined $job->exit_code && $job->end_time)) {
+                if (!($self->done || $self->failed)) {
+                    # the job ran under a different submission; we just need to
+                    # update this submission
+                    if ($job->ok) {
+                        $self->_done(1);
+                        $self->_failed(0);
                     }
                     else {
-                        # however, the other process may have claimed it and not
-                        # yet called run() and started the job's heartbeat
-                        
-                        # but we have an edge-case hole where the sub got
-                        # claimed but that process never called run() or
-                        # release(), in which case, we will always return 0 here
-                        # and the job will never get run! So we wait 60s for
-                        # the job to start running, and if it doesn't we release
-                        # the claim
-                        my $started_running = 0;
-                        for (1 .. 12) {
-                            sleep(5);
-                            $job->reselect_values_from_db;
-                            if ($job->alive(no_suicide => 1)) {
-                                $started_running = 1;
-                                last;
-                            }
-                        }
-                        
-                        unless ($started_running) {
-                            $sub_to_claim->_claim(0);
-                            $sub_to_claim->update;
-                            
-                            unless (defined $job->exit_code && $job->end_time) {
-                                $sub_to_claim->_reset_job;
-                            }
-                        }
+                        $self->_done(0);
+                        $self->_failed(1);
                     }
+                    $self->_claim(0);
+                    $self->update;
                 }
-                
-                # regardless of if it was stuck, we don't claim. If we fixed
-                # being stuck, the next attempt to claim will work
-                $claimed_by_us = 0;
+                elsif ($self->failed) {
+                    $self->retry if $self->retries < 3;
+                }
+                $response = 2;
+                $ps->log_event("claim_and_run() found that the Submission was already done or failed", %log_event_args);
+                return;
             }
-            else {
-                $sub_to_claim->_claim(1);
-                $sub_to_claim->update;
-                $claimed_by_us = 1;
-            }
-        };
-        $self->do_transaction($transaction, "Failed when trying to claim submission");
-        
-        $self->reselect_values_from_db;
-        return $claimed_by_us;
-    }
-    
-    method claim_and_run (PositiveInt :$allowed_time?) {
-        my $run_ok;
-        my $transaction = sub {
-            if ($self->_get_claim) {
-                if ($self->failed) {
-                    $self->retry;
-                    $run_ok = 0;
+            elsif ($job->start_time) {
+                if ($job->alive(no_suicide => 1)) {
+                    $response = 3;
+                    $ps->log_event("claim_and_run() found that the Job had already started and is currently alive", %log_event_args);
+                    return;
                 }
                 else {
-                    # start running the associated job
-                    $run_ok = $self->job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : ());
-                }
-                
-                unless ($run_ok && $self->job->start_time) {
-                    $self->release;
+                    # looks like the process that previously started running
+                    # the job exited before updating the job's state; reset
+                    $ps->log_event("claim_and_run() found that the Job had already started yet was dead, so it will be reset", %log_event_args);
+                    $self->_reset_job;
+                    $self->_reset;
+                    $response = 0;
+                    $ps->log_event("claim_and_run() returning from transaction", %log_event_args);
+                    return;
                 }
             }
+            elsif ($self->_claim) {
+                # this should be impossible, since sub->_claim and
+                # job->start_time are only ever set together in the same
+                # transaction
+                $ps->log_event("claim_and_run() found that the Job had not started yet the Submission was claimed, which should be impossible; they will both be reset", %log_event_args);
+                $self->_reset_job;
+                $self->_reset;
+                $response = 0;
+                return;
+            }
+            
+            # see if we can get the job to start running, and set claim if so
+            my $run_response = $job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : ());
+            if (!$run_response) {
+                $ps->log_event("claim_and_run() tried to run() the Job but it was already running", %log_event_args);
+                $response = 3;
+            }
+            elsif ($run_response == -1) {
+                if ($self->done || $self->failed) {
+                    $ps->log_event("claim_and_run() tried to run() the Job but it was already complete", %log_event_args);
+                    $response = 2;
+                }
+                else {
+                    $ps->log_event("claim_and_run() Job->run() call claimed the Job was complete, yet the Submission is not marked as done or failed, which should be impossible; both will be reset", %log_event_args);
+                    $self->_reset_job;
+                    $self->_reset;
+                    $response = 0;
+                }
+            }
+            elsif ($run_response == 1) {
+                $ps->log_event("claim_and_run() was able to run() the Job, so claiming the Submission as well", %log_event_args);
+                $self->_claim(1);
+                $self->update;
+                $response     = 1;
+                $job_instance = $job;
+            }
+            
+            my $claim = $self->_claim    || 0;
+            my $st    = $job->start_time || 'n/a';
+            $ps->log_event("claim_and_run() ending transaction, _claim is $claim and job start_time is $st", %log_event_args);
         };
         $self->do_transaction($transaction, "Failed when trying to claim and run");
-        $self->disconnect;
+        $self->stepstate->pipelinesetup->log_event("claim_and_run() after transaction", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
         
-        return $run_ok;
+        return ($response, $job_instance);
     }
     
     method release {
@@ -232,26 +255,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
     }
     
-    method update_status {
-        $self->reselect_values_from_db;
-        $self->throw("Cannot call update_status when the job " . $self->job->id . " is not finished") unless $self->job->end_time;
-        return if $self->done || $self->failed;
-        
-        if ($self->job->ok) {
-            $self->_done(1);
-            $self->_failed(0);
-        }
-        else {
-            $self->_done(0);
-            $self->_failed(1);
-        }
-        
-        $self->archive_output;
-        
-        $self->update;
-    }
-    
     method archive_output {
+        $self->throw("Cannot call archive_output when the job " . $self->job->id . " is not finished") unless $self->job->end_time;
         my @to_archive;
         push(@to_archive, [$self->job->stdout_file, $self->job_stdout_file]);
         push(@to_archive, [$self->job->stderr_file, $self->job_stderr_file]);
@@ -266,7 +271,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 my $path = file($std_dir, 'job_stderr');
                 my $vrfile = VRPipe::File->create(path => $path, type => 'cat');
                 my $vrfile_id = $vrfile ? $vrfile->id : 'no_id';
-                $self->throw("toa $count had dest $dest compared to source " . $source->path . "; should have been $path for vrfile $vrfile_id");
+                $self->warn("toa $count had dest $dest compared to source " . $source->path . "; should have been $path for vrfile $vrfile_id");
+                return;
             }
             $self->concatenate(
                 $source, $dest,
@@ -316,6 +322,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
         }
         
         $extra = ceil($extra / 100) * 100;
+        
+        $self->stepstate->pipelinesetup->log_event("extra_memory() call will change our Requirements by adding ${extra}MB", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
         $self->_add_extra('memory', $extra);
     }
     
@@ -324,6 +332,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method extra_time (Int $extra = 3600) {
+        $self->stepstate->pipelinesetup->log_event("extra_time() call will change our Requirements by adding ${extra}secs", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
         $self->_add_extra('time', $extra);
     }
     
@@ -374,7 +383,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # this is where we want the job stdo/e to be archived to, not where the
         # job initially spits it out to
         my $std_dir = $self->std_dir || return;
-        return VRPipe::File->create(path => file($std_dir, 'job_std' . $kind), type => 'cat');
+        my $file = VRPipe::File->create(path => file($std_dir, 'job_std' . $kind), type => 'cat');
+        $file->update_stats_from_disc;
+        return $file;
     }
     
     method job_stdout_file {
@@ -412,6 +423,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method retry {
         return unless ($self->done || $self->failed);
         
+        $self->stepstate->pipelinesetup->log_event("Submission->retry() call will reset our Job and the Submission", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
+        
         # reset the job
         $self->_reset_job;
         
@@ -422,18 +435,34 @@ class VRPipe::Submission extends VRPipe::Persistent {
     }
     
     method start_over {
+        my $ss = $self->stepstate;
+        $ss->pipelinesetup->log_event("Submission->start_over was called", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id, record_stack => 1);
+        
         # reset the job
         $self->_reset_job;
         
         # reset ourself and also set retries to 0
         $self->retries(0);
         $self->_reset;
+        
+        $ss->pipelinesetup->log_event("Submission->start_over call returning", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id);
     }
     
     method _reset_job {
         my $job = $self->job;
+        $job->reselect_values_from_db;
         if ($job->start_time && !$job->end_time) {
+            $self->stepstate->pipelinesetup->log_event("Submission->_reset_job() call will kill the currently running Job", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
             $job->kill_job($self);
+        }
+        else {
+            # delete its output
+            my $ofiles = $job->output_files;
+            if ($ofiles) {
+                foreach my $file (@$ofiles) {
+                    $file->unlink;
+                }
+            }
         }
         
         $job->reset_job;

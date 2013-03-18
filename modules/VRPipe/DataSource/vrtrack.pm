@@ -391,6 +391,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 
                 # reset element states first
                 foreach my $estate ($element->element_states) {
+                    $estate->pipelinesetup->log_event("vrtrack DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
                     $estate->start_from_scratch;
                 }
                 # then change metadata in files

@@ -121,11 +121,12 @@ foreach my $sub (@subs) {
     
     my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
     $frontend->output("---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" is $sub_state, having been retried ", $sub->retries, " times");
-    my $job_state = $job->end_time ? 'finished' : ($job->start_time ? 'running' : 'pending');
+    my $job_state = $job->end_time           ? 'finished'                                     : ($job->start_time ? 'running' : 'pending');
+    my $job_host  = $job->host               ? ', on host ' . $job->host                      : '';
     my $job_extra = $job_state eq 'finished' ? ', having exited with code ' . $job->exit_code : '';
-    $frontend->output("The job is $job_state$job_extra; its command line is:\n", $job->cmd);
-    $frontend->output("The working directory for the job is ",                   $job->dir);
-    $frontend->output("We reserved ",                                            $req->memory, "MB memory and ", ($req->time / (60 * 60)), "hrs of time");
+    $frontend->output("The job is $job_state$job_host$job_extra; its command line is:\n", $job->cmd);
+    $frontend->output("The working directory for the job is ",                            $job->dir);
+    $frontend->output("We reserved ",                                                     $req->memory, "MB memory and ", ($req->time / (60 * 60)), "hrs of time");
     
     if ($sub_state ne 'scheduled' || $sub->retries > 0) {
         if ($job->end_time) {
@@ -180,6 +181,8 @@ if ($count > 0 && ($start_over || $full_reset)) {
     if ($answer eq 'y') {
         if ($start_over) {
             foreach my $sub (@final_subs) {
+                my $ss = $sub->stepstate;
+                $ss->pipelinesetup->log_event("Calling Submission->start_over because the user chose to do a start_over with vrpipe-submissions", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $sub->id, job => $sub->job->id);
                 $sub->start_over;
             }
         }
@@ -193,6 +196,7 @@ if ($count > 0 && ($start_over || $full_reset)) {
             undef @subs;
             
             foreach my $ss (values %sss) {
+                $ss->pipelinesetup->log_event("Calling StepState->start_over because the user chose to do a full_reset with vrpipe-submissions", stepstate => $ss->id, dataelement => $ss->dataelement->id);
                 $ss->start_over;
             }
         }

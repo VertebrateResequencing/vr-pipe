@@ -125,7 +125,7 @@ VRPipe::PipelineSetup->create(
     output_root => $calling_dir,
     pipeline    => $annotation_pipeline,
     options     => {
-        vep_options                => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+        vep_options                => "--sift b --polyphen b --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
         'vcf2consequences_options' => "--grantham",
         cleanup                    => 0
     }

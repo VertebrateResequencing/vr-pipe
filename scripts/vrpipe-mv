@@ -107,6 +107,7 @@ if ($setup) {
                 }
                 
                 foreach my $ss (values %sss) {
+                    $ss->pipelinesetup->log_event("Calling StepState->start_over because the user chose to kill off submissions before a vrpipe-mv could proceed", stepstate => $ss->id, dataelement => $ss->dataelement->id);
                     $ss->start_over;
                 }
                 $frontend->output("Outstanding submissions deleted.") if $verbose;

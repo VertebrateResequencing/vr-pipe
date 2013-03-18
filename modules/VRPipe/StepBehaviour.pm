@@ -67,7 +67,7 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     );
     
     has 'behaviour' => (
-        is      => 'ro',
+        is      => 'rw',
         isa     => Varchar [64],
         traits  => ['VRPipe::Persistent::Attributes'],
         is_key  => 1,
@@ -168,6 +168,7 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     
     method start_over (ArrayRef[VRPipe::StepState] $states) {
         foreach my $state (@$states) {
+            $state->pipelinesetup->log_event("Calling StepState->start_over because this is a desired behaviour", stepstate => $state->id, dataelement => $state->dataelement->id);
             $state->start_over;
         }
     }

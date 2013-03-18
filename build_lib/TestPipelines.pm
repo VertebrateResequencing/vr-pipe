@@ -149,7 +149,7 @@ sub create_single_step_pipeline {
 
 sub all_pipelines_started {
     my @setups = $manager->setups;
-    foreach my $setup (@setups) {
+    foreach my $setup (grep { $_->active } @setups) {
         # a test might change a datasource then immediately test for the
         # results, before the server calls elements in its watcher, so we call
         # it manually ourselves every time
@@ -165,7 +165,7 @@ sub all_pipelines_finished {
     return 0 unless all_pipelines_started();
     
     my @setups = $manager->setups;
-    foreach my $setup (@setups) {
+    foreach my $setup (grep { $_->active } @setups) {
         my $setup_id  = $setup->id;
         my $pipeline  = $setup->pipeline;
         my $num_steps = $pipeline->step_members;

@@ -33,7 +33,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -162,6 +162,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 }
                 
                 foreach my $file_id (@files_to_forget) {
+                    $self->pipelinesetup->log_event("Deleting StepOutputFile for " . VRPipe::File->get(id => $file_id)->path . " because output_files() call with a new hash did not have this file in it", dataelement => $self->dataelement, stepstate => $self->id);
                     VRPipe::StepOutputFile->get(stepstate => $self, file => $file_id, output_key => $key)->delete;
                 }
             }
@@ -242,36 +243,76 @@ class VRPipe::StepState extends VRPipe::Persistent {
     }
     
     method start_over {
-        if ($self->verbose >= 1) {
-            # (we want a stacktrace, so a debug() call isn't good enough)
-            $self->warn("start_over called for stepstate " . $self->id);
+        $self->pipelinesetup->log_event("StepState->start_over was called", stepstate => $self->id, dataelement => $self->dataelement->id, record_stack => 1);
+        
+        # before doing anything, record which output files we'll need to delete,
+        # but don't actually delete anything until we've done all the db
+        # updates
+        my @files_to_unlink;
+        foreach my $file ($self->output_files_list(only_unique_to_us => 1)) {
+            push(@files_to_unlink, $file);
         }
         
-        # first reset all associated submissions in order to reset their jobs
-        foreach my $sub ($self->submissions) {
-            $sub->start_over;
-            
-            # delete any stepstats there might be for us
-            foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
-                $ss->delete;
+        # we need to be in a transaction or we risk leaving our selves in a
+        # partial invalid state with eg. no submissions, no output files, but
+        # claiming we are complete. But even with complete(0) and the update()
+        # in the transaction we still manage to somehow come out of this with
+        # complete set to 1; make sure by repeating.
+        my $retries = 6;
+        do {
+            $retries--;
+            if ($retries <= 0) {
+                $self->throw("Database is refusing to update StepState " . $self->id . " complete 1 => 0 and get rid of submissions");
             }
             
-            $sub->delete;
-        }
+            my $transaction = sub {
+                # lock our row so that another process doesn't trigger us while
+                # we're in the middle of deleting submissions
+                $self->lock_row($self);
+                
+                # first remove output file rows from the db; we do this before
+                # deleting subs to avoid a race condition where delete subs
+                # while another process is parsing this, sees no subs and does a
+                # parse and creates new sofs immediately before we then delete
+                # them
+                foreach my $sof ($self->_output_files) {
+                    $self->pipelinesetup->log_event("StepState->start_over call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
+                    $sof->delete;
+                }
+                
+                # reset all associated submissions in order to reset their jobs
+                foreach my $sub ($self->submissions) {
+                    $self->pipelinesetup->log_event("Calling Submission->start_over during a StepState->start_over", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
+                    $sub->start_over;
+                    
+                    # delete any stepstats there might be for us
+                    foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
+                        $ss->delete;
+                    }
+                    
+                    $self->pipelinesetup->log_event("StepState->start_over call deleting Submission", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
+                    $sub->delete;
+                }
+                
+                # clear the dataelementstate to 0 steps completed; not important to try
+                # and figure out the correct number of steps to set it to
+                VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
+                
+                # now reset self
+                $self->complete(0);
+                $self->update;
+            };
+            $self->do_transaction($transaction, "StepState start_over for " . $self->id . " failed");
+            
+            # now unlink the output files (inside the retry loop, because even
+            # if we fail to set complete(0), we mustn't leave invalid files on
+            # disk)
+            foreach my $file (@files_to_unlink) {
+                $file->unlink;
+            }
+        } while ($self->complete && $self->submissions);
         
-        # clear the dataelementstate to 0 steps completed; not important to try
-        # and figure out the correct number of steps to set it to
-        VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
-        
-        # now reset self
-        $self->unlink_output_files(only_unique_to_us => 1);
-        $self->complete(0);
-        $self->update;
-        
-        # remove output file rows from the db
-        foreach my $sof ($self->_output_files) {
-            $sof->delete;
-        }
+        $self->pipelinesetup->log_event("StepState->start_over call returning, complete() is " . $self->complete, stepstate => $self->id, dataelement => $self->dataelement->id);
     }
 }
 

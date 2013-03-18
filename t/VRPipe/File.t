@@ -106,6 +106,7 @@ is $vrdest4->resolve->id,  $real_fileid, 'the symlink resolves to the real file'
 is $vrsource->resolve->id, $real_fileid, 'the source resolves to the final move destination';
 
 $vrdest4->add_metadata({ test2 => 'meta2' });
+$vrdest2->reselect_values_from_db;
 is $vrdest2->metadata->{test2}, 'meta2', 'changing metadata on a symlink changes the source file as well';
 $ofh = $vrdest4->open('>>');
 print $ofh "bar\n";

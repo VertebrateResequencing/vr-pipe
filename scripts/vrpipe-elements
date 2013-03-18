@@ -27,6 +27,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 use VRPipe::FrontEnd;
+use Path::Class;
 
 my $frontend = VRPipe::FrontEnd->new(
     description => "See details related to incomplete element states.",
@@ -38,8 +39,13 @@ my $frontend = VRPipe::FrontEnd->new(
         ['exclude_withdrawn', q[Normally all element states are considered; this option will exclude those for withdrawn elements],            { default           => 0 }],
         ['all|a',             q[Normally only details of incomplete elements are given; this shows even ones that are done (may be very slow)]],
         [],
+        [q[Choose what information to display (by default outputs information on the step currently being worked on and submission breakdown):]],
+        ['output_root', 'Show the path of the hashed output directory associated with this element'],
+        ['input_paths', 'Show the input paths (if any) for this element'],
+        [],
         [q[After the above options have been used to filter the list of all elements, and their details have been printed to screen, the following options will let you take action on those elements (after a confirmation prompt):]],
         ['start_from_scratch', q[For each pipeline you will be asked for a list of steps, and these will be fully reset so it is as if those steps had never been run for all the element states that went through that pipeline]],
+        ['withdraw',           q[Manually withdraw the selected element states. Be aware that if the datasource for the pipelinesetup is updated, these element states will be un-withdrawn]],
         ['no_report',          q[Don't print out full details of each element, just start_from_scratch as fast as possible]],
         ['force_with_all', q[Force --start_from_scratch to work with --all], { hidden => 1 }]
     ]
@@ -50,9 +56,14 @@ my $failed             = $frontend->opts('failed');
 my $retries            = $frontend->opts('retries');
 my $exclude_withdrawn  = $frontend->opts('exclude_withdrawn');
 my $all                = $frontend->opts('all');
+my $output_root        = $frontend->opts('output_root');
+my $input_paths        = $frontend->opts('input_paths');
 my $start_from_scratch = $frontend->opts('start_from_scratch');
+my $withdraw           = $frontend->opts('withdraw');
 my $no_report          = $frontend->opts('no_report');
 my $force_with_all     = $frontend->opts('force_with_all');
+
+my $extra_info = $output_root || $input_paths;
 
 if ($all && $failed) {
     $frontend->error("--all and --failed don't make sense togother; ignoring --all");
@@ -124,6 +135,7 @@ foreach my $estate (@element_states) {
     my @stepms          = $pipeline->step_members;
     my $num_steps       = @stepms;
     my $pipe_name       = $pipeline->name . " ($num_steps steps)";
+    my $withdrawn       = $estate->dataelement->withdrawn;
     my $completed_steps = $estate->completed_steps;
     my $last_step_name  = 'no_steps_complete';
     foreach my $stepm (@stepms) {
@@ -145,7 +157,8 @@ foreach my $estate (@element_states) {
     else {
         my $current_step_num = $completed_steps + 1;
         my ($step_member) = grep { $_->step_number == $current_step_num } @stepms;
-        my $sstate = VRPipe::StepState->get(stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup);
+        my ($sstate) = VRPipe::StepState->search({ stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup });
+        next unless $sstate;
         
         my @subs = VRPipe::Submission->search({ stepstate => $sstate->submission_search_id }, { prefetch => 'job' });
         my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
@@ -200,7 +213,12 @@ foreach my $estate (@element_states) {
         $step_desc = ": currently $status on $current_step_name $subs_desc";
     }
     
-    $frontend->output("ElementState ", $estate->id, " for pipeline $pipe_name in setup ", $setup->id, " completed step $last_step_name$step_desc");
+    $frontend->output("ElementState ", $estate->id, " for pipeline $pipe_name in setup ", $setup->id, " completed step $last_step_name$step_desc", $withdrawn ? ', element is withdrawn' : '');
+    if ($extra_info) {
+        $frontend->output("Output root: ", output_root($estate)) if $output_root;
+        $frontend->output("Input paths: ", join(",", $estate->dataelement->paths)) if $input_paths;
+        $frontend->output("---\n");
+    }
 }
 
 unless ($desired_ele) {
@@ -245,6 +263,7 @@ if ($count > 0 && $start_from_scratch) {
             $frontend->output("Will redo steps ", join(', ', @desired_steps));
             
             foreach my $estate (@$estates) {
+                $estate->pipelinesetup->log_event("vrpipe-elements --start_from_scratch will call DataElementState->start_from_scratch", dataelement => $estate->dataelement->id);
                 $estate->start_from_scratch(\@desired_steps);
             }
             $frontend->output("Done");
@@ -253,6 +272,36 @@ if ($count > 0 && $start_from_scratch) {
             $frontend->output("You said no, so skipping");
         }
     }
+}
+
+if ($count > 0 && $withdraw) {
+    while (my ($pipeline_id, $estates) = each %for_scratching) {
+        my $count    = @$estates;
+        my $pipeline = VRPipe::Pipeline->get(id => $pipeline_id);
+        my $answer   = $frontend->ask_question(question => "$count elements will be withdrawn for setup $pipeline_id. Be aware that if the datasource for this setup is updated, these elements will be un-withdrawn. If possible, it is recommended that you withdrawn these elements in your datasource instead. Are you sure you want to withdraw $count data elements?", possibles => [qw(y n)], default => 'n');
+        if ($answer eq 'y') {
+            foreach my $estate (@$estates) {
+                next if $estate->dataelement->withdrawn;
+                $estate->pipelinesetup->log_event("vrpipe-elements --withdraw will call DataElementState->withdraw", dataelement => $estate->dataelement->id);
+                $estate->withdraw;
+            }
+            $frontend->output("Done");
+        }
+        else {
+            $frontend->output("You said no, so skipping");
+        }
+    }
+}
+
+sub output_root {
+    my ($estate)       = @_;
+    my $des_id         = $estate->id;
+    my $de_id          = $estate->dataelement->id;
+    my $pipeline_root  = $estate->pipelinesetup->output_root;
+    my $hashing_string = 'VRPipe::DataElementState::' . $des_id;
+    my @subdirs        = $estate->hashed_dirs($hashing_string);
+    
+    return file($pipeline_root, @subdirs, $de_id);
 }
 
 exit;

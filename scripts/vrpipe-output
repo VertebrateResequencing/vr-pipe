@@ -64,9 +64,10 @@ my $frontend = VRPipe::FrontEnd->new(
         ['basename_regex=s@', q[Supply a regex and replacement string to alter the basename, eg. --basename_regex 'foo#bar' will turn basename thefoo.file into thebar.file. Multiple replacement may be made by supplying the --basename_regex option multiple times]],
         [],
         ['Other options:'],
-        ['pretend', q[Print the file source and destination paths to stdout of the symlinks that would be created, without actually creating them]],
-        ['print',   q[Print symlinks to stdout. Good for creating a fofn of the output files]],
-        ['md5',     q[Also print the md5 of the file to stdout if it has been recorded in the vrpipe database (--print is automatically turned on)]]
+        ['pretend',         q[Print the file source and destination paths to stdout of the symlinks that would be created, without actually creating them]],
+        ['print',           q[Print symlinks to stdout. Good for creating a fofn of the output files]],
+        ['md5',             q[Also print the md5 of the file to stdout if it has been recorded in the vrpipe database (--print is automatically turned on)]],
+        ['force_overwrite', q[If a symlink already exists at a destination with the wrong source, replace it (this option still won't overwrite actual files)]]
     ]
 );
 
@@ -85,6 +86,7 @@ my @basename_regex         = $frontend->option_was_set('basename_regex') ? @{ $f
 my $setup                  = $frontend->get_pipelinesetups();
 my @steps                  = $frontend->option_was_set('step') ? @{ $frontend->opts('step') } : ();
 my $include_withdrawn      = $frontend->opts('include_withdrawn');
+my $force_overwrite        = $frontend->opts('force_overwrite');
 
 my %filters;
 my $filter = $frontend->opts('filter');
@@ -247,7 +249,7 @@ while (my $estates = $estates_pager->next) {
                 unless ($force) {
                     next unless exists $allowed_kinds{$smid}->{$kind};
                 }
-                my @files = grep { $_->s || $_->resolve->s } @$files;
+                my @files = $list ? (@$files) : (grep { $_->s || $_->resolve->s } @$files);
                 next unless @files;
                 
                 my @file_data;
@@ -382,7 +384,7 @@ while (my $estates = $estates_pager->next) {
                     foreach my $key (@basename_keys) {
                         if (defined $metadata->{$key}) {
                             my $val = $metadata->{$key};
-                            $val           =~ s/[^\w#]/_/g;
+                            $val =~ s/[^\w#]/_/g;
                             $this_basename =~ s/%$key%/$val/;
                         }
                         else {
@@ -427,31 +429,46 @@ while (my $estates = $estates_pager->next) {
                     }
                 }
                 
-                my $dest = file($this_output_dir, $this_basename);
+                my $dest            = file($this_output_dir, $this_basename);
+                my $dest_path       = $dest->stringify;
                 my $resolved_output = $output_file->resolve;
                 
                 # make sure it doesn't already exist
-                my $source = $resolved_output->path;
-                if (-e $dest) {
-                    unless (-l $dest && ($dest->resolve->absolute eq $source || $dest->resolve->absolute eq $output_file->path)) {
-                        $frontend->error("Can't create symlink $source => $dest since the destination already exists and isn't a symlink pointing to the source; skipping");
+                my $source     = $resolved_output->path;
+                my $do_symlink = 1;
+                if (-e $dest_path) {
+                    if (-l $dest_path) {
+                        my $dest_resolved_path = $dest->resolve->absolute->stringify; # Path::Class::File->resolve actually changes $dest
+                        if ($dest_resolved_path eq $source || $dest_resolved_path eq $output_file->path) {
+                            $do_symlink = 0;                                          # symlink is already there, and correct
+                        }
+                        elsif ($force_overwrite) {
+                            VRPipe::File->create(path => $dest_path)->remove;         # remove symlink so new one can build
+                        }
+                        else {
+                            $frontend->error("Can't create symlink $source => $dest_path since the destination already exists and isn't a symlink pointing to the source; skipping. Use --force_overwrite to overwrite this symlink.");
+                            $do_symlink = 0;
+                        }
                     }
-                    next;
+                    else {
+                        $frontend->error("Can't create symlink $source => $dest_path since the destination already exists and isn't a symlink; skipping");
+                        $do_symlink = 0;
+                    }
                 }
                 
                 # create symlink
                 if ($pretend) {
-                    $frontend->output($resolved_output->path . ' => ' . $dest);
+                    $frontend->output($resolved_output->path . ' => ' . $dest_path);
                 }
                 else {
-                    $resolved_output->symlink(VRPipe::File->create(path => $dest));
+                    $resolved_output->symlink(VRPipe::File->create(path => $dest_path)) if $do_symlink;
                 }
                 if ($print) {
                     if ($md5) {
-                        $frontend->output($resolved_output->md5 || 'unknownmd5', "\t", $dest);
+                        $frontend->output($resolved_output->md5 || 'unknownmd5', "\t", $dest_path);
                     }
                     else {
-                        $frontend->output($dest);
+                        $frontend->output($dest_path);
                     }
                 }
             }

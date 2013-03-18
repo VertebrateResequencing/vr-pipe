@@ -411,7 +411,7 @@ role VRPipe::StepRole {
                 # in the past, but now we've recreated a possibly different
                 # $file, so $resolved is out-of-date (or possibly doesn't exist
                 # any more)
-                if ($check_s && (!$resolved->s || !$file->s)) {
+                if ($check_s) {
                     # double-check incase the step did not update_stats_from_disc
                     $resolved->update_stats_from_disc(retries => 3);
                     $file->update_stats_from_disc(retries => 3) unless $resolved->id == $file->id;
@@ -433,7 +433,7 @@ role VRPipe::StepRole {
                     if ($check_s) {
                         my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
                         unless ($type->check_type) {
-                            push(@messages, $resolved->path . " exists, but is the wrong type!");
+                            push(@messages, $resolved->path . " exists, but is the wrong type (not a " . $resolved->type . " file)!");
                             $bad = 1;
                         }
                     }
@@ -591,6 +591,7 @@ role VRPipe::StepRole {
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
                         $self->warn("To regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", we will start stepstate $state_id over again");
+                        $state->pipelinesetup->log_event("Calling StepState->start_over to regenerate needed input files (@$files)", stepstate => $state->id, dataelement => $state->dataelement->id);
                         $state->start_over;
                     }
                 }
@@ -611,6 +612,13 @@ role VRPipe::StepRole {
             my $step_state = $self->step_state;
             $step_state->output_files($output_files);
             $step_state->update;
+            my @ofiles;
+            while (my ($key, $files) = each %$output_files) {
+                push(@ofiles, map { $_->path } @$files);
+            }
+            my %ofiles = map { $_ => 1 } @ofiles;
+            my $ofiles = join(', ', keys %ofiles);
+            $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFiles [$ofiles]", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
         }
         my $temp_files = $self->_temp_files;
         if (@$temp_files) {
@@ -639,6 +647,7 @@ role VRPipe::StepRole {
             my ($missing, $messages) = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@$missing) {
+                $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process had a problem with the output files: " . join("\n", @$messages), stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
                 $stepstate->start_over;
                 $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
             }
@@ -648,6 +657,7 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
+            $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process did not return true", stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
             $stepstate->start_over;
             $error = "The post_process_sub did not return true, so the stepstate was started over.";
         }
@@ -681,10 +691,13 @@ role VRPipe::StepRole {
         if (defined $options->{memory_override} && $options->{memory_override} > $memory) {
             $memory = $options->{memory_override};
         }
-        if (defined $options->{time_override} && $options->{time_override} > $time) {
-            $time = $options->{time_override};
-            if ($time < 60) {
-                $time *= 60 * 60;
+        if (defined $options->{time_override}) {
+            my $override_time = $options->{time_override};
+            if ($override_time < 60) {
+                $override_time *= 60 * 60;
+            }
+            if ($override_time > $time) {
+                $time = $override_time;
             }
         }
         #*** and the other resources?...
