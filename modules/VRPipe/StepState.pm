@@ -243,12 +243,6 @@ class VRPipe::StepState extends VRPipe::Persistent {
     }
     
     method start_over {
-        my $orig_v = $self->verbose;
-        $self->verbose(1);
-        if ($self->verbose >= 1) {
-            # (we want a stacktrace, so a debug() call isn't good enough)
-            $self->warn("start_over called for stepstate " . $self->id);
-        }
         $self->pipelinesetup->log_event("StepState->start_over was called", stepstate => $self->id, dataelement => $self->dataelement->id, record_stack => 1);
         
         # before doing anything, record which output files we'll need to delete,
@@ -274,7 +268,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             my $transaction = sub {
                 # lock our row so that another process doesn't trigger us while
                 # we're in the middle of deleting submissions
-                my ($locked_self) = $self->search({ id => $self->id }, { for => 'update' });
+                $self->lock_row($self);
                 
                 # first remove output file rows from the db; we do this before
                 # deleting subs to avoid a race condition where delete subs
@@ -287,7 +281,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 }
                 
                 # reset all associated submissions in order to reset their jobs
-                foreach my $sub ($locked_self->submissions) {
+                foreach my $sub ($self->submissions) {
                     $self->pipelinesetup->log_event("Calling Submission->start_over during a StepState->start_over", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
                     $sub->start_over;
                     
@@ -305,11 +299,10 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
                 
                 # now reset self
-                $locked_self->complete(0);
-                $locked_self->update;
+                $self->complete(0);
+                $self->update;
             };
             $self->do_transaction($transaction, "StepState start_over for " . $self->id . " failed");
-            $self->reselect_values_from_db;
             
             # now unlink the output files (inside the retry loop, because even
             # if we fail to set complete(0), we mustn't leave invalid files on
@@ -319,10 +312,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             }
         } while ($self->complete && $self->submissions);
         
-        $self->reselect_values_from_db;
         $self->pipelinesetup->log_event("StepState->start_over call returning, complete() is " . $self->complete, stepstate => $self->id, dataelement => $self->dataelement->id);
-        $self->debug("stepstate " . $self->id . " complete now " . $self->complete);
-        $self->verbose($orig_v);
     }
 }
 
