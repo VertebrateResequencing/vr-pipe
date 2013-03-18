@@ -1,3 +1,4 @@
+0.144   Corrected database schema version number.
 0.143   Critical (partial) fix for database inconsistency issues that have led
         to random issues such as missing output files, jobs pending forever,
         submissions restarting forever etc.
