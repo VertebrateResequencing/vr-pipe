@@ -60,6 +60,7 @@ sub required_modules {
         'Continuity'                     => 0,
         'Crypt::CBC'                     => 0,
         'Crypt::Blowfish'                => 0,
+        'Crypt::Random'                  => 0,
         'Cwd'                            => 0,
         'Data::Compare'                  => 0,
         'Data::Dumper'                   => 0,
