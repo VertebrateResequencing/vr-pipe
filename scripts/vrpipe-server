@@ -222,10 +222,6 @@ sub start_server {
                     unless ($deployment eq 'testing') {
                         fork_call {
                             $backend->install_pipelines_and_steps;
-                            
-                            # also take the opportunity to clean out old Runners
-                            VRPipe::Runner->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $farm_server->survival_time) } })->delete;
-                            
                             return;
                         }
                         $watcher_error_sub;
