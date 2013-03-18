@@ -223,15 +223,15 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 my %previous_step_outputs;
                 my $sm_error;
                 foreach my $member (@step_members) {
-                    my $step_number   = $member->step_number;
-                    my $created_state = VRPipe::StepState->create(
+                    my $step_number = $member->step_number;
+                    my $state       = VRPipe::StepState->create(
                         stepmember    => $member,
                         dataelement   => $element,
                         pipelinesetup => $self
                     );
                     
-                    $self->debug("working on stepstate " . $created_state->id);
-                    $self->log_event("PipelineSetup->trigger called in $mode mode, complete is " . $created_state->complete, dataelement => $element->id, stepstate => $created_state->id);
+                    $self->debug("working on stepstate " . $state->id);
+                    $self->log_event("PipelineSetup->trigger called in $mode mode, complete is " . $state->complete, dataelement => $element->id, stepstate => $state->id);
                     
                     # we need to lock state so that 2 parses or post_process
                     # don't run at the same time, 1 completing the state, the
@@ -239,7 +239,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     # temp files, or similar problems
                     my ($do_next, $do_last);
                     my $transaction = sub {
-                        my ($state) = VRPipe::StepState->search({ id => $created_state->id }, { for => 'update' });
+                        $self->lock_row($state);
                         
                         my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                         $self->log_event("PipelineSetup->trigger called in $mode mode, inside transaction, complete is " . $state->complete, dataelement => $element->id, stepstate => $state->id);
@@ -483,13 +483,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             }
                         }
                     };
-                    $self->do_transaction($transaction, "Failed to handle StepState " . $created_state->id . " during trigger()");
+                    $self->do_transaction($transaction, "Failed to handle StepState " . $state->id . " during trigger()");
                     
                     $do_next ||= 0;
                     $do_last ||= 0;
                     $redos   ||= 0;
-                    $created_state->reselect_values_from_db;
-                    $self->log_event("PipelineSetup->trigger called in $mode mode, after transaction, do_next $do_next, do_last $do_last, redos $redos, complete is " . $created_state->complete, dataelement => $element->id, stepstate => $created_state->id);
+                    $self->log_event("PipelineSetup->trigger called in $mode mode, after transaction, do_next $do_next, do_last $do_last, redos $redos, complete is " . $state->complete, dataelement => $element->id, stepstate => $state->id);
                     
                     next if $do_next;
                     last if $do_last;
@@ -578,10 +577,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             date    => $dt,
             pid     => $$,
             $record_stack ? (stack => $self->stack_trace) : (),
-            de_id  => $dataelement,
-            ss_id  => $stepstate,
-            sub_id => $submission,
-            job_id => $job
+            de_id        => $dataelement,
+            ss_id        => $stepstate,
+            sub_id       => $submission,
+            job_id       => $job,
+            blind_create => 1            # without this we hit deadlocks constantly, and we always want to create a new row anyway
         );
     }
     
