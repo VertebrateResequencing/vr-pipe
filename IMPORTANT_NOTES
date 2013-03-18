@@ -1,3 +1,13 @@
+# version 0.143:
+This is a substantial overhaul of how things work under-the-hood, and also
+features an experimental fix for database inconsistencies that has not been
+tested in a production environment. You may wish to hold off upgrading until the
+next version.
+This version features a database schema change: run vrpipe-db_upgrade after
+installation.
+Note that if you use a pipeline that uses the bam_to_fastq step, you must make
+sure you have the bam2fastq exe now, and possibly reconfigure your setups.
+
 # version 0.140:
 A number of steps that previously assumed their bam input files were indexed now
 explicitly require a 'bai_inputs' input. If you have written your own pipelines

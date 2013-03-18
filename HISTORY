@@ -1,3 +1,20 @@
+0.143   Critical (partial) fix for database inconsistency issues that have led
+        to random issues such as missing output files, jobs pending forever,
+        submissions restarting forever etc.
+        Scheduler job arrays are now used for better scheduling efficiency.
+        sequence_index datasource gains new method sample_fastqs.
+        vrpipe-file_info now shows resolved file paths by default, and can now
+        show files that have been deleted.
+        New PipelineSetupLog class that records all major events that occur for
+        each PipelineSetup.
+        vrpipe-elements can now be used to tempoarily withdraw elements, and can
+        also now show input paths and the output root.
+        vrpipe-setup gains a 'touch' option to force the refresh of a
+        datasource.
+        vrpipe-output now describes all output files, not just those that still
+        exist. You can also now --force_overwrite existing symlinks.
+        vrpipe-submissions now reports the host that the jobs are running on.
+        bam_to_fastq step reimplemented to use the bam2fastq exe.
 0.142   Critical fix for File copy() and move() methods so that interrupted
         attempts are no longer considered successful on a retry. bam_metadata
         step now has a store_original_pg_chain option, which when turned off
