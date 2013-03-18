@@ -777,7 +777,7 @@ XSL
         
         # we could just warn to log to the log file if one is in use, but we'll
         # use flock to write to it for better multi-process behaviour
-        my $log_msg = "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
+        my $log_msg = "$time{'yyyy/mm/dd hh:mm:ss'} | pid $$ | $msg\n";
         if ($self->_log_file_in_use) {
             my $log_file = $self->log_file;
             my $ok = open(my $fh, ">>", $log_file);
