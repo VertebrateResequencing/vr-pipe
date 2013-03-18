@@ -147,6 +147,10 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
     method index_creation_style {
         return 'single';
     }
+    
+    method get_isolation_read_committed_sql {
+        return 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED';
+    }
 }
 
 1;
