@@ -494,8 +494,10 @@ sub handle_submissions {
                     }
                     if ($sidtosub) {
                         $backend->debug("had a sidtosub, will undef it");
-                        $sidtosub->sub_id(undef);
-                        $sidtosub->update;
+                        eval {
+                            $sidtosub->sub_id(undef);
+                            $sidtosub->update;
+                        };
                     }
                     else {
                         $backend->debug("had no sidtosub");
