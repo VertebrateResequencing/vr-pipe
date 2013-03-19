@@ -37,14 +37,14 @@ my $num_claimed = 0;
 $fm->run_on_finish(
     sub {
         my ($pid, $claimed) = @_;
-        $num_claimed++ if $claimed;
+        $num_claimed++ if ($claimed && $claimed == 1);
     }
 );
 for (1 .. 4) {
     $fm->start and next;
     
-    my $claimed_and_ran = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->beat_heart if $claimed_and_ran; # simulate that we've done EV::run
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1); # simulate that we've done EV::run
     
     $fm->finish($claimed_and_ran);
 }
@@ -60,8 +60,8 @@ $submissions[0]->job->beat_heart;
 for (1 .. 4) {
     $fm->start and next;
     
-    my $claimed_and_ran = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->beat_heart if $claimed_and_ran;
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1);
     
     $fm->finish($claimed_and_ran);
 }
@@ -79,8 +79,9 @@ $num_claimed = 0;
 for (1 .. 4) {
     $fm->start and next;
     
-    my $claimed_and_ran = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->beat_heart if $claimed_and_ran;
+    #$submissions[0]->set_verbose_global(1);
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    #$submissions[0]->set_verbose_global(0);
     
     $fm->finish($claimed_and_ran);
 }
@@ -97,8 +98,8 @@ $num_claimed = 0;
 for (1 .. 4) {
     $fm->start and next;
     
-    my $claimed_and_ran = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->beat_heart if $claimed_and_ran;
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1);
     
     $fm->finish($claimed_and_ran);
 }
@@ -108,9 +109,12 @@ is $num_claimed, 0, 'but we do not reclaim a submission when it is running ok';
 
 # if a sub managed to get claimed but didn't start running and didn't get
 # released, make sure we're not stuck forever in a claimed, non-running state
-$submissions[1]->_get_claim;
-is $submissions[1]->_claim, 1, 'got claim with a raw _get_claim() call';
-ok !$submissions[1]->claim_and_run(allowed_time => 5), 'not able to immediately claim_and_run a previously claimed but unrun submission';
-ok $submissions[1]->claim_and_run(allowed_time => 5), 'able to claim_and_run a previously claimed but unrun submission on the next try';
+$submissions[1]->_claim(1);
+$submissions[1]->update;
+is $submissions[1]->_claim, 1, 'set claim with a raw _claim() call';
+my ($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
+is $claimed_and_ran, 0, 'not able to immediately claim_and_run a previously claimed but unrun submission';
+($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
+is $claimed_and_ran, 1, 'able to claim_and_run a previously claimed but unrun submission on the next try';
 
 exit;

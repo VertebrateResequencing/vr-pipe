@@ -143,6 +143,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         
         my $cwd            = $self->localschedulerjob->cwd;
         my $submitters_env = $self->localschedulerjob->env;
+        my $sid            = $self->id;
         my $aid            = $self->aid;
         my $stdout_file    = $self->o_file;
         my $stderr_file    = $self->e_file;
@@ -182,6 +183,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             while (my ($key, $val) = each %$submitters_env) {
                 $ENV{$key} = $val;
             }
+            $ENV{VRPIPE_LOCAL_JOBID}    = $sid;
             $ENV{VRPIPE_LOCAL_JOBINDEX} = $aid;
             
             # see notes in VRPipe::Job for why we do this;
@@ -243,5 +245,12 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         $self->end_time(DateTime->now());
         $self->exit_code(22);
         $self->update;
+    }
+    
+    method run_time {
+        my $start     = $self->start_time || return 0;
+        my $end       = $self->end_time;
+        my $end_epoch = $end ? $end->epoch : time();
+        return $end_epoch - $start->epoch;
     }
 }

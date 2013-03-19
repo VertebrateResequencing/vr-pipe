@@ -219,10 +219,9 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
         my $transaction = sub {
-            # select our row for update, to lock it
-            my ($locked_self) = $self->search({ id => $self->id }, { for => 'update' });
+            $self->lock_row($self);
             
-            my $existing_meta = $locked_self->metadata;
+            my $existing_meta = $self->metadata;
             
             # incase the input $meta was the same hashref as existing_meta, we need
             # a new ref or update will do nothing
@@ -243,8 +242,8 @@ class VRPipe::File extends VRPipe::Persistent {
                 $new_meta->{$key} = $val;
             }
             
-            $locked_self->metadata($new_meta);
-            $locked_self->update;
+            $self->metadata($new_meta);
+            $self->update;
         };
         $self->do_transaction($transaction, "Failed to add_metadata for file " . $self->path);
         
@@ -252,7 +251,6 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($resolve ne $self) {
             $resolve->add_metadata($meta, replace_data => $replace_data);
         }
-        $self->reselect_values_from_db;
     }
     
     method openr {

@@ -129,10 +129,10 @@ class VRPipe::LocalScheduler {
         }
         
         my @lines;
-        push(@lines, join("\t", qw(JOBID INDEX STAT USER EXEC_HOST SUBMIT_TIME)));
+        push(@lines, join("\t", qw(JOBID INDEX STAT USER EXEC_HOST SUBMIT_TIME RUN_TIME CMD)));
         foreach my $lsjs (@lsjss) {
             my $lsj = $lsjs->localschedulerjob;
-            push(@lines, join("\t", $lsj->id, $lsjs->aid, $lsjs->current_status, $lsjs->user, $lsjs->host || '', $lsj->creation_time));
+            push(@lines, join("\t", $lsj->id, $lsjs->aid, $lsjs->current_status, $lsjs->user, $lsjs->host || '', $lsj->creation_time, $lsj->run_time, $lsjs->cmd));
         }
         
         return (\@lines, \@warnings);

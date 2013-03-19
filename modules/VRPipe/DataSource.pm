@@ -211,8 +211,8 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             my $continue = 1;
             do {
                 my $transaction = sub {
-                    my ($ds_from_db) = VRPipe::DataSource->search({ id => $self->id }, { for => 'update' });
-                    my $lock_time = $ds_from_db->_lock;
+                    $self->lock_row($self);
+                    my $lock_time = $self->_lock;
                     
                     # check that the process that got the lock is still running,
                     # otherwise ignore the lock
@@ -231,25 +231,26 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                         return;
                     }
                     
-                    # if we had been blocking and now there is no more lock,
-                    # likely that the datasource is now up to date and we don't
-                    # have to do anything
-                    if ($block) {
+                    # if we had been blocking and now there is no more lock (the
+                    # for => update lock or the _lock lock), likely that the
+                    # datasource is now up to date and we don't have to do
+                    # anything
+                    my $current_marker = $self->_changed_marker;
+                    if ($current_marker) {
                         $block = 0;
-                        $source->_changed_marker($ds_from_db->_changed_marker);
+                        $source->_changed_marker($current_marker);
                         $continue = $source->_has_changed;
                     }
                     
                     if ($continue) {
                         # get the lock for ourselves
-                        $ds_from_db->_lock(DateTime->now());
-                        $ds_from_db->update;
+                        $self->_lock(DateTime->now());
+                        $self->update;
                     }
                 };
                 $self->do_transaction($transaction, "DataSource lock/block failed");
             } while ($block);
             return unless $continue;
-            $self->reselect_values_from_db;
             
             # we have a lock, but can't risk our process getting killed and the
             # lock being left open, so we have to re-claim the lock every 15s

@@ -632,31 +632,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return unless $self->in_storage;
             
             if (my $current_storage = $self->get_from_storage({ force_pool => 'master' })) {
-                my $changed = 0;
-                while (my ($key, $val) = each %{ $current_storage->{_column_data} }) {
-                    my $self_val = $self->{_column_data}->{$key};
-                    if ((defined $val && !defined $self_val) || (defined $self_val && !defined $val) || (defined $val && defined $self_val && "$val" ne "$self_val")) {
-                        $changed = 1;
-                        last;
-                    }
-                }
-                
-                unless ($changed) {
-                    # in some transactions where concurrent processes may be
-                    # checking and changing the value of a column, even if that
-                    # row is locked for update things can still apparently screw
-                    # up and we sometimes don't see the latest db value here;
-                    # sleep for a second to try and ensure we do.
-                    
-                    #*** is there a further way to avoid doing this other than
-                    # testing for lack of change? Obviously the 1s sleep really
-                    # slows everything down...
-                    
-                    # select(undef, undef, undef, 0.5); # waiting for less than a second sometimes isn't enough
-                    sleep(1);
-                    $current_storage = $self->get_from_storage({ force_pool => 'master' });
-                }
-                
                 $self->{_column_data} = $current_storage->{_column_data};
                 delete $self->{_inflated_column};
                 delete $self->{related_resultsets};
@@ -901,6 +876,94 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return ($rs, $sub);
         });
         
+        # txn_do with auto-retries on deadlock
+        $meta->add_method('do_transaction' => sub { 
+            my ($self, $transaction, $error_message_prefix, $schema) = @_;
+            $schema ||= $self->result_source->schema;
+            
+            #*** using READ COMMITTED is breaking some transactions and not
+            # behaving consistently as expected: disabling for now until this is
+            # investigated further
+            # if ($schema->storage->transaction_depth == 0) {
+            #     my $isolation_level_change_sql = $converter->get_isolation_read_committed_sql;
+            #     if ($isolation_level_change_sql) {
+            #         $schema->storage->dbh_do(
+            #             sub {
+            #                 my ($storage, $dbh) = @_;
+            #                 $dbh->do($isolation_level_change_sql);
+            #                 #*** SET SESSION innodb_lock_wait_timeout = 1 requires MySQL 5.5
+            #             }
+            #         );
+            #     }
+            # }
+            
+            my $transaction_with_sleep = sub {
+                my $transaction_start_time = time();
+                my $return                 = &$transaction;
+                
+                # for lock_row() hack to function, all transactions must take
+                # at least 1 second *** why doesn't merely using READ COMMITTED
+                # work?!
+                if (ref($self) && $self->{'_lock_row_called'}) {
+                    unless (time() - $transaction_start_time > 0) {
+                        sleep(1);
+                    }
+                    delete $self->{'_lock_row_called'};
+                }
+                
+                return $return;
+            };
+            
+            my $retries     = 0;
+            my $max_retries = 10;
+            my $row;
+            my $get_row = defined wantarray();
+            while ($retries <= $max_retries) {
+                try {
+                    if ($get_row) {
+                        $row = $schema->txn_do($transaction_with_sleep);
+                    }
+                    else {
+                        # there is a large speed increase in bulk_create_or_update
+                        # if we call txn_do in void context
+                        $schema->txn_do($transaction_with_sleep);
+                    }
+                }
+                catch ($err) {
+                    $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
+                    
+                    # we should attempt retries when we fail due to a create()
+                    # attempt when some other process got the update lock on
+                    # the find() first; we don't look at the $err message
+                    # because that may be driver-specific, and because we may
+                    # be nested and so $err could be unrelated
+                    if ($retries < $max_retries) {
+                        #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
+                        #warn "will retry get due to txn failure: $err\n";
+                        
+                        # actually, we will check the $err message, and if it is
+                        # definitely a restart situation, we won't increment
+                        # retries
+                        unless ($err =~ /Deadlock|try restarting transaction|forcing transaction retry to get latest db values/) {
+                            $retries++;
+                        }
+                        sleep(1);
+                        
+                        next;
+                    }
+                    else {
+                        $self->throw("$error_message_prefix: $err");
+                    }
+                }
+                last;
+            }
+            
+            if ($get_row) {
+                return $row;
+            }
+            return;
+        });
+        
         # set up meta data to add indexes for the key columns after schema deploy
         $meta->add_attribute('cols_to_idx' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
@@ -908,59 +971,52 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
     }
     
-    # txn_do with auto-retries on deadlock
-    sub do_transaction {
-        my ($self, $transaction, $error_message_prefix, $schema) = @_;
-        $schema ||= $self->result_source->schema;
+    # in a do_transaction() sub, use this to lock the table row of the
+    # Persistent instance you'll update, or just don't want to be changed by
+    # another process while you're working. lock_row() calls should really be
+    # the first thing done in a do_transaction() sub.
+    sub lock_row {
+        my ($self, $row) = @_;
         
-        my $retries     = 0;
-        my $max_retries = 10;
-        my $row;
-        my $get_row = defined wantarray();
-        while ($retries <= $max_retries) {
-            try {
-                if ($get_row) {
-                    $row = $schema->txn_do($transaction);
-                }
-                else {
-                    # there is a large speed increase in bulk_create_or_update
-                    # if we call txn_do in void context
-                    $schema->txn_do($transaction);
-                }
-            }
-            catch ($err) {
-                $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-                
-                # we should attempt retries when we fail due to a create()
-                # attempt when some other process got the update lock on
-                # the find() first; we don't look at the $err message
-                # because that may be driver-specific, and because we may
-                # be nested and so $err could be unrelated
-                if ($retries < $max_retries) {
-                    #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
-                    
-                    # actually, we will check the $err message, and if it is
-                    # definitely a restart situation, we won't increment
-                    # retries
-                    unless ($err =~ /Deadlock|try restarting transaction/) {
-                        $retries++;
-                    }
-                    sleep(1);
-                    
-                    next;
-                }
-                else {
-                    $self->throw("$error_message_prefix: $err");
-                }
-            }
-            last;
-        }
+        my $before_lock_time = time();
         
-        if ($get_row) {
-            return $row;
+        # get the lock
+        my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
+        
+        # reselect in case another process committed a change
+        # my $before = $row->_serialize_row;
+        # $row->reselect_values_from_db;
+        # my $after = $row->_serialize_row;
+        
+        # even with the benefit of 'read committed' transactional isolation
+        # level we can still end up sometimes reading old data, so if we were
+        # not the first process to get the lock and we were waiting, we'll force
+        # the transaction to restart
+        #*** for this hack to work, we must force all transactions that do row
+        # locking to take at least 1 second! Bleugh
+        #*** we could also do something like change the lock timeout, but this
+        # requires MySQL 5.5+
+        # if ($before eq $after) {
+        if (time() > $before_lock_time) {
+            die "forcing transaction retry to get latest db values\n";
         }
-        return;
+        $self->{'_lock_row_called'} = 1;
+        # }
+        
+        $row->reselect_values_from_db;
     }
+    
+    # sub _serialize_row {
+    #     my $self = shift;
+    #     my @key_vals;
+    #     foreach my $key (sort keys %{$self->{_column_data}}) {
+    #         next unless defined $self->{_column_data}->{$key};
+    #         push(@key_vals, "$key=>$self->{_column_data}->{$key}");
+    #     }
+    #     my $ref = ref($self);
+    #     my $id = $self->id;
+    #     return "$ref $id ".join('|', @key_vals);
+    # }
     
     # get method expects all the psuedo keys and will get or create the
     # corresponding row in the db
@@ -968,10 +1024,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my ($self, $create, %args) = @_;
         
         my ($schema, $rs, $class, $meta) = $self->_class_specific(\%args);
+        my $blind_create = delete $args{blind_create};
         
         # first see if there is a corresponding $class::$name class
         my $from_non_persistent;
-        if (defined $args{name} && keys %args == 1) {
+        if (!$blind_create && defined $args{name} && keys %args == 1) {
             my $dir = $class . 's';
             unless (exists $factory_modules{$class}) {
                 $factory_modules{$class} = { map { s/^.+:://; $_ => 1 } findallmod($dir) };
@@ -1008,7 +1065,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
         
         my $resolve = delete $args{auto_resolve};
-        if ($resolve && $self->can('resolve')) {
+        if (!$blind_create && $resolve && $self->can('resolve')) {
             my $obj = $self->_get($create, %args);
             return $obj->resolve;
         }
@@ -1021,34 +1078,37 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my %search_args = %{ $self->_deflate_args(\%find_args, 1, undef, 1) || {} };
         
         my $transaction = sub {
-            # $rs->find_or_create(...) needs all required attributes
-            # supplied, but if we supply something that isn't an is_key,
-            # we can generate a new row when we shouldn't do. So we
-            # split up the find and create calls. Actually, search() is
-            # faster than find(), and not sure we need any of the fancy
-            # munging that find() does for us.
-            my ($return, @extra) = $rs->search(\%search_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %search_args;
-            
-            # there should not be any @extra, but some rare weirdness may give
-            # us duplicate rows in the db; take this opportunity to delete them
-            my %extra_ids = map { $_->id => $_ } @extra;
-            foreach my $row (@extra) {
-                my $row_id = $row->id;
-                eval { $row->delete; };
-                delete $extra_ids{$row_id} unless $@;
-            }
-            
-            # if we couldn't delete the extras (probably due to foreign key
-            # issues), try deleting $return instead
-            if (keys %extra_ids) {
-                eval { $return->delete; };
-                unless ($@) {
-                    ($return) = sort { $a->id <=> $b->id } values %extra_ids;
+            my $return;
+            unless ($blind_create) {
+                # $rs->find_or_create(...) needs all required attributes
+                # supplied, but if we supply something that isn't an is_key,
+                # we can generate a new row when we shouldn't do. So we
+                # split up the find and create calls. Actually, search() is
+                # faster than find(), and not sure we need any of the fancy
+                # munging that find() does for us.
+                ($return, my @extra) = $rs->search(\%search_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %search_args;
+                
+                # there should not be any @extra, but some rare weirdness may give
+                # us duplicate rows in the db; take this opportunity to delete them
+                my %extra_ids = map { $_->id => $_ } @extra;
+                foreach my $row (@extra) {
+                    my $row_id = $row->id;
+                    eval { $row->delete; };
+                    delete $extra_ids{$row_id} unless $@;
                 }
+                
+                # if we couldn't delete the extras (probably due to foreign key
+                # issues), try deleting $return instead
+                if (keys %extra_ids) {
+                    eval { $return->delete; };
+                    unless ($@) {
+                        ($return) = sort { $a->id <=> $b->id } values %extra_ids;
+                    }
+                }
+                
+                # (if we still can't delete the dups, well, it probably isn't really
+                #  a problem)
             }
-            
-            # (if we still can't delete the dups, well, it probably isn't really
-            #  a problem)
             
             if ($return) {
                 # update the row with any non-key args supplied

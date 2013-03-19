@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 151;
+    use Test::Most tests => 153;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -261,6 +261,13 @@ undef $stepstates[0];
 $stepstates[0] = VRPipe::StepState->get(id => 1);
 is_deeply [$stepstates[0]->id, $stepstates[0]->stepmember->id, $stepstates[0]->dataelement->id, $stepstates[0]->pipelinesetup->id, $stepstates[0]->complete], [1, 1, 1, 1, 0], 'stepstate1 has the expected fields';
 $stepstates[1] = VRPipe::StepState->create(stepmember => $stepms[0], dataelement => $de[1], pipelinesetup => $setups[0]);
+
+$stepstates[1]->same_submissions_as($stepstates[0]->id);
+$stepstates[1]->update;
+is $stepstates[1]->same_submissions_as->id, $stepstates[0]->id, 'same_submissions_as could be set';
+$stepstates[1]->same_submissions_as(undef);
+$stepstates[1]->update;
+ok !$stepstates[1]->same_submissions_as, 'same_submissions_as could be cleared';
 
 my @subs;
 throws_ok { VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[0]) } qr/Attribute \(requirements\) is required/, 'requirements is required when created a Submission, even though it is not a key';
@@ -518,9 +525,14 @@ is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jo
 my $own_pid   = $$;
 my $child_pid = fork();
 if ($child_pid) {
-    sleep(1);
-    $jobs[2]->reselect_values_from_db;
-    my $cmd_pid = $jobs[2]->pid;
+    my $cmd_pid;
+    for (1 .. 10) {
+        sleep(1);
+        $jobs[2]->reselect_values_from_db;
+        $cmd_pid = $jobs[2]->pid;
+        last if $cmd_pid;
+    }
+    $cmd_pid || die "could not get pid of job's run child";
     kill(9, $cmd_pid);
     waitpid($child_pid, 0);
     $jobs[2]->reselect_values_from_db;
@@ -541,7 +553,7 @@ run_job($jobs[3]);
 is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code =~ /65280|512/], [1, 0, 1], 'test job status got updated correctly for a job that dies internally';
 is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
 is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar',  'stderr file had the correct contents';
-ok !$jobs[3]->run, 'run() on a failed job does not work';
+is $jobs[3]->run, -1, 'run() on a failed job does not work';
 
 # running jobs via a submission
 my $t_before = time();
@@ -592,6 +604,7 @@ sub run_job {
     my $job = shift;
     
     my $watcher = EV::timer 0, 2, sub {
+        $job->reselect_values_from_db;
         if ($job->end_time) {
             EV::unloop;
         }
@@ -611,7 +624,7 @@ sub wait_until_done {
             EV::unloop;
         }
         
-        if (!$sub || $sub->done || $sub->failed) {
+        if (!$sub) {
             $sub = pop(@subs);
             unless ($sub) {
                 EV::unloop;
@@ -620,10 +633,10 @@ sub wait_until_done {
             $sub->claim_and_run;
         }
         
-        my $job = $sub->job;
-        if ($job->end_time) {
+        $sub->reselect_values_from_db;
+        if ($sub->done || $sub->failed) {
             $sub->archive_output;
-            $sub->release;
+            undef $sub;
         }
         else {
             my $heartbeat = $sub->job->heartbeat || return;
