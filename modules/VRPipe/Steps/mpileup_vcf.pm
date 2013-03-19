@@ -23,7 +23,8 @@ terms of the GNU General Public License as published by the Free Software
 Foundation, either version 3 of the License, or (at your option) any later
 version.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
@@ -69,13 +70,6 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $assumed_sex     = $options->{assumed_sex};
             my $minimum_records = $options->{minimum_records};
             my $post_filter     = $options->{post_calling_vcftools};
-
-            if ($post_filter =~ /vcf-annotate/) {
-                my ($filt_fn) =  $post_filter =~ / -f (\S+)/;
-                $self->throw("Cannot find filter file option for vcf-annotate in post_calling_vcftools param /$post_filter/") unless $filt_fn;
-                my $filt_file = file($filt_fn);
-                $self->throw("$filt_fn is not readable") unless $filt_file->open('r');
-            }
             
             my $reference_fasta = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
