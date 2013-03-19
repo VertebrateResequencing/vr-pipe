@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 151;
+    use Test::Most tests => 153;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -261,6 +261,13 @@ undef $stepstates[0];
 $stepstates[0] = VRPipe::StepState->get(id => 1);
 is_deeply [$stepstates[0]->id, $stepstates[0]->stepmember->id, $stepstates[0]->dataelement->id, $stepstates[0]->pipelinesetup->id, $stepstates[0]->complete], [1, 1, 1, 1, 0], 'stepstate1 has the expected fields';
 $stepstates[1] = VRPipe::StepState->create(stepmember => $stepms[0], dataelement => $de[1], pipelinesetup => $setups[0]);
+
+$stepstates[1]->same_submissions_as($stepstates[0]->id);
+$stepstates[1]->update;
+is $stepstates[1]->same_submissions_as->id, $stepstates[0]->id, 'same_submissions_as could be set';
+$stepstates[1]->same_submissions_as(undef);
+$stepstates[1]->update;
+ok !$stepstates[1]->same_submissions_as, 'same_submissions_as could be cleared';
 
 my @subs;
 throws_ok { VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[0]) } qr/Attribute \(requirements\) is required/, 'requirements is required when created a Submission, even though it is not a key';
