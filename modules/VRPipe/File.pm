@@ -376,10 +376,6 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method remove {
         my $path = $self->path;
-        my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
-        while (my ($ss_id, $ss) = each %stepstates) {
-            $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path", dataelement => $ss->dataelement->id, stepstate => $ss->id, record_stack => 1);
-        }
         
         my $worked = $path->remove;
         $self->update_stats_from_disc;
@@ -389,6 +385,12 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->md5(undef);
             $self->update;
         }
+        
+        my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
+        while (my ($ss_id, $ss) = each %stepstates) {
+            $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path, " . ($worked ? 'and it worked' : 'but it failed'), dataelement => $ss->dataelement->id, stepstate => $ss->id, record_stack => 1);
+        }
+        
         return $worked;
     }
     alias unlink => 'remove';
