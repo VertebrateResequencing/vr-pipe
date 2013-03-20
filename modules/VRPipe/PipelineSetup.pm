@@ -569,6 +569,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             $str .= "] pid $$ | " . $msg;
             chomp($str);
             warn $str, "\n";
+            
+            if ($record_stack) {
+                warn $self->stack_trace, "\n";
+            }
         }
         
         return VRPipe::PipelineSetupLog->create(
