@@ -878,25 +878,27 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         
         # txn_do with auto-retries on deadlock
         $meta->add_method('do_transaction' => sub { 
-            my ($self, $transaction, $error_message_prefix, $schema) = @_;
+            my ($self, $transaction, $error_message_prefix, $schema, $repeatable_read) = @_;
             $schema ||= $self->result_source->schema;
+            $repeatable_read ||= 0;
             
-            #*** using READ COMMITTED is breaking some transactions and not
-            # behaving consistently as expected: disabling for now until this is
-            # investigated further
-            # if ($schema->storage->transaction_depth == 0) {
-            #     my $isolation_level_change_sql = $converter->get_isolation_read_committed_sql;
-            #     if ($isolation_level_change_sql) {
-            #         $schema->storage->dbh_do(
-            #             sub {
-            #                 my ($storage, $dbh) = @_;
-            #                 $dbh->do($isolation_level_change_sql);
-            #                 #*** SET SESSION innodb_lock_wait_timeout = 1 requires MySQL 5.5
-            #             }
-            #         );
-            #     }
-            # }
+            # by default our transactions need to be at the 'read committed'
+            # isolation level, but sometimes we need 'repeatable read'
+            if ($schema->storage->transaction_depth == 0) {
+                my $isolation_change_sql = $converter->get_isolation_change_sql(repeatable_read => $repeatable_read);
+                if ($isolation_change_sql) {
+                    $schema->storage->dbh_do(
+                        sub {
+                            my ($storage, $dbh) = @_;
+                            $dbh->do($isolation_change_sql);
+                            #*** SET SESSION innodb_lock_wait_timeout = 1 requires MySQL 5.5
+                        }
+                    );
+                }
+            }
             
+            # even with read committed isolation level we still sometimes fail
+            # to read committed data in a transaction that was waiting on a lock
             my $transaction_with_sleep = sub {
                 my $transaction_start_time = time();
                 my $return                 = &$transaction;
@@ -984,9 +986,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
         
         # reselect in case another process committed a change
-        # my $before = $row->_serialize_row;
-        # $row->reselect_values_from_db;
-        # my $after = $row->_serialize_row;
+        my $before = $row->_serialize_row;
+        $row->reselect_values_from_db;
+        my $after = $row->_serialize_row;
         
         # even with the benefit of 'read committed' transactional isolation
         # level we can still end up sometimes reading old data, so if we were
@@ -996,27 +998,23 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # locking to take at least 1 second! Bleugh
         #*** we could also do something like change the lock timeout, but this
         # requires MySQL 5.5+
-        # if ($before eq $after) {
-        if (time() > $before_lock_time) {
-            die "forcing transaction retry to get latest db values\n";
+        if ($before eq $after) {
+            if (time() > $before_lock_time) {
+                die "forcing transaction retry to get latest db values\n";
+            }
+            $self->{'_lock_row_called'} = 1;
         }
-        $self->{'_lock_row_called'} = 1;
-        # }
-        
-        $row->reselect_values_from_db;
     }
     
-    # sub _serialize_row {
-    #     my $self = shift;
-    #     my @key_vals;
-    #     foreach my $key (sort keys %{$self->{_column_data}}) {
-    #         next unless defined $self->{_column_data}->{$key};
-    #         push(@key_vals, "$key=>$self->{_column_data}->{$key}");
-    #     }
-    #     my $ref = ref($self);
-    #     my $id = $self->id;
-    #     return "$ref $id ".join('|', @key_vals);
-    # }
+    sub _serialize_row {
+        my $self = shift;
+        my @key_vals;
+        foreach my $key (sort keys %{ $self->{_column_data} }) {
+            next unless defined $self->{_column_data}->{$key};
+            push(@key_vals, "$key=>$self->{_column_data}->{$key}");
+        }
+        return join('|', @key_vals);
+    }
     
     # get method expects all the psuedo keys and will get or create the
     # corresponding row in the db
@@ -1145,7 +1143,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
         my $error_message_prefix = "Failed to $class\->_get(" . join(', ', @fa) . ')';
         
-        my $row = $self->do_transaction($transaction, $error_message_prefix, $schema);
+        my $row = $self->do_transaction($transaction, $error_message_prefix, $schema, 1);
         
         $row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
         return $row;
@@ -1309,7 +1307,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             };
             
-            $self->do_transaction($transaction, "Failed to $class\->bulk_create_or_update", $schema);
+            $self->do_transaction($transaction, "Failed to $class\->bulk_create_or_update", $schema, 1);
         }
     }
     
