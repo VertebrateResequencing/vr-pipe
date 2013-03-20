@@ -978,7 +978,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     # another process while you're working. lock_row() calls should really be
     # the first thing done in a do_transaction() sub.
     sub lock_row {
-        my ($self, $row) = @_;
+        my ($self, $row, $no_hack) = @_;
         
         my $before_lock_time = time();
         
@@ -986,9 +986,9 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
         
         # reselect in case another process committed a change
-        my $before = $row->_serialize_row;
+        my $before = $row->_serialize_row unless $no_hack;
         $row->reselect_values_from_db;
-        my $after = $row->_serialize_row;
+        my $after = $row->_serialize_row unless $no_hack;
         
         # even with the benefit of 'read committed' transactional isolation
         # level we can still end up sometimes reading old data, so if we were
@@ -998,7 +998,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         # locking to take at least 1 second! Bleugh
         #*** we could also do something like change the lock timeout, but this
         # requires MySQL 5.5+
-        if ($before eq $after) {
+        if (!$no_hack && $before eq $after) {
             if (time() > $before_lock_time) {
                 die "forcing transaction retry to get latest db values\n";
             }

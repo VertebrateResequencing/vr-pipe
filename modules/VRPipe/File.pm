@@ -219,7 +219,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
         my $transaction = sub {
-            $self->lock_row($self);
+            $self->lock_row($self, 1); #*** the 1 means 'no hack' which means we rely on 'READ COMMITTED' to ensure the existing_meta we get is the most up-to-date metadata, rather than the hack that means this transaction is forced to take 1 second, which is ruinous for datasource updates
             
             my $existing_meta = $self->metadata;
             
