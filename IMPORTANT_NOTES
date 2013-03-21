@@ -1,4 +1,12 @@
-#  version 0.144:
+# version 0.145:
+See notes for 0.143 if you skipped that version. You may also wish to skip this
+version as another significant change was made, untested in production.
+If you are using MySQL, your user must be able to change the transaction
+isolation level. If you have database replication set up, you may find that you
+have to reconfigure the server to binlog-mode=MIXED and restart/redo your
+replication server.
+
+# version 0.144:
 See notes for 0.143; this just corrects the schema version number allowing
 vrpipe-db_upgrade to work.
 
