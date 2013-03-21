@@ -116,6 +116,9 @@ class VRPipe::Steps::fake_fastq_metadata with VRPipe::StepRole {
         if ($fq_path =~ /\.gz/) {
             $cmd_line = qq{sleep 5; gunzip -c $fq_path | cat > $fqc_path};
         }
+        else {
+            $cmd_line = qq{sleep 5; cat $fq_path > $fqc_path};
+        }
         
         $fqc_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
