@@ -82,6 +82,13 @@ Possible problems you may encounter in installing your missing prerequisites:
   sudo apt-get install libxml-libxml-perl
 # Likewise for XML::LibXSLT:
   sudo apt-get install libxml-libxslt-perl
+# Crypt::Random has a prerequisite of Math::Pari, which in turn requires pari-gp
+  and may have trouble finding and using it. If you encounter problems, try
+  entering the cpan build directory where it tried to build Math::Pari, then
+  do:
+  sudo wget ftp://megrez.math.u-bordeaux.fr/pub/pari/unix/OLD/pari-2.3.5.tar.gz
+  sudo perl Makefile.PL Configure pari_tgz=./pari-2.3.5.tgz
+  sudo make; sudo make test; sudo make install
 # If all the prerequisites seem to be installed but running 'perl Build.PL'
   gives you an error message mentioning problems with any kind of Moose module,
   one possibility is that you have a mixture of some new Moose modules and old

@@ -6,7 +6,7 @@ use TryCatch;
 use Time::HiRes qw(gettimeofday tv_interval);
 
 BEGIN {
-    use Test::Most tests => 2;
+    use Test::Most tests => 3;
     # only the author needs to run this test
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
     use TestPipelines;
@@ -33,48 +33,45 @@ for my $i (1 .. 1000) {
 }
 elapsed($l, __LINE__);
 
-#*** we must disable the following metadata speed tests because the current
-# lock_row() implementation forces all transactions to take 1 second, so we'd
-# be waiting about half an hour for these to complete!
-# $l = start_clock(__LINE__);
-# for my $i (1 .. 1000) {
-#     my $file = VRPipe::File->create(path => "/my/file/path/$i");
-#     $file->add_metadata({
-#             foo  => 'bar',
-#             baz  => 'loman',
-#             cat  => 'dog',
-#             fish => 'turnip'
-#         }
-#     );
-# }
-# elapsed($l, __LINE__);
+$l = start_clock(__LINE__);
+for my $i (1 .. 1000) {
+    my $file = VRPipe::File->create(path => "/my/file/path/$i");
+    $file->add_metadata({
+            foo  => 'bar',
+            baz  => 'loman',
+            cat  => 'dog',
+            fish => 'turnip'
+        }
+    );
+}
+elapsed($l, __LINE__);
 
-# $l = start_clock(__LINE__);
-# for my $i (1 .. 1000) {
-#     my $file = VRPipe::File->get(path => "/my/file/path/$i");
-#     $file->add_metadata({
-#             foo => 'boo',
-#             rat => 'king' . $i
-#         }
-#     );
-# }
-# elapsed($l, __LINE__);
+$l = start_clock(__LINE__);
+for my $i (1 .. 1000) {
+    my $file = VRPipe::File->get(path => "/my/file/path/$i");
+    $file->add_metadata({
+            foo => 'boo',
+            rat => 'king' . $i
+        }
+    );
+}
+elapsed($l, __LINE__);
 
-# $l = start_clock(__LINE__);
-# my $correct_meta = 0;
-# for my $i (1 .. 1000) {
-#     my $file = VRPipe::File->get(path => "/my/file/path/$i");
-#     my $metadata = $file->metadata;
-#     $correct_meta++ if ($metadata->{rat} eq 'king' . $i && $metadata->{foo} eq 'boo' && $metadata->{baz} eq 'loman');
-# }
-# elapsed($l, __LINE__);
-# is $correct_meta, 1000, 'basic file metadata test worked';
+$l = start_clock(__LINE__);
+my $correct_meta = 0;
+for my $i (1 .. 1000) {
+    my $file = VRPipe::File->get(path => "/my/file/path/$i");
+    my $metadata = $file->metadata;
+    $correct_meta++ if ($metadata->{rat} eq 'king' . $i && $metadata->{foo} eq 'boo' && $metadata->{baz} eq 'loman');
+}
+elapsed($l, __LINE__);
+is $correct_meta, 1000, 'basic file metadata test worked';
 
-# $l = start_clock(__LINE__);
-# for my $i (1 .. 1000) {
-#     my $file = VRPipe::File->get(path => "/my/file/path/$i");
-# }
-# elapsed($l, __LINE__);
+$l = start_clock(__LINE__);
+for my $i (1 .. 1000) {
+    my $file = VRPipe::File->get(path => "/my/file/path/$i");
+}
+elapsed($l, __LINE__);
 
 # do the critical bits that Manager currently does to submit jobs; first set
 # up the objects
@@ -110,7 +107,10 @@ elapsed($l, __LINE__);
 
 # now do something like Manager and Scheduler used to do *** these tests need
 # updating to do something like vrpipe-handler does instead
-#*** and they're disabled now because they're too slow
+#*** and they're disabled now because they're too slow, due to 1-second hack
+# that ensures claim_and_run only succeeds for 1 process at a time; in the real
+# world this is ok since claim_and_run is called in the farm, not in a single-
+# process loop
 # $l = start_clock(__LINE__);
 # my $added = 0;
 # my $count = VRPipe::Job->search({ 'heartbeat' => { '!=' => undef } });

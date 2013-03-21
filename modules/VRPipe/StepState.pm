@@ -108,11 +108,15 @@ class VRPipe::StepState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent(has_many => [[submissions => 'VRPipe::Submission'], ['_output_files' => 'VRPipe::StepOutputFile']]);
     
-    around same_submissions_as (Persistent $id?) {
-        if ($id) {
-            $self->throw("You can't set same_submissions_as to the same state as itself") if $id == $self->id;
+    around same_submissions_as {
+        shift;
+        shift;
+        if (@_) {
+            my $id = shift;
+            $self->throw("You can't set same_submissions_as to the same state as itself") if $id && $id == $self->id;
+            return $self->$orig($id);
         }
-        return $self->$orig($id ? ($id) : ());
+        return $self->$orig;
     }
     
     around submissions {

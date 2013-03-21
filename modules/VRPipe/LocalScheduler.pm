@@ -50,6 +50,7 @@ class VRPipe::LocalScheduler {
     use Sys::CPU;
     use Cwd;
     use POSIX qw(ceil);
+    use DateTime;
     
     our $DEFAULT_CPUS = Sys::CPU::cpu_count();
     
@@ -132,7 +133,7 @@ class VRPipe::LocalScheduler {
         push(@lines, join("\t", qw(JOBID INDEX STAT USER EXEC_HOST SUBMIT_TIME RUN_TIME CMD)));
         foreach my $lsjs (@lsjss) {
             my $lsj = $lsjs->localschedulerjob;
-            push(@lines, join("\t", $lsj->id, $lsjs->aid, $lsjs->current_status, $lsjs->user, $lsjs->host || '', $lsj->creation_time, $lsj->run_time, $lsjs->cmd));
+            push(@lines, join("\t", $lsj->id, $lsjs->aid, $lsjs->current_status, $lsjs->user, $lsjs->host || '', $lsj->creation_time, $lsjs->run_time, $lsj->cmd));
         }
         
         return (\@lines, \@warnings);
@@ -171,16 +172,46 @@ class VRPipe::LocalScheduler {
     }
     
     method unfinished_lsjss {
-        return VRPipe::LocalSchedulerJobState->search({ start_time => undef });
+        return VRPipe::LocalSchedulerJobState->search({ end_time => undef });
     }
     
     method process_queue {
+        # first delete any lsjs that have ended more than 5mins ago
+        foreach my $lsjs (VRPipe::LocalSchedulerJobState->search({ end_time => { '!=' => undef } })) {
+            my $et = $lsjs->end_time->epoch;
+            if (time() - $et > 300) {
+                $lsjs->delete;
+            }
+        }
+        
+        # now mark as dead any lsjs with a pid that is no longer alive
+        foreach my $lsjs (VRPipe::LocalSchedulerJobState->search({ end_time => undef, exit_code => undef, pid => { '!=' => undef } })) {
+            my $pid = $lsjs->pid;
+            unless (kill(0, $pid)) {
+                $lsjs->exit_code(9);
+                $lsjs->end_time(DateTime->now);
+                $lsjs->update;
+            }
+        }
+        
+        # now process those that haven't ended yet
         my @lsjss = $self->unfinished_lsjss;
         @lsjss || return;
         
-        my $fm = AnyEvent::ForkManager->new(max_workers => $self->cpus);
+        my $max = $self->cpus;
+        if ($max < 2) {
+            # we need at least 2, one for the setups handler, 1 for a submission
+            # handler
+            $max = 2;
+        }
+        my $fm = AnyEvent::ForkManager->new(max_workers => $max);
         
+        my $count = 0;
         foreach my $lsjs (@lsjss) {
+            $count++;
+            last if $count > $max;
+            next if $lsjs->start_time;
+            
             $fm->start(
                 cb => sub {
                     my ($fm, $lsjs) = @_;

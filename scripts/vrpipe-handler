@@ -216,8 +216,7 @@ sub handle_setups {
                                     # (it's too expensive/risky to set the
                                     #  currently_triggering marker... it should
                                     #  be ok to trigger first step only...)
-                                    $backend->debug("datasource $ds_id had new elements, so will trigger first_step_only for setup " . $ds_setup->id);
-                                    $ds_setup->log_event("vrpipe-handler for setups called datasource->elements which changed the number of dataelements from $e_before => $e_after");
+                                    $ds_setup->log_event("vrpipe-handler for setups called datasource->elements which changed the number of dataelements from $e_before => $e_after, will trigger the first step");
                                     $ds_setup->verbose(1) unless $debug;
                                     $ds_setup->trigger(first_step_only => 1, prepare_elements => 0);
                                     $ds_setup->verbose(0) unless $debug;
@@ -489,7 +488,6 @@ sub handle_submissions {
                         # requirements already if we failed due to running out of
                         # time or memory; we just need to retry it if appropriate
                         $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission is failed (now " . $submission->retries . " retries)", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                        $backend->debug("sub " . $submission->id . " is failed, previously with " . $submission->retries . ' retries');
                         $submission->retry if $submission->retries < 3;
                     }
                     if ($sidtosub) {
@@ -504,7 +502,6 @@ sub handle_submissions {
                     }
                     
                     my $signal = $job_instance->_signalled_to_death;
-                    $backend->debug("had a signal $signal");
                     if ($signal) {
                         $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it received a SIG$signal", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                         return exit_handler($submission->id . " failed because we received a SIG$signal");
@@ -523,7 +520,6 @@ sub handle_submissions {
                     my $new_queue = $scheduler->determine_queue($submission->requirements);
                     
                     if ($new_queue ne $current_queue) {
-                        $backend->debug("sub " . $submission->id . " will switch to queue $new_queue from $current_queue");
                         $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions is close to the time limit, so switching from queue $current_queue to $new_queue", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                         $scheduler->switch_queue($scheduler->get_scheduler_id, $new_queue);
                     }
@@ -601,7 +597,6 @@ sub handle_submissions {
                                 $submission = $sub;
                                 $handled_submissions++;
                                 $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
-                                $backend->debug("successfully claimed and ran sub " . $sub->id);
                             }
                         };
                         $req->do_transaction($transaction, "Failed to run the Submission $sub_id we were assigned");
