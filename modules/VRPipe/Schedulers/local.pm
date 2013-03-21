@@ -176,7 +176,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         open(my $bfh, "$ls_script jobs |") || $self->warn("Could not call $ls_script jobs");
         if ($bfh) {
             while (<$bfh>) {
-                if (my ($sid, $aid, $status) = $_ =~ /^(\d+)\t(\d+)\t(\S+)\t\S+\t\S+\t\S+\t\d+\t$cmd/) {
+                if (my ($sid, $aid, $status) = $_ =~ /^(\d+)\t(\d+)\t(\S+)\t\S+\t\S*\t\S+\t\d+\t$cmd/) {
                     $status || next;
                     next if $status eq 'EXIT';
                     $count++;
