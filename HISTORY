@@ -1,3 +1,7 @@
+0.145   Critical speed fix for slow DataSource updates. Fix for some reset
+        situations. Improved database consistency. LocalScheduler now functions
+        correctly (though the server itself is suffering from a crash issue on
+        certain low-cpu machines). Be sure to read IMPORTANT_NOTES.
 0.144   Corrected database schema version number.
 0.143   Critical (partial) fix for database inconsistency issues that have led
         to random issues such as missing output files, jobs pending forever,
