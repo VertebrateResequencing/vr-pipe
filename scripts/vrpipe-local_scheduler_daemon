@@ -1,0 +1,139 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2013 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use VRPipe::Interface::CmdLine;
+use VRPipe::Interface::BackEnd;
+use VRPipe::LocalScheduler;
+use Sys::CPU;
+use Proc::Daemon;
+
+# handle options
+my $cmdline = VRPipe::Interface::CmdLine->new(
+    description => "Control the VRPipe local scheduler daemon, which processes jobs in the queue.",
+    extra_args  => 'start|stop|restart|status',
+    opt_spec    => [
+        ['foreground|f', 'Do not daemonize - the server will run in the foreground, logging to STDERR'],
+    ]
+);
+
+my $backend;
+my $deployment = $cmdline->opts('deployment');
+my $foreground = $cmdline->opts('foreground');
+
+my $command = shift;
+unless ($command) {
+    $cmdline->error("a command is required");
+    $cmdline->help;
+}
+
+my $log_dir      = '/tmp';
+my $pid_basename = 'local_scheduler.pid';
+
+my $daemon = Proc::Daemon->new(
+    work_dir     => $log_dir,
+    child_STDOUT => '+>>local_scheduler.stdout',
+    child_STDERR => '+>>local_scheduler.stderr',
+    pid_file     => $pid_basename,
+);
+my $pid_file = file($log_dir, $pid_basename); #*** I don't know why Status and Kill_Daemon can't work out the pid_file from $daemon
+
+# act on the given command
+my $exit   = 0;
+my $status = $daemon->Status($pid_file);
+warn "got status $status\n";
+if ($command eq 'status') {
+    if ($status) {
+        $cmdline->output("VRPipe local scheduler daemon is running");
+    }
+    else {
+        $cmdline->output("VRPipe local scheduler daemon is not running");
+    }
+}
+elsif ($command eq 'stop') {
+    my $stopped = stop();
+    $exit = !$stopped;
+}
+elsif ($command eq 'start') {
+    my $started = start();
+    $exit = !$started;
+}
+elsif ($command eq 'restart') {
+    $cmdline->output("Restarting VRPipe local scheduler daemon...");
+    my $stopped = stop();
+    my $started = 0;
+    if ($stopped) {
+        my $started = start();
+    }
+    $exit = !$started;
+}
+else {
+    $cmdline->die_with_error("$command is an invalid command");
+}
+
+exit $exit;
+
+sub stop {
+    if ($status) {
+        my $stopped = $daemon->Kill_Daemon($pid_file);
+        $cmdline->output("VRPipe local scheduler daemon was " . ($stopped ? 'not' : '') . "stopped");
+        return !$stopped;
+    }
+    else {
+        $cmdline->output("VRPipe local scheduler daemon was not running");
+        return 1;
+    }
+}
+
+sub start {
+    if ($status) {
+        $cmdline->output("VRPipe local scheduler daemon is already running");
+        return 1;
+    }
+    else {
+        $cmdline->output("Will start VRPipe local scheduler daemon");
+        return start_daemon();
+    }
+}
+
+sub start_daemon {
+    # daemonize unless we're not supposed to
+    my $daemon_pid = $daemon->Init() unless $foreground;
+    
+    unless ($daemon_pid) {
+        my $interval = $deployment eq 'production' ? 30 : 5;
+        my $ls = VRPipe::LocalScheduler->new;
+        
+        while (1) {
+            #$ls->process_queue;
+            warn "$$ would process_queue\n";
+            sleep($interval);
+        }
+    }
+    
+    return 1;
+}
