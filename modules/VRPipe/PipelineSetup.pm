@@ -506,6 +506,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         last;
                     }
                 }
+                
+                $redos = 0;
             }
         }
         
