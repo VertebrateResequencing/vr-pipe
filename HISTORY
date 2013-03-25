@@ -1,3 +1,9 @@
+0.146   Improvement to database update consistency (should now avoid strange
+        failures where input files got deleted).
+        New bam_mapping_with_bwa_via_fastq_no_namesort pipeline to supercede
+        the other bam_mapping_with_bwa* pipelines.
+        Improved speed and efficiency for getting jobs that need be run
+        submitted to the scheduler.
 0.145   Critical speed fix for slow DataSource updates. Fix for some reset
         situations. Improved database consistency. LocalScheduler now functions
         correctly (though the server itself is suffering from a crash issue on
