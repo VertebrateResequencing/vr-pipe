@@ -5,6 +5,10 @@ VRPipe::Pipelines::bam_mapping_with_bwa_via_fastq - a pipeline
 
 =head1 DESCRIPTION
 
+NB: this pipeline has been superseded by
+bam_mapping_with_bwa_via_fastq_no_namesort now that the bam_to_fastq step no
+longer needs name sorted bams as input.
+
 Maps reads in a bam file datasource to a reference genome using bwa fastq
 alignment. For this the bams are first converted to fastq format, then
 converted back after the alignment.
@@ -41,7 +45,7 @@ class VRPipe::Pipelines::bam_mapping_with_bwa_via_fastq with VRPipe::PipelineRol
     }
     
     method description {
-        return 'Map reads in bam files to a reference genome with bwa fastq alignment';
+        return 'DEPRECATED: use bam_mapping_with_bwa_via_fastq_no_namesort instead. (Map reads in bam files to a reference genome with bwa fastq alignment)';
     }
     
     method step_names {

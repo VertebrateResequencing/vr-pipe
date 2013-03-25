@@ -296,14 +296,15 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         # we warn instead of throw, because the step may
                                         # have discovered its output files are missing
                                         # and restarted itself
-                                        $self->log_event("PipelineSetup->trigger found all Submissions were complete but the post_process had problems: $pp_error", dataelement => $element->id, stepstate => $state->id);
                                         $sm_error = "When trying to post process $error_ident after the submissions completed we hit the following error:\n$pp_error";
                                         $self->debug($sm_error);
+                                        die $sm_error;
                                     }
                                 }
                                 elsif (!$total) {
                                     $sm_error = "When dealing with what we thought were the completed submissions of $error_ident, the submissions vanished!";
                                     $self->debug($sm_error);
+                                    die $sm_error;
                                 }
                                 else {
                                     $self->debug("have subs but still running/failed");
@@ -405,9 +406,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # if we completed instantly and already ran post_process
                             # successfully, or is an error string
                             if ($parse_return) {
-                                $self->log_event("PipelineSetup->trigger called parse() but hit the following error: $parse_return", dataelement => $element->id, stepstate => $state->id);
                                 $sm_error = "When trying to parse $error_ident we hit the following error:\n$parse_return";
                                 $self->debug($sm_error);
+                                die $sm_error;
                             }
                             elsif (!defined $parse_return) {
                                 $self->log_event("PipelineSetup->trigger called parse(), which dispatched nothing and completed instantly", dataelement => $element->id, stepstate => $state->id);
@@ -483,7 +484,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             }
                         }
                     };
-                    $self->do_transaction($transaction, "Failed to handle StepState " . $state->id . " during trigger()");
+                    
+                    eval { $self->do_transaction($transaction, "Failed to handle StepState " . $state->id . " during trigger()"); };
+                    if ($@) {
+                        $self->log_event($@, dataelement => $element->id, stepstate => $state->id);
+                        $sm_error = $@;
+                    }
                     
                     $do_next ||= 0;
                     $do_last ||= 0;
@@ -506,6 +512,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         last;
                     }
                 }
+                
+                $redos = 0;
             }
         }
         

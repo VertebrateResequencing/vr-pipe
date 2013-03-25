@@ -39,7 +39,7 @@ class VRPipe::Pipelines::bam_mapping_with_bwa with VRPipe::PipelineRole {
     }
     
     method description {
-        return 'Map reads in bam files to a reference genome with bwa';
+        return 'Map reads in bam files to a reference genome with bwa. NB: this is unreliable and you may have better success with bam_mapping_with_bwa_via_fastq_no_namesort';
     }
     
     method step_names {

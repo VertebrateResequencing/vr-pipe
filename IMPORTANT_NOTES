@@ -1,3 +1,8 @@
+# version 0.146:
+See notes for 0.145 and 0.143 if you skipped those versions. This version should
+be safe to upgrade to, though there is an excess of debugging enabled. You may
+wish to wait for the next version.
+
 # version 0.145:
 See notes for 0.143 if you skipped that version. You may also wish to skip this
 version as another significant change was made, untested in production.

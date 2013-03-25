@@ -424,7 +424,7 @@ sub handle_submissions {
     
     my $handled_submissions = 0;
     my $watcher = EV::timer int(rand($timer_interval)), $timer_interval, sub {
-        $backend->debug("entered timer, working is $working");
+        $backend->debug("entered timer, working is " . ($working ? 1 : 0));
         return if $working;
         $working = 1;
         
@@ -609,10 +609,10 @@ sub handle_submissions {
                     exit_handler("There was a problem running a new submission: $@");
                 }
                 elsif (!defined $submission) {
-                    # wait for 5 failed attempts in a row to get a submission before
-                    # exiting
+                    # wait for 60 failed attempts in a row to get a submission
+                    # before exiting
                     $no_subs_found++;
-                    if ($no_subs_found == 10) {
+                    if ($no_subs_found == 60) {
                         exit_handler("No submissions to work on");
                     }
                 }

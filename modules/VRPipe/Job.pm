@@ -595,12 +595,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                                 my $error_message = $setup->trigger(dataelement => $step_state->dataelement);
                                 
                                 if ($error_message) {
-                                    my $sid = $setup->id;
-                                    my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
-                                    unless ($mt->already_sent("trigger problem")) {
-                                        $setup->log_event("At end of Job->run() failed to trigger the next step: $error_message", dataelement => $step_state->dataelement->id);
-                                        $backend->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
-                                    }
+                                    die $error_message;
                                 }
                                 
                                 # also trigger any dataelements that have the same
@@ -612,12 +607,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                                     my $other_error_message = $other_setup->trigger(dataelement => VRPipe::DataElement->get(id => $de));
                                     
                                     if ($other_error_message) {
-                                        my $sid = $other_setup->id;
-                                        my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
-                                        unless ($mt->already_sent("trigger problem")) {
-                                            $other_setup->log_event("At end of Job->run() failed to trigger the next step: $other_error_message", dataelement => $de);
-                                            $backend->log($other_error_message, email_to => [$other_setup->user], email_admin => 1, subject => "Setup $sid has problems");
-                                        }
+                                        die $other_error_message;
                                     }
                                 }
                             }

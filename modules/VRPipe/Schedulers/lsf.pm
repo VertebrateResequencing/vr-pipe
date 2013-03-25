@@ -190,6 +190,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                         $queues{$queue}->{$type} = $vals eq 'all' ? 1000000 : scalar(@vals);
                     }
                 }
+                
+                if (/^CHUNK_JOB_SIZE:\s+(\d+)/) {
+                    $queues{$queue}->{chunk_size} = $1;
+                }
             }
             close($bqlfh) || $self->throw("Could not close a pipe to bqueues -l");
             
@@ -200,6 +204,9 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 }
                 unless (defined $queue_hash->{memlimit}) {
                     $queue_hash->{memlimit} = 1000000;
+                }
+                unless (defined $queue_hash->{chunk_size}) {
+                    $queue_hash->{chunk_size} = 0;
                 }
             }
         }
@@ -215,7 +222,8 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                   || $queues{$b}->{max_user} <=> $queues{$a}->{max_user}
                   || $queues{$b}->{max} <=> $queues{$a}->{max}
                   || $queues{$b}->{prio} <=> $queues{$a}->{prio}
-                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit} # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
+                  || $queues{$a}->{chunk_size} <=> $queues{$b}->{chunk_size} # we want to avoid chunked queues because that means jobs will run sequentially instead of in parallel
+                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit}     # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
                   || $queues{$a}->{memlimit} <=> $queues{$b}->{memlimit}
             } keys %queues
           ) {
@@ -275,6 +283,25 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             sleep(1);
         }
         return 1;
+    }
+    
+    method batch_kill_sids (ArrayRef $sid_aids) {
+        # unlike kill_sid(), we're all about speed, so can't care about if the
+        # kill actually worked or not
+        
+        my @sids;
+        foreach my $sid_aid (@$sid_aids) {
+            my ($sid, $aid) = @$sid_aid;
+            my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+            push(@sids, $id);
+            
+            if (@sids == 500) {
+                system("bkill @sids");
+                @sids = ();
+            }
+        }
+        
+        system("bkill @sids") if @sids;
     }
     
     method all_status {
