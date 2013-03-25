@@ -69,7 +69,7 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         my $own_farm_name = $self->farm;
         
         # delete any farms no longer alive
-        my $rs = $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $self->survival_time) } }, { for => 'update' })->delete;
+        $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $self->survival_time) } })->delete;
         
         my $transaction = sub {
             # unless we're only doing setups assigned directly to us, we want to
@@ -104,8 +104,10 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
                 }
             }
             
-            # obviously we also claim setups assigned to us
-            foreach my $setup (VRPipe::PipelineSetup->search({ active => 1, desired_farm => $own_farm_name, controlling_farm => undef }, { for => 'update' })) {
+            # obviously we also claim setups assigned to us; we don't lock these
+            # rows because it is unnecessary and can introduce big delays
+            # waiting on the locks
+            foreach my $setup (VRPipe::PipelineSetup->search({ active => 1, desired_farm => $own_farm_name, controlling_farm => undef })) {
                 $setup->controlling_farm($own_farm_name);
                 $setup->update;
             }
