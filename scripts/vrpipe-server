@@ -506,7 +506,7 @@ sub start_server {
                         $l = &$start_clock(__LINE__);
                         foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm })) {
                             $sidtosubs_checked++;
-                            $backend->log("checking if sidtosub " . $sidtosub->id . "is defunct");
+                            $backend->log("checking if sidtosub " . $sidtosub->id . " is defunct");
                             my $sid = $sidtosub->sid;
                             my $aid = $sidtosub->aid;
                             if (exists $running_in_scheduler{"$sid\[$aid]"}) {
@@ -519,7 +519,7 @@ sub start_server {
                                 if ($sub_id) {
                                     $backend->log("it has been assigned a sub_id");
                                     my $m = &$start_clock(__LINE__);
-                                    my ($sub) = VRPipe::Submission->search({ id => $sub_id }, { prefetch => 'job' });
+                                    my ($sub) = VRPipe::Submission->search({ 'me.id' => $sub_id }, { prefetch => 'job' });
                                     &$elapsed($m, __LINE__);
                                     if ($sub) {
                                         # if sub done/failed, the handler will soon
