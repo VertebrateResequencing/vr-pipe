@@ -556,11 +556,10 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     
                     # update our Submission
                     if ($submission) {
-                        # lock the setup and the sub
+                        # lock the sub
+                        $self->lock_row($submission);
                         my $step_state = $submission->stepstate;
                         my $setup      = $step_state->pipelinesetup;
-                        $self->lock_row($setup);
-                        $self->lock_row($submission);
                         
                         if ($self->ok) {
                             $setup->log_event("At end of Job->run() call found that the Job was ok, so Submission->done will be set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);

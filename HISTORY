@@ -1,3 +1,4 @@
+0.147   Critical fix to avoid using up all database connections.
 0.146   Improvement to database update consistency (should now avoid strange
         failures where input files got deleted).
         New bam_mapping_with_bwa_via_fastq_no_namesort pipeline to supercede
