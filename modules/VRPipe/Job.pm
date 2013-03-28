@@ -532,10 +532,22 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 # risky: we can end up exiting during that phase before we
                 # stop beating and set our end_time and exit_code, which is more
                 # critical
-                my $end_time    = DateTime->now();
+                my $end_time  = DateTime->now();
+                my $last_beat = $self->heartbeat;
+                my @to_trigger;
                 my $transaction = sub {
-                    # update ourselves
+                    # update ourselves, first locking rows
                     $self->lock_row($self);
+                    my ($step_state, $setup);
+                    if ($submission) {
+                        $self->lock_row($submission);
+                        $step_state = $submission->stepstate;
+                        $setup      = $step_state->pipelinesetup;
+                        if ($exit_code == 0) {
+                            $self->lock_row($step_state);
+                        }
+                    }
+                    @to_trigger = ();
                     
                     unless ($self->heartbeat) {
                         #*** things get wonky if somehow we've completed running
@@ -556,12 +568,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     
                     # update our Submission
                     if ($submission) {
-                        # lock the sub
-                        $self->lock_row($submission);
-                        my $step_state = $submission->stepstate;
-                        my $setup      = $step_state->pipelinesetup;
-                        
-                        if ($self->ok) {
+                        if ($exit_code == 0) {
                             $setup->log_event("At end of Job->run() call found that the Job was ok, so Submission->done will be set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
                             
                             # say the sub is done
@@ -569,16 +576,14 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             $submission->_failed(0);
                             $submission->_claim(0);
                             
-                            # we completed successfully; if this was the last submission
-                            # of its step and they're all done now, do a trigger for
-                            # this dataelement to create submissions for the next step
-                            my $backend = VRPipe::Interface::BackEnd->new(deployment => VRPipe::Persistent::SchemaBase->database_deployment);
-                            
-                            # compare counts of total submissions for our step to
-                            # count of those done to see if the step is complete.
-                            # We can't just get quick counts though otherwise the
-                            # for => update lock doesn't do anything
-                            $self->lock_row($step_state);
+                            # we completed successfully; if this was the last
+                            # submission of its step and they're all done now,
+                            # will do a trigger for this dataelement to create
+                            # submissions for the next step; compare counts of
+                            # total submissions for our step to count of those
+                            # done to see if the step is complete. We can't just
+                            # get quick counts though otherwise the for =>
+                            # update lock doesn't do anything
                             my $stepstate_id = $step_state->id;
                             my @step_subs    = VRPipe::Submission->search({ stepstate => $stepstate_id }, { for => 'update' });
                             my $done         = 0;
@@ -591,23 +596,14 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             
                             if ($done == @step_subs - 1) {
                                 $setup->log_event("At end of Job->run() noted that all Submissions for this Job's Submission's StepState are done, so will trigger the next Step", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
-                                my $error_message = $setup->trigger(dataelement => $step_state->dataelement);
+                                push(@to_trigger, [$setup, $step_state->dataelement]);
                                 
-                                if ($error_message) {
-                                    die $error_message;
-                                }
-                                
-                                # also trigger any dataelements that have the same
-                                # submissions as $step_state
+                                # also trigger any dataelements that have the
+                                # same submissions as $step_state
                                 my $others = VRPipe::StepState->get_column_values([qw(pipelinesetup dataelement)], { same_submissions_as => $stepstate_id });
                                 foreach my $psde (@$others) {
                                     my ($sid, $de) = @$psde;
-                                    my $other_setup = VRPipe::PipelineSetup->get(id => $sid);
-                                    my $other_error_message = $other_setup->trigger(dataelement => VRPipe::DataElement->get(id => $de));
-                                    
-                                    if ($other_error_message) {
-                                        die $other_error_message;
-                                    }
+                                    push(@to_trigger, [VRPipe::PipelineSetup->get(id => $sid), VRPipe::DataElement->get(id => $de)]);
                                 }
                             }
                         }
@@ -626,11 +622,40 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 };
                 $self->do_transaction($transaction, "Failed to finalise Job and Submission state after the cmd-running child exited");
                 
+                # trigger the next step now, outside the above transaction,
+                # since trigger() isn't really idempotent: it deletes files.
+                # Problems with triggering may also explain why we can trigger
+                # the next step yet end up not setting job end_time, which can
+                # be disastrous if the trigger had a behaviour that deleted our
+                # inputs and then the job gets tried again because it looks
+                # dead.
+                # It's awkward to trigger after setting end_time though, because
+                # the handler that spawned us may now exit before we finish
+                # triggering. However it's not the end of the world if there's
+                # an error doing these triggers, since the setups handler will
+                # detect the stall and trigger again
+                if (@to_trigger) {
+                    foreach my $ref (@to_trigger) {
+                        my ($setup, $de) = @$ref;
+                        my $error_message = $setup->trigger(dataelement => $de);
+                        
+                        if ($ss) {
+                            if ($error_message) {
+                                $setup->log_event("Job->run() completed and tried to trigger the next step but failed: $error_message", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                            }
+                            else {
+                                $setup->log_event("Job->run() completed and successfully triggered the next step", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                            }
+                        }
+                    }
+                }
+                
                 # stop beating now (not before the above, since that can
                 # take a while, and we don't want another process thinking
-                # we died before setting end_time)
+                # we died before setting end_time and triggering)
                 $self->stop_beating;
-                $self->clear_watchers;
+                $self->heartbeat($last_beat);
+                $self->update;
                 
                 #*** theoretically updating file existence now might be too
                 # late, but we assume StepRole will recheck file existence
@@ -651,6 +676,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 elsif ($submission) {
                     $submission->stepstate->update_output_file_stats;
                 }
+                
+                $self->clear_watchers;
             };
             $self->store_watcher($child_watcher);
         };
