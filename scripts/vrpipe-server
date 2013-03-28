@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -54,6 +54,8 @@ my $foreground            = $cmdline->opts('foreground');
 my $farm                  = $cmdline->opts('farm');
 my $max_subs              = $cmdline->opts('max_submissions');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
+my $survival_time;
+my $scheduler;
 
 my $command = shift;
 unless ($command) {
@@ -194,9 +196,8 @@ sub start_server {
     };
     
     # setup the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $scheduler, $still_working);
+    my ($farm_server, $farm_watcher, $handler_path, $still_working);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
-    my $survival_time;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
         # submit handlers to the farm and assign submissions to those handlers
@@ -268,7 +269,7 @@ sub start_server {
                         my ($l1, $l2, $silent) = @_;
                         my $e = sprintf("%0.2f", tv_interval($times{$l1}));
                         my $id = "$l1..$l2";
-                        warn "$$ elap_stats line $id took $e seconds\n" unless $silent;
+                        warn "$$ elap_stats line $id took $e seconds\n" unless ($silent || $e < 3);
                         push(@{ $elapsed{$id} }, $e);
                     };
                     
@@ -294,6 +295,7 @@ sub start_server {
                             }
                             my $avg = sprintf("%0.2f", $total / $count);
                             
+                            next unless $cum >= 2;
                             my $note = "\t$$ elap_stats $id: $cum seconds";
                             if ($count > 1) {
                                 $note .= " ($avg avg over $count loops)\n";
@@ -321,13 +323,13 @@ sub start_server {
                     my @setups = $farm_server->claim_setups;
                     &$elapsed($l, __LINE__);
                     my $elap = time() - $t_start;
-                    $backend->log("it took ${elap}s to do claim setups");
+                    #$backend->log("it took ${elap}s to do claim setups");
                     
                     if (@setups) {
                         # make sure we have a setups handler running for our
                         # farm
                         my $shcmd = "$handler_path --mode setups --farm $farm";
-                        $backend->log("will ensure the setups handler is running");
+                        #$backend->log("will ensure the setups handler is running");
                         $l = &$start_clock(__LINE__);
                         $scheduler->ensure_running(
                             cmd          => $shcmd,
@@ -337,7 +339,7 @@ sub start_server {
                         # (in production this submits a job to the scheduler
                         #  with a name like *9762b9ae16282af15a8d855bd55c8fa5*)
                         $elap = time() - $t_start;
-                        $backend->log("it took ${elap}s to ensure the setups handler was running");
+                        #$backend->log("it took ${elap}s to ensure the setups handler was running");
                         
                         # make sure we have sufficient submission handlers
                         # running...
@@ -376,46 +378,9 @@ sub start_server {
                                 }
                                 
                                 # global step limit handling
-                                my $step    = $sub->stepstate->stepmember->step;
-                                my $step_id = $step->id;
-                                my $step_limit;
-                                if (exists $step_limits{$step_id}) {
-                                    $step_limit = $step_limits{$step_id};
-                                }
-                                else {
-                                    # figure out what the step limit is, if any,
-                                    # by checking the config of every incomplete
-                                    # & active setup that uses the step
-                                    my $m = &$start_clock(__LINE__);
-                                    my @setups = VRPipe::PipelineSetup->search({ active => 1, 'step.id' => $step_id }, { join => { 'pipeline' => { 'stepmembers' => 'step' } } });
-                                    &$elapsed($m, __LINE__);
-                                    if (@setups) {
-                                        my $step_name = $step->name;
-                                        foreach my $setup (@setups) {
-                                            unless (exists $completed_setups{ $setup->id }) {
-                                                $completed_setups{ $setup->id } = $setup->currently_complete;
-                                            }
-                                            next if $completed_setups{ $setup->id };
-                                            my $setup_limit = $setup->options->{ $step_name . '_max_simultaneous' } || next;
-                                            if (!defined $step_limit || $setup_limit < $step_limit) {
-                                                $step_limit = $setup_limit;
-                                            }
-                                        }
-                                    }
-                                    if (!defined $step_limit) {
-                                        # also check the step itself for a limit
-                                        $step_limit = $step->max_simultaneous;
-                                    }
-                                    $step_limits{$step_id} = $step_limit || 0;
-                                    
-                                    if ($step_limit) {
-                                        # see how many of this step are currently
-                                        # running, globally
-                                        my $m = &$start_clock(__LINE__);
-                                        $step_counts{$step_id} = VRPipe::Submission->search({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0, 'job.heartbeat' => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } }, { join => ['job', { stepstate => 'stepmember' }] });
-                                        &$elapsed($m, __LINE__);
-                                    }
-                                }
+                                my $step       = $sub->stepstate->stepmember->step;
+                                my $step_id    = $step->id;
+                                my $step_limit = _get_steplimit($step, \%step_limits, \%completed_setups, \%step_counts);
                                 if ($step_limit) {
                                     next if $step_counts{$step_id} >= $step_limits{$step_id};
                                 }
@@ -432,7 +397,7 @@ sub start_server {
                         }
                         &$elapsed($l, __LINE__);
                         $elap = time() - $t_start;
-                        $backend->log("it took ${elap}s to do the pager loop ($pager_loop_count subs)");
+                        #$backend->log("it took ${elap}s to do the pager loop ($pager_loop_count subs)");
                         
                         # scale the counts according to $max_subs
                         #*** and eventually, we should have a priority system
@@ -459,7 +424,7 @@ sub start_server {
                         while (my ($req_id, $count) = each %req_counts) {
                             my $cmd = "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id";
                             
-                            $backend->log("will ensure that $count sub handlers are running for [$cmd]");
+                            #$backend->log("will ensure that $count sub handlers are running for [$cmd]");
                             my $m            = &$start_clock(__LINE__);
                             my @running_sids = $scheduler->ensure_running(
                                 cmd          => $cmd,
@@ -476,7 +441,7 @@ sub start_server {
                         }
                         &$elapsed($l, __LINE__);
                         $elap = time() - $t_start;
-                        $backend->log("it took ${elap}s to submit the submission handlers");
+                        #$backend->log("it took ${elap}s to submit the submission handlers");
                         
                         # assign sub_ids to sidtosubs
                         $l = &$start_clock(__LINE__);
@@ -489,13 +454,13 @@ sub start_server {
                         foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm, sub_id => undef })) {
                             my $req_id = $sidtosub->req_id;
                             my $sub_id = pop @{ $subs_to_assign{$req_id} || [] } || next;
-                            $backend->log("assigning sidtosub " . $sidtosub->id . " sub $sub_id for req $req_id");
+                            #$backend->log("assigning sidtosub " . $sidtosub->id . " sub $sub_id for req $req_id");
                             $sidtosub->sub_id($sub_id);
                             $sidtosub->update;
                         }
                         &$elapsed($l, __LINE__);
                         $elap = time() - $t_start;
-                        $backend->log("it took ${elap}s to assign sub_ids to sidtosubs");
+                        #$backend->log("it took ${elap}s to assign sub_ids to sidtosubs");
                         
                         # delete any old defunct or stuck SidToSubs, and kill
                         # them from the scheduler as well
@@ -506,19 +471,20 @@ sub start_server {
                         $l = &$start_clock(__LINE__);
                         foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm })) {
                             $sidtosubs_checked++;
-                            $backend->log("checking if sidtosub " . $sidtosub->id . " is defunct");
+                            my $m;
+                            #$backend->log("checking if sidtosub " . $sidtosub->id . " is defunct");
                             my $sid = $sidtosub->sid;
                             my $aid = $sidtosub->aid;
                             if (exists $running_in_scheduler{"$sid\[$aid]"}) {
                                 # check that it has not been longer than 5mins
                                 # between sid_id being assigned and the sub's
                                 # job starting
-                                $backend->log("it is currently running");
+                                #$backend->log("it is currently running");
                                 my $sub_id = $sidtosub->sub_id;
                                 
                                 if ($sub_id) {
-                                    $backend->log("it has been assigned a sub_id");
-                                    my $m = &$start_clock(__LINE__);
+                                    #$backend->log("it has been assigned a sub_id");
+                                    $m = &$start_clock(__LINE__);
                                     my ($sub) = VRPipe::Submission->search({ 'me.id' => $sub_id }, { prefetch => 'job' });
                                     &$elapsed($m, __LINE__);
                                     if ($sub) {
@@ -526,16 +492,18 @@ sub start_server {
                                         # unset sub_id and we want it to hang around
                                         # until we assign it a new one
                                         next if ($sub->done || $sub->failed);
-                                        $backend->log("that sub isn't done yet");
+                                        #$backend->log("that sub isn't done yet");
                                         
                                         # if the job has started and is running, all
                                         # is well
+                                        $m = &$start_clock(__LINE__);
                                         my $tsh = $sub->job->time_since_heartbeat;
+                                        &$elapsed($m, __LINE__);
                                         next if $tsh && $tsh <= $leeway;
-                                        $backend->log("the job is dead or hasn't started yet");
+                                        #$backend->log("the job is dead or hasn't started yet");
                                         
                                         next if $sidtosub->time_since_assignment <= $leeway;
-                                        $backend->log("it's been over 5mins since assignment");
+                                        #$backend->log("it's been over 5mins since assignment");
                                     }
                                 }
                                 else {
@@ -544,10 +512,10 @@ sub start_server {
                                     # for this req_id anymore?
                                     my $req_id = $sidtosub->req_id;
                                     next if (defined $subs_to_assign{$req_id} && ref($subs_to_assign{$req_id}) eq 'ARRAY' && @{ $subs_to_assign{$req_id} });
-                                    $backend->log("it has not been assigned a sub_id because we no longer need a handler for req $req_id");
+                                    #$backend->log("it has not been assigned a sub_id because we no longer need a handler for req $req_id");
                                 }
                                 
-                                $backend->log("we'll kill sid $sid $aid");
+                                #$backend->log("we'll kill sid $sid $aid");
                                 push(@sids_to_kill, [$sid, $aid]);
                             }
                             else {
@@ -559,7 +527,7 @@ sub start_server {
                                 # itself, but I don't want to rely on that
                                 my $req_id = $sidtosub->req_id;
                                 unless (defined $req_counts{$req_id}) {
-                                    $backend->log("we'll kill sid $sid $aid because it's req $req_id is no longer needed");
+                                    #$backend->log("we'll kill sid $sid $aid because it's req $req_id is no longer needed");
                                     push(@sids_to_kill, [$sid, $aid]);
                                 }
                             }
@@ -568,13 +536,15 @@ sub start_server {
                             # with an assigned sub but aren't doing anything
                             # with it (we are stuck), or we're not running so
                             # must have exited
-                            $backend->log("we'll delete the sidtosub");
+                            $m = &$start_clock(__LINE__);
+                            #$backend->log("we'll delete the sidtosub");
                             $sidtosub->delete;
+                            &$elapsed($m, __LINE__);
                             $rows_deleted++;
                         }
                         &$elapsed($l, __LINE__);
                         $elap = time() - $t_start;
-                        $backend->log("it took ${elap}s to find defunct sids and sidtosubs ($rows_deleted deleted of $sidtosubs_checked checked)");
+                        #$backend->log("it took ${elap}s to find defunct sids and sidtosubs ($rows_deleted deleted of $sidtosubs_checked checked)");
                         
                         # kill anything running in the scheduler for which there
                         # has not been a sidtosub created for over 5 mins
@@ -586,19 +556,19 @@ sub start_server {
                             &$elapsed($m, __LINE__);
                             unless ($created) {
                                 my $run_time = $scheduler->run_time($sid, $aid);
-                                $backend->log("sid $sid $aid has been running for $run_time seconds");
+                                #$backend->log("sid $sid $aid has been running for $run_time seconds");
                                 if ($run_time > $leeway) {
-                                    $backend->log("we'll kill sid $sid $aid because it never created a sidtosub");
+                                    #$backend->log("we'll kill sid $sid $aid because it never created a sidtosub");
                                     push(@sids_to_kill, [$sid, $aid]);
                                 }
                             }
                             else {
-                                $backend->log("sid $sid $aid has $created sidtosubs");
+                                #$backend->log("sid $sid $aid has $created sidtosubs");
                             }
                         }
                         &$elapsed($l, __LINE__);
                         $elap = time() - $t_start;
-                        $backend->log("it took ${elap}s to find sids that never created a sidtosub");
+                        #$backend->log("it took ${elap}s to find sids that never created a sidtosub");
                         
                         # batch kill sids now; this should hopefully be faster
                         # than calling kill_sid() for each sid in the above
@@ -607,14 +577,14 @@ sub start_server {
                         $scheduler->batch_kill_sids(\@sids_to_kill);
                         &$elapsed($l, __LINE__);
                         $elap = time() - $t_start;
-                        $backend->log("it took ${elap}s to batch kill sids (@sids_to_kill)");
+                        #$backend->log("it took ${elap}s to batch kill sids (@sids_to_kill)");
                     }
                     
                     &$report();
                     
                     alarm 0;
                     $elap = time() - $t_start;
-                    $backend->log("it took ${elap}s to run the fork call");
+                    #$backend->log("it took ${elap}s to run the fork call");
                     return;
                 }
                 sub {
@@ -679,6 +649,48 @@ sub shutdown_server {
     EV::unloop;
 }
 
+sub _get_steplimit {
+    my ($step, $step_limits, $completed_setups, $step_counts) = @_;
+    my $step_id = $step->id;
+    
+    my $step_limit = 0;
+    if (exists $step_limits->{$step_id}) {
+        $step_limit = $step_limits->{$step_id};
+    }
+    else {
+        # figure out what the step limit is, if any,
+        # by checking the config of every incomplete
+        # & active setup that uses the step
+        my @setups = VRPipe::PipelineSetup->search({ active => 1, 'step.id' => $step_id }, { join => { 'pipeline' => { 'stepmembers' => 'step' } } });
+        if (@setups) {
+            my $step_name = $step->name;
+            foreach my $setup (@setups) {
+                unless (exists $completed_setups->{ $setup->id }) {
+                    $completed_setups->{ $setup->id } = $setup->currently_complete;
+                }
+                next if $completed_setups->{ $setup->id };
+                my $setup_limit = $setup->options->{ $step_name . '_max_simultaneous' } || next;
+                if (!defined $step_limit || $setup_limit < $step_limit) {
+                    $step_limit = $setup_limit;
+                }
+            }
+        }
+        if (!defined $step_limit) {
+            # also check the step itself for a limit
+            $step_limit = $step->max_simultaneous;
+        }
+        $step_limits->{$step_id} = $step_limit || 0;
+        
+        if ($step_limit) {
+            # see how many of this step are currently
+            # running, globally
+            $step_counts->{$step_id} = VRPipe::Submission->search({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0, 'job.heartbeat' => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } }, { join => ['job', { stepstate => 'stepmember' }] });
+        }
+    }
+    
+    return $step_limit;
+}
+
 # "page" subs
 sub status {
     my $req = shift;
@@ -689,6 +701,7 @@ sub status {
     my $incomplete_only = $opts->{incomplete};
     my $brief           = $opts->{brief};
     my $defunct_only    = $opts->{defunct};
+    my $gs              = $opts->{global_summary};
     if ($defunct_only) {
         undef $list;
         undef $incomplete_only;
@@ -700,7 +713,124 @@ sub status {
     
     # $xml .= '<options><bool></bool></options>';
     
-    my @setups = $backend->get_pipelinesetups($opts);
+    my @setups = $backend->get_pipelinesetups($opts, 0, $gs);
+    
+    if ($gs) {
+        my $do_single_ps = (@setups && @setups == 1 && $setups[0]->active) ? $setups[0]->id : 0;
+        
+        my $active                   = 0;
+        my $incomplete               = 0;
+        my $global_should_be_running = 0;
+        my $global_actually_running  = 0;
+        my $global_incomplete_des    = 0;
+        my $global_working_des       = 0;
+        my @lines;
+        foreach my $setup (VRPipe::PipelineSetup->search({ active => 1 })) {
+            $active++;
+            unless ($setup->currently_complete) {
+                $incomplete++;
+                
+                if ($do_single_ps) {
+                    next unless $setup->id == $do_single_ps;
+                }
+                
+                # do what the main --farm mode code does to decide what subs
+                # to handle
+                my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.id' => $setup->id, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['job', { stepstate => { stepmember => 'step' } }] });
+                
+                my (%step_limits, %step_counts, %completed_setups);
+                my $sub_count                     = 0;
+                my $skipped_due_to_failed         = 0;
+                my $skipped_due_to_block_and_skip = 0;
+                my $skipped_due_to_step_limit     = 0;
+                my $should_be_running             = 0;
+                my $actually_running              = 0;
+                while (my $subs = $sub_pager->next(no_resetting => 1)) {
+                    foreach my $sub (@$subs) {
+                        $sub_count++;
+                        
+                        if ($sub->_failed && $sub->retries >= 3) {
+                            $skipped_due_to_failed++;
+                            next;
+                        }
+                        
+                        my $job = $sub->job;
+                        if ($job->block_and_skip_if_ok) {
+                            my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
+                            unless ($first_sub && $first_sub->id == $sub->id) {
+                                $skipped_due_to_block_and_skip++;
+                                next;
+                            }
+                        }
+                        
+                        # global step limit handling
+                        my $step       = $sub->stepstate->stepmember->step;
+                        my $step_id    = $step->id;
+                        my $step_limit = _get_steplimit($step, \%step_limits, \%completed_setups, \%step_counts);
+                        if ($step_limit && $step_counts{$step_id} >= $step_limits{$step_id}) {
+                            $skipped_due_to_step_limit++;
+                            next;
+                        }
+                        
+                        $step_counts{$step_id}++;
+                        $should_be_running++;
+                        
+                        if ($job->alive(no_suicide => 1)) {
+                            $actually_running++;
+                        }
+                    }
+                }
+                $global_should_be_running += $should_be_running;
+                $global_actually_running  += $actually_running;
+                
+                push(@lines, 'Setup ' . $setup->id . qq[ Submission status: incomplete=$sub_count; failed=$skipped_due_to_failed; blocking=$skipped_due_to_block_and_skip; limited=$skipped_due_to_step_limit; should be running=$should_be_running; actually running=$actually_running]);
+                
+                # do what the setups handler does to see if there are any
+                # stalled (submissionless, incomplete) dataelementstates
+                my $des_count      = VRPipe::DataElementState->search({ pipelinesetup => $setup->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
+                my $incomplete_des = 0;
+                my $working_des    = 0;
+                my $stalled_des    = 0;
+                my $ie_pager       = $setup->datasource->incomplete_element_states($setup, prepare => 0);
+                if ($ie_pager) {
+                    while (my $dess = $ie_pager->next) {
+                        foreach my $des (@$dess) {
+                            $incomplete_des++;
+                            my $have_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $des->dataelement->id, 'stepstate.pipelinesetup' => $setup->id }, { join => 'stepstate' });
+                            
+                            my $working = 1;
+                            if ($have_subs) {
+                                my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $des->dataelement->id, 'stepstate.pipelinesetup' => $setup->id, '_done' => 1 }, { join => 'stepstate' });
+                                if ($complete_subs == $have_subs) {
+                                    my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $setup->id, complete => 0 });
+                                    $working = 0 if $incomplete_stepstates;
+                                }
+                            }
+                            else {
+                                $working = 0;
+                            }
+                            
+                            $working ? $working_des++ : $stalled_des++;
+                        }
+                    }
+                }
+                
+                $global_incomplete_des += $incomplete_des;
+                $global_working_des    += $working_des;
+                
+                push(@lines, 'Setup ' . $setup->id . qq[ DataElement status: total=$des_count; incomplete=$incomplete_des; working=$working_des; stalled=$stalled_des]);
+            }
+        }
+        
+        unless ($do_single_ps) {
+            unshift(@lines, qq[All setups: incomplete submissions=$global_should_be_running; submissions actually running=$global_actually_running; incomplete dataelements=$global_incomplete_des; working dataelements=$global_working_des]);
+        }
+        unshift(@lines, qq[Total active setups=$active; Total incomplete setups=$incomplete]);
+        
+        $xml .= join('', map { '<response_line>' . $_ . '</response_line>' } @lines);
+        return $xml;
+    }
+    
     if (@setups) {
         my @objects;
         foreach my $setup (@setups) {
