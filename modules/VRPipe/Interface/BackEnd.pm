@@ -854,7 +854,7 @@ XSL
         return $xml;
     }
     
-    method get_pipelinesetups (HashRef $opts, Bool $inactive?) {
+    method get_pipelinesetups (HashRef $opts, Bool $inactive?, Bool $allow_no_setups?) {
         my $multi_setups = $opts->{'_multiple_setups'};
         my @requested_setups = defined $opts->{setup} ? ($multi_setups ? @{ ref($opts->{setup}) eq 'ARRAY' ? $opts->{setup} : [$opts->{setup}] } : ($opts->{setup})) : ();
         
@@ -870,7 +870,7 @@ XSL
             @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) }, { prefetch => ['datasource', 'pipeline'] });
         }
         
-        if ($multi_setups && !@setups) {
+        if ($multi_setups && !@setups && !$allow_no_setups) {
             die "No PipelineSetups match your settings (did you remember to specifiy --user?)\n";
         }
         
