@@ -145,9 +145,9 @@ class VRPipe::Submission extends VRPipe::Persistent {
             $self->stepstate->pipelinesetup->log_event("claim_and_run() entered transaction", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
             
             # lock the Sub and Job rows before trying to claim
-            $self->lock_row($self);
             my $job = $self->job;
             $self->lock_row($job);
+            $self->lock_row($self);
             
             my $ss             = $self->stepstate;
             my $ps             = $ss->pipelinesetup;
