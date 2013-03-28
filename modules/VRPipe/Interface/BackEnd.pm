@@ -775,43 +775,11 @@ XSL
     method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Str :$long_msg?, Bool :$force_when_testing?) {
         chomp($msg);
         
-        # we could just warn to log to the log file if one is in use, but we'll
-        # use flock to write to it for better multi-process behaviour
+        # we'll just warn, which will end up in the log file automatically; we
+        # do not try and do anything fancy with flock() since that can be too
+        # slow or end up locking the log file forever
         my $log_msg = "$time{'yyyy/mm/dd hh:mm:ss'} | pid $$ | $msg\n";
-        if ($self->_log_file_in_use) {
-            my $log_file = $self->log_file;
-            my $ok = open(my $fh, ">>", $log_file);
-            if ($ok) {
-                my $flock_fail = sub {
-                    # failure to lock tends to be permanent, with the only
-                    # apparent solution being to delete the log file; let's just
-                    # assume the user is doing their own log rotation and so
-                    # we're not losing too much stuff by this blind deletion...
-                    close($fh);
-                    unlink($log_file);
-                    $ok = 0;
-                };
-                local $SIG{ALRM} = $flock_fail;
-                alarm 60;
-                $ok = flock($fh, LOCK_EX);
-                alarm 0;
-                if ($ok) {
-                    seek($fh, 0, SEEK_END);
-                    $ok = print $fh $log_msg;
-                    flock($fh, LOCK_UN);
-                }
-                else {
-                    &$flock_fail;
-                }
-                close($fh);
-            }
-            unless ($ok) {
-                warn $log_msg, "Additionally, was unable to log to $log_file\n";
-            }
-        }
-        else {
-            warn $log_msg;
-        }
+        warn $log_msg;
         
         if (($force_when_testing || $self->deployment eq 'production') && ($email_to || $email_admin)) {
             # email the desired users
@@ -854,7 +822,7 @@ XSL
         return $xml;
     }
     
-    method get_pipelinesetups (HashRef $opts, Bool $inactive?) {
+    method get_pipelinesetups (HashRef $opts, Bool $inactive?, Bool $allow_no_setups?) {
         my $multi_setups = $opts->{'_multiple_setups'};
         my @requested_setups = defined $opts->{setup} ? ($multi_setups ? @{ ref($opts->{setup}) eq 'ARRAY' ? $opts->{setup} : [$opts->{setup}] } : ($opts->{setup})) : ();
         
@@ -870,7 +838,7 @@ XSL
             @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) }, { prefetch => ['datasource', 'pipeline'] });
         }
         
-        if ($multi_setups && !@setups) {
+        if ($multi_setups && !@setups && !$allow_no_setups) {
             die "No PipelineSetups match your settings (did you remember to specifiy --user?)\n";
         }
         

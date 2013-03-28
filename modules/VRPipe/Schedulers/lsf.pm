@@ -387,7 +387,6 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             while (<$bfh>) {
                 if (my ($sid, $status, $job_name) = $_ =~ /^(\d+)\s+\S+\s+(\S+)\s+\S+\s+\S+\s+\S+\s+($job_name_prefix\S+)/) {
                     $job_name || next;
-                    warn "saw $job_name running as $sid with status $status\n";
                     next if $status eq 'EXIT';
                     $count++;
                     

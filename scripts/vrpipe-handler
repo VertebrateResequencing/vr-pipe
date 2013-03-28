@@ -305,43 +305,57 @@ sub handle_setups {
                                 }
                             }
                             
-                            # force a full trigger when we aren't complete but
-                            # have fewer incomplete subs than elements
-                            my $incomplete_subs = VRPipe::Submission->search({ '_done' => 0, '_failed' => 0, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                            # force a trigger for any apparently stalled
+                            # datalementstates
                             my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
-                            my $incomplete_elements = $ie_pager->total_entries;
-                            
                             my $error_message;
-                            if ($incomplete_subs && $incomplete_subs >= $incomplete_elements) {
-                                # ok, we've started doing something for some
-                                # dataelements, but we should make sure that
-                                # any same_submissions_as stepstates haven't
-                                # gotten stuck, which seems to be an issue
-                                # (*** bug elsewhere?)
-                                my $step_state_pager = VRPipe::StepState->search_paged({ pipelinesetup => $sid, same_submissions_as => { '!=' => undef }, complete => 0 });
-                                if ($step_state_pager) {
-                                    while (my $step_states = $step_state_pager->next) {
-                                        foreach my $step_state (@$step_states) {
-                                            my $same = $step_state->same_submissions_as;
-                                            next unless $same->complete;
-                                            my $de = $step_state->dataelement;
-                                            $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
-                                            $setup->verbose(1) unless $debug;
-                                            my $this_error = $setup->trigger(dataelement => $de);
-                                            $setup->verbose(0) unless $debug;
-                                            if ($this_error && !$error_message) {
-                                                $error_message = $this_error;
+                            if ($ie_pager) {
+                                while (my $dess = $ie_pager->next) {
+                                    foreach my $des (@$dess) {
+                                        my $de = $des->dataelement;
+                                        my $have_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid }, { join => 'stepstate' });
+                                        
+                                        if ($have_subs) {
+                                            # did they all complete, yet we
+                                            # still have an incomplete
+                                            # stepstate?
+                                            my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid, '_done' => 1 }, { join => 'stepstate' });
+                                            if ($complete_subs == $have_subs) {
+                                                my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $sid, complete => 0 });
+                                                next unless $incomplete_stepstates;
                                             }
+                                        }
+                                        
+                                        $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because it seems to be stalled");
+                                        $setup->verbose(1) unless $debug;
+                                        my $this_error = $setup->trigger(dataelement => $de);
+                                        $setup->verbose(0) unless $debug;
+                                        if ($this_error && !$error_message) {
+                                            $error_message = $this_error;
                                         }
                                     }
                                 }
                             }
-                            else {
-                                $backend->log("forcing a full trigger for setup $sid because we have fewer incomplete submissions ($incomplete_subs) than elements ($incomplete_elements)");
-                                $setup->verbose(1) unless $debug;
-                                $error_message = $setup->trigger(prepare_elements => 0);
-                                $setup->verbose(0) unless $debug;
-                                $backend->log("completed the forced full trigger for setup $sid");
+                            
+                            # make sure that any same_submissions_as stepstates
+                            # haven't gotten stuck, which seems to be an issue
+                            # (*** bug elsewhere?)
+                            my $step_state_pager = VRPipe::StepState->search_paged({ pipelinesetup => $sid, same_submissions_as => { '!=' => undef }, complete => 0 });
+                            if ($step_state_pager) {
+                                while (my $step_states = $step_state_pager->next) {
+                                    foreach my $step_state (@$step_states) {
+                                        my $same = $step_state->same_submissions_as;
+                                        next unless $same->complete;
+                                        my $de = $step_state->dataelement;
+                                        $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
+                                        $setup->verbose(1) unless $debug;
+                                        my $this_error = $setup->trigger(dataelement => $de);
+                                        $setup->verbose(0) unless $debug;
+                                        if ($this_error && !$error_message) {
+                                            $error_message = $this_error;
+                                        }
+                                    }
+                                }
                             }
                             
                             unless ($perma_fails) {
@@ -451,9 +465,9 @@ sub handle_submissions {
             # but full triggers in another process fuck us up, as does some
             # issue when switching queues??
             my $transaction = sub {
-                $submission->lock_row($submission);
                 my $job = $submission->job;
                 $submission->lock_row($job);
+                $submission->lock_row($submission);
                 
                 if (!$job->start_time) {
                     # hmmm, this really shouldn't happen
@@ -482,6 +496,18 @@ sub handle_submissions {
                     
                     if ($submission->done) {
                         $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission was done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                        
+                        # the job completion may have triggered the next step,
+                        # in which case the job process is still doing
+                        # something; wait until the heart has stopped beating
+                        while (1) {
+                            my $heartbeat = $job_instance->heartbeat->epoch;
+                            if (time() - $job_instance->survival_time > $heartbeat) {
+                                $backend->debug("waited for the next step trigger to finish");
+                                last;
+                            }
+                            sleep(2);
+                        }
                     }
                     elsif ($submission->failed) {
                         # Job->run itself would have adjusted $submission's
