@@ -653,7 +653,7 @@ sub _get_steplimit {
     my ($step, $step_limits, $completed_setups, $step_counts) = @_;
     my $step_id = $step->id;
     
-    my $step_limit = 0;
+    my $step_limit;
     if (exists $step_limits->{$step_id}) {
         $step_limit = $step_limits->{$step_id};
     }
