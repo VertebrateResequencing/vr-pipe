@@ -155,7 +155,8 @@ role VRPipe::Base::Debuggable {
     
     method debug (ClassName|Object $self: Str $message) {
         if ($self->verbose > 0) {
-            $self->log($message);
+            chomp $message;
+            CORE::warn "$time{'yyyy/mm/dd hh:mm:ss'} | pid $$ | $message\n";
         }
     }
 
@@ -264,14 +265,9 @@ role VRPipe::Base::Debuggable {
 =cut
     
     method log (ClassName|Object $self: Str $message, VerbosityValue $verbose?) {
+        return unless $self->write_logs();
         $verbose ||= $self->verbose;
         return unless $verbose > -1;
-        
-        unless ($self->write_logs) {
-            chomp $message;
-            warn "$time{'yyyy/mm/dd hh:mm:ss'} | pid $$ | $message\n";
-            return;
-        }
         
         my $prefix = '';
         
