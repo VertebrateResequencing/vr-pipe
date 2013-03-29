@@ -461,105 +461,101 @@ sub handle_submissions {
                 }
             }
             
-            # we'd like to avoid doing any db access most times through here,
-            # but full triggers in another process fuck us up, as does some
-            # issue when switching queues??
-            my $transaction = sub {
-                my $job = $submission->job;
-                $submission->lock_row($job);
-                $submission->lock_row($submission);
+            my $job = $submission->job;
+            $job->reselect_values_from_db;
+            $submission->reselect_values_from_db;
+            if (!$job->start_time) {
+                # hmmm, this really shouldn't happen
+                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions had started to run a Job, yet it has no start_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                $backend->log("sub " . $submission->id . " job had not started?!");
+                # $submission->_reset_job;
+                # $submission->_reset;
+                # undef $submission;
+                # if ($sidtosub) {
+                #     $sidtosub->sub_id(undef);
+                #     $sidtosub->update;
+                # }
+                #*** these attempts to reset never work properly, leaving us
+                # in a state where 2 different processes are running our
+                # job. Instead what will happen is that when the job
+                # finishes it will set the missing start_time to the
+                # end_time(), and then we'll proceed normally. Looking like
+                # we took 0seconds to run is better than running the job
+                # twice concurrently
+                return;
+            }
+            
+            if ($job->end_time) {
+                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions was monitoring a Job which now has an end_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                $submission->archive_output;
                 
-                if (!$job->start_time) {
-                    # hmmm, this really shouldn't happen
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions had started to run a Job, yet it has no start_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                    $backend->log("sub " . $submission->id . " job had not started?!");
-                    # $submission->_reset_job;
-                    # $submission->_reset;
-                    # undef $submission;
-                    # if ($sidtosub) {
-                    #     $sidtosub->sub_id(undef);
-                    #     $sidtosub->update;
-                    # }
-                    #*** these attempts to reset never work properly, leaving us
-                    # in a state where 2 different processes are running our
-                    # job. Instead what will happen is that when the job
-                    # finishes it will set the missing start_time to the
-                    # end_time(), and then we'll proceed normally. Looking like
-                    # we took 0seconds to run is better than running the job
-                    # twice concurrently
-                    return;
-                }
-                
-                if ($job->end_time) {
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions was monitoring a Job which now has an end_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                    $submission->archive_output;
+                if ($submission->done) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission was done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     
-                    if ($submission->done) {
-                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission was done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                        
-                        # the job completion may have triggered the next step,
-                        # in which case the job process is still doing
-                        # something; wait until the heart has stopped beating
-                        while (1) {
-                            my $heartbeat = $job_instance->heartbeat->epoch;
-                            if (time() - $job_instance->survival_time > $heartbeat) {
-                                $backend->debug("waited for the next step trigger to finish");
-                                last;
-                            }
-                            sleep(2);
+                    # the job completion may have triggered the next step,
+                    # in which case the job process is still doing
+                    # something; wait until the heart has stopped beating
+                    sleep($job->survival_time + 1);
+                    while (1) {
+                        $job->reselect_values_from_db;
+                        my $heartbeat = $job->heartbeat->epoch;
+                        if (time() - $job->survival_time > $heartbeat) {
+                            $backend->debug("waited for the next step trigger to finish");
+                            last;
                         }
+                        $req->disconnect;
+                        sleep(2);
                     }
-                    elsif ($submission->failed) {
-                        # Job->run itself would have adjusted $submission's
-                        # requirements already if we failed due to running out of
-                        # time or memory; we just need to retry it if appropriate
-                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission is failed (now " . $submission->retries . " retries)", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                        $submission->retry if $submission->retries < 3;
-                    }
-                    if ($sidtosub) {
-                        $backend->debug("had a sidtosub, will undef it");
-                        eval {
-                            $sidtosub->sub_id(undef);
-                            $sidtosub->update;
-                        };
-                    }
-                    else {
-                        $backend->debug("had no sidtosub");
-                    }
-                    
-                    my $signal = $job_instance->_signalled_to_death;
-                    if ($signal) {
-                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it received a SIG$signal", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                        return exit_handler($submission->id . " failed because we received a SIG$signal");
-                    }
-                    
-                    $backend->debug("will undef submission");
-                    undef $submission;
                 }
-                elsif ($submission->close_to_time_limit($mins_before_switching)) {
-                    # user's scheduler might kill the submission if it runs too
-                    # long in the queue it was initially submitted to; avoid
-                    # this by changing queue as necessary
-                    $backend->debug("sub " . $submission->id . " is close to time limit");
-                    my $current_queue = $scheduler->determine_queue($req);
-                    $submission->extra_time;
-                    my $new_queue = $scheduler->determine_queue($submission->requirements);
-                    
-                    if ($new_queue ne $current_queue) {
-                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions is close to the time limit, so switching from queue $current_queue to $new_queue", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                        $scheduler->switch_queue($scheduler->get_scheduler_id, $new_queue);
-                    }
-                    
-                    # we do not update $req, so that once this $submission has
-                    # finished we should think that we've run out of time and kill
-                    # ourselves, keeping vrpipe-server's estimation of how many
-                    # handlers per req are running nice and accurate
+                elsif ($submission->failed) {
+                    # Job->run itself would have adjusted $submission's
+                    # requirements already if we failed due to running out of
+                    # time or memory; we just need to retry it if appropriate
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission is failed (now " . $submission->retries . " retries)", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                    $submission->retry if $submission->retries < 3;
+                }
+                if ($sidtosub) {
+                    $backend->debug("had a sidtosub, will undef it");
+                    eval {
+                        $sidtosub->sub_id(undef);
+                        $sidtosub->update;
+                    };
                 }
                 else {
-                    $backend->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
+                    $backend->debug("had no sidtosub");
                 }
-            };
-            $req->do_transaction($transaction, "Unable to check on the status of our Submission");
+                
+                my $signal = $job_instance->_signalled_to_death;
+                if ($signal) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it received a SIG$signal", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                    return exit_handler($submission->id . " failed because we received a SIG$signal");
+                }
+                
+                $backend->debug("will undef submission");
+                undef $submission;
+            }
+            elsif ($submission->close_to_time_limit($mins_before_switching)) {
+                # user's scheduler might kill the submission if it runs too
+                # long in the queue it was initially submitted to; avoid
+                # this by changing queue as necessary
+                $backend->debug("sub " . $submission->id . " is close to time limit");
+                my $current_queue = $scheduler->determine_queue($req);
+                $submission->extra_time;
+                my $new_queue = $scheduler->determine_queue($submission->requirements);
+                
+                if ($new_queue ne $current_queue) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions is close to the time limit, so switching from queue $current_queue to $new_queue", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                    $scheduler->switch_queue($scheduler->get_scheduler_id, $new_queue);
+                }
+                
+                # we do not update $req, so that once this $submission has
+                # finished we should think that we've run out of time and kill
+                # ourselves, keeping vrpipe-server's estimation of how many
+                # handlers per req are running nice and accurate
+            }
+            else {
+                $backend->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
+            }
         }
         unless ($submission) {
             if (time() >= $end_time) {
@@ -596,10 +592,13 @@ sub handle_submissions {
                     
                     if ($sub_id) {
                         $backend->debug("it was assigned, will try to run it");
-                        my $transaction = sub {
-                            my ($sub) = VRPipe::Submission->search({ id => $sub_id });
-                            $sub || return;
-                            
+                        my ($sub) = VRPipe::Submission->search({ id => $sub_id });
+                        unless ($sub) {
+                            $sidtosub->sub_id(undef);
+                            $sidtosub->update;
+                            $backend->debug("not assigned an existing submission");
+                        }
+                        else {
                             # we'll try and claim this one to run
                             undef $no_subs_found;
                             my $allowed_time = int($end_time - time());
@@ -624,8 +623,7 @@ sub handle_submissions {
                                 $handled_submissions++;
                                 $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                             }
-                        };
-                        $req->do_transaction($transaction, "Failed to run the Submission $sub_id we were assigned");
+                        }
                     }
                     else {
                         $backend->debug("not yet assigned");
