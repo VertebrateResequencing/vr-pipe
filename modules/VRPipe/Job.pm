@@ -532,8 +532,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 # risky: we can end up exiting during that phase before we
                 # stop beating and set our end_time and exit_code, which is more
                 # critical
-                my $end_time  = DateTime->now();
-                my $last_beat = $self->heartbeat;
+                my $end_time = DateTime->now();
+                my $last_beat = $self->heartbeat || $end_time;
                 my @to_trigger;
                 my $transaction = sub {
                     # update ourselves, first locking rows
@@ -552,7 +552,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     unless ($self->heartbeat) {
                         #*** things get wonky if somehow we've completed running
                         # before a heartbeat occurred, so add one now
-                        $self->heartbeat(DateTime->now);
+                        $self->heartbeat($end_time);
                     }
                     unless ($self->start_time) {
                         #*** likewise, we can somehow manage to have no start
