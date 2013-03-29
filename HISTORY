@@ -1,3 +1,5 @@
+0.150   Further fixes for database connection exhaustion. Fixed step limit
+        system to work again.
 0.149   Possible fix for database connection exhaustion.
 0.148   Further improved database update consistency. Improved speed.
         vrpipe-status gains new --global_summary option.
