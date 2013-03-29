@@ -436,6 +436,7 @@ class VRPipe::File extends VRPipe::Persistent {
             # whatever)
             $self->_check_destination_space($dp->dir);
             
+            $self->disconnect;
             $success = File::Copy::move($sp, $dp);
             
             $dest->update_stats_from_disc;
@@ -602,6 +603,7 @@ class VRPipe::File extends VRPipe::Persistent {
         # is it safe to copy?
         $self->_check_destination_space($dest->path->dir);
         
+        $self->disconnect;
         my $success = File::Copy::copy($sp, $dp);
         $dest->update_stats_from_disc;
         
