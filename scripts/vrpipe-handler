@@ -461,14 +461,10 @@ sub handle_submissions {
                 }
             }
             
-            # we'd like to avoid doing any db access most times through here,
-            # but full triggers in another process fuck us up, as does some
-            # issue when switching queues??
-            my $transaction = sub {
+            eval {
                 my $job = $submission->job;
-                $submission->lock_row($job);
-                $submission->lock_row($submission);
-                
+                $job->reselect_values_from_db;
+                $submission->reselect_values_from_db;
                 if (!$job->start_time) {
                     # hmmm, this really shouldn't happen
                     $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions had started to run a Job, yet it has no start_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
@@ -500,12 +496,15 @@ sub handle_submissions {
                         # the job completion may have triggered the next step,
                         # in which case the job process is still doing
                         # something; wait until the heart has stopped beating
+                        sleep($job->survival_time + 1);
                         while (1) {
-                            my $heartbeat = $job_instance->heartbeat->epoch;
-                            if (time() - $job_instance->survival_time > $heartbeat) {
+                            $job->reselect_values_from_db;
+                            my $heartbeat = $job->heartbeat->epoch;
+                            if (time() - $job->survival_time > $heartbeat) {
                                 $backend->debug("waited for the next step trigger to finish");
                                 last;
                             }
+                            $req->disconnect;
                             sleep(2);
                         }
                     }
@@ -559,7 +558,10 @@ sub handle_submissions {
                     $backend->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
                 }
             };
-            $req->do_transaction($transaction, "Unable to check on the status of our Submission");
+            if ($@) {
+                $req->disconnect;
+                exit_handler("There was a problem monitoring Submission " . $submission->id . ": $@");
+            }
         }
         unless ($submission) {
             if (time() >= $end_time) {
@@ -596,10 +598,13 @@ sub handle_submissions {
                     
                     if ($sub_id) {
                         $backend->debug("it was assigned, will try to run it");
-                        my $transaction = sub {
-                            my ($sub) = VRPipe::Submission->search({ id => $sub_id });
-                            $sub || return;
-                            
+                        my ($sub) = VRPipe::Submission->search({ id => $sub_id });
+                        unless ($sub) {
+                            $sidtosub->sub_id(undef);
+                            $sidtosub->update;
+                            $backend->debug("not assigned an existing submission");
+                        }
+                        else {
                             # we'll try and claim this one to run
                             undef $no_subs_found;
                             my $allowed_time = int($end_time - time());
@@ -624,8 +629,7 @@ sub handle_submissions {
                                 $handled_submissions++;
                                 $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                             }
-                        };
-                        $req->do_transaction($transaction, "Failed to run the Submission $sub_id we were assigned");
+                        }
                     }
                     else {
                         $backend->debug("not yet assigned");

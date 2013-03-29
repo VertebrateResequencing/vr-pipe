@@ -155,9 +155,8 @@ role VRPipe::Base::Debuggable {
     
     method debug (ClassName|Object $self: Str $message) {
         if ($self->verbose > 0) {
-            $self->log($message);
-            $message .= "\n" unless $message =~ /\n$/;
-            CORE::warn "$time{'hh:mm:ss'} $$ | ", $message;
+            chomp $message;
+            CORE::warn "$time{'yyyy/mm/dd hh:mm:ss'} | pid $$ | $message\n";
         }
     }
 
@@ -257,7 +256,8 @@ role VRPipe::Base::Debuggable {
  
  Title   : log
  Usage   : $obj->log('message');
- Function: Appends message to file set in log_file() if write_logs() is on.
+ Function: Appends message to file set in log_file() if write_logs() is on,
+           otherwise just warns the message.
  Returns : n/a
  Args    : log message, optional int to decide the strength of the message, as
            per verbose(), using current value of verbose() as default.
@@ -276,7 +276,7 @@ role VRPipe::Base::Debuggable {
             $prefix = "----------\n$time{'yyyy/mm/dd'}\n----------\n";
         }
         
-        $prefix .= "$time{'hh:mm:ss'} $$ | ";
+        $prefix .= "$time{'hh:mm:ss'} | pid $$ | ";
         
         # for some reason Carp's shortmess and longmess methods aren't returning
         # the same thing as what carp()/croak() produce! hacky work-around...
