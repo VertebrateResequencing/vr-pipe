@@ -1367,6 +1367,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     sub disconnect {
         return unless $GLOBAL_CONNECTED_SCHEMA;
+        return if $GLOBAL_CONNECTED_SCHEMA->storage->transaction_depth > 0;
         $GLOBAL_CONNECTED_SCHEMA->storage->disconnect;
     }
     
