@@ -239,7 +239,17 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     # temp files, or similar problems
                     my ($do_next, $do_last);
                     my $transaction = sub {
+                        # for speed reasons we can't use lock_row's trick to
+                        # ensure we read the latest committed data, as the trick
+                        # forces this transaction to always take 1 second
+                        my $before_lock_time = time();
                         $self->lock_row($state, 1);
+                        
+                        # however it's really important that we do read the
+                        # latest data, so we do the fix 'manually'
+                        if (time() > ($before_lock_time + 30)) {
+                            die "forcing transaction retry to get latest db values\n";
+                        }
                         
                         my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                         $self->log_event("PipelineSetup->trigger called in $mode mode, inside transaction, complete is " . $state->complete, dataelement => $element->id, stepstate => $state->id);
