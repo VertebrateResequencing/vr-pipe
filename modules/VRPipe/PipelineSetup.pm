@@ -418,6 +418,19 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 return;
                             }
                             else {
+                                # if this step was supposed to have output
+                                # files, did it specify them?
+                                my $ohash = $state->output_files;
+                                my $odefs = $step->outputs_definition;
+                                foreach my $key (keys %$odefs) {
+                                    next if exists $ohash->{$key};
+                                    my $val = $odefs->{$key};
+                                    next if $val->min_files == 0;
+                                    $sm_error = "After parsing $error_ident we found that '$key' was defined as an output, yet no output file was made with that output_key";
+                                    $self->debug($sm_error);
+                                    die $sm_error;
+                                }
+                                
                                 my $dispatched = $step->dispatched();
                                 if (@$dispatched) {
                                     # is there another stepstate that we already
@@ -568,7 +581,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         
         #*** PipelineSetupLogs don't always seem to get created, so first warn
         # what PipelineSetupLog->stringify would give us
-        if ($self->verbose > 0) {
+        if (1 || $self->verbose > 0) {
             my $str = "$dt [ps " . $self->id;
             $str .= ", de $dataelement" if $dataelement;
             $str .= ", ss $stepstate"   if $stepstate;
