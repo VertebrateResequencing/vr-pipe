@@ -73,7 +73,7 @@ unless ($debug) {
         $cmdline->die_with_error("There is no farm server running for farm '$farm'");
     }
 }
-if ($debug || $deployment eq 'testing') {
+if (1 || $debug || $deployment eq 'testing') {
     $backend->set_verbose_global(1);
 }
 
@@ -307,13 +307,16 @@ sub handle_setups {
                             
                             # force a trigger for any apparently stalled
                             # datalementstates
+                            $backend->debug("looking for stalls");
                             my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
                             my $error_message;
                             if ($ie_pager) {
+                                $backend->debug("got incomplete_element_states");
                                 while (my $dess = $ie_pager->next) {
                                     foreach my $des (@$dess) {
                                         my $de = $des->dataelement;
                                         my $have_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid }, { join => 'stepstate' });
+                                        $backend->debug("de " . $de->id . " has $have_subs subs");
                                         
                                         if ($have_subs) {
                                             # did they all complete, yet we
@@ -322,6 +325,7 @@ sub handle_setups {
                                             my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid, '_done' => 1 }, { join => 'stepstate' });
                                             if ($complete_subs == $have_subs) {
                                                 my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $sid, complete => 0 });
+                                                $backend->debug("all subs done, has $incomplete_stepstates incomplete stepstates");
                                                 next unless $incomplete_stepstates;
                                             }
                                         }
@@ -336,6 +340,7 @@ sub handle_setups {
                                     }
                                 }
                             }
+                            $backend->debug("after looking for stalls");
                             
                             # make sure that any same_submissions_as stepstates
                             # haven't gotten stuck, which seems to be an issue
@@ -607,9 +612,14 @@ sub handle_submissions {
                         else {
                             # we'll try and claim this one to run
                             undef $no_subs_found;
-                            my $allowed_time = int($end_time - time());
-                            return if $allowed_time < 60;
-                            (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $allowed_time);
+                            my $remaining_time = int($end_time - time());
+                            if ($remaining_time < $time_needed) {
+                                $sidtosub->sub_id(undef);
+                                $sidtosub->update;
+                                return exit_handler("Not enough time to try and run our submission");
+                            }
+                            
+                            (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $remaining_time);
                             if ($response == 0) {
                                 # there was some problem with this sub and it
                                 # just got reset; let's ignore it for now and
@@ -636,7 +646,7 @@ sub handle_submissions {
                     }
                 };
                 if ($@) {
-                    exit_handler("There was a problem running a new submission: $@");
+                    exit_handler("There was a problem claiming and running a new submission: $@");
                 }
                 elsif (!defined $submission) {
                     # wait for 60 failed attempts in a row to get a submission
