@@ -481,7 +481,13 @@ role VRPipe::StepRole {
             next if exists $hash->{$key};
             my $val = $defs->{$key};
             next if $val->min_files == 0;
-            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key (dataelement " . $self->data_element->id . "; stepstate " . $self->step_state->id . "; step " . $self->step_state->stepmember->step_number . " (" . $self->step_state->stepmember->step->name . "); pipelinesetup " . $self->step_state->pipelinesetup->id . ")");
+            
+            # we used to just throw here, as it would indicate a permanent error
+            # in the step body_sub code. However it is also possible for this
+            # to happen due to a bad database update where the StepOutputFile
+            # row does not get created even though the Submissions do. For that
+            # case we risk an infinite restart situation and restart this step
+            return ([1], ["'$key' was defined as an output of step " . $self->step_state->stepmember->step_number . " (" . $self->step_state->stepmember->step->name . "), yet no output file was made with that output_key (either the Step is not correctly written, or the database failed to update correctly when the Step was parsed)"]);
         }
         
         return $self->_missing($hash, $defs);
@@ -590,16 +596,15 @@ role VRPipe::StepRole {
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
-                        $self->warn("To regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", we will start stepstate $state_id over again");
                         $state->pipelinesetup->log_event("Calling StepState->start_over to regenerate needed input files (@$files)", stepstate => $state->id, dataelement => $state->dataelement->id);
                         $state->start_over;
                     }
                 }
-                return 0;
+                return "Called start_over to regenerate needed input files";
             }
             else {
                 my $step_state = $self->step_state;
-                $self->throw("There is a problem with the input files for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "):\n" . join("\n", @$messages));
+                return "There is a problem with the input files for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "):\n" . join("\n", @$messages);
             }
         }
         
