@@ -211,6 +211,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         
         my $error_message;
         my $max_redos = $num_steps;
+        my %cached_sameas;
         while (my $estates = $pager->next) {
             my $redos = 0;
             ESTATE: foreach my $estate (@$estates) {
@@ -253,7 +254,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         
                         my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                         $self->log_event("PipelineSetup->trigger called in $mode mode, inside transaction, complete is " . $state->complete, dataelement => $element->id, stepstate => $state->id);
-                        if ($state->complete) {
+                        if ($state->complete || ($state->same_submissions_as && $state->same_submissions_as->complete)) {
                             $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
                             $self->debug("completed");
                             $do_next = 1;
@@ -460,14 +461,24 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     # is there another stepstate that we already
                                     # made equivalent submissions for?
                                     my %other_states;
+                                    my %this_cached_sameas;
                                     foreach my $arrayref (@$dispatched) {
                                         my ($cmd, undef, $job_args) = @$arrayref;
+                                        
+                                        if (defined $cached_sameas{$cmd}) {
+                                            my ($ssid, $count) = @{ $cached_sameas{$cmd} };
+                                            $other_states{$ssid} += $count;
+                                            next;
+                                        }
+                                        
                                         my ($job) = VRPipe::Job->search({ dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd });
                                         last unless $job;
+                                        
                                         my @submissions = VRPipe::Submission->search({ job => $job->id, -or => [{ '_done' => 1 }, { 'dataelement.withdrawn' => 0 }] }, { prefetch => 'stepstate', join => { stepstate => 'dataelement' } });
                                         last unless @submissions;
                                         foreach my $sub (@submissions) {
                                             $other_states{ $sub->stepstate->id }++;
+                                            $this_cached_sameas{ $sub->stepstate->id }->{$cmd}++;
                                         }
                                     }
                                     delete $other_states{ $state->id };
@@ -478,6 +489,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         my $count = $other_states{$other_id};
                                         next unless $needed_count == $count;
                                         $same_as_us = $other_id;
+                                        
+                                        while (my ($cmd, $count) = each %{ $this_cached_sameas{$other_id} }) {
+                                            $cached_sameas{$cmd} = [$other_id, $count];
+                                        }
+                                        
                                         last;
                                     }
                                     
