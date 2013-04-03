@@ -282,7 +282,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 
                                 if ($total && $done == $total) {
                                     # run post_process
-                                    my $pp_error;
+                                    my ($pp_error, $possible_db_error);
                                     $self->debug("will post_process");
                                     $self->log_event("PipelineSetup->trigger, will post_process", dataelement => $element->id, stepstate => $state->id);
                                     eval { # (try catch not used because stupid perltidy is stupid)
@@ -290,7 +290,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     };
                                     
                                     if ($@ && !$pp_error) {
-                                        $pp_error = $@;
+                                        $pp_error          = $@;
+                                        $possible_db_error = 1;
                                     }
                                     
                                     unless ($pp_error) {
@@ -308,7 +309,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         # and restarted itself
                                         $sm_error = "When trying to post process $error_ident after the submissions completed we hit the following error:\n$pp_error";
                                         $self->debug($sm_error);
-                                        die $sm_error;
+                                        
+                                        if ($possible_db_error) {
+                                            # die to restart the transaction
+                                            die $sm_error;
+                                        }
+                                        # else we'll redo due to possible restart
                                     }
                                 }
                                 elsif (!$total) {
@@ -361,14 +367,15 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         else {
                             # this is the first time we're looking at this step for
                             # this data member for this pipelinesetup
-                            my $parse_return;
+                            my ($parse_return, $possible_db_error);
                             $self->debug("will parse");
                             $self->log_event("PipelineSetup->trigger will parse", dataelement => $element->id, stepstate => $state->id);
                             try {
                                 $parse_return = $step->parse();
                             }
                             catch ($err) {
-                                $parse_return = $err;
+                                $parse_return      = $err;
+                                $possible_db_error = 1;
                             }
                             
                             # if we're the primary for a block_and_skip job and have
@@ -418,7 +425,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             if ($parse_return) {
                                 $sm_error = "When trying to parse $error_ident we hit the following error:\n$parse_return";
                                 $self->debug($sm_error);
-                                die $sm_error;
+                                
+                                if ($possible_db_error) {
+                                    # die to restart the transaction
+                                    die $sm_error;
+                                }
+                                # else we'll redo, which would be useful in the
+                                # case that the parse_return was about having
+                                # done a start_over
                             }
                             elsif (!defined $parse_return) {
                                 $self->log_event("PipelineSetup->trigger called parse(), which dispatched nothing and completed instantly", dataelement => $element->id, stepstate => $state->id);
