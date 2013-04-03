@@ -171,16 +171,34 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 }
             }
             
-            # remember new ones
+            # remember new ones. *** there's some odd issue where the bulk
+            # create fails because the constraint on file ids fails - because by
+            # the time we bulk create the file rows have been changed?? To try
+            # and avoid that we lock the files in a transaction
             delete $new_hash->{temp};
-            my @sof_args;
-            my $own_id = $self->id;
-            while (my ($key, $files) = each %$new_hash) {
-                foreach my $file (@$files) {
-                    push(@sof_args, { stepstate => $own_id, file => $file->id, output_key => $key });
+            my $transaction = sub {
+                my @sof_args;
+                my $own_id = $self->id;
+                while (my ($key, $files) = each %$new_hash) {
+                    foreach my $file (@$files) {
+                        my ($current_file) = VRPipe::File->search({ id => $file->id }, { for => 'update' });
+                        if (!$current_file || $current_file->path ne $file->path) {
+                            $current_file = VRPipe::File->create(
+                                path     => $file->path,
+                                metadata => $file->metadata,
+                                type     => $file->type,
+                                e        => $file->e,
+                                s        => $file->s
+                            );
+                            ($current_file) = VRPipe::File->search({ id => $current_file->id }, { for => 'update' });
+                        }
+                        
+                        push(@sof_args, { stepstate => $own_id, file => $current_file->id, output_key => $key });
+                    }
                 }
-            }
-            VRPipe::StepOutputFile->bulk_create_or_update(@sof_args);
+                VRPipe::StepOutputFile->bulk_create_or_update(@sof_args);
+            };
+            $self->do_transaction($transaction, "StepOutputFile bulk_create_or_update failed");
             
             return $new_hash;
         }
