@@ -818,7 +818,7 @@ sub status {
                             if ($have_subs) {
                                 my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $des->dataelement->id, 'stepstate.pipelinesetup' => $setup->id, '_done' => 1 }, { join => 'stepstate' });
                                 if ($complete_subs == $have_subs) {
-                                    my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $setup->id, complete => 0 });
+                                    my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $setup->id, complete => 0, dataelement => $des->dataelement->id });
                                     $working = 0 if $incomplete_stepstates;
                                 }
                             }
