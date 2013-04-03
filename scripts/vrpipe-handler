@@ -324,9 +324,12 @@ sub handle_setups {
                                             # stepstate?
                                             my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid, '_done' => 1 }, { join => 'stepstate' });
                                             if ($complete_subs == $have_subs) {
-                                                my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $sid, complete => 0 });
+                                                my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $sid, complete => 0, dataelement => $de->id });
                                                 $backend->debug("all subs done, has $incomplete_stepstates incomplete stepstates");
                                                 next unless $incomplete_stepstates;
+                                            }
+                                            else {
+                                                next;
                                             }
                                         }
                                         
