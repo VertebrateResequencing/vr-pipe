@@ -491,19 +491,35 @@ sub start_server {
                                         # if sub done/failed, the handler will soon
                                         # unset sub_id and we want it to hang around
                                         # until we assign it a new one
-                                        next if ($sub->done || $sub->failed);
+                                        my $kill = 0;
+                                        if ($sub->done || $sub->failed) {
+                                            # however, the handler could get
+                                            # stuck in between the submission
+                                            # getting set done and the sub_id
+                                            # getting unset, so check for that
+                                            # now
+                                            my $job_end = $sub->job->end_time;
+                                            if (!$job_end || time() > ($job_end->epoch + $leeway)) {
+                                                $kill = 1;
+                                            }
+                                            else {
+                                                next;
+                                            }
+                                        }
                                         #$backend->log("that sub isn't done yet");
                                         
-                                        # if the job has started and is running, all
-                                        # is well
-                                        $m = &$start_clock(__LINE__);
-                                        my $tsh = $sub->job->time_since_heartbeat;
-                                        &$elapsed($m, __LINE__);
-                                        next if $tsh && $tsh <= $leeway;
-                                        #$backend->log("the job is dead or hasn't started yet");
-                                        
-                                        next if $sidtosub->time_since_assignment <= $leeway;
-                                        #$backend->log("it's been over 5mins since assignment");
+                                        unless ($kill) {
+                                            # if the job has started and is running, all
+                                            # is well
+                                            $m = &$start_clock(__LINE__);
+                                            my $tsh = $sub->job->time_since_heartbeat;
+                                            &$elapsed($m, __LINE__);
+                                            next if $tsh && $tsh <= $leeway;
+                                            #$backend->log("the job is dead or hasn't started yet");
+                                            
+                                            next if $sidtosub->time_since_assignment <= $leeway;
+                                            #$backend->log("it's been over 5mins since assignment");
+                                        }
                                     }
                                 }
                                 else {
