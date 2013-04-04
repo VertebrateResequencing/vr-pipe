@@ -112,7 +112,9 @@ my @new_archive_files;
 foreach my $tfile (@archive_files) {
     my $moved_to = VRPipe::File->create(path => $tfile)->resolve->path;
     next unless $moved_to =~ /^$pool_regex/;
-    my $expected = file(archive_file_location($tfile))->stringify;
+    
+    # only those in pool3 should have been archived again
+    my $expected = $tfile =~ /pool3/ ? file(archive_file_location($tfile))->stringify : $tfile;
     next unless $moved_to =~ /$expected$/;
     push(@new_archive_files, $moved_to);
 }
