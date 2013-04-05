@@ -194,6 +194,22 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         my $output_root = $self->output_root;
         $self->make_path($output_root);
         
+        # work out which step inputs each step needs
+        my %step_inputs;
+        foreach my $adaptor (@{ $pipeline->adaptors || [] }) {
+            my $hash = $adaptor->adaptor_hash || next;
+            my %from_steps;
+            while (my ($to_key, $from_keys) = each %{$hash}) {
+                foreach my $from_step (values %{$from_keys}) {
+                    next unless $from_step;
+                    $from_steps{$from_step} = 1;
+                }
+            }
+            if (keys %from_steps) {
+                $step_inputs{ $adaptor->to_step } = [keys %from_steps];
+            }
+        }
+        
         # we either loop through all incomplete elementstates, or the
         # (single) elementstate for the supplied dataelement
         my $pager;
@@ -222,11 +238,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 
                 $self->debug("working on estate " . $estate->id);
                 
-                my %previous_step_outputs;
                 my $sm_error;
                 foreach my $member (@step_members) {
                     my $step_number = $member->step_number;
-                    my $state       = VRPipe::StepState->create(
+                    next unless $step_number > $completed_steps;
+                    
+                    my $state = VRPipe::StepState->create(
                         stepmember    => $member,
                         dataelement   => $element,
                         pipelinesetup => $self
@@ -240,7 +257,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     # other failing the post_process because the 1st deleted the
                     # temp files, or similar problems
                     my ($do_next, $do_last);
-                    my $transaction = sub {
+                    my %previous_step_outputs = ();
+                    my $pso_calculated        = 0;
+                    my $transaction           = sub {
                         # for speed reasons we can't use lock_row's trick to
                         # ensure we read the latest committed data, as the trick
                         # forces this transaction to always take 1 second
@@ -253,10 +272,24 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             die "forcing transaction retry to get latest db values\n";
                         }
                         
+                        unless ($pso_calculated) {
+                            # work out the previous step outputs relevant to
+                            # this step
+                            foreach my $input_step_number (@{ $step_inputs{$step_number} || [] }) {
+                                my $input_member = $step_members[$input_step_number - 1];
+                                my $input_ss     = VRPipe::StepState->get(stepmember => $input_member, dataelement => $element, pipelinesetup => $self);
+                                my $input_step   = $input_member->step(step_state => $input_ss);
+                                while (my ($key, $val) = each %{ $input_step->outputs() }) {
+                                    $previous_step_outputs{$key}->{$input_step_number} = $val;
+                                }
+                            }
+                            $pso_calculated = 1;
+                        }
+                        
                         my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
                         $self->log_event("PipelineSetup->trigger called in $mode mode, inside transaction, complete is " . $state->complete, dataelement => $element->id, stepstate => $state->id);
                         if ($state->complete || ($state->same_submissions_as && $state->same_submissions_as->complete)) {
-                            $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
+                            $self->_complete_state($step, $state, $step_number, $pipeline, $estate);
                             $self->debug("completed");
                             $do_next = 1;
                             return;
@@ -300,7 +333,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         # we just completed all the submissions from a
                                         # previous parse
                                         $self->log_event("PipelineSetup->trigger found all Submissions were complete and the post_process was successful", dataelement => $element->id, stepstate => $state->id);
-                                        $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
+                                        $self->_complete_state($step, $state, $step_number, $pipeline, $estate);
                                         $self->debug("completed on pre-existing subs");
                                         $do_next = 1;
                                         return;
@@ -438,7 +471,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             }
                             elsif (!defined $parse_return) {
                                 $self->log_event("PipelineSetup->trigger called parse(), which dispatched nothing and completed instantly", dataelement => $element->id, stepstate => $state->id);
-                                $self->_complete_state($step, $state, $step_number, $pipeline, \%previous_step_outputs, $estate);
+                                $self->_complete_state($step, $state, $step_number, $pipeline, $estate);
                                 $self->debug("instant complete after parse");
                                 $do_next = 1;
                                 return;
@@ -575,11 +608,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $error_message;
     }
     
-    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, PreviousStepOutput $previous_step_outputs, VRPipe::DataElementState $estate) {
-        while (my ($key, $val) = each %{ $step->outputs() }) {
-            $previous_step_outputs->{$key}->{$step_number} = $val;
-        }
-        
+    method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, VRPipe::DataElementState $estate) {
         my $transaction = sub {
             unless ($state->complete) {
                 $self->log_event("PipelineSetup->trigger found the StepState is now complete", dataelement => $estate->dataelement->id, stepstate => $state->id);
