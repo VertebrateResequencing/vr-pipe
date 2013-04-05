@@ -115,8 +115,10 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
     __PACKAGE__->make_persistent();
     
     method stringify (Bool :$show_traces = 0) {
-        my $date = $self->date;
-        my $str  = "$date [ps " . $self->ps_id;
+        my $date     = $self->date;
+        my $date_str = "$date";
+        $date_str =~ s/T/ /;
+        my $str = "$date_str [ps " . $self->ps_id;
         foreach my $method (qw(de_id ss_id sub_id job_id)) {
             my $val = $self->$method;
             if ($val) {
