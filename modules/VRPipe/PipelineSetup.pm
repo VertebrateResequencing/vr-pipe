@@ -55,6 +55,7 @@ use VRPipe::Base;
 class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use POSIX qw(ceil);
     use DateTime;
+    use DateTime::Format::Natural;
     
     has 'name' => (
         is     => 'rw',
@@ -650,14 +651,51 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         );
     }
     
-    method logs (Str :$like?, Int :$dataelement?, Int :$stepstate?, Int :$submission?, Int :$job?, Bool :$include_undefined?) {
-        return VRPipe::PipelineSetupLog->search({
+    method logs (Str :$like?, Int :$dataelement?, Int :$stepstate?, Int :$submission?, Int :$job?, Int :$pid?, Bool :$include_undefined?, Bool :$paged?, Str :$from?, Str :$to?) {
+        my @date_args = ();
+        if ($from || $to) {
+            my $parser = DateTime::Format::Natural->new;
+            my @dts;
+            foreach my $dstr ($from, $to) {
+                unless ($dstr) {
+                    push(@dts, undef);
+                    next;
+                }
+                
+                # allow copy/pastes of stringified DateTimes
+                $dstr =~ s/(\d)T(\d)/$1 $2/;
+                
+                my $dt = $parser->parse_datetime($dstr);
+                if ($parser->success) {
+                    push(@dts, $dt);
+                }
+                else {
+                    warn $parser->error, "\n";
+                    push(@dts, undef);
+                }
+            }
+            
+            if ($dts[0] && !$dts[1]) {
+                push(@date_args, date => { '>=' => $dts[0] });
+            }
+            elsif (!$dts[0] && $dts[1]) {
+                push(@date_args, date => { '<=' => $dts[1] });
+            }
+            elsif ($dts[0] && $dts[1]) {
+                push(@date_args, -and => [{ date => { '>=' => $dts[0] } }, { date => { '<=' => $dts[1] } }]);
+            }
+        }
+        
+        my $method = $paged ? 'search_paged' : 'search';
+        return VRPipe::PipelineSetupLog->$method({
                 ps_id => $self->id,
                 $like ? (message => { like => $like }) : (),
                 $dataelement ? (de_id  => $include_undefined ? { -in => [0, $dataelement] } : $dataelement) : (),
                 $stepstate   ? (ss_id  => $include_undefined ? { -in => [0, $stepstate] }   : $stepstate)   : (),
                 $submission  ? (sub_id => $include_undefined ? { -in => [0, $submission] }  : $submission)  : (),
-                $job         ? (job_id => $include_undefined ? { -in => [0, $job] }         : $job)         : ()
+                $job         ? (job_id => $include_undefined ? { -in => [0, $job] }         : $job)         : (),
+                $pid ? (pid => $pid) : (),
+                @date_args
             }
         );
     }
