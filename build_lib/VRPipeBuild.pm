@@ -65,6 +65,7 @@ sub required_modules {
         'Data::Compare'                  => 0,
         'Data::Dumper'                   => 0,
         'DateTime'                       => 0,
+        'DateTime::Format::Natural'      => 0,
         'DBI'                            => 0,
         'DBIx::Class'                    => '>= 0.08200',
         'DBIx::Class::DeploymentHandler' => 0,
