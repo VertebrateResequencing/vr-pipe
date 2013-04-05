@@ -622,7 +622,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         
         #*** PipelineSetupLogs don't always seem to get created, so first warn
         # what PipelineSetupLog->stringify would give us
-        if (1 || $self->verbose > 0) {
+        if ($self->verbose > 0) {
             my $str = "$dt [ps " . $self->id;
             $str .= ", de $dataelement" if $dataelement;
             $str .= ", ss $stepstate"   if $stepstate;
