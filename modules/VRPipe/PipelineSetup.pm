@@ -56,6 +56,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use POSIX qw(ceil);
     use DateTime;
     use DateTime::Format::Natural;
+    use DateTime::TimeZone;
+    
+    our $local_timezone = DateTime::TimeZone->new(name => 'local');
     
     has 'name' => (
         is     => 'rw',
@@ -652,7 +655,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         #*** PipelineSetupLogs don't always seem to get created, so first warn
         # what PipelineSetupLog->stringify would give us
         if (1 || $self->verbose > 0) {
-            my $str = "$dt [ps " . $self->id;
+            my $friendly_dt = DateTime->from_epoch(epoch => $dt->epoch, time_zone => $local_timezone);
+            my $date_str = "$friendly_dt";
+            $date_str =~ s/T/ /;
+            my $str = "$date_str [ps " . $self->id;
             $str .= ", de $dataelement" if $dataelement;
             $str .= ", ss $stepstate"   if $stepstate;
             $str .= ", sub $submission" if $submission;

@@ -39,6 +39,9 @@ use VRPipe::Base;
 
 class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
     use DateTime;
+    use DateTime::TimeZone;
+    
+    our $local_timezone = DateTime::TimeZone->new(name => 'local');
     
     has 'date' => (
         is     => 'rw',
@@ -115,7 +118,7 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
     __PACKAGE__->make_persistent();
     
     method stringify (Bool :$show_traces = 0) {
-        my $date     = $self->date;
+        my $date = DateTime->from_epoch(epoch => $self->date->epoch, time_zone => $local_timezone);
         my $date_str = "$date";
         $date_str =~ s/T/ /;
         my $str = "$date_str [ps " . $self->ps_id;
