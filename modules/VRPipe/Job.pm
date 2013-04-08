@@ -460,7 +460,14 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     
                     # look at the requirements of the submission that was used
                     # to run us
+                    my $sid_str = '';
                     if ($submission) {
+                        my ($sid_to_sub) = VRPipe::SidToSub->search({ sub_id => $submission->id });
+                        if ($sid_to_sub) {
+                            my $sid_aid = $sid_to_sub->sid . '[' . $sid_to_sub->aid . ']';
+                            $sid_str = "; scheduler id $sid_aid";
+                        }
+                        
                         my $changed      = 0;
                         my $peak_memory  = $self->peak_memory || 0;
                         my $fudge_factor = 100;
@@ -498,7 +505,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     my $efh         = $stderr_file->open('>>');
                     print $efh $explanation, "\n";
                     $stderr_file->close;
-                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation$sid_str), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                     
                     $self->_signalled_to_death($signal);
                     
