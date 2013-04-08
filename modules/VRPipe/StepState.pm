@@ -141,7 +141,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             my $file = $sof->file;
             
             if ($only_unique_to_us) {
-                my $others = VRPipe::StepOutputFile->search({ file => $file->id, output_key => { '!=' => 'temp' }, stepstate => { '!=' => $self->id }, pipelinesetup => { '!=' => $self->pipelinesetup->id } }, { join => { stepstate => 'pipelinesetup' } });
+                my $others = VRPipe::StepOutputFile->search({ file => $file->id, output_key => { '!=' => 'temp' }, stepstate => { '!=' => $self->id }, 'stepstate.pipelinesetup' => { '!=' => $self->pipelinesetup->id } }, { join => { stepstate => 'pipelinesetup' } });
                 next if $others;
             }
             
