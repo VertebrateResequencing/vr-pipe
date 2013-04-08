@@ -319,18 +319,18 @@ sub handle_setups {
                                         $backend->debug("de " . $de->id . " has $have_subs subs");
                                         
                                         if ($have_subs) {
-                                            # did they all complete, yet we
-                                            # still have an incomplete
-                                            # stepstate?
+                                            # we have subs so must have parsed
+                                            # something so there's no need to
+                                            # trigger... except in the case that
+                                            # all the subs are complete, in
+                                            # which case either we have an
+                                            # incomplete stepstate that the
+                                            # parse failed on, or we managed to
+                                            # complete one stepstate without
+                                            # creating a stepstate for the next
+                                            # step
                                             my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid, '_done' => 1 }, { join => 'stepstate' });
-                                            if ($complete_subs == $have_subs) {
-                                                my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $sid, complete => 0, dataelement => $de->id });
-                                                $backend->debug("all subs done, has $incomplete_stepstates incomplete stepstates");
-                                                next unless $incomplete_stepstates;
-                                            }
-                                            else {
-                                                next;
-                                            }
+                                            next unless $complete_subs == $have_subs;
                                         }
                                         
                                         $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because it seems to be stalled");
