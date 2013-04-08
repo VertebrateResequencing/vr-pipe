@@ -640,7 +640,7 @@ sub handle_submissions {
                                 # we just started running the sub's job
                                 $submission = $sub;
                                 $handled_submissions++;
-                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
+                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful (sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])', stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                             }
                         }
                     }
