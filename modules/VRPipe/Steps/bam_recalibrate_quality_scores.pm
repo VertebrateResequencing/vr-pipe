@@ -54,7 +54,7 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
                 max_files   => -1,
                 description => 'index files for the input bam files'
             ),
-            bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from count covariates step')
+            bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from count covariates step', metadata => { source_bam => 'path to the bam file used to create this recalibration file' })
         };
     }
     
@@ -127,15 +127,33 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
     }
     
     method recal_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($in_path, $out_path) = $cmd_line =~ /-I (\S+) -o (\S+)/;
-        $in_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        my ($recal_path, $in_path, $out_path) = $cmd_line =~ /-recalFile (\S+) -I (\S+) -o (\S+)/;
+        $recal_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $in_path    || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        $out_path   || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
-        my $in_file  = VRPipe::File->get(path => $in_path);
-        my $out_file = VRPipe::File->get(path => $out_path);
+        my $recal_file = VRPipe::File->get(path => $recal_path);
+        my $in_file    = VRPipe::File->get(path => $in_path);
+        my $out_file   = VRPipe::File->get(path => $out_path);
+        
+        # parse the recal file header.
+        # if all of the reads have been skipped,
+        # then recalibration is not necessary
+        my $fh       = $recal_file->openr;
+        my $no_recal = 0;
+        while (<$fh>) {
+            $no_recal = 1 if (/^# Fraction Skipped 1 \/ NaN bp$/);
+            last unless /^#/;
+        }
+        $recal_file->close;
         
         $in_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        if ($no_recal) {
+            $in_file->copy($out_file);
+        }
+        else {
+            system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        }
         
         $out_file->update_stats_from_disc(retries => 3);
         my $expected_reads = $in_file->metadata->{reads} || $in_file->num_records;
