@@ -510,6 +510,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     $self->_signalled_to_death($signal);
                     
                     $self->kill_job($submission);
+                    $self->disconnect;
                 };
                 $self->store_watcher($signal_watcher);
             }
@@ -663,6 +664,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->stop_beating;
                 $self->heartbeat($last_beat);
                 $self->update;
+                $self->disconnect;
                 
                 #*** theoretically updating file existence now might be too
                 # late, but we assume StepRole will recheck file existence
@@ -684,6 +686,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     $submission->stepstate->update_output_file_stats;
                 }
                 
+                $self->disconnect;
                 $self->clear_watchers;
             };
             $self->store_watcher($child_watcher);
