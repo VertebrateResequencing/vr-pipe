@@ -473,17 +473,19 @@ sub start_server {
                             $sidtosubs_checked++;
                             my $m;
                             #$backend->log("checking if sidtosub " . $sidtosub->id . " is defunct");
-                            my $sid = $sidtosub->sid;
-                            my $aid = $sidtosub->aid;
-                            if (exists $running_in_scheduler{"$sid\[$aid]"}) {
+                            my $sid     = $sidtosub->sid;
+                            my $aid     = $sidtosub->aid;
+                            my $sid_aid = "$sid\[$aid]";
+                            #my $dstr = "[sidtosub ".$sidtosub->id." sid $sid_aid]";
+                            if (exists $running_in_scheduler{$sid_aid}) {
                                 # check that it has not been longer than 5mins
                                 # between sid_id being assigned and the sub's
                                 # job starting
-                                #$backend->log("it is currently running");
+                                #$backend->log("$dstr it is currently running");
                                 my $sub_id = $sidtosub->sub_id;
                                 
                                 if ($sub_id) {
-                                    #$backend->log("it has been assigned a sub_id");
+                                    #$backend->log("$dstr it has been assigned a sub_id sub $sub_id");
                                     $m = &$start_clock(__LINE__);
                                     my ($sub) = VRPipe::Submission->search({ 'me.id' => $sub_id }, { prefetch => 'job' });
                                     &$elapsed($m, __LINE__);
@@ -510,19 +512,20 @@ sub start_server {
                                                 next;
                                             }
                                         }
-                                        #$backend->log("that sub isn't done yet");
+                                        #$backend->log("$dstr that sub isn't done yet");
                                         
                                         unless ($kill) {
                                             # if the job has started and is running, all
                                             # is well
                                             $m = &$start_clock(__LINE__);
                                             my $tsh = $sub->job->time_since_heartbeat;
+                                            #$backend->log("$dstr the job had a tsh of $tsh");
                                             &$elapsed($m, __LINE__);
-                                            next if $tsh && $tsh <= $leeway;
-                                            #$backend->log("the job is dead or hasn't started yet");
+                                            next if defined($tsh) && $tsh <= $leeway;
+                                            #$backend->log("$dstr the job is dead or hasn't started yet");
                                             
                                             next if $sidtosub->time_since_assignment <= $leeway;
-                                            #$backend->log("it's been over 5mins since assignment");
+                                            #$backend->log("$dstr it's been over 5mins since assignment");
                                         }
                                     }
                                 }
@@ -532,10 +535,10 @@ sub start_server {
                                     # for this req_id anymore?
                                     my $req_id = $sidtosub->req_id;
                                     next if (defined $subs_to_assign{$req_id} && ref($subs_to_assign{$req_id}) eq 'ARRAY' && @{ $subs_to_assign{$req_id} });
-                                    #$backend->log("it has not been assigned a sub_id because we no longer need a handler for req $req_id");
+                                    #$backend->log("$dstr it has not been assigned a sub_id because we no longer need a handler for req $req_id");
                                 }
                                 
-                                #$backend->log("we'll kill sid $sid $aid");
+                                #$backend->log("$dstr we'll kill sid $sid_aid");
                                 push(@sids_to_kill, [$sid, $aid]);
                             }
                             else {
@@ -547,7 +550,7 @@ sub start_server {
                                 # itself, but I don't want to rely on that
                                 my $req_id = $sidtosub->req_id;
                                 unless (defined $req_counts{$req_id}) {
-                                    #$backend->log("we'll kill sid $sid $aid because it's req $req_id is no longer needed");
+                                    #$backend->log("$dstr we'll kill sid $sid_aid because it's req $req_id is no longer needed");
                                     push(@sids_to_kill, [$sid, $aid]);
                                 }
                             }
@@ -557,7 +560,7 @@ sub start_server {
                             # with it (we are stuck), or we're not running so
                             # must have exited
                             $m = &$start_clock(__LINE__);
-                            #$backend->log("we'll delete the sidtosub");
+                            #$backend->log("$dstr we'll delete the sidtosub");
                             $sidtosub->delete;
                             &$elapsed($m, __LINE__);
                             $rows_deleted++;
@@ -578,7 +581,7 @@ sub start_server {
                                 my $run_time = $scheduler->run_time($sid, $aid);
                                 #$backend->log("sid $sid $aid has been running for $run_time seconds");
                                 if ($run_time > $leeway) {
-                                    #$backend->log("we'll kill sid $sid $aid because it never created a sidtosub");
+                                    #$backend->log("we'll kill sid $sid\[$aid] because it never created a sidtosub");
                                     push(@sids_to_kill, [$sid, $aid]);
                                 }
                             }
