@@ -728,15 +728,16 @@ sub status {
         undef $brief;
         $opts->{deactivated} = 1;
     }
+    my $deactivated = $opts->{deactivated} || 0;
     
     my $xml = '<title>Current status of PipelineSetups</title>';
     
     # $xml .= '<options><bool></bool></options>';
     
-    my @setups = $backend->get_pipelinesetups($opts, 0, $gs);
+    my @setups = $backend->get_pipelinesetups($opts, $deactivated, $gs);
     
     if ($gs) {
-        my $do_single_ps = (@setups && @setups == 1 && $setups[0]->active) ? $setups[0]->id : 0;
+        my $do_single_ps = (@setups && @setups == 1 && ($deactivated ? 1 : $setups[0]->active)) ? $setups[0]->id : 0;
         
         my $active                   = 0;
         my $incomplete               = 0;
@@ -745,7 +746,7 @@ sub status {
         my $global_incomplete_des    = 0;
         my $global_working_des       = 0;
         my @lines;
-        foreach my $setup (VRPipe::PipelineSetup->search({ active => 1 })) {
+        foreach my $setup (VRPipe::PipelineSetup->search({ $deactivated ? () : (active => 1) })) {
             $active++;
             unless ($setup->currently_complete) {
                 $incomplete++;
@@ -844,7 +845,7 @@ sub status {
         unless ($do_single_ps) {
             unshift(@lines, qq[All setups: incomplete submissions=$global_should_be_running; submissions actually running=$global_actually_running; incomplete dataelements=$global_incomplete_des; working dataelements=$global_working_des]);
         }
-        unshift(@lines, qq[Total active setups=$active; Total incomplete setups=$incomplete]);
+        unshift(@lines, 'Total active' . ($deactivated ? ' and deactivated' : '') . qq[ setups=$active; Total incomplete setups=$incomplete]);
         
         $xml .= join('', map { '<response_line>' . $_ . '</response_line>' } @lines);
         return $xml;
