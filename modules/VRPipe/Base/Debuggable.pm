@@ -156,7 +156,7 @@ role VRPipe::Base::Debuggable {
     method debug (ClassName|Object $self: Str $message) {
         if ($self->verbose > 0) {
             chomp $message;
-            CORE::warn "$time{'yyyy/mm/dd hh:mm:ss'} | pid $$ | $message\n";
+            CORE::warn "$time{'yyyy-mm-dd hh:mm:ss'} | pid $$ | $message\n";
         }
     }
 
@@ -176,7 +176,7 @@ role VRPipe::Base::Debuggable {
     
     method throw (ClassName|Object $self: Str $message = '[no message]') {
         my $cwd = getcwd();
-        #my $first_line = "FATAL ERROR on $time{'yyyy/mm/dd hh:mm:ss'} in $cwd";
+        #my $first_line = "FATAL ERROR on $time{'yyyy-mm-dd hh:mm:ss'} in $cwd";
         my $t          = time();
         my $first_line = "FATAL ERROR at epoch $t in $cwd";
         
@@ -273,7 +273,7 @@ role VRPipe::Base::Debuggable {
         
         $self->{_log_count}++;
         if ($self->{_log_count} == 1) {
-            $prefix = "----------\n$time{'yyyy/mm/dd'}\n----------\n";
+            $prefix = "----------\n$time{'yyyy-mm-dd'}\n----------\n";
         }
         
         $prefix .= "$time{'hh:mm:ss'} | pid $$ | ";
