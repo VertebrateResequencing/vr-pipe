@@ -154,6 +154,7 @@ sub handle_setups {
                     $currently_triggering{$sid} = 1;
                     my $ds_id = $setup->datasource->id;
                     $datasource_watchers{$ds_id}->{working} = 1;
+                    $setup->disconnect;
                     fork_call {
                         $backend->debug("will trigger first_step_only for new setup $sid");
                         $setup->verbose(1) unless $debug;
@@ -194,6 +195,7 @@ sub handle_setups {
                         return if $datasource_watchers{$ds_id}->{working};
                         $datasource_watchers{$ds_id}->{working} = 1;
                         
+                        $setup->disconnect;
                         fork_call {
                             $ds->reselect_values_from_db;
                             my $e_before = VRPipe::DataElement->search({ datasource => $ds->id, withdrawn => 0 });
@@ -275,6 +277,7 @@ sub handle_setups {
                         my $ds_id = $setup->datasource->id;
                         $datasource_watchers{$ds_id}->{working} = 1;
                         
+                        $setup->disconnect;
                         fork_call {
                             # we will email the user once when overall state
                             # changes
@@ -447,6 +450,7 @@ sub handle_submissions {
     my $handled_submissions = 0;
     my $watcher = EV::timer int(rand($timer_interval)), $timer_interval, sub {
         $backend->debug("entered timer, working is " . ($working ? 1 : 0));
+        $req->disconnect;
         return if $working;
         $working = 1;
         
@@ -504,7 +508,11 @@ sub handle_submissions {
                         # the job completion may have triggered the next step,
                         # in which case the job process is still doing
                         # something; wait until the heart has stopped beating
-                        sleep($job->survival_time + 1);
+                        $req->disconnect;
+                        my $cv = AnyEvent->condvar;
+                        my $sleep = AnyEvent->timer(after => $job->survival_time + 1, cb => sub { $cv->send });
+                        $cv->recv;
+                        
                         while (1) {
                             $job->reselect_values_from_db;
                             my $heartbeat = $job->heartbeat->epoch;
@@ -513,7 +521,10 @@ sub handle_submissions {
                                 last;
                             }
                             $req->disconnect;
-                            sleep(2);
+                            
+                            my $cv = AnyEvent->condvar;
+                            my $sleep = AnyEvent->timer(after => 2, cb => sub { $cv->send });
+                            $cv->recv;
                         }
                     }
                     elsif ($submission->failed) {
