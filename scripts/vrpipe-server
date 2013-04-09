@@ -476,7 +476,21 @@ sub start_server {
                             my $sid     = $sidtosub->sid;
                             my $aid     = $sidtosub->aid;
                             my $sid_aid = "$sid\[$aid]";
-                            #my $dstr = "[sidtosub ".$sidtosub->id." sid $sid_aid]";
+                            my $dstr    = "[sidtosub " . $sidtosub->id . " sid $sid_aid]";
+                            
+                            unless (exists $running_in_scheduler{$sid_aid}) {
+                                # we might not know it's running because
+                                # %running_in_scheduler is only populated for
+                                # req_ids we still needed to run, so check with
+                                # the scheduler
+                                $m = &$start_clock(__LINE__);
+                                my $status = $scheduler->sid_status($sid, $aid);
+                                if ($status eq 'RUN') {
+                                    $running_in_scheduler{$sid_aid} = 1;
+                                }
+                                &$elapsed($m, __LINE__);
+                            }
+                            
                             if (exists $running_in_scheduler{$sid_aid}) {
                                 # check that it has not been longer than 5mins
                                 # between sid_id being assigned and the sub's
@@ -506,6 +520,7 @@ sub start_server {
                                             # loaded, so we give it 15mins
                                             my $job_end = $sub->job->end_time;
                                             if (!$job_end || time() > ($job_end->epoch + ($leeway * 3))) {
+                                                $backend->log("$dstr is currently running, but its claimed submission finished ages ago");
                                                 $kill = 1;
                                             }
                                             else {
@@ -525,7 +540,7 @@ sub start_server {
                                             #$backend->log("$dstr the job is dead or hasn't started yet");
                                             
                                             next if $sidtosub->time_since_assignment <= $leeway;
-                                            #$backend->log("$dstr it's been over 5mins since assignment");
+                                            $backend->log("$dstr it's been over 5mins since assignment and the job (" . $sub->job->id . ") is dead or hasn't started yet (time since heartbeat == " . (defined $tsh ? $tsh : 'undef') . ')');
                                         }
                                     }
                                 }
@@ -535,24 +550,11 @@ sub start_server {
                                     # for this req_id anymore?
                                     my $req_id = $sidtosub->req_id;
                                     next if (defined $subs_to_assign{$req_id} && ref($subs_to_assign{$req_id}) eq 'ARRAY' && @{ $subs_to_assign{$req_id} });
-                                    #$backend->log("$dstr it has not been assigned a sub_id because we no longer need a handler for req $req_id");
+                                    $backend->log("$dstr it has not been assigned a sub_id because we no longer need a handler for req $req_id");
                                 }
                                 
-                                #$backend->log("$dstr we'll kill sid $sid_aid");
+                                $backend->log("$dstr we'll ask the scheduler to kill this");
                                 push(@sids_to_kill, [$sid, $aid]);
-                            }
-                            else {
-                                # we might not know it's running because
-                                # %running_in_scheduler is only populated for
-                                # req_ids we still needed to run, so check and
-                                # kill as appropriate. Theoretically just
-                                # deleting the sidtosub should make it kill
-                                # itself, but I don't want to rely on that
-                                my $req_id = $sidtosub->req_id;
-                                unless (defined $req_counts{$req_id}) {
-                                    #$backend->log("$dstr we'll kill sid $sid_aid because it's req $req_id is no longer needed");
-                                    push(@sids_to_kill, [$sid, $aid]);
-                                }
                             }
                             
                             # if we got this far it means either we're running
