@@ -560,7 +560,14 @@ sub handle_submissions {
                     # this by changing queue as necessary
                     $backend->debug("sub " . $submission->id . " is close to time limit");
                     my $current_queue = $scheduler->determine_queue($req);
-                    $submission->extra_time;
+                    my $transaction   = sub {
+                        $submission->extra_time;
+                        unless ($given_sub) {
+                            $sidtosub->req_id($submission->requirements->id);
+                            $sidtosub->update;
+                        }
+                    };
+                    $req->do_transaction($transaction, 'Failed to add extra time to our submission requirements');
                     my $new_queue = $scheduler->determine_queue($submission->requirements);
                     
                     if ($new_queue ne $current_queue) {
