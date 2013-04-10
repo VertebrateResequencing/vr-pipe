@@ -1,3 +1,16 @@
+0.151   Critical fix for Submission failures due to mysterious SIGINTs.
+        Critical fix for database update inconsistencies: the pipeline system
+        itself should no longer be the cause of pipelines failing or entering
+        into strange states.
+        Fixed vrpipe-status --deactivated option to work again.
+        PipelineSetups will no longer remain stalled (not moving to the next
+        step) for too long (or forever), and fewer stalls should happen.
+        New vrpipe-logs script to investigate what happened to a setup.
+        The trigger process was sped up, in some case by orders of magnitude.
+        archive_files step no longer re-archives files that are already in the
+        archive pool.
+        Further reduction to database connection exhaustion (though the problem
+        remains).
 0.150   Further fixes for database connection exhaustion. Fixed step limit
         system to work again.
 0.149   Possible fix for database connection exhaustion.

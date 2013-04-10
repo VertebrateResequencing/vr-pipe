@@ -1,3 +1,11 @@
+# version 0.151:
+You should update to this version as it includes many important fixes. Pipelines
+should now run correctly and reliably. Problems remain, however, with efficiency
+and running out of database connections. When starting the server, use
+--max_submissions and set it to slightly less than the maximum number of
+connections allowed to your database.
+If you've been skipping previous versions, follow the notes below.
+
 # version 0.146:
 See notes for 0.145 and 0.143 if you skipped those versions. This version should
 be safe to upgrade to, though there is an excess of debugging enabled. You may
