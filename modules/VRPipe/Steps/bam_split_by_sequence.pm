@@ -122,6 +122,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
         unless (ref($bam_file) && ref($bam_file) eq 'VRPipe::File') {
             $bam_file = VRPipe::File->get(path => file($bam_file));
         }
+        $bam_file->disconnect;
         
         if ($only) {
             $non_chrom = 0;
@@ -162,6 +163,7 @@ class VRPipe::Steps::bam_split_by_sequence with VRPipe::StepRole {
                 my $split_bam = VRPipe::File->create(path => file($split_dir, $prefix . '.' . $bam_file->basename));
                 $split_bams{$prefix} = $split_bam->path->stringify;
                 push(@{ $seq_to_bam{$seq} }, $split_bam->path->stringify);
+                $split_bam->disconnect;
             }
         }
         
