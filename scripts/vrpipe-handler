@@ -458,7 +458,7 @@ sub handle_submissions {
     my ($submission, $job_instance, $working, $no_subs_found);
     
     my $handled_submissions = 0;
-    my $watcher = EV::timer int(rand($timer_interval)), $timer_interval, sub {
+    my $watcher = EV::timer 0, $timer_interval, sub {
         $backend->debug("entered timer, working is " . ($working ? 1 : 0));
         $req->disconnect;
         return if $working;
