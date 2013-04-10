@@ -118,6 +118,7 @@ sub handle_setups {
         eval {
             unless ($debug) { $fs->alive || die "no farmserver" }
             @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
+            $fs->disconnect;
         };
         if ($@) {
             if ($@ =~ /no farmserver/) {
@@ -460,7 +461,6 @@ sub handle_submissions {
     my $handled_submissions = 0;
     my $watcher = EV::timer 0, $timer_interval, sub {
         $backend->debug("entered timer, working is " . ($working ? 1 : 0));
-        $req->disconnect;
         return if $working;
         $working = 1;
         
@@ -549,6 +549,7 @@ sub handle_submissions {
                         eval {
                             $sidtosub->sub_id(undef);
                             $sidtosub->update;
+                            $req->disconnect;
                         };
                     }
                     else {
@@ -593,6 +594,8 @@ sub handle_submissions {
                 else {
                     $backend->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
                 }
+                
+                $req->disconnect;
             };
             if ($@) {
                 # we want to avoid exiting while we're still running a job, so
@@ -684,6 +687,8 @@ sub handle_submissions {
                     else {
                         $backend->debug("no suitable subs in the redis queue");
                     }
+                    
+                    $req->disconnect;
                 };
                 if ($@) {
                     exit_handler("There was a problem claiming and running a new submission: $@");
