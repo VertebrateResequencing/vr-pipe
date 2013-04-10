@@ -252,7 +252,7 @@ sub start_server {
                     my $redis_port  = $backend->redis_port;
                     my $logging_dir = $backend->log_dir;
                     $redis_pid_file = file($logging_dir, 'redis.pid');
-                    system("redis-server --daemonize yes --pidfile $redis_pid_file --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048");
+                    $redis_server_cmd = "redis-server --daemonize yes --pidfile $redis_pid_file --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048";
                     system($redis_server_cmd);
                     $redis_pid = $redis_pid_file->slurp;
                     $backend->log("Started a Redis server with pid $redis_pid");
