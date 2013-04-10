@@ -73,7 +73,7 @@ unless ($debug) {
         $cmdline->die_with_error("There is no farm server running for farm '$farm'");
     }
 }
-if ($debug || $deployment eq 'testing') {
+if (1 || $debug || $deployment eq 'testing') {
     $backend->set_verbose_global(1);
 }
 
@@ -154,6 +154,7 @@ sub handle_setups {
                     $currently_triggering{$sid} = 1;
                     my $ds_id = $setup->datasource->id;
                     $datasource_watchers{$ds_id}->{working} = 1;
+                    $setup->disconnect;
                     fork_call {
                         $backend->debug("will trigger first_step_only for new setup $sid");
                         $setup->verbose(1) unless $debug;
@@ -194,6 +195,7 @@ sub handle_setups {
                         return if $datasource_watchers{$ds_id}->{working};
                         $datasource_watchers{$ds_id}->{working} = 1;
                         
+                        $setup->disconnect;
                         fork_call {
                             $ds->reselect_values_from_db;
                             my $e_before = VRPipe::DataElement->search({ datasource => $ds->id, withdrawn => 0 });
@@ -275,6 +277,7 @@ sub handle_setups {
                         my $ds_id = $setup->datasource->id;
                         $datasource_watchers{$ds_id}->{working} = 1;
                         
+                        $setup->disconnect;
                         fork_call {
                             # we will email the user once when overall state
                             # changes
@@ -307,23 +310,30 @@ sub handle_setups {
                             
                             # force a trigger for any apparently stalled
                             # datalementstates
+                            $backend->debug("looking for stalls");
                             my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
                             my $error_message;
                             if ($ie_pager) {
+                                $backend->debug("got incomplete_element_states");
                                 while (my $dess = $ie_pager->next) {
                                     foreach my $des (@$dess) {
                                         my $de = $des->dataelement;
                                         my $have_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid }, { join => 'stepstate' });
+                                        $backend->debug("de " . $de->id . " has $have_subs subs");
                                         
                                         if ($have_subs) {
-                                            # did they all complete, yet we
-                                            # still have an incomplete
-                                            # stepstate?
+                                            # we have subs so must have parsed
+                                            # something so there's no need to
+                                            # trigger... except in the case that
+                                            # all the subs are complete, in
+                                            # which case either we have an
+                                            # incomplete stepstate that the
+                                            # parse failed on, or we managed to
+                                            # complete one stepstate without
+                                            # creating a stepstate for the next
+                                            # step
                                             my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid, '_done' => 1 }, { join => 'stepstate' });
-                                            if ($complete_subs == $have_subs) {
-                                                my $incomplete_stepstates = VRPipe::StepState->search({ pipelinesetup => $sid, complete => 0 });
-                                                next unless $incomplete_stepstates;
-                                            }
+                                            next unless $complete_subs == $have_subs;
                                         }
                                         
                                         $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because it seems to be stalled");
@@ -336,6 +346,7 @@ sub handle_setups {
                                     }
                                 }
                             }
+                            $backend->debug("after looking for stalls");
                             
                             # make sure that any same_submissions_as stepstates
                             # haven't gotten stuck, which seems to be an issue
@@ -439,6 +450,7 @@ sub handle_submissions {
     my $handled_submissions = 0;
     my $watcher = EV::timer int(rand($timer_interval)), $timer_interval, sub {
         $backend->debug("entered timer, working is " . ($working ? 1 : 0));
+        $req->disconnect;
         return if $working;
         $working = 1;
         
@@ -496,7 +508,11 @@ sub handle_submissions {
                         # the job completion may have triggered the next step,
                         # in which case the job process is still doing
                         # something; wait until the heart has stopped beating
-                        sleep($job->survival_time + 1);
+                        $req->disconnect;
+                        my $cv = AnyEvent->condvar;
+                        my $sleep = AnyEvent->timer(after => $job->survival_time + 1, cb => sub { $cv->send });
+                        $cv->recv;
+                        
                         while (1) {
                             $job->reselect_values_from_db;
                             my $heartbeat = $job->heartbeat->epoch;
@@ -505,7 +521,10 @@ sub handle_submissions {
                                 last;
                             }
                             $req->disconnect;
-                            sleep(2);
+                            
+                            my $cv = AnyEvent->condvar;
+                            my $sleep = AnyEvent->timer(after => 2, cb => sub { $cv->send });
+                            $cv->recv;
                         }
                     }
                     elsif ($submission->failed) {
@@ -541,7 +560,14 @@ sub handle_submissions {
                     # this by changing queue as necessary
                     $backend->debug("sub " . $submission->id . " is close to time limit");
                     my $current_queue = $scheduler->determine_queue($req);
-                    $submission->extra_time;
+                    my $transaction   = sub {
+                        $submission->extra_time;
+                        unless ($given_sub) {
+                            $sidtosub->req_id($submission->requirements->id);
+                            $sidtosub->update;
+                        }
+                    };
+                    $req->do_transaction($transaction, 'Failed to add extra time to our submission requirements');
                     my $new_queue = $scheduler->determine_queue($submission->requirements);
                     
                     if ($new_queue ne $current_queue) {
@@ -559,8 +585,9 @@ sub handle_submissions {
                 }
             };
             if ($@) {
-                $req->disconnect;
-                exit_handler("There was a problem monitoring Submission " . $submission->id . ": $@");
+                # we want to avoid exiting while we're still running a job, so
+                # just blindly ignore the problem and hope it goes away...
+                $backend->log("There was a problem monitoring Submission " . $submission->id . ": $@");
             }
         }
         unless ($submission) {
@@ -607,9 +634,14 @@ sub handle_submissions {
                         else {
                             # we'll try and claim this one to run
                             undef $no_subs_found;
-                            my $allowed_time = int($end_time - time());
-                            return if $allowed_time < 60;
-                            (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $allowed_time);
+                            my $remaining_time = int($end_time - time());
+                            if ($remaining_time < $time_needed) {
+                                $sidtosub->sub_id(undef);
+                                $sidtosub->update;
+                                return exit_handler("Not enough time to try and run our submission");
+                            }
+                            
+                            (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $remaining_time);
                             if ($response == 0) {
                                 # there was some problem with this sub and it
                                 # just got reset; let's ignore it for now and
@@ -627,7 +659,7 @@ sub handle_submissions {
                                 # we just started running the sub's job
                                 $submission = $sub;
                                 $handled_submissions++;
-                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
+                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful (sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])', stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                             }
                         }
                     }
@@ -636,7 +668,7 @@ sub handle_submissions {
                     }
                 };
                 if ($@) {
-                    exit_handler("There was a problem running a new submission: $@");
+                    exit_handler("There was a problem claiming and running a new submission: $@");
                 }
                 elsif (!defined $submission) {
                     # wait for 60 failed attempts in a row to get a submission

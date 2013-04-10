@@ -778,7 +778,7 @@ XSL
         # we'll just warn, which will end up in the log file automatically; we
         # do not try and do anything fancy with flock() since that can be too
         # slow or end up locking the log file forever
-        my $log_msg = "$time{'yyyy/mm/dd hh:mm:ss'} | pid $$ | $msg\n";
+        my $log_msg = "$time{'yyyy-mm-dd hh:mm:ss'} | pid $$ | $msg\n";
         warn $log_msg;
         
         if (($force_when_testing || $self->deployment eq 'production') && ($email_to || $email_admin)) {
@@ -798,7 +798,7 @@ XSL
             my $sent = Email::Sender::Simple->try_to_send($email);
             
             unless ($sent) {
-                warn "$time{'yyyy/mm/dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
+                warn "$time{'yyyy-mm-dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
             }
         }
     }

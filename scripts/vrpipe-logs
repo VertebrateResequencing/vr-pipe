@@ -1,0 +1,90 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+=head1 AUTHOR
+
+Sendu Bala <sb10@sanger.ac.uk>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2013 Genome Research Limited.
+
+This file is part of VRPipe.
+
+VRPipe is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+use VRPipe::FrontEnd;
+
+my $frontend = VRPipe::FrontEnd->new(
+    description => "See the logs generated for a given PipelineSetup, showing all actions taken.",
+    opt_spec    => [
+        ['setup=s',           'See the logs for this setup (by id or name)',         { persistent_object => 'PipelineSetup' }],
+        ['like=s',            q[Show only logs that match the given string (you can use database 'like' placeholders such as _ or %]],
+        ['dataelement=i',     q[Limit the logs to those affecting this dataelement], { persistent_object => 'DataElement' }],
+        ['stepstate=i',       q[Limit the logs to those affecting this stepstate],   { persistent_object => 'StepState' }],
+        ['submission=i',      q[Limit the logs to those affecting this submission],  { persistent_object => 'Submission' }],
+        ['job=i',             q[Limit the logs to those affecting this job],         { persistent_object => 'Job' }],
+        ['pid=i',             q[Limit the log to those created by this process id]],
+        ['include_undefined', q[When using one of the previous limits, include logs where that type of thing was not specified at all, eg. if you limit on submission and turn this on, this also shows logs not related to any particular submission]],
+        ['show_traces',       q[For logs that include a stack trace, show them]],
+        ['limit|l=i',         'Only show the first --limit number of log lines'],
+        ['from=s',            q[Only show logs created after this date, specified naturally, eg. 'today' or 'monday' or '2pm' or '2013/04/03 14:00:00']],
+        ['to=s',              q[Only show logs created before this date, specified naturally, eg. 'yesterday' or 'now' etc.]],
+    ],
+    no_user_option => 1
+);
+
+my $setup = $frontend->opts('setup');
+unless ($setup) {
+    $frontend->die_with_error("--setup is required");
+}
+my $like              = $frontend->opts('like');
+my $dataelement       = $frontend->opts('dataelement');
+my $stepstate         = $frontend->opts('stepstate');
+my $submission        = $frontend->opts('submission');
+my $job               = $frontend->opts('job');
+my $pid               = $frontend->opts('pid');
+my $include_undefined = $frontend->option_was_set('include_undefined');
+my $show_traces       = $frontend->option_was_set('show_traces');
+my $limit             = $frontend->opts('limit') || 0;
+my $from              = $frontend->opts('from');
+my $to                = $frontend->opts('to');
+
+my $pager = $setup->logs(
+    paged => 1,
+    $like        ? (like        => $like)            : (),
+    $dataelement ? (dataelement => $dataelement->id) : (),
+    $stepstate   ? (stepstate   => $stepstate->id)   : (),
+    $submission  ? (submission  => $submission->id)  : (),
+    $job         ? (job         => $job->id)         : (),
+    $pid         ? (pid         => $pid)             : (),
+    include_undefined => $include_undefined,
+    $from ? (from => $from) : (),
+    $to   ? (to   => $to)   : ()
+);
+
+my $count = 0;
+LLOOP: while (my $logs = $pager->next(no_resetting => 1)) {
+    foreach my $log (@$logs) {
+        if ($limit) {
+            $count++;
+            last LLOOP if $count > $limit;
+        }
+        print $log->stringify(show_traces => $show_traces);
+    }
+}
+
+exit;

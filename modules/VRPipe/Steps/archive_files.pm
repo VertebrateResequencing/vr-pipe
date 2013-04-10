@@ -72,6 +72,15 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             # the failure, the successfully moved file gets deleted and our
             # input no longer exists!
             my ($file) = @{ $self->inputs->{file} };
+            
+            # make sure the file isn't already in the pool
+            my $path = $file->path;
+            foreach my $dir (@dirs) {
+                if ($path =~ /^$dir/) {
+                    return;
+                }
+            }
+            
             # pick a random directory from the pool
             my $root_dir = $dirs[int(rand($max))];
             

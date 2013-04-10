@@ -158,59 +158,62 @@ foreach my $estate (@element_states) {
         my $current_step_num = $completed_steps + 1;
         my ($step_member) = grep { $_->step_number == $current_step_num } @stepms;
         my ($sstate) = VRPipe::StepState->search({ stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup });
-        next unless $sstate;
-        
-        my @subs = VRPipe::Submission->search({ stepstate => $sstate->submission_search_id }, { prefetch => 'job' });
-        my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
-        foreach my $sub (@subs) {
-            if ($sub->failed) {
-                if ($sub->retries >= $retries) {
-                    $num_perm_failed++;
+        if ($sstate) {
+            my @subs = VRPipe::Submission->search({ stepstate => $sstate->submission_search_id }, { prefetch => 'job' });
+            my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
+            foreach my $sub (@subs) {
+                if ($sub->failed) {
+                    if ($sub->retries >= $retries) {
+                        $num_perm_failed++;
+                    }
+                    else {
+                        $num_failed++;
+                    }
+                }
+                elsif ($sub->done) {
+                    $num_done++;
                 }
                 else {
-                    $num_failed++;
+                    if ($sub->job->alive) {
+                        $num_running++;
+                    }
+                    else {
+                        $num_scheduled++;
+                    }
                 }
             }
-            elsif ($sub->done) {
-                $num_done++;
+            
+            my $current_step_name = $step_member->step->name;
+            my $status = $num_perm_failed ? 'STALLED' : 'working';
+            my @subs_desc;
+            if ($num_perm_failed) {
+                push(@subs_desc, "$num_perm_failed PERMANENTLY failed");
+            }
+            if ($num_failed) {
+                push(@subs_desc, "$num_failed temporarily failed");
+            }
+            if ($num_done) {
+                push(@subs_desc, "$num_done finished ok");
+            }
+            if ($num_running) {
+                push(@subs_desc, "$num_running currently running");
+            }
+            if ($num_scheduled) {
+                push(@subs_desc, "$num_scheduled scheduled to run");
+            }
+            my $subs_desc;
+            if (@subs_desc) {
+                $subs_desc = '(submission breakdown = ' . join(', ', @subs_desc) . ')';
             }
             else {
-                if ($sub->job->alive) {
-                    $num_running++;
-                }
-                else {
-                    $num_scheduled++;
-                }
+                $subs_desc = '(no submissons created for step state ' . $sstate->id . ' yet)';
             }
-        }
-        
-        my $current_step_name = $step_member->step->name;
-        my $status = $num_perm_failed ? 'STALLED' : 'working';
-        my @subs_desc;
-        if ($num_perm_failed) {
-            push(@subs_desc, "$num_perm_failed PERMANENTLY failed");
-        }
-        if ($num_failed) {
-            push(@subs_desc, "$num_failed temporarily failed");
-        }
-        if ($num_done) {
-            push(@subs_desc, "$num_done finished ok");
-        }
-        if ($num_running) {
-            push(@subs_desc, "$num_running currently running");
-        }
-        if ($num_scheduled) {
-            push(@subs_desc, "$num_scheduled scheduled to run");
-        }
-        my $subs_desc;
-        if (@subs_desc) {
-            $subs_desc = '(submission breakdown = ' . join(', ', @subs_desc) . ')';
+            
+            $step_desc = ": currently $status on $current_step_name $subs_desc";
         }
         else {
-            $subs_desc = '(no submissons created for step state ' . $sstate->id . ' yet)';
+            $step_desc = ': has no stepstate associated with it!';
         }
-        
-        $step_desc = ": currently $status on $current_step_name $subs_desc";
     }
     
     $frontend->output("ElementState ", $estate->id, " for pipeline $pipe_name in setup ", $setup->id, " completed step $last_step_name$step_desc", $withdrawn ? ', element is withdrawn' : '');

@@ -45,6 +45,9 @@ use VRPipe::Base;
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     use Crypt::Random qw(makerandom_itv);
     use DateTime;
+    use DateTime::TimeZone;
+    our $local_timezone = DateTime::TimeZone->new(name => 'local');
+    
     our %months = qw(Jan 1
       Feb 2
       Mar 3
@@ -339,17 +342,19 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         
         open(my $bfh, "bjobs -l $id |") || $self->warn("Could not call bjobs -l $id");
         my ($start_epoch, $end_epoch);
-        my $y = DateTime->now->year;
         if ($bfh) {
+            my $y = DateTime->now->year;           #*** bad things are going to happen every new year?...
+            
             while (<$bfh>) {
                 if (/^(.+): .*[Ss]tarted on/) {
-                    my ($mo, $d, $h, $m, $s) = $1 =~ /$date_regex/;
-                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s);
+                    my $ststr = $1;
+                    my ($mo, $d, $h, $m, $s) = $ststr =~ /$date_regex/;
+                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s, time_zone => $local_timezone);
                     $start_epoch = $dt->epoch;
                 }
                 elsif (/^(.+): (?:Exited|Completed)/) {
                     my ($mo, $d, $h, $m, $s) = $1 =~ /$date_regex/;
-                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s);
+                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s, time_zone => $local_timezone);
                     $end_epoch = $dt->epoch;
                     last;
                 }
