@@ -35,6 +35,7 @@ use VRPipe::FrontEnd;
 use VRPipe::Interface::BackEnd;
 use Proc::ProcessTable;
 use Proc::Killfam;
+use DateTime;
 
 # handle options
 my $cmdline = VRPipe::FrontEnd->new(
@@ -432,18 +433,27 @@ sub handle_submissions {
     
     $backend->debug("entered handle_submissions");
     
-    my $sidtosub;
+    my ($redis, $sidtosub);
     unless ($given_sub) {
-        # create a SidToSub; after a little while the server will set sub_id()
-        # on it
-        $sidtosub = VRPipe::SidToSub->create(farm => $farm, req_id => $req->id, sid => $scheduler->get_scheduler_id, aid => $scheduler->get_1based_index);
-        $backend->debug("created sidtosub " . $sidtosub->id);
+        # grab a submission from the redis queue
+        $redis = $backend->redis($farm);
+        my $sub_id = $redis->spop($req_id);
+        if ($sub_id) {
+            $backend->debug("grabbed sub $sub_id from the redis queue");
+            
+            # create a sidtosub
+            $sidtosub = VRPipe::SidToSub->create(farm => $farm, req_id => $req->id, sid => $scheduler->get_scheduler_id, aid => $scheduler->get_1based_index, sub_id => $sub_id, assignment_time => DateTime->now);
+            $backend->debug("created sidtosub " . $sidtosub->id);
+        }
+        else {
+            return exit_handler("There were no submissions for req $req_id in the queue");
+        }
     }
     
     $req->disconnect;
     
     # every so often we'll check on our submission to see how it is doing.
-    # if we don't have one, we'll wait until our $sidtosub is assigned one
+    # if we don't have one, we'll grab one from the redis queue
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
     my ($submission, $job_instance, $working, $no_subs_found);
     
@@ -615,12 +625,21 @@ sub handle_submissions {
                     return exit_handler("Our SidToSub got deleted");
                 }
                 
-                # see if our sidtosub was assigned a Submission yet, then try to
-                # claim and run it
+                # try to claim and run the sub_id we got from the redis queue
+                # (and get one from the queue if we don't have one)
                 $backend->debug("will check if sid has been assigned yet");
                 eval {
                     $sidtosub->reselect_values_from_db;
                     my $sub_id = $sidtosub->sub_id;
+                    
+                    unless ($sub_id) {
+                        # get one from the redis queue
+                        $sub_id = $redis->spop($req_id);
+                        if ($sub_id) {
+                            $sidtosub->sub_id($sub_id);
+                            $sidtosub->update;
+                        }
+                    }
                     
                     if ($sub_id) {
                         $backend->debug("it was assigned, will try to run it");
@@ -635,8 +654,7 @@ sub handle_submissions {
                             undef $no_subs_found;
                             my $remaining_time = int($end_time - time());
                             if ($remaining_time < $time_needed) {
-                                $sidtosub->sub_id(undef);
-                                $sidtosub->update;
+                                $sidtosub->delete;
                                 return exit_handler("Not enough time to try and run our submission");
                             }
                             
@@ -663,17 +681,17 @@ sub handle_submissions {
                         }
                     }
                     else {
-                        $backend->debug("not yet assigned");
+                        $backend->debug("no suitable subs in the redis queue");
                     }
                 };
                 if ($@) {
                     exit_handler("There was a problem claiming and running a new submission: $@");
                 }
                 elsif (!defined $submission) {
-                    # wait for 60 failed attempts in a row to get a submission
+                    # wait for 5 failed attempts in a row to get a submission
                     # before exiting
                     $no_subs_found++;
-                    if ($no_subs_found == 60) {
+                    if ($no_subs_found == 5) {
                         exit_handler("No submissions to work on");
                     }
                 }

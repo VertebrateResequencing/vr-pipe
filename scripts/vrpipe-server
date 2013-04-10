@@ -196,7 +196,7 @@ sub start_server {
     };
     
     # setup the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $still_working);
+    my ($farm_server, $farm_watcher, $handler_path, $still_working, $redis);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
@@ -246,6 +246,12 @@ sub start_server {
                             $AnyEvent::Util::MAX_FORKS = 2;
                         }
                     }
+                    
+                    # start and setup our connection to the redis-server
+                    my $redis_port  = $backend->redis_port;
+                    my $logging_dir = $backend->log_dir;
+                    system("redis-server --daemonize yes --pidfile $logging_dir/redis.pid --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048");
+                    $redis = $backend->redis($farm);
                 }
                 else {
                     $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
@@ -349,19 +355,26 @@ sub start_server {
                         # step limits. Also, to avoid handlers running a slow,
                         # complex query and possibly hitting transaction lock/
                         # database update inconsistency issues, instead of them
-                        # selecting a Submission to run we will assign a
-                        # a Submission, communicating via SidToSub objects; here
-                        # we just note the submissions we want to assign
+                        # selecting a Submission with normal db query they will
+                        # get one from the redis queue we will make
+                        my %already_taken;
+                        my $req_to_subs = VRPipe::SidToSub->get_column_values(['req_id', 'sub_id'], { farm => $farm, sub_id => { '!=' => undef } });
+                        foreach my $ref (@$req_to_subs) {
+                            my ($req_id, $sub_id) = @$ref;
+                            $already_taken{$req_id}->{$sub_id} = 1;
+                        }
+                        
                         my $sched_id = $scheduler->id;
                         $l = &$start_clock(__LINE__);
                         my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
                         &$elapsed($l, __LINE__);
                         
-                        my (%req_counts, %step_limits, %step_counts, %completed_setups, %subs_to_assign);
+                        my (%req_counts, %step_limits, %step_counts, %completed_setups, %redis_queue);
                         my $pager_loop_count = 0;
                         $l = &$start_clock(__LINE__);
                         while (my $subs = $sub_pager->next(no_resetting => 1)) {
                             foreach my $sub (@$subs) {
+                                my $sub_id = $sub->id;
                                 $pager_loop_count++;
                                 # if the job is a block_and_skip_if_ok job, we
                                 # don't actually block because of race condition
@@ -374,7 +387,7 @@ sub start_server {
                                     my $m = &$start_clock(__LINE__);
                                     my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
                                     &$elapsed($m, __LINE__);
-                                    next unless ($first_sub && $first_sub->id == $sub->id);
+                                    next unless ($first_sub && $first_sub->id == $sub_id);
                                 }
                                 
                                 # global step limit handling
@@ -391,8 +404,11 @@ sub start_server {
                                 $req_counts{$req_id}++;
                                 $step_counts{$step_id}++;
                                 
-                                # we'll want to assign this one
-                                $subs_to_assign{$req_id}->{ $sub->id } = 1;
+                                next if exists $already_taken{$req_id}->{$sub_id};
+                                
+                                # queue this one in redis
+                                $redis->sadd($req_id, $sub_id);
+                                $redis_queue{$req_id}->{$sub_id} = 1;
                             }
                         }
                         &$elapsed($l, __LINE__);
@@ -418,6 +434,25 @@ sub start_server {
                             }
                         }
                         
+                        # remove from the redis queue what we no longer need
+                        $l = &$start_clock(__LINE__);
+                        my @req_ids = VRPipe::Requirements->get_column_values('me.id', {});
+                        foreach my $req_id (@req_ids) {
+                            unless (exists $redis_queue{$req_id}) {
+                                $redis->del($req_id);
+                                next;
+                            }
+                            
+                            my $sub_ids = $redis->smembers($req_id);
+                            my @to_rem;
+                            foreach my $sub_id (@$sub_ids) {
+                                next if exists $redis_queue{$req_id}->{$sub_id};
+                                push(@to_rem, $sub_id);
+                            }
+                            $redis->srem($req_id, @to_rem) if @to_rem;
+                        }
+                        &$elapsed($l, __LINE__);
+                        
                         # submit the submission handlers to the scheduler
                         my %running_in_scheduler;
                         $l = &$start_clock(__LINE__);
@@ -442,25 +477,6 @@ sub start_server {
                         &$elapsed($l, __LINE__);
                         $elap = time() - $t_start;
                         #$backend->log("it took ${elap}s to submit the submission handlers");
-                        
-                        # assign sub_ids to sidtosubs
-                        $l = &$start_clock(__LINE__);
-                        my %already_assigned = map { $_ => 1 } VRPipe::SidToSub->get_column_values('sub_id', { farm => $farm, sub_id => { '!=' => undef } });
-                        &$elapsed($l, __LINE__);
-                        while (my ($req_id, $sub_hash) = each %subs_to_assign) {
-                            $subs_to_assign{$req_id} = [shuffle grep { !exists $already_assigned{$_} } keys %{$sub_hash}];
-                        }
-                        $l = &$start_clock(__LINE__);
-                        foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm, sub_id => undef })) {
-                            my $req_id = $sidtosub->req_id;
-                            my $sub_id = pop @{ $subs_to_assign{$req_id} || [] } || next;
-                            #$backend->log("assigning sidtosub " . $sidtosub->id . " sub $sub_id for req $req_id");
-                            $sidtosub->sub_id($sub_id);
-                            $sidtosub->update;
-                        }
-                        &$elapsed($l, __LINE__);
-                        $elap = time() - $t_start;
-                        #$backend->log("it took ${elap}s to assign sub_ids to sidtosubs");
                         
                         # delete any old defunct or stuck SidToSubs, and kill
                         # them from the scheduler as well
@@ -545,12 +561,22 @@ sub start_server {
                                     }
                                 }
                                 else {
-                                    # it hasn't been assigned a sub_id yet, but
-                                    # is that because we don't need a handler
-                                    # for this req_id anymore?
+                                    # it hasn't grabbed a sub_id yet, but is
+                                    # that because we don't need a handler for
+                                    # this req_id anymore?
                                     my $req_id = $sidtosub->req_id;
-                                    next if (defined $subs_to_assign{$req_id} && ref($subs_to_assign{$req_id}) eq 'ARRAY' && @{ $subs_to_assign{$req_id} });
-                                    $backend->log("$dstr it has not been assigned a sub_id because we no longer need a handler for req $req_id");
+                                    unless ($req_counts{$req_id}) {
+                                        $backend->log("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
+                                    }
+                                    else {
+                                        # ok, we still need it, perhaps it got
+                                        # stuck? When the submission handler
+                                        # undefs a submission it also updates
+                                        # assignment time, so we can see how
+                                        # long it has been sitting undefined
+                                        next if $sidtosub->time_since_assignment <= $leeway;
+                                        $backend->log("$dstr it's been over 5mins since the handler tried to get a new submission");
+                                    }
                                 }
                                 
                                 $backend->log("$dstr we'll ask the scheduler to kill this");
@@ -581,14 +607,10 @@ sub start_server {
                             &$elapsed($m, __LINE__);
                             unless ($created) {
                                 my $run_time = $scheduler->run_time($sid, $aid);
-                                #$backend->log("sid $sid $aid has been running for $run_time seconds");
                                 if ($run_time > $leeway) {
-                                    #$backend->log("we'll kill sid $sid\[$aid] because it never created a sidtosub");
+                                    $backend->log("we'll kill sid $sid\[$aid] because it never created a sidtosub");
                                     push(@sids_to_kill, [$sid, $aid]);
                                 }
-                            }
-                            else {
-                                #$backend->log("sid $sid $aid has $created sidtosubs");
                             }
                         }
                         &$elapsed($l, __LINE__);
