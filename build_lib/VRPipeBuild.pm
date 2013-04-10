@@ -106,6 +106,7 @@ sub required_modules {
         'Perl6::Form'                    => 0,
         'POSIX'                          => 0,
         'Proc::Killfam'                  => 0,
+        'Redis'                          => 1.9,
         'Storable'                       => 0,
         'Sys::CPU'                       => 0,
         'Sys::Hostname'                  => 0,
