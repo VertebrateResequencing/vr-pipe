@@ -56,7 +56,8 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use Email::Sender::Simple;
     use Email::Simple::Creator;
-    use Fcntl qw/:flock SEEK_END/;
+    use Sys::Hostname::Long;
+    use Redis;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -407,6 +408,12 @@ XSL
         writer => '_set_uid'
     );
     
+    has 'log_dir' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_log_dir'
+    );
+    
     has 'log_file' => (
         is     => 'ro',
         isa    => 'Str',
@@ -456,6 +463,18 @@ XSL
         }
     );
     
+    has 'redis_port' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        writer => '_set_redis_port'
+    );
+    
+    has '_redis' => (
+        is     => 'ro',
+        isa    => 'Object',
+        writer => '_set_redis'
+    );
+    
     method _build_schema {
         my $m = VRPipe::Manager->get;
         return $m->result_source->schema;
@@ -468,6 +487,19 @@ XSL
     
     method _create_manager {
         return VRPipe::Manager->create();
+    }
+    
+    method redis (Str $farm) {
+        my $redis = $self->_redis;
+        unless ($redis) {
+            my $redis_port = $self->redis_port;
+            my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
+            $self->throw("no farm server for farm '$farm'") unless $fs;
+            my $hostname = $fs->hostname || 'localhost';
+            $redis = Redis->new(server => "$hostname:$redis_port", reconnect => 60, encoding => undef);
+            $self->_set_redis($redis);
+        }
+        return $redis;
     }
     
     sub BUILD {
@@ -484,6 +516,13 @@ XSL
             die "VRPipe SiteConfig had no port specified for $method_name\n";
         }
         $self->_set_port("$port"); # values retrieved from Config might be env vars, so we must force stringification
+        
+        $method_name = $deployment . '_redis_port';
+        my $redis_port = $vrp_config->$method_name();
+        unless ($redis_port) {
+            die "VRPipe SiteConfig had no port specified for $method_name\n";
+        }
+        $self->_set_redis_port("$redis_port");
         
         my $umask = $vrp_config->server_umask;
         $self->_set_umask("$umask");
@@ -509,6 +548,7 @@ XSL
         $log_basename =~ s/\W/_/g;
         my $log_file = file($log_dir, 'vrpipe-server.' . $log_basename . '.log');
         $self->_set_log_file($log_file->stringify);
+        $self->_set_log_dir("$log_dir");
         
         require VRPipe::Persistent::Schema;
     }
