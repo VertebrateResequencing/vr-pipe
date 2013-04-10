@@ -38,10 +38,14 @@ is_deeply [$sidtosub->sid, $sidtosub->sub_id, $sidtosub->assignment_time], [1, u
 $sidtosub->sub_id(1);
 $sidtosub->update;
 is $sidtosub->sub_id, 1, 'setting sub_id works';
-ok $sidtosub->assignment_time, 'it also set assignment_time';
+my $assignment_time = $sidtosub->assignment_time;
+ok $assignment_time, 'it also set assignment_time';
+sleep(1);
 $sidtosub->sub_id(undef);
 $sidtosub->update;
-is_deeply [$sidtosub->sub_id, $sidtosub->assignment_time], [undef, undef], 'undeffing sub_id also undeffd assignment_time';
+my $new_time = $sidtosub->assignment_time;
+my $assignment_changed = $new_time->epoch > $assignment_time->epoch ? 1 : 0;
+is_deeply [$sidtosub->sub_id, $assignment_changed], [undef, 1], 'undeffing sub_id updated assignment_time';
 
 my @files;
 my $input1_path = file($output_dir, 'input1.txt');
