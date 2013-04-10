@@ -35,6 +35,7 @@ use VRPipe::LocalScheduler;
 use Sys::CPU;
 use POSIX qw(floor);
 use List::Util 'shuffle';
+use Path::Class;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -196,7 +197,7 @@ sub start_server {
     };
     
     # setup the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $still_working, $redis);
+    my ($farm_server, $farm_watcher, $handler_path, $still_working, $redis, $redis_server_cmd, $redis_pid_file, $redis_pid);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
@@ -250,7 +251,12 @@ sub start_server {
                     # start and setup our connection to the redis-server
                     my $redis_port  = $backend->redis_port;
                     my $logging_dir = $backend->log_dir;
-                    system("redis-server --daemonize yes --pidfile $logging_dir/redis.pid --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048");
+                    $redis_pid_file = file($logging_dir, 'redis.pid');
+                    system("redis-server --daemonize yes --pidfile $redis_pid_file --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048");
+                    system($redis_server_cmd);
+                    $redis_pid = $redis_pid_file->slurp;
+                    $backend->log("Started a Redis server with pid $redis_pid");
+                    
                     $redis = $backend->redis($farm);
                 }
                 else {
@@ -332,6 +338,13 @@ sub start_server {
                     #$backend->log("it took ${elap}s to do claim setups");
                     
                     if (@setups) {
+                        # make sure the redis server is alive
+                        unless (kill(0, $redis_pid)) {
+                            system($redis_server_cmd);
+                            $redis_pid = $redis_pid_file->slurp;
+                            $backend->log("Restarted the Redis server now with pid $redis_pid");
+                        }
+                        
                         # make sure we have a setups handler running for our
                         # farm
                         my $shcmd = "$handler_path --mode setups --farm $farm";
@@ -686,6 +699,7 @@ sub start_server {
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
     EV::run;
     
+    kill(9, $redis_pid) if $redis_pid;
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
     exit 0;
 }
