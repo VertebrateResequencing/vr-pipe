@@ -595,8 +595,9 @@ sub handle_submissions {
                 }
             };
             if ($@) {
-                $req->disconnect;
-                exit_handler("There was a problem monitoring Submission " . $submission->id . ": $@");
+                # we want to avoid exiting while we're still running a job, so
+                # just blindly ignore the problem and hope it goes away...
+                $backend->log("There was a problem monitoring Submission " . $submission->id . ": $@");
             }
         }
         unless ($submission) {

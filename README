@@ -115,6 +115,12 @@ parser or the bas function you can use SQLite, supplying a file path for the
 database name. Note that the local scheduler currently doesn't work well with an
 SQLite database, so some tests are likely to fail with that combination.
 
+Note that when using MySQL, the server should be configured to allow at least
+1/3 as many connections as you have CPUs in your cluster. It must also allow
+the transaction isolation level to be changed. In practice this means that if
+you have database replication set up, you may find that you have to reconfigure
+the server to binlog-mode=MIXED and restart/redo your replication server.
+
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
 

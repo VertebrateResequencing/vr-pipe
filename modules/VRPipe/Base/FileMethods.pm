@@ -329,7 +329,16 @@ role VRPipe::Base::FileMethods {
     }
     
     method check_magic (File $path, ArrayRef[Int] $correct_magic) {
-        my $magic = `od -b $path 2> /dev/null | head -1`; #*** hardly cross-platform?! ; some strange shell issue with broken pipe warnings, even though it runs fine
+        # *** hardly cross-platform?!
+        
+        # *** od can hang for thousands of seconds, so at least disconnect from
+        #     the db before doing this
+        #*** how?! we are a base class with no db handling... instead all our
+        # callers would have to do the disconnect...
+        # Hopefully using -N 16 will avoid the hangs in future?...
+        
+        my $magic = `od -N 16 -b $path`;
+        
         my (undef, @magic) = split(/\s/, $magic);
         my $is_correct = 1;
         foreach my $m (@$correct_magic) {

@@ -178,6 +178,7 @@ class VRPipe::Parser::bam with VRPipe::ParserRole {
             # open in the C API
             ($self->{_chead}, $self->{_cbam}, $self->{_cb}) = $self->_initialize_bam($filename);
             
+            $vrpf->disconnect;
             return $fh;
         }
         else {
