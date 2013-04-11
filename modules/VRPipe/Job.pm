@@ -170,6 +170,11 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         default => 0
     );
     
+    has '_redis' => (
+        is  => 'rw',
+        isa => 'Object'
+    );
+    
     has '_signalled_to_death' => (
         is  => 'rw',
         isa => 'Str'
@@ -349,7 +354,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         return $end_time - $start_time->epoch;
     }
     
-    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?) {
+    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?, Object :$redis?) {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
@@ -358,6 +363,17 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         # we'll have 3 responses: -1 = job already exited; 0 = job already
         # running; 1 = we just started running it
         my $response;
+        
+        # avoid the db-based transaction and locking mechanism below by doing a
+        # safer, simple redis lock with NX. We don't rely on this though, since
+        # the redis server could go down and we'd lose all locks
+        if ($redis) {
+            unless ($redis->set('job.' . $self->id => 1, EX => 300, 'NX')) {
+                $ss->pipelinesetup->log_event("Job->run() called, but there is a redis lock on it", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                return 0;
+            }
+            $self->_redis($redis);
+        }
         
         # check we're allowed to run, in a transaction to avoid race condition
         my $start_time  = DateTime->now();
@@ -799,6 +815,11 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     around beat_heart {
         $self->reselect_values_from_db unless $self->_i_started_running;
         return unless $self->start_time;
+        my $redis = $self->_redis;
+        if ($redis) {
+            my $refreshed = $redis->expire('job.' . $self->id, 2 * $self->survival_time);
+            warn "$$ unable to refresh redis lock" unless $refreshed;
+        }
         return $self->$orig;
     }
     

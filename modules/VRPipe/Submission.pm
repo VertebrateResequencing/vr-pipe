@@ -130,7 +130,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_failed;
     }
     
-    method claim_and_run (PositiveInt :$allowed_time?) {
+    method claim_and_run (PositiveInt :$allowed_time?, Object :$redis?) {
         # we'll return one of a number of responses: 0 = there was some problem
         # so the job and sub were reset; 1 = this process just now claimed the
         # sub and started running the job; 2 = the job is already exited and the
@@ -206,7 +206,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
             }
             
             # see if we can get the job to start running, and set claim if so
-            my $run_response = $job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : ());
+            my $run_response = $job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : (), $redis ? (redis => $redis) : ());
             if (!$run_response) {
                 $ps->log_event("claim_and_run() tried to run() the Job but it was already running", %log_event_args);
                 $response = 3;
