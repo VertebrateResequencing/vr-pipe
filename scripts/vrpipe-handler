@@ -434,13 +434,20 @@ sub handle_submissions {
     
     $backend->debug("entered handle_submissions");
     
-    my ($redis, $sidtosub);
+    my ($redis, $sidtosub, $grabbed_key);
+    my $redis_ex = $deployment eq 'production' ? 600 : 60;
     unless ($given_sub) {
         # grab a submission from the redis queue
         $redis = $backend->redis($farm);
         my $sub_id = $redis->spop($req_id);
         if ($sub_id) {
             $backend->debug("grabbed sub $sub_id from the redis queue");
+            
+            # note that we grabbed this, so that the server doesn't readd the
+            # sub to the queue. Set an expire time in case this process dies
+            # before finishing the submission
+            $grabbed_key = 'grabbed.' . $sub_id;
+            $redis->set($grabbed_key => 1, EX => $redis_ex);
             
             # create a sidtosub
             $sidtosub = VRPipe::SidToSub->create(farm => $farm, req_id => $req->id, sid => $scheduler->get_scheduler_id, aid => $scheduler->get_1based_index, sub_id => $sub_id, assignment_time => DateTime->now);
@@ -484,6 +491,10 @@ sub handle_submissions {
             }
             
             eval {
+                # refresh expire time so no other process can grab this sub
+                # while we're still working on it
+                $redis->expire($grabbed_key, $redis_ex);
+                
                 my $job = $submission->job;
                 $job->reselect_values_from_db;
                 $submission->reselect_values_from_db;
@@ -546,6 +557,7 @@ sub handle_submissions {
                     }
                     if ($sidtosub) {
                         $backend->debug("had a sidtosub, will undef it");
+                        $redis->del($grabbed_key);
                         eval {
                             $sidtosub->sub_id(undef);
                             $sidtosub->update;
@@ -644,6 +656,8 @@ sub handle_submissions {
                         # get one from the redis queue
                         $sub_id = $redis->spop($req_id);
                         if ($sub_id) {
+                            $grabbed_key = 'grabbed.' . $sub_id;
+                            $redis->set($grabbed_key => 1, EX => $redis_ex);
                             $sidtosub->sub_id($sub_id);
                             $sidtosub->update;
                         }

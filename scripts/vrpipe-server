@@ -418,6 +418,7 @@ sub start_server {
                                 $step_counts{$step_id}++;
                                 
                                 next if exists $already_taken{$req_id}->{$sub_id};
+                                next if $redis->exists('grabbed.' . $sub_id);
                                 
                                 # queue this one in redis
                                 $redis->sadd($req_id, $sub_id);
