@@ -427,10 +427,12 @@ sub handle_setups {
 sub handle_submissions {
     my ($req, $scheduler, $given_sub) = @_;
     $backend->log_stderr unless $debug;
-    my $req_id                = $req->id;
-    my $time_needed           = $req->time;
-    my $end_time              = (time() + $scheduler->queue_time($req)) - 65;
-    my $mins_before_switching = $time_needed < 600 ? 1 : 5;
+    my $req_id                   = $req->id;
+    my $time_needed              = $req->time;
+    my $end_time                 = (time() + $scheduler->queue_time($req)) - 65;
+    my $mins_before_switching    = $time_needed < 600 ? 1 : 5;
+    my $seconds_before_switching = $mins_before_switching * 60;
+    my $current_req_time         = $req->time;
     
     $backend->debug("entered handle_submissions");
     
@@ -472,7 +474,7 @@ sub handle_submissions {
         $working = 1;
         
         if ($submission) {
-            $backend->debug("looking at sub " . $submission->id);
+            $backend->debug("looking at sub");
             
             if ($deployment eq 'testing') {
                 my $still_in_db = VRPipe::Job->search({ id => $submission->job->id });
@@ -495,9 +497,7 @@ sub handle_submissions {
                 # while we're still working on it
                 $redis->expire($grabbed_key, $redis_ex);
                 
-                my $job = $submission->job;
-                $job->reselect_values_from_db;
-                $submission->reselect_values_from_db;
+                my $job = $job_instance;
                 if (!$job->start_time) {
                     # hmmm, this really shouldn't happen
                     $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions had started to run a Job, yet it has no start_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
@@ -519,7 +519,11 @@ sub handle_submissions {
                     return;
                 }
                 
+                my $close_to_time_limit = $job->wall_time > ($current_req_time - $seconds_before_switching);
+                
                 if ($job->end_time) {
+                    $job->reselect_values_from_db;
+                    $submission->reselect_values_from_db;
                     $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions was monitoring a Job which now has an end_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     $submission->archive_output;
                     
@@ -568,7 +572,7 @@ sub handle_submissions {
                         $backend->debug("had no sidtosub");
                     }
                     
-                    my $signal = $job_instance->_signalled_to_death;
+                    my $signal = $job->_signalled_to_death;
                     if ($signal) {
                         $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it received a SIG$signal", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                         return exit_handler($submission->id . " failed because we received a SIG$signal");
@@ -577,7 +581,7 @@ sub handle_submissions {
                     $backend->debug("will undef submission");
                     undef $submission;
                 }
-                elsif ($submission->close_to_time_limit($mins_before_switching)) {
+                elsif ($close_to_time_limit) {
                     # user's scheduler might kill the submission if it runs too
                     # long in the queue it was initially submitted to; avoid
                     # this by changing queue as necessary
@@ -592,6 +596,7 @@ sub handle_submissions {
                         }
                     };
                     $req->do_transaction($transaction, 'Failed to add extra time to our submission requirements');
+                    $current_req_time = $submission->requirements->time;
                     $req->disconnect;
                     my $new_queue = $scheduler->determine_queue($submission->requirements);
                     
