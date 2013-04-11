@@ -187,7 +187,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?) {
+    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?, Object :$redis?) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -239,7 +239,26 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 my $completed_steps = $estate->completed_steps;
                 next if $completed_steps == $num_steps;
                 
-                $self->debug("working on estate " . $estate->id);
+                # in addition to the db-based locking we do later on for
+                # stepstates, we also use redis to skip the whole des to be
+                # extra certain and reduce db load. (We can't rely on redis
+                # because the redis server may go down and we'll lose our locks)
+                my $esid       = $estate->id;
+                my $redis_lock = 'es.' . $esid;
+                my $redis_ex   = 1200;
+                if ($redis) {
+                    # since we just want to skip and do nothing (even in the
+                    # case of 'single de' mode) if another process is looking at
+                    # this des, we don't have to do anything fancy beyond the NX
+                    unless ($redis->set($redis_lock => 1, EX => $redis_ex, 'NX')) {
+                        $self->debug("estate $esid is being triggered by another process, will skip it");
+                        next;
+                    }
+                    $self->debug("working on estate $esid having got the redis lock");
+                }
+                else {
+                    $self->debug("working on estate $esid");
+                }
                 
                 my $sm_error;
                 foreach my $member (@step_members) {
@@ -268,6 +287,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         # forces this transaction to always take 1 second
                         my $before_lock_time = time();
                         $self->lock_row($state, 1);
+                        $redis->expire($redis_lock, $redis_ex) if $redis;
                         
                         # however it's really important that we do read the
                         # latest data, so we do the fix 'manually'
@@ -323,10 +343,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     my ($pp_error, $possible_db_error);
                                     $self->debug("will post_process");
                                     $self->log_event("PipelineSetup->trigger, will post_process", dataelement => $element->id, stepstate => $state->id);
+                                    $redis->expire($redis_lock, $redis_ex) if $redis;
                                     eval { # (try catch not used because stupid perltidy is stupid)
                                         $pp_error = $step->post_process();
                                     };
-                                    
                                     if ($@ && !$pp_error) {
                                         $pp_error          = $@;
                                         $possible_db_error = 1;
@@ -408,6 +428,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             my ($parse_return, $possible_db_error);
                             $self->debug("will parse");
                             $self->log_event("PipelineSetup->trigger will parse", dataelement => $element->id, stepstate => $state->id);
+                            $redis->expire($redis_lock, $redis_ex) if $redis;
                             try {
                                 $parse_return = $step->parse();
                             }
@@ -594,6 +615,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     $redos++;
                     if ($redos <= $max_redos) {
                         $self->debug("redo");
+                        $redis->del($redis_lock) if $redis;
                         redo ESTATE;
                     }
                     else {
@@ -603,6 +625,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     }
                 }
                 
+                $redis->del($redis_lock) if $redis;
                 $redos = 0;
             }
         }
