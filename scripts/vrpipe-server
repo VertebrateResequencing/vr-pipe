@@ -254,10 +254,15 @@ sub start_server {
                     $redis_pid_file = file($logging_dir, 'redis.pid');
                     $redis_server_cmd = "redis-server --daemonize yes --pidfile $redis_pid_file --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048";
                     system($redis_server_cmd);
-                    $redis_pid = $redis_pid_file->slurp;
-                    $backend->log("Started a Redis server with pid $redis_pid");
-                    
-                    $redis = $backend->redis($farm);
+                    unless (-s $redis_pid_file) {
+                        $backend->log("Failed to start the Redis server; see $logging_dir/redis.log for details; can't continue submission management");
+                        undef $farm_server;
+                    }
+                    else {
+                        $redis_pid = $redis_pid_file->slurp;
+                        $backend->log("Started a Redis server with pid $redis_pid");
+                        $redis = $backend->redis($farm);
+                    }
                 }
                 else {
                     $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
