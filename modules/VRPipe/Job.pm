@@ -797,7 +797,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     around beat_heart {
-        $self->reselect_values_from_db;
+        $self->reselect_values_from_db unless $self->_i_started_running;
         return unless $self->start_time;
         return $self->$orig;
     }
