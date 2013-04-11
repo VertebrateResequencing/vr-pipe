@@ -570,7 +570,8 @@ sub handle_submissions {
                     # long in the queue it was initially submitted to; avoid
                     # this by changing queue as necessary
                     $backend->debug("sub " . $submission->id . " is close to time limit");
-                    my $current_queue = $scheduler->determine_queue($req);
+                    $req->disconnect;
+                    my $current_queue = $scheduler->determine_queue($submission->requirements);
                     my $transaction   = sub {
                         $submission->extra_time;
                         unless ($given_sub) {
@@ -579,10 +580,12 @@ sub handle_submissions {
                         }
                     };
                     $req->do_transaction($transaction, 'Failed to add extra time to our submission requirements');
+                    $req->disconnect;
                     my $new_queue = $scheduler->determine_queue($submission->requirements);
                     
                     if ($new_queue ne $current_queue) {
                         $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions is close to the time limit, so switching from queue $current_queue to $new_queue", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                        $req->disconnect;
                         $scheduler->switch_queue($scheduler->get_scheduler_id, $new_queue);
                     }
                     
@@ -596,6 +599,7 @@ sub handle_submissions {
                 }
                 
                 $req->disconnect;
+                $backend->debug("disconnected in eval");
             };
             if ($@) {
                 # we want to avoid exiting while we're still running a job, so
@@ -631,7 +635,7 @@ sub handle_submissions {
                 
                 # try to claim and run the sub_id we got from the redis queue
                 # (and get one from the queue if we don't have one)
-                $backend->debug("will check if sid has been assigned yet");
+                $backend->debug("will check if sid has grabbed a sub yet");
                 eval {
                     $sidtosub->reselect_values_from_db;
                     my $sub_id = $sidtosub->sub_id;
@@ -646,7 +650,7 @@ sub handle_submissions {
                     }
                     
                     if ($sub_id) {
-                        $backend->debug("it was assigned, will try to run it");
+                        $backend->debug("we grabbed a sub, will try to run it");
                         my ($sub) = VRPipe::Submission->search({ id => $sub_id });
                         unless ($sub) {
                             $sidtosub->sub_id(undef);
@@ -689,6 +693,7 @@ sub handle_submissions {
                     }
                     
                     $req->disconnect;
+                    $backend->debug("disconnected in eval");
                 };
                 if ($@) {
                     exit_handler("There was a problem claiming and running a new submission: $@");
