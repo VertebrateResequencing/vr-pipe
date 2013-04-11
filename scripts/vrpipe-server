@@ -376,6 +376,8 @@ sub start_server {
                             my ($req_id, $sub_id) = @$ref;
                             $already_taken{$req_id}->{$sub_id} = 1;
                         }
+                        # (we have this in case the redis server goes down and
+                        #  we that lose knowledge of what was grabbed)
                         
                         my $sched_id = $scheduler->id;
                         $l = &$start_clock(__LINE__);
@@ -419,6 +421,14 @@ sub start_server {
                                 
                                 next if exists $already_taken{$req_id}->{$sub_id};
                                 next if $redis->exists('grabbed.' . $sub_id);
+                                
+                                #*** note the race condition between testing
+                                # if a handler grabbed it above, and adding it
+                                # to the queue below: the handler could grab it
+                                # right now and we won't know. multi doesn't
+                                # seem to help, because we can't see any values
+                                # during a multi, so can't stop the sadd from
+                                # happening if grabbed exists
                                 
                                 # queue this one in redis
                                 $redis->sadd($req_id, $sub_id);
