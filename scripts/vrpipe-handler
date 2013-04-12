@@ -160,9 +160,7 @@ sub handle_setups {
                     $setup->disconnect;
                     fork_call {
                         $backend->debug("will trigger first_step_only for new setup $sid");
-                        $setup->verbose(1) unless $debug;
                         $setup->trigger(first_step_only => 1, redis => $redis);
-                        $setup->verbose(0) unless $debug;
                         return;
                     }
                     sub {
@@ -222,9 +220,7 @@ sub handle_setups {
                                     #  currently_triggering marker... it should
                                     #  be ok to trigger first step only...)
                                     $ds_setup->log_event("vrpipe-handler for setups called datasource->elements which changed the number of dataelements from $e_before => $e_after, will trigger the first step");
-                                    $ds_setup->verbose(1) unless $debug;
                                     $ds_setup->trigger(first_step_only => 1, prepare_elements => 0, redis => $redis);
-                                    $ds_setup->verbose(0) unless $debug;
                                     $backend->debug("finished first_step_only trigger for setup " . $ds_setup->id);
                                 }
                             }
@@ -340,9 +336,7 @@ sub handle_setups {
                                         }
                                         
                                         $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because it seems to be stalled");
-                                        $setup->verbose(1) unless $debug;
                                         my $this_error = $setup->trigger(dataelement => $de, redis => $redis);
-                                        $setup->verbose(0) unless $debug;
                                         if ($this_error && !$error_message) {
                                             $error_message = $this_error;
                                         }
@@ -362,9 +356,7 @@ sub handle_setups {
                                         next unless $same->complete;
                                         my $de = $step_state->dataelement;
                                         $backend->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
-                                        $setup->verbose(1) unless $debug;
                                         my $this_error = $setup->trigger(dataelement => $de, redis => $redis);
-                                        $setup->verbose(0) unless $debug;
                                         if ($this_error && !$error_message) {
                                             $error_message = $this_error;
                                         }
