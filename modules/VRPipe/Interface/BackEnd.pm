@@ -496,7 +496,7 @@ XSL
             my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
             $self->throw("no farm server for farm '$farm'") unless $fs;
             my $hostname = $fs->hostname || 'localhost';
-            $redis = Redis->new(server => "$hostname:$redis_port", reconnect => 60, encoding => undef);
+            $redis = Redis->new(server => "$hostname:$redis_port", reconnect => $self->deployment eq 'production' ? 60 : 6, encoding => undef);
             $self->_set_redis($redis);
         }
         return $redis;
