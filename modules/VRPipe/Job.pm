@@ -818,7 +818,13 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         my $redis = $self->_redis;
         if ($redis) {
             my $refreshed = $redis->expire('job.' . $self->id, 2 * $self->survival_time);
-            warn "$$ unable to refresh redis lock" unless $refreshed;
+            unless ($refreshed) {
+                warn "$$ unable to refresh redis lock";
+                
+                # presumably the redis server went down and we lost the lock;
+                # if the server came back let's try and create the lock again
+                $redis->set('job.' . $self->id => 1, EX => 2 * $self->survival_time, 'NX');
+            }
         }
         return $self->$orig;
     }
