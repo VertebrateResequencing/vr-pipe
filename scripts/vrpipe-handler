@@ -526,7 +526,6 @@ sub handle_submissions {
                 if ($job->end_time) {
                     $job->reselect_values_from_db;
                     $submission->reselect_values_from_db;
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions was monitoring a Job which now has an end_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     $submission->archive_output;
                     
                     if ($submission->done) {
