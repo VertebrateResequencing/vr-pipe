@@ -345,9 +345,18 @@ sub start_server {
                     if (@setups) {
                         # make sure the redis server is alive
                         unless (kill(0, $redis_pid)) {
+                            unlink($redis_pid_file);
                             system($redis_server_cmd);
-                            $redis_pid = $redis_pid_file->slurp;
-                            $backend->log("Restarted the Redis server now with pid $redis_pid");
+                            unless (-s $redis_pid_file) {
+                                my $log_file = file($backend->log_dir, 'redis.log');
+                                $backend->log("Failed to start the Redis server; see $log_file for details; can't continue submission management");
+                                undef $farm_server;
+                                return;
+                            }
+                            else {
+                                $redis_pid = $redis_pid_file->slurp;
+                                $backend->log("Restarted the Redis server, now with pid $redis_pid");
+                            }
                         }
                         
                         # make sure we have a setups handler running for our
@@ -595,7 +604,7 @@ sub start_server {
                                     # this req_id anymore?
                                     my $req_id = $sidtosub->req_id;
                                     unless ($req_counts{$req_id}) {
-                                        $backend->log("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
+                                        #$backend->log("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
                                     }
                                     else {
                                         # ok, we still need it, perhaps it got
@@ -604,11 +613,11 @@ sub start_server {
                                         # assignment time, so we can see how
                                         # long it has been sitting undefined
                                         next if $sidtosub->time_since_assignment <= $leeway;
-                                        $backend->log("$dstr it's been over 5mins since the handler tried to get a new submission");
+                                        #$backend->log("$dstr it's been over 5mins since the handler tried to get a new submission");
                                     }
                                 }
                                 
-                                $backend->log("$dstr we'll ask the scheduler to kill this");
+                                #$backend->log("$dstr we'll ask the scheduler to kill this");
                                 push(@sids_to_kill, [$sid, $aid]);
                             }
                             
