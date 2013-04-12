@@ -638,7 +638,6 @@ sub handle_submissions {
             else {
                 my $still_in_db = VRPipe::SidToSub->search({ id => $sidtosub->id });
                 unless ($still_in_db) {
-                    $backend->log("sidtosub " . $sidtosub->id . " got deleted");
                     return exit_handler("Our SidToSub got deleted");
                 }
                 
@@ -726,17 +725,18 @@ sub handle_submissions {
     };
     
     # run the event loop
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
+    $backend->debug("The submissions handler for farm $farm, req " . $req->id . " is now running.");
     EV::run;
     
-    $backend->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
+    $backend->debug("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
     kill_remaining_children();
     exit 0;
 }
 
 sub exit_handler {
     my $msg = shift;
-    $backend->log($msg . ", will gracefully exit $mode handler."); # if $mode eq 'setups'
+    my $method = $mode eq 'setups' ? 'log' : 'debug';
+    $backend->$method($msg . ", will gracefully exit $mode handler."); # if $mode eq 'setups'
     EV::unloop;
 }
 
