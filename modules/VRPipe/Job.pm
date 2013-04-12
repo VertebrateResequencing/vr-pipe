@@ -398,7 +398,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             $self->_living_id("$self");
             $self->_i_started_running(1);
             $self->update;
-            $ss->pipelinesetup->log_event("Job->run() called and set our start_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $response) {
@@ -593,8 +592,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     # update our Submission
                     if ($submission) {
                         if ($exit_code == 0) {
-                            $setup->log_event("At end of Job->run() call found that the Job was ok, so Submission->done will be set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
-                            
                             # say the sub is done
                             $submission->_done(1);
                             $submission->_failed(0);
@@ -637,11 +634,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             $submission->_failed(1);
                             $submission->_claim(0);
                             $submission->update;
-                            
-                            $setup->log_event("At end of Job->run() call found that the Job was not ok, so Submission->failed set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
                         }
-                        
-                        $setup->log_event("At end of Job->run() call, leaving transaction, sub _done is " . $submission->_done . ", _failed is " . $submission->_failed . " and our start/end_time & exit_code is " . $self->start_time . '/' . $self->end_time . ' & ' . $self->exit_code, dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
                     }
                 };
                 $self->do_transaction($transaction, "Failed to finalise Job and Submission state after the cmd-running child exited");

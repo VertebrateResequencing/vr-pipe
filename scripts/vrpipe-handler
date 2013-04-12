@@ -74,7 +74,7 @@ unless ($debug) {
         $cmdline->die_with_error("There is no farm server running for farm '$farm'");
     }
 }
-if (1 || $debug || $deployment eq 'testing') {
+if ($debug || $deployment eq 'testing') {
     $backend->set_verbose_global(1);
 }
 
@@ -291,7 +291,7 @@ sub handle_setups {
                             if ($setup->currently_complete) {
                                 unless ($mt->already_sent("complete with $num_states elements")) {
                                     unless ($num_states == 0) {
-                                        $setup->log_event("vrpipe-handler for setups found completed the setup with $num_states DataElements");
+                                        $setup->log_event("vrpipe-handler for setups completed the setup with $num_states DataElements");
                                         my $name = $setup->name;
                                         my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
                                         $backend->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
@@ -305,7 +305,7 @@ sub handle_setups {
                             my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
                             if ($perma_fails) {
                                 unless ($mt->already_sent("has some perma fails")) {
-                                    $setup->log_event("vrpipe-handler for setups called found repeated failures for the setup that need user intervention");
+                                    $setup->log_event("vrpipe-handler for setups found repeated failures for the setup that need user intervention");
                                     my $long = "Investigate the problems by running:\n\$ vrpipe-submissions --setup $sid --failed\n(add --list 1 to limit the amount of output)\n\nOnce the issue has been resolved, give the failed submissions another try by running:\n\$ vrpipe-submissions --setup $sid --failed --start_over --no_report\n(or replace --start_over with --full_reset if your fix would change the command line that needs to be run)\n";
                                     $backend->log("Setup $sid has repeated failures that need user intervention", email_to => [$setup->user], subject => "Setup $sid has problems", long_msg => $long);
                                 }

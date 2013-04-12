@@ -142,8 +142,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # will hold non-persistent data for _signalled_to_death
         my $job_instance;
         my $transaction = sub {
-            $self->stepstate->pipelinesetup->log_event("claim_and_run() entered transaction", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
-            
             # lock the Sub and Job rows before trying to claim
             my $job = $self->job;
             $self->lock_row($job);
@@ -152,7 +150,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
             my $ss             = $self->stepstate;
             my $ps             = $ss->pipelinesetup;
             my %log_event_args = (dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $self->id, job => $job->id);
-            $ps->log_event("claim_and_run() got row locks for Submission and Job", %log_event_args);
             
             # first check if the job has already started or finished
             if ($self->done || $self->failed || (defined $job->exit_code && $job->end_time)) {
@@ -190,7 +187,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                     $self->_reset_job;
                     $self->_reset;
                     $response = 0;
-                    $ps->log_event("claim_and_run() returning from transaction", %log_event_args);
                     return;
                 }
             }
@@ -224,7 +220,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 }
             }
             elsif ($run_response == 1) {
-                $ps->log_event("claim_and_run() was able to run() the Job, so claiming the Submission as well", %log_event_args);
                 $self->_claim(1);
                 $self->update;
                 $response     = 1;
@@ -233,10 +228,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
             
             my $claim = $self->_claim    || 0;
             my $st    = $job->start_time || 'n/a';
-            $ps->log_event("claim_and_run() ending transaction, _claim is $claim and job start_time is $st", %log_event_args);
         };
         $self->do_transaction($transaction, "Failed when trying to claim and run");
-        $self->stepstate->pipelinesetup->log_event("claim_and_run() after transaction", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
         
         return ($response, $job_instance);
     }
