@@ -654,7 +654,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 if (@to_trigger) {
                     foreach my $ref (@to_trigger) {
                         my ($setup, $de) = @$ref;
-                        my $error_message = $setup->trigger(dataelement => $de);
+                        my $error_message = $setup->trigger(dataelement => $de, $redis ? (redis => $redis) : ());
                         
                         if ($ss) {
                             if ($error_message) {
