@@ -475,6 +475,7 @@ sub handle_submissions {
         $working = 1;
         
         if ($submission) {
+            my $ts = time();
             $backend->debug("looking at sub");
             
             if ($deployment eq 'testing') {
@@ -624,8 +625,12 @@ sub handle_submissions {
                 # just blindly ignore the problem and hope it goes away...
                 $backend->log("There was a problem monitoring Submission " . $submission->id . ": $@");
             }
+            
+            my $elap = time() - $ts;
+            $backend->log("job checking took ${elap}s");
         }
         unless ($submission) {
+            my $ts = time();
             if (time() >= $end_time) {
                 return exit_handler("There is not enough time to start working on a new submission");
             }
@@ -727,6 +732,9 @@ sub handle_submissions {
                     }
                 }
             }
+            
+            my $elap = time() - $ts;
+            $backend->log("submission grabbing took ${elap}s");
         }
         
         $backend->debug("disconnecting and setting working to 0");
