@@ -305,7 +305,7 @@ class VRPipe::FrontEnd {
         }
         
         if ($self->_multiple_setups && !@setups) {
-            $self->die_with_error("No PipelineSetups match your settings (did you remember to specifiy --user?)");
+            $self->die_with_error("No PipelineSetups match your settings (did you remember to specify --user?)");
         }
         
         return $self->_multiple_setups ? @setups : $setups[0];

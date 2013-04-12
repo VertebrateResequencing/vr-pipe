@@ -879,7 +879,7 @@ XSL
         }
         
         if ($multi_setups && !@setups && !$allow_no_setups) {
-            die "No PipelineSetups match your settings (did you remember to specifiy --user?)\n";
+            die "No PipelineSetups match your settings (did you remember to specify --user?)\n";
         }
         
         return $multi_setups ? @setups : $setups[0];
