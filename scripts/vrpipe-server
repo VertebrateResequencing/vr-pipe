@@ -715,7 +715,12 @@ sub start_server {
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
     EV::run;
     
-    kill(9, $redis_pid) if $redis_pid;
+    # kill the redis server if we were testing, but not if in production, so
+    # that we don't break handlers that are still running
+    if ($deployment eq 'testing' && $redis_pid) {
+        kill(9, $redis_pid);
+    }
+    
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
     exit 0;
 }
