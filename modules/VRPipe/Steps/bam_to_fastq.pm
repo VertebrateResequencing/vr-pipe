@@ -37,11 +37,11 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
     use VRPipe::Parser;
     
     method options_definition {
-        return { 
-            bam2fastq_exe => VRPipe::StepOption->create(description => 'path to bam2fastq executable', optional => 1, default_value => 'bam2fastq'),
+        return {
+            bam2fastq_exe  => VRPipe::StepOption->create(description => 'path to bam2fastq executable',    optional => 1, default_value => 'bam2fastq'),
             bam2fastq_opts => VRPipe::StepOption->create(description => 'bam2fastq options excluding --o', optional => 1),
-            fastqcheck_exe => VRPipe::StepOption->create(description => 'path to fastqcheck executable', optional => 1, default_value => 'fastqcheck'),
-        }
+            fastqcheck_exe => VRPipe::StepOption->create(description => 'path to fastqcheck executable',   optional => 1, default_value => 'fastqcheck'),
+        };
     }
     
     method inputs_definition {
@@ -71,12 +71,12 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self                 = shift;
-            my $options              = $self->options;
-            my $bam2fastq_exe = $options->{bam2fastq_exe};
+            my $self           = shift;
+            my $options        = $self->options;
+            my $bam2fastq_exe  = $options->{bam2fastq_exe};
             my $bam2fastq_opts = $options->{bam2fastq_opts};
             my $fastqcheck_exe = $options->{fastqcheck_exe};
-            $bam2fastq_opts  .= ' -f ';   # force overwrite
+            $bam2fastq_opts .= ' -f '; # force overwrite
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
@@ -96,25 +96,25 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 $basename =~ s/\.bam//;
                 my $out_spec;
                 my @outfiles;
-
+                
                 if ($paired) {
                     my $fastq = $self->output_file(
                         output_key => 'fastq_files',
-                        basename => "${basename}_1.fastq",
-                        type => 'fq',
-                        metadata => {
+                        basename   => "${basename}_1.fastq",
+                        type       => 'fq',
+                        metadata   => {
                             %$fastq_meta,
-                            reads => $meta->{forward_reads},
+                            reads  => $meta->{forward_reads},
                             paired => 1
                         }
                     );
                     my $reverse = $self->output_file(
                         output_key => 'fastq_files',
-                        basename => "${basename}_2.fastq",
-                        type => 'fq',
-                        metadata => {
+                        basename   => "${basename}_2.fastq",
+                        type       => 'fq',
+                        metadata   => {
                             %$fastq_meta,
-                            reads => $meta->{reverse_reads},
+                            reads  => $meta->{reverse_reads},
                             paired => 2
                         }
                     );
@@ -128,14 +128,14 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 else {
                     my $fastq = $self->output_file(
                         output_key => 'fastq_files',
-                        basename => "${basename}_M.fastq",
-                        type => 'fq',
-                        metadata => {
+                        basename   => "${basename}_M.fastq",
+                        type       => 'fq',
+                        metadata   => {
                             %$fastq_meta,
-                            reads => $meta->{reads},
-                            bases => $meta->{bases},
+                            reads           => $meta->{reads},
+                            bases           => $meta->{bases},
                             avg_read_length => sprintf("%0.2f", $meta->{reads} / $meta->{bases}),
-                            paired => 0
+                            paired          => 0
                         }
                     );
                     @outfiles = ($fastq);
@@ -143,8 +143,8 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 }
                 
                 my $out_log = $self->output_file(output_key => 'bam2fastq_logs', basename => "$basename.log", type => 'txt');
-                push (@outfiles, $out_log);
-
+                push(@outfiles, $out_log);
+                
                 my $this_cmd = "use VRPipe::Steps::bam_to_fastq; VRPipe::Steps::bam_to_fastq->bam_to_fastq(bam => q[$source_bam], $out_spec, bam2fastq_exe => q[$bam2fastq_exe], bam2fastq_opts => q[$bam2fastq_opts], fastqcheck_exe => q[$fastqcheck_exe]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
             }
@@ -196,19 +196,18 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
     }
     
     method bam_to_fastq (ClassName|Object $self: Str|File :$bam!, Str|File :$forward?, Str|File :$reverse?, Str|File :$single?, Str|File :$bam2fastq_exe, Str :$bam2fastq_opts, Str|File :$fastqcheck_exe) {
-
         my $in_file = VRPipe::File->get(path => $bam);
         my $bam_meta = $in_file->metadata;
-
+        
         # get the output path so we can specify the logfile name and -o param
         my $out_dir;
-        if ( $bam_meta->{paired} ) {
+        if ($bam_meta->{paired}) {
             my $fq = VRPipe::File->get(path => $forward);
-            $out_dir = $fq->dir; 
+            $out_dir = $fq->dir;
         }
         else {
             my $fq = VRPipe::File->get(path => $single);
-            $out_dir = $fq->dir unless $out_dir; 
+            $out_dir = $fq->dir unless $out_dir;
         }
         
         my $basename = $in_file->basename;
@@ -216,35 +215,36 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         my $logfile = "$out_dir/$basename.log";
         # '#' is a special char, (replaced with _1 and _2 for PE reads, _M for SE reads).
         my $out_param = "$out_dir/${basename}#.fastq";
-
+        
         my $cmd = "$bam2fastq_exe $bam2fastq_opts -o $out_param $bam 2>$logfile";
+        $in_file->disconnect;
         system($cmd) && $self->throw("failed to run [$cmd]");
-
+        
         # determine which output files we need to check
         my @out_files;
-        if ( $bam_meta->{paired} ) {
-            push(@out_files,  VRPipe::File->get(path => $forward));
-            push(@out_files,  VRPipe::File->get(path => $reverse));
+        if ($bam_meta->{paired}) {
+            push(@out_files, VRPipe::File->get(path => $forward));
+            push(@out_files, VRPipe::File->get(path => $reverse));
         }
         else {
-            push(@out_files,  VRPipe::File->get(path => $single));
+            push(@out_files, VRPipe::File->get(path => $single));
         }
-
+        
         # Create additional files fastq if necessary, or get rid of the unneeded empty files
-        if ( $bam_meta->{paired} ) {
+        if ($bam_meta->{paired}) {
             my $path = $forward;
             $path =~ s/_1.fastq/_M.fastq/;
-            add_or_rm_fastq($self,$path,$forward,\@out_files);
-
+            add_or_rm_fastq($self, $path, $forward, \@out_files);
+        
         }
         else {
-            foreach my $n (1,2) {
+            foreach my $n (1, 2) {
                 my $path = $single;
                 $path =~ s/_M.fastq/_$n.fastq/;
-                add_or_rm_fastq($self,$path,$single,\@out_files);
+                add_or_rm_fastq($self, $path, $single, \@out_files);
             }
         }
-
+        
         # check logfile read count agrees with bam meta
         my $total_reads_parsed;
         my $log = VRPipe::File->get(path => "$logfile");
@@ -265,17 +265,16 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             }
             $self->throw("$logfile says we parsed $total_reads_parsed instead of bam meta $bam_meta->{reads} reads");
         }
-
+        
         # check the fastq files are as expected
         my %extra_meta;
         foreach my $out_file (@out_files) {
-
             # get read and base counts from fastqcheck
             my ($these_reads, $these_bases) = (0, 0);
             my $path = $out_file->path;
             my $pipe = "$fastqcheck_exe $path |";
             open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
-            while (<$fh>) { 
+            while (<$fh>) {
                 # should be first line
                 unless (/(\S+) sequences, (\S+) total length/) {
                     foreach my $out_file (@out_files) {
@@ -283,7 +282,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     }
                     $self->throw("Could not get reads and bases from $pipe : $_");
                 }
-                ($these_reads, $these_bases) = ($1,$2);
+                ($these_reads, $these_bases) = ($1, $2);
                 last;
             }
             close($fh);
@@ -294,7 +293,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             # flags, so if flags are wrong, or reads have been removed from
             # input bam, either way resulting in mismatch of forward and reverse
             # reads, we will have discarded some reads.
-
+            
             $out_file->update_stats_from_disc;
             my $output_lines = $out_file->lines;
             unless ($output_lines == $these_reads) {
@@ -310,7 +309,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         # add/correct metadata
         foreach my $out_file (@out_files) {
             my $extra = $extra_meta{ $out_file->id } || next;
-
+            
             $out_file->add_metadata({
                     bases           => $extra->{bases},
                     reads           => $extra->{reads},
@@ -319,15 +318,15 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 replace_data => 1
             );
         }
-
+        
         sub add_or_rm_fastq {
             # Create additional files if necessary, or get rid of the unneeded empty files
-            my ($self,$path,$based_on,$out_files) = @_;
-
+            my ($self, $path, $based_on, $out_files) = @_;
+            
             my $pipe = "wc -l $path |";
             my $file_size;
             open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
-            while (<$fh>) { 
+            while (<$fh>) {
                 unless (/(\S+) $path/) {
                     foreach my $out_file (@$out_files) {
                         $out_file->unlink;
@@ -337,7 +336,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 $file_size = $1;
                 last;
             }
-            if ($file_size == 0 ) {
+            if ($file_size == 0) {
                 unless (system("rm $path") == 0) {
                     foreach my $out_file (@$out_files) {
                         $out_file->unlink;
@@ -346,9 +345,9 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 }
                 return;
             }
-
+            
             # figure out what stepstate we are for and add the fastq as an output file
-            my @existing_stepoutputfiles = VRPipe::StepOutputFile->search({ file => VRPipe::File->get(path => $based_on)->id, output_key => 'fastq_files'});
+            my @existing_stepoutputfiles = VRPipe::StepOutputFile->search({ file => VRPipe::File->get(path => $based_on)->id, output_key => 'fastq_files' });
             my %stepstates = map { $_->id => $_ } @existing_stepoutputfiles;
             if (keys %stepstates != 1) {
                 foreach my $out_file (@$out_files) {
@@ -356,9 +355,9 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 }
                 $self->throw("Could not get unique stepstate for $based_on");
             }
-
+            
             my $fastq_meta = VRPipe::File->get(path => $based_on)->metadata;
-            if ( $path =~ /_M.fastq/) {
+            if ($path =~ /_M.fastq/) {
                 $fastq_meta->{paired} = 0;
                 delete $fastq_meta->{mate};
             }
@@ -374,12 +373,12 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 $mate =~ s/_2.fastq/_1.fastq/;
                 $fastq_meta->{mate} = $mate;
             }
-            my $extra_file = VRPipe::File->create(path => $path,  metadata => {%$fastq_meta});
-
+            my $extra_file = VRPipe::File->create(path => $path, metadata => {%$fastq_meta});
+            
             my $step_state = $existing_stepoutputfiles[0]->stepstate;
-            VRPipe::StepOutputFile->create (
-                file => $extra_file->id, 
-                stepstate => $step_state, 
+            VRPipe::StepOutputFile->create(
+                file       => $extra_file->id,
+                stepstate  => $step_state,
                 output_key => 'fastq_files',
             );
             push(@$out_files, $extra_file);
