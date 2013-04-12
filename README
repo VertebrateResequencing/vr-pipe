@@ -178,8 +178,14 @@ to your job scheduler:
 $ vrpipe-server --farm my_farm start
 Now you can use vrpipe-create_step and vrpipe-create_pipeline to create
 pipelines if necessary. Then end-users can set up a pipeline using vrpipe-setup.
-vrpipe-setup and vrpipe-status will be the most commonly used scripts. Access to
-output files can be achieved with vrpipe-output.
+vrpipe-setup and vrpipe-status will be the most commonly used scripts. The web
+front-end is currently limited to providing status, but it does so a bit nicer
+and a bit faster than vrpipe-status cmd line tool. You can alter what it
+displays by manually appending vrpipe-status arguments to the url, eg.
+http://[serverurl]/status?brief=1&incomplete=1&user=me
+
+Access to output files can be achieved with vrpipe-output. When you have an
+output file but can't remember how it was made, use vrpipe-fileinfo.
 
 As a general point, any Perl script you write that wants to use some VRPipe
 code should typically "use VRPipe;". After that most things should work without
@@ -188,6 +194,28 @@ want. eg. to work with your testing database:
     use VRPipe 'testing';
 or on the command-line:
 $ perl -MVRPipe=testing -e '...'
+
+
+When things go wrong:
+For normal errors caused by failing jobs in a pipeline, and for most other
+issues, you should receive an email that either specifies the problem, or asks
+you to investigate (and fix) with vrpipe-submissions. Using vrpipe-status will
+also point out issues in case you're not receiving emails.
+
+In the rare event that vrpipe-status and vrpipe-submissions do not reveal the
+problem, you can investigate further by looking at the logs. vrpipe-server keeps
+a log file in the logging directory you configured during installation (when you
+ran 'perl Build.PL'). For problems with a particular setup, use vrpipe-logs to
+see what has been happening with it.
+
+Sometimes it can happen that a step is failing because the output of a previous
+step is corrupt. VRPipe will only ever automatically keeps retrying the current
+step, so it will keep failing. vrpipe-submissions only gives you an easy way to
+force the reattempt of a failed submission (ie. which will be for the current
+step), so it isn't helpful either. In this case you should use vrpipe-elements,
+which provides an easy way to 'go back' and reset steps that VRPipe thought
+completed successfully. Just be careful not to redo any step that outputs files
+that might be used by other running jobs in your setup, or by other setups.
 
 
 
