@@ -56,17 +56,17 @@ my $cmdline = VRPipe::FrontEnd->new(
 );
 
 my $max_forks = Sys::CPU::cpu_count();
+my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
 
 # initialize the VRPipe backend
 my $deployment = $cmdline->opts('deployment');
-my $backend    = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+my $backend    = VRPipe::Interface::BackEnd->new(deployment => $deployment, farm => $farm);
 my $schema     = $backend->schema;
 $AnyEvent::Util::MAX_FORKS = $max_forks;
 my $debug = $cmdline->opts('debug');
 
 # act on the given mode
 my $mode = $cmdline->opts('mode') || $cmdline->die_with_error("--mode must be supplied");
-my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
 my $fs;
 unless ($debug) {
     ($fs) = VRPipe::FarmServer->search({ farm => $farm });
@@ -113,13 +113,11 @@ sub handle_setups {
     my $datasource_timer_interval  = $deployment eq 'production' ? 300  : 10;
     my $setup_state_timer_interval = $deployment eq 'production' ? 1800 : 15;
     my %currently_triggering;
-    my $redis = $backend->redis($farm);
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
             unless ($debug) { $fs->alive || die "no farmserver" }
             @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
-            $fs->disconnect;
         };
         if ($@) {
             if ($@ =~ /no farmserver/) {
@@ -160,7 +158,7 @@ sub handle_setups {
                     $setup->disconnect;
                     fork_call {
                         $backend->debug("will trigger first_step_only for new setup $sid");
-                        $setup->trigger(first_step_only => 1, redis => $redis);
+                        $setup->trigger(first_step_only => 1, redis => $backend->redis);
                         return;
                     }
                     sub {
@@ -220,7 +218,7 @@ sub handle_setups {
                                     #  currently_triggering marker... it should
                                     #  be ok to trigger first step only...)
                                     $ds_setup->log_event("vrpipe-handler for setups called datasource->elements which changed the number of dataelements from $e_before => $e_after, will trigger the first step");
-                                    $ds_setup->trigger(first_step_only => 1, prepare_elements => 0, redis => $redis);
+                                    $ds_setup->trigger(first_step_only => 1, prepare_elements => 0, redis => $backend->redis);
                                     $backend->debug("finished first_step_only trigger for setup " . $ds_setup->id);
                                 }
                             }
@@ -312,6 +310,7 @@ sub handle_setups {
                             $backend->debug("looking for stalls");
                             my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
                             my $error_message;
+                            my $redis = $backend->redis;
                             if ($ie_pager) {
                                 $backend->debug("got incomplete_element_states");
                                 while (my $dess = $ie_pager->next) {
@@ -429,11 +428,11 @@ sub handle_submissions {
     
     $backend->debug("entered handle_submissions");
     
-    my ($redis, $sidtosub, $grabbed_key);
+    my ($sidtosub, $grabbed_key);
     my $redis_ex = $deployment eq 'production' ? 600 : 60;
     unless ($given_sub) {
         # grab a submission from the redis queue
-        $redis = $backend->redis($farm);
+        my $redis  = $backend->redis;
         my $sub_id = $redis->spop($req_id);
         if ($sub_id) {
             $backend->debug("grabbed sub $sub_id from the redis queue");
@@ -484,6 +483,7 @@ sub handle_submissions {
                     return exit_handler("Looks like the $farm server stopped");
                 }
             }
+            my $redis = $backend->redis;
             
             eval {
                 # refresh expire time so no other process can grab this sub
@@ -606,9 +606,6 @@ sub handle_submissions {
                 else {
                     $backend->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
                 }
-                
-                $req->disconnect;
-                $backend->debug("disconnected in eval");
             };
             if ($@) {
                 # we want to avoid exiting while we're still running a job, so
@@ -623,6 +620,7 @@ sub handle_submissions {
             if (!$debug && !$fs->alive) {
                 return exit_handler("There is no longer a server for farm $farm");
             }
+            my $redis = $backend->redis;
             
             # if we were given only one Submission to do, run it then exit
             if ($given_sub) {
@@ -676,7 +674,7 @@ sub handle_submissions {
                                 return exit_handler("Not enough time to try and run our submission");
                             }
                             
-                            (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $remaining_time, redis => $redis);
+                            (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $remaining_time, redis => $backend->redis);
                             if ($response == 0) {
                                 # there was some problem with this sub and it
                                 # just got reset; let's ignore it for now and
@@ -701,9 +699,6 @@ sub handle_submissions {
                     else {
                         $backend->debug("no suitable subs in the redis queue");
                     }
-                    
-                    $req->disconnect;
-                    $backend->debug("disconnected in eval");
                 };
                 if ($@) {
                     exit_handler("There was a problem claiming and running a new submission: $@");

@@ -435,6 +435,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->disconnect;
                 
                 open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
+                untie *STDERR;
                 open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
                 
                 chdir($dir);
