@@ -489,7 +489,11 @@ sub start_server {
                                             # killing it while its in the middle
                                             # of triggering, and that can take
                                             # over 5mins when the db is heavily
-                                            # loaded, so we give it 15mins
+                                            # loaded, so we rely on the redis
+                                            # lock version of the job's heart
+                                            # beat, which runs until the trigger
+                                            # is over
+                                            next if $redis->exists('job.' . $sub->job->id);
                                             my $job_end = $sub->job->end_time;
                                             if (!$job_end || time() > ($job_end->epoch + ($leeway * 3))) {
                                                 $backend->log("$dstr is currently running, but its claimed submission finished ages ago");

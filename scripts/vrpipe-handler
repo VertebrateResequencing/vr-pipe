@@ -526,23 +526,12 @@ sub handle_submissions {
                         # in which case the job process is still doing
                         # something; wait until the heart has stopped beating
                         $req->disconnect;
-                        my $cv = AnyEvent->condvar;
-                        my $sleep = AnyEvent->timer(after => $job->survival_time + 1, cb => sub { $cv->send });
-                        $cv->recv;
-                        
-                        while (1) {
-                            $job->reselect_values_from_db;
-                            my $heartbeat = $job->heartbeat->epoch;
-                            if (time() - $job->survival_time > $heartbeat) {
-                                $backend->debug("waited for the next step trigger to finish");
-                                last;
-                            }
-                            $req->disconnect;
-                            
+                        while ($redis->exists('job.' . $job->id)) {
                             my $cv = AnyEvent->condvar;
                             my $sleep = AnyEvent->timer(after => 2, cb => sub { $cv->send });
                             $cv->recv;
                         }
+                        $backend->debug("waited for the next step trigger to finish");
                     }
                     elsif ($submission->failed) {
                         # Job->run itself would have adjusted $submission's

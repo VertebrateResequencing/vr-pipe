@@ -674,6 +674,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->stop_beating;
                 $self->heartbeat($last_beat);
                 $self->update;
+                $redis->del('job.' . $self->id) if $redis;
                 $self->disconnect;
                 
                 #*** theoretically updating file existence now might be too
@@ -811,13 +812,13 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         return unless $self->start_time;
         my $redis = $self->_redis;
         if ($redis) {
-            my $refreshed = $redis->expire('job.' . $self->id, 2 * $self->survival_time);
+            my $refreshed = $redis->expire('job.' . $self->id, $self->survival_time);
             unless ($refreshed) {
-                warn "$$ unable to refresh redis lock";
+                warn "pid $$ unable to refresh redis lock";
                 
                 # presumably the redis server went down and we lost the lock;
                 # if the server came back let's try and create the lock again
-                $redis->set('job.' . $self->id => 1, EX => 2 * $self->survival_time, 'NX');
+                $redis->set('job.' . $self->id => 1, EX => $self->survival_time, 'NX');
             }
         }
         return $self->$orig;
