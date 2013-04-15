@@ -43,7 +43,7 @@ role VRPipe::Base::Debuggable {
     use Time::Format;
     use Cwd qw(getcwd);
     use File::Spec;
-    use IO::Capture::Stderr;
+    use Devel::StackTrace;
     
     # MooseX::ClassAttribute won't let us set things globally across all classes
     # that compose this role, and class_has attributes don't get picked up by
@@ -181,7 +181,7 @@ role VRPipe::Base::Debuggable {
         my $first_line = "FATAL ERROR at epoch $t in $cwd";
         
         my $throw_message = "\n-----------------------------------------------------------------------------\n";
-        $throw_message .= $first_line . "\n\n" . $message . "\n\n" . $self->stack_trace;
+        $throw_message .= $first_line . "\n\n" . $self->stack_trace($message);
         $throw_message .= "\n-----------------------------------------------------------------------------\n\n";
         
         $self->log($throw_message, 2);
@@ -190,28 +190,9 @@ role VRPipe::Base::Debuggable {
     }
     
     sub stack_trace {
-        my $capture = IO::Capture::Stderr->new();
-        $capture->start();
-        cluck();
-        $capture->stop();
-        
-        my @confess;
-        foreach my $read ($capture->read) {
-            foreach my $line (split(/\n/, $read)) {
-                $line =~ s/\t/    /g;
-                
-                if ($line =~ /^    \S+Debuggable::throw.+ called at (.+)/) {
-                    $line = "Thrown from $1";
-                }
-                elsif ($line =~ /^ at \S+Debuggable.pm line \d+/ || $line =~ /^    \S+Debuggable::stack_trace.+ called at/) {
-                    next;
-                }
-                
-                push(@confess, $line);
-            }
-        }
-        
-        return join("\n", @confess);
+        my ($self, $message) = @_;
+        my $trace = Devel::StackTrace->new(ignore_package => 'VRPipe::Base::Debuggable', $message ? (message => $message) : ());
+        return $trace->as_string;
     }
 
 =head2 write_logs
@@ -278,18 +259,13 @@ role VRPipe::Base::Debuggable {
         
         $prefix .= "$time{'hh:mm:ss'} | pid $$ | ";
         
-        # for some reason Carp's shortmess and longmess methods aren't returning
-        # the same thing as what carp()/croak() produce! hacky work-around...
-        # (we die instead of throw since throw calls log()...)
-        my $capture = IO::Capture::Stderr->new();
-        $capture->start();
-        $verbose >= 1 ? cluck($message) : carp($message);
-        $capture->stop();
+        my $trace = Devel::StackTrace->new(ignore_package => 'VRPipe::Base::Debuggable', message => $message);
+        my $trace_string = $verbose >= 1 ? $trace->as_string : $trace->next_frame->as_string;
         
         my $file = $self->log_file;
         my $opened = open(my $fh, ">>", $file);
         if ($opened) {
-            print $fh $prefix, $capture->read, "\n";
+            print $fh $prefix, $trace_string, "\n";
             close($fh);
         }
         else {
