@@ -1,3 +1,10 @@
+0.152   Critical fix for database connection exhaustion; critical fix for
+        logging.
+        Improved stall reduction. Improved database update consistency: fixed
+        remaining reliability issues.
+        vrpipe-fileinfo gains new options --dataelement and --input_file
+        vrpipe-elements --element option now takes a dataelement id, and gains a
+        --elementstate option that takes a dataelementstate id.
 0.151   Critical fix for Submission failures due to mysterious SIGINTs.
         Critical fix for database update inconsistencies: the pipeline system
         itself should no longer be the cause of pipelines failing or entering
