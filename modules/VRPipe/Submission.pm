@@ -392,7 +392,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method job_stdout {
         my $file = $self->job_stdout_file || return;
         unless ($file->s) {
-            $file = $self->job->stdout_file;
+            $file = $self->job->stdout_file || return;
         }
         return $self->_std_parser($file, 'cat');
     }
@@ -400,7 +400,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method job_stderr {
         my $file = $self->job_stderr_file || return;
         unless ($file->s) {
-            $file = $self->job->stderr_file;
+            $file = $self->job->stderr_file || return;
         }
         return $self->_std_parser($file, 'cat');
     }
