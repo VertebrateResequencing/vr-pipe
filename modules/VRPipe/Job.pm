@@ -170,6 +170,11 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         default => 0
     );
     
+    has '_redis' => (
+        is  => 'rw',
+        isa => 'Object'
+    );
+    
     has '_signalled_to_death' => (
         is  => 'rw',
         isa => 'Str'
@@ -349,7 +354,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         return $end_time - $start_time->epoch;
     }
     
-    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?) {
+    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?, Object :$redis?) {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
@@ -358,6 +363,17 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         # we'll have 3 responses: -1 = job already exited; 0 = job already
         # running; 1 = we just started running it
         my $response;
+        
+        # avoid the db-based transaction and locking mechanism below by doing a
+        # safer, simple redis lock with NX. We don't rely on this though, since
+        # the redis server could go down and we'd lose all locks
+        if ($redis) {
+            unless ($redis->set('job.' . $self->id => 1, EX => 300, 'NX')) {
+                $ss->pipelinesetup->log_event("Job->run() called, but there is a redis lock on it", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                return 0;
+            }
+            $self->_redis($redis);
+        }
         
         # check we're allowed to run, in a transaction to avoid race condition
         my $start_time  = DateTime->now();
@@ -382,7 +398,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             $self->_living_id("$self");
             $self->_i_started_running(1);
             $self->update;
-            $ss->pipelinesetup->log_event("Job->run() called and set our start_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $response) {
@@ -420,6 +435,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->disconnect;
                 
                 open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
+                untie *STDERR;
                 open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
                 
                 chdir($dir);
@@ -577,8 +593,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     # update our Submission
                     if ($submission) {
                         if ($exit_code == 0) {
-                            $setup->log_event("At end of Job->run() call found that the Job was ok, so Submission->done will be set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
-                            
                             # say the sub is done
                             $submission->_done(1);
                             $submission->_failed(0);
@@ -621,11 +635,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             $submission->_failed(1);
                             $submission->_claim(0);
                             $submission->update;
-                            
-                            $setup->log_event("At end of Job->run() call found that the Job was not ok, so Submission->failed set to 1", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
                         }
-                        
-                        $setup->log_event("At end of Job->run() call, leaving transaction, sub _done is " . $submission->_done . ", _failed is " . $submission->_failed . " and our start/end_time & exit_code is " . $self->start_time . '/' . $self->end_time . ' & ' . $self->exit_code, dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $submission->id, job => $self->id);
                     }
                 };
                 $self->do_transaction($transaction, "Failed to finalise Job and Submission state after the cmd-running child exited");
@@ -645,7 +655,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 if (@to_trigger) {
                     foreach my $ref (@to_trigger) {
                         my ($setup, $de) = @$ref;
-                        my $error_message = $setup->trigger(dataelement => $de);
+                        my $error_message = $setup->trigger(dataelement => $de, $redis ? (redis => $redis) : ());
                         
                         if ($ss) {
                             if ($error_message) {
@@ -664,6 +674,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->stop_beating;
                 $self->heartbeat($last_beat);
                 $self->update;
+                $redis->del('job.' . $self->id) if $redis;
                 $self->disconnect;
                 
                 #*** theoretically updating file existence now might be too
@@ -797,8 +808,19 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     }
     
     around beat_heart {
-        $self->reselect_values_from_db;
+        $self->reselect_values_from_db unless $self->_i_started_running;
         return unless $self->start_time;
+        my $redis = $self->_redis;
+        if ($redis) {
+            my $refreshed = $redis->expire('job.' . $self->id, $self->survival_time);
+            unless ($refreshed) {
+                warn "pid $$ unable to refresh redis lock";
+                
+                # presumably the redis server went down and we lost the lock;
+                # if the server came back let's try and create the lock again
+                $redis->set('job.' . $self->id => 1, EX => $self->survival_time, 'NX');
+            }
+        }
         return $self->$orig;
     }
     

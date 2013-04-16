@@ -47,9 +47,7 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
     
     around check_type {
         $self->$orig || return 0;
-        #return $self->check_magic($self->file, $correct_magic); #*** for some reason, this, which in other contexts takes <1second, takes 10s of seconds in the Manager loop
-        my $path = $self->file;
-        return $path =~ /\.bam$/ ? 1 : 0;
+        return $self->check_magic($self->file, $correct_magic);
     }
     
     method num_header_lines {
@@ -65,11 +63,6 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
         ($records) = $records =~ /^(\d+)/m;
         $records ||= 0;
         return $records;
-    }
-    
-    method check_magic {
-        my $bam = VRPipe::File->get(path => $self->file->absolute->stringify);
-        return $bam->check_magic($self->file, $correct_magic);
     }
 }
 

@@ -48,6 +48,13 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         is_key => 1
     );
     
+    has 'hostname' => (
+        is          => 'rw',
+        isa         => Varchar [255],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
+    
     has 'only_ours' => (
         is      => 'rw',
         isa     => 'Bool',

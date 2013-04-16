@@ -52,6 +52,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
     use Parallel::ForkManager;
     use Sys::CPU;
     use POSIX qw(ceil);
+    use Sys::Hostname::Long;
     
     our $DEFAULT_MAX_PROCESSES = Sys::CPU::cpu_count();
     our %step_limits;
@@ -81,7 +82,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $transaction = sub {
             my ($fs) = VRPipe::FarmServer->search({ farm => $farm }, { for => 'update' });
             return if ($fs && $fs->alive);
-            $fs = VRPipe::FarmServer->create(farm => $farm, only_ours => $only_ours, die_when_murdered => $die_when_murdered);
+            $fs = VRPipe::FarmServer->create(farm => $farm, hostname => hostname_long, only_ours => $only_ours, die_when_murdered => $die_when_murdered);
             $fs->start_beating;
             return $fs;
         };

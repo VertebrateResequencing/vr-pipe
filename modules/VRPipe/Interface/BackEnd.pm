@@ -56,7 +56,8 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use Email::Sender::Simple;
     use Email::Simple::Creator;
-    use Fcntl qw/:flock SEEK_END/;
+    use Sys::Hostname::Long;
+    use Redis;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -358,6 +359,11 @@ XSL
         required => 1
     );
     
+    has 'farm' => (
+        is  => 'ro',
+        isa => 'Str'
+    );
+    
     has 'port' => (
         is     => 'ro',
         isa    => PositiveInt,
@@ -405,6 +411,12 @@ XSL
         is     => 'ro',
         isa    => 'Int',
         writer => '_set_uid'
+    );
+    
+    has 'log_dir' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_log_dir'
     );
     
     has 'log_file' => (
@@ -456,6 +468,23 @@ XSL
         }
     );
     
+    has 'redis_pid' => (
+        is  => 'rw',
+        isa => PositiveInt,
+    );
+    
+    has 'redis_port' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        writer => '_set_redis_port'
+    );
+    
+    has 'redis_server' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_redis_server'
+    );
+    
     method _build_schema {
         my $m = VRPipe::Manager->get;
         return $m->result_source->schema;
@@ -480,10 +509,11 @@ XSL
         my $vrp_config  = VRPipe::Config->new();
         my $method_name = $deployment . '_interface_port';
         my $port        = $vrp_config->$method_name();
+        $port = "$port" if $port; # values retrieved from Config might be env vars, so we must force stringification
         unless ($port) {
             die "VRPipe SiteConfig had no port specified for $method_name\n";
         }
-        $self->_set_port("$port"); # values retrieved from Config might be env vars, so we must force stringification
+        $self->_set_port($port);
         
         my $umask = $vrp_config->server_umask;
         $self->_set_umask("$umask");
@@ -509,8 +539,65 @@ XSL
         $log_basename =~ s/\W/_/g;
         my $log_file = file($log_dir, 'vrpipe-server.' . $log_basename . '.log');
         $self->_set_log_file($log_file->stringify);
+        $self->_set_log_dir("$log_dir");
         
         require VRPipe::Persistent::Schema;
+        
+        $method_name = $deployment . '_redis_port';
+        my $redis_port = $vrp_config->$method_name();
+        $redis_port = "$redis_port" if $redis_port;
+        unless ($redis_port) {
+            die "VRPipe SiteConfig had no port specified for $method_name\n";
+        }
+        $self->_set_redis_port($redis_port);
+        my $hostname;
+        my $farm = $self->farm;
+        if ($farm) {
+            my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
+            $hostname = $fs->hostname if $fs;
+        }
+        $hostname ||= 'localhost';
+        $self->_set_redis_server("$hostname:$redis_port");
+    }
+    
+    sub start_redis_server {
+        my $self           = shift;
+        my $logging_dir    = $self->log_dir;
+        my $redis_pid_file = file($logging_dir, 'redis.pid');
+        
+        my $redis_pid = $self->redis_pid;
+        if ($redis_pid) {
+            unless (kill(0, $redis_pid)) {
+                unlink($redis_pid_file);
+                $self->log("The Redis server has died");
+            }
+            else {
+                return 1;
+            }
+        }
+        
+        my $redis_port       = $self->redis_port;
+        my $redis_server_cmd = "redis-server --daemonize yes --pidfile $redis_pid_file --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048";
+        system($redis_server_cmd);
+        sleep(1);
+        
+        unless (-s $redis_pid_file) {
+            $self->log("Failed to start the Redis server; see $logging_dir/redis.log for details");
+            return 0;
+        }
+        else {
+            $redis_pid = $redis_pid_file->slurp;
+            chomp($redis_pid);
+            $self->redis_pid($redis_pid);
+            $self->log("Started a Redis server with pid $redis_pid");
+            return 1;
+        }
+    }
+    
+    method redis (Str $server?, PositiveInt $reconnect?) {
+        $server ||= $self->redis_server;
+        $reconnect ||= $self->deployment eq 'production' ? 60 : 6;
+        return Redis->new(server => $server, reconnect => $reconnect, encoding => undef);
     }
     
     # mostly based on http://www.perlmonks.org/?node_id=374409, and used instead
@@ -577,9 +664,43 @@ XSL
     }
     
     method log_stderr {
-        my $ok = open(STDERR, '>>', $self->log_file);
+        if ($self->log_file) {
+            my $ok;
+            eval {
+                my $redis = $self->redis;
+                $ok = $redis->ping;
+            };
+            
+            if ($ok) {
+                tie *STDERR, 'VRPipe::Interface::BackEnd', $self->redis_server, $self->deployment eq 'production' ? 60 : 6, $self->log_file;
+            }
+            else {
+                $ok = open(STDERR, '>>', $self->log_file);
+            }
+            $self->_log_file_in_use(1) if $ok;
+        }
+    }
+    
+    sub TIEHANDLE {
+        my ($pkg, $server, $reconnect, $log_file) = @_;
+        return bless { server => $server, reconnect => $reconnect, log_file => $log_file }, $pkg;
+    }
+    
+    sub PRINT {
+        my $config = shift;
+        my ($ok, $redis);
+        eval {
+            $redis = Redis->new(server => $config->{server}, reconnect => $config->{reconnect}, encoding => undef);
+            $ok = $redis->ping;
+        };
+        
         if ($ok) {
-            $self->_log_file_in_use(1);
+            $redis->rpush('stderr', @_);
+        }
+        else {
+            open(my $fh, '>>', $config->{log_file}) || return;
+            print $fh @_;
+            close($fh);
         }
     }
     
@@ -839,7 +960,7 @@ XSL
         }
         
         if ($multi_setups && !@setups && !$allow_no_setups) {
-            die "No PipelineSetups match your settings (did you remember to specifiy --user?)\n";
+            die "No PipelineSetups match your settings (did you remember to specify --user?)\n";
         }
         
         return $multi_setups ? @setups : $setups[0];

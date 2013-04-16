@@ -5,8 +5,7 @@ class VRPipe::FileType::bcf extends VRPipe::FileType::bin {
     
     around check_type {
         $self->$orig || return 0;
-        my $path = $self->file;
-        return $path =~ /\.bcf$/ ? 1 : 0;
+        return $self->check_magic($self->file, $correct_magic);
     }
     
     method num_header_lines {
@@ -44,11 +43,6 @@ class VRPipe::FileType::bcf extends VRPipe::FileType::bin {
         }
         close($fh);
         return \@header_lines;
-    }
-    
-    method check_magic {
-        my $bcf = VRPipe::File->get(path => $self->file->absolute->stringify);
-        return $bcf->check_magic($self->file, $correct_magic);
     }
 }
 
