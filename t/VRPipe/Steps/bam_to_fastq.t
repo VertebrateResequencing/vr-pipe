@@ -76,11 +76,11 @@ is_deeply read_fastq(file(qw(t data 2822_6_2.fastq))->absolute), read_fastq($fas
 my $fmeta = VRPipe::File->create(path => $fastqs[0])->metadata;
 is_deeply [$fmeta->{reads}, $fmeta->{bases}, $fmeta->{avg_read_length}], [200, 12200, '61.00'], 'basic metadata is correct for the forward fastq';
 
-my %reads = (1=> 199, 2=> 199, 'M' => 2);
+my %reads = (1 => 199, 2 => 199, 'M' => 2);
 for my $i (1, 2, 'M') {
-    my $path = file (output_subdirs(3),'1_bam_to_fastq',"2822_6.se.pe_$i.fastq")->stringify;
-    my $f = VRPipe::File->get(path=>"$path");
-    is_deeply[$reads{$i}],[$f->metadata->{reads}], "$i fastq generated with correct reads metadata for a bam with both SE and PE reads";
+    my $path = file(output_subdirs(3), '1_bam_to_fastq', "2822_6.se.pe_$i.fastq")->stringify;
+    my $f = VRPipe::File->get(path => "$path");
+    is_deeply [$reads{$i}], [$f->metadata->{reads}], "$i fastq generated with correct reads metadata for a bam with both SE and PE reads";
 }
 
 finish;
