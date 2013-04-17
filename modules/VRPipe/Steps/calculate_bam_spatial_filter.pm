@@ -106,8 +106,8 @@ class VRPipe::Steps::calculate_bam_spatial_filter with VRPipe::StepRole {
             my $out_path = $out_file->path;
             my $out_log  = $self->output_file(output_key => 'filter_logs', basename => "$basename.log", type => 'txt');
             
-           $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'spatial_filter', version => VRPipe::StepCmdSummary->determine_version("$spatial_filter_exe -v", '^spatial_filter: Version v(\S+)'), summary => 'spatial_filter --width $tile_width --height $tile_height ' . $filter_calibration_options . ' -c -F $dest'));
-
+            $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'spatial_filter', version => VRPipe::StepCmdSummary->determine_version("$spatial_filter_exe -v", '^spatial_filter: Version v(\S+)'), summary => 'spatial_filter --width $tile_width --height $tile_height ' . $filter_calibration_options . ' -c -F $dest'));
+            
             my $cmd = qq[use VRPipe::Steps::calculate_bam_spatial_filter; VRPipe::Steps::calculate_bam_spatial_filter->generate_filter(source => q[$bam_path], dest => q[$out_path], samtools_exe => '$samtools', samtools_irods_exe => '$samtools_irods_exe', irods_root => '$irods_root', spatial_filter_exe => '$spatial_filter_exe', tag_number => $tag_number, filter_calibration_options => '$filter_calibration_options', lane => '$lane', tile_width => '$tile_width', tile_height => '$tile_height');];
             
             $self->dispatch_vrpipecode($cmd, $req, { output_files => [$out_file, $out_log] });

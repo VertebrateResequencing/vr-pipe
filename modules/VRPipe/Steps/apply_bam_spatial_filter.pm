@@ -92,8 +92,8 @@ class VRPipe::Steps::apply_bam_spatial_filter extends VRPipe::Steps::bamcheck {
                 
                 my $qc_fail = $mark_qcfail ? '-f ' : '';
                 
-                $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'spatial_filter', version => VRPipe::StepCmdSummary->determine_version("$spatial_filter_exe -v", '^spatial_filter: Version v(\S+)'), summary => 'spatial_filter -a -F $filter_path ' .  $qc_fail . '$bam_path '));
-
+                $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'spatial_filter', version => VRPipe::StepCmdSummary->determine_version("$spatial_filter_exe -v", '^spatial_filter: Version v(\S+)'), summary => 'spatial_filter -a -F $filter_path ' . $qc_fail . '$bam_path '));
+                
                 my $cmd = qq[use VRPipe::Steps::apply_bam_spatial_filter; VRPipe::Steps::apply_bam_spatial_filter->apply_filter(bam_path => q[$bam_path], out_path => q[$out_path], spatial_filter_exe => '$spatial_filter_exe', qc_fail => '$qc_fail', filter_path => '$filter_path', bamcheck_exe => '$bamcheck_exe', bc_opts => '$bc_opts');];
                 
                 if ($mark_qcfail) {

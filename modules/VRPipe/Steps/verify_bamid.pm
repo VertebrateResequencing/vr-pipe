@@ -5,8 +5,9 @@ VRPipe::Steps::verify_bamid - a step
 
 =head1 DESCRIPTION
 
-Runs verifyBamID as a contamination check to verify whether the reads in bam files match the genotypes in SNP-only vcf files
-Requires that the vcf file path be a metadata item for each bam
+Runs verifyBamID as a contamination check to verify whether the reads in bam
+files match the genotypes in SNP-only vcf files Requires that the vcf file path
+be a metadata item for each bam
 
 =head1 AUTHOR
 
@@ -35,10 +36,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::verify_bamid with VRPipe::StepRole {
-
     method options_definition {
         return {
-            verify_bamid_exe => VRPipe::StepOption->create(description => 'path to verifyBamID executable', optional => 1, default_value => 'verifyBamID'),
+            verify_bamid_exe  => VRPipe::StepOption->create(description => 'path to verifyBamID executable',                      optional => 1, default_value => 'verifyBamID'),
             verify_bamid_opts => VRPipe::StepOption->create(description => 'verifyBamID options excluding --vcf --bam and --out', optional => 1, default_value => '--ignoreRG'),
         };
     }
@@ -56,46 +56,45 @@ class VRPipe::Steps::verify_bamid with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self = shift;
-            my $options = $self->options;
-            my $verify_bamid_exe = $options->{verify_bamid_exe};
+            my $self              = shift;
+            my $options           = $self->options;
+            my $verify_bamid_exe  = $options->{verify_bamid_exe};
             my $verify_bamid_opts = $options->{verify_bamid_opts};
             $self->throw("Invalid options '$verify_bamid_opts'") if $verify_bamid_opts =~ /--vcf/ or $verify_bamid_opts =~ /--bam/ or $verify_bamid_opts =~ /--out/;
-
+            
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
-
                 my $vcf_path = $bam_file->metadata->{vcf};
                 my $bam_path = $bam_file->path;
                 my $basename = $bam_file->basename;
                 $basename =~ s/\.bam$/.vfb/;
-
+                
                 my $out_log = $self->output_file(output_key => 'out_logs', basename => "$basename.log", type => 'txt');
                 my $out_path = $out_log->path;
                 $out_path =~ s/\.log$//;
-
-                my $self_sm_file = $self->output_file(output_key => 'self_sm_files', basename => "$basename.selfSM", type => 'txt');
+                
+                my $self_sm_file  = $self->output_file(output_key => 'self_sm_files',  basename => "$basename.selfSM",  type => 'txt');
                 my $depth_sm_file = $self->output_file(output_key => 'depth_sm_files', basename => "$basename.depthSM", type => 'txt');
                 my @output_files = ($out_log, $self_sm_file, $depth_sm_file);
-
+                
                 unless ($verify_bamid_opts =~ /ignoreRG/) {
                     my $self_rg_file = $self->output_file(output_key => 'self_rg_files', basename => "$basename.selfRG", type => 'txt');
-                    push (@output_files, $self_rg_file);
+                    push(@output_files, $self_rg_file);
                     my $depth_rg_file = $self->output_file(output_key => 'depth_rg_files', basename => "$basename.depthRG", type => 'txt');
-                    push (@output_files, $depth_rg_file);
+                    push(@output_files, $depth_rg_file);
                 }
                 if ($verify_bamid_opts =~ /best/) {
                     my $best_sm_file = $self->output_file(output_key => 'best_sm_files', basename => "$basename.bestSM", type => 'txt');
-                    push (@output_files, $best_sm_file);
+                    push(@output_files, $best_sm_file);
                     unless ($verify_bamid_opts =~ /ignoreRG/) {
                         my $best_rg_file = $self->output_file(output_key => 'best_rg_files', basename => "$basename.bestRG", type => 'txt');
-                        push (@output_files, $best_rg_file);
+                        push(@output_files, $best_rg_file);
                     }
                 }
-
+                
                 my $cmd = qq[use VRPipe::Steps::verify_bamid; VRPipe::Steps::verify_bamid->verify_bam(verify_bamid_exe => '$verify_bamid_exe', verify_bamid_opts => '$verify_bamid_opts', bam_path => '$bam_path', vcf_path => '$vcf_path', out_path => '$out_path');];
-
+                
                 $self->dispatch_vrpipecode($cmd, $req, { output_files => \@output_files });
             }
         
@@ -156,21 +155,20 @@ class VRPipe::Steps::verify_bamid with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
-
+    
     method verify_bam (ClassName|Object $self: Str :$verify_bamid_exe!, Str :$verify_bamid_opts!, Str|File :$bam_path!,  Str|File :$vcf_path!,  Str|File :$out_path! ) {
-
         my $cmd_line = "$verify_bamid_exe --vcf $vcf_path --bam $bam_path --out $out_path $verify_bamid_opts";
-
+        
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         $self->warn($cmd_line);
-
+        
         my $log_file = VRPipe::File->get(path => "$out_path.log");
-
+        
         $log_file->update_stats_from_disc;
         my $logh = $log_file->openr;
-        my $ok=0;
+        my $ok   = 0;
         while (my $line = <$logh>) {
             if ($line =~ /^Analysis finished/) {
                 $ok++;
@@ -179,7 +177,7 @@ class VRPipe::Steps::verify_bamid with VRPipe::StepRole {
         $self->throw("Analysis not completed, see $out_path.log") unless $ok;
         return 1;
     }
-    
+
 }
 
 1;

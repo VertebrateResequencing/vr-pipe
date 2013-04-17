@@ -13,19 +13,19 @@ BEGIN {
     use TestPipelines;
 }
 
-my $irods_root=$ENV{IRODS_TEST_ROOT};
-my $fofnwm = file(qw(t data hs_bam.fofnwm));
+my $irods_root = $ENV{IRODS_TEST_ROOT};
+my $fofnwm     = file(qw(t data hs_bam.fofnwm));
 
 # setup fake phix lanes in irods
 my $ifh = $fofnwm->openr or die;
 while (<$ifh>) {
     chomp;
     next if /^path/;
-
+    
     #t/data/2822_6.pe.bam    2822_6  2048    10000
     my ($bam, $lane, undef) = split(/\t/, $_);
-    my ($run,undef) = split(/_/,$lane);
-
+    my ($run, undef) = split(/_/, $lane);
+    
     system("imkdir -p ${irods_root}/$run");
     system("iput -R uk10k-green -f $bam ${irods_root}/$run/$lane#168.bam");
     #system("ils ${irods_root}/$run/$lane#168.bam");
@@ -49,19 +49,19 @@ $original_ref_fa->copy($ref_fa);
 my $pipelinesetup = VRPipe::PipelineSetup->create(
     name       => 'bam_spatial_filter',
     datasource => VRPipe::DataSource->create(
-        type   => 'fofn_with_metadata',
-        method => 'grouped_by_metadata',
-        options => {metadata_keys => 'lane'},
-        source => $fofnwm
+        type    => 'fofn_with_metadata',
+        method  => 'grouped_by_metadata',
+        options => { metadata_keys => 'lane' },
+        source  => $fofnwm
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
         spatial_filter_exe => '/software/solexa/bin/pb_calibration/v9.0/spatial_filter',
-        reference_fasta  => $ref_fa->path,
-        irods_root => "$irods_root",
-        mark_qcfail => 0,
-        cleanup => 0,
+        reference_fasta    => $ref_fa->path,
+        irods_root         => "$irods_root",
+        mark_qcfail        => 0,
+        cleanup            => 0,
     }
 );
 
@@ -71,7 +71,7 @@ foreach my $in ('2822_6.pe', '2822_7.pe') {
     $element_id++;
     my @output_dirs = output_subdirs($element_id);
     push(@output_files, file(@output_dirs, '1_calculate_bam_spatial_filter', "${in}.bam.filt"));
-    push(@output_files, file(@output_dirs, '2_apply_bam_spatial_filter', "${in}.spfilt.bam"));
+    push(@output_files, file(@output_dirs, '2_apply_bam_spatial_filter',     "${in}.spfilt.bam"));
 }
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
 
@@ -81,7 +81,7 @@ while (<$ifh>) {
     chomp;
     next if /^path/;
     my ($bam, $lane, undef) = split(/\t/, $_);
-    my ($run,undef) = split(/_/,$lane);
+    my ($run, undef) = split(/_/, $lane);
     system("irm -f ${irods_root}/$run/$lane#168.bam");
 }
 
