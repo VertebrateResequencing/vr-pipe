@@ -109,18 +109,27 @@ VRPipe::PipelineSetup->create(
 
 ok handle_pipeline(), 'archiving with an altered pool also worked';
 my @new_archive_files;
+my ($moved_to_path, $moved_from, $md5);
 foreach my $tfile (@archive_files) {
     my $moved_to = VRPipe::File->create(path => $tfile)->resolve->path;
     next unless $moved_to =~ /^$pool_regex/;
-    my $expected = file(archive_file_location($tfile))->stringify;
+    
+    # only those in pool3 should have been archived again
+    my $expected = $tfile =~ /pool3/ ? file(archive_file_location($tfile))->stringify : $tfile;
     next unless $moved_to =~ /$expected$/;
     push(@new_archive_files, $moved_to);
+    
+    if ($tfile =~ /pool3/ && !$moved_from) {
+        $moved_to_path = $moved_to;
+        $moved_from    = $tfile;
+        $md5           = VRPipe::File->get(path => $moved_to)->md5;
+    }
 }
 is scalar(@new_archive_files), scalar(@archive_files), 'all the round-2 files were archived to expected locations';
 
-my $file       = VRPipe::File->create(path => $new_archive_files[0]);
-my $moved_from = VRPipe::File->create(path => $archive_files[0]);
-is_deeply [$moved_from->moved_to->id, $file->md5], [$file->id, 'eb8fa3ffb310ce9a18617210572168ec'], 'moved file has appropriate properties';
+my $file = VRPipe::File->create(path => $moved_to_path);
+$moved_from = VRPipe::File->create(path => $moved_from);
+is_deeply [$moved_from->moved_to->id, $file->md5], [$file->id, $md5 ? $md5 : -1], 'moved file has appropriate properties';
 
 finish;
 exit;

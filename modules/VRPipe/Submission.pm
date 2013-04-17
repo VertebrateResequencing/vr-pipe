@@ -130,7 +130,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         return $self->_failed;
     }
     
-    method claim_and_run (PositiveInt :$allowed_time?) {
+    method claim_and_run (PositiveInt :$allowed_time?, Object :$redis?) {
         # we'll return one of a number of responses: 0 = there was some problem
         # so the job and sub were reset; 1 = this process just now claimed the
         # sub and started running the job; 2 = the job is already exited and the
@@ -142,17 +142,14 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # will hold non-persistent data for _signalled_to_death
         my $job_instance;
         my $transaction = sub {
-            $self->stepstate->pipelinesetup->log_event("claim_and_run() entered transaction", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
-            
             # lock the Sub and Job rows before trying to claim
-            $self->lock_row($self);
             my $job = $self->job;
             $self->lock_row($job);
+            $self->lock_row($self);
             
             my $ss             = $self->stepstate;
             my $ps             = $ss->pipelinesetup;
             my %log_event_args = (dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $self->id, job => $job->id);
-            $ps->log_event("claim_and_run() got row locks for Submission and Job", %log_event_args);
             
             # first check if the job has already started or finished
             if ($self->done || $self->failed || (defined $job->exit_code && $job->end_time)) {
@@ -190,7 +187,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                     $self->_reset_job;
                     $self->_reset;
                     $response = 0;
-                    $ps->log_event("claim_and_run() returning from transaction", %log_event_args);
                     return;
                 }
             }
@@ -206,7 +202,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
             }
             
             # see if we can get the job to start running, and set claim if so
-            my $run_response = $job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : ());
+            my $run_response = $job->run(submission => $self, $allowed_time ? (allowed_time => $allowed_time) : (), $redis ? (redis => $redis) : ());
             if (!$run_response) {
                 $ps->log_event("claim_and_run() tried to run() the Job but it was already running", %log_event_args);
                 $response = 3;
@@ -224,7 +220,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 }
             }
             elsif ($run_response == 1) {
-                $ps->log_event("claim_and_run() was able to run() the Job, so claiming the Submission as well", %log_event_args);
                 $self->_claim(1);
                 $self->update;
                 $response     = 1;
@@ -233,10 +228,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
             
             my $claim = $self->_claim    || 0;
             my $st    = $job->start_time || 'n/a';
-            $ps->log_event("claim_and_run() ending transaction, _claim is $claim and job start_time is $st", %log_event_args);
         };
         $self->do_transaction($transaction, "Failed when trying to claim and run");
-        $self->stepstate->pipelinesetup->log_event("claim_and_run() after transaction", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
         
         return ($response, $job_instance);
     }
@@ -399,7 +392,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method job_stdout {
         my $file = $self->job_stdout_file || return;
         unless ($file->s) {
-            $file = $self->job->stdout_file;
+            $file = $self->job->stdout_file || return;
         }
         return $self->_std_parser($file, 'cat');
     }
@@ -407,7 +400,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     method job_stderr {
         my $file = $self->job_stderr_file || return;
         unless ($file->s) {
-            $file = $self->job->stderr_file;
+            $file = $self->job->stderr_file || return;
         }
         return $self->_std_parser($file, 'cat');
     }

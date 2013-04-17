@@ -13,15 +13,15 @@ BEGIN {
     use TestPipelines;
 }
 
-my $mapping_output_dir = get_output_dir('bam_mapping_with_bwa_via_fastq');
+my $mapping_output_dir = get_output_dir('bam_mapping_with_bwa_via_fastq_no_namesort');
 
-ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'bam_mapping_with_bwa_via_fastq'), 'able to get a pre-written pipeline';
+ok my $mapping_pipeline = VRPipe::Pipeline->create(name => 'bam_mapping_with_bwa_via_fastq_no_namesort'), 'able to get a pre-written pipeline';
 
 my @s_names;
 foreach my $stepmember ($mapping_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(sequence_dictionary bwa_index bam_metadata bam_name_sort bam_to_fastq fastq_split bwa_aln_fastq bwa_sam sam_to_fixed_bam bam_merge_lane_splits bam_index)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(sequence_dictionary bwa_index bam_metadata bam_to_fastq fastq_split bwa_aln_fastq bwa_sam sam_to_fixed_bam bam_merge_lane_splits bam_index)], 'the pipeline has the correct steps';
 
 my $ref_fa_source = file(qw(t data S_suis_P17.fa));
 my $ref_dir = dir($mapping_output_dir, 'ref');
@@ -29,7 +29,7 @@ $mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
-    name       => 'bam_mapping_with_bwa_via_fastq',
+    name       => 'bam_mapping_with_bwa_via_fastq_no_namesort',
     datasource => VRPipe::DataSource->create(
         type   => 'fofn',
         method => 'all',

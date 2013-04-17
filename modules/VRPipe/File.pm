@@ -289,7 +289,8 @@ class VRPipe::File extends VRPipe::Persistent {
         
         # set up the open command, handling compressed files automatically
         my $open_cmd = $path;
-        my $magic    = `file -bi $path`;
+        $self->disconnect;
+        my $magic = `file -bi $path`;
         ($magic) = split(';', $magic);
         if ($magic eq 'application/octet-stream' || $path =~ /\.gz$/) {
             if ($mode eq '<') {
@@ -347,6 +348,7 @@ class VRPipe::File extends VRPipe::Persistent {
             }
             else {
                 # we think the file exists, so sleep a second and try again
+                $self->disconnect;
                 sleep(1);
                 $self->e($self->check_file_existence_on_disc);
                 $self->update;
@@ -355,6 +357,7 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         
         $self->_opened($fh);
+        $self->disconnect;
         return $fh;
     }
     
@@ -388,7 +391,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
         while (my ($ss_id, $ss) = each %stepstates) {
-            $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path, " . ($worked ? 'and it worked' : 'but it failed'), dataelement => $ss->dataelement->id, stepstate => $ss->id, record_stack => 1);
+            $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path, " . ($worked ? 'and it worked' : 'but it failed'), dataelement => $ss->dataelement->id, stepstate => $ss->id);
         }
         
         return $worked;
@@ -436,6 +439,7 @@ class VRPipe::File extends VRPipe::Persistent {
             # whatever)
             $self->_check_destination_space($dp->dir);
             
+            $self->disconnect;
             $success = File::Copy::move($sp, $dp);
             
             $dest->update_stats_from_disc;
@@ -602,6 +606,7 @@ class VRPipe::File extends VRPipe::Persistent {
         # is it safe to copy?
         $self->_check_destination_space($dest->path->dir);
         
+        $self->disconnect;
         my $success = File::Copy::copy($sp, $dp);
         $dest->update_stats_from_disc;
         

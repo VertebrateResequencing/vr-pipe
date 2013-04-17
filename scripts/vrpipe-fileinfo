@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -45,6 +45,8 @@ my $frontend = VRPipe::FrontEnd->new(
         [],
         [q[Choose what information to display (by default just outputs the current path to the file):]],
         ['setup_info',  'Show details about the PipelineSetup that created the file'],
+        ['dataelement', 'Show what datalement the file was made for'],
+        ['input_file',  'Show the path to the ultimate input file(s) that make up the dataelement the file was made for'],
         ['cmd_summary', 'Show a simplified summary of what commands where used to generate the file (may not be available for all pipelines or steps)'],
         ['cmd_lines',   'Show the real complete command lines that were executed in order to generate the file'],
         ['time',        'Show the total wall time that the cmd_lines took to run, in seconds'],
@@ -86,7 +88,7 @@ my $unresolved = $frontend->option_was_set('unresolved');
 my $show_all   = $frontend->option_was_set('include_removed');
 
 my %output_types;
-foreach my $type (qw(setup_info cmd_summary cmd_lines time metadata lines size md5)) {
+foreach my $type (qw(setup_info dataelement input_file cmd_summary cmd_lines time metadata lines size md5)) {
     $frontend->option_was_set($type) || next;
     $output_types{$type} = 1;
 }
@@ -101,7 +103,7 @@ if ($frontend->option_was_set('tab_columns')) {
     }
 }
 else {
-    foreach my $col (qw(setup_info cmd_summary cmd_lines size lines md5 time metadata)) {
+    foreach my $col (qw(setup_info dataelement input_file cmd_summary cmd_lines size lines md5 time metadata)) {
         if (exists $output_types{$col}) {
             push(@tab_cols, $col);
         }
@@ -120,6 +122,7 @@ foreach my $col (@tab_cols) {
 
 # handle --paths
 my %files;
+my %file_to_de;
 my $limit_count = 0;
 foreach my $path (@paths) {
     $path = file($path)->absolute;
@@ -131,6 +134,14 @@ foreach my $path (@paths) {
         my $fid = $file->id;
         unless (exists $files{$fid}) {
             $files{ $file->id } = $file;
+            
+            if ($output_types{dataelement} || $output_types{input_file}) {
+                my $stepstate = file_to_stepstate($file);
+                if ($stepstate) {
+                    $file_to_de{ $file->id } = $stepstate->dataelement;
+                }
+            }
+            
             $limit_count++;
         }
         if ($limit) {
@@ -214,6 +225,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
                             my $fid = $file->id;
                             unless (exists $files{$fid}) {
                                 $files{$fid} = $file;
+                                $file_to_de{$fid} = $element if ($output_types{dataelement} || $output_types{input_file});
                                 $limit_count++;
                             }
                             
@@ -307,6 +319,30 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
             }
             else {
                 $result = 'file was not made by a (single) VRPipe pipeline';
+            }
+        }
+        elsif ($col eq 'dataelement') {
+            my $de = $file_to_de{$fid};
+            if ($de) {
+                $result = $de->id;
+            }
+            else {
+                $result = 'unknown';
+            }
+        }
+        elsif ($col eq 'input_file') {
+            my $de = $file_to_de{$fid};
+            if ($de) {
+                my @paths = $de->paths;
+                if (@paths) {
+                    $result = join(' ', @paths);
+                }
+                else {
+                    $result = 'n/a';
+                }
+            }
+            else {
+                $result = 'unknown';
             }
         }
         elsif ($col eq 'cmd_summary') {

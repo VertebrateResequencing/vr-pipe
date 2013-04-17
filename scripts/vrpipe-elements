@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -32,8 +32,9 @@ use Path::Class;
 my $frontend = VRPipe::FrontEnd->new(
     description => "See details related to incomplete element states.",
     opt_spec    => [
-        ['element=i',         'Show details for this single element state only',                                                               { persistent_object => 'DataElementState' }],
+        ['element=i',         'Show details for this single dataelement only (requires --setup as well)',                                      { persistent_object => 'DataElement' }],
         ['setup=s@',          'Only show details for the given PipelineSetup (by id or name); you can repeat this option',                     { persistent_object => 'PipelineSetup' }],
+        ['elementstate=i',    'Show details for this single dataelementstate only',                                                            { persistent_object => 'DataElementState' }],
         ['failed|f',          q[Only show elements that have have stalled in a pipeline due to repeated failures that couldn't be overcome automatically]],
         ['retries|r=i',       q[When using --failed, this is the number of retries are needed before something is considered to have stalled], { default           => 3 }],
         ['exclude_withdrawn', q[Normally all element states are considered; this option will exclude those for withdrawn elements],            { default           => 0 }],
@@ -51,7 +52,7 @@ my $frontend = VRPipe::FrontEnd->new(
     ]
 );
 
-my $desired_ele        = $frontend->option_was_set('element');
+my $desired_ele        = $frontend->option_was_set('element') || $frontend->option_was_set('elementstate');
 my $failed             = $frontend->opts('failed');
 my $retries            = $frontend->opts('retries');
 my $exclude_withdrawn  = $frontend->opts('exclude_withdrawn');
@@ -74,12 +75,28 @@ if ($all && !$force_with_all && $start_from_scratch) {
     $frontend->die_with_error("Sorry, --all combined with --start_from_scratch seems like a really bad idea. Use --force_with_all if you're really really sure");
 }
 
+my @setups = $frontend->get_pipelinesetups($desired_ele ? (allow_no_setups => 1) : ());
 my @element_states;
 if ($desired_ele) {
-    @element_states = ($frontend->opts('element'));
+    my $e = $frontend->opts('element');
+    if ($e && @setups != 1) {
+        $frontend->die_with_error("When using --element, exactly one --setup must be supplied");
+    }
+    my $es = $frontend->opts('elementstate');
+    if ($e && $es) {
+        $frontend->die_with_error("You cannot specify both --element and --elementstate");
+    }
+    if ($e) {
+        ($es) = VRPipe::DataElementState->search({ pipelinesetup => $setups[0]->id, dataelement => $e->id });
+        unless ($es) {
+            $frontend->die_with_error("The --setup you specified does not have the --dataelement you specified");
+        }
+    }
+    
+    @element_states = ($es);
 }
 else {
-    foreach my $setup ($frontend->get_pipelinesetups()) {
+    foreach my $setup (@setups) {
         if ($all) {
             @element_states = $setup->dataelementstates(include_withdrawn => !$exclude_withdrawn);
         }
@@ -158,62 +175,65 @@ foreach my $estate (@element_states) {
         my $current_step_num = $completed_steps + 1;
         my ($step_member) = grep { $_->step_number == $current_step_num } @stepms;
         my ($sstate) = VRPipe::StepState->search({ stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup });
-        next unless $sstate;
-        
-        my @subs = VRPipe::Submission->search({ stepstate => $sstate->submission_search_id }, { prefetch => 'job' });
-        my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
-        foreach my $sub (@subs) {
-            if ($sub->failed) {
-                if ($sub->retries >= $retries) {
-                    $num_perm_failed++;
+        if ($sstate) {
+            my @subs = VRPipe::Submission->search({ stepstate => $sstate->submission_search_id }, { prefetch => 'job' });
+            my ($num_failed, $num_perm_failed, $num_done, $num_scheduled, $num_running) = (0, 0, 0, 0, 0);
+            foreach my $sub (@subs) {
+                if ($sub->failed) {
+                    if ($sub->retries >= $retries) {
+                        $num_perm_failed++;
+                    }
+                    else {
+                        $num_failed++;
+                    }
+                }
+                elsif ($sub->done) {
+                    $num_done++;
                 }
                 else {
-                    $num_failed++;
+                    if ($sub->job->alive) {
+                        $num_running++;
+                    }
+                    else {
+                        $num_scheduled++;
+                    }
                 }
             }
-            elsif ($sub->done) {
-                $num_done++;
+            
+            my $current_step_name = $step_member->step->name;
+            my $status = $num_perm_failed ? 'STALLED' : 'working';
+            my @subs_desc;
+            if ($num_perm_failed) {
+                push(@subs_desc, "$num_perm_failed PERMANENTLY failed");
+            }
+            if ($num_failed) {
+                push(@subs_desc, "$num_failed temporarily failed");
+            }
+            if ($num_done) {
+                push(@subs_desc, "$num_done finished ok");
+            }
+            if ($num_running) {
+                push(@subs_desc, "$num_running currently running");
+            }
+            if ($num_scheduled) {
+                push(@subs_desc, "$num_scheduled scheduled to run");
+            }
+            my $subs_desc;
+            if (@subs_desc) {
+                $subs_desc = '(submission breakdown = ' . join(', ', @subs_desc) . ')';
             }
             else {
-                if ($sub->job->alive) {
-                    $num_running++;
-                }
-                else {
-                    $num_scheduled++;
-                }
+                $subs_desc = '(no submissons created for step state ' . $sstate->id . ' yet)';
             }
-        }
-        
-        my $current_step_name = $step_member->step->name;
-        my $status = $num_perm_failed ? 'STALLED' : 'working';
-        my @subs_desc;
-        if ($num_perm_failed) {
-            push(@subs_desc, "$num_perm_failed PERMANENTLY failed");
-        }
-        if ($num_failed) {
-            push(@subs_desc, "$num_failed temporarily failed");
-        }
-        if ($num_done) {
-            push(@subs_desc, "$num_done finished ok");
-        }
-        if ($num_running) {
-            push(@subs_desc, "$num_running currently running");
-        }
-        if ($num_scheduled) {
-            push(@subs_desc, "$num_scheduled scheduled to run");
-        }
-        my $subs_desc;
-        if (@subs_desc) {
-            $subs_desc = '(submission breakdown = ' . join(', ', @subs_desc) . ')';
+            
+            $step_desc = ": currently $status on $current_step_name $subs_desc";
         }
         else {
-            $subs_desc = '(no submissons created for step state ' . $sstate->id . ' yet)';
+            $step_desc = ': has no stepstate associated with it!';
         }
-        
-        $step_desc = ": currently $status on $current_step_name $subs_desc";
     }
     
-    $frontend->output("ElementState ", $estate->id, " for pipeline $pipe_name in setup ", $setup->id, " completed step $last_step_name$step_desc", $withdrawn ? ', element is withdrawn' : '');
+    $frontend->output("DataElement ", $estate->dataelement->id, " (DataElementState ", $estate->id, ") for pipeline $pipe_name in setup ", $setup->id, " completed step $last_step_name$step_desc", $withdrawn ? ', element is withdrawn' : '');
     if ($extra_info) {
         $frontend->output("Output root: ", output_root($estate)) if $output_root;
         $frontend->output("Input paths: ", join(",", $estate->dataelement->paths)) if $input_paths;

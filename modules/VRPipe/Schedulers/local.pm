@@ -121,6 +121,25 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 1;
     }
     
+    method batch_kill_sids (ArrayRef $sid_aids) {
+        # unlike kill_sid(), we're all about speed, so can't care about if the
+        # kill actually worked or not
+        
+        my @sids;
+        foreach my $sid_aid (@$sid_aids) {
+            my ($sid, $aid) = @$sid_aid;
+            my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+            push(@sids, $id);
+            
+            if (@sids == 500) {
+                system("$ls_script kill @sids");
+                @sids = ();
+            }
+        }
+        
+        system("$ls_script kill @sids") if @sids;
+    }
+    
     method all_status {
         open(my $bfh, "$ls_script jobs |") || $self->warn("Could not call $ls_script jobs");
         my %status = ();

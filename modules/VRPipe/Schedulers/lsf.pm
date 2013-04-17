@@ -45,6 +45,9 @@ use VRPipe::Base;
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     use Crypt::Random qw(makerandom_itv);
     use DateTime;
+    use DateTime::TimeZone;
+    our $local_timezone = DateTime::TimeZone->new(name => 'local');
+    
     our %months = qw(Jan 1
       Feb 2
       Mar 3
@@ -190,6 +193,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                         $queues{$queue}->{$type} = $vals eq 'all' ? 1000000 : scalar(@vals);
                     }
                 }
+                
+                if (/^CHUNK_JOB_SIZE:\s+(\d+)/) {
+                    $queues{$queue}->{chunk_size} = $1;
+                }
             }
             close($bqlfh) || $self->throw("Could not close a pipe to bqueues -l");
             
@@ -200,6 +207,9 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 }
                 unless (defined $queue_hash->{memlimit}) {
                     $queue_hash->{memlimit} = 1000000;
+                }
+                unless (defined $queue_hash->{chunk_size}) {
+                    $queue_hash->{chunk_size} = 0;
                 }
             }
         }
@@ -215,7 +225,8 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                   || $queues{$b}->{max_user} <=> $queues{$a}->{max_user}
                   || $queues{$b}->{max} <=> $queues{$a}->{max}
                   || $queues{$b}->{prio} <=> $queues{$a}->{prio}
-                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit} # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
+                  || $queues{$a}->{chunk_size} <=> $queues{$b}->{chunk_size} # we want to avoid chunked queues because that means jobs will run sequentially instead of in parallel
+                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit}     # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
                   || $queues{$a}->{memlimit} <=> $queues{$b}->{memlimit}
             } keys %queues
           ) {
@@ -277,6 +288,25 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         return 1;
     }
     
+    method batch_kill_sids (ArrayRef $sid_aids) {
+        # unlike kill_sid(), we're all about speed, so can't care about if the
+        # kill actually worked or not
+        
+        my @sids;
+        foreach my $sid_aid (@$sid_aids) {
+            my ($sid, $aid) = @$sid_aid;
+            my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+            push(@sids, $id);
+            
+            if (@sids == 500) {
+                system("bkill @sids");
+                @sids = ();
+            }
+        }
+        
+        system("bkill @sids") if @sids;
+    }
+    
     method all_status {
         open(my $bfh, "bjobs |") || $self->warn("Could not call bjobs");
         my %status = ();
@@ -312,17 +342,19 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         
         open(my $bfh, "bjobs -l $id |") || $self->warn("Could not call bjobs -l $id");
         my ($start_epoch, $end_epoch);
-        my $y = DateTime->now->year;
         if ($bfh) {
+            my $y = DateTime->now->year;           #*** bad things are going to happen every new year?...
+            
             while (<$bfh>) {
                 if (/^(.+): .*[Ss]tarted on/) {
-                    my ($mo, $d, $h, $m, $s) = $1 =~ /$date_regex/;
-                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s);
+                    my $ststr = $1;
+                    my ($mo, $d, $h, $m, $s) = $ststr =~ /$date_regex/;
+                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s, time_zone => $local_timezone);
                     $start_epoch = $dt->epoch;
                 }
                 elsif (/^(.+): (?:Exited|Completed)/) {
                     my ($mo, $d, $h, $m, $s) = $1 =~ /$date_regex/;
-                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s);
+                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s, time_zone => $local_timezone);
                     $end_epoch = $dt->epoch;
                     last;
                 }
@@ -360,7 +392,6 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             while (<$bfh>) {
                 if (my ($sid, $status, $job_name) = $_ =~ /^(\d+)\s+\S+\s+(\S+)\s+\S+\s+\S+\s+\S+\s+($job_name_prefix\S+)/) {
                     $job_name || next;
-                    warn "saw $job_name running as $sid with status $status\n";
                     next if $status eq 'EXIT';
                     $count++;
                     

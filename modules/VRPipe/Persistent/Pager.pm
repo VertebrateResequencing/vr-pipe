@@ -85,11 +85,12 @@ class VRPipe::Persistent::Pager {
     );
     
     has _pager => (
-        is      => 'rw',
-        isa     => 'Data::Page',
-        lazy    => 1,
-        builder => '_build_pager',
-        handles => [qw(current_page last_page total_entries)]
+        is        => 'rw',
+        isa       => 'Data::Page',
+        lazy      => 1,
+        builder   => '_build_pager',
+        predicate => '_pager_built',
+        handles   => [qw(current_page last_page total_entries)]
     );
     
     has _pages_done => (
@@ -118,9 +119,22 @@ class VRPipe::Persistent::Pager {
     }
     
     method next (Bool :$no_resetting?) {
-        my $current_entries = $self->total_entries; # we must build our pager first, which alters resultset()
-        my $rs              = $self->resultset;
-        unless ($no_resetting) {
+        my $rs;
+        if ($no_resetting) {
+            unless ($self->_pager_built) {
+                # don't use the default _build_pager, use a simpler one
+                $rs = $self->resultset;
+                $rs = $rs->search({}, { rows => $self->rows_per_page, page => 1 });
+                $self->_modify_resultset($rs);
+                $self->_pager($rs->pager);
+            }
+            else {
+                $rs = $self->resultset;
+            }
+        }
+        else {
+            my $current_entries = $self->total_entries; # we must build our pager first, which alters resultset()
+            $rs = $self->resultset;
             my $new_rs = $rs->search({}, { rows => $self->rows_per_page, page => 1 });
             if ($new_rs->pager->total_entries != $current_entries) {
                 $rs = $new_rs;

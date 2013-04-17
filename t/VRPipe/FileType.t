@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 33;
+    use Test::Most tests => 32;
     use VRPipeTest (required_exe => [qw(samtools bcftools fastqcheck)]);
     
     use_ok('VRPipe::FileType');
@@ -59,8 +59,7 @@ is $ft->check_type(), 1, 'a cram file passes the check';
 my $bcf = VRPipe::File->create(path => file(qw(t data file.bcf))->absolute);
 ok $ft = VRPipe::FileType->create('bcf', { file => $bcf->path }), 'could create a bcf filetype';
 is $ft->type, 'bcf', 'bcf type is correct';
-is $ft->check_type(),  1, 'a bcf file passes the check';
-is $ft->check_magic(), 1, 'bcf magic is correct';
-is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records, $ft->samples], [15670, 34, 15636, [qw(NA12006 NA12144 NA18970 NA18969 NA18995 NA18946)]], 'num_lines, num_header_lines, num_records and samples methods work for a bcf file';
+is $ft->check_type(), 1, 'a bcf file passes the check';
+is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records, $ft->samples], [15671, 35, 15636, [qw(NA12006 NA12144 NA18970 NA18969 NA18995 NA18946)]], 'num_lines, num_header_lines, num_records and samples methods work for a bcf file';
 
 exit;

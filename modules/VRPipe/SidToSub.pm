@@ -100,13 +100,13 @@ class VRPipe::SidToSub extends VRPipe::Persistent {
     __PACKAGE__->make_persistent();
     
     after sub_id (Maybe[Int] $sub_id?) {
-        if ($sub_id) {
+        shift;
+        if (@_) {
             $self->assignment_time(DateTime->now());
         }
     }
     
     method time_since_assignment {
-        return 0 unless $self->sub_id;
         my $assigned = $self->assignment_time || return 0;
         return time() - $assigned->epoch;
     }

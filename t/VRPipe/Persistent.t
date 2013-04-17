@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 153;
+    use Test::Most tests => 157;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -32,6 +32,20 @@ $schedulers[2]->start_scheduler;
 my $output_dir = dir($schedulers[2]->output_root, 'persistent_test_output');
 $schedulers[2]->remove_tree($output_dir);
 $schedulers[2]->make_path($output_dir);
+
+my $sidtosub = VRPipe::SidToSub->create(farm => 'foo', req_id => 1, sid => 1, aid => 1);
+is_deeply [$sidtosub->sid, $sidtosub->sub_id, $sidtosub->assignment_time], [1, undef, undef], 'SidToSub could be created and returns values, with sub_id and assignment_time defaulting to undef';
+$sidtosub->sub_id(1);
+$sidtosub->update;
+is $sidtosub->sub_id, 1, 'setting sub_id works';
+my $assignment_time = $sidtosub->assignment_time;
+ok $assignment_time, 'it also set assignment_time';
+sleep(1);
+$sidtosub->sub_id(undef);
+$sidtosub->update;
+my $new_time = $sidtosub->assignment_time;
+my $assignment_changed = $new_time->epoch > $assignment_time->epoch ? 1 : 0;
+is_deeply [$sidtosub->sub_id, $assignment_changed], [undef, 1], 'undeffing sub_id updated assignment_time';
 
 my @files;
 my $input1_path = file($output_dir, 'input1.txt');

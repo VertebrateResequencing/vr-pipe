@@ -323,7 +323,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
             # later on, we don't want the second element of the second setup to
             # instantly complete, but everything else should
             if ($basename eq 'file.cat.o') {
-                $self->dispatch("echo foo > " . $ofile->path);
+                $self->dispatch(["echo foo > " . $ofile->path, VRPipe::Requirements->create(memory => 10, time => 10)]);
                 return 0;
             }
             else {

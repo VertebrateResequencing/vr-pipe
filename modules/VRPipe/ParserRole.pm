@@ -132,6 +132,7 @@ role VRPipe::ParserRole {
         if (ref($file) && (File->check($file) || $file->isa('VRPipe::File'))) {
             my $vrpf = $file->isa('VRPipe::File') ? $file : VRPipe::File->create(path => $file->absolute, FileType->check($self->type) ? (type => $self->type) : ());
             $self->_set_vrpipe_file($vrpf); # because on destruction, $vrpf will close the opened filehandle
+            $vrpf->disconnect;
             return $vrpf->openr();
         }
         else {
@@ -143,7 +144,9 @@ role VRPipe::ParserRole {
         $self->fh;
         my $vrpf = $self->_vrpipe_file;
         if ($vrpf) {
-            return $vrpf->path->stringify;
+            my $filename = $vrpf->path->stringify;
+            $vrpf->disconnect;
+            return $filename;
         }
         else {
             return '-';

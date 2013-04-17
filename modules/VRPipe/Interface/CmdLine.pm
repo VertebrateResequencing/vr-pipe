@@ -135,7 +135,7 @@ class VRPipe::Interface::CmdLine {
     }
     
     method _build_ua {
-        my $ua = LWP::UserAgent->new(timeout => 20, agent => 'VRPipe-Client');
+        my $ua = LWP::UserAgent->new(timeout => 200, agent => 'VRPipe-Client');
         return $ua;
     }
     
