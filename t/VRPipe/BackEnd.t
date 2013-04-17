@@ -11,7 +11,7 @@ BEGIN {
 
 ok my $backend = VRPipe::Interface::BackEnd->new(deployment => 'testing'), 'made a BackEnd instance';
 
-warning_like { $backend->log('log_test', email_admin => 1, force_when_testing => 1) } qr/^\d\d\d\d\/\d\d\/\d\d \d\d:\d\d:\d\d: log_test$/, 'log() generates a warning';
+warning_like { $backend->log('log_test', email_admin => 1, force_when_testing => 1) } qr/^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \| pid \d+ \| log_test$/, 'log() generates a warning';
 my @deliveries = Email::Sender::Simple->default_transport->deliveries;
 my $email      = $deliveries[0]->{email};
 my $email_body = $email->get_body;

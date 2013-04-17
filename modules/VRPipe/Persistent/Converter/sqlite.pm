@@ -110,6 +110,14 @@ class VRPipe::Persistent::Converter::sqlite with VRPipe::Persistent::ConverterRo
     method index_creation_style {
         return 'all';
     }
+    
+    method get_isolation_change_sql (Bool :$repeatable_read = 0) {
+        return if $repeatable_read; # by default it is serializable, which is an acceptable substitute
+        # else, we want read committed...
+        #*** hmmm, can SQLite do read-committed-type behaviour? If not, can we
+        # support it?
+        return;
+    }
 }
 
 1;

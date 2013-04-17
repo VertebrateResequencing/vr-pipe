@@ -41,8 +41,8 @@ my $frontend = VRPipe::FrontEnd->new(
         ['limit|l=i',    q[Only show this number of submissions]],
         [],
         [q[After the above options have been used to filter the list of all submissions, and their details have been printed to screen, the following options will let you take action on those submissions (after a confirmation prompt):]],
-        ['start_over', q[Start the submissions over again, resetting their associated jobs and setting the number of retries back to 0. NB: the exact same cmd lines will be retried, since the jobs are not out-right deleted]],
-        ['full_reset', q[All submissions associated with the step and data element of the submissions that you chose will be deleted outright along with their jobs and all output files. VRPipe will then recreate new submissions and jobs for those steps and data elements. This is what you'd need to use if you changed options for a step that would result in new cmd lines]],
+        ['start_over', q[Start the submissions over again, resetting their associated jobs and setting the number of retries back to 0, but keeping the current memory and time requirements. NB: the exact same cmd lines will be retried, since the jobs are not out-right deleted. Use this when you just want VRPipe to try a few more times automatically, further increasing memory/time requirements if VRPipe knew the previous failures were due to running out of memory or time]],
+        ['full_reset', q[All submissions associated with the step and data element of the submissions that you chose will be deleted outright along with their jobs and all output files; memory and time requirements will also be reset to their defaults/manually set values. VRPipe will then recreate new submissions and jobs for those steps and data elements. This is what you'd need to use if you changed options for a step that would result in new cmd lines, or if you manually set a new memory/time requirement]],
         ['no_report',  q[Don't print out full details of each submission, just start_over or full_reset them as fast as possible]],
         ['force_with_all', q[Force --start_over or --full_reset to work with --all], { hidden => 1 }]
     ]
@@ -121,11 +121,12 @@ foreach my $sub (@subs) {
     
     my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
     $frontend->output("---\nSubmission ", $sub->id, " for job ", $job->id, " for dataelement $de in step $step_num (\"$step_name\") of pipelinesetup \"$setup\" is $sub_state, having been retried ", $sub->retries, " times");
-    my $job_state = $job->end_time ? 'finished' : ($job->start_time ? 'running' : 'pending');
+    my $job_state = $job->end_time           ? 'finished'                                     : ($job->start_time ? 'running' : 'pending');
+    my $job_host  = $job->host               ? ', on host ' . $job->host                      : '';
     my $job_extra = $job_state eq 'finished' ? ', having exited with code ' . $job->exit_code : '';
-    $frontend->output("The job is $job_state$job_extra; its command line is:\n", $job->cmd);
-    $frontend->output("The working directory for the job is ",                   $job->dir);
-    $frontend->output("We reserved ",                                            $req->memory, "MB memory and ", ($req->time / (60 * 60)), "hrs of time");
+    $frontend->output("The job is $job_state$job_host$job_extra; its command line is:\n", $job->cmd);
+    $frontend->output("The working directory for the job is ",                            $job->dir);
+    $frontend->output("We reserved ",                                                     $req->memory, "MB memory and ", ($req->time / (60 * 60)), "hrs of time");
     
     if ($sub_state ne 'scheduled' || $sub->retries > 0) {
         if ($job->end_time) {
@@ -180,6 +181,8 @@ if ($count > 0 && ($start_over || $full_reset)) {
     if ($answer eq 'y') {
         if ($start_over) {
             foreach my $sub (@final_subs) {
+                my $ss = $sub->stepstate;
+                $ss->pipelinesetup->log_event("Calling Submission->start_over because the user chose to do a start_over with vrpipe-submissions", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $sub->id, job => $sub->job->id);
                 $sub->start_over;
             }
         }
@@ -193,6 +196,7 @@ if ($count > 0 && ($start_over || $full_reset)) {
             undef @subs;
             
             foreach my $ss (values %sss) {
+                $ss->pipelinesetup->log_event("Calling StepState->start_over because the user chose to do a full_reset with vrpipe-submissions", stepstate => $ss->id, dataelement => $ss->dataelement->id);
                 $ss->start_over;
             }
         }

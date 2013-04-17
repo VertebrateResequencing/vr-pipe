@@ -165,6 +165,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method check_file_existence_on_disc (File $path?) {
         $path ||= $self->path;         # optional so that we can call this without a db connection by supplying the path
+        $self->throw("no path!") unless $path;
         my $e = -e $path;
         return $e || 0;
     }
@@ -218,10 +219,9 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
         my $transaction = sub {
-            # select our row for update, to lock it
-            my ($locked_self) = $self->search({ id => $self->id }, { for => 'update' });
+            $self->lock_row($self, 1); #*** the 1 means 'no hack' which means we rely on 'READ COMMITTED' to ensure the existing_meta we get is the most up-to-date metadata, rather than the hack that means this transaction is forced to take 1 second, which is ruinous for datasource updates
             
-            my $existing_meta = $locked_self->metadata;
+            my $existing_meta = $self->metadata;
             
             # incase the input $meta was the same hashref as existing_meta, we need
             # a new ref or update will do nothing
@@ -242,8 +242,8 @@ class VRPipe::File extends VRPipe::Persistent {
                 $new_meta->{$key} = $val;
             }
             
-            $locked_self->metadata($new_meta);
-            $locked_self->update;
+            $self->metadata($new_meta);
+            $self->update;
         };
         $self->do_transaction($transaction, "Failed to add_metadata for file " . $self->path);
         
@@ -251,7 +251,6 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($resolve ne $self) {
             $resolve->add_metadata($meta, replace_data => $replace_data);
         }
-        $self->reselect_values_from_db;
     }
     
     method openr {
@@ -290,7 +289,8 @@ class VRPipe::File extends VRPipe::Persistent {
         
         # set up the open command, handling compressed files automatically
         my $open_cmd = $path;
-        my $magic    = `file -bi $path`;
+        $self->disconnect;
+        my $magic = `file -bi $path`;
         ($magic) = split(';', $magic);
         if ($magic eq 'application/octet-stream' || $path =~ /\.gz$/) {
             if ($mode eq '<') {
@@ -348,6 +348,7 @@ class VRPipe::File extends VRPipe::Persistent {
             }
             else {
                 # we think the file exists, so sleep a second and try again
+                $self->disconnect;
                 sleep(1);
                 $self->e($self->check_file_existence_on_disc);
                 $self->update;
@@ -356,6 +357,7 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         
         $self->_opened($fh);
+        $self->disconnect;
         return $fh;
     }
     
@@ -376,8 +378,9 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     method remove {
-        my $path   = $self->path;
-        my $worked = $self->path->remove;
+        my $path = $self->path;
+        
+        my $worked = $path->remove;
         $self->update_stats_from_disc;
         if ($worked) {
             $self->_lines(undef);
@@ -385,6 +388,12 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->md5(undef);
             $self->update;
         }
+        
+        my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
+        while (my ($ss_id, $ss) = each %stepstates) {
+            $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path, " . ($worked ? 'and it worked' : 'but it failed'), dataelement => $ss->dataelement->id, stepstate => $ss->id);
+        }
+        
         return $worked;
     }
     alias unlink => 'remove';
@@ -412,20 +421,25 @@ class VRPipe::File extends VRPipe::Persistent {
             return 1;
         }
         
+        my $sp         = $self->path;
+        my $dp         = $dest->path;
+        my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
+        while (my ($ss_id, $ss) = each %stepstates) {
+            $ss->pipelinesetup->log_event("File->move() called for StepOutputFile $sp => $dp", dataelement => $ss->dataelement->id, stepstate => $ss->id);
+        }
+        
         my $success;
         if ($check_md5s) {
             $success = $self->copy($dest);
         }
         else {
-            my $sp = $self->path;
-            my $dp = $dest->path;
-            
             # is it safe to move? (this check requires enough disk space for a
             # copy, even though we may do a direct mv requiring no additional
             # disk space if both sp and dp are on the same filesystem... but
             # whatever)
             $self->_check_destination_space($dp->dir);
             
+            $self->disconnect;
             $success = File::Copy::move($sp, $dp);
             
             $dest->update_stats_from_disc;
@@ -592,6 +606,7 @@ class VRPipe::File extends VRPipe::Persistent {
         # is it safe to copy?
         $self->_check_destination_space($dest->path->dir);
         
+        $self->disconnect;
         my $success = File::Copy::copy($sp, $dp);
         $dest->update_stats_from_disc;
         
@@ -640,7 +655,6 @@ class VRPipe::File extends VRPipe::Persistent {
         my $current_s     = $self->s;
         my $current_mtime = $self->mtime;
         my $path          = $self->path;
-        $self->disconnect;
         
         my ($new_e, $new_s, $new_mtime);
         my $trys = 0;
@@ -678,7 +692,7 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($raw || !$lines) {
             my $type = $raw ? 'any' : $self->type;
             my $ft = VRPipe::FileType->create($type, { file => $self->path });
-            $self->disconnect;
+            $self->disconnect if $s > 640000;
             $lines = $ft->num_lines;
             unless ($raw) {
                 $self->_lines($lines);
@@ -703,7 +717,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         my $records = 0;
         my $ft = VRPipe::FileType->create($self->type, { file => $self->path });
-        $self->disconnect;
+        $self->disconnect if $s > 640000;
         $records = $ft->num_records;
         
         return $records;

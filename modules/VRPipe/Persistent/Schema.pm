@@ -36,7 +36,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -60,7 +60,7 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     
-    our $VERSION = 27;
+    our $VERSION = 29;
     __PACKAGE__->load_classes({
             'VRPipe' => [
                 qw/Step Scheduler Job Requirements
@@ -74,8 +74,8 @@ class VRPipe::Persistent::Schema extends VRPipe::Persistent::SchemaBase {
                   DataElementState DataElementLink
                   LocalSchedulerJob
                   LocalSchedulerJobState
-                  StepStats FarmServer Runner MessageTracker
-                  SubmissionQueue/
+                  StepStats FarmServer MessageTracker
+                  PipelineSetupLog SidToSub/
             ]
         }
     );

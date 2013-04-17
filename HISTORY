@@ -1,3 +1,57 @@
+0.152   Critical fix for database connection exhaustion; critical fix for
+        logging.
+        Improved stall reduction. Improved database update consistency: fixed
+        remaining reliability issues.
+        vrpipe-fileinfo gains new options --dataelement and --input_file
+        vrpipe-elements --element option now takes a dataelement id, and gains a
+        --elementstate option that takes a dataelementstate id.
+0.151   Critical fix for Submission failures due to mysterious SIGINTs.
+        Critical fix for database update inconsistencies: the pipeline system
+        itself should no longer be the cause of pipelines failing or entering
+        into strange states.
+        Fixed vrpipe-status --deactivated option to work again.
+        PipelineSetups will no longer remain stalled (not moving to the next
+        step) for too long (or forever), and fewer stalls should happen.
+        New vrpipe-logs script to investigate what happened to a setup.
+        The trigger process was sped up, in some case by orders of magnitude.
+        archive_files step no longer re-archives files that are already in the
+        archive pool.
+        Further reduction to database connection exhaustion (though the problem
+        remains).
+0.150   Further fixes for database connection exhaustion. Fixed step limit
+        system to work again.
+0.149   Possible fix for database connection exhaustion.
+0.148   Further improved database update consistency. Improved speed.
+        vrpipe-status gains new --global_summary option.
+0.147   Critical fix to avoid using up all database connections.
+0.146   Improvement to database update consistency (should now avoid strange
+        failures where input files got deleted).
+        New bam_mapping_with_bwa_via_fastq_no_namesort pipeline to supercede
+        the other bam_mapping_with_bwa* pipelines.
+        Improved speed and efficiency for getting jobs that need be run
+        submitted to the scheduler.
+0.145   Critical speed fix for slow DataSource updates. Fix for some reset
+        situations. Improved database consistency. LocalScheduler now functions
+        correctly (though the server itself is suffering from a crash issue on
+        certain low-cpu machines). Be sure to read IMPORTANT_NOTES.
+0.144   Corrected database schema version number.
+0.143   Critical (partial) fix for database inconsistency issues that have led
+        to random issues such as missing output files, jobs pending forever,
+        submissions restarting forever etc.
+        Scheduler job arrays are now used for better scheduling efficiency.
+        sequence_index datasource gains new method sample_fastqs.
+        vrpipe-file_info now shows resolved file paths by default, and can now
+        show files that have been deleted.
+        New PipelineSetupLog class that records all major events that occur for
+        each PipelineSetup.
+        vrpipe-elements can now be used to tempoarily withdraw elements, and can
+        also now show input paths and the output root.
+        vrpipe-setup gains a 'touch' option to force the refresh of a
+        datasource.
+        vrpipe-output now describes all output files, not just those that still
+        exist. You can also now --force_overwrite existing symlinks.
+        vrpipe-submissions now reports the host that the jobs are running on.
+        bam_to_fastq step reimplemented to use the bam2fastq exe.
 0.142   Critical fix for File copy() and move() methods so that interrupted
         attempts are no longer considered successful on a retry. bam_metadata
         step now has a store_original_pg_chain option, which when turned off

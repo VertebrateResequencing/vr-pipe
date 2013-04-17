@@ -389,7 +389,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     $size = $1;
                     ($cname, $size, $is_numeric) = $converter->get_column_info(size => $size, is_numeric => 0);
                 }
-                elsif ($cname eq 'Text') {
+                elsif ($cname eq 'Text' || $cname eq 'Str') {
                     ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'Bool') {
@@ -412,7 +412,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         $flations{$name} = {
                             inflate => sub {
                                 my $hash = thaw(shift);
-                                while (my ($key, $serialized) = each %$hash) { my ($class, $id) = split('~', $serialized); $hash->{$key} = $class->get(id => $id); }
+                                while (my ($key, $serialized) = each %$hash) { my ($class, $id) = split('~', $serialized); my ($instance) = $class->search({ id => $id }); $hash->{$key} = $instance if $instance; }
                                 return $hash;
                             },
                             deflate => sub {
@@ -430,7 +430,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                                     my @array;
                                     foreach my $serialized (@$array_ref) {
                                         my ($class, $id) = split('~', $serialized);
-                                        push(@array, $class->get(id => $id));
+                                        my ($instance) = $class->search({ id => $id });
+                                        push(@array, $instance) if $instance;
                                     }
                                     $hash->{$key} = \@array;
                                 }
@@ -456,7 +457,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                             inflate => sub {
                                 my $array = thaw(shift);
                                 my @inflated;
-                                foreach my $serialized (@$array) { my ($class, $id) = split('~', $serialized); push(@inflated, $class->get(id => $id)); }
+                                foreach my $serialized (@$array) { my ($class, $id) = split('~', $serialized); my ($instance) = $class->search({ id => $id }); push(@inflated, $instance) if $instance; }
                                 return \@inflated;
                             },
                             deflate => sub {
@@ -694,54 +695,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             }
             
-            # when dealing with refs, if we pass the ref to find(), it will
-            # auto-flatten it and screw up the find call; search() will just try
-            # to search for the reference and fail. find/search based on the
-            # deflated string instead. Also find based on Peristent ids, not the
-            # object references. Also convert DateTime objects as necessary for
-            # searches
-            my $dtf;
-            if ($search_mode && $schema) {
-                $dtf = $schema->storage->datetime_parser;
-            }
-            my %pks = map { $_ => 1 } @psuedo_keys;
+            # deflate refs
             foreach my $hash ($search_mode ? ($args) : ($find_args, $args)) {
-                while (my ($key, $val) = each %$hash) {
-                    next if $key =~ /\./;           # *** not sure how to handle columns from a table join
-                    next if $key =~ /\-(?:and|or)/; #*** we should recurse into the $val...
-                    $self->throw("You cannot search for '$key' because $class does not have that column") unless exists $all_attribs{$key};
-                    
-                    unless ($search_mode) {
-                        next unless exists $pks{$key}; # *** not really sure why get() doesn't work on eg. steps if we don't skip non-keys
-                    }
-                    
-                    if ($val && ref($val)) {
-                        if (UNIVERSAL::can($val, 'can')) {
-                            if ($val->isa('VRPipe::Persistent')) {
-                                $hash->{$key} = $val->id;
-                            }
-                            elsif ($dtf && $val->isa('DateTime')) {
-                                $hash->{$key} = $dtf->format_datetime($val);
-                            }
-                            elsif ($val->can('stringify')) {
-                                $hash->{$key} = $val->stringify;
-                            }
-                        }
-                        elsif (exists $flations{$key}) {
-                            $hash->{$key} = &{ $flations{$key}->{deflate} }($val);
-                        }
-                        elsif ($dtf && ref($val) eq 'HASH') {
-                            # we might have a DateTime as a value
-                            while (my ($hash_key, $hash_val) = each %$val) {
-                                if (ref($hash_val) && UNIVERSAL::can($hash_val, 'can') && $hash_val->isa('DateTime')) {
-                                    $val->{$hash_key} = $dtf->format_datetime($hash_val);
-                                }
-                            }
-                        }
-                    }
-                }
+                $self->_deflate_args($hash, $search_mode, $schema);
             }
             
+            # separate out non-persistent args
             my $non_persistent_args = {};
             foreach my $key (@non_persistent) {
                 exists $args->{$key} || next;
@@ -751,10 +710,73 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return [$find_args, $non_persistent_args];
         });
         
+        $meta->add_method('_deflate_args' => sub { 
+            my ($self, $args, $search_mode, $schema, $new_hash) = @_;
+            my $dtf;
+            if ($search_mode) {
+                $schema ||= $GLOBAL_CONNECTED_SCHEMA || VRPipe::Persistent::Schema->connect;
+                $dtf = $schema->storage->datetime_parser;
+            }
+            
+            my $hash;
+            if ($new_hash) {
+                $hash = {};
+            }
+            else {
+                $hash = $args;
+            }
+            
+            # when dealing with refs, if we pass the ref to find(), it will
+            # auto-flatten it and screw up the find call; search() will just try
+            # to search for the reference and fail. find/search based on the
+            # deflated string instead. Also find based on Peristent ids, not the
+            # object references. Also convert DateTime objects as necessary for
+            # searches
+            my %pks = map { $_ => 1 } @psuedo_keys;
+            while (my ($key, $val) = each %$args) {
+                $hash->{$key} = $val if $new_hash;
+                next if $key =~ /\./;              # *** not sure how to handle columns from a table join
+                next if $key =~ /\-(?:and|or|in)/; #*** we should recurse into the $val...
+                $self->throw("You cannot search for '$key' because $class does not have that column") unless exists $all_attribs{$key};
+                
+                unless ($search_mode) {
+                    next unless exists $pks{$key}; # *** not really sure why get() doesn't work on eg. steps if we don't skip non-keys
+                }
+                
+                if ($val && ref($val)) {
+                    if (UNIVERSAL::can($val, 'can')) {
+                        if ($val->isa('VRPipe::Persistent')) {
+                            $hash->{$key} = $val->id;
+                        }
+                        elsif ($dtf && $val->isa('DateTime')) {
+                            $hash->{$key} = $dtf->format_datetime($val);
+                        }
+                        elsif ($val->can('stringify')) {
+                            $hash->{$key} = $val->stringify;
+                        }
+                    }
+                    elsif (exists $flations{$key}) {
+                        $hash->{$key} = &{ $flations{$key}->{deflate} }($val);
+                    }
+                    elsif ($dtf && ref($val) eq 'HASH') {
+                        # we might have a DateTime as a value
+                        while (my ($hash_key, $hash_val) = each %$val) {
+                            $hash->{$key}->{$hash_key} = $hash_val if $new_hash;
+                            if (ref($hash_val) && UNIVERSAL::can($hash_val, 'can') && $hash_val->isa('DateTime')) {
+                                $val->{$hash_key} = $dtf->format_datetime($hash_val);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return $hash;
+        });
+        
         $meta->add_method('clone' => sub { 
             my ($self, %args) = @_;
             ref($self) || $self->throw("clone can only be called on an instance");
-            $self->throw("id be supplied to clone") if $args{id};
+            $self->throw("id cannot be supplied to clone") if $args{id};
             
             foreach my $key (@psuedo_keys) {
                 unless (defined $args{$key}) {
@@ -854,6 +876,96 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return ($rs, $sub);
         });
         
+        # txn_do with auto-retries on deadlock
+        $meta->add_method('do_transaction' => sub { 
+            my ($self, $transaction, $error_message_prefix, $schema, $repeatable_read) = @_;
+            $schema ||= $self->result_source->schema;
+            $repeatable_read ||= 0;
+            
+            # by default our transactions need to be at the 'read committed'
+            # isolation level, but sometimes we need 'repeatable read'
+            if ($schema->storage->transaction_depth == 0) {
+                my $isolation_change_sql = $converter->get_isolation_change_sql(repeatable_read => $repeatable_read);
+                if ($isolation_change_sql) {
+                    $schema->storage->dbh_do(
+                        sub {
+                            my ($storage, $dbh) = @_;
+                            $dbh->do($isolation_change_sql);
+                            #*** SET SESSION innodb_lock_wait_timeout = 1 requires MySQL 5.5
+                        }
+                    );
+                }
+            }
+            
+            # even with read committed isolation level we still sometimes fail
+            # to read committed data in a transaction that was waiting on a lock
+            my $transaction_with_sleep = sub {
+                my $transaction_start_time = time();
+                my $return                 = &$transaction;
+                
+                # for lock_row() hack to function, all transactions must take
+                # at least 1 second *** why doesn't merely using READ COMMITTED
+                # work?!
+                if (ref($self) && $self->{'_lock_row_called'}) {
+                    unless (time() - $transaction_start_time > 0) {
+                        sleep(1);
+                    }
+                    delete $self->{'_lock_row_called'};
+                }
+                
+                return $return;
+            };
+            
+            my $retries     = 0;
+            my $max_retries = 10;
+            my $row;
+            my $get_row = defined wantarray();
+            while ($retries <= $max_retries) {
+                try {
+                    if ($get_row) {
+                        $row = $schema->txn_do($transaction_with_sleep);
+                    }
+                    else {
+                        # there is a large speed increase in bulk_create_or_update
+                        # if we call txn_do in void context
+                        $schema->txn_do($transaction_with_sleep);
+                    }
+                }
+                catch ($err) {
+                    $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
+                    
+                    # we should attempt retries when we fail due to a create()
+                    # attempt when some other process got the update lock on
+                    # the find() first; we don't look at the $err message
+                    # because that may be driver-specific, and because we may
+                    # be nested and so $err could be unrelated
+                    if ($retries < $max_retries) {
+                        #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
+                        #warn "will retry get due to txn failure: $err\n";
+                        
+                        # actually, we will check the $err message, and if it is
+                        # definitely a restart situation, we won't increment
+                        # retries
+                        unless ($err =~ /Deadlock|try restarting transaction|forcing transaction retry to get latest db values/) {
+                            $retries++;
+                        }
+                        sleep(1);
+                        
+                        next;
+                    }
+                    else {
+                        $self->throw("$error_message_prefix: $err");
+                    }
+                }
+                last;
+            }
+            
+            if ($get_row) {
+                return $row;
+            }
+            return;
+        });
+        
         # set up meta data to add indexes for the key columns after schema deploy
         $meta->add_attribute('cols_to_idx' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
@@ -861,58 +973,47 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
     }
     
-    # txn_do with auto-retries on deadlock
-    sub do_transaction {
-        my ($self, $transaction, $error_message_prefix, $schema) = @_;
-        $schema ||= $self->result_source->schema;
+    # in a do_transaction() sub, use this to lock the table row of the
+    # Persistent instance you'll update, or just don't want to be changed by
+    # another process while you're working. lock_row() calls should really be
+    # the first thing done in a do_transaction() sub.
+    sub lock_row {
+        my ($self, $row, $no_hack) = @_;
         
-        my $retries     = 0;
-        my $max_retries = 10;
-        my $row;
-        my $get_row = defined wantarray();
-        while ($retries <= $max_retries) {
-            try {
-                if ($get_row) {
-                    $row = $schema->txn_do($transaction);
-                }
-                else {
-                    # there is a large speed increase in bulk_create_or_update
-                    # if we call txn_do in void context
-                    $schema->txn_do($transaction);
-                }
-            }
-            catch ($err) {
-                $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
-                
-                # we should attempt retries when we fail due to a create()
-                # attempt when some other process got the update lock on
-                # the find() first; we don't look at the $err message
-                # because that may be driver-specific, and because we may
-                # be nested and so $err could be unrelated
-                if ($retries < $max_retries) {
-                    #$self->debug("will retry get due to txn failure: $err\n");  #*** this debug call causes bizarre problems in random places
-                    
-                    # actually, we will check the $err message, and if it is
-                    # definitely a restart situation, we won't increment
-                    # retries
-                    unless ($err =~ /Deadlock|try restarting transaction/) {
-                        $retries++;
-                    }
-                    sleep(1);
-                    
-                    next;
-                }
-                else {
-                    $self->throw("$error_message_prefix: $err");
-                }
-            }
-            last;
-        }
+        my $before_lock_time = time();
         
-        if ($get_row) {
-            return $row;
+        # get the lock
+        my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
+        
+        # reselect in case another process committed a change
+        my $before = $row->_serialize_row unless $no_hack;
+        $row->reselect_values_from_db;
+        my $after = $row->_serialize_row unless $no_hack;
+        
+        # even with the benefit of 'read committed' transactional isolation
+        # level we can still end up sometimes reading old data, so if we were
+        # not the first process to get the lock and we were waiting, we'll force
+        # the transaction to restart
+        #*** for this hack to work, we must force all transactions that do row
+        # locking to take at least 1 second! Bleugh
+        #*** we could also do something like change the lock timeout, but this
+        # requires MySQL 5.5+
+        if (!$no_hack && $before eq $after) {
+            if (time() > $before_lock_time) {
+                die "forcing transaction retry to get latest db values\n";
+            }
+            $self->{'_lock_row_called'} = 1;
         }
-        return;
+    }
+    
+    sub _serialize_row {
+        my $self = shift;
+        my @key_vals;
+        foreach my $key (sort keys %{ $self->{_column_data} }) {
+            next unless defined $self->{_column_data}->{$key};
+            push(@key_vals, "$key=>$self->{_column_data}->{$key}");
+        }
+        return join('|', @key_vals);
     }
     
     # get method expects all the psuedo keys and will get or create the
@@ -921,10 +1022,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my ($self, $create, %args) = @_;
         
         my ($schema, $rs, $class, $meta) = $self->_class_specific(\%args);
+        my $blind_create = delete $args{blind_create};
         
         # first see if there is a corresponding $class::$name class
         my $from_non_persistent;
-        if (defined $args{name} && keys %args == 1) {
+        if (!$blind_create && defined $args{name} && keys %args == 1) {
             my $dir = $class . 's';
             unless (exists $factory_modules{$class}) {
                 $factory_modules{$class} = { map { s/^.+:://; $_ => 1 } findallmod($dir) };
@@ -961,7 +1063,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
         
         my $resolve = delete $args{auto_resolve};
-        if ($resolve && $self->can('resolve')) {
+        if (!$blind_create && $resolve && $self->can('resolve')) {
             my $obj = $self->_get($create, %args);
             return $obj->resolve;
         }
@@ -969,35 +1071,42 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my $fa                  = $self->_find_args(\%args);
         my %find_args           = %{ $fa->[0] || {} };
         my %non_persistent_args = %{ $fa->[1] || {} };
+        # the _find_args call did not deflate DateTimes, which we need for
+        # search calls:
+        my %search_args = %{ $self->_deflate_args(\%find_args, 1, undef, 1) || {} };
         
         my $transaction = sub {
-            # $rs->find_or_create(...) needs all required attributes
-            # supplied, but if we supply something that isn't an is_key,
-            # we can generate a new row when we shouldn't do. So we
-            # split up the find and create calls. Actually, search() is
-            # faster than find(), and not sure we need any of the fancy
-            # munging that find() does for us.
-            my ($return, @extra) = $rs->search(\%find_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %find_args;
-            
-            # there should not be any @extra, but some rare weirdness may give
-            # us duplicate rows in the db; take this opportunity to delete them
-            my %extra_ids = map { $_->id => $_ } @extra;
-            foreach my $row (@extra) {
-                eval { $row->delete; };
-                delete $extra_ids{ $row->id } unless $@;
-            }
-            
-            # if we couldn't delete the extras (probably due to foreign key
-            # issues), try deleting $return instead
-            if (keys %extra_ids) {
-                eval { $return->delete; };
-                unless ($@) {
-                    ($return) = sort { $a->id <=> $b->id } values %extra_ids;
+            my $return;
+            unless ($blind_create) {
+                # $rs->find_or_create(...) needs all required attributes
+                # supplied, but if we supply something that isn't an is_key,
+                # we can generate a new row when we shouldn't do. So we
+                # split up the find and create calls. Actually, search() is
+                # faster than find(), and not sure we need any of the fancy
+                # munging that find() does for us.
+                ($return, my @extra) = $rs->search(\%search_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %search_args;
+                
+                # there should not be any @extra, but some rare weirdness may give
+                # us duplicate rows in the db; take this opportunity to delete them
+                my %extra_ids = map { $_->id => $_ } @extra;
+                foreach my $row (@extra) {
+                    my $row_id = $row->id;
+                    eval { $row->delete; };
+                    delete $extra_ids{$row_id} unless $@;
                 }
+                
+                # if we couldn't delete the extras (probably due to foreign key
+                # issues), try deleting $return instead
+                if (keys %extra_ids) {
+                    eval { $return->delete; };
+                    unless ($@) {
+                        ($return) = sort { $a->id <=> $b->id } values %extra_ids;
+                    }
+                }
+                
+                # (if we still can't delete the dups, well, it probably isn't really
+                #  a problem)
             }
-            
-            # (if we still can't delete the dups, well, it probably isn't really
-            #  a problem)
             
             if ($return) {
                 # update the row with any non-key args supplied
@@ -1034,7 +1143,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
         my $error_message_prefix = "Failed to $class\->_get(" . join(', ', @fa) . ')';
         
-        my $row = $self->do_transaction($transaction, $error_message_prefix, $schema);
+        my $row = $self->do_transaction($transaction, $error_message_prefix, $schema, 1);
         
         $row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
         return $row;
@@ -1048,6 +1157,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     sub create {
         my $self = shift;
         return $self->_get(1, @_);
+    }
+    
+    # we want to auto-retry all update attempts that fail due to Lock timeouts
+    # or similar
+    around update {
+        my $transaction = sub {
+            $self->$orig;
+        };
+        $self->do_transaction($transaction, "update failed");
     }
     
     # bulk inserts from populate() are fast, but we can easily end up with
@@ -1189,7 +1307,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             };
             
-            $self->do_transaction($transaction, "Failed to $class\->bulk_create_or_update", $schema);
+            $self->do_transaction($transaction, "Failed to $class\->bulk_create_or_update", $schema, 1);
         }
     }
     
@@ -1249,6 +1367,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     sub disconnect {
         return unless $GLOBAL_CONNECTED_SCHEMA;
+        return if $GLOBAL_CONNECTED_SCHEMA->storage->transaction_depth > 0;
         $GLOBAL_CONNECTED_SCHEMA->storage->disconnect;
     }
     

@@ -180,6 +180,24 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         return VRPipe::DataElementState->search_paged({ pipelinesetup => $setup->id, completed_steps => $only_not_started ? 0 : { '<', $num_steps }, $include_withdrawn ? () : ('dataelement.withdrawn' => 0) }, { prefetch => 'dataelement' });
     }
     
+    # for critical columns that get updated by multiple processes, ensure we
+    # always get the latest value from db
+    around _lock (Datetime $datetime?) {
+        if ($datetime) {
+            return $self->$orig($datetime);
+        }
+        $self->reselect_values_from_db;
+        return $self->$orig;
+    }
+    
+    around _changed_marker (Str $marker?) {
+        if ($marker) {
+            return $self->$orig($marker);
+        }
+        $self->reselect_values_from_db;
+        return $self->$orig;
+    }
+    
     method _prepare_elements_and_states (Bool $status_messages = 0) {
         my $source = $self->_source_instance || return;
         
@@ -192,9 +210,10 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             my $block    = 0;
             my $continue = 1;
             do {
-                $self->reselect_values_from_db;
                 my $transaction = sub {
+                    $self->lock_row($self);
                     my $lock_time = $self->_lock;
+                    
                     # check that the process that got the lock is still running,
                     # otherwise ignore the lock
                     if ($lock_time) {
@@ -212,13 +231,14 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                         return;
                     }
                     
-                    # if we had been blocking and now there is no more lock,
-                    # likely that the datasource is now up to date and we don't
-                    # have to do anything
-                    if ($block) {
+                    # if we had been blocking and now there is no more lock (the
+                    # for => update lock or the _lock lock), likely that the
+                    # datasource is now up to date and we don't have to do
+                    # anything
+                    my $current_marker = $self->_changed_marker;
+                    if ($current_marker) {
                         $block = 0;
-                        $self->reselect_values_from_db;
-                        $source->_changed_marker($self->_changed_marker);
+                        $source->_changed_marker($current_marker);
                         $continue = $source->_has_changed;
                     }
                     
@@ -231,7 +251,6 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                 $self->do_transaction($transaction, "DataSource lock/block failed");
             } while ($block);
             return unless $continue;
-            $self->reselect_values_from_db;
             
             # we have a lock, but can't risk our process getting killed and the
             # lock being left open, so we have to re-claim the lock every 15s

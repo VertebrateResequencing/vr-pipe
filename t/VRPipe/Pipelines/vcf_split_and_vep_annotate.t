@@ -56,7 +56,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
         cleanup                    => 0,
         reference_index            => file(qw(t data human_g1k_v37.fasta.fai))->absolute->stringify,
         chunk_size                 => 50000000,
-        'vep_options'              => "--sift b --polyphen b --condel b --gene --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
+        'vep_options'              => "--sift b --polyphen b --hgnc --format vcf --force_overwrite --cache --dir $vep_cache",
         'vcf2consequences_options' => "--grantham --gerp $gerp_cache",
     }
 );

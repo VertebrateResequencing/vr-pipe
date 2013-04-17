@@ -255,6 +255,20 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has production_redis_port => (
+        is              => 'rw',
+        question        => 'What port should the production redis-server listen on?',
+        default         => $default_port - 1,
+        question_number => ++$question_number
+    );
+    
+    has testing_redis_port => (
+        is              => 'rw',
+        question        => 'What port should the testing redis-server listen on?',
+        default         => $default_port - 2,
+        question_number => ++$question_number
+    );
+    
     has server_umask => (
         is              => 'rw',
         question        => 'When the VRPipe server runs, what should its file creation mask (umask) be?',

@@ -59,13 +59,12 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return $ls_script;
     }
     
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
+    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1) {
         my $array_def = '';
         my $output_string;
-        if ($array) {
+        if ($count) {
             $output_string = "--out $stdo_file.\%I --err $stde_file.\%I";
-            my $size = $array->size;
-            $array_def = "-a $size ";
+            $array_def     = "-a $count ";
         }
         else {
             $output_string = "--out $stdo_file --err $stde_file";
@@ -84,6 +83,10 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     
     method switch_queue (PositiveInt $sid, Str $new_queue) {
         return;
+    }
+    
+    method get_scheduler_id {
+        return $ENV{VRPIPE_LOCAL_JOBID};
     }
     
     method get_1based_index (Maybe[PositiveInt] $index?) {
@@ -118,6 +121,25 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 1;
     }
     
+    method batch_kill_sids (ArrayRef $sid_aids) {
+        # unlike kill_sid(), we're all about speed, so can't care about if the
+        # kill actually worked or not
+        
+        my @sids;
+        foreach my $sid_aid (@$sid_aids) {
+            my ($sid, $aid) = @$sid_aid;
+            my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+            push(@sids, $id);
+            
+            if (@sids == 500) {
+                system("$ls_script kill @sids");
+                @sids = ();
+            }
+        }
+        
+        system("$ls_script kill @sids") if @sids;
+    }
+    
     method all_status {
         open(my $bfh, "$ls_script jobs |") || $self->warn("Could not call $ls_script jobs");
         my %status = ();
@@ -146,6 +168,55 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         }
         
         return $status || 'UNKNOWN';               # *** needs to return a word in a defined vocabulary suitable for all schedulers
+    }
+    
+    method run_time (PositiveInt $sid, Int $aid) {
+        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
+        
+        open(my $bfh, "$ls_script jobs $id |") || $self->warn("Could not call $ls_script jobs $id");
+        my $run_time = 0;
+        if ($bfh) {
+            while (<$bfh>) {
+                if (/^\d+\t\d+\t\S+\t\S+\t\S+\t\S+\t(\d+)/) {
+                    $run_time = $1;
+                    last;
+                }
+            }
+            close($bfh) || $self->warn("Could not call $ls_script jobs $id");
+        }
+        
+        return $run_time;
+    }
+    
+    method command_status (Str :$cmd, PositiveInt :$max?) {
+        my $count            = 0;
+        my @running_sid_aids = ();
+        my @to_kill;
+        open(my $bfh, "$ls_script jobs |") || $self->warn("Could not call $ls_script jobs");
+        if ($bfh) {
+            while (<$bfh>) {
+                if (my ($sid, $aid, $status) = $_ =~ /^(\d+)\t(\d+)\t(\S+)\t\S+\t\S*\t\S+\t\d+\t$cmd/) {
+                    $status || next;
+                    next if $status eq 'EXIT';
+                    $count++;
+                    
+                    my $sid_aid = "$sid\[$aid\]";
+                    if ($status eq 'RUN') {
+                        push(@running_sid_aids, $sid_aid);
+                    }
+                    elsif ($max && $count > $max) {
+                        push(@to_kill, $sid_aid);
+                    }
+                }
+            }
+            close($bfh) || $self->warn("Could not call $ls_script jobs");
+        }
+        
+        if (@to_kill) {
+            system("$ls_script kill @to_kill");
+        }
+        
+        return ($count, \@running_sid_aids);
     }
 }
 

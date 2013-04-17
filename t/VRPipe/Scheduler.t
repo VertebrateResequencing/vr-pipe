@@ -5,7 +5,7 @@ use Path::Class;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 15;
+    use Test::Most tests => 16;
     use VRPipeTest;
     
     use_ok('VRPipe::Scheduler');
@@ -29,6 +29,8 @@ SKIP: {
     skip "author-only lsf tests", 4 unless $host eq 'uk10k-1-1-01';
     
     is $scheduler->determine_queue($requirements), 'normal', 'determine_queue() gave normal queue for 10MB and 1hr';
+    $requirements = VRPipe::Requirements->create(memory => 1, time => 300);
+    is $scheduler->determine_queue($requirements), 'normal', 'determine_queue() gave normal queue for 10MB and 5mins';
     $requirements = VRPipe::Requirements->create(memory => 37000, time => 1);
     is $scheduler->determine_queue($requirements), 'normal', 'determine_queue() gave test queue for 37GB and 1hr'; # used to be 'test' before our memory limits were removed from all queues
     $requirements = VRPipe::Requirements->create(memory => 1, time => 13);

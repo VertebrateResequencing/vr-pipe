@@ -289,26 +289,27 @@ class VRPipe::FrontEnd {
         $self->die_with_error($self->usage);
     }
     
-    method get_pipelinesetups (Bool :$inactive?) {
-        my @requested_setups = $self->option_was_set('setup') ? ($self->_multiple_setups ? @{ $self->opts('setup') } : ($self->opts('setup'))) : ();
+    method get_pipelinesetups (Bool :$inactive?, Bool :$allow_no_setups?) {
+        my $multi_setups = $self->_multiple_setups;
+        my @requested_setups = $self->option_was_set('setup') ? ($multi_setups ? @{ $self->opts('setup') } : ($self->opts('setup'))) : ();
         
         my @setups;
         if (@requested_setups) {
             @setups = @requested_setups;
         }
-        elsif ($self->_multiple_setups) {
+        elsif ($multi_setups) {
             my $user = $self->opts('user');
             unless (defined $inactive) {
                 $inactive = $self->opts('deactivated');
             }
-            @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) });
+            @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) }, { prefetch => ['datasource', 'pipeline'] });
         }
         
-        if ($self->_multiple_setups && !@setups) {
-            $self->die_with_error("No PipelineSetups match your settings (did you remember to specifiy --user?)");
+        if ($multi_setups && !@setups && !$allow_no_setups) {
+            $self->die_with_error("No PipelineSetups match your settings (did you remember to specify --user?)");
         }
         
-        return $self->_multiple_setups ? @setups : $setups[0];
+        return $multi_setups ? @setups : $setups[0];
     }
     
     method output (@messages) {

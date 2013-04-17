@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 137;
+    use Test::Most tests => 157;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -32,6 +32,20 @@ $schedulers[2]->start_scheduler;
 my $output_dir = dir($schedulers[2]->output_root, 'persistent_test_output');
 $schedulers[2]->remove_tree($output_dir);
 $schedulers[2]->make_path($output_dir);
+
+my $sidtosub = VRPipe::SidToSub->create(farm => 'foo', req_id => 1, sid => 1, aid => 1);
+is_deeply [$sidtosub->sid, $sidtosub->sub_id, $sidtosub->assignment_time], [1, undef, undef], 'SidToSub could be created and returns values, with sub_id and assignment_time defaulting to undef';
+$sidtosub->sub_id(1);
+$sidtosub->update;
+is $sidtosub->sub_id, 1, 'setting sub_id works';
+my $assignment_time = $sidtosub->assignment_time;
+ok $assignment_time, 'it also set assignment_time';
+sleep(1);
+$sidtosub->sub_id(undef);
+$sidtosub->update;
+my $new_time = $sidtosub->assignment_time;
+my $assignment_changed = $new_time->epoch > $assignment_time->epoch ? 1 : 0;
+is_deeply [$sidtosub->sub_id, $assignment_changed], [undef, 1], 'undeffing sub_id updated assignment_time';
 
 my @files;
 my $input1_path = file($output_dir, 'input1.txt');
@@ -233,12 +247,41 @@ is $setups[0]->datasource->id, 2, 'and since we did an update, other instances a
 $first_setup->datasource($ds[0]);
 $first_setup->update;
 
+ok my $log = VRPipe::PipelineSetupLog->create(ps_id => 1, message => "foo bar", date => DateTime->now(), pid => $$), 'able to call PipelineSetupLog->create';
+is $log->ps_id,   1,         'ps_id() worked';
+is $log->message, 'foo bar', 'message() worked';
+ok !$log->stack, 'strack() defaults to undef';
+is $log->pid, $$, 'pid() workd';
+$first_setup->log_event('created and changed');
+is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed'], 'logs() returned all the logs for the first setup';
+is_deeply [map { $_->message } $first_setup->logs(like => 'created%')], ['created and changed'], q[logs with like returned all the logs for the first setup with matching string];
+sleep(2);
+$first_setup->log_event('car');
+$first_setup->log_event('created and changed');
+is_deeply [map { $_->message } $first_setup->logs()], ['foo bar', 'created and changed', 'car', 'created and changed'], 'log_event does allow the same message to be recorded more than once';
+is_deeply [$log->de_id, $log->ss_id, $log->sub_id, $log->job_id], [0, 0, 0, 0], 'de_id, ss_id, sub_id, job_id default to 0';
+$log = $first_setup->log_event("funion", record_stack => 1, dataelement => 1, stepstate => 2, submission => 3, job => 4);
+is_deeply [$log->de_id, $log->ss_id, $log->sub_id, $log->job_id], [1, 2, 3, 4], 'de_id, ss_id, sub_id, job_id can all be set during log_event';
+ok $log->stack, 'stack() can be set during log_event';
+$first_setup->log_event("funion2", dataelement => 1);
+$first_setup->log_event("funion3", dataelement => 2);
+is_deeply [map { $_->message } $first_setup->logs(dataelement => 1)], ['funion', 'funion2'], 'logs() limited to a given dataelement returned only matching logs';
+is_deeply [map { $_->message } $first_setup->logs(dataelement => 1, stepstate => 2)], ['funion'], 'logs() limited to a given dataelement and stepstate returned more restricted matching log';
+is_deeply [map { $_->message } $first_setup->logs(dataelement => 1, stepstate => 2, include_undefined => 1)], ['foo bar', 'created and changed', 'car', 'created and changed', 'funion', 'funion2'], 'logs() limited to a given dataelement and stepstate with include_undefined on returned all logs except for de 2';
+
 my @stepstates;
 ok $stepstates[0] = VRPipe::StepState->create(stepmember => $stepms[0], dataelement => $de[0], pipelinesetup => $setups[0]), 'created a StepState using create()';
 undef $stepstates[0];
 $stepstates[0] = VRPipe::StepState->get(id => 1);
 is_deeply [$stepstates[0]->id, $stepstates[0]->stepmember->id, $stepstates[0]->dataelement->id, $stepstates[0]->pipelinesetup->id, $stepstates[0]->complete], [1, 1, 1, 1, 0], 'stepstate1 has the expected fields';
 $stepstates[1] = VRPipe::StepState->create(stepmember => $stepms[0], dataelement => $de[1], pipelinesetup => $setups[0]);
+
+$stepstates[1]->same_submissions_as($stepstates[0]->id);
+$stepstates[1]->update;
+is $stepstates[1]->same_submissions_as->id, $stepstates[0]->id, 'same_submissions_as could be set';
+$stepstates[1]->same_submissions_as(undef);
+$stepstates[1]->update;
+ok !$stepstates[1]->same_submissions_as, 'same_submissions_as could be cleared';
 
 my @subs;
 throws_ok { VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[0]) } qr/Attribute \(requirements\) is required/, 'requirements is required when created a Submission, even though it is not a key';
@@ -479,7 +522,7 @@ my $end_time       = $jobs[2]->end_time->epoch;
 my $heartbeat_time = $jobs[2]->heartbeat->epoch;
 my $ok             = $start_time >= $epoch_time && $start_time <= $epoch_time + 1;
 ok $ok, 'start_time is correct';
-$ok = $end_time > $start_time && $end_time <= $start_time + 4;
+$ok = $end_time > $start_time && $end_time <= $start_time + 6;
 ok $ok, 'end_time is correct';
 $ok = $heartbeat_time > $start_time && $heartbeat_time <= $end_time;
 ok $ok, 'time of last heartbeat correct';
@@ -496,9 +539,14 @@ is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jo
 my $own_pid   = $$;
 my $child_pid = fork();
 if ($child_pid) {
-    sleep(1);
-    $jobs[2]->reselect_values_from_db;
-    my $cmd_pid = $jobs[2]->pid;
+    my $cmd_pid;
+    for (1 .. 10) {
+        sleep(1);
+        $jobs[2]->reselect_values_from_db;
+        $cmd_pid = $jobs[2]->pid;
+        last if $cmd_pid;
+    }
+    $cmd_pid || die "could not get pid of job's run child";
     kill(9, $cmd_pid);
     waitpid($child_pid, 0);
     $jobs[2]->reselect_values_from_db;
@@ -519,7 +567,7 @@ run_job($jobs[3]);
 is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code =~ /65280|512/], [1, 0, 1], 'test job status got updated correctly for a job that dies internally';
 is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
 is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar',  'stderr file had the correct contents';
-ok !$jobs[3]->run, 'run() on a failed job does not work';
+is $jobs[3]->run, -1, 'run() on a failed job does not work';
 
 # running jobs via a submission
 my $t_before = time();
@@ -570,6 +618,7 @@ sub run_job {
     my $job = shift;
     
     my $watcher = EV::timer 0, 2, sub {
+        $job->reselect_values_from_db;
         if ($job->end_time) {
             EV::unloop;
         }
@@ -589,7 +638,7 @@ sub wait_until_done {
             EV::unloop;
         }
         
-        if (!$sub || $sub->done || $sub->failed) {
+        if (!$sub) {
             $sub = pop(@subs);
             unless ($sub) {
                 EV::unloop;
@@ -598,10 +647,10 @@ sub wait_until_done {
             $sub->claim_and_run;
         }
         
-        my $job = $sub->job;
-        if ($job->end_time) {
-            $sub->update_status;
-            $sub->release;
+        $sub->reselect_values_from_db;
+        if ($sub->done || $sub->failed) {
+            $sub->archive_output;
+            undef $sub;
         }
         else {
             my $heartbeat = $sub->job->heartbeat || return;

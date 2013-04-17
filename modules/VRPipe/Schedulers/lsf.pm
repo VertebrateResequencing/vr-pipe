@@ -43,6 +43,25 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
+    use Crypt::Random qw(makerandom_itv);
+    use DateTime;
+    use DateTime::TimeZone;
+    our $local_timezone = DateTime::TimeZone->new(name => 'local');
+    
+    our %months = qw(Jan 1
+      Feb 2
+      Mar 3
+      Apr 4
+      May 5
+      Jun 6
+      Jul 7
+      Aug 8
+      Sep 9
+      Oct 10
+      Nov 11
+      Dec 12);
+    our $date_regex = qr/(\w+)\s+(\d+) (\d+):(\d+):(\d+)/;
+    our @unique_chars = ('A' .. 'Z', 'a' .. 'z', 0 .. 9);
     our %queues;
     
     method start_command {
@@ -57,7 +76,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         return 'bsub';
     }
     
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
+    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1) {
         # access the requirments object and build up the string based on memory,
         # time, cpu etc.
         my $queue = $self->determine_queue($requirements);
@@ -70,29 +89,28 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             $requirments_string .= " -n$cpus -R 'span[hosts=1]'";
         }
         
-        # work out the scheduler output locations and how to pass on the
-        # scheduler array index to the perl cmd
-        my $index_spec = '';
-        my $array_def  = '';
+        # for command_status() to work efficiently we must always set a job
+        # name that corresponds to the cmd. It must also be unique otherwise
+        # LSF would not start running jobs with duplicate names until previous
+        # ones complete
+        my $job_name = $self->_job_name($cmd) . '_';
+        # (using perl's rand() results in the same random string every time the
+        # server calls this method (though it works as expected if you test
+        # this method directly))
+        $job_name .= $unique_chars[makerandom_itv(Strength => 0, Lower => 0, Upper => $#unique_chars)] for 1 .. 8;
+        
+        # work out the scheduler output locations and also specify job arrays
+        my $array_def = '';
         my $output_string;
-        if ($array) {
-            $index_spec    = '';                                   #*** something that gives the index to be shifted into perl -e; for LSF we leave it empty and will pick up an env var elsewhere instead
+        if ($count > 1) {
             $output_string = "-o $stdo_file.\%I -e $stde_file.\%I";
-            my $size    = $array->size;
-            my $uniquer = $array->id;
-            $array_def = qq{-J "vrpipe$uniquer\[1-$size]" };
+            $job_name .= qq{\[1-$count]};
         }
         else {
             $output_string = "-o $stdo_file -e $stde_file";
         }
         
-        #*** could solve issue of having to have _aid and _hid in Submission
-        #    purely to allow us to find where the lsf output went by having
-        #    output go to named pipe that stores directly in db against the
-        #    submission id. Same could be done for Job output. Would it work
-        #    across the farm?
-        
-        return qq[$array_def$output_string $requirments_string '$cmd$index_spec'];
+        return qq[-J "$job_name" $output_string $requirments_string '$cmd'];
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
@@ -175,6 +193,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                         $queues{$queue}->{$type} = $vals eq 'all' ? 1000000 : scalar(@vals);
                     }
                 }
+                
+                if (/^CHUNK_JOB_SIZE:\s+(\d+)/) {
+                    $queues{$queue}->{chunk_size} = $1;
+                }
             }
             close($bqlfh) || $self->throw("Could not close a pipe to bqueues -l");
             
@@ -185,6 +207,9 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 }
                 unless (defined $queue_hash->{memlimit}) {
                     $queue_hash->{memlimit} = 1000000;
+                }
+                unless (defined $queue_hash->{chunk_size}) {
+                    $queue_hash->{chunk_size} = 0;
                 }
             }
         }
@@ -200,7 +225,8 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                   || $queues{$b}->{max_user} <=> $queues{$a}->{max_user}
                   || $queues{$b}->{max} <=> $queues{$a}->{max}
                   || $queues{$b}->{prio} <=> $queues{$a}->{prio}
-                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit} # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
+                  || $queues{$a}->{chunk_size} <=> $queues{$b}->{chunk_size} # we want to avoid chunked queues because that means jobs will run sequentially instead of in parallel
+                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit}     # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
                   || $queues{$a}->{memlimit} <=> $queues{$b}->{memlimit}
             } keys %queues
           ) {
@@ -224,6 +250,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     method switch_queue (PositiveInt $sid, Str $new_queue) {
         $self->debug("will call bswitch $new_queue $sid");
         system("bswitch $new_queue $sid > /dev/null 2> /dev/null");
+    }
+    
+    method get_scheduler_id {
+        return $ENV{LSB_JOBID};
     }
     
     method get_1based_index (Maybe[PositiveInt] $index?) {
@@ -258,6 +288,25 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         return 1;
     }
     
+    method batch_kill_sids (ArrayRef $sid_aids) {
+        # unlike kill_sid(), we're all about speed, so can't care about if the
+        # kill actually worked or not
+        
+        my @sids;
+        foreach my $sid_aid (@$sid_aids) {
+            my ($sid, $aid) = @$sid_aid;
+            my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+            push(@sids, $id);
+            
+            if (@sids == 500) {
+                system("bkill @sids");
+                @sids = ();
+            }
+        }
+        
+        system("bkill @sids") if @sids;
+    }
+    
     method all_status {
         open(my $bfh, "bjobs |") || $self->warn("Could not call bjobs");
         my %status = ();
@@ -286,6 +335,86 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         }
         
         return $status || 'UNKNOWN';               # *** needs to return a word in a defined vocabulary suitable for all schedulers
+    }
+    
+    method run_time (PositiveInt $sid, Int $aid) {
+        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
+        
+        open(my $bfh, "bjobs -l $id |") || $self->warn("Could not call bjobs -l $id");
+        my ($start_epoch, $end_epoch);
+        if ($bfh) {
+            my $y = DateTime->now->year;           #*** bad things are going to happen every new year?...
+            
+            while (<$bfh>) {
+                if (/^(.+): .*[Ss]tarted on/) {
+                    my $ststr = $1;
+                    my ($mo, $d, $h, $m, $s) = $ststr =~ /$date_regex/;
+                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s, time_zone => $local_timezone);
+                    $start_epoch = $dt->epoch;
+                }
+                elsif (/^(.+): (?:Exited|Completed)/) {
+                    my ($mo, $d, $h, $m, $s) = $1 =~ /$date_regex/;
+                    my $dt = DateTime->new(year => $y, month => $months{$mo}, day => $d, hour => $h, minute => $m, second => $s, time_zone => $local_timezone);
+                    $end_epoch = $dt->epoch;
+                    last;
+                }
+            }
+            close($bfh) || $self->warn("Could not call bjobs -l $id");
+        }
+        
+        $start_epoch || return 0;
+        $end_epoch ||= time();
+        return $end_epoch - $start_epoch;
+    }
+    
+    method command_status (Str :$cmd, PositiveInt :$max?) {
+        # bjobs -w does not output a column for both array index and the
+        # command. The LSF related modules on CPAN either just parse the command
+        # line output or don't work. Ideally we'd use the C-API's
+        # lsb_readjobinfo call, but we don't want to be troubled by compilation
+        # issues and different versions. We REALLY don't want to manually parse
+        # the entire output of bjobs -l for all jobs. Instead when submitting
+        # we'll have arranged that JOB_NAME be set to
+        # vrpipe_[md5sum_of_cmd]_unique, and in the case of a job array it will
+        # have [array_index] appended to it. This lets us use a single
+        # bjobs -w call to get all that we need. We can't use -J name to limit
+        # which jobs bjobs -w reports on, since we may have submitted the $cmd
+        # multiple times as multiple different arrays, each with a uniqified
+        # job name. It gets uniquified because otherwise none of the jobs in
+        # the second array would start until the first array with the same name
+        # ended.
+        my $count            = 0;
+        my @running_sid_aids = ();
+        my @to_kill;
+        my $job_name_prefix = $self->_job_name($cmd);
+        open(my $bfh, "bjobs -w |") || $self->warn("Could not call bjobs -w");
+        if ($bfh) {
+            while (<$bfh>) {
+                if (my ($sid, $status, $job_name) = $_ =~ /^(\d+)\s+\S+\s+(\S+)\s+\S+\s+\S+\s+\S+\s+($job_name_prefix\S+)/) {
+                    $job_name || next;
+                    next if $status eq 'EXIT';
+                    $count++;
+                    
+                    my ($aid) = $job_name =~ /\[(\d+)\]$/;
+                    $aid ||= 0;
+                    my $sid_aid = "$sid\[$aid\]";
+                    
+                    if ($status eq 'RUN') {
+                        push(@running_sid_aids, $sid_aid);
+                    }
+                    elsif ($max && $count > $max) {
+                        push(@to_kill, $aid ? qq["$sid_aid"] : $sid);
+                    }
+                }
+            }
+            close($bfh) || $self->warn("Could not call bjobs -w");
+        }
+        
+        if (@to_kill) {
+            system("bkill @to_kill");
+        }
+        
+        return ($count, \@running_sid_aids);
     }
 }
 

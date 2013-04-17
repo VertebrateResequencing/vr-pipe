@@ -5,7 +5,7 @@ use Path::Class qw(file dir);
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 9;
     use VRPipeTest;
 }
 
@@ -37,49 +37,37 @@ my $num_claimed = 0;
 $fm->run_on_finish(
     sub {
         my ($pid, $claimed) = @_;
-        $num_claimed++ if $claimed;
+        $num_claimed++ if ($claimed && $claimed == 1);
     }
 );
 for (1 .. 4) {
     $fm->start and next;
     
-    my $claimed = $submissions[0]->_get_claim;
-    
-    $fm->finish($claimed);
-}
-$fm->wait_all_children;
-
-is $num_claimed, 1, 'when we attempt to _get_claim the same submission simultaneously in 4 processes, only 1 succeeds';
-$submissions[0]->reselect_values_from_db;
-is $submissions[0]->_claim, 1, 'the submission object has stored the claim on itself';
-
-$num_claimed = 0;
-for (1 .. 4) {
-    $fm->start and next;
-    
-    my $claimed = $submissions[0]->_get_claim;
-    
-    $fm->finish($claimed);
-}
-$fm->wait_all_children;
-
-is $num_claimed, 0, 'when we attempt to _get_claim the same submission again, none succeed';
-
-# do something more like vrpipe-handler does
-$num_claimed = 0;
-for (1 .. 4) {
-    $fm->start and next;
-    
-    my $claimed_and_ran = $submissions[1]->claim_and_run(allowed_time => 5);
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1); # simulate that we've done EV::run
     
     $fm->finish($claimed_and_ran);
 }
 $fm->wait_all_children;
 
-is $num_claimed, 1, 'when we attempt to claim_and_run the same submission simultaneously in 4 processes, exactly 1 succeeds';
-$submissions[1]->reselect_values_from_db;
-my $run_job = $submissions[1]->job;
-is_deeply [$submissions[1]->_claim, defined $run_job->start_time], [1, 1], "claim_and_run resulted in the submission's _claim being true and the job's start_time being set";
+is $num_claimed, 1, 'when we attempt to claim_and_run the same submission simultaneously in 4 processes, only 1 succeeds';
+$submissions[0]->reselect_values_from_db;
+my $run_job = $submissions[0]->job;
+is_deeply [$submissions[0]->_claim, defined $run_job->start_time], [1, 1], "claim_and_run resulted in the submission's _claim being true and the job's start_time being set";
+
+$num_claimed = 0;
+$submissions[0]->job->beat_heart;
+for (1 .. 4) {
+    $fm->start and next;
+    
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1);
+    
+    $fm->finish($claimed_and_ran);
+}
+$fm->wait_all_children;
+
+is $num_claimed, 0, 'when we attempt to claim_and_run the same submission again, none succeed';
 
 # make sure that if a process dies in such a way that a submission is left with
 # _claim true and the job dead, we can re-claim the submission and try to run
@@ -91,7 +79,9 @@ $num_claimed = 0;
 for (1 .. 4) {
     $fm->start and next;
     
-    my $claimed_and_ran = $submissions[1]->claim_and_run(allowed_time => 5);
+    #$submissions[0]->set_verbose_global(1);
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    #$submissions[0]->set_verbose_global(0);
     
     $fm->finish($claimed_and_ran);
 }
@@ -108,12 +98,23 @@ $num_claimed = 0;
 for (1 .. 4) {
     $fm->start and next;
     
-    my $claimed_and_ran = $submissions[1]->claim_and_run(allowed_time => 5);
+    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1);
     
     $fm->finish($claimed_and_ran);
 }
 $fm->wait_all_children;
 
 is $num_claimed, 0, 'but we do not reclaim a submission when it is running ok';
+
+# if a sub managed to get claimed but didn't start running and didn't get
+# released, make sure we're not stuck forever in a claimed, non-running state
+$submissions[1]->_claim(1);
+$submissions[1]->update;
+is $submissions[1]->_claim, 1, 'set claim with a raw _claim() call';
+my ($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
+is $claimed_and_ran, 0, 'not able to immediately claim_and_run a previously claimed but unrun submission';
+($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
+is $claimed_and_ran, 1, 'able to claim_and_run a previously claimed but unrun submission on the next try';
 
 exit;

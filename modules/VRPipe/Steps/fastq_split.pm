@@ -182,7 +182,7 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             }
             
             my $split_file = VRPipe::File->get(path => file($split_dir, "$prefix.$split_num.$suffix"), type => 'fq');
-            my $ofh = $split_file->openw;
+            my $ofh = $split_file->openw unless $splits == 1;
             push(@outs, [$prefix, $split_file, $ofh]);
         }
         
@@ -192,10 +192,9 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
                 my $fq_file = $ins[$i]->[1];
                 $fq_file->close();
                 my $split_file = $outs[$i]->[1];
-                $split_file->close();
                 $split_file->unlink;
                 symlink($fq_file->path, $split_file->path); # don't use $fq_file->symlink because $split_file->metadata must be different
-                
+                $split_file->update_stats_from_disc;
                 my $meta = $fq_file->metadata;
                 delete $meta->{expected_md5};
                 $meta->{chunk} = 1;

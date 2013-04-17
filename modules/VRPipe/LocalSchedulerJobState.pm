@@ -143,6 +143,7 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         
         my $cwd            = $self->localschedulerjob->cwd;
         my $submitters_env = $self->localschedulerjob->env;
+        my $sid            = $self->id;
         my $aid            = $self->aid;
         my $stdout_file    = $self->o_file;
         my $stderr_file    = $self->e_file;
@@ -174,14 +175,18 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             $self->disconnect;
             
             chdir($cwd);
-            open STDOUT, '>>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
-            open STDERR, '>>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
-            
-            print STDOUT "#--- vrpipe-local_scheduler report start ---\n# Job: ${sid}[$aid]\n# Started at: $start_time\n# Running on: $host for user: $user in working dir: $cwd\n# Cmd: $cmd\n# STDERR from this Cmd, if any, appears in $stderr_file\n# STDOUT from this Cmd, if any, appears below\n#---\n";
+            unless ($stdout_file =~ /^\/dev\/null/) {
+                open STDOUT, '>>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
+                print STDOUT "#--- vrpipe-local_scheduler report start ---\n# Job: ${sid}[$aid]\n# Started at: $start_time\n# Running on: $host for user: $user in working dir: $cwd\n# Cmd: $cmd\n# STDERR from this Cmd, if any, appears in $stderr_file\n# STDOUT from this Cmd, if any, appears below\n#---\n";
+            }
+            unless ($stderr_file =~ /^\/dev\/null/) {
+                open STDERR, '>>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
+            }
             
             while (my ($key, $val) = each %$submitters_env) {
                 $ENV{$key} = $val;
             }
+            $ENV{VRPIPE_LOCAL_JOBID}    = $sid;
             $ENV{VRPIPE_LOCAL_JOBINDEX} = $aid;
             
             # see notes in VRPipe::Job for why we do this;
@@ -224,14 +229,17 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
         $self->update;
         
         # write out info to stdout file
-        open(my $ofh, '>>', $stdout_file) || $self->throw("Could not append to $stdout_file");
-        my $end_time = $self->end_time;
-        print $ofh "#---\n# Finished at: $end_time\n# Exit code: $exit_code ($exit_meaning)\n#--- vrpipe-local_scheduler report end ---\n\n";
-        close($ofh);
+        unless ($stdout_file =~ /^\/dev\/null/) {
+            open(my $ofh, '>>', $stdout_file) || $self->throw("Could not append to $stdout_file");
+            my $end_time = $self->end_time;
+            print $ofh "#---\n# Finished at: $end_time\n# Exit code: $exit_code ($exit_meaning)\n#--- vrpipe-local_scheduler report end ---\n\n";
+            close($ofh);
+        }
     }
     
     method kill_job {
-        return if $self->current_status eq 'DONE';
+        my $current_status = $self->current_status;
+        return if $current_status =~ /DONE|EXIT/;
         
         my $pid = $self->pid;
         if ($pid) {
@@ -240,8 +248,20 @@ class VRPipe::LocalSchedulerJobState extends VRPipe::Persistent {
             }
         }
         
-        $self->end_time(DateTime->now());
-        $self->exit_code(22);
-        $self->update;
+        if ($current_status eq 'PEND') {
+            $self->delete;
+        }
+        else {
+            $self->end_time(DateTime->now());
+            $self->exit_code(22);
+            $self->update;
+        }
+    }
+    
+    method run_time {
+        my $start     = $self->start_time || return 0;
+        my $end       = $self->end_time;
+        my $end_epoch = $end ? $end->epoch : time();
+        return $end_epoch - $start->epoch;
     }
 }

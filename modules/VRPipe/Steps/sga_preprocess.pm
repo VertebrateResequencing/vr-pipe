@@ -5,7 +5,10 @@ VRPipe::Steps::sga_preprocess - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Prepare nated fastq files for assembly with sga Requires that the fastq files
+are suffixed with _[0|1|M].fastq(.gz) as per bam2fastq executable output, where
+1=forward reads, 2=reverse, M=single (Currently we reject any single reads from
+the process)
 
 =head1 AUTHOR
 
@@ -101,7 +104,7 @@ class VRPipe::Steps::sga_preprocess with VRPipe::StepRole {
                 my $meta = $fq->metadata;
                 next unless $meta->{paired};
                 my $basename = $fq->basename;
-                $basename =~ s/\.(1|2)\.(fq|fastq)(\.gz)?$/\.processed.fq/;
+                $basename =~ s/_(1|2|M)\.(fq|fastq)(\.gz)?$/\.processed.fq/;
                 if ($compress) {
                     $basename .= '.gz';
                 }

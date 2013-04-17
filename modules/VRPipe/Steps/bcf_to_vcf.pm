@@ -37,12 +37,12 @@ use VRPipe::Base;
 class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
     method options_definition {
         return {
-            bcftools_exe          => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                                                                                                          optional => 1, default_value => 'bcftools'),
-            bcftools_view_options => VRPipe::StepOption->create(description => 'bcftools view options',                                                                                                                                                                                                optional => 1, default_value => '-p 0.99 -vcgN'),
-            sample_sex_file       => VRPipe::StepOption->create(description => 'File listing the sex (M or F) of samples. If not provided, will call on all samples in the bcf header. If provided, calls will be made on the intersection of the samples in the file and samples in the bcf header.', optional => 1),
-            assumed_sex           => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',                                                                                                                               optional => 1, default_value => 'F'),
-            minimum_records       => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking',                                                                                                                           optional => 1, default_value => 0),
-            post_calling_vcftools => VRPipe::StepOption->create(description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',                                                           optional => 1),
+            bcftools_exe          => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                                                                                                                                         optional => 1, default_value => 'bcftools'),
+            bcftools_view_options => VRPipe::StepOption->create(description => 'bcftools view options',                                                                                                                                                                                                                               optional => 1, default_value => '-p 0.99 -vcgN'),
+            sample_sex_file       => VRPipe::StepOption->create(description => 'Tab- or space- delimited file listing each sample name and sex (M or F). If not provided, will call on all samples in the bcf header. If provided, calls will be made on the intersection of the samples in the file and samples in the bcf header.', optional => 1),
+            assumed_sex           => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',                                                                                                                                                              optional => 1, default_value => 'F'),
+            minimum_records       => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking',                                                                                                                                                          optional => 1, default_value => 0),
+            post_calling_vcftools => VRPipe::StepOption->create(description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',                                                                                          optional => 1),
         };
     }
     
@@ -170,7 +170,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
             my $fh = $sex_file->openr;
             while (<$fh>) {
                 chomp;
-                my ($sample, $sex) = split /\t/;
+                my ($sample, $sex) = split;
                 next unless (exists $source_samples{$sample});
                 $sex ||= $assumed_sex;
                 $samples{$sample} = $sex;

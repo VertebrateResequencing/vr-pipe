@@ -49,6 +49,7 @@ class VRPipe::FileType::cram extends VRPipe::FileType::bin {
     
     around check_type {
         $self->$orig || return 0;
+        #return $self->check_magic($self->file, $correct_magic); # *** worried the magic might change as the format is changing
         my $path = $self->file;
         return $path =~ /\.cram$/ ? 1 : 0;
     }

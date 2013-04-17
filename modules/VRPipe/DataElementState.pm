@@ -81,10 +81,13 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             %step_numbers = map { $_ => 1 } $self->our_step_numbers;
         }
         
+        $self->pipelinesetup->log_event("DataElementState->start_from_scratch called for steps " . join(", ", sort { $a <=> $b } keys %step_numbers), dataelement => $self->dataelement->id, record_stack => 1);
+        
         # get all the stepstates made for our dataelement and pipeline and
         # start_over() them
         foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id }, { prefetch => 'stepmember' })) {
             next unless exists $step_numbers{ $ss->stepmember->step_number };
+            $ss->pipelinesetup->log_event("Calling StepState->start_over as part of a DataElementState->start_from_scratch", stepstate => $ss->id, dataelement => $ss->dataelement->id);
             $ss->start_over();
             
             # ss->start_over deletes submissions for this stepstate - or for the
@@ -96,6 +99,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
                 # delete the ss, so that when PipelineSetup->trigger() creates
                 # it again, it will either get its own submissions, or have the
                 # same_submissions_as something that actually has submissions
+                $ss->pipelinesetup->log_event("Deleting the StepState because it has same_submissions_as, and we just deleted the Submissions of the master StepState", stepstate => $ss->id, dataelement => $ss->dataelement->id);
                 $ss->delete;
             }
             else {
@@ -124,8 +128,18 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             push @children, $link->child->element_states;
         }
         foreach my $child (@children) {
+            $child->pipelinesetup->log_event("DataElementState->start_from_scratch for des " . $self->id . " called start_from_scratch on us because we are its child", dataelement => $child->dataelement->id);
             $child->start_from_scratch();
+            $child->withdraw; # withdraw the child - it will be unwithdrawn when the parent has been rerun
         }
+        
+        $self->pipelinesetup->log_event("DataElementState->start_from_scratch set completed_steps to 0 and will now return", dataelement => $self->dataelement->id);
+    }
+    
+    method withdraw {
+        my $de = $self->dataelement;
+        $de->withdrawn(1);
+        $de->update;
     }
     
     method our_step_numbers {

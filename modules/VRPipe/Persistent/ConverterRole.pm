@@ -53,6 +53,7 @@ role VRPipe::Persistent::ConverterRole {
     requires 'get_index_statements';
     requires 'get_index_cols';
     requires 'index_creation_style';
+    requires 'get_isolation_change_sql';
     
     method index_statements (VRPipe::Persistent::Schema $schema, Str $mode) {
         my @idx_cmds;

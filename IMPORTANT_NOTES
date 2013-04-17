@@ -1,3 +1,60 @@
+# version 0.152:
+This is a critical upgrade. In future it will be assumed you upgraded to this
+version. It is VERY strongly recommended you upgrade to 0.152 as soon as
+possible. If you've been skipping the past few versions, read and follow their
+notes first. Unlike 0.151, database connection exhaustion has been fixed, so you
+do not need to use --max_submissions anymore (or you can set it to equal the
+number of CPUs in your cluster).
+There is a new required piece of 3rd party software you must install called
+Redis. See the README for installation instructions. A number of new CPAN
+modules must also now be installed: rerun 'perl Build.PL' and then follow the
+instructions if any of the requirements are missing.
+There are new configuration questions to answer, so when 'perl Build.PL' asks
+you if "you wish to go through setup again", answer yes.
+This version features a database schema change, so be sure to run
+'vrpipe-db_upgrade' after installation.
+The README now has new sections that briefly explain the web front-end and what
+to do when things go wrong; you might like to read these.
+If you've used a recent version in production, note that they produced excess
+debugging information in the logs, so you should clear those out by deleting
+the log file and truncating the pipelinesetuplog table in your database:
+mysql> truncate table pipelinesetuplog;
+
+# version 0.151:
+You should update to this version as it includes many important fixes. Pipelines
+should now run correctly and reliably. Problems remain, however, with efficiency
+and running out of database connections. When starting the server, use
+--max_submissions and set it to slightly less than the maximum number of
+connections allowed to your database.
+If you've been skipping previous versions, follow the notes below.
+
+# version 0.146:
+See notes for 0.145 and 0.143 if you skipped those versions. This version should
+be safe to upgrade to, though there is an excess of debugging enabled. You may
+wish to wait for the next version.
+
+# version 0.145:
+See notes for 0.143 if you skipped that version. You may also wish to skip this
+version as another significant change was made, untested in production.
+If you are using MySQL, your user must be able to change the transaction
+isolation level. If you have database replication set up, you may find that you
+have to reconfigure the server to binlog-mode=MIXED and restart/redo your
+replication server.
+
+# version 0.144:
+See notes for 0.143; this just corrects the schema version number allowing
+vrpipe-db_upgrade to work.
+
+# version 0.143:
+This is a substantial overhaul of how things work under-the-hood, and also
+features an experimental fix for database inconsistencies that has not been
+tested in a production environment. You may wish to hold off upgrading until the
+next version.
+This version features a database schema change: run vrpipe-db_upgrade after
+installation.
+Note that if you use a pipeline that uses the bam_to_fastq step, you must make
+sure you have the bam2fastq exe now, and possibly reconfigure your setups.
+
 # version 0.140:
 A number of steps that previously assumed their bam input files were indexed now
 explicitly require a 'bai_inputs' input. If you have written your own pipelines

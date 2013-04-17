@@ -411,7 +411,7 @@ role VRPipe::StepRole {
                 # in the past, but now we've recreated a possibly different
                 # $file, so $resolved is out-of-date (or possibly doesn't exist
                 # any more)
-                if ($check_s && (!$resolved->s || !$file->s)) {
+                if ($check_s) {
                     # double-check incase the step did not update_stats_from_disc
                     $resolved->update_stats_from_disc(retries => 3);
                     $file->update_stats_from_disc(retries => 3) unless $resolved->id == $file->id;
@@ -433,7 +433,7 @@ role VRPipe::StepRole {
                     if ($check_s) {
                         my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
                         unless ($type->check_type) {
-                            push(@messages, $resolved->path . " exists, but is the wrong type!");
+                            push(@messages, $resolved->path . " exists, but is the wrong type (not a " . $resolved->type . " file)!");
                             $bad = 1;
                         }
                     }
@@ -481,7 +481,13 @@ role VRPipe::StepRole {
             next if exists $hash->{$key};
             my $val = $defs->{$key};
             next if $val->min_files == 0;
-            $self->throw("'$key' was defined as an output, yet no output file was made with that output_key (dataelement " . $self->data_element->id . "; stepstate " . $self->step_state->id . "; step " . $self->step_state->stepmember->step_number . " (" . $self->step_state->stepmember->step->name . "); pipelinesetup " . $self->step_state->pipelinesetup->id . ")");
+            
+            # we used to just throw here, as it would indicate a permanent error
+            # in the step body_sub code. However it is also possible for this
+            # to happen due to a bad database update where the StepOutputFile
+            # row does not get created even though the Submissions do. For that
+            # case we risk an infinite restart situation and restart this step
+            return ([1], ["'$key' was defined as an output of step " . $self->step_state->stepmember->step_number . " (" . $self->step_state->stepmember->step->name . "), yet no output file was made with that output_key (either the Step is not correctly written, or the database failed to update correctly when the Step was parsed)"]);
         }
         
         return $self->_missing($hash, $defs);
@@ -590,15 +596,15 @@ role VRPipe::StepRole {
                     #    how to make sure Manager parses this step soon?...
                     my $state = VRPipe::StepState->get(id => $state_id);
                     if ($state->complete) {
-                        $self->warn("To regenerate needed input files (@$files) for stepstate " . $self->step_state->id . ", we will start stepstate $state_id over again");
+                        $state->pipelinesetup->log_event("Calling StepState->start_over to regenerate needed input files (@$files)", stepstate => $state->id, dataelement => $state->dataelement->id);
                         $state->start_over;
                     }
                 }
-                return 0;
+                return "Called start_over to regenerate needed input files";
             }
             else {
                 my $step_state = $self->step_state;
-                $self->throw("There is a problem with the input files for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "):\n" . join("\n", @$messages));
+                return "There is a problem with the input files for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "):\n" . join("\n", @$messages);
             }
         }
         
@@ -611,6 +617,13 @@ role VRPipe::StepRole {
             my $step_state = $self->step_state;
             $step_state->output_files($output_files);
             $step_state->update;
+            my @ofiles;
+            while (my ($key, $files) = each %$output_files) {
+                push(@ofiles, map { $_->path } @$files);
+            }
+            my %ofiles = map { $_ => 1 } @ofiles;
+            my $ofiles = join(', ', keys %ofiles);
+            $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFiles [$ofiles]", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
         }
         my $temp_files = $self->_temp_files;
         if (@$temp_files) {
@@ -639,6 +652,7 @@ role VRPipe::StepRole {
             my ($missing, $messages) = $self->missing_output_files;
             $stepstate->unlink_temp_files;
             if (@$missing) {
+                $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process had a problem with the output files: " . join("\n", @$messages), stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
                 $stepstate->start_over;
                 $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
             }
@@ -648,6 +662,7 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
+            $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process did not return true", stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
             $stepstate->start_over;
             $error = "The post_process_sub did not return true, so the stepstate was started over.";
         }
@@ -681,10 +696,13 @@ role VRPipe::StepRole {
         if (defined $options->{memory_override} && $options->{memory_override} > $memory) {
             $memory = $options->{memory_override};
         }
-        if (defined $options->{time_override} && $options->{time_override} > $time) {
-            $time = $options->{time_override};
-            if ($time < 60) {
-                $time *= 60 * 60;
+        if (defined $options->{time_override}) {
+            my $override_time = $options->{time_override};
+            if ($override_time < 60) {
+                $override_time *= 60 * 60;
+            }
+            if ($override_time > $time) {
+                $time = $override_time;
             }
         }
         #*** and the other resources?...
@@ -760,10 +778,10 @@ role VRPipe::StepRole {
         my $req = $self->new_requirements(memory => 500, time => 1);
         
         if ($expected_md5) {
-            return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); if (Digest::MD5->new->addfile(*FILE)->hexdigest eq q[$expected_md5]) { VRPipe::File->get(path => q[$path], md5 => q[$expected_md5]); } else { die q[md5sum of $path does not match expected value] }], $req);
+            return $self->dispatch_vrpipecode(qq[use Digest::MD5; VRPipe::Manager->get->disconnect; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); if (Digest::MD5->new->addfile(*FILE)->hexdigest eq q[$expected_md5]) { VRPipe::File->get(path => q[$path], md5 => q[$expected_md5]); } else { die q[md5sum of $path does not match expected value] }], $req);
         }
         else {
-            return $self->dispatch_vrpipecode(qq[use Digest::MD5; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); VRPipe::File->get(path => q[$path], md5 => Digest::MD5->new->addfile(*FILE)->hexdigest);], $req);
+            return $self->dispatch_vrpipecode(qq[use Digest::MD5; VRPipe::Manager->get->disconnect; open(FILE, q[$path]) or die q[Could not open file $path]; binmode(FILE); VRPipe::File->get(path => q[$path], md5 => Digest::MD5->new->addfile(*FILE)->hexdigest);], $req);
         }
     }
     

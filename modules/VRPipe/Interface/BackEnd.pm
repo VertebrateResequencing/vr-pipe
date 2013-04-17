@@ -56,7 +56,8 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use Email::Sender::Simple;
     use Email::Simple::Creator;
-    use Fcntl qw/:flock SEEK_END/;
+    use Sys::Hostname::Long;
+    use Redis;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -358,6 +359,11 @@ XSL
         required => 1
     );
     
+    has 'farm' => (
+        is  => 'ro',
+        isa => 'Str'
+    );
+    
     has 'port' => (
         is     => 'ro',
         isa    => PositiveInt,
@@ -405,6 +411,12 @@ XSL
         is     => 'ro',
         isa    => 'Int',
         writer => '_set_uid'
+    );
+    
+    has 'log_dir' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_log_dir'
     );
     
     has 'log_file' => (
@@ -456,6 +468,23 @@ XSL
         }
     );
     
+    has 'redis_pid' => (
+        is  => 'rw',
+        isa => PositiveInt,
+    );
+    
+    has 'redis_port' => (
+        is     => 'ro',
+        isa    => PositiveInt,
+        writer => '_set_redis_port'
+    );
+    
+    has 'redis_server' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_redis_server'
+    );
+    
     method _build_schema {
         my $m = VRPipe::Manager->get;
         return $m->result_source->schema;
@@ -480,10 +509,11 @@ XSL
         my $vrp_config  = VRPipe::Config->new();
         my $method_name = $deployment . '_interface_port';
         my $port        = $vrp_config->$method_name();
+        $port = "$port" if $port; # values retrieved from Config might be env vars, so we must force stringification
         unless ($port) {
             die "VRPipe SiteConfig had no port specified for $method_name\n";
         }
-        $self->_set_port("$port"); # values retrieved from Config might be env vars, so we must force stringification
+        $self->_set_port($port);
         
         my $umask = $vrp_config->server_umask;
         $self->_set_umask("$umask");
@@ -509,8 +539,65 @@ XSL
         $log_basename =~ s/\W/_/g;
         my $log_file = file($log_dir, 'vrpipe-server.' . $log_basename . '.log');
         $self->_set_log_file($log_file->stringify);
+        $self->_set_log_dir("$log_dir");
         
         require VRPipe::Persistent::Schema;
+        
+        $method_name = $deployment . '_redis_port';
+        my $redis_port = $vrp_config->$method_name();
+        $redis_port = "$redis_port" if $redis_port;
+        unless ($redis_port) {
+            die "VRPipe SiteConfig had no port specified for $method_name\n";
+        }
+        $self->_set_redis_port($redis_port);
+        my $hostname;
+        my $farm = $self->farm;
+        if ($farm) {
+            my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
+            $hostname = $fs->hostname if $fs;
+        }
+        $hostname ||= 'localhost';
+        $self->_set_redis_server("$hostname:$redis_port");
+    }
+    
+    sub start_redis_server {
+        my $self           = shift;
+        my $logging_dir    = $self->log_dir;
+        my $redis_pid_file = file($logging_dir, 'redis.pid');
+        
+        my $redis_pid = $self->redis_pid;
+        if ($redis_pid) {
+            unless (kill(0, $redis_pid)) {
+                unlink($redis_pid_file);
+                $self->log("The Redis server has died");
+            }
+            else {
+                return 1;
+            }
+        }
+        
+        my $redis_port       = $self->redis_port;
+        my $redis_server_cmd = "redis-server --daemonize yes --pidfile $redis_pid_file --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048";
+        system($redis_server_cmd);
+        sleep(1);
+        
+        unless (-s $redis_pid_file) {
+            $self->log("Failed to start the Redis server; see $logging_dir/redis.log for details");
+            return 0;
+        }
+        else {
+            $redis_pid = $redis_pid_file->slurp;
+            chomp($redis_pid);
+            $self->redis_pid($redis_pid);
+            $self->log("Started a Redis server with pid $redis_pid");
+            return 1;
+        }
+    }
+    
+    method redis (Str $server?, PositiveInt $reconnect?) {
+        $server ||= $self->redis_server;
+        $reconnect ||= $self->deployment eq 'production' ? 60 : 6;
+        return Redis->new(server => $server, reconnect => $reconnect, encoding => undef);
     }
     
     # mostly based on http://www.perlmonks.org/?node_id=374409, and used instead
@@ -577,9 +664,43 @@ XSL
     }
     
     method log_stderr {
-        my $ok = open(STDERR, '>>', $self->log_file);
+        if ($self->log_file) {
+            my $ok;
+            eval {
+                my $redis = $self->redis;
+                $ok = $redis->ping;
+            };
+            
+            if ($ok) {
+                tie *STDERR, 'VRPipe::Interface::BackEnd', $self->redis_server, $self->deployment eq 'production' ? 60 : 6, $self->log_file;
+            }
+            else {
+                $ok = open(STDERR, '>>', $self->log_file);
+            }
+            $self->_log_file_in_use(1) if $ok;
+        }
+    }
+    
+    sub TIEHANDLE {
+        my ($pkg, $server, $reconnect, $log_file) = @_;
+        return bless { server => $server, reconnect => $reconnect, log_file => $log_file }, $pkg;
+    }
+    
+    sub PRINT {
+        my $config = shift;
+        my ($ok, $redis);
+        eval {
+            $redis = Redis->new(server => $config->{server}, reconnect => $config->{reconnect}, encoding => undef);
+            $ok = $redis->ping;
+        };
+        
         if ($ok) {
-            $self->_log_file_in_use(1);
+            $redis->rpush('stderr', @_);
+        }
+        else {
+            open(my $fh, '>>', $config->{log_file}) || return;
+            print $fh @_;
+            close($fh);
         }
     }
     
@@ -775,43 +896,11 @@ XSL
     method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Str :$long_msg?, Bool :$force_when_testing?) {
         chomp($msg);
         
-        # we could just warn to log to the log file if one is in use, but we'll
-        # use flock to write to it for better multi-process behaviour
-        my $log_msg = "$time{'yyyy/mm/dd hh:mm:ss'}: $msg\n";
-        if ($self->_log_file_in_use) {
-            my $log_file = $self->log_file;
-            my $ok = open(my $fh, ">>", $log_file);
-            if ($ok) {
-                my $flock_fail = sub {
-                    # failure to lock tends to be permanent, with the only
-                    # apparent solution being to delete the log file; let's just
-                    # assume the user is doing their own log rotation and so
-                    # we're not losing too much stuff by this blind deletion...
-                    close($fh);
-                    unlink($log_file);
-                    $ok = 0;
-                };
-                local $SIG{ALRM} = $flock_fail;
-                alarm 60;
-                $ok = flock($fh, LOCK_EX);
-                alarm 0;
-                if ($ok) {
-                    seek($fh, 0, SEEK_END);
-                    $ok = print $fh $log_msg;
-                    flock($fh, LOCK_UN);
-                }
-                else {
-                    &$flock_fail;
-                }
-                close($fh);
-            }
-            unless ($ok) {
-                warn $log_msg, "Additionally, was unable to log to $log_file\n";
-            }
-        }
-        else {
-            warn $log_msg;
-        }
+        # we'll just warn, which will end up in the log file automatically; we
+        # do not try and do anything fancy with flock() since that can be too
+        # slow or end up locking the log file forever
+        my $log_msg = "$time{'yyyy-mm-dd hh:mm:ss'} | pid $$ | $msg\n";
+        warn $log_msg;
         
         if (($force_when_testing || $self->deployment eq 'production') && ($email_to || $email_admin)) {
             # email the desired users
@@ -830,7 +919,7 @@ XSL
             my $sent = Email::Sender::Simple->try_to_send($email);
             
             unless ($sent) {
-                warn "$time{'yyyy/mm/dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
+                warn "$time{'yyyy-mm-dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
             }
         }
     }
@@ -854,7 +943,7 @@ XSL
         return $xml;
     }
     
-    method get_pipelinesetups (HashRef $opts, Bool $inactive?) {
+    method get_pipelinesetups (HashRef $opts, Bool $inactive?, Bool $allow_no_setups?) {
         my $multi_setups = $opts->{'_multiple_setups'};
         my @requested_setups = defined $opts->{setup} ? ($multi_setups ? @{ ref($opts->{setup}) eq 'ARRAY' ? $opts->{setup} : [$opts->{setup}] } : ($opts->{setup})) : ();
         
@@ -870,8 +959,8 @@ XSL
             @setups = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $inactive ? () : (active => 1) }, { prefetch => ['datasource', 'pipeline'] });
         }
         
-        if ($multi_setups && !@setups) {
-            die "No PipelineSetups match your settings (did you remember to specifiy --user?)\n";
+        if ($multi_setups && !@setups && !$allow_no_setups) {
+            die "No PipelineSetups match your settings (did you remember to specify --user?)\n";
         }
         
         return $multi_setups ? @setups : $setups[0];

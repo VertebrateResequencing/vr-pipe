@@ -147,6 +147,11 @@ class VRPipe::Persistent::Converter::mysql with VRPipe::Persistent::ConverterRol
     method index_creation_style {
         return 'single';
     }
+    
+    method get_isolation_change_sql (Bool :$repeatable_read = 0) {
+        return if $repeatable_read; # this is the default for InnoDB
+        return 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED';
+    }
 }
 
 1;
