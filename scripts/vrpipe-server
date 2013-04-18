@@ -280,6 +280,8 @@ sub start_server {
                     my $ok = $backend->start_redis_server;
                     unless ($ok) {
                         $backend->log("Can't continue submission management");
+                        $farm_server->stop_beating;
+                        $farm_server->delete;
                         undef $farm_server;
                     }
                 }
