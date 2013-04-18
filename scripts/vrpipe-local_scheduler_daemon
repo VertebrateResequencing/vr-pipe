@@ -31,6 +31,7 @@ use VRPipe::Interface::BackEnd;
 use VRPipe::LocalScheduler;
 use Sys::CPU;
 use Proc::Daemon;
+use Path::Class;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -41,7 +42,6 @@ my $cmdline = VRPipe::Interface::CmdLine->new(
     ]
 );
 
-my $backend;
 my $deployment = $cmdline->opts('deployment');
 my $foreground = $cmdline->opts('foreground');
 
@@ -51,7 +51,8 @@ unless ($command) {
     $cmdline->help;
 }
 
-my $log_dir      = '/tmp';
+my $backend      = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+my $log_dir      = $backend->log_dir;
 my $pid_basename = 'local_scheduler.pid';
 
 my $daemon = Proc::Daemon->new(
@@ -100,7 +101,7 @@ exit $exit;
 sub stop {
     if ($status) {
         my $stopped = $daemon->Kill_Daemon($pid_file);
-        $cmdline->output("VRPipe local scheduler daemon was " . ($stopped ? 'not' : '') . "stopped");
+        $cmdline->output("VRPipe local scheduler daemon was " . ($stopped ? '' : 'not ') . "stopped");
         return !$stopped;
     }
     else {
@@ -129,8 +130,8 @@ sub start_daemon {
         my $ls = VRPipe::LocalScheduler->new;
         
         while (1) {
-            #$ls->process_queue;
-            warn "$$ would process_queue\n";
+            warn "$$ will process_queue\n";
+            $ls->process_queue;
             sleep($interval);
         }
     }
