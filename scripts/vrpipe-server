@@ -286,7 +286,7 @@ sub start_server {
                     }
                 }
                 else {
-                    $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
+                    $backend->log("Could not start submission management for farm $farm because some other server process is (or was recently) doing that");
                     undef $farm_server;
                 }
             }
