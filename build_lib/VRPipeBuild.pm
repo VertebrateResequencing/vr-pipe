@@ -105,6 +105,7 @@ sub required_modules {
         'Path::Class'                    => 0,
         'Perl6::Form'                    => 0,
         'POSIX'                          => 0,
+        'Proc::Daemon'                   => 0,
         'Proc::Killfam'                  => 0,
         'Redis'                          => 1.9,
         'Storable'                       => 0,
