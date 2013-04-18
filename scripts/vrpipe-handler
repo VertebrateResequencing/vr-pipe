@@ -660,7 +660,18 @@ sub handle_submissions {
                             my $remaining_time = int($end_time - time());
                             if ($remaining_time < $time_needed) {
                                 $sidtosub->delete;
-                                return exit_handler("Not enough time to try and run our submission");
+                                
+                                # it's possible that we're dealing with a sub
+                                # with time requirements close to or matching
+                                # the limit of the queue we get submitted to,
+                                # which would mean we always exit here and never
+                                # actually run it; give it more time in that
+                                # case
+                                if ($handled_submissions == 0 && $time_needed - $remaining_time < 300) {
+                                    $sub->extra_time;
+                                }
+                                
+                                return exit_handler("Not enough time to try and run our submission ($remaining_time < $time_needed)");
                             }
                             
                             (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $remaining_time, redis => $backend->redis);
@@ -711,6 +722,10 @@ sub handle_submissions {
     # run the event loop
     $backend->debug("The submissions handler for farm $farm, req " . $req->id . " is now running.");
     EV::run;
+    
+    if ($grabbed_key) {
+        $backend->redis->del($grabbed_key);
+    }
     
     $backend->debug("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
     kill_remaining_children();
