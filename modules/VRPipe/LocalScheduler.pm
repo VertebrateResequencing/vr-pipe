@@ -46,7 +46,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::LocalScheduler {
-    use AnyEvent::ForkManager;
+    use Parallel::ForkManager;
     use Sys::CPU;
     use Cwd;
     use POSIX qw(ceil);
@@ -204,7 +204,7 @@ class VRPipe::LocalScheduler {
             # handler
             $max = 2;
         }
-        my $fm = AnyEvent::ForkManager->new(max_workers => $max);
+        my $fm = Parallel::ForkManager->new($max);
         
         my $count = 0;
         foreach my $lsjs (@lsjss) {
@@ -212,13 +212,9 @@ class VRPipe::LocalScheduler {
             last if $count > $max;
             next if $lsjs->start_time;
             
-            $fm->start(
-                cb => sub {
-                    my ($fm, $lsjs) = @_;
-                    $lsjs->start_job;
-                },
-                args => [$lsjs]
-            );
+            $fm->start and next;
+            $lsjs->start_job;
+            $fm->finish;
         }
         
         $fm->wait_all_children;
