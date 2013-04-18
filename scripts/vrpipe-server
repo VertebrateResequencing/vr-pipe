@@ -45,7 +45,9 @@ my $cmdline = VRPipe::Interface::CmdLine->new(
         ['foreground|f',          'Do not daemonize - the server will run in the foreground, logging to STDERR'],
         ['farm=s',                'Discover and dispatch submissions to the job scheduler identified by the supplied name (only 1 server can dispatch to each farm)'],
         ['max_submissions|m=i',   'The maximum number of submissions to dispatch to the farm when in --farm mode (default is unlimited)'],
-        ['only_specified_setups', 'In --farm mode, normally any PipelineSetups that have no farm configured will be run on a random farm, so potentially via this server; turning this option on means this server will only handle setups configured for this farm']
+        ['only_specified_setups', 'In --farm mode, normally any PipelineSetups that have no farm configured will be run on a random farm, so potentially via this server; turning this option on means this server will only handle setups configured for this farm'],
+        [],
+        ['debug', 'turn lots of debugging output on']
     ]
 );
 
@@ -55,6 +57,7 @@ my $foreground            = $cmdline->opts('foreground');
 my $farm                  = $cmdline->opts('farm');
 my $max_subs              = $cmdline->opts('max_submissions');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
+my $debug                 = $cmdline->opts('debug');
 my $survival_time;
 my $scheduler;
 
@@ -158,6 +161,9 @@ sub start_server {
     # initialize the VRPipe backend
     $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment, $farm ? (farm => $farm) : ());
     my $dtf = $backend->schema->storage->datetime_parser;
+    if ($debug || $deployment eq 'testing') {
+        $backend->set_verbose_global(1);
+    }
     
     # start the redis server for logging purposes
     $backend->start_redis_server;
@@ -207,18 +213,16 @@ sub start_server {
         }
     }
     
-    # set up the timer for the local scheduler to process its queue. (for timers
-    # we use periodic instead of timer because timer seems to have some bug
-    # where on the first invocation it happens twice at ~the same time, which
-    # can be terrible for us. periodic (usually) does not)
-    my $ls = VRPipe::LocalScheduler->new;
-    my $ls_watcher = EV::periodic_ns 0, $timer_interval, 0, sub {
-        # we want to run process_queue every x seconds, but it may take
-        # longer than x seconds to run and we don't want to wait, so we do
-        # our own async fork (in order to call something that in turn will
-        # do further async forks...). It doesn't seem to matter that our
-        # children (presumably) have all our watchers running.
-        fork_call { $ls->process_queue; return; } $watcher_error_sub;
+    # (for timers we use periodic instead of timer because timer seems to have
+    # some bug where on the first invocation it happens twice at ~the same time,
+    # which can be terrible for us. periodic (usually) does not)
+    
+    # set up a timer to check if the local scheduler daemon is running (turned
+    # off by default)
+    my $ls         = VRPipe::LocalScheduler->new;
+    my $lsd_path   = $cmdline->vrpipe_script_command('vrpipe-local_scheduler_daemon', $deployment);
+    my $ls_watcher = EV::periodic_ns 0, $timer_interval * 10, 0, sub {
+        system("$lsd_path start");
     };
     
     # set up the submission management system if we're supposed to
