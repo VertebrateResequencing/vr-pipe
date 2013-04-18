@@ -213,18 +213,16 @@ sub start_server {
         }
     }
     
-    # set up the timer for the local scheduler to process its queue. (for timers
-    # we use periodic instead of timer because timer seems to have some bug
-    # where on the first invocation it happens twice at ~the same time, which
-    # can be terrible for us. periodic (usually) does not)
-    my $ls = VRPipe::LocalScheduler->new;
-    my $ls_watcher = EV::periodic_ns 0, $timer_interval, 0, sub {
-        # we want to run process_queue every x seconds, but it may take
-        # longer than x seconds to run and we don't want to wait, so we do
-        # our own async fork (in order to call something that in turn will
-        # do further async forks...). It doesn't seem to matter that our
-        # children (presumably) have all our watchers running.
-        fork_call { $ls->process_queue; return; } $watcher_error_sub;
+    # (for timers we use periodic instead of timer because timer seems to have
+    # some bug where on the first invocation it happens twice at ~the same time,
+    # which can be terrible for us. periodic (usually) does not)
+    
+    # set up a timer to check if the local scheduler daemon is running (turned
+    # off by default)
+    my $ls         = VRPipe::LocalScheduler->new;
+    my $lsd_path   = $cmdline->vrpipe_script_command('vrpipe-local_scheduler_daemon', $deployment);
+    my $ls_watcher = EV::periodic_ns 0, $timer_interval * 10, 0, sub {
+        system("$lsd_path start");
     };
     
     # set up the submission management system if we're supposed to
