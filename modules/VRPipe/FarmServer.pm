@@ -138,6 +138,8 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
                 die $@;
             }
         }
+        
+        return 1;
     }
 }
 
