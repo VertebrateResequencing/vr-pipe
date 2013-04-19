@@ -104,27 +104,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         }
     }
     
-    method kill_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {
-        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
-        my $t = time();
-        while (1) {
-            last if time() - $t > $secs;
-            
-            #*** fork and kill child if over time limit?
-            my $status = $self->sid_status($sid, $aid);
-            last if ($status eq 'UNKNOWN' || $status eq 'DONE' || $status eq 'EXIT');
-            
-            system("$ls_script kill $id");
-            
-            sleep(1);
-        }
-        return 1;
-    }
-    
-    method batch_kill_sids (ArrayRef $sid_aids) {
-        # unlike kill_sid(), we're all about speed, so can't care about if the
-        # kill actually worked or not
-        
+    method kill_sids (ArrayRef $sid_aids) {
         my @sids;
         foreach my $sid_aid (@$sid_aids) {
             my ($sid, $aid) = @$sid_aid;
@@ -138,20 +118,6 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         }
         
         system("$ls_script kill @sids") if @sids;
-    }
-    
-    method all_status {
-        open(my $bfh, "$ls_script jobs |") || $self->warn("Could not call $ls_script jobs");
-        my %status = ();
-        if ($bfh) {
-            while (<$bfh>) {
-                if (/^(\d+)\s+\S+\s+(\S+)/) {
-                    $status{$1} = $2;
-                }
-            }
-            close($bfh);
-        }
-        return %status;
     }
     
     method sid_status (PositiveInt $sid, Int $aid) {

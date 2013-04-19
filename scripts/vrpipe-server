@@ -569,10 +569,8 @@ sub start_server {
                             }
                         }
                         
-                        # batch kill sids now; this should hopefully be faster
-                        # than calling kill_sid() for each sid in the above
-                        # loops
-                        $scheduler->batch_kill_sids(\@sids_to_kill);
+                        # batch kill sids now
+                        $scheduler->kill_sids(\@sids_to_kill);
                     }
                     
                     alarm 0;

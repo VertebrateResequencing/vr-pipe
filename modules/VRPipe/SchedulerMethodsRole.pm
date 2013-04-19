@@ -72,9 +72,7 @@ role VRPipe::SchedulerMethodsRole {
     requires 'get_scheduler_id';
     requires 'get_1based_index';
     requires 'get_sid';
-    requires 'kill_sid';
-    requires 'batch_kill_sids';
-    requires 'all_status';
+    requires 'kill_sids';
     requires 'sid_status';
     requires 'command_status';
     requires 'run_time';

@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Schedulers::lsf - interface to LSF
+VRPipe::Schedulers::ec2 - interface to ec2
 
 =head1 SYNOPSIS
 
@@ -19,7 +19,8 @@ For this to work the server must be running on an AMI that boots up to an
 environment with a working VRPipe installation and all the software you need to
 run. The VRPipe installation must be configured to use ec2 as the job
 scheduler, and you must have provided the access and secret keys (which can be
-found at https://portal.aws.amazon.com/gp/aws/securityCredentials?).
+found at https://portal.aws.amazon.com/gp/aws/securityCredentials?) during the
+'perl Build.PL' phase of VRPipe installation.
 
 =head1 AUTHOR
 
@@ -141,7 +142,13 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             }
         );
         
-        unless ($instance_id) {
+        foreach my $possible (@current_instances) {
+            #*** decide if this instance can be used
+            
+            last if $instance;
+        }
+        
+        unless ($instance) {
             # launch a new instance
             ($instance) = $ec2->run_instances(
                 -image_id               => $ami,
@@ -165,7 +172,9 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             $instance_id = $instance->instanceId;
             warn "selected instance $instance_id\n";
             
-            #...
+            #*** not yet implemented ...
+            
+            # print "Job x is submitted\n";
             
             sleep(20);
             warn "will terminate the instance\n";
@@ -204,6 +213,11 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         $self->throw("Queue Switching is not supported (and should not be necessary) for the ec2 scheduler");
     }
     
+    method get_scheduler_id {
+        #*** not yet implemented
+        return -1;
+    }
+    
     method get_1based_index (Maybe[PositiveInt] $index?) {
         # we don't have any concept of a job 'array', so don't deal with indexes
         return 1;
@@ -221,37 +235,58 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         }
     }
     
-    method kill_sid (PositiveInt $sid, Int $aid, PositiveInt $secs = 30) {
+    method kill_sids (ArrayRef $sid_aids) {
         #*** not yet implemented
         
-        my $t = time();
-        while (1) {
-            last if time() - $t > $secs;
+        my @sids;
+        foreach my $sid_aid (@$sid_aids) {
+            my ($sid, $aid) = @$sid_aid;
+            my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+            push(@sids, $id);
             
-            #*** fork and kill child if over time limit?
-            my $status = $self->sid_status($sid, $aid);
-            last if ($status eq 'UNKNOWN' || $status eq 'DONE' || $status eq 'EXIT');
-            
-            #system("bkill $id");
-            
-            sleep(1);
+            if (@sids == 500) {
+                #system("bkill @sids");
+                @sids = ();
+            }
         }
-        return 1;
-    }
-    
-    method all_status {
-        my %status = ();
         
-        #*** not yet implemented
-        # $status{$sid} = 'RUN';
-        
-        return %status;
+        #system("bkill @sids") if @sids;
     }
     
     method sid_status (PositiveInt $sid, Int $aid) {
-        my $status;
         #*** not yet implemented
-        return $status || 'UNKNOWN'; # *** needs to return a word in a defined vocabulary suitable for all schedulers
+        
+        my $id = $sid; # we don't support Job arrays, so ignore $aid
+        
+        my $status;
+        return $status || 'UNKNOWN';
+    }
+    
+    method run_time (PositiveInt $sid, Int $aid) {
+        my $id = $sid;
+        
+        my ($start_epoch, $end_epoch);
+        
+        #*** not yet implemented
+        
+        $start_epoch || return 0;
+        $end_epoch ||= time();
+        return $end_epoch - $start_epoch;
+    }
+    
+    method command_status (Str :$cmd, PositiveInt :$max?) {
+        my $count            = 0;
+        my @running_sid_aids = ();
+        my @to_kill;
+        my $job_name_prefix = $self->_job_name($cmd);
+        
+        #*** not yet implemented
+        
+        if (@to_kill) {
+            $self->kill_sids(@to_kill);
+        }
+        
+        return ($count, \@running_sid_aids);
     }
 }
 
