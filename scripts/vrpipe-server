@@ -634,6 +634,11 @@ sub start_server {
         kill(9, $backend->redis_pid);
     }
     
+    # stop the local scheduler daemon
+    if ($scheduler->type eq 'local') {
+        system("$lsd_path stop");
+    }
+    
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
     exit 0;
 }
@@ -1057,6 +1062,8 @@ sub local_scheduler {
     elsif ($mode eq 'stop') {
         $xml = '<title>Local Scheduler</title>';
         $ls_watcher->stop;
+        my $lsd_path = $cmdline->vrpipe_script_command('vrpipe-local_scheduler_daemon', $deployment);
+        system("$lsd_path stop");
         $xml .= '<response_line>Local Scheduler stopped</response_line>';
     }
     elsif ($mode eq 'submit') {
