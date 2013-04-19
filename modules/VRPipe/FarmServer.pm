@@ -131,7 +131,7 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         # farmserver row disappeared
         eval { $self->$orig; };
         if ($@) {
-            if ($@ =~ /^update failed.+row not found/) {
+            if ($@ =~ /update failed.+row not found/) {
                 return 0;
             }
             else {
