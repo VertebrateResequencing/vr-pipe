@@ -5,7 +5,7 @@ use Path::Class;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 16;
+    use Test::Most tests => 17;
     use VRPipeTest;
     
     use_ok('VRPipe::Scheduler');
@@ -26,7 +26,7 @@ is $scheduler->type, 'lsf', 'the type really is lsf';
 
 SKIP: {
     my $host = hostname();
-    skip "author-only lsf tests", 4 unless $host eq 'uk10k-1-1-01';
+    skip "author-only lsf tests", 5 unless $host eq 'uk10k-1-1-01';
     
     is $scheduler->determine_queue($requirements), 'normal', 'determine_queue() gave normal queue for 10MB and 1hr';
     $requirements = VRPipe::Requirements->create(memory => 1, time => 300);
@@ -42,13 +42,16 @@ SKIP: {
 # ec2
 SKIP: {
     eval "require VM::EC2;";
-    skip "VM::EC2 is not installed", 4 if $@;
+    skip "VM::EC2 is not installed", 5 if $@;
     
     ok $scheduler = VRPipe::Scheduler->create(type => 'ec2'), q[able to get the ec2 scheduler using get(type => 'ec2')];
     is $scheduler->type, 'ec2', 'the type really is ec2';
     
     $requirements = VRPipe::Requirements->create(memory => 100, time => 120);
-    is $scheduler->determine_queue($requirements), 'm1.medium', 'determine_queue() gave m1.medium instance for 100MB and 2mins';
+    is $scheduler->determine_queue($requirements), 't1.micro', 'determine_queue() gave t1.micro instance for 100MB and 2mins';
+    
+    $requirements = VRPipe::Requirements->create(memory => 1800, time => 120);
+    is $scheduler->determine_queue($requirements), 'm1.medium', 'determine_queue() gave m1.medium instance for 1800MB and 2mins';
     
     my $scheduler_cmd_line = join(
         ' ',
@@ -60,7 +63,7 @@ SKIP: {
             cmd          => 'the cmd to run'
         )
     );
-    my $expected = q[perl .+ -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit\(@ARGV\)" instance m1.medium memory 100 cmd 'the cmd to run'];
+    my $expected = q[perl .+ -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit\(@ARGV\)" instance m1.medium memory 1800 cmd 'the cmd to run'];
     like $scheduler_cmd_line, qr/$expected/, 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
 }
 
