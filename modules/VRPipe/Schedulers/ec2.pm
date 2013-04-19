@@ -169,7 +169,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         }
         
         if ($instance) {
-            $instance_id = $instance->instanceId;
+            my $instance_id = $instance->instanceId;
             warn "selected instance $instance_id\n";
             
             #*** not yet implemented ...
