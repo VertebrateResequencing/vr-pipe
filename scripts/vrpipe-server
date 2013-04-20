@@ -280,7 +280,7 @@ sub start_server {
                         # needed
                         my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
                         $ec2_watcher = EV::timer 0, $timer_interval * 10, sub {
-                            $scheduler->terminate_old_instances($max_do_nothing_time);
+                            $scheduler->scheduler_instance->terminate_old_instances($max_do_nothing_time);
                         };
                     }
                     
