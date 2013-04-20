@@ -275,7 +275,7 @@ sub start_server {
                             $AnyEvent::Util::MAX_FORKS = 2;
                         }
                     }
-                    elsif ($scheduler->type eq 'ec2') {
+                    elsif (0 && $scheduler->type eq 'ec2') {
                         # periodically terminate instances that are no longer
                         # needed
                         my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
