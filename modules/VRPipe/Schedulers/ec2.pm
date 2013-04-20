@@ -55,6 +55,8 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     use VRPipe::Config;
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
+    use Net::SSH qw(ssh ssh_cmd);
+    use POSIX qw(ceil);
     
     #*** are instance type details not query-able? Do we have to hard-code it?
     our %instance_types = (
@@ -108,11 +110,10 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         return $perl . ' -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit(@ARGV)"';
     }
     
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, VRPipe::PersistentArray :$array?) {
+    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1) {
         # access the requirements object and build up the string based on
-        # memory, time, cpu etc.
-        my $instance_type = $self->determine_queue($requirements);
-        # *** ...
+        # memory and cpu (other reqs do not apply)
+        my $instance_type      = $self->determine_queue($requirements);
         my $megabytes          = $requirements->memory;
         my $requirments_string = "instance $instance_type memory $megabytes";
         my $cpus               = $requirements->cpus;
@@ -120,68 +121,173 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             $requirments_string .= " cpus $cpus";
         }
         
-        return qq[$requirments_string cmd '$cmd'];
+        return qq[$requirments_string count $count cmd '$cmd'];
     }
     
     sub submit {
         my ($self, %args) = @_;
         my $instance_type = $args{instance} || $self->throw("No instance supplied");
         my $megabytes     = $args{memory}   || $self->throw("No memory supplied");
+        my $count         = $args{count}    || $self->throw("No count supplied");
         my $cmd           = $args{cmd}      || $self->throw("No cmd supplied");
+        my $cpus          = $args{cpus}     || 1;
         
-        #*** not yet implemented
-        warn "would submit cmd [$cmd] to instance [$instance_type], requiring [$megabytes]MB\n";
+        warn "will submit cmd [$cmd] to instance [$instance_type] $count times, requiring [$megabytes]MB\n";
         
-        # is there already an instance running with 'room' for our command?
-        my $instance;
-        my @current_instances = $ec2->describe_instances({
+        #*** there are surely optimisations and caching that could be done here...
+        for (1 .. $count) {
+            # is there already an instance running with 'room' for our command?
+            my $instance;
+            my @current_instances = $ec2->describe_instances({
+                    'image-id'          => $ami,
+                    'availability-zone' => $availability_zone,
+                    'instance-type'     => $instance_type
+                }
+            );
+            
+            my $available_cpus   = $instance_types{$instance_type}->[0];
+            my $available_memory = $instance_types{$instance_type}->[1];
+            foreach my $possible (@current_instances) {
+                # see what vrpipe-handler processes are running on this instance
+                # (searching our own job table for jobs running on this host isn't
+                #  good enough, since the handler may not have started running a job
+                #  yet)
+                my $pdn = $possible->privateDnsName;
+                my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+                warn "will search for processes running on $host\n";
+                my $processes = ssh_cmd($host, qq[ps xj | grep vrpipe-handler]) || '';
+                my %pgids;
+                foreach my $process (split("\n", $processes)) {
+                    next if $process =~ /grep/;
+                    my ($pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
+                    my ($r)    = $process =~ /-r (\d+) /;
+                    $pgids{$pgid} = $r || 0;
+                }
+                
+                my $cpus_used   = 0;
+                my $memory_used = 0;
+                while (my ($pgid, $rid) = each %pgids) {
+                    my $req = VRPipe::Requirements->get(id => $rid) if $rid;
+                    $cpus_used += $req ? $req->cpus : $available_cpus;
+                    last if $cpus_used >= $available_cpus;
+                    
+                    # get the total memory used by all processes in this process
+                    # group
+                    my $processes = ssh_cmd($host, qq[ps xj | grep $pgid]) || '';
+                    my $this_memory_used = 0;
+                    foreach my $process (split("\n", $processes)) {
+                        next if $process =~ /grep/;
+                        my ($pid, $this_pgid) = $process =~ /\s*\d+\s+(\d+)\s+(\d+)/;
+                        next unless $this_pgid == $pgid;
+                        my $grep = ssh_cmd($host, qq[grep VmRSS /proc/$pid/status 2>/dev/null]);
+                        my $grep_bytes;
+                        if ($grep && $grep =~ /(\d+) kB/) {
+                            $grep_bytes = $1 * 1024;
+                            $this_memory_used += ceil($grep_bytes / 1048576);
+                        }
+                    }
+                    
+                    my $this_memory_reserved = $req ? $req->memory : $this_memory_used;
+                    if ($this_memory_used > $this_memory_reserved) {
+                        warn "will try to kill pgid $pgid because it is using too much memory\n";
+                        ssh($pdn, qq[kill -TERM -$pgid]);
+                        $memory_used += $this_memory_used;
+                    }
+                    else {
+                        $memory_used += $this_memory_reserved;
+                    }
+                    last if $memory_used >= $available_memory;
+                }
+                
+                warn "$host had used $cpus_used/$available_cpus cpus and $memory_used/$available_memory memory\n";
+                if ($cpus <= $available_cpus - $cpus_used && $megabytes <= $available_memory - $memory_used) {
+                    $instance = $possible;
+                    warn "will use $host\n";
+                    last;
+                }
+            }
+            
+            unless ($instance) {
+                warn "no suitable instances, will spawn a new one\n";
+                # launch a new instance
+                ($instance) = $ec2->run_instances(
+                    -image_id               => $ami,
+                    -instance_type          => $instance_type,
+                    -client_token           => $ec2->token,
+                    -key_name               => $key_name,
+                    -security_group         => \@security_groups,
+                    -availability_zone      => $availability_zone,
+                    -min_count              => 1,
+                    -max_count              => 1,
+                    -termination_protection => 0,
+                    -shutdown_behavior      => 'terminate'
+                ) or $self->throw($ec2->error_str);
+                
+                $ec2->wait_for_instances($instance);
+                my $status = $instance->current_status;
+                $self->throw("Created a new instance but it didn't start running normally") unless $status eq 'running';
+                warn "started up instance ", $instance->instanceId, " which has host ", $instance->privateDnsName, "\n";
+            }
+            
+            if ($instance) {
+                my $instance_id = $instance->instanceId;
+                my $ip          = $instance->privateIpAddress;
+                warn "selected instance $instance_id at $ip\n";
+                
+                #*** can't figure out how to both detatch and return immediately
+                # from running the command over ssh, and get back the pid of the
+                # cmd we just started, so we'll have to note the pids already on
+                # the machine so we can detect afterwards what new pid was created
+                my $processes = ssh_cmd($ip, qq[ps xj | grep vrpipe-handler]) || '';
+                my %existing_pgids;
+                foreach my $process (split("\n", $processes)) {
+                    next if $process =~ /grep/;
+                    next unless $process =~ /$cmd/;
+                    my ($pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
+                    $existing_pgids{$pgid} = 1;
+                }
+                
+                ssh($ip, q[sh -c "( ( nohup $cmd &>/dev/null ) & )"]);
+                
+                $processes = ssh_cmd($ip, qq[ps xj | grep vrpipe-handler]) || '';
+                my $pgid;
+                foreach my $process (split("\n", $processes)) {
+                    next if $process =~ /grep/;
+                    next unless $process =~ /$cmd/;
+                    my ($this_pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
+                    unless (exists $existing_pgids{$this_pgid}) {
+                        $pgid = $this_pgid;
+                        last;
+                    }
+                }
+                
+                if ($pgid) {
+                    print "Job <$ip:$pgid> is submitted\n";
+                }
+                else {
+                    $self->throw("Failed to launch cmd on $ip via ssh");
+                }
+            }
+            else {
+                $self->throw("Could not find or create an instance to submit the command to");
+            }
+        }
+    }
+    
+    method terminate_old_instances (PositiveInt $max_do_nothing_time = 3600) {
+        warn "will check for instances that can be terminated\n";
+        my @all_instances = $ec2->describe_instances({
                 'image-id'          => $ami,
-                'availability-zone' => $availability_zone,
-                'instance-type'     => $instance_type,
-                #'tag:Key'                        => 'Value'
+                'availability-zone' => $availability_zone
             }
         );
-        
-        foreach my $possible (@current_instances) {
-            #*** decide if this instance can be used
-            
-            last if $instance;
-        }
-        
-        unless ($instance) {
-            # launch a new instance
-            ($instance) = $ec2->run_instances(
-                -image_id               => $ami,
-                -instance_type          => $instance_type,
-                -client_token           => $ec2->token,
-                -key_name               => $key_name,
-                -security_group         => \@security_groups,
-                -availability_zone      => $availability_zone,
-                -min_count              => 1,
-                -max_count              => 1,
-                -termination_protection => 0,
-                -shutdown_behavior      => 'terminate'
-            ) or $self->throw($ec2->error_str);
-            
-            $ec2->wait_for_instances($instance);
-            my $status = $instance->current_status;
-            $self->throw("Created a new instance but it didn't start running normally") unless $status eq 'running';
-        }
-        
-        if ($instance) {
-            my $instance_id = $instance->instanceId;
-            warn "selected instance $instance_id\n";
-            
-            #*** not yet implemented ...
-            
-            # print "Job x is submitted\n";
-            
-            sleep(20);
-            warn "will terminate the instance\n";
+        foreach my $instance (@all_instances) {
+            my $pdn    = $instance->privateDnsName;
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            my $jobs   = VRPipe::Job->search({ host => $host, heart_time => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
+            next if $jobs;
+            warn "will terminated instance $host\n";
             $instance->terminate;
-        }
-        else {
-            $self->throw("Could not find or create an instance to submit the command to");
         }
     }
     
@@ -208,24 +314,25 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         return 31536000;
     }
     
-    method switch_queue (PositiveInt $sid, Str $new_queue) {
+    method switch_queue (Str $sid, Str $new_queue) {
         # we don't support queue switching
         $self->throw("Queue Switching is not supported (and should not be necessary) for the ec2 scheduler");
     }
     
     method get_scheduler_id {
-        #*** not yet implemented
-        return -1;
+        my $ip   = $meta->privateIpAddress;
+        my $pgid = getpgrp(0);
+        return "$ip:$pgid";
     }
     
     method get_1based_index (Maybe[PositiveInt] $index?) {
         # we don't have any concept of a job 'array', so don't deal with indexes
-        return 1;
+        return 0;
     }
     
     method get_sid (Str $cmd) {
         my $output = `$cmd`;
-        my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
+        my ($sid) = $output =~ /Job \<(.+?)\> is submitted/;
         
         if ($sid) {
             return $sid;
@@ -236,54 +343,84 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     }
     
     method kill_sids (ArrayRef $sid_aids) {
-        #*** not yet implemented
-        
-        my @sids;
         foreach my $sid_aid (@$sid_aids) {
-            my ($sid, $aid) = @$sid_aid;
-            my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
-            push(@sids, $id);
-            
-            if (@sids == 500) {
-                #system("bkill @sids");
-                @sids = ();
+            my ($sid) = @$sid_aid;
+            my ($ip, $pgid) = split(':', $sid);
+            ssh($ip, qq[kill -TERM -$pgid]);
+        }
+    }
+    
+    method sid_status (Str $sid, Int $aid) {
+        my ($ip, $pgid) = split(':', $sid);
+        
+        my $processes = ssh_cmd($ip, qq[ps xj | grep vrpipe-handler]) || '';
+        my $found = 0;
+        foreach my $process (split("\n", $processes)) {
+            my ($this_pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
+            if ($this_pgid == $pgid) {
+                $found = 1;
+                last;
             }
         }
         
-        #system("bkill @sids") if @sids;
+        return $found ? 'RUN' : 'UNKNOWN';
     }
     
-    method sid_status (PositiveInt $sid, Int $aid) {
-        #*** not yet implemented
+    method run_time (Str $sid, Int $aid) {
+        my ($ip, $pgid) = split(':', $sid);
         
-        my $id = $sid; # we don't support Job arrays, so ignore $aid
+        my $processes = ssh_cmd($ip, qq[ps xj | grep vrpipe-handler]) || '';
+        my $pid = 0;
+        foreach my $process (split("\n", $processes)) {
+            my ($this_pid, $this_pgid) = $process =~ /\s*\d+\s+(\d+)\s+(\d+)/;
+            if ($this_pgid == $pgid) {
+                $pid = $this_pid;
+                last;
+            }
+        }
+        $pid || return 0;
         
-        my $status;
-        return $status || 'UNKNOWN';
-    }
-    
-    method run_time (PositiveInt $sid, Int $aid) {
-        my $id = $sid;
+        my $etime = ssh_cmd($ip, qq[ps -p $pid -o etime=]);
+        # [[dd-]hh:]mm:ss
+        my ($d, $h, $m, $s) = $etime =~ /(?:(?:(\d+)-)?(\d+):)?(\d+):(\d+)/;
+        $d ||= 0;
+        $h ||= 0;
+        my $seconds = ($d * 24 * 60 * 60) + ($h * 60 * 60) + ($m * 60) + $s;
         
-        my ($start_epoch, $end_epoch);
-        
-        #*** not yet implemented
-        
-        $start_epoch || return 0;
-        $end_epoch ||= time();
-        return $end_epoch - $start_epoch;
+        return $seconds;
     }
     
     method command_status (Str :$cmd, PositiveInt :$max?) {
+        # we have no concept of a pending job, since our submit() method just
+        # immediately starts running cmds on a node: we don't have to care about
+        # $max or killing things here
+        
+        #*** there must be some optimisation involving caching or tags or redis
+        # that can be done here?...
+        
+        # look through all running instances and see what's running on them
         my $count            = 0;
         my @running_sid_aids = ();
-        my @to_kill;
-        my $job_name_prefix = $self->_job_name($cmd);
-        
-        #*** not yet implemented
-        
-        if (@to_kill) {
-            $self->kill_sids(@to_kill);
+        my @all_instances    = $ec2->describe_instances({
+                'image-id'          => $ami,
+                'availability-zone' => $availability_zone
+            }
+        );
+        foreach my $instance (@all_instances) {
+            my $ip = $instance->privateIpAddress;
+            
+            my $processes = ssh_cmd($ip, qq[ps xj | grep vrpipe-handler]) || '';
+            my %pgids;
+            foreach my $process (split("\n", $processes)) {
+                next unless $process =~ /$cmd/;
+                my ($pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
+                $pgids{$pgid} = 1;
+            }
+            
+            $count += keys %pgids;
+            foreach my $pgid (keys %pgids) {
+                push(@running_sid_aids, ["$ip:$pgid", 0]);
+            }
         }
         
         return ($count, \@running_sid_aids);
