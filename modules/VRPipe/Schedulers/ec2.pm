@@ -284,7 +284,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         foreach my $instance (@all_instances) {
             my $pdn    = $instance->privateDnsName;
             my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
-            my $jobs   = VRPipe::Job->search({ host => $host, heart_time => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
+            my $jobs   = VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             next if $jobs;
             warn "will terminated instance $host\n";
             $instance->terminate;
