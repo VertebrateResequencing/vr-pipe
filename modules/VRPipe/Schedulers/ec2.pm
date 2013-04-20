@@ -139,9 +139,10 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             # is there already an instance running with 'room' for our command?
             my $instance;
             my @current_instances = $ec2->describe_instances({
-                    'image-id'          => $ami,
-                    'availability-zone' => $availability_zone,
-                    'instance-type'     => $instance_type
+                    'image-id'            => $ami,
+                    'availability-zone'   => $availability_zone,
+                    'instance-type'       => $instance_type,
+                    'instance-state-name' => 'running'
                 }
             );
             
@@ -279,8 +280,9 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     method terminate_old_instances (PositiveInt $max_do_nothing_time = 3600) {
         warn "will check for instances that can be terminated\n";
         my @all_instances = $ec2->describe_instances({
-                'image-id'          => $ami,
-                'availability-zone' => $availability_zone
+                'image-id'            => $ami,
+                'availability-zone'   => $availability_zone,
+                'instance-state-name' => 'running'
             }
         );
         my $own_pdn = $meta->privateDnsName;
@@ -290,7 +292,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
             my $jobs = VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             next if $jobs;
-            warn "will terminated instance $host\n";
+            warn "will terminate instance $host\n";
             $instance->terminate;
         }
     }
@@ -406,8 +408,9 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         my $count            = 0;
         my @running_sid_aids = ();
         my @all_instances    = $ec2->describe_instances({
-                'image-id'          => $ami,
-                'availability-zone' => $availability_zone
+                'image-id'            => $ami,
+                'availability-zone'   => $availability_zone,
+                'instance-state-name' => 'running'
             }
         );
         foreach my $instance (@all_instances) {
