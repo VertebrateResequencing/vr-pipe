@@ -147,12 +147,14 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             
             my $available_cpus   = $instance_types{$instance_type}->[0];
             my $available_memory = $instance_types{$instance_type}->[1];
+            my $own_pdn          = $meta->privateDnsName;
             foreach my $possible (@current_instances) {
                 # see what vrpipe-handler processes are running on this instance
                 # (searching our own job table for jobs running on this host isn't
                 #  good enough, since the handler may not have started running a job
                 #  yet)
                 my $pdn = $possible->privateDnsName;
+                next if $pdn eq $own_pdn; # submit() will be called by the server, and we don't want any handlers running on the same instance as the server
                 my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
                 warn "will search for processes running on $host\n";
                 my $processes = ssh_cmd($host, qq[ps xj | grep vrpipe-handler]) || '';
@@ -281,10 +283,12 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 'availability-zone' => $availability_zone
             }
         );
+        my $own_pdn = $meta->privateDnsName;
         foreach my $instance (@all_instances) {
-            my $pdn    = $instance->privateDnsName;
+            my $pdn = $instance->privateDnsName;
+            next if $pdn eq $own_pdn; # don't terminate ourselves - the server that calls this method won't have any handlers running on it
             my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
-            my $jobs   = VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
+            my $jobs = VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             next if $jobs;
             warn "will terminated instance $host\n";
             $instance->terminate;
