@@ -226,7 +226,7 @@ sub start_server {
     };
     
     # set up the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $still_working);
+    my ($farm_server, $farm_watcher, $handler_path, $still_working, $ec2_watcher);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
@@ -274,6 +274,14 @@ sub start_server {
                         if ($AnyEvent::Util::MAX_FORKS == 1) {
                             $AnyEvent::Util::MAX_FORKS = 2;
                         }
+                    }
+                    elsif ($scheduler->type eq 'ec2') {
+                        # periodically terminate instances that are no longer
+                        # needed
+                        my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
+                        $ec2_watcher = EV::timer 0, $timer_interval * 10, sub {
+                            $scheduler->terminate_old_instances($max_do_nothing_time);
+                        };
                     }
                     
                     # start and setup our connection to the redis-server
