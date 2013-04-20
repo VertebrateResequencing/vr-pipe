@@ -70,7 +70,7 @@ class VRPipe::SidToSub extends VRPipe::Persistent {
     
     has 'sid' => (
         is     => 'rw',
-        isa    => IntSQL [8],
+        isa    => Varchar [20],
         traits => ['VRPipe::Persistent::Attributes'],
         is_key => 1
     );
