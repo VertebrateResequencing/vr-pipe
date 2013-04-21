@@ -479,7 +479,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     # STDERR
     sub ssh_with_return {
         my ($self, $host, $cmd) = @_;
-        my $tied = tied *STDERR;
+        my $tied = tied *STDERR ? 1 : 0;
         untie *STDERR if $tied;
         my $return = ssh_cmd($host, $cmd);
         $backend->log_stderr() if $tied;
