@@ -252,7 +252,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     $existing_pgids{$pgid} = 1;
                 }
                 
-                ssh($ip, q[sh -c "( ( nohup $cmd &>/dev/null ) & )"]);
+                ssh($ip, qq[sh -c "( ( nohup $cmd &>/dev/null ) & )"]);
                 
                 $processes = ssh_with_return($ip, qq[ps xj | grep vrpipe-handler]) || '';
                 my $pgid;
