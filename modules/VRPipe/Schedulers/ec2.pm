@@ -478,7 +478,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     # we wrap Net::SSH's ssh_cmd method to avoid complications with our tied
     # STDERR
     sub ssh_with_return {
-        my ($self, $host, $cmd) = @_;
+        my ($host, $cmd) = @_;
         my $tied = tied *STDERR ? 1 : 0;
         untie *STDERR if $tied;
         my $return = ssh_cmd($host, $cmd);
