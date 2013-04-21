@@ -228,7 +228,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     -shutdown_behavior      => 'terminate'
                 ) or $self->throw($ec2->error_str);
                 
-                $self->wait_for_instances($instance);
+                $ec2->wait_for_instances($instance);
                 my $status = $instance->current_status;
                 $self->throw("Created a new instance but it didn't start running normally") unless $status eq 'running';
                 warn "started up instance ", $instance->instanceId, " which has host ", $instance->privateDnsName, "\n";
@@ -433,46 +433,6 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         }
         
         return ($count, \@running_sid_aids);
-    }
-    
-    # we reimplement VM::EC2's wait_for_instances method to do AnyEvent-friendly
-    # sleeping
-    sub wait_for_instances {
-        my $self = shift;
-        $self->wait_for_terminal_state(
-            \@_,
-            ['running', 'stopped', 'terminated'],
-            $ec2->wait_for_timeout
-        );
-    }
-    
-    sub wait_for_terminal_state {
-        my $self = shift;
-        my ($objects, $terminal_states, $timeout) = @_;
-        my %terminal_state = map { $_ => 1 } @$terminal_states;
-        my %status         = ();
-        my @pending        = grep { defined $_ } @$objects;    # in case we're passed an undef
-        my $status         = eval {
-            local $SIG{ALRM};
-            if ($timeout && $timeout > 0) {
-                $SIG{ALRM} = sub { die "timeout" };
-                alarm($timeout);
-            }
-            while (@pending) {
-                my $cv = AnyEvent->condvar;
-                my $sleep = AnyEvent->timer(after => 3, cb => sub { $cv->send });
-                $cv->recv;
-                $status{$_} = $_->current_status foreach @pending;
-                @pending = grep { !$terminal_state{ $status{$_} } } @pending;
-            }
-            alarm(0);
-            \%status;
-        };
-        if ($@ =~ /timeout/) {
-            $ec2->error('timeout waiting for terminal state');
-            return;
-        }
-        return $status;
     }
     
     # we wrap Net::SSH's ssh_cmd method to avoid complications with our tied
