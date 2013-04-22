@@ -93,6 +93,31 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
             my @bam_ids = map { $_->id } @{ $self->inputs->{bam_files} };
             $vcf_meta->{caller} = 'samtools_mpileup_bcftools';
+
+            # if calling from single bam, add bam path and sample to vcf metadata
+            if (@bam_ids == 1) {
+                # add first bam name to vcf metadata
+                my $bam = $self->inputs->{bam_files}[0];
+                $vcf_meta->{source_bam} = $bam->path->stringify;
+
+                # work out the expected sample
+                my $bam_path = $bam->path;
+                my $meta     = $bam->metadata;
+                my $sample   = $meta->{sample};
+                unless ($sample) {
+                    my $parser = VRPipe::Parser->create('bam', { file => $bam_path });
+                    my %rg_info = $parser->readgroup_info();
+                    my %samples;
+                    while (my ($rg, $info) = each %rg_info) {
+                        if ($info->{SM}) {
+                            $sample = $info->{SM};
+                            last;
+                        }
+                    }
+                }
+                $self->throw("Unable to obtain sample name for bam file $bam_path") unless $sample;
+                $vcf_meta->{sample} = $sample;
+            }
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
