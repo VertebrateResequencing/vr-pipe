@@ -1017,6 +1017,35 @@ XSL
         }
         return;
     }
+    
+    # we have our own ssh wrapper (instead of using Net::SSH) because we want
+    # to supply ssh options and handle stderr/out and error handling ourselves
+    method ssh (Str $host, Str $cmd, Str $extra_ssh_opts?) {
+        my $ssh_opts = '-T -n -o BatchMode=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o ConnectionAttempts=1 -o ConnectTimeout=5';
+        $ssh_opts .= ' ' . $extra_ssh_opts if $extra_ssh_opts;
+        my $ssh_cmd = qq[ssh $ssh_opts $host $cmd];
+        
+        if (defined wantarray()) {
+            #*** we could do it like Net::SSH does it with an open3 call to
+            # capture the stderr, but...
+            # my $tied = tied *STDERR ? 1 : 0;
+            # untie *STDERR if $tied;
+            # my $return;
+            # ...
+            # $self->log_stderr() if $tied;
+            
+            # ignore errors (stderr will just end up in logs) and assume the
+            # caller will check the return value is sensible
+            return `$ssh_cmd`;
+        }
+        else {
+            my $system = system($ssh_cmd);
+            unless ($system == 0) {
+                $self->log("ssh failed: $?");
+            }
+            return;
+        }
+    }
 }
 
 1;
