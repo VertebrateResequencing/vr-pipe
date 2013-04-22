@@ -109,7 +109,7 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         open($fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
 
         while (<$fh>) {
-            if ($found_expected && defined($gtype1) && defined($gtype1)) { last; }
+            if ($found_expected && defined($gtype1) && defined($gtype2)) { last; }
 
             # 0.435266        0.468085        25905095.2      25      NA20544
             my ($concurrence,$uncertainty,$avg_depth,$sites,$sample) = split;
