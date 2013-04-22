@@ -107,8 +107,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     
     method submit_command {
         # we call a method in this module to submit
-        my $perl = VRPipe::Interface::CmdLine->vrpipe_perl_command($deployment);
-        return $perl . ' -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit(@ARGV)"';
+        return VRPipe::Interface::CmdLine->vrpipe_perl_e('use VRPipe::Schedulers::ec2; VRPipe::Schedulers::ec2->submit(@ARGV)', $deployment);
     }
     
     method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1) {
@@ -135,7 +134,10 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         
         warn "will submit cmd [$cmd] to instance [$instance_type] $count times, requiring [$megabytes]MB\n";
         
-        #*** there are surely optimisations and caching that could be done here...
+        #*** there are surely optimisations and caching that could be done
+        # here... at the very least there's an ability to spawn a given number
+        # of instances with 1 command, so we should first check how many we need
+        # to spawn, then spawn them all in 1 go, then check on them all...
         for (1 .. $count) {
             # is there already an instance running with 'room' for our command?
             my $instance;
