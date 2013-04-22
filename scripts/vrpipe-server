@@ -567,6 +567,8 @@ sub start_server {
                         # has not been a sidtosub created for over 5 mins
                         foreach my $sid_aid (keys %running_in_scheduler) {
                             my ($sid, $aid) = $sid_aid =~ /(\d+)\[(\d+)/;
+                            $sid ||= $sid_aid;
+                            $aid ||= 0;
                             my $created = VRPipe::SidToSub->search({ farm => $farm, sid => $sid, aid => $aid });
                             unless ($created) {
                                 my $run_time = $scheduler->run_time($sid, $aid);
