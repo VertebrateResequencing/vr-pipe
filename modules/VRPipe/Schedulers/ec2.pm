@@ -234,7 +234,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 warn "started up instance ", $instance->instanceId, " which has host ", $instance->privateDnsName, "\n";
                 
                 # wait for it to become responsive to ssh
-                my $max_tries  = 120;
+                my $max_tries  = 240;
                 my $responsive = 0;
                 for (1 .. $max_tries) {
                     my $return = ssh_with_return($instance->privateIpAddress, 'echo ssh_working');
@@ -246,7 +246,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     sleep(1);
                 }
                 unless ($responsive) {
-                    $self->throw("Newley launched instance " . $instance->Id . " is not responding to ssh");
+                    $self->throw("Newly launched instance " . $instance->instanceId . " is not responding to ssh");
                 }
             }
             
