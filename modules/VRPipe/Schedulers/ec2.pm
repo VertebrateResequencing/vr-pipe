@@ -56,7 +56,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Interface::BackEnd;
-    use Net::SSH qw(ssh ssh_cmd);
+    use Net::SSH qw(ssh_cmd);
     use POSIX qw(ceil);
     
     #*** are instance type details not query-able? Do we have to hard-code it?
@@ -195,7 +195,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     my $this_memory_reserved = $req ? $req->memory : $this_memory_used;
                     if ($this_memory_used > $this_memory_reserved) {
                         warn "will try to kill pgid $pgid because it is using too much memory\n";
-                        ssh($pdn, qq[kill -TERM -$pgid]);
+                        ssh_with_return($pdn, qq[kill -TERM -$pgid]);
                         $memory_used += $this_memory_used;
                     }
                     else {
@@ -232,6 +232,22 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 my $status = $instance->current_status;
                 $self->throw("Created a new instance but it didn't start running normally") unless $status eq 'running';
                 warn "started up instance ", $instance->instanceId, " which has host ", $instance->privateDnsName, "\n";
+                
+                # wait for it to become responsive to ssh
+                my $max_tries  = 120;
+                my $responsive = 0;
+                for (1 .. $max_tries) {
+                    my $return = ssh_with_return($instance->privateIpAddress, 'echo ssh_working');
+                    if ($return && $return =~ /ssh_working/) {
+                        $responsive = 1;
+                        warn "the instance was responsive to ssh\n";
+                        last;
+                    }
+                    sleep(1);
+                }
+                unless ($responsive) {
+                    $self->throw("Newley launched instance " . $instance->Id . " is not responding to ssh");
+                }
             }
             
             if ($instance) {
@@ -252,7 +268,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     $existing_pgids{$pgid} = 1;
                 }
                 
-                ssh($ip, qq[sh -c "( ( nohup $cmd &>/dev/null ) & )"]);
+                ssh_with_return($ip, qq[sh -c "( ( nohup $cmd &>/dev/null ) & )"]);
                 
                 $processes = ssh_with_return($ip, qq[ps xj | grep vrpipe-handler]) || '';
                 my $pgid;
@@ -354,7 +370,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         foreach my $sid_aid (@$sid_aids) {
             my ($sid) = @$sid_aid;
             my ($ip, $pgid) = split(':', $sid);
-            ssh($ip, qq[kill -TERM -$pgid]);
+            ssh_with_return($ip, qq[kill -TERM -$pgid]);
         }
     }
     
@@ -441,7 +457,13 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         my ($host, $cmd) = @_;
         my $tied = tied *STDERR ? 1 : 0;
         untie *STDERR if $tied;
-        my $return = ssh_cmd($host, $cmd);
+        
+        my $return;
+        eval { $return = ssh_cmd({ host => $host, command => $cmd, args => ['-o UserKnownHostsFile=/dev/null', '-o StrictHostKeyChecking=no'] }); };
+        if ($@) {
+            warn "ssh said: $@\n";
+        }
+        
         $backend->log_stderr() if $tied;
         return $return;
     }
