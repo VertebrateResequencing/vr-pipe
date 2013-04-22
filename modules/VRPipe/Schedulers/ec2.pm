@@ -56,7 +56,6 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Interface::BackEnd;
-    use Net::SSH qw(ssh_cmd);
     use POSIX qw(ceil);
     
     #*** are instance type details not query-able? Do we have to hard-code it?
@@ -160,7 +159,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 next if $pdn eq $own_pdn; # submit() will be called by the server, and we don't want any handlers running on the same instance as the server
                 my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
                 warn "will search for processes running on $host\n";
-                my $processes = ssh_with_return($host, qq[ps xj | grep vrpipe-handler]) || '';
+                my $processes = $backend->ssh($host, qq[ps xj | grep vrpipe-handler]) || '';
                 my %pgids;
                 foreach my $process (split("\n", $processes)) {
                     next if $process =~ /grep/;
@@ -178,13 +177,13 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     
                     # get the total memory used by all processes in this process
                     # group
-                    my $processes = ssh_with_return($host, qq[ps xj | grep $pgid]) || '';
+                    my $processes = $backend->ssh($host, qq[ps xj | grep $pgid]) || '';
                     my $this_memory_used = 0;
                     foreach my $process (split("\n", $processes)) {
                         next if $process =~ /grep/;
                         my ($pid, $this_pgid) = $process =~ /\s*\d+\s+(\d+)\s+(\d+)/;
                         next unless $this_pgid == $pgid;
-                        my $grep = ssh_with_return($host, qq[grep VmRSS /proc/$pid/status 2>/dev/null]);
+                        my $grep = $backend->ssh($host, qq[grep VmRSS /proc/$pid/status 2>/dev/null]);
                         my $grep_bytes;
                         if ($grep && $grep =~ /(\d+) kB/) {
                             $grep_bytes = $1 * 1024;
@@ -195,7 +194,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     my $this_memory_reserved = $req ? $req->memory : $this_memory_used;
                     if ($this_memory_used > $this_memory_reserved) {
                         warn "will try to kill pgid $pgid because it is using too much memory\n";
-                        ssh_with_return($pdn, qq[kill -TERM -$pgid]);
+                        $backend->ssh($pdn, qq[kill -TERM -$pgid]);
                         $memory_used += $this_memory_used;
                     }
                     else {
@@ -237,7 +236,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 my $max_tries  = 240;
                 my $responsive = 0;
                 for (1 .. $max_tries) {
-                    my $return = ssh_with_return($instance->privateIpAddress, 'echo ssh_working');
+                    my $return = $backend->ssh($instance->privateIpAddress, 'echo ssh_working');
                     if ($return && $return =~ /ssh_working/) {
                         $responsive = 1;
                         warn "the instance was responsive to ssh\n";
@@ -259,7 +258,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 # from running the command over ssh, and get back the pid of the
                 # cmd we just started, so we'll have to note the pids already on
                 # the machine so we can detect afterwards what new pid was created
-                my $processes = ssh_with_return($ip, qq[ps xj | grep vrpipe-handler]) || '';
+                my $processes = $backend->ssh($ip, qq[ps xj | grep vrpipe-handler]) || '';
                 my %existing_pgids;
                 foreach my $process (split("\n", $processes)) {
                     next if $process =~ /grep/;
@@ -268,9 +267,9 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     $existing_pgids{$pgid} = 1;
                 }
                 
-                ssh_with_return($ip, qq[sh -c "( ( nohup $cmd &>/dev/null ) & )"]);
+                $backend->ssh($ip, qq[sh -c "( ( nohup $cmd &>/dev/null ) & )"]);
                 
-                $processes = ssh_with_return($ip, qq[ps xj | grep vrpipe-handler]) || '';
+                $processes = $backend->ssh($ip, qq[ps xj | grep vrpipe-handler]) || '';
                 my $pgid;
                 foreach my $process (split("\n", $processes)) {
                     next if $process =~ /grep/;
@@ -370,14 +369,14 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         foreach my $sid_aid (@$sid_aids) {
             my ($sid) = @$sid_aid;
             my ($ip, $pgid) = split(':', $sid);
-            ssh_with_return($ip, qq[kill -TERM -$pgid]);
+            $backend->ssh($ip, qq[kill -TERM -$pgid]);
         }
     }
     
     method sid_status (Str $sid, Int $aid) {
         my ($ip, $pgid) = split(':', $sid);
         
-        my $processes = ssh_with_return($ip, qq[ps xj | grep vrpipe-handler]) || '';
+        my $processes = $backend->ssh($ip, qq[ps xj | grep vrpipe-handler]) || '';
         my $found = 0;
         foreach my $process (split("\n", $processes)) {
             my ($this_pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
@@ -393,7 +392,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     method run_time (Str $sid, Int $aid) {
         my ($ip, $pgid) = split(':', $sid);
         
-        my $processes = ssh_with_return($ip, qq[ps xj | grep vrpipe-handler]) || '';
+        my $processes = $backend->ssh($ip, qq[ps xj | grep vrpipe-handler]) || '';
         my $pid = 0;
         foreach my $process (split("\n", $processes)) {
             my ($this_pid, $this_pgid) = $process =~ /\s*\d+\s+(\d+)\s+(\d+)/;
@@ -404,7 +403,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         }
         $pid || return 0;
         
-        my $etime = ssh_with_return($ip, qq[ps -p $pid -o etime=]);
+        my $etime = $backend->ssh($ip, qq[ps -p $pid -o etime=]);
         # [[dd-]hh:]mm:ss
         my ($d, $h, $m, $s) = $etime =~ /(?:(?:(\d+)-)?(\d+):)?(\d+):(\d+)/;
         $d ||= 0;
@@ -434,7 +433,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         foreach my $instance (@all_instances) {
             my $ip = $instance->privateIpAddress;
             
-            my $processes = ssh_with_return($ip, qq[ps xj | grep vrpipe-handler]) || '';
+            my $processes = $backend->ssh($ip, qq[ps xj | grep vrpipe-handler]) || '';
             my %pgids;
             foreach my $process (split("\n", $processes)) {
                 next unless $process =~ /$cmd/;
@@ -449,23 +448,6 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         }
         
         return ($count, \@running_sid_aids);
-    }
-    
-    # we wrap Net::SSH's ssh_cmd method to avoid complications with our tied
-    # STDERR
-    sub ssh_with_return {
-        my ($host, $cmd) = @_;
-        my $tied = tied *STDERR ? 1 : 0;
-        untie *STDERR if $tied;
-        
-        my $return;
-        eval { $return = ssh_cmd({ host => $host, command => $cmd, args => ['-o UserKnownHostsFile=/dev/null', '-o StrictHostKeyChecking=no'] }); };
-        if ($@) {
-            warn "ssh said: $@\n";
-        }
-        
-        $backend->log_stderr() if $tied;
-        return $return;
     }
 }
 
