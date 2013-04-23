@@ -52,6 +52,8 @@ class VRPipe::Config {
     use VRPipe::Base::Configuration;
     use File::Which qw(which);
     use Cwd 'abs_path';
+    use File::HomeDir;
+    use Path::Class;
     
     # we will suggest a default port that is randomly chosen from the "dynamic
     # range" block of ports 49152-65535, minus 20 to allow user to then have
@@ -303,6 +305,22 @@ class VRPipe::Config {
             my $shell = which('bash') || which('sh');
             if ($shell) { $shell = abs_path($shell); undef $shell if $shell =~ /dash$/ }
             return $shell || '';
+        },
+        question_number => ++$question_number
+    );
+    
+    has login_shell_script => (
+        is       => 'rw',
+        question => 'When VRPipe connects to a node to run a command, what shell script can be sourced to provide all the environment variables needed for VRPipe (and any needed 3rd party software) to function?',
+        default  => sub {
+            my $home = File::HomeDir->my_home;
+            foreach my $basename (qw(.profile .bash_profile .bashrc .cshrc .kshrc .login .zprofile .zlogin .zshrc .environment)) {
+                my $file = file($home, $basename);
+                if (-s $file) {
+                    return $file->stringify;
+                }
+            }
+            return '';
         },
         question_number => ++$question_number
     );
