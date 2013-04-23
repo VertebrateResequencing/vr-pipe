@@ -36,6 +36,7 @@ use Sys::CPU;
 use POSIX qw(floor);
 use List::Util 'shuffle';
 use Path::Class;
+use Cwd 'getcwd';
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -169,6 +170,7 @@ sub start_server {
     $backend->start_redis_server;
     
     # daemonize unless we're not supposed to
+    my $cwd = getcwd();
     $backend->daemonize unless $foreground;
     
     $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
@@ -326,8 +328,13 @@ sub start_server {
                         my $redis = $backend->redis;
                         
                         # make sure we have a setups handler running for our
-                        # farm
+                        # farm. since our setups handler will run on a node
+                        # and need access to the t directory when testing, we
+                        # cd to the git root first
                         my $shcmd = "$handler_path --mode setups --farm $farm";
+                        if ($deployment eq 'testing') {
+                            $shcmd = "cd $cwd; " . $shcmd;
+                        }
                         $scheduler->ensure_running(
                             cmd          => $shcmd,
                             requirements => VRPipe::Requirements->create(memory => 1500, time => 3600)
