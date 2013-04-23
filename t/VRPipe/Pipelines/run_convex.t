@@ -33,7 +33,7 @@ my $classpath     = "$convex_home/java/lib/CoNVex.jar:$convex_home/java/lib/args
 
 my $regions_file = file(qw(t data cnv hs_chr20.convex.regions))->absolute->stringify;
 
-my $fofn = file(qw(t data cnv cnv.bam.fofn));
+my $fofn = file(qw(t data cnv cnv.bam.fofn))->absolute;
 
 my $pipelinesetup1 = VRPipe::PipelineSetup->create(
     name        => 'convex_read_depth_generation_pipeline',

@@ -12,7 +12,7 @@ BEGIN {
 
 # make a stepstate for some basic testing
 my $test_pipeline = VRPipe::Pipeline->create(name => 'test_pipeline');
-my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
+my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
 my $ps = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $test_pipeline, options => {});
 $ps->active(0); # stop the server trying to do something with this ps
 $ps->update;
@@ -120,7 +120,7 @@ my ($output_dir, $pipeline, $step) = create_single_step_pipeline('fake_fastq_met
 my $si_datasource = VRPipe::DataSource->create(
     type    => 'sequence_index',
     method  => 'lane_fastqs',
-    source  => file(qw(t data datasource.sequence_index)),
+    source  => file(qw(t data datasource.sequence_index))->absolute,
     options => { local_root_dir => dir(".")->absolute->stringify }
 );
 my $setup = VRPipe::PipelineSetup->create(
