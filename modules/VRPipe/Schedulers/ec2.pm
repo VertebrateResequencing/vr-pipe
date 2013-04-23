@@ -269,7 +269,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     $existing_pgids{$pgid} = 1;
                 }
                 
-                $backend->ssh($ip, $cmd, background => 1);
+                $backend->ssh($ip, $cmd);
                 
                 $processes = $backend->ssh($ip, qq[ps xj | grep vrpipe-handler]) || '';
                 my $pgid;

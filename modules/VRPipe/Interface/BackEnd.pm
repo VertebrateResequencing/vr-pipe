@@ -1031,9 +1031,10 @@ XSL
     # to supply ssh options and handle stderr/out and error handling ourselves.
     # NB: $cmd will be surrounded by double quotes, so cannot contain double
     # quotes or unescaped $variables
-    method ssh (Str $host, Str $cmd, Bool :$background = 0) {
-        my $ssh_opts = '-T -n -o BatchMode=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=quiet -o ConnectionAttempts=1 -o ConnectTimeout=5';
-        my $ssh_cmd  = qq[ssh $ssh_opts $host ];
+    method ssh (Str $host, Str $cmd) {
+        my $background = !defined wantarray();
+        my $ssh_opts   = '-T -n -o BatchMode=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=quiet -o ConnectionAttempts=1 -o ConnectTimeout=5';
+        my $ssh_cmd    = qq[ssh $ssh_opts $host ];
         $ssh_cmd .= q["];
         
         # we must be sure to get the user's expected environment variables, so
@@ -1046,11 +1047,11 @@ XSL
         
         $ssh_cmd .= q[nohup ] if $background;
         $ssh_cmd .= $cmd;
-        $ssh_cmd .= q[ &>/dev/null] if $background && !$cmd =~ /&>/;
+        $ssh_cmd .= q[ &>/dev/null] if ($background && $cmd !~ /&>/);
         $ssh_cmd .= q[ &]           if $background;
         $ssh_cmd .= q["];
         
-        if (defined wantarray()) {
+        unless ($background) {
             #*** we could do it like Net::SSH does it with an open3 call to
             # capture the stderr, but...
             # my $tied = tied *STDERR ? 1 : 0;
