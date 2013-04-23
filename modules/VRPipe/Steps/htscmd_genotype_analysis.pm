@@ -44,7 +44,7 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
             min_sites => VRPipe::StepOption->create(
                 description   => 'Minimum number of sites for the data to be used in the genotype analysis',
                 optional      => 1,
-                default_value => 10
+                default_value => 0
             )
         };
     }
