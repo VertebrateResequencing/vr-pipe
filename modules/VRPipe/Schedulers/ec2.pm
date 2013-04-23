@@ -139,104 +139,127 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         warn "will submit cmd [$cmd] to instance [$instance_type] $count times, requiring [$megabytes]MB\n";
         
         #*** there are surely optimisations and caching that could be done
-        # here... at the very least there's an ability to spawn a given number
+        # here...
+        
+        # at the very least there's an ability to spawn a given number
         # of instances with 1 command, so we should first check how many we need
         # to spawn, then spawn them all in 1 go, then check on them all...
-        for (1 .. $count) {
-            # is there already an instance running with 'room' for our command?
-            my $instance;
-            my @current_instances = $ec2->describe_instances({
-                    'image-id'            => $ami,
-                    'availability-zone'   => $availability_zone,
-                    'instance-type'       => $instance_type,
-                    'instance-state-name' => 'running'
-                }
-            );
-            
-            my $available_cpus   = $instance_types{$instance_type}->[0];
-            my $available_memory = $instance_types{$instance_type}->[1];
-            my $own_pdn          = $meta->privateDnsName;
-            foreach my $possible (@current_instances) {
-                # see what vrpipe-handler processes are running on this instance
-                # (searching our own job table for jobs running on this host isn't
-                #  good enough, since the handler may not have started running a job
-                #  yet)
-                my $pdn = $possible->privateDnsName;
-                next if $pdn eq $own_pdn; # submit() will be called by the server, and we don't want any handlers running on the same instance as the server
-                my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
-                warn "will search for processes running on $host\n";
-                my $processes = $backend->ssh($host, qq[ps xj | grep vrpipe-handler]) || '';
-                my %pgids;
-                foreach my $process (split("\n", $processes)) {
-                    next if $process =~ /grep/;
-                    my ($pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
-                    my ($r)    = $process =~ /-r (\d+) /;
-                    $pgids{$pgid} = $r || 0;
-                }
-                
-                my $cpus_used   = 0;
-                my $memory_used = 0;
-                while (my ($pgid, $rid) = each %pgids) {
-                    my $req = VRPipe::Requirements->get(id => $rid) if $rid;
-                    $cpus_used += $req ? $req->cpus : $available_cpus;
-                    last if $cpus_used >= $available_cpus;
-                    
-                    # get the total memory used by all processes in this process
-                    # group
-                    my $processes = $backend->ssh($host, qq[ps xj | grep $pgid]) || '';
-                    my $this_memory_used = 0;
-                    foreach my $process (split("\n", $processes)) {
-                        next if $process =~ /grep/;
-                        my ($pid, $this_pgid) = $process =~ /\s*\d+\s+(\d+)\s+(\d+)/;
-                        next unless $this_pgid == $pgid;
-                        my $grep = $backend->ssh($host, qq[grep VmRSS /proc/$pid/status 2>/dev/null]);
-                        my $grep_bytes;
-                        if ($grep && $grep =~ /(\d+) kB/) {
-                            $grep_bytes = $1 * 1024;
-                            $this_memory_used += ceil($grep_bytes / 1048576);
-                        }
-                    }
-                    
-                    my $this_memory_reserved = $req ? $req->memory : $this_memory_used;
-                    if ($this_memory_used > $this_memory_reserved) {
-                        warn "will try to kill pgid $pgid because it is using too much memory\n";
-                        $backend->ssh($pdn, qq[kill -TERM -$pgid]);
-                        $memory_used += $this_memory_used;
-                    }
-                    else {
-                        $memory_used += $this_memory_reserved;
-                    }
-                    last if $memory_used >= $available_memory;
-                }
-                
-                warn "$host had used $cpus_used/$available_cpus cpus and $memory_used/$available_memory memory\n";
-                if ($cpus <= $available_cpus - $cpus_used && $megabytes <= $available_memory - $memory_used) {
-                    $instance = $possible;
-                    warn "will use $host\n";
-                    last;
-                }
+        
+        # do an initial pass to see how many, if any, new instances we need to
+        # spawn, and wait for them to be ready
+        my @current_instances = $ec2->describe_instances({
+                'image-id'            => $ami,
+                'availability-zone'   => $availability_zone,
+                'instance-type'       => $instance_type,
+                'instance-state-name' => 'running'
+            }
+        );
+        
+        my @usable_instances;
+        my $available_cpus   = $instance_types{$instance_type}->[0];
+        my $available_memory = $instance_types{$instance_type}->[1];
+        my $own_pdn          = $meta->privateDnsName;
+        foreach my $possible (@current_instances) {
+            # see what vrpipe-handler processes are running on this instance
+            # (searching our own job table for jobs running on this host isn't
+            #  good enough, since the handler may not have started running a job
+            #  yet)
+            my $pdn = $possible->privateDnsName;
+            next if $pdn eq $own_pdn; # submit() will be called by the server, and we don't want any handlers running on the same instance as the server
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            warn "will search for processes running on $host\n";
+            my $processes = $backend->ssh($host, qq[ps xj | grep vrpipe-handler]) || '';
+            my %pgids;
+            foreach my $process (split("\n", $processes)) {
+                next if $process =~ /grep/;
+                my ($pgid) = $process =~ /\s*\d+\s+\d+\s+(\d+)/;
+                my ($r)    = $process =~ /-r (\d+) /;
+                $pgids{$pgid} = $r || 0;
             }
             
-            unless ($instance) {
-                warn "no suitable instances, will spawn a new one\n";
-                # launch a new instance
-                ($instance) = $ec2->run_instances(
-                    -image_id               => $ami,
-                    -instance_type          => $instance_type,
-                    -client_token           => $ec2->token,
-                    -key_name               => $key_name,
-                    -security_group         => \@security_groups,
-                    -availability_zone      => $availability_zone,
-                    -min_count              => 1,
-                    -max_count              => 1,
-                    -termination_protection => 0,
-                    -shutdown_behavior      => 'terminate'
-                ) or $self->throw($ec2->error_str);
+            my $cpus_used   = 0;
+            my $memory_used = 0;
+            while (my ($pgid, $rid) = each %pgids) {
+                my $req = VRPipe::Requirements->get(id => $rid) if $rid;
+                $cpus_used += $req ? $req->cpus : $available_cpus;
+                last if $cpus_used >= $available_cpus;
                 
-                $ec2->wait_for_instances($instance);
+                # get the total memory used by all processes in this process
+                # group
+                my $processes = $backend->ssh($host, qq[ps xj | grep $pgid]) || '';
+                my $this_memory_used = 0;
+                foreach my $process (split("\n", $processes)) {
+                    next if $process =~ /grep/;
+                    my ($pid, $this_pgid) = $process =~ /\s*\d+\s+(\d+)\s+(\d+)/;
+                    next unless $this_pgid == $pgid;
+                    my $grep = $backend->ssh($host, qq[grep VmRSS /proc/$pid/status 2>/dev/null]);
+                    my $grep_bytes;
+                    if ($grep && $grep =~ /(\d+) kB/) {
+                        $grep_bytes = $1 * 1024;
+                        $this_memory_used += ceil($grep_bytes / 1048576);
+                    }
+                }
+                
+                my $this_memory_reserved = $req ? $req->memory : $this_memory_used;
+                if ($this_memory_used > $this_memory_reserved) {
+                    warn "will try to kill pgid $pgid because it is using too much memory\n";
+                    $backend->ssh($pdn, qq[kill -TERM -$pgid]);
+                    $memory_used += $this_memory_used;
+                }
+                else {
+                    $memory_used += $this_memory_reserved;
+                }
+                last if $memory_used >= $available_memory;
+            }
+            
+            warn "$host had used $cpus_used/$available_cpus cpus and $memory_used/$available_memory memory\n";
+            if ($cpus <= $available_cpus - $cpus_used && $megabytes <= $available_memory - $memory_used) {
+                push(@usable_instances, $possible);
+                warn "will use $host\n";
+                
+                while (@usable_instances < $count) {
+                    $cpus_used   += $cpus;
+                    $memory_used += $megabytes;
+                    if ($cpus <= $available_cpus - $cpus_used && $megabytes <= $available_memory - $memory_used) {
+                        push(@usable_instances, $possible);
+                    }
+                    else {
+                        last;
+                    }
+                }
+                
+                last if @usable_instances == $count;
+            }
+        }
+        
+        unless (@usable_instances == $count) {
+            my $needed = $count - @usable_instances;
+            warn "insufficient suitable instances, will spawn $needed new ones\n";
+            # launch new instances
+            my @new_instances = $ec2->run_instances(
+                -image_id               => $ami,
+                -instance_type          => $instance_type,
+                -client_token           => $ec2->token,
+                -key_name               => $key_name,
+                -security_group         => \@security_groups,
+                -availability_zone      => $availability_zone,
+                -min_count              => $needed,
+                -max_count              => $needed,
+                -termination_protection => 0,
+                -shutdown_behavior      => 'terminate'
+            ) or $self->throw($ec2->error_str);
+            
+            $ec2->wait_for_instances(@new_instances);
+            
+            # check they're all fine
+            foreach my $instance (@new_instances) {
+                my $iid    = $instance->instanceId;
                 my $status = $instance->current_status;
-                $self->throw("Created a new instance but it didn't start running normally") unless $status eq 'running';
-                warn "started up instance ", $instance->instanceId, " which has host ", $instance->privateDnsName, "\n";
+                unless ($status eq 'running') {
+                    $backend->log("Created a new ec2 instance $iid but it didn't start running normally");
+                    next;
+                }
+                warn "started up instance $iid which has host ", $instance->privateDnsName, "\n";
                 
                 # wait for it to become responsive to ssh
                 my $max_tries  = 240;
@@ -251,11 +274,27 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     sleep(1);
                 }
                 unless ($responsive) {
-                    $self->throw("Newly launched instance " . $instance->instanceId . " is not responding to ssh");
+                    $backend->log("Newly launched instance $iid is not responding to ssh");
+                    next;
+                }
+                
+                my $cpus_used   = 0;
+                my $memory_used = 0;
+                while (@usable_instances < $count) {
+                    if ($cpus <= $available_cpus - $cpus_used && $megabytes <= $available_memory - $memory_used) {
+                        push(@usable_instances, $instance);
+                        $cpus_used   += $cpus;
+                        $memory_used += $megabytes;
+                    }
+                    else {
+                        last;
+                    }
                 }
             }
-            
-            if ($instance) {
+        }
+        
+        if (@usable_instances) {
+            foreach my $instance (@usable_instances) {
                 my $instance_id = $instance->instanceId;
                 my $ip          = $instance->privateIpAddress;
                 warn "selected instance $instance_id at $ip\n";
@@ -291,12 +330,16 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     print "Job <$ip:$pgid> is submitted\n";
                 }
                 else {
-                    $self->throw("Failed to launch cmd on $ip via ssh");
+                    $backend->log("Failed to launch cmd on $ip via ssh");
                 }
             }
-            else {
-                $self->throw("Could not find or create an instance to submit the command to");
+            
+            if (@usable_instances != $count) {
+                $backend->log("Failed to launch sufficient instances to run the cmd as many times as desired (" . scalar(@usable_instances) . " vs $count)");
             }
+        }
+        else {
+            $self->throw("Could not find or create any instances to submit the command to");
         }
     }
     
