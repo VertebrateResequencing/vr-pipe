@@ -485,6 +485,12 @@ XSL
         writer => '_set_redis_server'
     );
     
+    has 'login_shell_script' => (
+        is      => 'ro',
+        isa     => 'Str',
+        builder => '_set_login_shell_script'
+    );
+    
     method _build_schema {
         my $m = VRPipe::Manager->get;
         return $m->result_source->schema;
@@ -529,6 +535,9 @@ XSL
         
         my $email_domain = $vrp_config->email_domain();
         $self->_set_email_domain("$email_domain");
+        
+        my $login_shell_script = $vrp_config->login_shell_script();
+        $self->_set_login_shell_script("$login_shell_script");
         
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);
         $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
@@ -1019,15 +1028,23 @@ XSL
     }
     
     # we have our own ssh wrapper (instead of using Net::SSH) because we want
-    # to supply ssh options and handle stderr/out and error handling ourselves.
-    # NB: the background option will surround the cmd in single quotes, so the
-    # cmd can't contain any single quotes of its own
+    # to supply ssh options and handle stderr/out and error handling ourselves
     method ssh (Str $host, Str $cmd, Bool :$background = 0) {
         my $ssh_opts = '-T -n -o BatchMode=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=quiet -o ConnectionAttempts=1 -o ConnectTimeout=5';
         my $ssh_cmd  = qq[ssh $ssh_opts $host ];
-        $ssh_cmd .= q['nohup ]         if $background;
+        $ssh_cmd .= qq[<<"DATA"\n ] if $background;
+        
+        # we must be sure to get the user's expected environment variables, so
+        # we'll source their shell login script (which doesn't happen in our
+        # non-interactive tty-less ssh invocation)
+        my $login_shell_script = $self->login_shell_script;
+        if ($login_shell_script && -s $login_shell_script) {
+            $ssh_cmd .= qq[source $login_shell_script; ];
+        }
+        
+        $ssh_cmd .= q[nohup ]                if $background;
         $ssh_cmd .= $cmd;
-        $ssh_cmd .= q[ &>/dev/null &'] if $background;
+        $ssh_cmd .= qq[ &>/dev/null &\nDATA] if $background;
         
         if (defined wantarray()) {
             #*** we could do it like Net::SSH does it with an open3 call to
