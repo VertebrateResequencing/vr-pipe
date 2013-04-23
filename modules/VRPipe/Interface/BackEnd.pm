@@ -486,9 +486,9 @@ XSL
     );
     
     has 'login_shell_script' => (
-        is      => 'ro',
-        isa     => 'Str',
-        builder => '_set_login_shell_script'
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_login_shell_script'
     );
     
     method _build_schema {
