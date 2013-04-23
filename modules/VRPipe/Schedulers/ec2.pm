@@ -410,7 +410,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             return $sid;
         }
         else {
-            $self->throw("Failed to submit to scheduler");
+            $self->throw("Failed to submit to scheduler (got output: $output)");
         }
     }
     
