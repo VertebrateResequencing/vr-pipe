@@ -740,7 +740,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             }
             else {
                 eval {
-                    $backend->ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam "KILL", $pid']);
+                    $backend->ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam q[KILL], $pid']);
                     # *** we need to do something if the kill fails...
                 };
                 if ($@) {

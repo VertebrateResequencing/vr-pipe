@@ -1028,11 +1028,13 @@ XSL
     }
     
     # we have our own ssh wrapper (instead of using Net::SSH) because we want
-    # to supply ssh options and handle stderr/out and error handling ourselves
+    # to supply ssh options and handle stderr/out and error handling ourselves.
+    # NB: $cmd will be surrounded by double quotes, so cannot contain double
+    # quotes or unescaped $variables
     method ssh (Str $host, Str $cmd, Bool :$background = 0) {
         my $ssh_opts = '-T -n -o BatchMode=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=quiet -o ConnectionAttempts=1 -o ConnectTimeout=5';
         my $ssh_cmd  = qq[ssh $ssh_opts $host ];
-        $ssh_cmd .= qq[<<"DATA"\n ];
+        $ssh_cmd .= q["];
         
         # we must be sure to get the user's expected environment variables, so
         # we'll source their shell login script (which doesn't happen in our
@@ -1045,8 +1047,8 @@ XSL
         $ssh_cmd .= q[nohup ] if $background;
         $ssh_cmd .= $cmd;
         $ssh_cmd .= q[ &>/dev/null] if $background && !$cmd =~ /&>/;
-        $ssh_cmd .= qq[ &]          if $background;
-        $ssh_cmd .= qq[\nDATA];
+        $ssh_cmd .= q[ &]           if $background;
+        $ssh_cmd .= q["];
         
         if (defined wantarray()) {
             #*** we could do it like Net::SSH does it with an open3 call to
