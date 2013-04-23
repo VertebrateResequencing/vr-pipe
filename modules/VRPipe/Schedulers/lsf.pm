@@ -76,7 +76,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         return 'bsub';
     }
     
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1) {
+    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
         # access the requirments object and build up the string based on memory,
         # time, cpu etc.
         my $queue = $self->determine_queue($requirements);

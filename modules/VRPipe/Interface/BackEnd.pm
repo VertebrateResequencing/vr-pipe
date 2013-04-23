@@ -1031,7 +1031,7 @@ XSL
     # to supply ssh options and handle stderr/out and error handling ourselves.
     # NB: $cmd will be surrounded by double quotes, so cannot contain double
     # quotes or unescaped $variables
-    method ssh (Str $host, Str $cmd) {
+    method ssh (Str $host, Str $cmd, Str :$working_dir?) {
         my $background = !defined wantarray();
         my $ssh_opts   = '-T -n -o BatchMode=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=quiet -o ConnectionAttempts=1 -o ConnectTimeout=5';
         my $ssh_cmd    = qq[ssh $ssh_opts $host ];
@@ -1043,6 +1043,11 @@ XSL
         my $login_shell_script = $self->login_shell_script;
         if ($login_shell_script && -s $login_shell_script) {
             $ssh_cmd .= qq[source $login_shell_script; ];
+        }
+        
+        # we might need to cd do a directory before executing the command
+        if ($working_dir) {
+            $ssh_cmd .= qq[cd $working_dir; ];
         }
         
         $ssh_cmd .= q[nohup ] if $background;

@@ -329,14 +329,13 @@ sub start_server {
                         
                         # make sure we have a setups handler running for our
                         # farm. since our setups handler will run on a node
-                        # and need access to the t directory when testing, we
-                        # cd to the git root first
+                        # and needs access to the t directory when testing, we
+                        # will cd to the git root first for scheduler that need
+                        # to
                         my $shcmd = "$handler_path --mode setups --farm $farm";
-                        if ($deployment eq 'testing') {
-                            $shcmd = "cd $cwd; " . $shcmd;
-                        }
                         $scheduler->ensure_running(
-                            cmd          => $shcmd,
+                            cmd => $shcmd,
+                            $deployment eq 'testing' ? (cwd => $cwd) : (),
                             requirements => VRPipe::Requirements->create(memory => 1500, time => 3600)
                         );
                         # (in production this submits a job to the scheduler

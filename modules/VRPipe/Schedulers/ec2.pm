@@ -110,7 +110,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         return VRPipe::Interface::CmdLine->vrpipe_perl_e('use VRPipe::Schedulers::ec2; VRPipe::Schedulers::ec2->submit(@ARGV)', $deployment);
     }
     
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1) {
+    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
         # access the requirements object and build up the string based on
         # memory and cpu (other reqs do not apply)
         my $instance_type      = $self->determine_queue($requirements);
@@ -119,6 +119,9 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         my $cpus               = $requirements->cpus;
         if ($cpus > 1) {
             $requirments_string .= " cpus $cpus";
+        }
+        if ($cwd) {
+            $requirments_string .= " cwd $cwd";
         }
         
         return qq[$requirments_string count $count cmd '$cmd'];
@@ -131,6 +134,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         my $count         = $args{count}    || $self->throw("No count supplied");
         my $cmd           = $args{cmd}      || $self->throw("No cmd supplied");
         my $cpus          = $args{cpus}     || 1;
+        my $cwd           = $args{cwd};
         
         warn "will submit cmd [$cmd] to instance [$instance_type] $count times, requiring [$megabytes]MB\n";
         
@@ -269,7 +273,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                     $existing_pgids{$pgid} = 1;
                 }
                 
-                $backend->ssh($ip, $cmd);
+                $backend->ssh($ip, $cmd, $cwd ? (working_dir => $cwd) : ());
                 
                 $processes = $backend->ssh($ip, qq[ps xj | grep vrpipe-handler]) || '';
                 my $pgid;
