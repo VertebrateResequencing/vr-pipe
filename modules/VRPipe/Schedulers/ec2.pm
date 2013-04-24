@@ -236,8 +236,10 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         unless (@usable_instances == $count) {
             my $needed = $count - @usable_instances;
             warn "insufficient suitable instances, will spawn $needed new ones\n";
-            # launch new instances
-            my @new_instances = $ec2->run_instances(
+            # launch new instances; by default people are limited to a max of
+            # 20 instances: http://www.phacai.com/increase-ec2-instance-quota,
+            # so we have to handle a possible error here
+            my %run_instance_args = (
                 -image_id               => $ami,
                 -instance_type          => $instance_type,
                 -client_token           => $ec2->token,
@@ -248,9 +250,31 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                 -max_count              => $needed,
                 -termination_protection => 0,
                 -shutdown_behavior      => 'terminate'
-            ) or $self->throw($ec2->error_str);
+            );
+            my @new_instances = $ec2->run_instances(%run_instance_args);
             
-            $ec2->wait_for_instances(@new_instances);
+            unless (@new_instances) {
+                my $error = $ec2->error_str;
+                if ($error =~ /instances exceeds your current quota of (\d+)/) {
+                    my $max = $1;
+                    my @all_instances = $ec2->describe_instances({ 'instance-state-name' => 'running' });
+                    $count = $max - @all_instances;
+                    if ($count == 0) {
+                        $backend->log("Unable to spawn any new instances; consider increasing your quota: http://aws.amazon.com/contact-us/ec2-request/");
+                    }
+                    else {
+                        $backend->log("Your EC2 account has an instance quota of $max; we need $needed more instances, but will launch $count new ones instead");
+                        $run_instance_args{'-min_count'} = $count;
+                        $run_instance_args{'-max_count'} = $count;
+                        @new_instances                   = $ec2->run_instances(%run_instance_args);
+                        unless (@new_instances) {
+                            $backend->log("Failed to launch $count new instances: " . $ec2->error_str);
+                        }
+                    }
+                }
+            }
+            
+            $ec2->wait_for_instances(@new_instances) if @new_instances;
             
             # check they're all fine
             foreach my $instance (@new_instances) {
