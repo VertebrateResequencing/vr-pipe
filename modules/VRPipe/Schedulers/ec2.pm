@@ -343,8 +343,9 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         }
     }
     
-    method terminate_old_instances (PositiveInt $max_do_nothing_time = 3600) {
+    method terminate_old_instances (Str :$deployment!) {
         warn "will check for instances that can be terminated\n";
+        my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
         my @all_instances = $ec2->describe_instances({
                 'image-id'            => $ami,
                 'availability-zone'   => $availability_zone,
@@ -361,6 +362,30 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             warn "will terminate instance $host\n";
             $instance->terminate;
         }
+    }
+    
+    method terminate_all_instances {
+        warn "will find all instances to terminate them\n";
+        my @all_instances = $ec2->describe_instances({
+                'image-id'            => $ami,
+                'availability-zone'   => $availability_zone,
+                'instance-state-name' => 'running'
+            }
+        );
+        my $own_pdn = $meta->privateDnsName;
+        foreach my $instance (@all_instances) {
+            my $pdn = $instance->privateDnsName;
+            next if $pdn eq $own_pdn; # don't terminate ourselves - the server that calls this method won't have any handlers running on it
+            $instance->terminate;
+        }
+    }
+    
+    sub periodic_method {
+        return 'terminate_old_instances';
+    }
+    
+    sub on_exit_method {
+        return 'terminate_all_instances';
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {

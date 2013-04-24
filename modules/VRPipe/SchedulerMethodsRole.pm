@@ -83,6 +83,14 @@ role VRPipe::SchedulerMethodsRole {
         $dmd5->add($cmd);
         return 'vrpipe_' . $dmd5->hexdigest;
     }
+    
+    method periodic_method {
+        return undef;
+    }
+    
+    method on_exit_method {
+        return undef;
+    }
 }
 
 1;

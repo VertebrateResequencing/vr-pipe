@@ -228,7 +228,7 @@ sub start_server {
     };
     
     # set up the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $still_working, $ec2_watcher);
+    my ($farm_server, $farm_watcher, $handler_path, $still_working, $scheduler_watcher);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
@@ -277,12 +277,25 @@ sub start_server {
                             $AnyEvent::Util::MAX_FORKS = 2;
                         }
                     }
-                    elsif (0 && $scheduler->type eq 'ec2') {
-                        # periodically terminate instances that are no longer
-                        # needed
-                        my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
-                        $ec2_watcher = EV::timer 0, $timer_interval * 10, sub {
-                            $scheduler->scheduler_instance->terminate_old_instances($max_do_nothing_time);
+                    
+                    # some schedulers may need to do something periodically;
+                    # set up a watcher for that now
+                    my $sch_periodic_method = $scheduler->periodic_method;
+                    if ($sch_periodic_method) {
+                        my $working            = 0;
+                        my $scheduler_interval = $timer_interval * 10;
+                        $scheduler_watcher = EV::timer $scheduler_interval, $scheduler_interval, sub {
+                            return if $working;
+                            $working = 1;
+                            fork_call {
+                                $scheduler->scheduler_instance->$sch_periodic_method(deployment => $deployment);
+                                return;
+                            }
+                            sub {
+                                $working = 0;
+                                $@ || return;
+                                &{$watcher_error_sub};
+                            };
                         };
                     }
                     
@@ -648,6 +661,12 @@ sub start_server {
     # that we don't break handlers that are still running
     if ($deployment eq 'testing' && $backend->redis_pid) {
         kill(9, $backend->redis_pid);
+        
+        # some schedulers may need to do something when the test server exits
+        my $sch_on_exit_method = $scheduler->on_exit_method;
+        if ($sch_on_exit_method) {
+            $scheduler->scheduler_instance->$sch_on_exit_method;
+        }
     }
     
     # stop the local scheduler daemon
