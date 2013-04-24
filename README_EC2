@@ -10,12 +10,20 @@ INSTALLATION
 After installing VRPipe's CPAN dependencies normally (see README), you also need
 to manually install the perl module VM::EC2
 cpan> install VM::EC2
-Then when configuring VPRipe during the 'perl Build.PL' phase, choose 'ec2' as
-the production and testing scheduler, and supply your security credentials when
-asked. The log directories you configure (and any output roots you choose when
-using VRPipe in production) must be placed on a shared disc that is auto-mounted
-when the instance starts. It is up to you to create the shared disc system and
-handle the mounting.
+
+When configuring VPRipe during the 'perl Build.PL' phase:
+# Choose 'ec2' as the production and testing scheduler, and supply your security
+  credentials when asked.
+# The database you choose should my mysql; you can set up a MySQL server on
+  Amazon with RDS: http://aws.amazon.com/rds/ (start with 5GB and increase its
+  size later as needed; a micro.t1 instance may be sufficient): the 'host' you
+  specify when VRPipe asks for one is the 'endpoint' given by RDS.
+# The log directories you configure (and any output roots you choose when
+  using VRPipe in production) must be placed on a shared file system that is
+  auto-mounted when the instance starts. It is up to you to create the shared
+  file system and handle the mounting. (Theoretically you could instead use
+  the 'local' scheduler instead of the ec2 scheduler, which would limit you to
+  running everything on the 1 instance, but would not need a shared file system)
 
 After installation, prior to testing, create ssh keys:
 $ ssh-keygen -t dsa
@@ -24,7 +32,12 @@ $ cp ~/.ssh/id_dsa.pub ~/.ssh/authorized_keys2
 
 Now create an image from the instance where you have installed everything you
 need, then terminate it and launch a new instance based on the AMI you just
-created.
+created. The security group of the instance should be similar to the default
+security group in that it allows all TCP traffic on all ports through the
+firewall from a 'source' of the security group id (ie. only from instances in
+the cluster, not the outside world). You'll almost certainly also want to ssh
+into the node, so should allow TCP port 22 with a 'source' of your externally-
+facing IP address (or 0.0.0.0/0 and rely on your private key for security).
 
 Finally, continue with testing and beyond as per the README.
 
