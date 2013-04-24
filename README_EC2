@@ -1,0 +1,47 @@
+VRPipe can be used on Amazon's cloud service on EC2 nodes.
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Welcome.html
+Note that EC2 support is currently experimental. See notes at the end of this
+document.
+
+
+INSTALLATION
+------------
+
+After installing VRPipe's CPAN dependencies normally (see README), you also need
+to manually install the perl module VM::EC2
+cpan> install VM::EC2
+Then when configuring VPRipe during the 'perl Build.PL' phase, choose 'ec2' as
+the production and testing scheduler, and supply your security credentials when
+asked. The log directories you configure (and any output roots you choose when
+using VRPipe in production) must be placed on a shared disc that is auto-mounted
+when the instance starts. It is up to you to create the shared disc system and
+handle the mounting.
+
+After installation, prior to testing, create ssh keys:
+$ ssh-keygen -t dsa
+and self-authorise:
+$ cp ~/.ssh/id_dsa.pub ~/.ssh/authorized_keys2
+
+Now create an image from the instance where you have installed everything you
+need, then terminate it and launch a new instance based on the AMI you just
+created.
+
+Finally, continue with testing and beyond as per the README.
+
+
+NOTES
+-----
+
+By default Amazon quotas you to a maximum of 20 EC2 instances. For real work
+you probably want to get this increased:
+http://aws.amazon.com/contact-us/ec2-request/
+
+The test system is supposed to clean up after itself when the tests complete.
+However a current issue can result in the vrpipe-server process not stopping,
+which means the associated redis-server process and all instances launched
+will still be running. You'll have to manually kill/terminate these processes
+and instances.
+
+It is possible that the current implementation will not scale efficiently when
+using hundreds or thousands of nodes. Improved solutions may be coming in the
+future...

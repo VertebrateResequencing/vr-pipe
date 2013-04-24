@@ -35,8 +35,11 @@ You need Redis 2.6 or greater installed. Compile it as normal ('make') and
 simply include redis-server in your PATH. You do not have to configure it in any
 way. Redis can be downloaded from here: http://redis.io/download
 
-It is also recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and
-create that directory.
+For use on Amazon's cloud, follow the installation advice here as well as that
+found in README_EC2.
+
+It is recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and create
+that directory.
 
 You require Module::Build in order for the Build.PL script to work. It is
 recommended you 'install Bundle::CPAN' using 'cpan' prior to attempting setup.
