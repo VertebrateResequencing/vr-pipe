@@ -214,14 +214,6 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
-    has ec2_private_key_file => (
-        is              => 'rw',
-        question        => 'Where is your AWS private key file (absolute path)?',
-        skip            => '_skip_based_on_scheduler',
-        env             => 'EC2_PRIVATE_KEY',
-        question_number => ++$question_number
-    );
-    
     has ec2_url => (
         is              => 'rw',
         question        => 'What is the url for your ec2 region?',
