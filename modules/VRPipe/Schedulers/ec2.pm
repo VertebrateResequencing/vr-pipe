@@ -57,6 +57,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Interface::BackEnd;
     use POSIX qw(ceil);
+    use DateTime::Format::Natural;
     
     #*** are instance type details not query-able? Do we have to hard-code it?
     our %instance_types = (
@@ -344,6 +345,8 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
     }
     
     method terminate_old_instances (Str :$deployment!) {
+        my $dt_parser = DateTime::Format::Natural->new;
+        
         warn "will check for instances that can be terminated\n";
         my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
         my @all_instances = $ec2->describe_instances({
@@ -353,7 +356,6 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             }
         );
         my $own_pdn = $meta->privateDnsName;
-        my $setups_instance;
         foreach my $instance (@all_instances) {
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
@@ -362,20 +364,29 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             
             my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
             
-            # don't terminate the instance that has the setups handler running
-            # on it
-            unless ($setups_instance) {
-                my $processes = $backend->ssh($host, qq[ps xj | grep vrpipe-handler]) || '';
-                foreach my $process (split("\n", $processes)) {
-                    next unless $process =~ /--mode setups/;
-                    $setups_instance = $instance;
-                    last;
-                }
-                next if $setups_instance;
-            }
+            # don't terminate if we only just now spawned it and maybe are still
+            # waiting for it to become responsive to ssh
+            my $dstr = $instance->launchTime;
+            $dstr =~ s/(\d)T(\d)/$1 $2/;
+            $dstr =~ s/\.\d+Z$//;
+            my $dt      = $dt_parser->parse_datetime($dstr);
+            my $elapsed = time() - $dt->epoch;
+            next if $elapsed < 300;
             
+            # don't terminate an instance that has a handler running on it right
+            # now
+            my $has_handler = 0;
+            my $processes = $backend->ssh($host, qq[ps xj | grep vrpipe-handler]) || '';
+            foreach my $process (split("\n", $processes)) {
+                $has_handler = 1;
+                last;
+            }
+            next if $has_handler;
+            
+            # don't terminate if the instance has recently run a Job
             my $jobs = VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             next if $jobs;
+            
             warn "will terminate instance $host\n";
             $instance->terminate;
         }
