@@ -657,15 +657,18 @@ sub start_server {
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
     EV::run;
     
-    # kill the redis server if we were testing, but not if in production, so
-    # that we don't break handlers that are still running
-    if ($deployment eq 'testing' && $backend->redis_pid) {
-        kill(9, $backend->redis_pid);
-        
+    # cleanup handlers when testing (but not in production, since handlers
+    # should keep running if the server goes down)
+    if ($deployment eq 'testing') {
         # some schedulers may need to do something when the test server exits
         my $sch_on_exit_method = $scheduler->on_exit_method;
         if ($sch_on_exit_method) {
             $scheduler->scheduler_instance->$sch_on_exit_method;
+        }
+        
+        # now we can get rid of the redis server
+        if ($backend->redis_pid) {
+            kill(9, $backend->redis_pid);
         }
     }
     
