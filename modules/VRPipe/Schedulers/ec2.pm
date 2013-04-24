@@ -353,10 +353,27 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             }
         );
         my $own_pdn = $meta->privateDnsName;
+        my $setups_instance;
         foreach my $instance (@all_instances) {
+            # don't terminate ourselves - the server that calls this method
+            # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn; # don't terminate ourselves - the server that calls this method won't have any handlers running on it
+            next if $pdn eq $own_pdn;
+            
             my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            
+            # don't terminate the instance that has the setups handler running
+            # on it
+            unless ($setups_instance) {
+                my $processes = $backend->ssh($host, qq[ps xj | grep vrpipe-handler]) || '';
+                foreach my $process (split("\n", $processes)) {
+                    next unless $process =~ /--mode setups/;
+                    $setups_instance = $instance;
+                    last;
+                }
+                next if $setups_instance;
+            }
+            
             my $jobs = VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             next if $jobs;
             warn "will terminate instance $host\n";
