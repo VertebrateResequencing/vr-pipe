@@ -123,6 +123,24 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         
         return VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $own_farm_name });
     }
+    
+    around beat_heart {
+        # when testing, our attempts to beat heart can fail because the test
+        # script drops the tables at the start; avoid ugly error messages and
+        # getting stuck for ages and let vrpipe-server cleanly detect that the
+        # farmserver row disappeared
+        eval { $self->$orig; };
+        if ($@) {
+            if ($@ =~ /update failed.+row not found/) {
+                return 0;
+            }
+            else {
+                die $@;
+            }
+        }
+        
+        return 1;
+    }
 }
 
 1;

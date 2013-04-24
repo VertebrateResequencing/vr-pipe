@@ -485,6 +485,12 @@ XSL
         writer => '_set_redis_server'
     );
     
+    has 'login_shell_script' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_login_shell_script'
+    );
+    
     method _build_schema {
         my $m = VRPipe::Manager->get;
         return $m->result_source->schema;
@@ -529,6 +535,9 @@ XSL
         
         my $email_domain = $vrp_config->email_domain();
         $self->_set_email_domain("$email_domain");
+        
+        my $login_shell_script = $vrp_config->login_shell_script();
+        $self->_set_login_shell_script("$login_shell_script");
         
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);
         $self->_set_dsn(VRPipe::Persistent::SchemaBase->get_dsn);
@@ -1016,6 +1025,57 @@ XSL
             return "a $class already exists with $key '$value'";
         }
         return;
+    }
+    
+    # we have our own ssh wrapper (instead of using Net::SSH) because we want
+    # to supply ssh options and handle stderr/out and error handling ourselves.
+    # NB: $cmd will be surrounded by double quotes, so cannot contain double
+    # quotes or unescaped $variables
+    method ssh (Str $host, Str $cmd, Str :$working_dir?) {
+        my $background = !defined wantarray();
+        my $ssh_opts   = '-T -n -o BatchMode=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=quiet -o ConnectionAttempts=1 -o ConnectTimeout=5';
+        my $ssh_cmd    = qq[ssh $ssh_opts $host ];
+        $ssh_cmd .= q["];
+        
+        # we must be sure to get the user's expected environment variables, so
+        # we'll source their shell login script (which doesn't happen in our
+        # non-interactive tty-less ssh invocation)
+        my $login_shell_script = $self->login_shell_script;
+        if ($login_shell_script && -s $login_shell_script) {
+            $ssh_cmd .= qq[source $login_shell_script; ];
+        }
+        
+        # we might need to cd do a directory before executing the command
+        if ($working_dir) {
+            $ssh_cmd .= qq[cd $working_dir; ];
+        }
+        
+        $ssh_cmd .= q[nohup ] if $background;
+        $ssh_cmd .= $cmd;
+        $ssh_cmd .= q[ &>/dev/null] if ($background && $cmd !~ /&>/);
+        $ssh_cmd .= q[ &]           if $background;
+        $ssh_cmd .= q["];
+        
+        unless ($background) {
+            #*** we could do it like Net::SSH does it with an open3 call to
+            # capture the stderr, but...
+            # my $tied = tied *STDERR ? 1 : 0;
+            # untie *STDERR if $tied;
+            # my $return;
+            # ...
+            # $self->log_stderr() if $tied;
+            
+            # ignore errors (stderr will just end up in logs) and assume the
+            # caller will check the return value is sensible
+            return `$ssh_cmd`;
+        }
+        else {
+            my $system = system($ssh_cmd);
+            unless ($system == 0) {
+                $self->log("ssh failed: $?");
+            }
+            return;
+        }
     }
 }
 

@@ -27,7 +27,7 @@ is_deeply \@s_names, \@expected_step_names, 'the rd pipeline has the correct ste
 
 my $convex_r_libs = $ENV{CONVEX_R_LIB};
 
-my $fofn = file(qw(t data cnv cnv.calls.fofn));
+my $fofn = file(qw(t data cnv cnv.calls.fofn))->absolute;
 
 my $pipelinesetup1 = VRPipe::PipelineSetup->create(
     name        => 'convex_plot_generation_pipeline',
@@ -36,15 +36,15 @@ my $pipelinesetup1 = VRPipe::PipelineSetup->create(
     pipeline    => $pipeline1,
     options     => {
         cleanup => 0,
-        r_libs => "$convex_r_libs",
+        r_libs  => "$convex_r_libs",
     }
 );
 
 my (@output_files, @final_files);
 my @output_subdirs = output_subdirs(1);
-push (@output_files, file(@output_subdirs, '1_convex_plots','CnvFofn.txt'));
-push (@output_files, file(@output_subdirs, '1_convex_plots','CNVstats_CallsperSample.png'));
-push (@output_files, file(@output_subdirs, '1_convex_plots','CNVstats_DelDupRatio.png'));
+push(@output_files, file(@output_subdirs, '1_convex_plots', 'CnvFofn.txt'));
+push(@output_files, file(@output_subdirs, '1_convex_plots', 'CNVstats_CallsperSample.png'));
+push(@output_files, file(@output_subdirs, '1_convex_plots', 'CNVstats_DelDupRatio.png'));
 
 ok handle_pipeline(@output_files, @final_files), 'rd pipeline ran and created all expected output files';
 

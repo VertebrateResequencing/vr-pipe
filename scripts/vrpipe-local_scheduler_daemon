@@ -27,7 +27,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 =cut
 
 use VRPipe::Interface::CmdLine;
-use VRPipe::Interface::BackEnd;
+use VRPipe::Config;
 use VRPipe::LocalScheduler;
 use Sys::CPU;
 use Proc::Daemon;
@@ -51,8 +51,9 @@ unless ($command) {
     $cmdline->help;
 }
 
-my $backend      = VRPipe::Interface::BackEnd->new(deployment => $deployment);
-my $log_dir      = $backend->log_dir;
+my $vrp_config   = VRPipe::Config->new();
+my $method_name  = $deployment . '_logging_directory';
+my $log_dir      = $vrp_config->$method_name();
 my $pid_basename = 'local_scheduler.pid';
 
 my $daemon = Proc::Daemon->new(
@@ -66,7 +67,6 @@ my $pid_file = file($log_dir, $pid_basename); #*** I don't know why Status and K
 # act on the given command
 my $exit   = 0;
 my $status = $daemon->Status($pid_file);
-warn "got status $status\n";
 if ($command eq 'status') {
     if ($status) {
         $cmdline->output("VRPipe local scheduler daemon is running");
@@ -126,6 +126,9 @@ sub start_daemon {
     my $daemon_pid = $daemon->Init() unless $foreground;
     
     unless ($daemon_pid) {
+        # load Persistent modules
+        require VRPipe::Persistent::Schema;
+        
         my $interval = $deployment eq 'production' ? 30 : 5;
         my $ls = VRPipe::LocalScheduler->new;
         

@@ -36,6 +36,7 @@ use Sys::CPU;
 use POSIX qw(floor);
 use List::Util 'shuffle';
 use Path::Class;
+use Cwd 'getcwd';
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -169,6 +170,7 @@ sub start_server {
     $backend->start_redis_server;
     
     # daemonize unless we're not supposed to
+    my $cwd = getcwd();
     $backend->daemonize unless $foreground;
     
     $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
@@ -226,7 +228,7 @@ sub start_server {
     };
     
     # set up the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $still_working);
+    my ($farm_server, $farm_watcher, $handler_path, $still_working, $scheduler_watcher);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
@@ -276,15 +278,38 @@ sub start_server {
                         }
                     }
                     
+                    # some schedulers may need to do something periodically;
+                    # set up a watcher for that now
+                    my $sch_periodic_method = $scheduler->periodic_method;
+                    if ($sch_periodic_method) {
+                        my $working            = 0;
+                        my $scheduler_interval = $timer_interval * 10;
+                        $scheduler_watcher = EV::timer $scheduler_interval, $scheduler_interval, sub {
+                            return if $working;
+                            $working = 1;
+                            fork_call {
+                                $scheduler->scheduler_instance->$sch_periodic_method(deployment => $deployment);
+                                return;
+                            }
+                            sub {
+                                $working = 0;
+                                $@ || return;
+                                &{$watcher_error_sub};
+                            };
+                        };
+                    }
+                    
                     # start and setup our connection to the redis-server
                     my $ok = $backend->start_redis_server;
                     unless ($ok) {
                         $backend->log("Can't continue submission management");
+                        $farm_server->stop_beating;
+                        $farm_server->delete;
                         undef $farm_server;
                     }
                 }
                 else {
-                    $backend->log("Could not start submission management for farm $farm because some other server on a different machine is doing that");
+                    $backend->log("Could not start submission management for farm $farm because some other server process is (or was recently) doing that");
                     undef $farm_server;
                 }
             }
@@ -316,10 +341,14 @@ sub start_server {
                         my $redis = $backend->redis;
                         
                         # make sure we have a setups handler running for our
-                        # farm
+                        # farm. since our setups handler will run on a node
+                        # and needs access to the t directory when testing, we
+                        # will cd to the git root first for scheduler that need
+                        # to
                         my $shcmd = "$handler_path --mode setups --farm $farm";
                         $scheduler->ensure_running(
-                            cmd          => $shcmd,
+                            cmd => $shcmd,
+                            $deployment eq 'testing' ? (cwd => $cwd) : (),
                             requirements => VRPipe::Requirements->create(memory => 1500, time => 3600)
                         );
                         # (in production this submits a job to the scheduler
@@ -567,10 +596,8 @@ sub start_server {
                             }
                         }
                         
-                        # batch kill sids now; this should hopefully be faster
-                        # than calling kill_sid() for each sid in the above
-                        # loops
-                        $scheduler->batch_kill_sids(\@sids_to_kill);
+                        # batch kill sids now
+                        $scheduler->kill_sids(\@sids_to_kill);
                     }
                     
                     alarm 0;
@@ -628,10 +655,24 @@ sub start_server {
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
     EV::run;
     
-    # kill the redis server if we were testing, but not if in production, so
-    # that we don't break handlers that are still running
-    if ($deployment eq 'testing' && $backend->redis_pid) {
-        kill(9, $backend->redis_pid);
+    # cleanup handlers when testing (but not in production, since handlers
+    # should keep running if the server goes down)
+    if ($deployment eq 'testing') {
+        # some schedulers may need to do something when the test server exits
+        my $sch_on_exit_method = $scheduler->on_exit_method;
+        if ($sch_on_exit_method) {
+            $scheduler->scheduler_instance->$sch_on_exit_method;
+        }
+        
+        # now we can get rid of the redis server
+        if ($backend->redis_pid) {
+            kill(9, $backend->redis_pid);
+        }
+    }
+    
+    # stop the local scheduler daemon
+    if ($scheduler->type eq 'local') {
+        system("$lsd_path stop");
     }
     
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
@@ -1057,6 +1098,8 @@ sub local_scheduler {
     elsif ($mode eq 'stop') {
         $xml = '<title>Local Scheduler</title>';
         $ls_watcher->stop;
+        my $lsd_path = $cmdline->vrpipe_script_command('vrpipe-local_scheduler_daemon', $deployment);
+        system("$lsd_path stop");
         $xml .= '<response_line>Local Scheduler stopped</response_line>';
     }
     elsif ($mode eq 'submit') {

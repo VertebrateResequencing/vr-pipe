@@ -28,7 +28,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -52,6 +52,8 @@ class VRPipe::Config {
     use VRPipe::Base::Configuration;
     use File::Which qw(which);
     use Cwd 'abs_path';
+    use File::HomeDir;
+    use Path::Class;
     
     # we will suggest a default port that is randomly chosen from the "dynamic
     # range" block of ports 49152-65535, minus 20 to allow user to then have
@@ -174,7 +176,7 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'What job scheduler should be used for production?',
         default         => 'LSF',
-        valid           => [qw(LSF local)],
+        valid           => [qw(LSF local ec2)],
         question_number => ++$question_number
     );
     
@@ -182,7 +184,50 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'What job scheduler should be used for testing?',
         default         => 'local',
-        valid           => [qw(LSF local)],
+        valid           => [qw(LSF local ec2)],
+        question_number => ++$question_number
+    );
+    
+    has ec2_access_key => (
+        is              => 'rw',
+        question        => 'What is your AWS access key (a string found at https://portal.aws.amazon.com/gp/aws/securityCredentials?)?',
+        skip            => '_skip_based_on_scheduler',
+        env             => 'AWS_ACCESS_KEY',
+        secure          => 1,
+        question_number => ++$question_number
+    );
+    
+    has ec2_secret_key => (
+        is              => 'rw',
+        question        => 'What is your AWS secret key (a string found at https://portal.aws.amazon.com/gp/aws/securityCredentials?)?',
+        skip            => '_skip_based_on_scheduler',
+        env             => 'AWS_SECRET_KEY',
+        secure          => 1,
+        question_number => ++$question_number
+    );
+    
+    has ec2_private_key_name => (
+        is              => 'rw',
+        question        => 'What is your AWS private key name (the name of the key you use to ssh into ec2 instances)?',
+        skip            => '_skip_based_on_scheduler',
+        env             => 'EC2_KEYPAIR',
+        question_number => ++$question_number
+    );
+    
+    has ec2_private_key_file => (
+        is              => 'rw',
+        question        => 'Where is your AWS private key file (absolute path)?',
+        skip            => '_skip_based_on_scheduler',
+        env             => 'EC2_PRIVATE_KEY',
+        question_number => ++$question_number
+    );
+    
+    has ec2_url => (
+        is              => 'rw',
+        question        => 'What is the url for your ec2 region?',
+        skip            => '_skip_based_on_scheduler',
+        env             => 'EC2_URL',
+        default         => 'https://ec2.eu-west-1.amazonaws.com',
         question_number => ++$question_number
     );
     
@@ -264,6 +309,22 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has login_shell_script => (
+        is       => 'rw',
+        question => 'When VRPipe connects to a node to run a command, what shell script can be sourced to provide all the environment variables needed for VRPipe (and any needed 3rd party software) to function?',
+        default  => sub {
+            my $home = File::HomeDir->my_home;
+            foreach my $basename (qw(.profile .bash_profile .bashrc .cshrc .kshrc .login .zprofile .zlogin .zshrc .environment)) {
+                my $file = file($home, $basename);
+                if (-s $file) {
+                    return $file->stringify;
+                }
+            }
+            return '';
+        },
+        question_number => ++$question_number
+    );
+    
     method _get_dbtype (Str $prefix) {
         my $method = $prefix . '_dbtype';
         return $self->$method();
@@ -327,6 +388,18 @@ class VRPipe::Config {
     
     method _build_production_dbport {
         return $self->_default_based_on_production_db('dbport');
+    }
+    
+    method _skip_based_on_scheduler () {
+        foreach my $deployment ('production', 'testing') {
+            my $method    = $deployment . '_scheduler';
+            my $scheduler = $self->$method();
+            if ($scheduler eq 'ec2') {
+                return 0;
+            }
+        }
+        
+        return 1;
     }
 }
 

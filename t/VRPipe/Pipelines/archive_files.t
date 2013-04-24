@@ -26,7 +26,7 @@ VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type   => 'fofn',
         method => 'all',
-        source => file(qw(t data datasource.fofn3))
+        source => file(qw(t data datasource.fofn3))->absolute
     ),
     output_root => $test_output_dir,
     pipeline    => VRPipe::Pipeline->create(name => 'test_pipeline'),
