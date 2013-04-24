@@ -569,7 +569,7 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
             
             $count += keys %pgids;
             foreach my $pgid (keys %pgids) {
-                push(@running_sid_aids, ["$ip:$pgid", 0]);
+                push(@running_sid_aids, "$ip:$pgid\[0]");
             }
         }
         
