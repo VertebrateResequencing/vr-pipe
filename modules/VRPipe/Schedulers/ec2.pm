@@ -272,6 +272,9 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
                         }
                     }
                 }
+                else {
+                    $backend->log("Failed to launch $needed new instances: " . $error);
+                }
             }
             
             $ec2->wait_for_instances(@new_instances) if @new_instances;
