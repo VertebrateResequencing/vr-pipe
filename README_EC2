@@ -17,7 +17,8 @@ When configuring VPRipe during the 'perl Build.PL' phase:
 # The database you choose should my mysql; you can set up a MySQL server on
   Amazon with RDS: http://aws.amazon.com/rds/ (start with 5GB and increase its
   size later as needed; a micro.t1 instance may be sufficient): the 'host' you
-  specify when VRPipe asks for one is the 'endpoint' given by RDS.
+  specify when VRPipe asks for one is the 'endpoint' given by RDS. Modify its
+  security group by adding the EC2 security group you use for your EC2 instance.
 # The log directories you configure (and any output roots you choose when
   using VRPipe in production) must be placed on a shared file system that is
   auto-mounted when the instance starts. It is up to you to create the shared
