@@ -128,12 +128,12 @@ $reqs[1] = VRPipe::Requirements->get(memory => 2000, time => 6, cpus => 2, tmp_s
 is_deeply [$reqs[1]->id, $reqs[1]->memory, $reqs[1]->time, $reqs[1]->cpus, $reqs[1]->tmp_space, $reqs[1]->local_space, $reqs[1]->custom->{loo}], [2, 2000, 21600, 2, 500, 0, 'car'], 'reqs2 has the expected fields and is a seperate new entry in the db';
 
 my @ds;
-ok $ds[0] = VRPipe::DataSource->create(type => 'list', method => 'all', source => 't/data/datasource.fivelist'), 'created a DataSource using create()';
+ok $ds[0] = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist))->absolute), 'created a DataSource using create()';
 undef $ds[0];
-$ds[0] = VRPipe::DataSource->get(type => 'list', method => 'all', source => 't/data/datasource.fivelist');
-is_deeply [$ds[0]->id, $ds[0]->type, $ds[0]->method, $ds[0]->source], [1, 'list', 'all', 't/data/datasource.fivelist'], 'ds1 has the expected fields';
-$ds[1] = VRPipe::DataSource->create(type => 'list', method => 'all', source => 't/data/datasource.onelist');
-is_deeply [$ds[1]->id, $ds[1]->type, $ds[1]->method, $ds[1]->source], [2, 'list', 'all', 't/data/datasource.onelist'], 'ds2 has the expected fields';
+$ds[0] = VRPipe::DataSource->get(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist))->absolute);
+is_deeply [$ds[0]->id, $ds[0]->type, $ds[0]->method, $ds[0]->source], [1, 'list', 'all', file(qw(t data datasource.fivelist))->absolute], 'ds1 has the expected fields';
+$ds[1] = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
+is_deeply [$ds[1]->id, $ds[1]->type, $ds[1]->method, $ds[1]->source], [2, 'list', 'all', file(qw(t data datasource.onelist))->absolute], 'ds2 has the expected fields';
 
 my @de;
 # create

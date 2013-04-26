@@ -100,11 +100,11 @@ sub required_modules {
         'MooseX::Types'                  => 0,
         'MooseX::Types::Parameterizable' => '>= 0.07, != 0.08', # 0.08, currently the latest version, just doesn't seem to pass tests for anyone
         'Net::FTP::Robust'               => 0,
-        'Net::SSH'                       => 0,
         'Parallel::ForkManager'          => 0,
         'Path::Class'                    => 0,
         'Perl6::Form'                    => 0,
         'POSIX'                          => 0,
+        'Proc::Daemon'                   => 0,
         'Proc::Killfam'                  => 0,
         'Redis'                          => 1.9,
         'Storable'                       => 0,

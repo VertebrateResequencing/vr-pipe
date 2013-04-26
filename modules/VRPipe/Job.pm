@@ -61,13 +61,14 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     use Cwd;
     use Sys::Hostname;
     use Proc::Killfam;
-    use Net::SSH qw(ssh);
     use VRPipe::Config;
     use Proc::ProcessTable;
     use POSIX qw(ceil);
     use VRPipe::Interface::BackEnd;
     
     my $ppt = Proc::ProcessTable->new(cache_ttys => 1);
+    our $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
+    our $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
     
     has 'cmd' => (
         is     => 'rw',
@@ -739,12 +740,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             }
             else {
                 eval {
-                    local $SIG{ALRM} = sub { die "ssh timed out\n" };
-                    alarm(15);
-                    ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam "KILL", $pid']); #*** we will fail to login with key authentication if user has never logged into this host before, and it asks a question...
-                    #    Net::SSH::Perl is able to always log us in, but can take over a minute!
+                    $backend->ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam q[KILL], $pid']);
                     # *** we need to do something if the kill fails...
-                    alarm(0);
                 };
                 if ($@) {
                     die unless $@ eq "ssh timed out\n";

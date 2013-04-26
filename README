@@ -31,12 +31,15 @@ SAMTOOLS dir; production pipelines will use the samtools at the absolute path
 you configure them with during setup - the default will be the first one in your
 PATH.)
 
-You need Redis 2.6.5 or greater installed. Compile it as normal ('make') and
+You need Redis 2.6 or greater installed. Compile it as normal ('make') and
 simply include redis-server in your PATH. You do not have to configure it in any
 way. Redis can be downloaded from here: http://redis.io/download
 
-It is also recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and
-create that directory.
+For use on Amazon's cloud, follow the installation advice here as well as that
+found in README_EC2.
+
+It is recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and create
+that directory.
 
 You require Module::Build in order for the Build.PL script to work. It is
 recommended you 'install Bundle::CPAN' using 'cpan' prior to attempting setup.
@@ -174,7 +177,8 @@ $ vrpipe-db_upgrade
 
 To use:
 Ensure that vrpipe-server is always running on a machine that can submit jobs
-to your job scheduler:
+to your job scheduler (it must also be able to ssh to all other machines without
+a password):
 $ vrpipe-server --farm my_farm start
 Now you can use vrpipe-create_step and vrpipe-create_pipeline to create
 pipelines if necessary. Then end-users can set up a pipeline using vrpipe-setup.

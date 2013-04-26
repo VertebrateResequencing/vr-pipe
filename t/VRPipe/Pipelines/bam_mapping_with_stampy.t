@@ -35,7 +35,7 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type   => 'fofn',
         method => 'all',
-        source => file(qw(t data datasource.bam_fofn))
+        source => file(qw(t data datasource.bam_fofn))->absolute
     ),
     output_root => $mapping_output_dir,
     pipeline    => $mapping_pipeline,

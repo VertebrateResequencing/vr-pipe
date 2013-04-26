@@ -30,7 +30,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type   => 'fofn',
         method => 'all',
-        source => file(qw(t data datasource.vcf_fofn))
+        source => file(qw(t data datasource.vcf_fofn))->absolute
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,

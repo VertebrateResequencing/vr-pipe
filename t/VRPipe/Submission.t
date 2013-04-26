@@ -13,7 +13,7 @@ BEGIN {
 my $scheduler = VRPipe::Scheduler->create;
 my $req       = VRPipe::Requirements->create(memory => 500, time => 3600);
 my $pipeline  = VRPipe::Pipeline->create(name => 'test_pipeline');
-my $ds        = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
+my $ds        = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
 my $ps        = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {});
 $ps->active(0); # stop the server trying to do something with this ps
 $ps->update;

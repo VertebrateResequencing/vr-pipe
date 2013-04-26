@@ -79,7 +79,7 @@ $l = start_clock(__LINE__);
 my $scheduler = VRPipe::Scheduler->create;
 my @reqs      = map { VRPipe::Requirements->create(memory => $_->[0], time => $_->[1]) } ([500, 1], [1000, 2], [2000, 3]);
 my $pipeline  = VRPipe::Pipeline->create(name => 'test_pipeline');
-my $ds        = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
+my $ds        = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
 my $ps        = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {});
 $ps->active(0);
 $ps->update;
