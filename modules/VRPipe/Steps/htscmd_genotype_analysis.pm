@@ -98,8 +98,6 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         my $gt_file     = VRPipe::File->get(path => $gt_file_path);
         my $meta        = $gt_file->metadata;
         my $expected    = $meta->{expected_sample};
-        my $bam_file    = VRPipe::File->get(path => $source_bam);
-        $bam_file->disconnect;
 
         my $found_expected = 0;
         my ($gtype1,$score1, $gtype2, $score2);
@@ -159,8 +157,13 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         }
         
         my $new_meta = { gtype_analysis => $gt_status };
-        $bam_file->add_metadata($new_meta, replace_data => 1);
         $gt_file->add_metadata($new_meta, replace_data => 1);
+
+        my @bam_files = split ('#',$source_bam);
+        foreach my $bam_path (@bam_files) {
+            my $bam_file = VRPipe::File->get(path => $bam_path);
+            $bam_file->add_metadata($new_meta, replace_data => 1);
+        }
     }
 }
 
