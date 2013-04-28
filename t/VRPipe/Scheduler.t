@@ -63,7 +63,7 @@ SKIP: {
             cmd          => 'the cmd to run'
         )
     );
-    my $expected = q[perl .+ -MVRPipe::Schedulers::ec2 -e "VRPipe::Schedulers::ec2->submit\(@ARGV\)" instance m1.medium memory 1800 cmd 'the cmd to run'];
+    my $expected = q[perl .+ "use VRPipe::Schedulers::ec2; VRPipe::Schedulers::ec2->submit\(@ARGV\)" instance m1.medium memory 1800 count 1 cmd 'the cmd to run'];
     like $scheduler_cmd_line, qr/$expected/, 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
 }
 
