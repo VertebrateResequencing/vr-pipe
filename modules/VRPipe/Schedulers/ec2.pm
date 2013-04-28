@@ -142,10 +142,6 @@ class VRPipe::Schedulers::ec2 with VRPipe::SchedulerMethodsRole {
         #*** there are surely optimisations and caching that could be done
         # here...
         
-        # at the very least there's an ability to spawn a given number
-        # of instances with 1 command, so we should first check how many we need
-        # to spawn, then spawn them all in 1 go, then check on them all...
-        
         # do an initial pass to see how many, if any, new instances we need to
         # spawn, and wait for them to be ready
         my @current_instances = $ec2->describe_instances({

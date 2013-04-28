@@ -31,7 +31,6 @@ use AnyEvent;
 use AnyEvent::Util qw(fork_call);
 use VRPipe::Interface::CmdLine;
 use VRPipe::Interface::BackEnd;
-use VRPipe::LocalScheduler;
 use Sys::CPU;
 use POSIX qw(floor);
 use List::Util 'shuffle';
@@ -40,7 +39,7 @@ use Cwd 'getcwd';
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
-    description => "Control the VRPipe server, which provides the web and cmdline interfaces, the local scheduler, and keeps the pipeline system itself running.",
+    description => "Control the VRPipe server, which provides the web and cmdline interfaces and keeps the pipeline system itself running by submitting things to the scheduler.",
     extra_args  => 'start|stop|restart|status',
     opt_spec    => [
         ['foreground|f',          'Do not daemonize - the server will run in the foreground, logging to STDERR'],
@@ -219,14 +218,6 @@ sub start_server {
     # some bug where on the first invocation it happens twice at ~the same time,
     # which can be terrible for us. periodic (usually) does not)
     
-    # set up a timer to check if the local scheduler daemon is running (turned
-    # off by default)
-    my $ls         = VRPipe::LocalScheduler->new;
-    my $lsd_path   = $cmdline->vrpipe_script_command('vrpipe-local_scheduler_daemon', $deployment);
-    my $ls_watcher = EV::periodic_ns 0, $timer_interval * 10, 0, sub {
-        system("$lsd_path start");
-    };
-    
     # set up the submission management system if we're supposed to
     my ($farm_server, $farm_watcher, $handler_path, $still_working, $scheduler_watcher);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
@@ -266,17 +257,6 @@ sub start_server {
                     $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
                     $scheduler     = VRPipe::Scheduler->create();
                     $survival_time = $farm_server->survival_time;
-                    
-                    # start the local scheduler if we're supposed to be using
-                    # the local scheduler
-                    if ($scheduler->type eq 'local') {
-                        $ls_watcher->start;
-                        
-                        # we need at least 2 forks for this to work though
-                        if ($AnyEvent::Util::MAX_FORKS == 1) {
-                            $AnyEvent::Util::MAX_FORKS = 2;
-                        }
-                    }
                     
                     # some schedulers may need to do something periodically;
                     # set up a watcher for that now
@@ -618,7 +598,6 @@ sub start_server {
                             $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
                             $farm_server->end_it_all if $farm_server;
                             undef $farm_server;
-                            $ls_watcher->stop;
                         }
                         &{$watcher_error_sub};
                     }
@@ -632,10 +611,9 @@ sub start_server {
         '/' => sub {
             $backend->psgi_text_response(200, 'html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>", shift);
         },
-        '/status'            => sub { $backend->psgi_nonblocking_xml_response(\&status,          shift); },
-        '/local_scheduler'   => sub { $backend->psgi_nonblocking_xml_response(\&local_scheduler, shift, $ls_watcher); },
-        '/continuation_test' => sub { $backend->psgi_continuation_response(\&continuation_test,  shift); },
-        '/dsn' => sub {
+        '/status'            => sub { $backend->psgi_nonblocking_xml_response(\&status,         shift); },
+        '/continuation_test' => sub { $backend->psgi_continuation_response(\&continuation_test, shift); },
+        '/dsn'               => sub {
             $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
         },
         '/stop' => sub {
@@ -668,11 +646,6 @@ sub start_server {
         if ($backend->redis_pid) {
             kill(9, $backend->redis_pid);
         }
-    }
-    
-    # stop the local scheduler daemon
-    if ($scheduler->type eq 'local') {
-        system("$lsd_path stop");
     }
     
     $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
@@ -1067,70 +1040,6 @@ sub status {
         if (@objects) {
             my $mode = $list ? 'list' : ($brief ? 'brief' : ($defunct_only ? 'defunct' : 'full'));
             $xml .= '<objects>' . join('', map { qq[<object class="PipelineSetup" display_mode="$mode">] . $_ . '</object>' } @objects) . '</objects>';
-        }
-    }
-    
-    return $xml;
-}
-
-sub local_scheduler {
-    my ($req, $ls_watcher) = @_;
-    
-    my $opts = $backend->req_to_opts($req);
-    my $mode = $opts->{mode} || die "a mode is required\n";
-    my $ids  = $opts->{id};
-    my @ids;
-    if ($ids) {
-        if (ref($ids)) {
-            @ids = @$ids;
-        }
-        else {
-            @ids = ($ids);
-        }
-    }
-    
-    my $xml = '';
-    if ($mode eq 'start') {
-        $xml = '<title>Local Scheduler</title>';
-        $ls_watcher->start;
-        $xml .= '<response_line>Local Scheduler started</response_line>';
-    }
-    elsif ($mode eq 'stop') {
-        $xml = '<title>Local Scheduler</title>';
-        $ls_watcher->stop;
-        my $lsd_path = $cmdline->vrpipe_script_command('vrpipe-local_scheduler_daemon', $deployment);
-        system("$lsd_path stop");
-        $xml .= '<response_line>Local Scheduler stopped</response_line>';
-    }
-    elsif ($mode eq 'submit') {
-        $xml = '<title>Job Submission to Local Scheduler</title>';
-        my $cmd = $opts->{cmd} || die "a cmd is required when submitting\n";
-        my $o   = $opts->{out} || die "the out option is required when submitting\n";
-        my $e   = $opts->{err} || die "the err option is required when submitting\n";
-        my $a   = $opts->{a};
-        my $env = $opts->{env} || {};
-        my $ls = VRPipe::LocalScheduler->new(o => $o, e => $e, $a ? (a => $a) : ());
-        $xml .= $backend->xml_tag('response_line', $ls->submit($cmd, $env));
-    }
-    elsif ($mode eq 'jobs') {
-        $xml = '<title>Jobs in the Local Scheduler</title>';
-    }
-    elsif ($mode eq 'kill') {
-        $xml = '<title>Jobs killed from the Local Scheduler</title>';
-        @ids || die "at least 1 id must be supplied\n";
-    }
-    else {
-        die "unknown mode '$mode'\n";
-    }
-    
-    if ($mode eq 'jobs' || $mode eq 'kill') {
-        my $ls = VRPipe::LocalScheduler->new;
-        my ($lines, $warnings) = $ls->$mode(\@ids);
-        foreach my $line (@$warnings) {
-            $xml .= $backend->xml_tag('warning', $line);
-        }
-        foreach my $line (@$lines) {
-            $xml .= $backend->xml_tag('response_line', $line);
         }
     }
     
