@@ -172,8 +172,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             my %pgids;
             foreach my $process ($self->_handler_processes($possible_ip)) {
                 my ($r) = $process->[2] =~ /-r (\d+) /;
-                $r ||= VRPipe::Requirements->create(memory => 1500, time => 3600); # what vrpipe-server uses when submitting a setups handler
-                $pgids{ $process->[1] } = $r;
+                $pgids{ $process->[1] } = $r || 0; # the setups handler has no -r, and we're going to pretend it uses no cpu, so we can run at least 1 submission handler on single core machines
             }
             
             # get the memory used per handler process group, and don't double-
@@ -196,12 +195,12 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             my $cpus_used   = 0;
             my $memory_used = 0;
             while (my ($pgid, $rid) = each %pgids) {
-                my $req = VRPipe::Requirements->get(id => $rid);
-                $cpus_used += $req->cpus;
+                my $req = VRPipe::Requirements->get(id => $rid) if $rid;
+                $cpus_used += $req ? $req->cpus : 0;
                 last if $cpus_used >= $available_cpus;
                 
-                my $this_memory_used     = $pgid_memory{$pgid};
-                my $this_memory_reserved = $req->memory;
+                my $this_memory_used = $pgid_memory{$pgid};
+                my $this_memory_reserved = $req ? $req->memory : $this_memory_used;
                 if ($this_memory_used > $this_memory_reserved) {
                     # take this opportunity to kill handlers that are using too
                     # much memory
