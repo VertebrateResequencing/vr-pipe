@@ -213,13 +213,42 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     }
     
     method _cluster_ips (Str $queue?) {
-        my @current_instances = $ec2->describe_instances({
-                'image-id'          => $ami,
-                'availability-zone' => $availability_zone,
-                $queue ? ('instance-type' => $queue) : (),
-                'instance-state-name' => 'running'
+        my @current_instances;
+        unless ($queue) {
+            @current_instances = $ec2->describe_instances({
+                    'image-id'            => $ami,
+                    'availability-zone'   => $availability_zone,
+                    'instance-state-name' => 'running'
+                }
+            );
+        }
+        else {
+            # $queue is an instance type, but don't just get back instances
+            # that exactly match that type; also get instances that match or
+            # exceed the specs of that type
+            my @itypes;
+            my ($needed_cores, $needed_mem) = @{ $instance_types{$queue} };
+            foreach my $type (@ordered_types) {
+                next if $type eq $queue;
+                my ($available_cores, $available_mem) = @{ $instance_types{$type} };
+                next if $available_cores < $needed_cores;
+                next if $available_mem < $needed_mem;
+                push(@itypes, $type);
             }
-        );
+            
+            foreach my $itype ($queue, @itypes) {
+                push(
+                    @current_instances,
+                    $ec2->describe_instances({
+                            'image-id'            => $ami,
+                            'availability-zone'   => $availability_zone,
+                            'instance-type'       => $itype,
+                            'instance-state-name' => 'running'
+                        }
+                    )
+                );
+            }
+        }
         
         my @ips;
         my $own_ip = $meta->privateIpAddress;
