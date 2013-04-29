@@ -223,6 +223,15 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has ec2_instance_types => (
+        is              => 'rw',
+        question        => 'Choose which instance types VRPipe will launch and use to run Jobs; the first type in the comma separate list you supply that matches or exceeds the memory and cpu requirements of the Job will be used',
+        skip            => '_skip_based_on_scheduler',
+        env             => 'EC2_INSTANCE_TYPES',
+        builder         => '_build_ec2_instance_types',
+        question_number => ++$question_number
+    );
+    
     has production_logging_directory => (
         is              => 'rw',
         question        => 'What directory should production logs, job STDOUT/ERR and temp files be stored in? (must be visible to all nodes)',
@@ -392,6 +401,17 @@ class VRPipe::Config {
         }
         
         return 1;
+    }
+    
+    sub _build_ec2_instance_types {
+        # we expect that the majority of what we run will be single cpu, cpu
+        # intensive jobs. Therefore we want to pick the type that will get the
+        # work done quickest considering only one of its cores, at the lowest
+        # cost: cost/hr/speed. But when the cost/hr/speed is very close for
+        # types that are very different in speed, it makes more sense to pick
+        # the faster one since fewer hours may be used. Because of this we just
+        # hard-code a preferred order that makes the most sense.
+        return join(',', 't1.micro', 'c1.medium', 'm1.small', 'm1.medium', 'm1.large', 'm2.xlarge', 'm3.xlarge', 'c1.xlarge', 'm1.xlarge', 'm2.2xlarge', 'm3.2xlarge', 'm2.4xlarge');
     }
 }
 
