@@ -343,17 +343,6 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 0;
     }
     
-    method get_sid (Str $cmd) {
-        my $output = `$cmd`;
-        my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
-        #*** actually, $cmd may output many or 0 sids, and it doesn't matter,
-        # since our only caller doesn't look at what we return... this method
-        # should probably be called something else...
-        if ($sid) {
-            return $sid;
-        }
-    }
-    
     method kill_sids (ArrayRef $sid_aids) {
         foreach my $sid_aid (@$sid_aids) {
             my ($sid) = @$sid_aid;

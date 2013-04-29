@@ -135,7 +135,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 count => $still_needed
             )
         );
-        $self->get_sid($scheduler_cmd_line);
+        system($scheduler_cmd_line);
         
         return @$running_sidaids;
     }

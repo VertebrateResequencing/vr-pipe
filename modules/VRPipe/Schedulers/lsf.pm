@@ -260,17 +260,6 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         $index ? return $index : return $ENV{LSB_JOBINDEX};
     }
     
-    method get_sid (Str $cmd) {
-        my $output = `$cmd`;
-        my ($sid) = $output =~ /Job \<(\d+)\> is submitted/;
-        if ($sid) {
-            return $sid;
-        }
-        else {
-            $self->throw("Failed to submit to scheduler");
-        }
-    }
-    
     method kill_sids (ArrayRef $sid_aids) {
         my @sids;
         foreach my $sid_aid (@$sid_aids) {

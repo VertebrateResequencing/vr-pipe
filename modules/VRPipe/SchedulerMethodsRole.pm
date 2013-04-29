@@ -71,7 +71,6 @@ role VRPipe::SchedulerMethodsRole {
     requires 'switch_queue';
     requires 'get_scheduler_id';
     requires 'get_1based_index';
-    requires 'get_sid';
     requires 'kill_sids';
     requires 'sid_status';
     requires 'command_status';
