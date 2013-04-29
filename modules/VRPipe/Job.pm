@@ -359,7 +359,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
-        my $ss = $submission->stepstate if $submission;
+        our $ss = $submission->stepstate if $submission;
         
         # we'll have 3 responses: -1 = job already exited; 0 = job already
         # running; 1 = we just started running it
