@@ -1,3 +1,17 @@
+# version 0.153:
+There is a new site config question to answer, so rerun 'perl Build.PL'.
+The schema version changed, so run vrpipe-db_upgrade.
+If you have written your own VRPipe::Schedulers::* class, note that
+SchedulerMethodsRole no longer has a required get_sid() method. Instead,
+ensure_running() in VRPipe::Scheduler just does a system call. There have been
+many other changes to the schedulers recently - check the POD for details, and
+see the updated code in the local and LSF schedulers for examples of how to
+implement schedulers now.
+Some scripts and modules have been removed from the distribution; if you have
+ever done a './Build install' you will have to manually remove files from your
+installation location: vrpipe-local_scheduler, VRPipe/LocalScheduler.pm,
+VRPipe/LocalSchedulerJob.pm, VRPipe/LocalSchedulerJobState.pm.
+
 # version 0.152:
 This is a critical upgrade. In future it will be assumed you upgraded to this
 version. It is VERY strongly recommended you upgrade to 0.152 as soon as

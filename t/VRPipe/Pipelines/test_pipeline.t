@@ -39,7 +39,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type   => 'fofn',
         method => 'all',
-        source => file(qw(t data datasource.fofn2))
+        source => file(qw(t data datasource.fofn2))->absolute
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
@@ -57,7 +57,7 @@ my $test_pipelinesetup_clean = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type   => 'fofn',
         method => 'all',
-        source => file(qw(t data datasource.fofn2))
+        source => file(qw(t data datasource.fofn2))->absolute
     ),
     output_root => $output_dir_clean,
     pipeline    => $pipeline,

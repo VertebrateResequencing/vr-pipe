@@ -51,10 +51,10 @@ class VRPipe::Pipelines::verify_bamid with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key => 'bam_files' },
-
+        
         );
     }
-    
+
 }
 
 1;

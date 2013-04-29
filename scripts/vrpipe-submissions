@@ -130,7 +130,7 @@ foreach my $sub (@subs) {
     
     if ($sub_state ne 'scheduled' || $sub->retries > 0) {
         if ($job->end_time) {
-            my $mem            = $job->peak_memory;
+            my $mem            = $job->peak_memory || '??';
             my $sec            = $job->wall_time;
             my $days           = int($sec / (24 * 60 * 60));
             my $hrs            = ($sec / (60 * 60)) % 24;

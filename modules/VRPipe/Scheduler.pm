@@ -112,7 +112,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         system("$cmd > /dev/null 2> /dev/null");
     }
     
-    method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, PositiveInt :$count = 1) {
+    method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, PositiveInt :$count = 1, Str :$cwd?) {
         $cmd =~ s/^\S+perl/perl/;   # different nodes may have different perls installed at different locations
         
         # get the details of everything already in the scheduler for this cmd,
@@ -130,11 +130,12 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
                 requirements => $requirements,
                 stdo_file    => '/dev/null',
                 stde_file    => '/dev/null',
-                cmd          => $cmd,
-                count        => $still_needed
+                $cwd ? (cwd => $cwd) : (),
+                cmd   => $cmd,
+                count => $still_needed
             )
         );
-        $self->get_sid($scheduler_cmd_line);
+        system($scheduler_cmd_line);
         
         return @$running_sidaids;
     }

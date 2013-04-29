@@ -309,6 +309,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my %flations;
         my $meta = $class->meta;
         
+        my $compile_time_deployment = VRPipe::Persistent::SchemaBase->database_deployment;
+        my $run_time_deployment;
         my $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);              # eg mysql
         my $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
         
@@ -885,6 +887,13 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             # by default our transactions need to be at the 'read committed'
             # isolation level, but sometimes we need 'repeatable read'
             if ($schema->storage->transaction_depth == 0) {
+                unless ($run_time_deployment) {
+                    $run_time_deployment = VRPipe::Persistent::SchemaBase->database_deployment;
+                    if ($run_time_deployment ne $compile_time_deployment) {
+                        $dbtype = lc(VRPipe::Persistent::SchemaBase->get_dbtype);
+                        $converter = VRPipe::Persistent::ConverterFactory->create($dbtype, {});
+                    }
+                }
                 my $isolation_change_sql = $converter->get_isolation_change_sql(repeatable_read => $repeatable_read);
                 if ($isolation_change_sql) {
                     $schema->storage->dbh_do(

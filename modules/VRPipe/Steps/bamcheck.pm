@@ -178,9 +178,9 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 $new_meta->{ $hash_key_prefix . 'rmdup_reads' }        = $new_meta->{ $hash_key_prefix . 'reads' } - $reads_duplicated;
                 $new_meta->{ $hash_key_prefix . 'rmdup_reads_mapped' } = $new_meta->{ $hash_key_prefix . 'reads_mapped' } - $reads_duplicated;
                 my $bases_duplicated = $parser->bases_duplicated;
-                $new_meta->{ $hash_key_prefix . 'rmdup_bases' }        = $new_meta->{ $hash_key_prefix . 'bases' } - $bases_duplicated;
-
-                # Estimate rmdup_bases_mapped CIGAR (excluding soft clipped and for exomes parts of the reads which fall outside of the target regions ) 
+                $new_meta->{ $hash_key_prefix . 'rmdup_bases' } = $new_meta->{ $hash_key_prefix . 'bases' } - $bases_duplicated;
+                
+                # Estimate rmdup_bases_mapped CIGAR (excluding soft clipped and for exomes parts of the reads which fall outside of the target regions )
                 # Calculate fraction bases_mapped/bases_duplicated and apply this to bases_mapped_cigar
                 my $bases_dup_fraction = $bases_duplicated / $parser->bases_mapped;
                 my $bases_dup_estimate = int($parser->bases_mapped_cigar * $bases_dup_fraction);

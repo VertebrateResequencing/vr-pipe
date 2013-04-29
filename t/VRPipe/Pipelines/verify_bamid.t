@@ -23,7 +23,7 @@ my @expected_step_names = qw(verify_bamid);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 # Generate fofn with metadata in output_dir with absolute bam/vcf paths
-my $ofofnwm =  VRPipe::File->create(path => file($output_dir, 'verifybam.fofnwm')->absolute);
+my $ofofnwm = VRPipe::File->create(path => file($output_dir, 'verifybam.fofnwm')->absolute);
 my $ofh = $ofofnwm->openw or die;
 my $ifofnwm = VRPipe::File->create(path => file(qw(t data verifybam.fofnwm))->absolute);
 my $ifh = $ifofnwm->openr or die;
@@ -50,9 +50,9 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        'verify_bamid_exe'         => '/lustre/scratch106/user/cj5/verifyBamID/verifyBamID/bin/verifyBamID',
-        'verify_bamid_opts'         => '--ignoreRG',
-        cleanup                    => 0
+        'verify_bamid_exe'  => '/lustre/scratch106/user/cj5/verifyBamID/verifyBamID/bin/verifyBamID',
+        'verify_bamid_opts' => '--ignoreRG',
+        cleanup             => 0
     }
 );
 

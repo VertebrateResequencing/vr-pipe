@@ -1,0 +1,66 @@
+VRPipe can be used on Amazon's cloud service on EC2 nodes.
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Welcome.html
+Note that EC2 support is currently experimental. See notes at the end of this
+document.
+
+
+INSTALLATION
+------------
+
+You should do installation and run vrpipe-server on an instance that has over
+2GB of memory, eg. an m1.medium.
+
+After installing VRPipe's CPAN dependencies normally (see README), you also need
+to manually install the perl module VM::EC2
+cpan> install VM::EC2
+
+When configuring VPRipe during the 'perl Build.PL' phase:
+# Choose 'ec2' as the production and testing scheduler, and supply your security
+  credentials when asked. When asked to supply a list of instance types, if you
+  don't use the default then ensure that at least one of the types you supply
+  has more than 2GB of memory.
+# The database you choose should my mysql; you can set up a MySQL server on
+  Amazon with RDS: http://aws.amazon.com/rds/ (start with 5GB and increase its
+  size later as needed; a micro.t1 instance may be sufficient): the 'host' you
+  specify when VRPipe asks for one is the 'endpoint' given by RDS. Modify its
+  security group by adding the EC2 security group you use for your EC2 instance.
+# The log directories you configure (and any output roots you choose when
+  using VRPipe in production) must be placed on a shared file system that is
+  auto-mounted when the instance starts. It is up to you to create the shared
+  file system and handle the mounting. (Theoretically you could instead use
+  the 'local' scheduler instead of the ec2 scheduler, which would limit you to
+  running everything on the 1 instance, but would not need a shared file system)
+
+After installation, prior to testing, create ssh keys:
+$ ssh-keygen -t dsa
+and self-authorise:
+$ cp ~/.ssh/id_dsa.pub ~/.ssh/authorized_keys2
+
+Now create an image from the instance where you have installed everything you
+need, then terminate it and launch a new instance based on the AMI you just
+created. The security group of the instance should be similar to the default
+security group in that it allows all TCP traffic on all ports through the
+firewall from a 'source' of the security group id (ie. only from instances in
+the cluster, not the outside world). You'll almost certainly also want to ssh
+into the node, so should allow TCP port 22 with a 'source' of your externally-
+facing IP address (or 0.0.0.0/0 and rely on your private key for security).
+
+Finally, continue with testing and beyond as per the README.
+
+
+NOTES
+-----
+
+By default Amazon quotas you to a maximum of 20 EC2 instances. For real work
+you probably want to get this increased:
+http://aws.amazon.com/contact-us/ec2-request/
+
+The test system is supposed to clean up after itself when the tests complete.
+However a current issue can result in the vrpipe-server process not stopping,
+which means the associated redis-server process and all instances launched
+will still be running. You'll have to manually kill/terminate these processes
+and instances.
+
+It is possible that the current implementation will not scale efficiently when
+using hundreds or thousands of nodes. Improved solutions may be coming in the
+future...

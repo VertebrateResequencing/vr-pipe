@@ -14,11 +14,11 @@ BEGIN {
 
 my $output_dir = get_output_dir('vcf_to_irods_pipeline');
 
-my $irods_root=$ENV{IRODS_TEST_ROOT};
+my $irods_root = $ENV{IRODS_TEST_ROOT};
 $irods_root =~ s/\/$//;
-foreach my $vcf ("${irods_root}/STUDY2/7/4/b/6/1e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/TEST_STUDY/e/a/4/9/0a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
-    system("irm","$vcf") unless system("ils $vcf >/dev/null 2>&1");
-    system("irm","$vcf.tbi") unless system("ils $vcf.tbi >/dev/null 2>&1");
+foreach my $vcf ("${irods_root}/STUDY2/7/4/b/6/1e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz", "${irods_root}/TEST_STUDY/e/a/4/9/0a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz") {
+    system("irm", "$vcf")     unless system("ils $vcf >/dev/null 2>&1");
+    system("irm", "$vcf.tbi") unless system("ils $vcf.tbi >/dev/null 2>&1");
 }
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'vcf_to_irods'), 'able to get the vcf_to_irods pipeline';
@@ -34,31 +34,31 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type   => 'fofn_with_metadata',
         method => 'all',
-        source => file(qw(t data datasource.vcf_fofnwm))
+        source => file(qw(t data datasource.vcf_fofnwm))->absolute
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
         'irods_root' => "$irods_root",
-        'study' => "TEST_STUDY",
-        'release' => "REL-2012-11-09",
-        cleanup => 1
+        'study'      => "TEST_STUDY",
+        'release'    => "REL-2012-11-09",
+        cleanup      => 1
     }
 );
 
 ok handle_pipeline(), 'pipeline ran ok';
 
 my @sample_meta;
-foreach my $vcf ("${irods_root}/STUDY2/7/4/b/6/1e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz","${irods_root}/TEST_STUDY/e/a/4/9/0a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz" ) {
+foreach my $vcf ("${irods_root}/STUDY2/7/4/b/6/1e6315beeeb4c76cdd2c1405e2a4/test2.vcf.gz", "${irods_root}/TEST_STUDY/e/a/4/9/0a03cb8c09ab6c1e21c82bae0152/test1.vcf.gz") {
     system("imeta ls -d $vcf");
     my $sm = `imeta ls -d $vcf sample | grep value`;
-    my (undef,$s) = split(/ /,$sm);
+    my (undef, $s) = split(/ /, $sm);
     chomp($s);
-    push (@sample_meta,$s);
-    system("irm","$vcf");
-    system("irm","$vcf.tbi");
+    push(@sample_meta, $s);
+    system("irm", "$vcf");
+    system("irm", "$vcf.tbi");
 }
-my @samples=("UK10K_SCOOP5013919","UK10K_SCOOP5013918");
+my @samples = ("UK10K_SCOOP5013919", "UK10K_SCOOP5013918");
 is_deeply \@samples, \@sample_meta, 'the vcfs were setup on irods with the correct sample metadata';
 
 done_testing;

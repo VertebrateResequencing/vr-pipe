@@ -112,11 +112,14 @@ is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->
   [{
         sample              => 'SAMPLE01',
         chunk_override_file => $override_file,
+        source_bam          => '/lustre/scratch105/vrpipe_testing/cj5/pipelines_test_output/wgs_single_sample_mpileup_calling_test/sample1.bam',
         caller              => 'samtools_mpileup_bcftools'
+
     },
     {
         sample              => 'SAMPLE02',
         chunk_override_file => $override_file,
+        source_bam          => '/lustre/scratch105/vrpipe_testing/cj5/pipelines_test_output/wgs_single_sample_mpileup_calling_test/sample2.bam',
         caller              => 'samtools_mpileup_bcftools'
     }
   ],

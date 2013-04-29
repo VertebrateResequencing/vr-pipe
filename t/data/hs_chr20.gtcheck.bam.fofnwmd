@@ -1,0 +1,5 @@
+path	library	bases_mapped	library_gt	sample
+t/data/hs_chr20.a.bam	4103684	1000000
+t/data/hs_chr20.b.bam	4103684	6000000
+t/data/hs_chr20.c.bam	4103685	6000000	1	NA20526
+t/data/hs_chr20.d.bam	4103685	5100000

@@ -71,10 +71,7 @@ role VRPipe::SchedulerMethodsRole {
     requires 'switch_queue';
     requires 'get_scheduler_id';
     requires 'get_1based_index';
-    requires 'get_sid';
-    requires 'kill_sid';
-    requires 'batch_kill_sids';
-    requires 'all_status';
+    requires 'kill_sids';
     requires 'sid_status';
     requires 'command_status';
     requires 'run_time';
@@ -84,6 +81,14 @@ role VRPipe::SchedulerMethodsRole {
         my $dmd5 = Digest::MD5->new();
         $dmd5->add($cmd);
         return 'vrpipe_' . $dmd5->hexdigest;
+    }
+    
+    method periodic_method {
+        return undef;
+    }
+    
+    method on_exit_method {
+        return undef;
     }
 }
 

@@ -33,7 +33,7 @@ my $single_step = VRPipe::Step->create(
     description        => 'outputs the data element result to a file'
 );
 
-my $five_element_datasource = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist)));
+my $five_element_datasource = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist))->absolute);
 
 my $single_step_pipeline = VRPipe::Pipeline->create(name => 'single_step_pipeline', description => 'simple test pipeline with only a single step');
 $single_step_pipeline->add_step($single_step);
@@ -56,7 +56,7 @@ print $fh "input1_line1\ninput2_line2\n";
 close($fh);
 my $input1_file = VRPipe::File->create(path => $input1_path, type => 'txt');
 
-my $single_element_datasource = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist)));
+my $single_element_datasource = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
 my $multi_step_pipeline = VRPipe::Pipeline->create(name => 'multi_step_pipeline', description => 'simple test pipeline with five steps');
 
 my @steps;
@@ -155,7 +155,7 @@ $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_producti
 VRPipe::StepAdaptor->create(pipeline => $prewritten_step_pipeline, to_step => 2, adaptor_hash => { md5_file_input => { md5_files => 1 } });
 $prewritten_step_pipeline->add_step(VRPipe::Step->get(name => "md5_file_production"));
 
-my $fofn_datasource = VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn)));
+my $fofn_datasource = VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn))->absolute);
 $fofn_datasource->elements;
 my $prewritten_step_pipeline_output_dir = dir($output_root, 'md5_pipeline');
 my $md5_pipelinesetup = VRPipe::PipelineSetup->create(
