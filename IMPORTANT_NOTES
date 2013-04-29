@@ -1,6 +1,16 @@
 # version 0.153:
 There is a new site config question to answer, so rerun 'perl Build.PL'.
-The schema version changed, so run vrpipe-db_upgrade.
+The schema version changed, so run vrpipe-db_upgrade. Unfortunately the
+automated upgrade here might not delete the necessary tables in the correct
+order, and it will fail. Run the script and let it fail (so that the necessary
+files are added to your schema directory for future use), then manually alter
+your database:
+mysql> BEGIN; ALTER TABLE sidtosub CHANGE COLUMN sid sid varchar(20) NOT NULL;
+       DROP TABLE localschedulerjobstate; DROP TABLE localschedulerjob;
+       CREATE INDEX sidtosub_idx_sid on sidtosub (sid); COMMIT;
+mysql> insert into dbix_class_deploymenthandler_versions set version = 30,
+       upgrade_sql = 'ALTER TABLE sidtosub CHANGE COLUMN sid sid varchar(20) NOT
+       NULL; DROP TABLE localschedulerjobstate; DROP TABLE localschedulerjob;';
 If you have written your own VRPipe::Schedulers::* class, note that
 SchedulerMethodsRole no longer has a required get_sid() method. Instead,
 ensure_running() in VRPipe::Scheduler just does a system call. There have been
