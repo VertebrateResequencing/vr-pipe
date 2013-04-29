@@ -182,7 +182,9 @@ $ vrpipe-db_upgrade
 To use:
 Ensure that vrpipe-server is always running on a machine that can submit jobs
 to your job scheduler (it must also be able to ssh to all other machines without
-a password):
+a password), and that has at least 2GB of free memory (which probably means the
+machine must have at least 3GB physical memory), especially if using the local
+scheduler:
 $ vrpipe-server --farm my_farm start
 Now you can use vrpipe-create_step and vrpipe-create_pipeline to create
 pipelines if necessary. Then end-users can set up a pipeline using vrpipe-setup.

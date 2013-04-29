@@ -7,13 +7,18 @@ document.
 INSTALLATION
 ------------
 
+You should do installation and run vrpipe-server on an instance that has over
+2GB of memory, eg. an m1.medium.
+
 After installing VRPipe's CPAN dependencies normally (see README), you also need
 to manually install the perl module VM::EC2
 cpan> install VM::EC2
 
 When configuring VPRipe during the 'perl Build.PL' phase:
 # Choose 'ec2' as the production and testing scheduler, and supply your security
-  credentials when asked.
+  credentials when asked. When asked to supply a list of instance types, if you
+  don't use the default then ensure that at least one of the types you supply
+  has more than 2GB of memory.
 # The database you choose should my mysql; you can set up a MySQL server on
   Amazon with RDS: http://aws.amazon.com/rds/ (start with 5GB and increase its
   size later as needed; a micro.t1 instance may be sufficient): the 'host' you
