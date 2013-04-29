@@ -73,13 +73,12 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     );
     
     our %queues;
-    our $access_key    = $vrp_config->ec2_access_key;
-    our $secret_key    = $vrp_config->ec2_secret_key;
-    our $url           = $vrp_config->ec2_url;
-    our ($region)      = $url =~ /ec2\.(.+?)\.amazonaws/;
-    our $key_name      = $vrp_config->ec2_private_key_name;
-    our @ordered_types = split(',', $vrp_config->ec2_instance_types);
-    @ordered_types ||= ('t1.micro', 'c1.medium', 'm1.small', 'm1.medium', 'm1.large', 'm2.xlarge', 'm3.xlarge', 'c1.xlarge', 'm1.xlarge', 'm2.2xlarge', 'm3.2xlarge', 'm2.4xlarge');
+    our $access_key        = $vrp_config->ec2_access_key;
+    our $secret_key        = $vrp_config->ec2_secret_key;
+    our $url               = $vrp_config->ec2_url;
+    our ($region)          = $url =~ /ec2\.(.+?)\.amazonaws/;
+    our $key_name          = $vrp_config->ec2_private_key_name;
+    our @ordered_types     = split(',', $vrp_config->ec2_instance_types);
     our $ec2               = VM::EC2->new(-access_key => $access_key, -secret_key => $secret_key, -region => $region);
     our $meta              = $ec2->instance_metadata;
     our $ami               = $meta->imageId;
