@@ -1,3 +1,11 @@
+0.153   The local scheduler was overhauled and is now much faster and more
+        reliable - it should actually work now. Using SQLite also works now,
+        even in combination with the local scheduler. There is an experimental
+        new ec2 scheduler for using VRPipe in Amazon's cloud (see README_EC2).
+        Fixed edge case where Submissions with the exact same time requirements
+        as the maximum amount of time allowed in the queue they were submitted
+        to would never run.
+        New bam_htscmd_genotype_checking and bam_lanelet_gt_check pipelines.
 0.152   Critical fix for database connection exhaustion; critical fix for
         logging.
         Improved stall reduction. Improved database update consistency: fixed
