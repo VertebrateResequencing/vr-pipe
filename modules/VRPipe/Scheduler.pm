@@ -102,16 +102,6 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
         return VRPipe::SchedulerMethodsFactory->create(lc($self->type), {});
     }
     
-    method start_scheduler {
-        my $cmd = $self->start_command;
-        system("$cmd > /dev/null 2> /dev/null");
-    }
-    
-    method stop_scheduler {
-        my $cmd = $self->stop_command;
-        system("$cmd > /dev/null 2> /dev/null");
-    }
-    
     method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, PositiveInt :$count = 1, Str :$cwd?) {
         $cmd =~ s/^\S+perl/perl/;   # different nodes may have different perls installed at different locations
         

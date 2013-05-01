@@ -62,8 +62,6 @@ use VRPipe::Base;
 role VRPipe::SchedulerMethodsRole {
     use Digest::MD5;
     
-    requires 'start_command';
-    requires 'stop_command';
     requires 'submit_command';
     requires 'submit_args';
     requires 'determine_queue';

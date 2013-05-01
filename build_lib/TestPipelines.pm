@@ -60,7 +60,6 @@ our %setups;
 
 BEGIN {
     $scheduler = VRPipe::Scheduler->create();
-    $scheduler->start_scheduler;
 }
 
 sub get_output_dir {
@@ -192,7 +191,6 @@ sub get_bam_records {
 }
 
 sub finish {
-    $scheduler->stop_scheduler;
     exit;
 }
 

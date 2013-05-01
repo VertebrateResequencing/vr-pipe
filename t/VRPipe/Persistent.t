@@ -28,7 +28,6 @@ ok my $default_output_root = VRPipe::Scheduler->default_output_root, 'could get 
 ok $schedulers[2] = VRPipe::Scheduler->get(), 'created another Scheduler using get() with no args';
 my $default_scheduler_id = VRPipe::Scheduler->create(type => $default_type)->id;
 is_deeply [$schedulers[2]->id, $schedulers[2]->type, $schedulers[2]->output_root], [$default_scheduler_id, $default_type, $default_output_root], 'scheduler3 has default fields';
-$schedulers[2]->start_scheduler;
 
 my $output_dir = dir($schedulers[2]->output_root, 'persistent_test_output');
 $schedulers[2]->remove_tree($output_dir);
@@ -611,7 +610,6 @@ while (my ($sub_id, $hhash) = each %heartbeats) {
 }
 is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
 
-$schedulers[2]->stop_scheduler;
 done_testing;
 exit;
 

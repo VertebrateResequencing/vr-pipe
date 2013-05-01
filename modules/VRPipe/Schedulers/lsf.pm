@@ -64,14 +64,6 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     our @unique_chars = ('A' .. 'Z', 'a' .. 'z', 0 .. 9);
     our %queues;
     
-    method start_command {
-        return 'bjobs'; #*** actually, I've no idea how to start lsf
-    }
-    
-    method stop_command {
-        return 'bjobs'; #*** actually, I've no idea how to stop lsf
-    }
-    
     method submit_command {
         return 'bsub';
     }

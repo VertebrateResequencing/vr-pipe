@@ -107,14 +107,6 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 'free -m';
     }
     
-    method start_command {
-        return 'sleep 1'; #*** not really applicable
-    }
-    
-    method stop_command {
-        return 'sleep 1'; #*** not really applicable
-    }
-    
     method submit_command {
         # we call a method in this module to submit
         my $class = ref($self);
