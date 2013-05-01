@@ -446,8 +446,9 @@ sub start_server {
                             
                             #$backend->log("will ensure that $count sub handlers are running for [$cmd]");
                             my @running_sids = $scheduler->ensure_running(
-                                cmd          => $cmd,
-                                count        => $count,
+                                cmd   => $cmd,
+                                count => $count,
+                                $deployment eq 'testing' ? (cwd => $cwd) : (),
                                 requirements => VRPipe::Requirements->get(id => $req_id),
                             );
                             
