@@ -94,6 +94,9 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                 }
                 my $basename = $bam->basename;
                 $basename =~ s/\.bam//;
+                # '#' and '%' are special chars used by fastq output file definition
+                # so must be replaced when generating fastq filenames from the bam filenames
+                $basename =~ s/[#%]/_/g;
                 my $out_spec;
                 my @outfiles;
                 
@@ -212,8 +215,9 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         
         my $basename = $in_file->basename;
         $basename =~ s/\.bam//;
+        $basename =~ s/[#%]/_/g;    # special bam2fastq chars
         my $logfile = "$out_dir/$basename.log";
-        # '#' is a special char, (replaced with _1 and _2 for PE reads, _M for SE reads).
+        # '#' replaced with _1 and _2 for PE reads, _M for SE reads
         my $out_param = "$out_dir/${basename}#.fastq";
         
         my $cmd = "$bam2fastq_exe $bam2fastq_opts -o $out_param $bam 2>$logfile";
