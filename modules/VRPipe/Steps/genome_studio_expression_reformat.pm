@@ -70,7 +70,6 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
                 my $basename      = $gs_file->basename . '.reformat';
                 my $reformat_file = $self->output_file(output_key => 'reformat_files', basename => "$basename", type => 'txt');
                 my $out_path      = $reformat_file->path;
-                my @output_files  = ($reformat_file);
                 my $cmd_line      = "$reformat_exe --profile $gs_path $reformat_options --out $out_path";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::genome_studio_expression_reformat', 'reformat_gs_file', [$cmd_line, $req, { output_files => [$reformat_file] }]);
             }
@@ -113,9 +112,9 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
         $output_file->update_stats_from_disc;
         my $output_lines = $output_file->lines;
         
+        #reformatted file should have header line with ProbeID as the first item
         my $reformf    = $output_file->openr;
         my $first_line = <$reformf>;
-        #reformatted file should have header with ProbeID as the first item
         unless ($first_line =~ /^ProbeID/) {
             $output_file->unlink;
             $self->throw("Reformatted file does not have correct header with Probe ID as the first expected column\n");
