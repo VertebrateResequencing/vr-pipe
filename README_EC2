@@ -19,7 +19,7 @@ When configuring VPRipe during the 'perl Build.PL' phase:
   credentials when asked. When asked to supply a list of instance types, if you
   don't use the default then ensure that at least one of the types you supply
   has more than 2GB of memory.
-# The database you choose should my mysql; you can set up a MySQL server on
+# The database you choose should be mysql; you can set up a MySQL server on
   Amazon with RDS: http://aws.amazon.com/rds/ (start with 5GB and increase its
   size later as needed; a micro.t1 instance may be sufficient): the 'host' you
   specify when VRPipe asks for one is the 'endpoint' given by RDS. Modify its
