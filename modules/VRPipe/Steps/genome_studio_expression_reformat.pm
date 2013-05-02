@@ -5,7 +5,8 @@ VRPipe::Steps::genome_studio_expression_reformat - a step
 
 =head1 DESCRIPTION
 
-Converts the Genome Studio csv files into a format that is suitable for processing by the PluriTest R package
+Converts the Genome Studio csv files into a format that is suitable for
+processing by the PluriTest R package to determine pluripotency
 
 =head1 AUTHOR
 
@@ -37,20 +38,20 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
     method options_definition {
         return {
             reformat_exe           => VRPipe::StepOption->create(description => 'full path to genome_studio_gene_expression_reformat.pl', optional => 1, default_value => 'genome_studio_gene_expression_reformat.pl'),
-			reformat_annotation    => VRPipe::StepOption->create(description => 'Genome Studio annotation file (PC to expand this!)'),
+            reformat_annotation    => VRPipe::StepOption->create(description => 'Genome Studio annotation file (PC to expand this!)'),
             reformat_mapping       => VRPipe::StepOption->create(description => 'file containing mapping of Genome Studio file columns to sample id'),
-            reformat_sample_number => VRPipe::StepOption->create(description => 'restrict reformatting to this number of samples', optional => 1, default_value => 7),
+            reformat_sample_number => VRPipe::StepOption->create(description => 'restrict reformatting to this number of samples',        optional => 1, default_value => 7),
         };
     }
     
     method inputs_definition {
         return {
-          	gs_file => VRPipe::StepIODefinition->create(
-				type        => 'txt', 
-				max_files   => -1, 
-				description => 'Genome Studio file containing gene expression data that needs to be reformatted'
-			)
-		};
+            gs_file => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                max_files   => -1,
+                description => 'Genome Studio file containing gene expression data that needs to be reformatted'
+            )
+        };
     }
     
     method body_sub {
@@ -60,19 +61,18 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
             my $reformat_exe           = $options->{reformat_exe};
             my $reformat_annotation    = $options->{reformat_annotation};
             my $reformat_mapping       = $options->{reformat_mapping};
-            my $reformat_sample_number = $options->{reformat_sample_number};            
-            my $reformat_options = "--annot $reformat_annotation --mapping $reformat_mapping --samples $reformat_sample_number"; 
+            my $reformat_sample_number = $options->{reformat_sample_number};
+            my $reformat_options       = "--annot $reformat_annotation --mapping $reformat_mapping --samples $reformat_sample_number";
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $gs_file (@{ $self->inputs->{gs_file} }) {
-                my $gs_path = $gs_file->path;
-                my $basename = $gs_file->basename;
-                $basename =~ s/\.txt/\.reformat\.txt/;
-                my $reformat_file  = $self->output_file(output_key => 'reformat_files',  basename => "$basename",  type => 'txt');
-                my $out_path = $reformat_file->path;
-                my @output_files = ($reformat_file);
-                my $cmd = qq[use VRPipe::Steps::genome_studio_expression_reformat; VRPipe::Steps::genome_studio_expression_reformat->reformat_gs_file(reformat_exe => '$reformat_exe', gs_path => '$gs_path', reformat_options => '$reformat_options', out_path => '$out_path');];
-                $self->dispatch_vrpipecode($cmd, $req, { output_files => \@output_files });
+                my $gs_path       = $gs_file->path;
+                my $basename      = $gs_file->basename . '.reformat';
+                my $reformat_file = $self->output_file(output_key => 'reformat_files', basename => "$basename", type => 'txt');
+                my $out_path      = $reformat_file->path;
+                my @output_files  = ($reformat_file);
+                my $cmd_line      = "$reformat_exe --profile $gs_path $reformat_options --out $out_path";
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::genome_studio_expression_reformat', 'reformat_gs_file', [$cmd_line, $req, { output_files => [$reformat_file] }]);
             }
         
         };
@@ -82,7 +82,7 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
         return {
             reformat_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
-                description => 'Files with converted gene expression data',
+                description => 'Files with reformatted Genome Studio gene expression data',
                 max_files   => -1,
                 min_files   => 0
             )
@@ -94,29 +94,40 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
     }
     
     method description {
-        return "Converts the Genome Studio csv files into a format that is suitable for processing by the PluriTest R package";
+        return "Converts the Genome Studio gene expression files into a format that is suitable for processing by the PluriTest R package";
     }
     
     method max_simultaneous {
-        return 0;          
+        return 0;
     }
     
-    method reformat_gs_file (ClassName|Object $self: Str :$reformat_exe!, Str :$gs_path!, Str|File :$reformat_options!, Str|File :$out_path! ) {
-        my $cmd_line = "$reformat_exe --profile $gs_path $reformat_options --out $out_path";
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-        $self->warn($cmd_line);
+    method reformat_gs_file (ClassName|Object $self: Str $cmd_line) {
+        my ($input_path, $output_path) = $cmd_line =~ /--profile (\S+) .* --out (\S+)$/;
+        my $input_file = VRPipe::File->get(path => $input_path);
+        my $input_recs = $input_file->num_records;
+        $input_file->disconnect;
         
-        my $chk_file = VRPipe::File->get(path => "$out_path");
-        $chk_file->update_stats_from_disc;
-        my $reformf = $chk_file->openr;
-        my $ok   = 0;
-        while (my $line = <$reformf>) {
-            if ($line =~ /^ProbeID/) {
-                $ok++;
-            }
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        my $output_file = VRPipe::File->get(path => $output_path);
+        $output_file->update_stats_from_disc;
+        my $output_lines = $output_file->lines;
+        
+        my $reformf    = $output_file->openr;
+        my $first_line = <$reformf>;
+        #reformatted file should have header with ProbeID as the first item
+        unless ($first_line =~ /^ProbeID/) {
+            $output_file->unlink;
+            $self->throw("Reformatted file does not have correct header with Probe ID as the first expected column\n");
         }
-        $self->throw("Reformatting is incomplete") unless $ok;
-        return 1;
+        # Should be one output line per Genome Studio record input
+        if ($output_lines == $input_recs) {
+            return 1;
+        }
+        else {
+            $output_file->unlink;
+            $self->throw("The reformatted file does not have the same number of records as the Genome Studio input file");
+        }
     }
 }
 
