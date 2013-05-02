@@ -26,36 +26,37 @@ ok my $ds = VRPipe::DataSource->create(
     type   => 'fofn',
     method => 'all',
     source => file(qw(t data hipsci_gen_ex.fofn))->absolute
-), 'could create a fofn datasource';
+  ),
+  'could create a fofn datasource';
 
-#issues with R on precise-dev64 
+#issues with R on precise-dev64
 #  -> path to working R is /software/bin/R-2.15.2, but this does not exist on uk10k
 #  -> no lumi package in this version ?
-my $r_bin_path = '/software/bin/R-2.15';
+my $r_bin_path       = '/software/bin/R-2.15';
 my $pluritest_script = '/software/vertres/scripts/pluriTest_commandLine_vrpipe.r';
 
 my $test_pipelinesetup = VRPipe::PipelineSetup->create(
-    name       => 'my pluritest_gene_expression_analysis_pipeline',
-    datasource => $ds,
+    name        => 'my pluritest_gene_expression_analysis_pipeline',
+    datasource  => $ds,
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        'reformat_annotation'    => file(qw(t data hipsci_gene_expression_annotation.txt))->absolute->stringify,
-        'reformat_mapping'       => file(qw(t data hipsci_gene_expression_mapping.txt))->absolute->stringify,
-        'pluritest_script'       => $pluritest_script,
-        'pluritest_data'         => file(qw(t data pluritest.RData))->absolute->stringify,
-        'r_bin_path'             => $r_bin_path,
-        cleanup                  => 0
+        'reformat_annotation' => file(qw(t data hipsci_gene_expression_annotation.txt))->absolute->stringify,
+        'reformat_mapping'    => file(qw(t data hipsci_gene_expression_mapping.txt))->absolute->stringify,
+        'pluritest_script'    => $pluritest_script,
+        'pluritest_data'      => file(qw(t data pluritest.RData))->absolute->stringify,
+        'r_bin_path'          => $r_bin_path,
+        cleanup               => 0
     }
 );
 
 my (@output_files, @final_files);
 my @output_dirs = output_subdirs(1);
-push(@output_files, file(@output_dirs, '1_genome_studio_expression_reformat', "hipsci_gene_expression_profile.reformat.txt"));
+push(@output_files, file(@output_dirs, '1_genome_studio_expression_reformat', "hipsci_gene_expression_profile.txt.reformat"));
 foreach my $kind (qw(01 02a 02 03c 03)) {
-	push(@final_files, file(@output_dirs, '2_plot_pluritest_gene_expression', 'pluritest_image' . $kind . '.png'));
+    push(@final_files, file(@output_dirs, '2_plot_pluritest_gene_expression', 'pluritest_image' . $kind . '.png'));
 }
-push(@final_files,  file(@output_dirs, '2_plot_pluritest_gene_expression', 'pluritest.csv'));
+push(@final_files, file(@output_dirs, '2_plot_pluritest_gene_expression', 'pluritest.csv'));
 
 ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all expected output files';
 
