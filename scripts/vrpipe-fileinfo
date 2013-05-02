@@ -430,6 +430,20 @@ exit;
 sub file_to_stepstate {
     my $file = shift;
     my @sofs = VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' });
+    if (@sofs > 1) {
+        # if all but 1 of them point to the 1, return that one
+        my %stepstates;
+        foreach my $sof (@sofs) {
+            my $ss       = $sof->stepstate;
+            my $ssa      = $ss->same_submissions_as;
+            my $resolved = $ssa ? $ssa : $ss;
+            $stepstates{ $resolved->id } = $resolved;
+        }
+        my @stepstates = keys %stepstates;
+        if (@stepstates == 1) {
+            return $stepstates{ $stepstates[0] };
+        }
+    }
     return unless @sofs == 1;
     return $sofs[0]->stepstate;
 }
