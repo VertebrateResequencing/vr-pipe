@@ -5,7 +5,9 @@ VRPipe::Steps::plot_pluritest_gene_expression - a step
 
 =head1 DESCRIPTION
 
-Uses R script (pluriTest_commandLine_vrpipe.r) to produce plots from reformatted Genome Studio gene expression data
+Uses pluriTest R package (pluriTest_commandLine_vrpipe.r) to produce plots and
+ancillary data from reformatted Genome Studio  gene expression data to
+determine the pluripotency of different stem cell lines
 
 =head1 AUTHOR
 
@@ -36,9 +38,9 @@ use VRPipe::Base;
 class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
     method options_definition {
         return {
-            pluritest_script => VRPipe::StepOption->create( description   => 'path to modified pluritest R script' ),
-            pluritest_data => VRPipe::StepOption->create( description   => 'path to RData required by R script to plot graphs' ),
-            r_bin_path => VRPipe::StepOption->create( description   => 'path to specific version of R (2.15) required to run pluritest R script' ),
+            pluritest_script => VRPipe::StepOption->create(description => 'path to modified pluritest R script'),
+            pluritest_data   => VRPipe::StepOption->create(description => 'path to RData required by R script to plot graphs'),
+            r_bin_path       => VRPipe::StepOption->create(description => 'path to specific version of R (2.15) required to run pluritest R script'),
         };
     }
     
@@ -46,7 +48,7 @@ class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
         return {
             conv_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
-                description => 'Files with converted gene expression data',
+                description => 'Files with reformatted Genom Studio gene expression data',
                 max_files   => -1,
                 min_files   => 0
             )
@@ -55,17 +57,17 @@ class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self              = shift;
-            my $options           = $self->options;
-            my $req               = $self->new_requirements(memory => 500, time => 1);
-            my $pluritest_script  = $options->{pluritest_script};
-            my $pluritest_data    = $options->{pluritest_data};
-            my $r_bin_path        = $options->{r_bin_path};
+            my $self             = shift;
+            my $options          = $self->options;
+            my $req              = $self->new_requirements(memory => 500, time => 1);
+            my $pluritest_script = $options->{pluritest_script};
+            my $pluritest_data   = $options->{pluritest_data};
+            my $r_bin_path       = $options->{r_bin_path};
             
             foreach my $conv_file (@{ $self->inputs->{conv_files} }) {
                 #my $meta       = $conv_file->metadata;
                 my $conv_path = $conv_file->path;
-				$self->output_file(temporary  => 1,                 basename => 'pluritest_log.txt',      type => 'txt');                
+                $self->output_file(temporary  => 1,                 basename => 'pluritest_log.txt',      type => 'txt');
                 $self->output_file(output_key => 'csv_file',        basename => 'pluritest.csv',          type => 'txt');
                 $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image01.png',  type => 'bin'); #may need to add metadata
                 $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image02a.png', type => 'bin'); #may need to add metadata
@@ -82,13 +84,13 @@ class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
         return {
             pluritest_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
-                description => 'png files produced by pluritest R script',
+                description => 'png files produced by pluritest R script to assist in determination of pluripotency of stem cell lines',
                 min_files   => 5,
                 max_files   => -1
             ),
             csv_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',
-                description => 'cvs file with pluritest data per sample',
+                description => 'csv file with ancillary pluritest data per sample',
                 max_files   => -1
             )
         };
@@ -99,11 +101,11 @@ class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
     }
     
     method description {
-        return "Uses R script (pluriTest_commandLine_vrpipe.r) to produce plots from reformatted Genome Studio gene expression data";
+        return "Uses R script (pluriTest_commandLine_vrpipe.r) to produce plots from reformatted Genome Studio gene expression data to determine pluripotency of stem cell lines";
     }
     
     method max_simultaneous {
-        return 0;           
+        return 0;
     }
 }
 

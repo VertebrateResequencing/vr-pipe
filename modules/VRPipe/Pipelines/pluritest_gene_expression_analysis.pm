@@ -5,8 +5,9 @@ VRPipe::Pipelines::pluritest_gene_expression_analysis - a pipeline
 
 =head1 DESCRIPTION
 
-Reformats the gene expression files outputted by Genome Studio as csv files and then runs the R PluriTest 
-analysis package on these reformatted files to generate graphs and ancillary data for analysis of pluripotency.
+Reformats the gene expression files outputted by Genome Studio and then runs
+the R PluriTest  analysis package on these reformatted files to generate graphs
+and ancillary data for analysis of pluripotency.
 
 =head1 AUTHOR
 
@@ -53,12 +54,12 @@ class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::Pipelin
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'gs_file' },
-            { from_step => 1, to_step => 2, from_key =>, 'reformat_files', to_key   => 'conv_files' },
+            { from_step => 1, to_step => 2, from_key =>, 'reformat_files', to_key => 'conv_files' },
         );
     }
     
     #~ method behaviour_definitions {
-        #~ ({ after_step => 1, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0 });
+    #~ ({ after_step => 1, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0 });
     #~ }
 }
 
