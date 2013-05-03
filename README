@@ -96,6 +96,13 @@ Possible problems you may encounter in installing your missing prerequisites:
   sudo wget ftp://megrez.math.u-bordeaux.fr/pub/pari/unix/OLD/pari-2.3.5.tar.gz
   sudo perl Makefile.PL Configure pari_tgz=./pari-2.3.5.tgz
   sudo make; sudo make test; sudo make install
+# Time::Format may fail some tests with errors mentioning problems with
+  Date::Manip. As long as you actually have Date::Manip installed, these
+  failures are probably fine and you can force the install:
+  cpan> force install Time::Format
+# Redis may fail one its tests due to an error message not being in the
+  expected format. This is safe to ignore:
+  cpan> force install Redis
 # If all the prerequisites seem to be installed but running 'perl Build.PL'
   gives you an error message mentioning problems with any kind of Moose module,
   one possibility is that you have a mixture of some new Moose modules and old
