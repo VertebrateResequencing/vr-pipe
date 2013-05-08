@@ -5,7 +5,7 @@ use Path::Class;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 17;
+    use Test::Most tests => 20;
     use VRPipeTest;
     
     use_ok('VRPipe::Scheduler');
@@ -23,7 +23,6 @@ is $scheduler->determine_queue($requirements), 'local', q[determine_queue() retu
 # lsf
 ok $scheduler = VRPipe::Scheduler->create(type => 'lsf'), q[able to get the lsf scheduler using get(type => 'lsf')];
 is $scheduler->type, 'lsf', 'the type really is lsf';
-
 SKIP: {
     my $host = hostname();
     skip "author-only lsf tests", 5 unless $host eq 'uk10k-1-1-01';
@@ -43,6 +42,11 @@ SKIP: {
 SKIP: {
     eval "require VM::EC2;";
     skip "VM::EC2 is not installed", 5 if $@;
+    # we might have VM::EC2 installed, but might not be using the ec2
+    # scheduler, in which case it isn't configured and the module won't work
+    my $vrp_config = VRPipe::Config->new();
+    my $access_key = $vrp_config->ec2_access_key;
+    skip "ec2 scheduler is not configured", 5 unless $access_key;
     
     ok $scheduler = VRPipe::Scheduler->create(type => 'ec2'), q[able to get the ec2 scheduler using get(type => 'ec2')];
     is $scheduler->type, 'ec2', 'the type really is ec2';
@@ -60,6 +64,25 @@ SKIP: {
         cmd          => 'the cmd to run'
     );
     my $expected = q{perl .+ "VRPipe::Scheduler->get\(type => q\[ec2\]\)->scheduler_instance->submit\(@ARGV\)" queue \S+ memory 1800 count 1 cmd 'the cmd to run'};
+    like $scheduler_cmd_line, qr/$expected/, 'the expected scheduler cmd line could be constructed using submit_command()';
+}
+
+# sge
+ok $scheduler = VRPipe::Scheduler->create(type => 'sge'), q[able to get the sge scheduler using get(type => 'sge')];
+is $scheduler->type, 'sge', 'the type really is sge';
+SKIP: {
+    my $qconf_out = `qconf -help`;
+    skip "SGE 8 is not installed", 1 unless $qconf_out =~ /^SGE 8/;
+    
+    $requirements = VRPipe::Requirements->create(memory => 1800, time => 120);
+    my $scheduler_cmd_line = $scheduler->submit_command(
+        requirements => $requirements,
+        stdo_file    => '/dev/null',
+        stde_file    => '/dev/null',
+        cmd          => 'the cmd to run',
+        count        => 5
+    );
+    my $expected = q{qsub -N \S+ -o /dev/null -e /dev/null -m n -l (?:h_data|h_rss|h_vmem|mem_free|s_data|s_rss|s_vmem|virtual_free)=1800M (?:-l [hs]_rt=120 )?-t 1-5 -V -cwd -b yes the cmd to run};
     like $scheduler_cmd_line, qr/$expected/, 'the expected scheduler cmd line could be constructed using submit_command()';
 }
 

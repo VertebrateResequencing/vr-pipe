@@ -176,7 +176,7 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'What job scheduler should be used for production?',
         default         => 'LSF',
-        valid           => [qw(LSF local ec2)],
+        valid           => [qw(LSF SGE local ec2)],
         question_number => ++$question_number
     );
     
@@ -184,7 +184,7 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'What job scheduler should be used for testing?',
         default         => 'local',
-        valid           => [qw(LSF local ec2)],
+        valid           => [qw(LSF SGE local ec2)],
         question_number => ++$question_number
     );
     
