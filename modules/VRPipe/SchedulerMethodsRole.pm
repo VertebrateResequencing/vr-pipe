@@ -61,6 +61,9 @@ use VRPipe::Base;
 
 role VRPipe::SchedulerMethodsRole {
     use Digest::MD5;
+    use Crypt::Random qw(makerandom_itv);
+    
+    our @unique_chars = ('A' .. 'Z', 'a' .. 'z', 0 .. 9);
     
     requires 'submit_command';
     requires 'submit_args';
@@ -75,10 +78,20 @@ role VRPipe::SchedulerMethodsRole {
     requires 'run_time';
     
     # this is useful for generating job names based on the cmd
-    method _job_name (Str $cmd) {
+    method _job_name (Str $cmd, Bool :$unique = 0) {
         my $dmd5 = Digest::MD5->new();
         $dmd5->add($cmd);
-        return 'vrpipe_' . $dmd5->hexdigest;
+        my $job_name = 'vrpipe_' . $dmd5->hexdigest;
+        
+        if ($unique) {
+            # (using perl's rand() results in the same random string every time
+            # the server calls this method (though it works as expected if you
+            # test this method directly))
+            $job_name .= '_';
+            $job_name .= $unique_chars[makerandom_itv(Strength => 0, Lower => 0, Upper => $#unique_chars)] for 1 .. 8;
+        }
+        
+        return $job_name;
     }
     
     method periodic_method {
