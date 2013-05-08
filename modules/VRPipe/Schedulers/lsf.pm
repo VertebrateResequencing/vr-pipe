@@ -59,11 +59,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     our $date_regex = qr/(\w+)\s+(\d+) (\d+):(\d+):(\d+)/;
     our %queues;
     
-    method submit_command {
-        return 'bsub';
-    }
-    
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
+    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
         # access the requirments object and build up the string based on memory,
         # time, cpu etc.
         my $queue = $self->determine_queue($requirements);
@@ -93,7 +89,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             $output_string = "-o $stdo_file -e $stde_file";
         }
         
-        return qq[-J "$job_name" $output_string $requirments_string '$cmd'];
+        return qq[bsub -J "$job_name" $output_string $requirments_string '$cmd'];
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {

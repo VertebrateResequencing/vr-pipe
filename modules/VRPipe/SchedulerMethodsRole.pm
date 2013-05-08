@@ -66,7 +66,6 @@ role VRPipe::SchedulerMethodsRole {
     our @unique_chars = ('A' .. 'Z', 'a' .. 'z', 0 .. 9);
     
     requires 'submit_command';
-    requires 'submit_args';
     requires 'determine_queue';
     requires 'queue_time';
     requires 'switch_queue';

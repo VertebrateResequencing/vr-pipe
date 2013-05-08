@@ -53,18 +53,14 @@ SKIP: {
     $requirements = VRPipe::Requirements->create(memory => 1800, time => 120);
     is $scheduler->determine_queue($requirements), 'm1.medium', 'determine_queue() gave m1.medium instance for 1800MB and 2mins';
     
-    my $scheduler_cmd_line = join(
-        ' ',
-        $scheduler->submit_command,
-        $scheduler->submit_args(
-            requirements => $requirements,
-            stdo_file    => '/dev/null',
-            stde_file    => '/dev/null',
-            cmd          => 'the cmd to run'
-        )
+    my $scheduler_cmd_line = $scheduler->submit_command(
+        requirements => $requirements,
+        stdo_file    => '/dev/null',
+        stde_file    => '/dev/null',
+        cmd          => 'the cmd to run'
     );
     my $expected = q{perl .+ "VRPipe::Scheduler->get\(type => q\[ec2\]\)->scheduler_instance->submit\(@ARGV\)" queue \S+ memory 1800 count 1 cmd 'the cmd to run'};
-    like $scheduler_cmd_line, qr/$expected/, 'the expected scheduler cmd line could be constructed using submit_command() and submit_args()';
+    like $scheduler_cmd_line, qr/$expected/, 'the expected scheduler cmd line could be constructed using submit_command()';
 }
 
 done_testing;
