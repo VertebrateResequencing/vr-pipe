@@ -7,7 +7,7 @@ VRPipe::Steps::convex_L2R - a step
 
 Runs the SampleLogRatio R script from the CoNVex packages. Runs once per
 pipeline, generating a log2 ratio file for each read depth file and a single
-features file.
+features file and correlation matrix file.
 
 =head1 AUTHOR
 
@@ -99,8 +99,11 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             my $features_file_path = $features_file->path;
             push(@l2r_files, $features_file);
             
-            my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SampleLogRatioCall.R $sample_info_path,$regions_file,$features_file_path,$includeChrX,$version,$rpkm,$minSamples";
+            my $corr_matrix_file = $self->output_file(output_key => 'corr_matrix_file', basename => 'corr_matrix.txt', type => 'txt');
+            my $corr_matrix_file_path = $corr_matrix_file->path;
+            push(@l2r_files, $corr_matrix_file);
             
+            my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SampleLogRatioCall.R $sample_info_path,$regions_file,$features_file_path,$includeChrX,$corr_matrix_file_path,$version,$rpkm,$minSamples";
             $self->dispatch([$cmd, $req, { output_files => \@l2r_files }]);
         
         };
@@ -108,8 +111,9 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
     
     method outputs_definition {
         return {
-            features_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'a single convex features file for each set of L2R files'),
-            l2r_files     => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a log 2 ratio file for each input read depths file'),
+            features_file    => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'a single convex features file for each set of L2R files'),
+            corr_matrix_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'a single convex correlation matrix file for each set of L2R files'),
+            l2r_files        => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a log 2 ratio file for each input read depths file'),
         };
     }
     
@@ -118,7 +122,7 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
     }
     
     method description {
-        return "Runs CoNVex SampleLogRatioCall, generating log 2 ratio files from a fofn of read depths files and a single features file";
+        return "Runs CoNVex SampleLogRatioCall, generating log 2 ratio files from a fofn of read depths files and a features file and correlation matrix file";
     }
     
     method max_simultaneous {
