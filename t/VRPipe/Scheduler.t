@@ -71,8 +71,11 @@ SKIP: {
 ok $scheduler = VRPipe::Scheduler->create(type => 'sge'), q[able to get the sge scheduler using get(type => 'sge')];
 is $scheduler->type, 'sge', 'the type really is sge';
 SKIP: {
-    my $qconf_out = `qconf -help`;
-    skip "SGE 8 is not installed", 1 unless $qconf_out =~ /^SGE 8/;
+    {
+        no warnings "exec";
+        my $qconf_out = `qconf -help`;
+        skip "SGE 8 is not installed", 1 unless $qconf_out && $qconf_out =~ /^SGE 8/;
+    }
     
     $requirements = VRPipe::Requirements->create(memory => 1800, time => 120);
     my $scheduler_cmd_line = $scheduler->submit_command(
