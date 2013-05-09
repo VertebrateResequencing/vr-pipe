@@ -212,7 +212,12 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
     }
     
     method get_1based_index (Maybe[PositiveInt] $index?) {
-        $index ? return $index : return $ENV{SGE_TASK_ID};
+        return $index if $index;
+        my $aid = $ENV{SGE_TASK_ID};
+        if (!$aid || $aid !~ /^\d+$/) {
+            return 0;
+        }
+        return $aid;
     }
     
     method kill_sids (ArrayRef $sid_aids) {
