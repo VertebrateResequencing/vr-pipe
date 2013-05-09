@@ -1,3 +1,9 @@
+0.154   New SGE scheduler for use with clusters running SunGridEngine.
+        vrpipe-fileinfo --setup_info now outputs a vrpipe datasource compatible
+        string of id[step_num:output_key] instead of duplicating the output of
+        vrpipe-status. --display tab is also now the default display mode. It
+        can now report what made a given --path even when multiple setups
+        created it.
 0.153   The local scheduler was overhauled and is now much faster and more
         reliable - it should actually work now. Using SQLite also works now,
         even in combination with the local scheduler. There is an experimental
