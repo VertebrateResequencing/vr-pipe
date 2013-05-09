@@ -44,8 +44,8 @@ my $frontend = VRPipe::FrontEnd->new(
         ['limit|l=i', 'Show info only on the first --limit number of files that match the above criteria'],
         [],
         [q[Choose what information to display (by default just outputs the current path to the file):]],
-        ['setup_info',  'Show details about the PipelineSetup that created the file'],
-        ['dataelement', 'Show what datalement the file was made for'],
+        ['setup_info',  'Show the PipelineSetup id, step number and output key that created the file'],
+        ['dataelement', 'Show what DataElement the file was made for'],
         ['input_file',  'Show the path to the ultimate input file(s) that make up the dataelement the file was made for'],
         ['cmd_summary', 'Show a simplified summary of what commands where used to generate the file (may not be available for all pipelines or steps)'],
         ['cmd_lines',   'Show the real complete command lines that were executed in order to generate the file'],
@@ -57,7 +57,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['unresolved',  'Show the unresolved file paths (original paths before files were moved)'],
         [],
         [q[Choose how to display the information (these are mutually exclusive):]],
-        ['display=s',     q[report=present a multi-line report for each file (forced on when setup_info, cmd_summary or cmd_lines are in use); tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], { default => 'report' }],
+        ['display=s',     q[report=present a multi-line report for each file (forced on when cmd_summary or cmd_lines are in use, or if metadata used without specifying keys); tab=present the requested info in tab-separated columns (if using --metadata you must supply it the list of metadata keys you want to output)], { default => 'tab' }],
         ['tab_columns=s', q[For --display tab mode, supply a list of comma-separated display option names to choose the order of columns (path is always first), eg. --tab_columns size,md5,metadata --metadata length,height,depth would give output with columns: path size md5 length height depth]],
     ],
     no_user_option => 1
@@ -82,7 +82,8 @@ my $do_tab           = $display_type eq 'tab';
 my $do_metadata      = $frontend->option_was_set('metadata');
 my $desired_metadata = $frontend->opts('metadata');
 if ($do_tab && $do_metadata && !$desired_metadata) {
-    $frontend->die_with_error("When using --display tab, --metadata must be given an argument");
+    $do_tab       = 0;
+    $display_type = 'report';
 }
 my $unresolved = $frontend->option_was_set('unresolved');
 my $show_all   = $frontend->option_was_set('include_removed');
@@ -113,10 +114,13 @@ else {
 # force do_tab off if certain info requested
 my $file_setup_needed = 0;
 foreach my $col (@tab_cols) {
-    if ($col eq 'setup_info' || $col eq 'cmd_summary' || $col eq 'cmd_lines') {
+    if ($col eq 'cmd_summary' || $col eq 'cmd_lines') {
         $do_tab            = 0;
         $file_setup_needed = 1;
         last;
+    }
+    elsif ($col eq 'setup_info') {
+        $file_setup_needed = 1;
     }
 }
 
@@ -280,45 +284,19 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
         my $result;
         if ($col eq 'setup_info') {
             if ($stepstate) {
-                my $setup = $stepstate->pipelinesetup;
-                
-                my @results;
-                push(@results, "setup name: " . $setup->name, "id: " . $setup->id, "user: " . $setup->user);
-                
-                my $pipeline = $setup->pipeline;
-                push(@results, "pipeline name: " . $pipeline->name, "pipeline description: " . $pipeline->description);
-                
-                my $ps_opts = $setup->options;
-                if (keys %$ps_opts) {
-                    push(@results, "pipeline options:");
-                    while (my ($key, $val) = each %$ps_opts) {
-                        push(@results, "\t$key => $val");
-                    }
-                }
-                else {
-                    push(@results, "pipeline options: defaults/none");
+                my $setup      = $stepstate->pipelinesetup;
+                my $setup_id   = $setup->id;
+                my $step_num   = $stepstate->stepmember->step_number;
+                my $output_key = '';
+                my @sofs       = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve->id });
+                if (@sofs) {
+                    $output_key = ':' . $sofs[0]->output_key;
                 }
                 
-                push(@results, "pipeline output root: " . $setup->output_root);
-                
-                my $datasource = $setup->datasource;
-                push(@results, "datasource type: " . $datasource->type, "datasource method: " . $datasource->method, "datasource source: " . $datasource->source);
-                
-                my $ds_opts = $datasource->options;
-                if (keys %$ds_opts) {
-                    push(@results, "datasource options:");
-                    while (my ($key, $val) = each %$ds_opts) {
-                        push(@results, "\t$key => $val");
-                    }
-                }
-                else {
-                    push(@results, "datasource options: defaults/none");
-                }
-                
-                $result = "\n" . join("\n", map { "\t\t" . $_ } @results);
+                $result = "$setup_id\[$step_num$output_key]";
             }
             else {
-                $result = 'file was not made by a (single) VRPipe pipeline';
+                $result = $do_tab ? 'unknown' : 'file was not made by a (single) VRPipe pipeline';
             }
         }
         elsif ($col eq 'dataelement') {
@@ -430,6 +408,20 @@ exit;
 sub file_to_stepstate {
     my $file = shift;
     my @sofs = VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' });
+    if (@sofs > 1) {
+        # if all but 1 of them point to the 1, return that one
+        my %stepstates;
+        foreach my $sof (@sofs) {
+            my $ss       = $sof->stepstate;
+            my $ssa      = $ss->same_submissions_as;
+            my $resolved = $ssa ? $ssa : $ss;
+            $stepstates{ $resolved->id } = $resolved;
+        }
+        my @stepstates = keys %stepstates;
+        if (@stepstates == 1) {
+            return $stepstates{ $stepstates[0] };
+        }
+    }
     return unless @sofs == 1;
     return $sofs[0]->stepstate;
 }

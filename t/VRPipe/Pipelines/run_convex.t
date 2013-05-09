@@ -13,7 +13,7 @@ BEGIN {
     use TestPipelines;
 }
 
-my $output_dir = get_output_dir('convex_read_depth_generation_pipeline');
+my $output_dir = get_output_dir('convex_pipeline');
 
 # convex read depths pipeline
 #############################
@@ -33,7 +33,7 @@ my $classpath     = "$convex_home/java/lib/CoNVex.jar:$convex_home/java/lib/args
 
 my $regions_file = file(qw(t data cnv hs_chr20.convex.regions))->absolute->stringify;
 
-my $fofn = file(qw(t data cnv cnv.bam.fofn))->absolute;
+my $fofn = file(qw(t data cnv cnv.bam.fofn));
 
 my $pipelinesetup1 = VRPipe::PipelineSetup->create(
     name        => 'convex_read_depth_generation_pipeline',
@@ -99,6 +99,7 @@ my $pipelinesetup2 = VRPipe::PipelineSetup->create(
         r_libs              => $convex_r_libs,
         includeChrX         => 0,
         bp_file_name        => $bp_file_name,
+        minSamples          => 2
     }
 );
 
@@ -106,6 +107,11 @@ for (my $i = 0; $i < @output_files; $i++) {
     $output_files[$i] =~ s/rd\.txt/l2r.txt/;
 }
 push @output_files, $bp_file_name;
+
+my $de = ${ get_elements($pipelinesetup2->datasource) }[0];
+my @output_subdirs = output_subdirs($de->id, $pipelinesetup2->id);
+push(@output_files, file(@output_subdirs, '2_convex_L2R', 'corr_matrix.txt')->absolute->stringify);
+push(@output_files, file(@output_subdirs, '2_convex_L2R', 'features.txt')->absolute->stringify);
 
 ok handle_pipeline(@output_files, @final_files), 'l2r pipeline ran and created all expected output files';
 
@@ -143,8 +149,8 @@ my $pipelinesetup3 = VRPipe::PipelineSetup->create(
 
 my $i = 0;
 my @cnv_output_files;
-foreach my $de (@{ get_elements($pipelinesetup3->datasource) }) {
-    my @output_subdirs = output_subdirs($de->id, $pipelinesetup3->id);
+foreach $de (@{ get_elements($pipelinesetup3->datasource) }) {
+    @output_subdirs = output_subdirs($de->id, $pipelinesetup3->id);
     
     my $basename = file($output_files[$i])->basename;
     $basename =~ s/l2r\.txt/gam.txt/;

@@ -107,22 +107,12 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 'free -m';
     }
     
-    method start_command {
-        return 'sleep 1'; #*** not really applicable
-    }
-    
-    method stop_command {
-        return 'sleep 1'; #*** not really applicable
-    }
-    
-    method submit_command {
+    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
         # we call a method in this module to submit
-        my $class = ref($self);
+        my $class  = ref($self);
         my ($type) = $class =~ /VRPipe::Schedulers::(\S+)/;
-        return VRPipe::Interface::CmdLine->vrpipe_perl_e("VRPipe::Scheduler->get(type => q[$type])->scheduler_instance->submit(\@ARGV)", $deployment);
-    }
-    
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
+        my $exe    = VRPipe::Interface::CmdLine->vrpipe_perl_e("VRPipe::Scheduler->get(type => q[$type])->scheduler_instance->submit(\@ARGV)", $deployment);
+        
         # access the requirements object and build up the string based on
         # memory and cpu (other reqs do not apply)
         my $queue              = $self->determine_queue($requirements);
@@ -136,7 +126,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             $requirments_string .= " cwd $cwd";
         }
         
-        return qq[$requirments_string count $count cmd '$cmd'];
+        return $exe . qq[$requirments_string count $count cmd '$cmd'];
     }
     
     sub submit {

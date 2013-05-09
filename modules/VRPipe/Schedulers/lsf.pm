@@ -13,9 +13,6 @@ This class provides L<LSF
 Platform|http://www.platform.com/workload-management/high-performance-computing>-specific
 command lines for use by L<VRPipe::Scheduler>.
 
-Currently it is unable to start or stop LSF; it is assumed LSF is always up and
-running.
-
 =head1 AUTHOR
 
 Sendu Bala <sb10@sanger.ac.uk>.
@@ -43,7 +40,6 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
-    use Crypt::Random qw(makerandom_itv);
     use DateTime;
     use DateTime::TimeZone;
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
@@ -61,22 +57,9 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
       Nov 11
       Dec 12);
     our $date_regex = qr/(\w+)\s+(\d+) (\d+):(\d+):(\d+)/;
-    our @unique_chars = ('A' .. 'Z', 'a' .. 'z', 0 .. 9);
     our %queues;
     
-    method start_command {
-        return 'bjobs'; #*** actually, I've no idea how to start lsf
-    }
-    
-    method stop_command {
-        return 'bjobs'; #*** actually, I've no idea how to stop lsf
-    }
-    
-    method submit_command {
-        return 'bsub';
-    }
-    
-    method submit_args (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
+    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
         # access the requirments object and build up the string based on memory,
         # time, cpu etc.
         my $queue = $self->determine_queue($requirements);
@@ -93,11 +76,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         # name that corresponds to the cmd. It must also be unique otherwise
         # LSF would not start running jobs with duplicate names until previous
         # ones complete
-        my $job_name = $self->_job_name($cmd) . '_';
-        # (using perl's rand() results in the same random string every time the
-        # server calls this method (though it works as expected if you test
-        # this method directly))
-        $job_name .= $unique_chars[makerandom_itv(Strength => 0, Lower => 0, Upper => $#unique_chars)] for 1 .. 8;
+        my $job_name = $self->_job_name($cmd, unique => 1);
         
         # work out the scheduler output locations and also specify job arrays
         my $array_def = '';
@@ -110,7 +89,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             $output_string = "-o $stdo_file -e $stde_file";
         }
         
-        return qq[-J "$job_name" $output_string $requirments_string '$cmd'];
+        return qq[bsub -J "$job_name" $output_string $requirments_string '$cmd'];
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {

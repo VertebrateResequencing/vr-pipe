@@ -96,6 +96,13 @@ Possible problems you may encounter in installing your missing prerequisites:
   sudo wget ftp://megrez.math.u-bordeaux.fr/pub/pari/unix/OLD/pari-2.3.5.tar.gz
   sudo perl Makefile.PL Configure pari_tgz=./pari-2.3.5.tgz
   sudo make; sudo make test; sudo make install
+# Time::Format may fail some tests with errors mentioning problems with
+  Date::Manip. As long as you actually have Date::Manip installed, these
+  failures are probably fine and you can force the install:
+  cpan> force install Time::Format
+# Redis may fail one its tests due to an error message not being in the
+  expected format. This is safe to ignore:
+  cpan> force install Redis
 # If all the prerequisites seem to be installed but running 'perl Build.PL'
   gives you an error message mentioning problems with any kind of Moose module,
   one possibility is that you have a mixture of some new Moose modules and old
@@ -122,6 +129,14 @@ Note that when using MySQL, the server should be configured to allow at least
 the transaction isolation level to be changed. In practice this means that if
 you have database replication set up, you may find that you have to reconfigure
 the server to binlog-mode=MIXED and restart/redo your replication server.
+
+The SGE (Sun|Oracle GridEngine) scheduler has only been tested with SGE 8.1.3
+from: https://arc.liv.ac.uk/trac/SGE. If tests get stuck and nothing happens
+with no obvious error messages, try running:
+$ perl -Imodules -It scripts/vrpipe-server --deployment testing --farm testing_farm -f --debug start
+which should provide an error message. You may then have to alter or subclass
+VRPipe::Schedulers::sge; bug reports or patches welcome.
+
 
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
