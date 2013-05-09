@@ -1,3 +1,11 @@
+# version 0.154:
+If you have written your own VRPipe::Schedulers::* class, note the following API
+changes:
+submit_command() and submit_args() were combined into submit_command(), which
+takes the inputs of the later and returns their combined output as a single
+string.
+start_scheduler() and stop_scheduler() were removed.
+
 # version 0.153:
 There is a new site config question to answer, so rerun 'perl Build.PL'.
 The schema version changed, so run vrpipe-db_upgrade. Unfortunately the
