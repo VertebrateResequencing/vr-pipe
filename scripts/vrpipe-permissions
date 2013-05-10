@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -120,7 +120,7 @@ while (my $estates = $estates_pager->next) {
                     next unless exists $allowed_kinds{$smid}->{$kind};
                 }
                 
-                foreach my $file (grep { $_->update_stats_from_disc; $_->e } @$files) {
+                foreach my $file (grep { $_->update_stats_from_disc; $_->e } map { $_->resolve } @$files) {
                     $paths{ $file->path->stringify } = 1;
                 }
             }
