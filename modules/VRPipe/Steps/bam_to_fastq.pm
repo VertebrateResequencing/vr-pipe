@@ -145,7 +145,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     $out_spec = 'single => q[' . $fastq->path . ']';
                 }
                 
-                my $out_log = $self->output_file(output_key => 'bam2fastq_logs', basename => "$basename.log", type => 'txt');
+                my $out_log = $self->output_file(temporary => 1, basename => "$basename.log", type => 'txt');
                 push(@outfiles, $out_log);
                 
                 my $this_cmd = "use VRPipe::Steps::bam_to_fastq; VRPipe::Steps::bam_to_fastq->bam_to_fastq(bam => q[$source_bam], $out_spec, bam2fastq_exe => q[$bam2fastq_exe], bam2fastq_opts => q[$bam2fastq_opts], fastqcheck_exe => q[$fastqcheck_exe]);";
@@ -177,11 +177,6 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     study            => 'name of the study',
                     optional         => ['mate', 'library', 'sample', 'center_name', 'platform', 'study', 'insert_size', 'mean_insert_size']
                 }
-            ),
-            bam2fastq_logs => VRPipe::StepIODefinition->create(
-                type        => 'txt',
-                description => 'bam2fastq log',
-                max_files   => -1
             ),
         };
     }
@@ -215,7 +210,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         
         my $basename = $in_file->basename;
         $basename =~ s/\.bam//;
-        $basename =~ s/[#%]/_/g;    # special bam2fastq chars
+        $basename =~ s/[#%]/_/g; # special bam2fastq chars
         my $logfile = "$out_dir/$basename.log";
         # '#' replaced with _1 and _2 for PE reads, _M for SE reads
         my $out_param = "$out_dir/${basename}#.fastq";
