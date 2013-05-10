@@ -303,8 +303,18 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         );
         my $own_pdn = $meta->privateDnsName;
         foreach my $instance (@all_instances) {
+            # don't terminate ourselves - the server that calls this method
+            # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn; # don't terminate ourselves - the server that calls this method won't have any handlers running on it
+            next if $pdn eq $own_pdn;
+            
+            # don't terminate an instance that has a handler running on it right
+            # now - possibly spawned by a production server
+            next if $self->_handler_processes($host);
+            
+            #*** actually, we should tag them when we launch them and only
+            # terminate what we tagged
+            
             $instance->terminate;
         }
     }
