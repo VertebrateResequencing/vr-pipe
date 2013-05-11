@@ -56,7 +56,7 @@ use MooseX::Types -declare => [
       IntSQL File Dir MaybeFile MaybeDir StrOrEnv
       MaybeStrOrEnv Datetime VRPFileOrHandle
       Persistent PersistentObject RelationshipArg
-      PersistentArray ArrayRefOfPersistent
+      ArrayRefOfPersistent
       PersistentHashRef FileType AbsoluteFile
       PersistentFileHashRef OpenMode AnyFileHandle
       ParserType MapperType PreviousStepOutput
@@ -100,6 +100,7 @@ class_type('VRPipe::StepBehaviourDefiner');
 class_type('VRPipe::StepMember');
 class_type('VRPipe::Interface::BackEnd');
 class_type('VRPipe::DataElementState');
+class_type('VRPipe::KeyVal');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
@@ -228,8 +229,6 @@ coerce Persistent, from PersistentObject, via { $_->{_column_data}->{id} }; # th
 
 subtype ArrayRefOfPersistent, as ArrayRef [PersistentObject];
 class_type('VRPipe::Persistent');
-subtype PersistentArray, as 'VRPipe::PersistentArray';
-coerce PersistentArray, from ArrayRefOfPersistent, via { VRPipe::PersistentArray->create(members => $_) };
 
 subtype PersistentHashRef, as HashRef [PersistentObject];
 

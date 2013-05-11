@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::PersistentArrayMember - an element of a VRPipe::PersistentArray
+VRPipe::KeyValListMember - an element of a VRPipe::KeyValList
 
 =head1 SYNOPSIS
 
@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -37,43 +37,26 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::PersistentArrayMember extends VRPipe::Persistent {
-    has 'persistentarray' => (
+class VRPipe::KeyValListMember extends VRPipe::Persistent {
+    has 'keyvallist' => (
         is         => 'rw',
         isa        => Persistent,
         coerce     => 1,
         traits     => ['VRPipe::Persistent::Attributes'],
         is_key     => 1,
-        belongs_to => 'VRPipe::PersistentArray'
+        belongs_to => 'VRPipe::KeyValList'
     );
     
-    has 'class' => (
-        is     => 'rw',
-        isa    => Varchar [64],
-        traits => ['VRPipe::Persistent::Attributes'],
-        is_key => 1
-    );
-    
-    has 'class_id' => (
-        is     => 'rw',
-        isa    => Persistent,                        # uncoerced, we want this to be a plain int always
-        traits => ['VRPipe::Persistent::Attributes'],
-        is_key => 1
-    );
-    
-    has 'array_index' => (
-        is     => 'rw',
-        isa    => IntSQL [8],
-        traits => ['VRPipe::Persistent::Attributes'],
-        is_key => 1
+    has 'keyval' => (
+        is         => 'rw',
+        isa        => Persistent,
+        coerce     => 1,
+        traits     => ['VRPipe::Persistent::Attributes'],
+        is_key     => 1,
+        belongs_to => 'VRPipe::KeyVal'
     );
     
     __PACKAGE__->make_persistent();
-    
-    method instantiate {
-        my $class = $self->class;
-        return $class->get(id => $self->class_id);
-    }
 }
 
 1;
