@@ -36,7 +36,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -127,11 +127,12 @@ class VRPipe::File extends VRPipe::Persistent {
         is_nullable => 1
     );
     
-    has 'metadata' => (
-        is      => 'rw',
-        isa     => 'HashRef',
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => sub { {} }
+    has 'keyvallist' => (
+        is          => 'rw',
+        isa         => Persistent,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        belongs_to  => 'VRPipe::KeyValList',
+        is_nullable => 1
     );
     
     has 'moved_to' => (
@@ -217,18 +218,59 @@ class VRPipe::File extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
+    # we used to have a column called metadata, which was replaced with
+    # keyvallist; since it's more natural to create files with a metadata arg,
+    # we'll have permanent backwards-compatibility
+    around bulk_create_or_update (ClassName|Object $self: @args) {
+        foreach my $args (@args) {
+            $self->_convert_metadata($args);
+        }
+        return $self->$orig(@args);
+    }
+    
+    around _get (ClassName|Object $self: Bool $create, %args) {
+        $self->_convert_metadata(\%args);
+        return $self->$orig($create, %args);
+    }
+    
+    around search_rs (ClassName|Object $self: HashRef $search_args, Maybe[HashRef] $search_attributes?) {
+        $self->_convert_metadata($search_args);
+        my @args = ($search_args);
+        push(@args, $search_attributes) if $search_attributes;
+        return $self->$orig(@args);
+    }
+    
+    sub _convert_metadata {
+        my ($self, $args) = @_;
+        return unless exists $args->{metadata};
+        my $meta = delete $args->{metadata};
+        $args->{keyvallist} = VRPipe::KeyValList->get(hash => $meta)->id;
+    }
+    
+    # speed critical, so sub instead of method
+    sub metadata {
+        my ($self, $meta) = @_;
+        
+        if ($meta) {
+            $self->keyvallist(VRPipe::KeyValList->get(hash => $meta)->id);
+        }
+        
+        if (defined wantarray) {
+            my $keyvallist = $self->keyvallist || return {};
+            return $keyvallist->as_hashref;
+        }
+    }
+    
+    # speed critical, so sub instead of method
+    sub add_metadata {
+        my ($self, $meta, @args) = @_;
+        my %args = (replace_data => 1, @args);
+        my $replace_data = $args{replace_data};
+        
         my $transaction = sub {
-            $self->lock_row($self, 1); #*** the 1 means 'no hack' which means we rely on 'READ COMMITTED' to ensure the existing_meta we get is the most up-to-date metadata, rather than the hack that means this transaction is forced to take 1 second, which is ruinous for datasource updates
+            $self->lock_row($self, 1); #*** the 1 means 'no hack' which means we rely on 'READ COMMITTED' to ensure the existing metadata we get is the most up-to-date metadata, rather than the hack that means this transaction is forced to take 1 second, which is ruinous for datasource updates
             
-            my $existing_meta = $self->metadata;
-            
-            # incase the input $meta was the same hashref as existing_meta, we need
-            # a new ref or update will do nothing
-            my $new_meta = {};
-            while (my ($key, $val) = each %$existing_meta) {
-                $new_meta->{$key} = $val;
-            }
+            my $final_meta = $self->metadata;
             
             while (my ($key, $val) = each %$meta) {
                 # we don't always overwrite existing values
@@ -236,13 +278,12 @@ class VRPipe::File extends VRPipe::Persistent {
                     next unless (defined $val && "$val" ne "");
                 }
                 else {
-                    next if exists $new_meta->{$key};
+                    next if exists $final_meta->{$key};
                 }
-                
-                $new_meta->{$key} = $val;
+                $final_meta->{$key} = $val;
             }
             
-            $self->metadata($new_meta);
+            $self->metadata($final_meta);
             $self->update;
         };
         $self->do_transaction($transaction, "Failed to add_metadata for file " . $self->path);
