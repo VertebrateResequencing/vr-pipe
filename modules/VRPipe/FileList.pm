@@ -47,6 +47,13 @@ class VRPipe::FileList extends VRPipe::Persistent with VRPipe::PersistentListRol
     sub _member_key   { 'file' }
     sub _foreign_key  { 'filelist' }
     
+    has 'lookup' => (
+        is     => 'rw',
+        isa    => Varchar [64],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
+    
     __PACKAGE__->make_persistent(has_many => [members => 'VRPipe::FileListMember']);
     
     around get (ClassName|Object $self: Persistent :$id?, ArrayRef[VRPipe::File] :$files?) {

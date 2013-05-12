@@ -44,77 +44,38 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::PersistentListRole {
+    use Digest::MD5;
+    
     requires '_member_class';
     requires '_foreign_key';
     requires '_member_key';
+    requires 'lookup';
     
-    our %empty_lists;
-    
-    sub _class {
-        my $self = shift;
-        return ref($self) ? ref($self) : $self;
+    sub _members_to_string {
+        my ($self, $members) = @_;
+        return 'undef' unless @$members;
+        my @ids = sort { $a <=> $b } map { $_->id } @$members;
+        return join('', @ids);
     }
     
-    method _empty_list (ClassName|Object $self: $orig) {
-        my $class = $self->_class;
-        
-        if (defined $empty_lists{$class}) {
-            return $empty_lists{$class};
-        }
-        
-        #*** I have no idea how to do this in DBIx::Class...
-        # SELECT *
-        # FROM keyvallist
-        # LEFT OUTER JOIN keyvallistmember
-        #   ON (keyvallistmember.keyvallist = keyvallist.id)
-        #   WHERE keyvallistmember.keyvallist IS NULL
-        my $member_class = $self->_member_class;
-        my $pager = $class->get_column_values_paged('id', {});
-        my $empty;
-        PAGES: while (my $ids = $pager->next) {
-            foreach my $l_id (@$ids) {
-                my $members = $member_class->search({ $self->_foreign_key => $l_id }, { rows => 1 });
-                unless ($members) {
-                    $empty = $class->get(id => $l_id);
-                    last;
-                }
-            }
-        }
-        $empty ||= $self->create($self->_member_key . 's' => []);
-        
-        $empty_lists{$class} = $empty;
-        return $empty;
+    sub _string_to_lookup {
+        my ($self, $str) = @_;
+        my $dmd5 = Digest::MD5->new();
+        $dmd5->add($str);
+        return $dmd5->hexdigest;
     }
     
-    method _get_list (ClassName|Object $self: $orig, Maybe[Persistent] $id?, Maybe[ArrayRefOfPersistent] $members?) {
+    method _get_list (ClassName|Object $self: $orig, Maybe[Persistent] $id?, Maybe[ArrayRef] $members?) {
         $self->throw("You cannot supply both id and members") if $id && $members;
         
         if ($id) {
             return $self->$orig(id => $id);
         }
         elsif ($members) {
-            if (@$members == 0) {
-                return $self->_empty_list($orig);
-            }
+            # have we previously made a list for these $members?
+            my ($return) = $self->search({ lookup => $self->_string_to_lookup($self->_members_to_string($members)) }, { rows => 1 });
+            return $return if $return;
             
-            my $member_class = $self->_member_class;
-            
-            my %lids;
-            my $index = 0;
-            foreach my $member (@$members) {
-                ++$index;
-                foreach my $lid ($member_class->get_column_values($self->_foreign_key, { $self->_member_key => $member->id })) {
-                    $lids{$lid}++;
-                }
-            }
-            
-            my $expected_count = @$members;
-            my $foreign_key    = $self->_foreign_key;
-            foreach my $lid (sort { $a <=> $b } keys %lids) {
-                next unless $lids{$lid} == $expected_count;
-                next unless $member_class->search({ $foreign_key => $lid }) == $expected_count;
-                return $self->$orig(id => $lid);
-            }
             return $self->create($self->_member_key . 's' => $members);
         }
         else {
@@ -122,12 +83,11 @@ role VRPipe::PersistentListRole {
         }
     }
     
-    method _create_list (ClassName|Object $self: $orig, ArrayRefOfPersistent $members) {
+    method _create_list (ClassName|Object $self: $orig, ArrayRefOfPersistent $members!) {
         # create a new row, then use the new id to create new ListMember rows
         # for each supplied member
-        my $list = $self->$orig();
+        my $list = $self->$orig(lookup => $self->_string_to_lookup($self->_members_to_string($members)));
         
-        my $index = 0;
         my @lm_args;
         my $foreign_key = $self->_foreign_key;
         my $member_key  = $self->_member_key;
@@ -142,8 +102,10 @@ role VRPipe::PersistentListRole {
     
     method _instantiated_members {
         my @return;
-        my $member_key = $self->_member_key;
-        foreach my $member ($self->members) {
+        my $foreign_key  = $self->_foreign_key;
+        my $member_class = $self->_member_class;
+        my $member_key   = $self->_member_key;
+        foreach my $member ($member_class->search({ $foreign_key => $self->id }, { prefetch => $member_key })) {
             push(@return, $member->$member_key);
         }
         return @return;
