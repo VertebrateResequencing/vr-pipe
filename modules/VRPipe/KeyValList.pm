@@ -14,7 +14,7 @@ You probably want to always use get() to safely create or get KeyValLists.
 Direct use of create() will always create and return a new KeyValList, even if
 one with the same set of keyvals already exists.
 
-These lists are immuatble.
+These lists are immutable.
 
 =head1 AUTHOR
 
@@ -42,18 +42,14 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::KeyValList extends VRPipe::Persistent {
+class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListRole {
+    sub _member_class { 'VRPipe::KeyValListMember' }
+    sub _member_key   { 'keyval' }
+    sub _foreign_key  { 'keyvallist' }
+    
     __PACKAGE__->make_persistent(has_many => [members => 'VRPipe::KeyValListMember']);
     
-    our $empty_kvl;
-    
     around get (ClassName|Object $self: Persistent :$id?, ArrayRef[VRPipe::KeyVal] :$keyvals?, HashRef :$hash?) {
-        $self->throw("You cannot supply both id and keyvals/hash") if ($id && ($keyvals || $hash));
-        
-        if ($id) {
-            return $self->$orig(id => $id);
-        }
-        
         if ($hash) {
             # convert to a list of keyval objects
             $keyvals ||= [];
@@ -65,74 +61,15 @@ class VRPipe::KeyValList extends VRPipe::Persistent {
             }
         }
         
-        if ($keyvals) {
-            if (@$keyvals == 0) {
-                # we need to return the same keyvallist every time, but the
-                # below code doesn't find those with no members, so we need to
-                # special-case
-                unless ($empty_kvl) {
-                    #*** I have no idea how to do this in DBIx::Class...
-                    # SELECT *
-                    # FROM keyvallist
-                    # LEFT OUTER JOIN keyvallistmember
-                    #   ON (keyvallistmember.keyvallist = keyvallist.id)
-                    #   WHERE keyvallistmember.keyvallist IS NULL
-                    my $pager = VRPipe::KeyValList->get_column_values_paged('id', {});
-                    PAGES: while (my $ids = $pager->next) {
-                        foreach my $kvl_id (@$ids) {
-                            my $members = VRPipe::KeyValListMember->search({ keyvallist => $kvl_id }, { rows => 1 });
-                            unless ($members) {
-                                $empty_kvl = VRPipe::KeyValList->get(id => $kvl_id);
-                                last PAGES;
-                            }
-                        }
-                    }
-                }
-                return $empty_kvl if $empty_kvl;
-            }
-            
-            my %kvlids;
-            my $index = 0;
-            foreach my $keyval (@$keyvals) {
-                ++$index;
-                foreach my $kvlid (VRPipe::KeyValListMember->get_column_values('keyvallist', { keyval => $keyval->id })) {
-                    $kvlids{$kvlid}++;
-                }
-            }
-            
-            my $expected_count = @$keyvals;
-            foreach my $kvlid (sort { $a <=> $b } keys %kvlids) {
-                next unless $kvlids{$kvlid} == $expected_count;
-                next unless VRPipe::KeyValListMember->search({ keyvallist => $kvlid }) == $expected_count;
-                return $self->$orig(id => $kvlid);
-            }
-            return $self->create(keyvals => $keyvals);
-        }
-        
-        $self->throw("KeyValList->get requires id or keyvals or hash");
+        return $self->_get_list($orig, $id, $keyvals);
     }
     
     around create (ClassName|Object $self: ArrayRef[VRPipe::KeyVal] :$keyvals!) {
-        # create a new row, then use the new id to create new
-        # KeyValList rows for each supplied keyval
-        my $list = $self->$orig();
-        
-        my $index = 0;
-        my @kvm_args;
-        foreach my $keyval (@$keyvals) {
-            push(@kvm_args, { keyvallist => $list->id, keyval => $keyval->id });
-        }
-        VRPipe::KeyValListMember->bulk_create_or_update(@kvm_args);
-        
-        return $list;
+        return $self->_create_list($orig, $keyvals);
     }
     
     method keyvals {
-        my @return;
-        foreach my $member ($self->members) {
-            push(@return, $member->keyval);
-        }
-        return @return;
+        return $self->_instantiated_members;
     }
     
     method as_hashref {

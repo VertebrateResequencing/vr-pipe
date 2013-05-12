@@ -62,9 +62,9 @@ my $pd_worked = $post_disconnect && $post_disconnect->path() eq $input1_path;
 ok $pd_worked, 'we automatically reconnected to the database after a disconnect';
 
 # filelists
-throws_ok { VRPipe::FileList->get() } qr/requires id or files/, 'get() for FileList fails with no args';
-throws_ok { VRPipe::FileList->create() } qr/Validation failed/, 'create() for FileList fails with no args';
-throws_ok { VRPipe::FileList->get(id => 1, files => \@files) } qr/cannot supply both id and files/, 'get() for FileList fails with both id and files supplied';
+throws_ok { VRPipe::FileList->get() } qr/requires id or members/, 'get() for FileList fails with no args';
+throws_ok { VRPipe::FileList->create() } qr/Validation failed/,   'create() for FileList fails with no args';
+throws_ok { VRPipe::FileList->get(id => 1, files => \@files) } qr/cannot supply both id and members/, 'get() for FileList fails with both id and files supplied';
 ok my $file_list = VRPipe::FileList->create(files => \@files), 'created a FileList using create(files => [...])';
 is_deeply [$file_list->id, ($file_list->files)[0]->id, ($file_list->files)[1]->id], [1, $files[0]->id, $files[1]->id], 'the created FileList has the correct contents';
 undef $file_list;
@@ -82,9 +82,9 @@ ok $file_list = VRPipe::FileList->get(files => []), 'got a FileList using get() 
 is $file_list->id, 3, 'it had the same id';
 
 # keyvallists
-throws_ok { VRPipe::KeyValList->get() } qr/requires id or keyvals or hash/, 'get() for KeyValList fails with no args';
-throws_ok { VRPipe::KeyValList->create() } qr/Validation failed/,           'create() for KeyValList fails with no args';
-throws_ok { VRPipe::KeyValList->get(id => 1, hash => {}) } qr/cannot supply both id and keyvals\/hash/, 'get() for KeyValList fails with both id and files supplied';
+throws_ok { VRPipe::KeyValList->get() } qr/requires id or members/, 'get() for KeyValList fails with no args';
+throws_ok { VRPipe::KeyValList->create() } qr/Validation failed/,   'create() for KeyValList fails with no args';
+throws_ok { VRPipe::KeyValList->get(id => 1, hash => {}) } qr/cannot supply both id and members/, 'get() for KeyValList fails with both id and hash supplied';
 my $test_hash = { foo => 'bar', one => 'two' };
 ok my $keyval_list = VRPipe::KeyValList->get(hash => $test_hash), 'created a KeyValList using get(hash => {...})';
 is_deeply [$keyval_list->id, ($keyval_list->keyvals)[0]->id, ($keyval_list->keyvals)[1]->id, $keyval_list->as_hashref], [1, 1, 2, $test_hash], 'the created KeyValList has the correct contents';
