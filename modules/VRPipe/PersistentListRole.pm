@@ -10,12 +10,11 @@ objects
 
 =head1 DESCRIPTION
 
-You probably want to always use get() to safely create or get Lists.
+These lists are immutable and insensitive to order.
 
-Direct use of create() will always create and return a new List, even if one
-with the same set of members already exists.
-
-These lists are immutable.
+Both get() and create() will return an existing list if one had previously been
+created using the supplied list of members. Both will also create and return a
+new list if one had not been previously created.
 
 =head1 AUTHOR
 
