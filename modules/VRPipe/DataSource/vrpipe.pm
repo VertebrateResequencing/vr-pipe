@@ -359,7 +359,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         # we also need to make a dataelementlink for each dataelement we just
         # made
         my @link_args;
-        my %group_to_eid = map { VRPipe::KeyValList->get(id => $_->[0])->as_hash->{group} => $_->[1] } @{ VRPipe::DataElement->get_column_values(['keyvallist', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
+        my %group_to_eid = map { VRPipe::KeyValList->get(id => $_->[0])->as_hashref->{group} => $_->[1] } @{ VRPipe::DataElement->get_column_values(['keyvallist', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
         foreach my $group (sort keys %{$group_hash}) {
             my $hash_ref = $group_hash->{$group};
             if ($filter) {
