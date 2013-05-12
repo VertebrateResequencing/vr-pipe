@@ -16,6 +16,9 @@ one with the same set of keyvals already exists.
 
 These lists are immutable.
 
+NB: This looks like a normal PersistentList class, but its member instances
+directly hold the desired information, instead of referencing a keyval class.
+
 =head1 AUTHOR
 
 Sendu Bala <sb10@sanger.ac.uk>.
@@ -47,37 +50,68 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
     sub _member_key   { 'keyval' }
     sub _foreign_key  { 'keyvallist' }
     
+    has 'lookup' => (
+        is     => 'rw',
+        isa    => Varchar [64],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1
+    );
+    
     __PACKAGE__->make_persistent(has_many => [members => 'VRPipe::KeyValListMember']);
     
-    around get (ClassName|Object $self: Persistent :$id?, ArrayRef[VRPipe::KeyVal] :$keyvals?, HashRef :$hash?) {
+    sub _members_to_string {
+        my ($self, $members) = @_;
+        return 'undef' unless @$members;
+        my @keyvals = sort map { $_->[0] . $_->[1] } @$members;
+        return join('', @keyvals);
+    }
+    
+    around get (ClassName|Object $self: Persistent :$id?, ArrayRef :$keyvals?, HashRef :$hash?) {
         if ($hash) {
-            # convert to a list of keyval objects
             $keyvals ||= [];
-            my %keyval_ids = map { $_->id => 1 } @$keyvals;
             while (my ($key, $val) = each %{$hash}) {
-                my $keyval = VRPipe::KeyVal->create(key => $key, val => $val); # (this returns existing ones if created already)
-                next if exists $keyval_ids{ $keyval->id };
-                push(@$keyvals, $keyval);
+                push(@$keyvals, [$key, $val]);
             }
         }
         
         return $self->_get_list($orig, $id, $keyvals);
     }
     
-    around create (ClassName|Object $self: ArrayRef[VRPipe::KeyVal] :$keyvals!) {
-        return $self->_create_list($orig, $keyvals);
+    around create (ClassName|Object $self: ArrayRef :$keyvals!) {
+        # because we don't have a real keyval class but instead store data on
+        # the Member class directly for speed reasons, we have to implement this
+        # ourselves
+        my $list = $self->$orig(lookup => $self->_string_to_lookup($self->_members_to_string($keyvals)));
+        
+        my @lm_args;
+        my $lid = $list->id;
+        foreach my $ref (@$keyvals) {
+            my ($key, $val) = @$ref;
+            push(@lm_args, { keyvallist => $lid, keyval_key => $key, val => $val });
+        }
+        VRPipe::KeyValListMember->bulk_create_or_update(@lm_args);
+        
+        return $list;
     }
     
     method keyvals {
-        return $self->_instantiated_members;
+        # (_instantiated_members assumes KeyValListMember has a column that
+        # points to another table, but we don't have that for speed reasons)
+        my $ref = VRPipe::KeyValListMember->get_column_values(['keyval_key', 'val'], { keyvallist => $self->id });
+        return @$ref;
     }
     
-    method as_hashref {
-        my %return;
-        foreach my $keyval ($self->keyvals) {
-            $return{ $keyval->key } = $keyval->val;
+    # speed critical, so sub instead of method, and we reimplement keyvals to
+    # avoid the call stack. Note, if the list had the same key multiple times,
+    # our returned hash only contains the last value for that key
+    sub as_hashref {
+        my $self = shift;
+        my $return;
+        my $ref = VRPipe::KeyValListMember->get_column_values(['keyval_key', 'val'], { keyvallist => $self->id });
+        foreach my $ref (@$ref) {
+            $return->{ $ref->[0] } = $ref->[1];
         }
-        return \%return;
+        return $return;
     }
 }
 

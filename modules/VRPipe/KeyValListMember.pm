@@ -9,7 +9,9 @@ VRPipe::KeyValListMember - an element of a VRPipe::KeyValList
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+For critical speed reasons, instead of having a 'keyval' column that references
+some keyval table, we directly have key and val columns here, so no additional
+table lookup is required.
 
 =head1 AUTHOR
 
@@ -47,16 +49,34 @@ class VRPipe::KeyValListMember extends VRPipe::Persistent {
         belongs_to => 'VRPipe::KeyValList'
     );
     
-    has 'keyval' => (
-        is         => 'rw',
-        isa        => Persistent,
-        coerce     => 1,
-        traits     => ['VRPipe::Persistent::Attributes'],
-        is_key     => 1,
-        belongs_to => 'VRPipe::KeyVal'
+    has 'keyval_key' => (
+        is     => 'rw',
+        isa    => Varchar [255],
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1,
+    );
+    
+    has 'val' => (
+        is     => 'rw',
+        isa    => Text,
+        traits => ['VRPipe::Persistent::Attributes'],
+        is_key => 1,
     );
     
     __PACKAGE__->make_persistent();
+    
+    # to avoid issues with database reserved words, the key column is called
+    # 'keyval_key' instead of just 'key'; let's alias to key
+    sub key {
+        my $self = shift;
+        if (@_) {
+            my $key = shift;
+            if (length($key)) {
+                $self->keyval_key($key);
+            }
+        }
+        return $self->keyval_key;
+    }
 }
 
 1;
