@@ -134,7 +134,7 @@ class VRPipe::Steps::gatk_reduce_reads extends VRPipe::Steps::gatk_v2 {
         
         my $bam_type = VRPipe::FileType->create('bam', { file => $out_path });
         
-        if ($bam_type->check_magic) {
+        if ($bam_type->check_type) {
             $out_file->add_metadata({ reads => $output_reads });
             return 1;
         }
