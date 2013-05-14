@@ -39,7 +39,6 @@ use VRPipe::Base;
 
 class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     use Digest::MD5 qw(md5_hex);
-    use Storable qw(nfreeze);
     
     method description {
         return "Use files created by VRPipe pipelines as a datasource.";
