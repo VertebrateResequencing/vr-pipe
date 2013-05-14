@@ -56,9 +56,9 @@ use MooseX::Types -declare => [
       IntSQL File Dir MaybeFile MaybeDir StrOrEnv
       MaybeStrOrEnv Datetime VRPFileOrHandle
       Persistent PersistentObject RelationshipArg
-      ArrayRefOfPersistent
-      PersistentHashRef FileType AbsoluteFile
-      PersistentFileHashRef OpenMode AnyFileHandle
+      PersistentArrayRef PersistentHashRef
+      FileType AbsoluteFile PersistentFileHashRef
+      OpenMode AnyFileHandle
       ParserType MapperType PreviousStepOutput
       Text)
 ];
@@ -84,10 +84,9 @@ subtype MaybeStrOrEnv, as Maybe [StrOrEnv];
 subtype RelationshipArg, as Defined, where { ClassName->check($_) || ArrayRef->check($_) }, message { "$_ is neither a class name nor an array ref" };
 
 class_type('VRPipe::Persistent::Schema');
+class_type('VRPipe::Persistent');
 class_type('VRPipe::Submission');
 class_type('VRPipe::Requirements');
-class_type('VRPipe::PersistentArrayMember');
-class_type('VRPipe::PersistentArray');
 class_type('VRPipe::StepState');
 class_type('VRPipe::File');
 class_type('VRPipe::Pipeline');
@@ -100,7 +99,6 @@ class_type('VRPipe::StepBehaviourDefiner');
 class_type('VRPipe::StepMember');
 class_type('VRPipe::Interface::BackEnd');
 class_type('VRPipe::DataElementState');
-class_type('VRPipe::KeyVal');
 
 # file-related (mostly stolen from MooseX::Types::Path::Class)
 class_type('Path::Class::Dir');
@@ -227,8 +225,7 @@ subtype Persistent, as PositiveInt, # can't coerce IntSQL[16]
   where { length(shift) <= 16 };
 coerce Persistent, from PersistentObject, via { $_->{_column_data}->{id} }; # this is called so many times, its worth directly accessing the hash structure instead of calling id(), for the speedup
 
-subtype ArrayRefOfPersistent, as ArrayRef [PersistentObject];
-class_type('VRPipe::Persistent');
+subtype PersistentArrayRef, as ArrayRef [PersistentObject];
 
 subtype PersistentHashRef, as HashRef [PersistentObject];
 

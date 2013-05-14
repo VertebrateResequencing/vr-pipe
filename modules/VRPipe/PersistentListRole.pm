@@ -82,7 +82,7 @@ role VRPipe::PersistentListRole {
         }
     }
     
-    method _create_list (ClassName|Object $self: $orig, ArrayRefOfPersistent $members!) {
+    method _create_list (ClassName|Object $self: $orig, PersistentArrayRef $members!) {
         # create a new row, then use the new id to create new ListMember rows
         # for each supplied member
         my $list = $self->$orig(lookup => $self->_string_to_lookup($self->_members_to_string($members)));
