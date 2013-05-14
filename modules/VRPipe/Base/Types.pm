@@ -214,13 +214,11 @@ subtype IntSQL, as Parameterizable [Int, Int], where {
     (defined $number && $int >= length("$number")) ? 1 : 0;
 }, message { defined $_ ? "'$_' is too long" : "number is undefined" };
 
-class_type('VRPipe::Persistent');
 subtype PersistentObject, as 'VRPipe::Persistent';
 #    as Object,
 #    where { $_->isa('VRPipe::Persistent') },
 #    message { "Not a Persistent object" };
 
-use Data::Dumper;
 subtype Persistent, as PositiveInt, # can't coerce IntSQL[16]
   where { length(shift) <= 16 };
 coerce Persistent, from PersistentObject, via { $_->{_column_data}->{id} }; # this is called so many times, its worth directly accessing the hash structure instead of calling id(), for the speedup
