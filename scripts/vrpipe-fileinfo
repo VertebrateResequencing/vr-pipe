@@ -140,7 +140,7 @@ foreach my $path (@paths) {
             $files{ $file->id } = $file;
             
             if ($output_types{dataelement} || $output_types{input_file}) {
-                my $stepstate = file_to_stepstate($file);
+                my $stepstate = $file->output_by(1);
                 if ($stepstate) {
                     $file_to_de{ $file->id } = $stepstate->dataelement;
                 }
@@ -277,7 +277,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     
     my $stepstate;
     if ($file_setup_needed) {
-        $stepstate = file_to_stepstate($file->resolve);
+        $stepstate = $file->output_by(1);
     }
     
     foreach my $col (@tab_cols) {
@@ -404,27 +404,6 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
 }
 
 exit;
-
-sub file_to_stepstate {
-    my $file = shift;
-    my @sofs = VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' });
-    if (@sofs > 1) {
-        # if all but 1 of them point to the 1, return that one
-        my %stepstates;
-        foreach my $sof (@sofs) {
-            my $ss       = $sof->stepstate;
-            my $ssa      = $ss->same_submissions_as;
-            my $resolved = $ssa ? $ssa : $ss;
-            $stepstates{ $resolved->id } = $resolved;
-        }
-        my @stepstates = keys %stepstates;
-        if (@stepstates == 1) {
-            return $stepstates{ $stepstates[0] };
-        }
-    }
-    return unless @sofs == 1;
-    return $sofs[0]->stepstate;
-}
 
 sub stepstate_chain {
     my $child_stepstate = shift;
