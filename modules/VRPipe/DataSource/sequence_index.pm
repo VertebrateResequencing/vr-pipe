@@ -56,7 +56,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             return "An element will comprise all the fastqs for a single lane (read group - column 3), and the fastq files will have metadata from the other columns associated with them.";
         }
         if ($method eq 'sample_fastqs') {
-            return "An element will comprise all the fastqs for a single sample (read group - column 10), and the fastq files will have metadata from the other columns associated with them.";
+            return "An element will comprise all the fastqs for a single sample (column 10), and the fastq files will have metadata from the other columns associated with them.";
         }
         
         return '';

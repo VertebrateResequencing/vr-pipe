@@ -33,38 +33,51 @@ use File::Find;
 use File::Copy;
 
 my $frontend = VRPipe::FrontEnd->new(
-    description => "Move files on disk, like unix 'mv', also updating the VRPipe database. Also let's you move output files of a particular pipeline to a new root directory.",
+    description => "Move files on disk, like unix 'mv', also updating the VRPipe database. Also let's you move output files of a particular pipeline setup to a new root directory. Note that a setup might create files outside of its output root, which will not get moved. For large-scale movements (eg. moving everything on one disc to another), use the --old_disc/--new_disc mode.",
     opt_spec    => [
         [],
         [q[To move specified files, use standard unix 'mv' arguments.]],
         [],
-        [q[To move all the files output by a pipelinesetup supply both:]],
+        [q[To move all the files output by a particular pipelinesetup supply both:]],
         ['setup=s',    'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
         ['new_root=s', q[The new PipelineSetup output root]],
+        [],
+        [q[To move all the files output by a ALL pipelinesetups from one disc to another (non-VRPipe files are ignored):]],
+        ['old_disc=s', 'The highest level root directory that might contain any VRPipe-created files'],
+        ['new_disc=s', q[The corresponding directory on the new disc where files on the old_disc should be transposed to]],
         [],
         [q[Currently supported unix 'mv' options:]],
         ['none yet...'],
         [],
         [q[Other options:]],
         ['pretend|p', q[Only print out what files would be moved; don't actually move anything]],
-        ['verbose|v', q[Print out the files that are being moved (automatically on if using --pretend)]]
+        ['verbose|v', q[Print out the files that are being moved (automatically on if using --pretend)]],
+        ['check_md5s', q[Calculate the md5sum of each source file, copy it to the destination, check the md5 matches, then delete the source (this can be very slow, and does not apply when doing normal unix mv of files)], { default => 0 }]
     ]
 );
 
-my $pretend  = $frontend->opts('pretend');
-my $verbose  = $frontend->opts('verbose');
-my $force    = $frontend->opts('force');
-my $setup    = $frontend->get_pipelinesetups();
-my $new_root = $frontend->opts('new_root');
-my @paths    = @ARGV;
+my $pretend    = $frontend->opts('pretend');
+my $verbose    = $frontend->opts('verbose');
+my $setup      = $frontend->get_pipelinesetups();
+my $new_root   = $frontend->opts('new_root');
+my $old_disc   = $frontend->opts('old_disc');
+my $new_disc   = $frontend->opts('new_disc');
+my $check_md5s = $frontend->opts('check_md5s');
+my @paths      = @ARGV;
 
 if ((defined $setup ? 1 : 0) + (defined $new_root ? 1 : 0) == 1) {
     $frontend->die_with_error(q[Both --setup and --new_root are required if either are used.]);
 }
+if ((defined $old_disc ? 1 : 0) + (defined $new_disc ? 1 : 0) == 1) {
+    $frontend->die_with_error(q[Both --old_disc and --new_disc are required if either are used.]);
+}
+if ($old_disc && $setup) {
+    $frontend->die_with_error(q[--setup and --old_disc don't make sense together.]);
+}
 if ($pretend) {
     $verbose = 1;
 }
-if (!$setup && !@paths) {
+if (!$setup && !@paths && !$old_disc) {
     $frontend->die_with_error(qq[mv: missing file operand\nTry `vrpipe-rm --help' for more information.]);
 }
 
@@ -129,20 +142,29 @@ if ($setup) {
                 my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
                 $step_state || next;
                 
-                my $step_outs = $step_state->output_files(undef, only_unique_to_us => 1);
+                # we'll only move files within the output_root, so we don't care
+                # about uniqueness: it is harmless to move a file, but
+                # potentially problematic if we don't and the user expected it
+                # was moved
+                my $step_outs = $step_state->output_files(undef, only_unique_to_us => 0);
                 my $smid = $stepm->id;
                 
                 while (my ($kind, $files) = each %$step_outs) {
-                    my @files = grep { $_->e } @$files;
+                    my @files = grep { $_->update_stats_from_disc; $_->e } map { $_->resolve } @$files;
                     next unless @files;
                     
                     foreach my $file (@files) {
                         next if exists $done_files{ $file->id };
                         $done_files{ $file->id } = 1;
                         
-                        my $source   = $file->path;
+                        my $source = $file->path;
+                        unless ($source =~ /^$old_root/) {
+                            $frontend->error("Source file [$source] doesn't look like its within the current output_root [$old_root]; skipping it!");
+                            next;
+                        }
                         my $rel_path = File::Spec->abs2rel($source, $old_root);
-                        my $dest     = File::Spec->rel2abs($rel_path, $new_root);
+                        my $dest = File::Spec->rel2abs($rel_path, $new_root);
+                        next if $dest eq $source;
                         
                         if ($verbose) {
                             $frontend->output("$source => $dest");
@@ -153,7 +175,7 @@ if ($setup) {
                             unless (-d $dest_dir) {
                                 $file->make_path($dest_dir);
                             }
-                            $file->move(VRPipe::File->create(path => $dest));
+                            $file->move(VRPipe::File->create(path => $dest), check_md5s => $check_md5s);
                         }
                         $moved++;
                     }
@@ -174,6 +196,42 @@ if ($setup) {
     }
     
     $frontend->output("$moved files ", ($pretend ? "would have been" : "were"), " moved for $num_elements elements") if $verbose;
+}
+elsif ($old_disc) {
+    my $moved = 0;
+    
+    finddepth({ wanted => \&mv_vrpipe_outputs, no_chdir => 1 }, $old_disc);
+    
+    sub mv_vrpipe_outputs {
+        my $path = $_;
+        return if -d $path;
+        
+        my ($file) = VRPipe::File->search({ path => $path });
+        $file || return;
+        my $an_output_file = $file->output_by;
+        return unless $an_output_file;
+        $file->update_stats_from_disc;
+        
+        my $source   = $file->path;
+        my $rel_path = File::Spec->abs2rel($source, $old_disc);
+        my $dest     = File::Spec->rel2abs($rel_path, $new_disc);
+        return if $dest eq $source;
+        
+        if ($verbose) {
+            $frontend->output("$source => $dest");
+        }
+        
+        unless ($pretend) {
+            my $dest_dir = file($dest)->dir;
+            unless (-d $dest_dir) {
+                $file->make_path($dest_dir);
+            }
+            $file->move(VRPipe::File->create(path => $dest), check_md5s => $check_md5s);
+        }
+        $moved++;
+    }
+    
+    $frontend->output("$moved files ", ($pretend ? "would have been" : "were"), " moved") if $verbose;
 }
 
 my %protected_dirs;

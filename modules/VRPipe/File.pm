@@ -565,6 +565,86 @@ class VRPipe::File extends VRPipe::Persistent {
         return $fully_resolved;
     }
 
+=head2 output_by
+ 
+ Title   : output_by
+ Usage   : my @step_states = $obj->output_by;
+ Function: If this file was a step output, returns the stepstates that created
+           it.
+ Returns : list of VRPipe::StepState objects; in scalar context returns 1 if
+           any objects would have been returned (not the true count)
+ Args    : Boolean, which if true, only returns a single stepstate (not in a
+           list), and only if there is just 1 stepstate that created it
+           (discounting those that ran the exact same command line).
+
+=cut
+    
+    method output_by (Bool $single = 0) {
+        # resolve first, then work backwards to get all file ids that
+        # represented us in the past
+        my %fids       = ($self->id => 1);
+        my $resolved   = $self->resolve;
+        my $current_id = $resolved->id;
+        $fids{$current_id} = 1;
+        while (1) {
+            my ($parent_id) = VRPipe::File->get_column_values('id', { moved_to => $current_id }, { rows => 1 });
+            $parent_id || last;
+            $fids{$parent_id} = 1;
+            $current_id = $parent_id;
+        }
+        
+        my $quick = 0;
+        if (!wantarray && !$single) {
+            $quick = 1;
+        }
+        
+        # get the stepstates
+        my @sss;
+        foreach my $fid (keys %fids) {
+            if ($quick) {
+                my $found = VRPipe::StepOutputFile->search({ file => $fid });
+                return 1 if $found;
+            }
+            else {
+                push(@sss, map { $_->stepstate } VRPipe::StepOutputFile->search({ file => $fid }, { prefetch => 'stepstate' }));
+            }
+        }
+        return 0 if $quick;
+        
+        # remove dups
+        my %sss = map { $_->id => $_ } @sss;
+        @sss = values %sss;
+        
+        return @sss unless $single;
+        
+        # if all but 1 of them point to the 1, return that one
+        my %stepstates;
+        foreach my $ss (@sss) {
+            my $ssa = $ss->same_submissions_as;
+            my $resolved = $ssa ? $ssa : $ss;
+            $stepstates{ $resolved->id } = $resolved;
+        }
+        @sss = values %stepstates;
+        if (@sss == 1) {
+            return $sss[0];
+        }
+        
+        # if all of them share the same job, return the first one
+        my %jobs;
+        foreach my $ss (@sss) {
+            foreach my $sub ($ss->submissions) {
+                $jobs{ $sub->job->id }++;
+            }
+        }
+        while (my ($jid, $count) = each %jobs) {
+            if ($count == @sss) {
+                return $sss[0];
+            }
+        }
+        
+        return;
+    }
+
 =head2 copy
  
  Title   : copy (alias cp)

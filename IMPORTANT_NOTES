@@ -1,3 +1,7 @@
+# version 0.155:
+It probably won't have any effect on you, but the bam_to_fastq step briefly
+had a bam2fastq_logs output file that was removed in this version.
+
 # version 0.154:
 If you have written your own VRPipe::Schedulers::* class, note the following API
 changes:

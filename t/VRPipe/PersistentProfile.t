@@ -4,28 +4,34 @@ use warnings;
 use Path::Class;
 use TryCatch;
 use Time::HiRes qw(gettimeofday tv_interval);
+use DateTime;
 
 BEGIN {
-    use Test::Most tests => 3;
+    use Test::Most tests => 10;
     # only the author needs to run this test
-    use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
+    use VRPipeTest (required_env => 'VRPIPE_AUTHOR_TESTS');
     use TestPipelines;
     
     use_ok('VRPipe::Persistent::Schema');
+    use_ok('VRPipe::Interface::BackEnd');
 }
 
 my %times;
 my %elapsed;
+my $l;
+my $job_offset = 0;
 
+# job creation tests
 my $j1 = VRPipe::Job->create(cmd => 'foo');
 my $j2 = VRPipe::Job->get(cmd => 'foo');
 is $j2->id, $j1->id, 'create followed by get worked';
 
-my $l = start_clock(__LINE__);
+$l = start_clock(__LINE__);
 for my $i (1 .. 1000) {
     VRPipe::Job->create(cmd => qq[echo "job $i ] . 'n' x 1000 . qq[";]);
 }
 elapsed($l, __LINE__);
+$job_offset = 1001;
 
 $l = start_clock(__LINE__);
 for my $i (1 .. 1000) {
@@ -33,6 +39,7 @@ for my $i (1 .. 1000) {
 }
 elapsed($l, __LINE__);
 
+# file creation & metadata tests
 $l = start_clock(__LINE__);
 for my $i (1 .. 1000) {
     my $file = VRPipe::File->create(path => "/my/file/path/$i");
@@ -73,101 +80,312 @@ for my $i (1 .. 1000) {
 }
 elapsed($l, __LINE__);
 
-# do the critical bits that Manager currently does to submit jobs; first set
-# up the objects
-$l = start_clock(__LINE__);
-my $scheduler = VRPipe::Scheduler->create;
-my @reqs      = map { VRPipe::Requirements->create(memory => $_->[0], time => $_->[1]) } ([500, 1], [1000, 2], [2000, 3]);
-my $pipeline  = VRPipe::Pipeline->create(name => 'test_pipeline');
-my $ds        = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
-my $ps        = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {});
-$ps->active(0);
-$ps->update;
+# later we need a datasource row in the db to make the dataelements, so we just
+# create a list one and then withdraw its single element
+my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
 $ds->elements;
-my $ss = VRPipe::StepState->create(stepmember => 1, dataelement => 1, pipelinesetup => 1);
-my @job_args;
-my @sub_args;
-my $job_offset = 1001;
+my @elements = VRPipe::DataElement->search({});
+$elements[0]->withdrawn(1);
+$elements[0]->update;
+my $ds_id = $ds->id;
 
-for my $i (1 .. 10000) {
-    push(@job_args, { cmd => "job $i", dir => '/tmp' });
-    push(@sub_args, { job => $i + $job_offset, stepstate => 1, requirements => 1, scheduler => 1, '_done' => 1 });
+# make a pipeline and setup we'll use later
+my $pipeline = VRPipe::Pipeline->create(name => 'two_step_pipeline', description => 'simple test pipeline with 2 steps');
+my @steps;
+$steps[0] = VRPipe::Step->create(
+    name               => 'step_1',
+    options_definition => { reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against') },
+    inputs_definition  => {},
+    body_sub           => sub {
+        my $self    = shift;
+        my $options = $self->options;
+        my $ref     = Path::Class::file($options->{reference_fasta});
+        my $ofile   = $self->output_file(output_key => 'step1_output', output_dir => $ref->dir->stringify, basename => $ref->basename . '.step1out', type => 'txt');
+        my $fh      = $ofile->openw();
+        print $fh "step1output\n";
+        $ofile->close();
+        $self->dispatch(["$ref => " . $ofile->path, $self->new_requirements(memory => 3900, time => 1), { block_and_skip_if_ok => 1 }]);
+    },
+    outputs_definition => { step1_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step1_output file') },
+    post_process_sub   => sub            { return 1 },
+    description        => 'the first step'
+);
+$steps[1] = VRPipe::Step->create(
+    name              => "step_2",
+    inputs_definition => {
+        from_datasource => VRPipe::StepIODefinition->create(type => 'txt', max_files   => 2, description => 'from datasource'),
+        from_step1      => VRPipe::StepIODefinition->create(type => 'txt', description => 'from step_1')
+    },
+    body_sub => sub {
+        my $self  = shift;
+        my $ofile = $self->output_file(output_key => 'step2_output', basename => 'step2_output.txt', type => 'txt');
+        my $fh    = $ofile->openw();
+        print $fh "step2output\n";
+        $ofile->close();
+        my @fastqs = map { $_->path } @{ $self->inputs->{from_datasource} };
+        my ($processed_ref) = map { $_->path } @{ $self->inputs->{from_step1} };
+        $self->dispatch(["$processed_ref + (@fastqs) => " . $ofile->path, $self->new_requirements(memory => 3900, time => 1), { output_files => [$ofile] }]);
+    },
+    outputs_definition => { step2_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step2_output file') },
+    post_process_sub   => sub            { return 1 }
+);
+VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 2, adaptor_hash => { from_datasource => { data_element => 0 } });
+VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 2, adaptor_hash => { from_step1      => { step1_output => 1 } });
+foreach my $step (@steps) {
+    $pipeline->add_step($step);
 }
-for my $i (10001 .. 11000) {
-    push(@job_args, { cmd => "job $i", dir => '/tmp', $i > 10980 ? (start_time => DateTime->now, heartbeat => DateTime->now) : () });
-    push(@sub_args, { job => $i + $job_offset, stepstate => 1, requirements => $i % 2 ? 2 : 3, scheduler => 1, '_done' => 0, $i > 10980 ? ('_claim' => 1) : () });
+my $output_root = get_output_dir('profiling_output_dir');
+my $ref         = file($output_root, 'ref.fa');
+my $setup       = VRPipe::PipelineSetup->create(name => 'ps1', datasource => $ds, output_root => $output_root, pipeline => $pipeline, active => 0, options => { reference_fasta => $ref }, controlling_farm => 'testing_farm');
+
+# dataelement (and their associated files and metadata) creation tests
+# (pretending to be like sequence_index datasource since it is metadata heavy
+#  and has multiple paths per dataelement)
+$l = start_clock(__LINE__);
+my $lanes_hash;
+for my $i (1 .. 50) {
+    my $lane       = 'lane_' . $i;
+    my $reads      = int(rand(100000)) + 500000;
+    my $bases      = $reads * 108;
+    my $library    = 'library_' . int($i / 5);
+    my $sample_id  = int($i / 10);
+    my $sample     = 'study_' . $sample_id;
+    my $population = 'population_' . int($i / 25);
+    for my $j (1 .. 2) {
+        my $meta = {
+            lane           => $lane,
+            study          => 'study',
+            study_name     => 'study_name',
+            center_name    => 'SC',
+            sample_id      => $sample_id,
+            sample         => $sample,
+            population     => $population,
+            platform       => 'ILLUMINA',
+            library        => $library,
+            reads          => $reads,
+            bases          => $bases,
+            analysis_group => 'low_cov',
+            paired         => 1,
+        };
+        my $fastq = file($output_root, "${lane}_$j.fq");
+        my $vrfile = VRPipe::File->create(path => $fastq, type => 'fq');
+        unless ($vrfile->s) {
+            my $fh = $vrfile->openw();
+            print $fh "input file\n";
+            $vrfile->close();
+            $vrfile->update_stats_from_disc;
+        }
+        $vrfile->add_metadata($meta, replace_data => 0);
+        push(@{ $lanes_hash->{$lane}->{paths} }, $fastq);
+    }
 }
-for my $i (11001 .. 12000) {
-    push(@job_args, { cmd => "job $i", dir => '/tmp' });
-    push(@sub_args, { job => $i + $job_offset, stepstate => 1, requirements => $i % 2 ? 3 : 2, scheduler => 1, '_done' => 0, $i > 11980 ? ('_failed' => 1) : () });
-}
-VRPipe::Job->bulk_create_or_update(@job_args);
-VRPipe::Submission->bulk_create_or_update(@sub_args);
 elapsed($l, __LINE__);
 
-# now do something like Manager and Scheduler used to do *** these tests need
-# updating to do something like vrpipe-handler does instead
-#*** and they're disabled now because they're too slow, due to 1-second hack
-# that ensures claim_and_run only succeeds for 1 process at a time; in the real
-# world this is ok since claim_and_run is called in the farm, not in a single-
-# process loop
-# $l = start_clock(__LINE__);
-# my $added = 0;
-# my $count = VRPipe::Job->search({ 'heartbeat' => { '!=' => undef } });
-# my ($last_sub_id) = VRPipe::Submission->get_column_values('id', {}, { order_by => { -desc => 'id' }, rows => 1 });
-# my $pager = VRPipe::Submission->search_paged({ '_done' => 0, '_failed' => 0, '_claim' => 0, 'me.id' => { '<=' => $last_sub_id } }, { order_by => 'requirements', prefetch => [qw(job requirements)] }, 1000);
-# while (my $subs = $pager->next) {
-#     my $sub_loop = start_clock(__LINE__);
-#     my %batches;
-#     foreach my $sub (@$subs) {
-#         my $job = $sub->job;
-#         next if $job->block_and_skip_if_ok;
-#         push(@{ $batches{ $sub->requirements->id } }, $sub);
-#     }
-#     elapsed($sub_loop, __LINE__, 1);
+my ($most_recent_element_id) = VRPipe::DataElement->get_column_values('id', { datasource => $ds_id }, { order_by => { -desc => ['id'] }, rows => 1 });
+my @element_args;
+foreach my $lane (sort keys %$lanes_hash) {
+    my $hash_ref = $lanes_hash->{$lane};
+    my $result_hash = { paths => $hash_ref->{paths}, lane => $lane };
+    push(@element_args, { datasource => $ds_id, result => $result_hash });
+}
+$l = start_clock(__LINE__);
+VRPipe::DataElement->search_rs({ datasource => $ds_id })->update({ withdrawn => 1 });
+elapsed($l, __LINE__);
+$l = start_clock(__LINE__);
+VRPipe::DataElement->bulk_create_or_update(map { $_->{withdrawn} = 0 unless defined $_->{withdrawn}; $_; } @element_args);
+elapsed($l, __LINE__);
+$l = start_clock(__LINE__);
+my @des_args;
+my $pager = VRPipe::DataElement->get_column_values_paged('id', { datasource => $ds_id, $most_recent_element_id ? (id => { '>' => $most_recent_element_id }) : () });
 
-#     my $batch_loop = start_clock(__LINE__);
-#     while (my ($req_id, $batch_subs) = each %batches) {
-#         my $submit_call = start_clock(__LINE__);
-#         submit($batch_subs, $batch_subs->[0]->requirements);
-#         elapsed($submit_call, __LINE__, 1);
-#     }
-#     elapsed($batch_loop, __LINE__, 1);
+while (my $eids = $pager->next) {
+    foreach my $eid (@$eids) {
+        push(@des_args, { pipelinesetup => $setup->id, dataelement => $eid });
+    }
+}
+VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
+elapsed($l, __LINE__);
 
-#     if ($added == 0) {
-#         my $job = VRPipe::Job->create(cmd => "job extra", dir => '/tmp');
-#         VRPipe::Submission->create(job => $job, stepstate => 1, requirements => 3, scheduler => 1, '_done' => 0, '_failed' => 0);
+my @element_ids = VRPipe::DataElement->get_column_values('id', { withdrawn => 0 });
+is_deeply \@element_ids, [2 .. 51], 'created correct dataelements';
 
-#         my ($submission) = VRPipe::Submission->search({ '_failed' => 1, requirements => 2 }, { rows => 1 });
-#         $submission->_failed(0);
-#         $submission->update;
+# now test the speed of triggering all these dataelements through a 2 step
+# pipeline, the first of which is a block_and_skip
+my $backend = VRPipe::Interface::BackEnd->new(deployment => 'testing', farm => 'testing_farm');
+$backend->start_redis_server;
+my $redis = $backend->redis;
+$l = start_clock(__LINE__);
+$setup->trigger(first_step_only => 1, prepare_elements => 0, redis => $redis);
+elapsed($l, __LINE__);
 
-#         $added = 1;
-#     }
-# # }
+my @jobs = VRPipe::Job->search({ id => { '>' => $job_offset } });
+my @subs = VRPipe::Submission->search({});
+is_deeply [scalar(@jobs), scalar(@subs)], [1, 1], 'triggering first step only created 1 job and 1 sub';
 
-# sub submit {
-#     my ($submissions, $requirements) = @_;
+# pretend we ran the submission successfully
+sub pretend_completion {
+    my ($jobs, $subs) = @_;
+    foreach my $job (@$jobs) {
+        $job->exit_code(0);
+        foreach my $col (qw(start_time heartbeat end_time)) {
+            $job->$col(DateTime->now);
+        }
+        $job->update;
+    }
+    foreach my $sub (@$subs) {
+        $sub->_done(1);
+        $sub->update;
+    }
+}
+pretend_completion(\@jobs, \@subs);
 
-#     my $create_call = start_clock(__LINE__);
-#     my $parray = VRPipe::PersistentArray->create(members => $submissions);
-#     elapsed($create_call, __LINE__, 1);
-#     my $for = $parray;
+# trigger the second step
+$l = start_clock(__LINE__);
+unless ($setup->currently_complete) {
+    my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
+    if ($ie_pager) {
+        while (my $dess = $ie_pager->next) {
+            foreach my $des (@$dess) {
+                my $de = $des->dataelement;
+                my $j  = start_clock(__LINE__);
+                $setup->trigger(dataelement => $de, redis => $redis);
+                elapsed($j, __LINE__);
+            }
+        }
+    }
+}
+elapsed($l, __LINE__);
 
-#     my $aid             = 0;
-#     my $all_claimed     = 1;
-#     my $second_sub_loop = start_clock(__LINE__);
-#     foreach my $sub (@$submissions) {
-#         my ($claimed) = $sub->claim_and_run;
-#         unless ($claimed == 1) {
-#             $all_claimed = 0;
-#             last;
-#         }
-#     }
-#     elapsed($second_sub_loop, __LINE__, 1);
-# }
-# is scalar(VRPipe::Submission->search({ '_claim' => 1 })), 1981, 'all submissions were claimed';
-# elapsed($l, __LINE__);
+@jobs = VRPipe::Job->search({ id => { '>' => $job_offset } });
+@subs = VRPipe::Submission->search({});
+is_deeply [scalar(@jobs), scalar(@subs)], [51, 51], 'forcing trigger on all dataelements created all jobs and subs';
+$l = start_clock(__LINE__);
+pretend_completion(\@jobs, \@subs);
+elapsed($l, __LINE__);
+
+# now withdraw some dataelements and add new ones
+$l = start_clock(__LINE__);
+undef $lanes_hash;
+for my $i (6 .. 75) {
+    my $lane       = 'lane_' . $i;
+    my $reads      = int(rand(100000)) + 500000;
+    my $bases      = $reads * 108;
+    my $library    = 'library_' . int($i / 5);
+    my $sample_id  = int($i / 10);
+    my $sample     = 'study_' . $sample_id;
+    my $population = 'population_' . int($i / 25);
+    for my $j (1 .. 2) {
+        my $meta = {
+            lane           => $lane,
+            study          => 'study',
+            study_name     => 'study_name',
+            center_name    => 'SC',
+            sample_id      => $sample_id,
+            sample         => $sample,
+            population     => $population,
+            platform       => 'ILLUMINA',
+            library        => $library,
+            reads          => $reads,
+            bases          => $bases,
+            analysis_group => 'low_cov',
+            paired         => 1,
+        };
+        my $fastq = file($output_root, "${lane}_$j.fq");
+        my $vrfile = VRPipe::File->create(path => $fastq, type => 'fq');
+        unless ($vrfile->s) {
+            my $fh = $vrfile->openw();
+            print $fh "input file\n";
+            $vrfile->close();
+            $vrfile->update_stats_from_disc;
+        }
+        $vrfile->add_metadata($meta, replace_data => 0);
+        push(@{ $lanes_hash->{$lane}->{paths} }, $fastq);
+    }
+}
+elapsed($l, __LINE__);
+
+($most_recent_element_id) = VRPipe::DataElement->get_column_values('id', { datasource => $ds_id }, { order_by => { -desc => ['id'] }, rows => 1 });
+@element_args = ();
+foreach my $lane (sort keys %$lanes_hash) {
+    my $hash_ref = $lanes_hash->{$lane};
+    my $result_hash = { paths => $hash_ref->{paths}, lane => $lane };
+    push(@element_args, { datasource => $ds_id, result => $result_hash });
+}
+$l = start_clock(__LINE__);
+VRPipe::DataElement->search_rs({ datasource => $ds_id })->update({ withdrawn => 1 });
+elapsed($l, __LINE__);
+$l = start_clock(__LINE__);
+VRPipe::DataElement->bulk_create_or_update(map { $_->{withdrawn} = 0 unless defined $_->{withdrawn}; $_; } @element_args);
+elapsed($l, __LINE__);
+$l        = start_clock(__LINE__);
+@des_args = ();
+$pager    = VRPipe::DataElement->get_column_values_paged('id', { datasource => $ds_id, $most_recent_element_id ? (id => { '>' => $most_recent_element_id }) : () });
+
+while (my $eids = $pager->next) {
+    foreach my $eid (@$eids) {
+        push(@des_args, { pipelinesetup => $setup->id, dataelement => $eid });
+    }
+}
+VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
+elapsed($l, __LINE__);
+
+my %element_ids = map { $_ => 1 } VRPipe::DataElement->get_column_values('id', { withdrawn => 0 });
+is_deeply [scalar(keys %element_ids), exists $element_ids{75}], [70, 1], 'updated dataelements correctly';
+
+# now retest the trigger, especially so we can test the speed of skipping things
+# that have already been done
+$l = start_clock(__LINE__);
+$setup->trigger(first_step_only => 1, prepare_elements => 0, redis => $redis);
+elapsed($l, __LINE__);
+
+$l = start_clock(__LINE__);
+unless ($setup->currently_complete) {
+    my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
+    if ($ie_pager) {
+        while (my $dess = $ie_pager->next) {
+            foreach my $des (@$dess) {
+                my $de = $des->dataelement;
+                my $j  = start_clock(__LINE__);
+                $setup->trigger(dataelement => $de, redis => $redis);
+                elapsed($j, __LINE__);
+            }
+        }
+    }
+}
+elapsed($l, __LINE__);
+
+@jobs = VRPipe::Job->search({ id => { '>' => $job_offset } });
+@subs = VRPipe::Submission->search({ 'dataelement.withdrawn' => 0 }, { join => { 'stepstate' => 'dataelement' } });
+my %jobs = map { $_->job->id => 1 } @subs;
+is_deeply [scalar(keys %jobs), scalar(@subs)], [70, 70], 'forcing trigger on all dataelements created correct jobs and subs';
+
+# do what vrpipe-server does to work out what submissions need to be submitted
+my $scheduler = VRPipe::Scheduler->create;
+my $sched_id  = $scheduler->id;
+$l = start_clock(__LINE__);
+my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => 'testing_farm', 'pipelinesetup.active' => 0, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
+
+my $queued = 0;
+while (my $subs = $sub_pager->next(no_resetting => 1)) {
+    foreach my $sub (@$subs) {
+        my $sub_id = $sub->id;
+        # black_and_skip handling
+        my $job = $sub->job;
+        if ($job->block_and_skip_if_ok) {
+            my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
+            next unless ($first_sub && $first_sub->id == $sub_id);
+        }
+        
+        #*** we're not testing global step limit handling, which might be slow
+        
+        # queue this one in redis
+        my $req_id = $sub->requirements->id;
+        $redis->sadd($req_id, $sub_id);
+        $queued++;
+    }
+}
+elapsed($l, __LINE__);
+is $queued, 25, 'correctly queued 25 subs to be submitted';
 
 report();
 
@@ -221,3 +439,28 @@ sub report {
         note($note);
     }
 }
+
+# MySQL, VRPipe v0.154:
+# Most time consuming sections:
+#   240..254: 167.91 seconds [triggering the second step]
+#   247..249: 167.88 seconds (3.36 avg over 50 loops) [trigger calls]
+#   337..351: 99.99 seconds [triggering the second step after updating elements]
+#   344..346: 99.7499999999999 seconds (1.05 avg over 95 loops) [trigger calls]
+#   333..335: 84.32 seconds [first step trigger after updating]
+#   43..54: 17.43 seconds [initial file creation with added metadata]
+#   56..65: 15.19 seconds [getting files and adding metadata]
+#   29..33: 14.93 seconds [initial job creation]
+#   36..40: 10.68 seconds [getting back the jobs by cmd]
+#   214..216: 6.33 seconds [the initial first step trigger]
+#   142..180: 5.61 seconds [initial creation of files for the dataelements]
+#   264..302: 3.71 seconds [new files for the extra dataelements]
+#   67..74: 3.38 seconds [checking file metadata]
+#   77..81: 3.38 seconds [getting files by path]
+#   314..316: 1.38 seconds [update bulk creation of dataelements]
+#   192..194: 1.11 seconds [initial bulk creation of dataelements]
+#   259..261: 0.44 seconds [completing subs and jobs]
+#   317..326: 0.13 seconds [update bulk creation of dataelementstates]
+#   362..384: 0.08 seconds [choosing submissions to queue]
+#   195..204: 0.03 seconds [initial bulk creation of dataelementstates]
+#   189..191: 0 seconds [initial withdrawal of all dataelements]
+#   311..313: 0 seconds [update withdrawal of all dataelements]
