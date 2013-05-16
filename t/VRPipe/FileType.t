@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 32;
+    use Test::Most tests => 38;
     use VRPipeTest (required_exe => [qw(samtools bcftools fastqcheck)]);
     
     use_ok('VRPipe::FileType');
@@ -25,10 +25,15 @@ is $ft->type, 'bam', 'bam type is correct';
 is $ft->check_type(), 1, 'a bam file passes the check';
 is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [92, 89, 3], 'num_lines, num_header_lines and num_records work for a bam file';
 
-throws_ok { $ft = VRPipe::FileType->create('foo', {}); } qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype';
-
 ok my $parser = $ft->parser, 'could make a parser object';
 ok $parser->does('VRPipe::ParserRole'), 'the parser is really a parser';
+
+# check we don't validate just any old thing compressed with bgzip
+ok $ft = VRPipe::FileType->create('bam', { file => file(qw(t data bgzip_compressed_text_file.gz))->absolute }), 'could create a bam filetype with a bgzipped file';
+is $ft->type, 'bam', 'its type is bam';
+is $ft->check_type(), 0, 'the bgzipped file fails to validate as a bam';
+
+throws_ok { $ft = VRPipe::FileType->create('foo', {}); } qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype';
 
 is $ft->read_backwards, 0, 'default read backwards is off';
 # lsf
@@ -61,5 +66,10 @@ ok $ft = VRPipe::FileType->create('bcf', { file => $bcf->path }), 'could create 
 is $ft->type, 'bcf', 'bcf type is correct';
 is $ft->check_type(), 1, 'a bcf file passes the check';
 is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records, $ft->samples], [15671, 35, 15636, [qw(NA12006 NA12144 NA18970 NA18969 NA18995 NA18946)]], 'num_lines, num_header_lines, num_records and samples methods work for a bcf file';
+
+# check we don't validate just any old thing compressed with bgzip
+ok $ft = VRPipe::FileType->create('bcf', { file => file(qw(t data bgzip_compressed_text_file.gz))->absolute }), 'could create a bcf filetype with a bgzipped file';
+is $ft->type, 'bcf', 'its type is bcf';
+is $ft->check_type(), 0, 'the bgzipped file fails to validate as a bcf';
 
 exit;

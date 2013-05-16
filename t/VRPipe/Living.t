@@ -31,24 +31,32 @@ BEGIN {
         cmp_ok $survival_time, '>', $heartbeat_interval, 'survival time is greater than the heartbeat_interval';
         
         $sleep = $heartbeat_interval + 2;
-        $watchers[1] = EV::timer $sleep, 0, sub {
-            my $new_heartbeat_time = $l->heartbeat->epoch;
-            cmp_ok $new_heartbeat_time, '>', $heartbeat_time, 'the heart is beating';
-            $l->stop_beating;
-            
-            $watchers[2] = EV::timer $sleep, 0, sub {
-                cmp_ok $l->heartbeat->epoch, '==', $new_heartbeat_time, 'after calling stop_beating, our heart stopped beating';
-                is $l->alive, 1, 'but right now we are still considered alive';
-                
-                my $time_until_dead = $survival_time - $sleep + 2;
-                $watchers[3] = EV::timer $time_until_dead, 0, sub {
-                    is $l->alive, 0, 'after waiting longer than survival_time without a heartbeat, we died';
-                    $l_count = VRPipe::FarmServer->search({ farm => { '!=' => 'testing_farm' } });
-                    is $l_count, 0, 'our entry was removed from the db';
-                    EV::unloop;
-                };
-            };
-        };
+        
+        my $cv = AnyEvent->condvar;
+        my $sleep_timer = AnyEvent->timer(after => $sleep, cb => sub { $cv->send });
+        $cv->recv;
+        
+        my $new_heartbeat_time = $l->heartbeat->epoch;
+        cmp_ok $new_heartbeat_time, '>', $heartbeat_time, 'the heart is beating';
+        $l->stop_beating;
+        my $stop_time = $l->heartbeat->epoch;
+        
+        $cv = AnyEvent->condvar;
+        $sleep_timer = AnyEvent->timer(after => $sleep, cb => sub { $cv->send });
+        $cv->recv;
+        
+        cmp_ok $l->heartbeat->epoch, '==', $stop_time, 'after calling stop_beating, our heart stopped beating';
+        is $l->alive, 1, 'but right now we are still considered alive';
+        
+        my $time_until_dead = $survival_time - $sleep + 2;
+        $cv = AnyEvent->condvar;
+        $sleep_timer = AnyEvent->timer(after => $time_until_dead, cb => sub { $cv->send });
+        $cv->recv;
+        
+        is $l->alive, 0, 'after waiting longer than survival_time without a heartbeat, we died';
+        $l_count = VRPipe::FarmServer->search({ farm => { '!=' => 'testing_farm' } });
+        is $l_count, 0, 'our entry was removed from the db';
+        EV::unloop;
     };
     EV::run;
     @watchers = ();

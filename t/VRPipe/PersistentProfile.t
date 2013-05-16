@@ -400,9 +400,10 @@ sub start_clock {
 
 sub elapsed {
     my ($l1, $l2, $silent) = @_;
-    my $e = sprintf("%0.2f", tv_interval($times{$l1}));
-    my $id = "$l1..$l2";
-    note("Going from line $id took $e seconds\n") unless $silent;
+    my $e         = tv_interval($times{$l1});
+    my $e_rounded = sprintf("%0.2f", $e);
+    my $id        = "$l1..$l2";
+    note("Going from line $id took $e_rounded seconds\n") unless $silent;
     push(@{ $elapsed{$id} }, $e);
 }
 
@@ -427,7 +428,9 @@ sub report {
             $count++;
             $total += $t;
         }
-        my $avg = sprintf("%0.2f", $total / $count);
+        
+        my $avg = sprintf("%0.4f", $total / $count);
+        $cum = sprintf("%0.2f", $cum);
         
         my $note = "\t$id: $cum seconds";
         if ($count > 1) {
@@ -464,3 +467,28 @@ sub report {
 #   195..204: 0.03 seconds [initial bulk creation of dataelementstates]
 #   189..191: 0 seconds [initial withdrawal of all dataelements]
 #   311..313: 0 seconds [update withdrawal of all dataelements]
+
+# MySQL, VRPipe v0.155 (introduction of keyvallists on DataElement and File):
+# Most time consuming sections:
+#   243..257: 167.70 seconds
+#   250..252: 167.65 seconds (3.3529 avg over 50 loops)
+#   341..355: 100.28 seconds
+#   348..350: 100.20 seconds (1.0547 avg over 95 loops)
+#   337..339: 83.83 seconds
+#   56..65: 32.62 seconds [2x slower...]
+#   43..54: 19.22 seconds [similar speed]
+#   29..33: 13.00 seconds
+#   36..40: 8.85 seconds
+#   144..182: 7.13 seconds
+#   67..74: 7.12 seconds [similar speed]
+#   217..219: 6.35 seconds
+#   267..305: 4.72 seconds
+#   77..81: 3.84 seconds
+#   194..196: 1.82 seconds
+#   317..319: 1.59 seconds
+#   262..264: 0.45 seconds
+#   365..387: 0.08 seconds
+#   320..330: 0.05 seconds
+#   197..207: 0.04 seconds
+#   314..316: 0.00 seconds
+#   191..193: 0.00 seconds

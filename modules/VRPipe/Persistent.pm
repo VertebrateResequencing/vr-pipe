@@ -232,15 +232,16 @@ use VRPipe::Base;
 class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # because we're using a non-moose class, we have to specify VRPipe::Base::Moose to get Debuggable
     use MooseX::NonMoose;
     use B::Deparse;
-    use Storable qw(nfreeze thaw);
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Persistent::ConverterFactory;
     use VRPipe::Persistent::Pager;
     use Data::Dumper;
+    use JSON::XS;
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
+    our $json    = JSON::XS->new->utf8->canonical;
     
     our %factory_modules;
     
@@ -406,58 +407,28 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     }
                     elsif ($cname eq 'HashRef[ArrayRef[Str]|HashRef[Str]|Str]|Str' || $cname eq 'ArrayRef[ArrayRef[Str]|HashRef[Str]|Str]|Str') {
                         $flations{$name} = {
-                            inflate => sub { thaw(shift); },
-                            deflate => sub { nfreeze(shift); }
+                            inflate => sub { $json->decode(shift); },
+                            deflate => sub { $json->encode(shift); }
                         };
                     }
                     elsif ($cname eq 'PersistentHashRef') {
                         $flations{$name} = {
                             inflate => sub {
-                                my $hash = thaw(shift);
+                                my $hash = $json->decode(shift);
                                 while (my ($key, $serialized) = each %$hash) { my ($class, $id) = split('~', $serialized); my ($instance) = $class->search({ id => $id }); $hash->{$key} = $instance if $instance; }
                                 return $hash;
                             },
                             deflate => sub {
                                 my $hash = shift;
                                 while (my ($key, $instance) = each %$hash) { my $ref = ref($instance); my $id = $instance->id; $hash->{$key} = "$ref~$id"; }
-                                return nfreeze($hash);
+                                return $json->encode($hash);
                               }
                         };
                     }
-                    elsif ($cname eq 'PersistentFileHashRef') {
+                    elsif ($cname eq 'PersistentArrayRef') {
                         $flations{$name} = {
                             inflate => sub {
-                                my $hash = thaw(shift);
-                                while (my ($key, $array_ref) = each %$hash) {
-                                    my @array;
-                                    foreach my $serialized (@$array_ref) {
-                                        my ($class, $id) = split('~', $serialized);
-                                        my ($instance) = $class->search({ id => $id });
-                                        push(@array, $instance) if $instance;
-                                    }
-                                    $hash->{$key} = \@array;
-                                }
-                                return $hash;
-                            },
-                            deflate => sub {
-                                my $hash = shift;
-                                while (my ($key, $array_ref) = each %$hash) {
-                                    my @array;
-                                    foreach my $instance (@$array_ref) {
-                                        my $ref = ref($instance);
-                                        my $id  = $instance->id;
-                                        push(@array, "$ref~$id");
-                                    }
-                                    $hash->{$key} = \@array;
-                                }
-                                return nfreeze($hash);
-                              }
-                        };
-                    }
-                    elsif ($cname eq 'ArrayRefOfPersistent') {
-                        $flations{$name} = {
-                            inflate => sub {
-                                my $array = thaw(shift);
+                                my $array = $json->decode(shift);
                                 my @inflated;
                                 foreach my $serialized (@$array) { my ($class, $id) = split('~', $serialized); my ($instance) = $class->search({ id => $id }); push(@inflated, $instance) if $instance; }
                                 return \@inflated;
@@ -466,7 +437,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                                 my $array = shift;
                                 my @deflate;
                                 foreach my $instance (@$array) { my $ref = ref($instance); my $id = $instance->id; push(@deflate, "$ref~$id"); }
-                                return nfreeze(\@deflate);
+                                return $json->encode(\@deflate);
                               }
                         };
                     }

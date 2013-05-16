@@ -33,7 +33,10 @@ PATH.)
 
 You need Redis 2.6 or greater installed. Compile it as normal ('make') and
 simply include redis-server in your PATH. You do not have to configure it in any
-way. Redis can be downloaded from here: http://redis.io/download
+way. But note that its maximum number of connections is capped by the max file
+descriptors limit imposed on the user that will run vrpipe-server, so make sure
+that limit (ulimit -n) is higher than the number of CPUs in your cluster.
+Redis can be downloaded from here: http://redis.io/download
 
 For use on Amazon's cloud, follow the installation advice here as well as that
 found in README_EC2.
@@ -278,7 +281,7 @@ trimmomatic,TRIMMOMATIC_JAR_PATH,/path/to/trimmomatic_jar_file
 
 COPYRIGHT & LICENSE
 -------------------
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
