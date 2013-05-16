@@ -5,7 +5,7 @@ use Path::Class;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 48;
+    use Test::Most tests => 55;
     use VRPipeTest;
 }
 
@@ -188,6 +188,60 @@ is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", $sk
 $vrdest->unlink;
 $vrobj->concatenate($vrsource, $vrdest, unlink_source => 0, add_marker => 1, max_lines => 8);
 is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", $skipped_marker, "line 7\n", "line 8\n", "line 9\n", "line 10\n", $concat_marker], 'concatenate with limit of 8';
+
+# output_by; we need stepstates and stepoutputfiles to test this, which in turn
+# need a bunch of stuff - create all the other object first
+my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist))->absolute);
+$ds->elements;
+my $pipeline = VRPipe::Pipeline->create(name => 'archive_files');
+my $setup = VRPipe::PipelineSetup->create(
+    name        => 'my archive pipeline setup',
+    datasource  => $ds,
+    output_root => '/tmp',
+    pipeline    => $pipeline,
+    options     => { disc_pool_file => '/tmp' },
+    active      => 0
+);
+my $stepstate  = VRPipe::StepState->create(stepmember => 1, dataelement => 1, pipelinesetup => 1, complete => 1);
+my $stepstate2 = VRPipe::StepState->create(stepmember => 1, dataelement => 2, pipelinesetup => 1, complete => 1);
+my $step_out_file  = VRPipe::File->create(path => "/step/o/file");
+my $step_out_file2 = VRPipe::File->create(path => "/step/o/file2");
+my $sof  = VRPipe::StepOutputFile->create(stepstate => $stepstate->id,  file => $step_out_file->id,  output_key => "foo");
+my $sof2 = VRPipe::StepOutputFile->create(stepstate => $stepstate2->id, file => $step_out_file2->id, output_key => "foo");
+# archive_files pipeline moves files without specifying the result was an
+# output file; test that we at least know the result was an output of the
+# original setup that archive_files was run on
+my $moved_out_file = VRPipe::File->create(path => "/moved/o/file");
+$step_out_file->moved_to($moved_out_file->id);
+$step_out_file->update;
+my $scalar_context_result = $moved_out_file->output_by();
+is $scalar_context_result, 1, 'output_by in scalar context returns true for a moved output file';
+my @list_context_result = $moved_out_file->output_by();
+is_deeply [map { $_->id } @list_context_result], [$stepstate->id], 'output_by in list context returns the correct stepstate';
+# test that we can see when multiple stepstates created the same file
+my $stepstate3 = VRPipe::StepState->create(stepmember => 1, dataelement => 3, pipelinesetup => 1, complete => 1, same_submissions_as => $stepstate->id);
+my $sof3 = VRPipe::StepOutputFile->create(stepstate => $stepstate3->id, file => $step_out_file->id, output_key => "foo");
+@list_context_result = $step_out_file->output_by();
+is_deeply [sort map { $_->id } @list_context_result], [$stepstate->id, $stepstate3->id], 'we see both stepstates when both created the same file';
+my $special = $step_out_file->output_by(1);
+is $special->id, $stepstate->id, 'and in the special mode we see the first, since the other had the same subs';
+# they might not always have same_submissions_as, so test when they do and do
+# not have the same job
+my $stepstate4 = VRPipe::StepState->create(stepmember => 1, dataelement => 4, pipelinesetup => 1, complete => 1);
+my $sof4 = VRPipe::StepOutputFile->create(stepstate => $stepstate4->id, file => $step_out_file->id, output_key => "foo");
+my $job1 = VRPipe::Job->create(cmd => 'foo');
+my $job2 = VRPipe::Job->create(cmd => 'bar');
+my $req = VRPipe::Requirements->create(memory => 1, time => 1);
+my $sub1 = VRPipe::Submission->create(job => $job1->id, stepstate => $stepstate->id,  requirements => $req->id);
+my $sub2 = VRPipe::Submission->create(job => $job2->id, stepstate => $stepstate4->id, requirements => $req->id);
+@list_context_result = $step_out_file->output_by();
+is_deeply [sort map { $_->id } @list_context_result], [$stepstate->id, $stepstate3->id, $stepstate4->id], 'we see all 3 stepstates when we added another';
+$special = $step_out_file->output_by(1);
+is $special, undef, 'but in the special mode we see none of them, since one of them had a different job';
+$sub2->job($job1->id);
+$sub2->update;
+$special = $step_out_file->output_by(1);
+is $special->id, $stepstate->id, 'and in the special mode, when it has no same_submissions_as but does have the same job, we see the first stepstate again';
 
 done_testing;
 exit;
