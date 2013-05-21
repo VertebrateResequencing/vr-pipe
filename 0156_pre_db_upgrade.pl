@@ -9,25 +9,27 @@ use VRPipe;
 warn "I will alter this database: ", VRPipe::Persistent::SchemaBase->get_dsn, " [ctrl-c now to abort]\n";
 sleep(3);
 
-my $json = JSON::XS->new->utf8->canonical;
-my $dbh = DBI->connect(VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password, { RaiseError => 1, AutoCommit => 0 }) or die $DBI::errstr;
+my $json  = JSON::XS->new->utf8->canonical;
+my $dbh   = DBI->connect(VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password, { RaiseError => 1, AutoCommit => 0 }) or die $DBI::errstr;
+my $limit = 10000;
 
 warn "\n ## First, I'll do in-place updates of columns containing Storable values, converting them to JSON values\n\n";
 foreach ([qw(Job output_files)], [qw(Step options_definition inputs_definition outputs_definition)], [qw(DataSource options)], [qw(PipelineSetup options)], [qw(Requirements custom)], [qw(StepAdaptor adaptor_hash)], [qw(StepIODefinition metadata)]) {
     my ($table, @cols) = @$_;
     my $class = "VRPipe::$table";
     $table = lc($table);
-    my $select = $dbh->prepare("SELECT id, " . join(", ", @cols) . " FROM $table");
-    $select->execute;
+    
     my $sth = $dbh->prepare("update $table set " . join(", ", map { "`$_` = ?" } @cols) . " where id = ?");
     warn "Will update table $table, columns ", join(", ", @cols), "\n";
+    
+    my $offset = 0;
     while (1) {
-        my $last = 0;
+        my $select = $dbh->prepare("SELECT id, " . join(", ", @cols) . " FROM $table LIMIT $offset, $limit");
+        $select->execute;
+        
+        my $count = 0;
         eval {
-            my $count = 0;
-            for (1 .. 1000) {
-                my $row = $select->fetch;
-                unless ($row) { $last = 1; last; }
+            while (my $row = $select->fetch) {
                 my ($id, @orig_vals) = @$row;
                 my @new_vals;
                 foreach my $val (@orig_vals) {
@@ -36,6 +38,7 @@ foreach ([qw(Job output_files)], [qw(Step options_definition inputs_definition o
                         my $error = $@;
                         if ($error =~ /Storable binary image .+ more recent than/) {
                             # we already converted this on a previous try?
+                            $count++;
                             next;
                         }
                         die $error;
@@ -55,7 +58,9 @@ foreach ([qw(Job output_files)], [qw(Step options_definition inputs_definition o
             eval { $dbh->rollback };
             die "Transaction aborted because $error";
         }
-        last if $last;
+        last if $count < $limit;
+        
+        $offset += $limit;
     }
 }
 
@@ -63,18 +68,25 @@ warn "\n ## Second, I'll place current File metadata column values into a tempor
 my $create_table = $dbh->prepare(q[CREATE TABLE if not exists temp_file_metadata (file INT NOT NULL, PRIMARY KEY (file), metadata TEXT)]);
 $create_table->execute();
 warn "Created table temp_file_metadata; will store metadata from file table in it...\n";
-my $select = $dbh->prepare(q[SELECT id, metadata FROM file]);
-$select->execute;
-my $sth = $dbh->prepare(q[INSERT INTO temp_file_metadata (file, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = ?]);
+my $sth    = $dbh->prepare(q[INSERT INTO temp_file_metadata (file, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = ?]);
+my $offset = 0;
 while (1) {
-    my $last = 0;
+    my $select = $dbh->prepare(qq[SELECT id, metadata FROM file LIMIT $offset, $limit]);
+    $select->execute;
+    my $count = 0;
     eval {
-        my $count = 0;
-        for (1 .. 1000) {
-            my $row = $select->fetch;
-            unless ($row) { $last = 1; last; }
+        while (my $row = $select->fetch) {
             my ($id, $meta) = @$row;
-            $meta = thaw($meta);
+            eval { $meta = thaw($meta); };
+            if ($@) {
+                my $error = $@;
+                if ($error =~ /Storable binary image .+ more recent than/) {
+                    # we already converted this on a previous try?
+                    $count++;
+                    next;
+                }
+                die $error;
+            }
             delete $meta->{original_pg_chain}; # it is large and unnecessary to keep
             $meta = $json->encode($meta);
             $sth->execute($id, $meta, $meta);
@@ -88,26 +100,35 @@ while (1) {
         eval { $dbh->rollback };
         die "Transaction aborted because $error";
     }
-    last if $last;
+    last if $count < $limit;
+    
+    $offset += $limit;
 }
 
 warn "\n ## Finally, I'll place current DataElement result column values into a temporary table\n\n";
 $create_table = $dbh->prepare(q[CREATE TABLE if not exists temp_dataelement_result (dataelement INT NOT NULL, PRIMARY KEY (dataelement), metadata TEXT, files TEXT)]);
 $create_table->execute();
 warn "Created table temp_dataelement_result; will store result metadata and input files from dataelement table in it...\n";
-$select = $dbh->prepare(q[SELECT id, result FROM dataelement]);
-$select->execute;
 $sth = $dbh->prepare(q[INSERT INTO temp_dataelement_result (dataelement, metadata, files) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE metadata = ?, files = ?]);
 my $get_files_h = $dbh->prepare(q[SELECT class_id from persistentarraymember where persistentarray = ?]);
+$offset = 0;
 while (1) {
-    my $last = 0;
+    my $select = $dbh->prepare(q[SELECT id, result FROM dataelement]);
+    $select->execute;
+    my $count = 0;
     eval {
-        my $count = 0;
-        for (1 .. 1000) {
-            my $row = $select->fetch;
-            unless ($row) { $last = 1; last; }
+        while (my $row = $select->fetch) {
             my ($id, $result) = @$row;
-            $result = thaw($result);
+            eval { $result = thaw($result); };
+            if ($@) {
+                my $error = $@;
+                if ($error =~ /Storable binary image .+ more recent than/) {
+                    # we already converted this on a previous try?
+                    $count++;
+                    next;
+                }
+                die $error;
+            }
             my $peristentarray = delete $result->{paths} || {};
             my @files;
             $get_files_h->execute($peristentarray);
@@ -127,8 +148,11 @@ while (1) {
         eval { $dbh->rollback };
         die "Transaction aborted because $error";
     }
-    last if $last;
+    last if $count < $limit;
+    
+    $offset += $limit;
 }
 
+$dbh->disconnect;
 warn "\n ## All done; now run vrpipe-db_upgrade followed by 0156_post_db_upgrade\n\n";
 exit;

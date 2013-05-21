@@ -8,23 +8,22 @@ use VRPipe;
 warn "I will alter this database: ", VRPipe::Persistent::SchemaBase->get_dsn, " [ctrl-c now to abort]\n";
 sleep(3);
 
-my $json = JSON::XS->new->utf8->canonical;
-my $dbh = DBI->connect(VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password, { RaiseError => 1, AutoCommit => 0 }) or die $DBI::errstr;
+my $json  = JSON::XS->new->utf8->canonical;
+my $dbh   = DBI->connect(VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password, { RaiseError => 1, AutoCommit => 0 }) or die $DBI::errstr;
+my $limit = 10000;
 
 warn "\n ## First, I'll fill in File keyvallist column values based on the temporary file metadata table\n\n";
-my $select = $dbh->prepare(q[SELECT file, metadata FROM temp_file_metadata]);
-$select->execute;
-my $sth   = $dbh->prepare(q[update file set keyvallist = ? where id = ?]);
-my $total = 0;
+my $sth    = $dbh->prepare(q[update file set keyvallist = ? where id = ?]);
+my $offset = 0;
+my $total  = 0;
 while (1) {
+    my $select = $dbh->prepare(qq[SELECT file, metadata FROM temp_file_metadata LIMIT $offset, $limit]);
+    $select->execute;
+    my $count = 0;
     # create all KeyValLists first, separately from updating the column, or we
     # get strange table lock issues
-    my $last  = 0;
-    my $count = 0;
     my @execute_args;
-    for (1 .. 10) {
-        my $row = $select->fetch;
-        unless ($row) { $last = 1; last; }
+    while (my $row = $select->fetch) {
         $total++;
         my ($id, $meta) = @$row;
         $meta = $json->decode($meta);
@@ -34,8 +33,8 @@ while (1) {
     }
     warn " created/looked up $count keyvallists\n";
     
+    $count = 0;
     eval {
-        $count = 0;
         foreach (@execute_args) {
             $sth->execute(@$_);
             $count++;
@@ -48,8 +47,9 @@ while (1) {
         eval { $dbh->rollback };
         die "Transaction aborted because $error";
     }
+    last if $count < $limit;
     
-    last if $last;
+    $offset += $limit;
 }
 
 warn "\n ## Second, I'll check that worked and then drop the temporary file metadata table\n\n";
@@ -60,16 +60,14 @@ $drop_table->execute();
 $dbh->commit;
 
 warn "\n ## Third, I'll fill in DataElement keyvallist and filelist column values based on the temporary dataelement result table\n\n";
-$select = $dbh->prepare(q[SELECT dataelement, metadata, files FROM temp_dataelement_result]);
-$select->execute;
-$sth = $dbh->prepare(q[update dataelement set keyvallist = ?, filelist = ? where id = ?]);
+$sth    = $dbh->prepare(q[update dataelement set keyvallist = ?, filelist = ? where id = ?]);
+$offset = 0;
 while (1) {
-    my $last  = 0;
+    my $select = $dbh->prepare(qq[SELECT dataelement, metadata, files FROM temp_dataelement_result LIMIT $offset, $limit]);
+    $select->execute;
     my $count = 0;
     my @execute_args;
-    for (1 .. 10) {
-        my $row = $select->fetch;
-        unless ($row) { $last = 1; last; }
+    while (my $row = $select->fetch) {
         my ($id, $meta, $files) = @$row;
         $meta = $json->decode($meta);
         my $kvl = VRPipe::KeyValList->get(hash => $meta);
@@ -84,8 +82,8 @@ while (1) {
     }
     warn " created/looked up $count keyvallists and filelists\n";
     
+    $count = 0;
     eval {
-        $count = 0;
         foreach (@execute_args) {
             $sth->execute(@$_);
             $count++;
@@ -98,8 +96,9 @@ while (1) {
         eval { $dbh->rollback };
         die "Transaction aborted because $error";
     }
+    last if $count < $limit;
     
-    last if $last;
+    $offset += $limit;
 }
 warn "\n ## Finally, I'll check that worked and then drop the temporary dataelement result table\n\n";
 my $undefs = VRPipe::DataElement->search({ keyvallist => 0 });
