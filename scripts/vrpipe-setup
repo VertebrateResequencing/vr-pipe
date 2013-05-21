@@ -214,7 +214,7 @@ if ($setup) {
     }
     elsif ($touch) {
         my $datasource = $setup->datasource;
-        $datasource->_changed_marker(undef);
+        $datasource->_changed_marker('undef');
         $datasource->update;
         $setup->log_event("vrpipe-setup --touch called");
         
