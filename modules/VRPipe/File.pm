@@ -481,7 +481,19 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->_check_destination_space($dp->dir);
             
             $self->disconnect;
-            $success = File::Copy::move($sp, $dp);
+            if (-l $sp) {
+                # File::Copy::move copies symlinks across filesystem boundries
+                # as the files they point to instead of copying them as
+                # symlinks
+                my $dst = readlink($sp);
+                $success = symlink($dst, $dp);
+                if ($success) {
+                    unlink($sp);
+                }
+            }
+            else {
+                $success = File::Copy::move($sp, $dp);
+            }
             
             $dest->update_stats_from_disc;
             unless ($success) {
@@ -665,7 +677,7 @@ class VRPipe::File extends VRPipe::Persistent {
             my $resolved = $ssa ? $ssa : $ss;
             $stepstates{ $resolved->id } = $resolved;
         }
-        @sss = values %stepstates;
+        @sss = sort { $a->id <=> $b->id } values %stepstates;
         if (@sss == 1) {
             return $sss[0];
         }
@@ -728,7 +740,17 @@ class VRPipe::File extends VRPipe::Persistent {
         $self->_check_destination_space($dest->path->dir);
         
         $self->disconnect;
-        my $success = File::Copy::copy($sp, $dp);
+        my $success;
+        if (-l $sp) {
+            # File::Copy::copy copies symlinks across filesystem boundries
+            # as the files they point to instead of copying them as
+            # symlinks
+            my $dst = readlink($sp);
+            $success = symlink($dst, $dp);
+        }
+        else {
+            $success = File::Copy::copy($sp, $dp);
+        }
         $dest->update_stats_from_disc;
         
         unless ($success) {
