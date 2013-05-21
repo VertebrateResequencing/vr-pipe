@@ -150,7 +150,7 @@ if ($setup) {
                 my $smid = $stepm->id;
                 
                 while (my ($kind, $files) = each %$step_outs) {
-                    my @files = grep { $_->update_stats_from_disc; $_->e } map { $_->resolve } @$files;
+                    my @files = grep { $_->update_stats_from_disc; $_->e } map { $_->resolve(not_symlinks => 1) } @$files;
                     next unless @files;
                     
                     foreach my $file (@files) {

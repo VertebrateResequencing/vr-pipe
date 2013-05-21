@@ -592,14 +592,14 @@ class VRPipe::File extends VRPipe::Persistent {
            was moved somewhere else, returns the VRPipe::File corresponding to
            the current location. If neither of these is true, returns itself.
  Returns : VRPipe::File object
- Args    : n/a
+ Args    : not_symlinks => boolean (do not resolve symlinks)
 
 =cut
     
-    method resolve {
+    method resolve (Bool :$not_symlinks?) {
         my $links_resolved;
         my $parent = $self->parent;
-        if ($parent) {
+        if ($parent && !$not_symlinks) {
             $links_resolved = $parent->resolve;
         }
         else {

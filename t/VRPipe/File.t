@@ -5,7 +5,7 @@ use Path::Class;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 55;
+    use Test::Most tests => 56;
     use VRPipeTest;
 }
 
@@ -102,7 +102,8 @@ $vrdest3->symlink($vrdest4);
 is_deeply [$vrsource->e, $vrdest1->e, $vrdest2->e, $vrdest3->e, $vrdest4->e, $vrdest4->s], [0, 0, 1, 1, 1, $vrdest2->s], 'file existance and sizes are correct after moves';
 is_deeply [$vrdest2->metadata->{test}, $vrdest4->metadata->{test}], ['meta', 'meta'], 'both final moved file and symlink have source metadata';
 my $real_fileid = $vrdest2->id;
-is $vrdest4->resolve->id,  $real_fileid, 'the symlink resolves to the real file';
+is $vrdest4->resolve->id, $real_fileid, 'the symlink resolves to the real file';
+is $vrdest4->resolve(not_symlinks => 1)->id, $vrdest4->id, 'the symlink resolves to itself in not_symlinks mode';
 is $vrsource->resolve->id, $real_fileid, 'the source resolves to the final move destination';
 
 $vrdest4->add_metadata({ test2 => 'meta2' });
