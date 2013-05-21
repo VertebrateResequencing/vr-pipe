@@ -113,7 +113,7 @@ $sth = $dbh->prepare(q[INSERT INTO temp_dataelement_result (dataelement, metadat
 my $get_files_h = $dbh->prepare(q[SELECT class_id from persistentarraymember where persistentarray = ?]);
 $offset = 0;
 while (1) {
-    my $select = $dbh->prepare(q[SELECT id, result FROM dataelement]);
+    my $select = $dbh->prepare(q[SELECT id, result FROM dataelement LIMIT $offset, $limit]);
     $select->execute;
     my $count = 0;
     eval {
