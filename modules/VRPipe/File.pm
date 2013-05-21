@@ -654,7 +654,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         # remove dups
         my %sss = map { $_->id => $_ } @sss;
-        @sss = values %sss;
+        @sss = sort { $a->id <=> $b->id } values %sss;
         
         return @sss unless $single;
         

@@ -140,7 +140,7 @@ foreach my $path (@paths) {
             $files{ $file->id } = $file;
             
             if ($output_types{dataelement} || $output_types{input_file}) {
-                my $stepstate = $file->output_by(1);
+                my ($stepstate) = $file->output_by();
                 if ($stepstate) {
                     $file_to_de{ $file->id } = $stepstate->dataelement;
                 }
@@ -277,7 +277,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     
     my $stepstate;
     if ($file_setup_needed) {
-        $stepstate = $file->output_by(1);
+        ($stepstate) = $file->output_by();
     }
     
     foreach my $col (@tab_cols) {
