@@ -33,7 +33,7 @@ use File::Find;
 use File::Copy;
 
 my $frontend = VRPipe::FrontEnd->new(
-    description => "Move files on disk, like unix 'mv', also updating the VRPipe database. Also let's you move output files of a particular pipeline setup to a new root directory. Note that a setup might create files outside of its output root, which will not get moved. For large-scale movements (eg. moving everything on one disc to another), use the --old_disc/--new_disc mode.",
+    description => "Move files on disk, like unix 'mv', also updating the VRPipe database. Also let's you move output files of a particular pipeline setup to a new root directory. Note that a setup might create files outside of its output root, which will not get moved. For large-scale movements (eg. moving everything on one disc to another), use the --old_disc/--new_disc mode, which will also move datasource input files.",
     opt_spec    => [
         [],
         [q[To move specified files, use standard unix 'mv' arguments.]],
@@ -42,7 +42,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['setup=s',    'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
         ['new_root=s', q[The new PipelineSetup output root]],
         [],
-        [q[To move all the files output by a ALL pipelinesetups from one disc to another (non-VRPipe files are ignored):]],
+        [q[To move all the files output by and input to ALL pipelinesetups from one disc to another (non-VRPipe files are ignored):]],
         ['old_disc=s', 'The highest level root directory that might contain any VRPipe-created files'],
         ['new_disc=s', q[The corresponding directory on the new disc where files on the old_disc should be transposed to]],
         [],
@@ -209,7 +209,10 @@ elsif ($old_disc) {
         my ($file) = VRPipe::File->search({ path => $path });
         $file || return;
         my $an_output_file = $file->output_by;
-        return unless $an_output_file;
+        unless ($an_output_file) {
+            my $an_input_file = $file->input_to;
+            return unless $an_input_file;
+        }
         $file->update_stats_from_disc;
         
         my $source   = $file->path;

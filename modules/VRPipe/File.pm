@@ -585,7 +585,7 @@ class VRPipe::File extends VRPipe::Persistent {
 
 =head2 resolve
  
- Title   : move (alias mv)
+ Title   : resolve
  Usage   : my $real_file = $obj->resolve;
  Function: If this file was created as a symlink (using VRPipe::File->symlink),
            returns the VRPipe::File corresponding to the real file. If this file
@@ -618,6 +618,39 @@ class VRPipe::File extends VRPipe::Persistent {
         return $fully_resolved;
     }
 
+=head2 original
+ 
+ Title   : original
+ Usage   : my $original_file = $obj->original;
+ Function: If this file was the result of moving another file, returns the
+           VRPipe::File corresponding to the original location. Otherwise,
+           returns itself. Does NOT resolve a symlink to the file it links to.
+ Returns : VRPipe::File object in scalar context, list of File ids (back through
+           the chain of moved files to the id of the original file, excluding
+           self) in list context
+ Args    : n/a
+
+=cut
+    
+    method original {
+        my @fids;
+        my $current_id = $self->id;
+        while (1) {
+            my ($parent_id) = VRPipe::File->get_column_values('id', { moved_to => $current_id }, { rows => 1 });
+            $parent_id || last;
+            push(@fids, $parent_id);
+            $current_id = $parent_id;
+        }
+        
+        if (wantarray) {
+            return @fids;
+        }
+        elsif (@fids) {
+            return VRPipe::File->get(id => $fids[-1]);
+        }
+        return $self;
+    }
+
 =head2 output_by
  
  Title   : output_by
@@ -635,16 +668,9 @@ class VRPipe::File extends VRPipe::Persistent {
     method output_by (Bool $single = 0) {
         # resolve first, then work backwards to get all file ids that
         # represented us in the past
-        my %fids       = ($self->id => 1);
-        my $resolved   = $self->resolve;
-        my $current_id = $resolved->id;
-        $fids{$current_id} = 1;
-        while (1) {
-            my ($parent_id) = VRPipe::File->get_column_values('id', { moved_to => $current_id }, { rows => 1 });
-            $parent_id || last;
-            $fids{$parent_id} = 1;
-            $current_id = $parent_id;
-        }
+        my $resolved = $self->resolve;
+        my @fids     = $resolved->original;
+        unshift(@fids, $self->id, $resolved->id);
         
         my $quick = 0;
         if (!wantarray && !$single) {
@@ -653,7 +679,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         # get the stepstates
         my @sss;
-        foreach my $fid (keys %fids) {
+        foreach my $fid (@fids) {
             if ($quick) {
                 my $found = VRPipe::StepOutputFile->search({ file => $fid });
                 return 1 if $found;
@@ -696,6 +722,59 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         
         return;
+    }
+
+=head2 input_to
+ 
+ Title   : input_to
+ Usage   : my @dataelements = $obj->input_to;
+ Function: If this file was one of the files of any dataelements, returns them.
+ Returns : list of VRPipe::DataElement objects; in scalar context returns 1 if
+           any objects would have been returned (not the true count)
+ Args    : n/a
+
+=cut
+    
+    method input_to {
+        # work backwards to get all file ids that represented us in the past;
+        # we don't resolve because we can't be the input to something that used
+        # a file path we moved to
+        my @fids = $self->original;
+        unshift(@fids, $self->id);
+        
+        my $quick = 0;
+        if (!wantarray) {
+            $quick = 1;
+        }
+        
+        # get the filelists our files are part of
+        my %fls;
+        foreach my $fid (@fids) {
+            my @fls = VRPipe::FileListMember->get_column_values('filelist', { file => $fid });
+            foreach my $fl (@fls) {
+                $fls{$fl} = 1;
+            }
+        }
+        return 0 unless keys %fls;
+        
+        # get the dataelements that use those filelists
+        my @des;
+        foreach my $flid (keys %fls) {
+            if ($quick) {
+                my $found = VRPipe::DataElement->search({ filelist => $flid });
+                return 1 if $found;
+            }
+            else {
+                push(@des, VRPipe::DataElement->search({ filelist => $flid }));
+            }
+        }
+        return 0 if $quick;
+        
+        # remove dups
+        my %des = map { $_->id => $_ } @des;
+        @des = sort { $a->id <=> $b->id } values %des;
+        
+        return @des;
     }
 
 =head2 copy

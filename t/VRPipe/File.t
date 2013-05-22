@@ -5,7 +5,7 @@ use Path::Class;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 56;
+    use Test::Most tests => 62;
     use VRPipeTest;
 }
 
@@ -129,6 +129,10 @@ my $vrdest6 = VRPipe::File->create(path => file($tmp_dir, 'dest6.txt'));
 $vrdest4->move($vrdest6);
 ok -l $vrdest6->path, 'moved symlink is a symlink';
 is_deeply [$vrdest6->resolve->id, $vrdest4->resolve->id], [$real_fileid, $real_fileid], 'even a move of a symlink still resolves correctly for both source and dest';
+my @orig_fids = $vrdest6->original;
+is_deeply [\@orig_fids, $vrdest6->original->id], [[$vrdest4->id], $vrdest4->id], 'original() works on moved symlinks';
+@orig_fids = $vrdest2->original;
+is_deeply [\@orig_fids, $vrdest2->original->id], [[$vrdest1->id, $vrsource->id], $vrsource->id], 'original() works on multiply moved files';
 
 my $vrdest7 = VRPipe::File->create(path => file($tmp_dir, 'dest7.txt'));
 my $vrdest8 = VRPipe::File->create(path => file($tmp_dir, 'dest8.txt'));
@@ -192,7 +196,7 @@ is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", $sk
 
 # output_by; we need stepstates and stepoutputfiles to test this, which in turn
 # need a bunch of stuff - create all the other object first
-my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.fivelist))->absolute);
+my $ds = VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn3))->absolute);
 $ds->elements;
 my $pipeline = VRPipe::Pipeline->create(name => 'archive_files');
 my $setup = VRPipe::PipelineSetup->create(
@@ -243,6 +247,17 @@ $sub2->job($job1->id);
 $sub2->update;
 $special = $step_out_file->output_by(1);
 is $special->id, $stepstate->id, 'and in the special mode, when it has no same_submissions_as but does have the same job, we see the first stepstate again';
+
+# input_to
+my $ifile  = VRPipe::File->get(path => file(qw(t data file.txt))->absolute);
+my $ifile7 = VRPipe::File->get(path => file(qw(t data file7.txt))->absolute);
+is $step_out_file->input_to, 0, 'input_to() on a non dataelement file returns 0';
+is $ifile->input_to,         1, 'input_to() on a dataelement file returns 1';
+is_deeply [[map { $_->id } $ifile->input_to], [map { $_->id } $ifile7->input_to]], [[1], [7]], 'input_to works in list context';
+my $moved_ifile = VRPipe::File->create(path => '/tmp/moved_ifile.txt');
+$ifile->moved_to($moved_ifile->id);
+$ifile->update;
+is_deeply [map { $_->id } $moved_ifile->input_to], [1], 'input_to works on a moved input file';
 
 done_testing;
 exit;
