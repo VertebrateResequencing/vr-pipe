@@ -5,7 +5,7 @@ use Path::Class;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 62;
+    use Test::Most tests => 64;
     use VRPipeTest;
 }
 
@@ -247,9 +247,18 @@ $sub2->job($job1->id);
 $sub2->update;
 $special = $step_out_file->output_by(1);
 is $special->id, $stepstate->id, 'and in the special mode, when it has no same_submissions_as but does have the same job, we see the first stepstate again';
+# test it works when the output file was created as a symlink and then moved
+my $ifile = VRPipe::File->get(path => file(qw(t data file.txt))->absolute);
+my $step_out_symlink = VRPipe::File->create(path => "/step/o/symlink", parent => $ifile->id);
+my $stepstate5 = VRPipe::StepState->create(stepmember => 1, dataelement => 5, pipelinesetup => 1, complete => 1);
+my $sof5 = VRPipe::StepOutputFile->create(stepstate => $stepstate5->id, file => $step_out_symlink->id, output_key => "foo");
+is_deeply [map { $_->id } $step_out_symlink->output_by], [$stepstate5->id], 'output_by works on a symlink output';
+my $moved_out_symlink = VRPipe::File->create(path => '/moved/o/symlink', parent => $ifile->id);
+$step_out_symlink->moved_to($moved_out_symlink->id);
+$step_out_symlink->update;
+is_deeply [map { $_->id } $moved_out_symlink->output_by], [$stepstate5->id], 'output_by works on a symlink output that was moved';
 
 # input_to
-my $ifile  = VRPipe::File->get(path => file(qw(t data file.txt))->absolute);
 my $ifile7 = VRPipe::File->get(path => file(qw(t data file7.txt))->absolute);
 is $step_out_file->input_to, 0, 'input_to() on a non dataelement file returns 0';
 is $ifile->input_to,         1, 'input_to() on a dataelement file returns 1';

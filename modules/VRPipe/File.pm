@@ -668,9 +668,10 @@ class VRPipe::File extends VRPipe::Persistent {
     method output_by (Bool $single = 0) {
         # resolve first, then work backwards to get all file ids that
         # represented us in the past
-        my $resolved = $self->resolve;
-        my @fids     = $resolved->original;
-        unshift(@fids, $self->id, $resolved->id);
+        my $resolved = $self->resolve(not_symlinks => 1);
+        my @fids = $resolved->original;
+        unshift(@fids, $resolved->id) if $resolved->id != $self->id;
+        unshift(@fids, $self->id);
         
         my $quick = 0;
         if (!wantarray && !$single) {
