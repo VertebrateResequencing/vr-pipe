@@ -215,6 +215,11 @@ elsif ($old_disc) {
         }
         $file->update_stats_from_disc;
         
+        mv_file($file);
+    }
+    
+    sub mv_file {
+        my $file     = shift;
         my $source   = $file->path;
         my $rel_path = File::Spec->abs2rel($source, $old_disc);
         my $dest     = File::Spec->rel2abs($rel_path, $new_disc);
@@ -232,6 +237,14 @@ elsif ($old_disc) {
             $file->move(VRPipe::File->create(path => $dest), check_md5s => $check_md5s);
         }
         $moved++;
+    }
+    
+    # manually move any datasource source files that are on old_disc
+    my @source_paths = VRPipe::DataSource->get_column_values('source', { source => { 'like' => $old_disc . '%' } });
+    foreach my $path (@source_paths) {
+        my ($file) = VRPipe::File->search({ path => $path });
+        $file || return;
+        mv_file($file);
     }
     
     $frontend->output("$moved files ", ($pretend ? "would have been" : "were"), " moved") if $verbose;
