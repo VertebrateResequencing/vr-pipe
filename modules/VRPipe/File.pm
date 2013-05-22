@@ -596,7 +596,7 @@ class VRPipe::File extends VRPipe::Persistent {
 
 =cut
     
-    method resolve (Bool :$not_symlinks?) {
+    method resolve (Bool :$not_symlinks = 0) {
         my $links_resolved;
         my $parent = $self->parent;
         if ($parent && !$not_symlinks) {
@@ -609,7 +609,7 @@ class VRPipe::File extends VRPipe::Persistent {
         my $fully_resolved;
         my $moved_to = $links_resolved->moved_to;
         if ($moved_to) {
-            $fully_resolved = $moved_to->resolve;
+            $fully_resolved = $moved_to->resolve(not_symlinks => $not_symlinks);
         }
         else {
             $fully_resolved = $links_resolved;
