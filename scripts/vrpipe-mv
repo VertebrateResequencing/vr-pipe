@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -239,12 +239,17 @@ elsif ($old_disc) {
         $moved++;
     }
     
-    # manually move any datasource source files that are on old_disc
-    my @source_paths = VRPipe::DataSource->get_column_values('source', { source => { 'like' => $old_disc . '%' } });
-    foreach my $path (@source_paths) {
-        my ($file) = VRPipe::File->search({ path => $path });
-        $file || return;
-        mv_file($file);
+    # manually move any datasource source files that are on old_disc; we have
+    # to go through everything to catch source files that have been moved to
+    # $old_disc
+    foreach my $ds (VRPipe::DataSource->search({})) {
+        my $instance = $ds->_source_instance;
+        next unless $instance->can('source_file');
+        my $sf = $instance->source_file;
+        my $sp = $sf->path;
+        if ($sp =~ /^$old_disc/) {
+            mv_file($sf);
+        }
     }
     
     $frontend->output("$moved files ", ($pretend ? "would have been" : "were"), " moved") if $verbose;
