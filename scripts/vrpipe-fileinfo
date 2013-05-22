@@ -223,7 +223,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
                         unless ($force) {
                             next unless exists $allowed_kinds{$smid}->{$kind};
                         }
-                        my @these_files = $show_all ? (@$files) : (grep { $_->s || $_->resolve->s } @$files);
+                        my @these_files = $show_all ? (@$files) : (grep { $_->s || $_->resolve(not_symlinks => 1)->s || $_->resolve->s } @$files);
                         
                         foreach my $file (@these_files) {
                             my $fid = $file->id;
@@ -263,9 +263,13 @@ if ($do_tab) {
 # output file info
 foreach my $fid (sort { $a <=> $b } keys %files) {
     my $file = $files{$fid};
-    my $path = $unresolved ? $file->path->stringify : $file->resolve->path->stringify;
+    my $path = $unresolved ? $file->path->stringify : $file->resolve(not_symlinks => 1)->path->stringify;
     unless ($file->s) {
-        $file = $file->resolve;
+        my $resolved = $file->resolve(not_symlinks => 1);
+        unless ($resolved && $resolved->s) {
+            $resolved = $file->resolve;
+        }
+        $file = $resolved;
     }
     
     if ($do_tab) {
@@ -288,7 +292,10 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                 my $setup_id   = $setup->id;
                 my $step_num   = $stepstate->stepmember->step_number;
                 my $output_key = '';
-                my @sofs       = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve->id });
+                my @sofs       = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve(not_symlinks => 1)->id });
+                unless (@sofs) {
+                    @sofs = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve->id });
+                }
                 if (@sofs) {
                     $output_key = ':' . $sofs[0]->output_key;
                 }
