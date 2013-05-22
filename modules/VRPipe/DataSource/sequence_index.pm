@@ -20,7 +20,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011, 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -186,7 +186,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
-            push(@{ $lanes_hash->{ $pr->[2] }->{paths} }, $fastq);
+            push(@{ $lanes_hash->{ $pr->[2] }->{paths} }, $vrfile->path->stringify);
             if ($changed) {
                 push(@{ $lanes_hash->{ $pr->[2] }->{changed} }, [$vrfile, $new_metadata]);
             }
@@ -341,7 +341,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
-            push(@{ $samples_hash->{ $pr->[9] }->{paths} }, $fastq);
+            push(@{ $samples_hash->{ $pr->[9] }->{paths} }, $vrfile->path->stringify);
             if ($changed) {
                 push(@{ $samples_hash->{ $pr->[9] }->{changed} }, [$vrfile, $new_metadata]);
             }
