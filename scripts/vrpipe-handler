@@ -252,7 +252,7 @@ sub handle_setups {
                     my $watcher;
                     if ($non_persistent && $non_persistent->does('VRPipe::DataSourceTextRole')) {
                         # update when the source text file changes
-                        $watcher = EV::stat $ds->source, 0, $datasource_update_sub;
+                        $watcher = EV::stat $ds->source_file->path, 0, $datasource_update_sub;
                     }
                     else {
                         # update every 5mins
