@@ -47,7 +47,7 @@ role VRPipe::DataSourceTextRole with VRPipe::DataSourceRole {
     
     method _build_source_file {
         my $source = file($self->source)->absolute;
-        return VRPipe::File->create(path => $source, type => 'txt');
+        return VRPipe::File->create(path => $source, type => 'txt')->resolve;
     }
     
     method _has_changed {
