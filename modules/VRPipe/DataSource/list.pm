@@ -84,7 +84,7 @@ class VRPipe::DataSource::list with VRPipe::DataSourceTextRole {
             chomp;
             
             my $result = $_;
-            $result = $line_is_path ? [VRPipe::File->create(path => file($result)->absolute)->path->stringify] : $result; # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
+            $result = $line_is_path ? [VRPipe::File->create(path => file($result)->absolute)->original->path->stringify] : $result; # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
             push(@results, { $key_name => $result });
         }
         

@@ -160,7 +160,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $remote_path ? (remote_path => $remote_path) : ()
             };
             
-            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
+            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq')->original;
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
@@ -182,7 +182,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             
             $vrfile->add_metadata($new_metadata, replace_data => 0);
             
-            unless ($vrfile->s) {
+            unless ($vrfile->resolve->s) {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
@@ -315,7 +315,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $remote_path ? (remote_path => $remote_path) : ()
             };
             
-            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
+            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq')->original;
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
@@ -337,7 +337,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             
             $vrfile->add_metadata($new_metadata, replace_data => 0);
             
-            unless ($vrfile->s) {
+            unless ($vrfile->resolve->s) {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
