@@ -14,7 +14,7 @@ my $dbh   = DBI->connect(VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persis
 my $limit = 10000;
 
 warn "\n ## First, I'll do in-place updates of columns containing Storable values, converting them to JSON values\n\n";
-foreach ([qw(Job output_files)], [qw(Step options_definition inputs_definition outputs_definition)], [qw(DataSource options)], [qw(PipelineSetup options)], [qw(Requirements custom)], [qw(StepAdaptor adaptor_hash)], [qw(StepIODefinition metadata)]) {
+foreach ([qw(Job output_files)], [qw(Step options_definition inputs_definition outputs_definition)], [qw(DataSource options)], [qw(PipelineSetup options)], [qw(Requirements custom)], [qw(StepAdaptor adaptor_hash)], [qw(StepIODefinition metadata)], [qw(StepBehaviour behaviour_array)], [qw(StepOption allowed_values)]) {
     my ($table, @cols) = @$_;
     my $class = "VRPipe::$table";
     $table = lc($table);
