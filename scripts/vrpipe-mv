@@ -158,6 +158,10 @@ if ($setup) {
                         $done_files{ $file->id } = 1;
                         
                         my $source = $file->path;
+                        if ($source =~ /^$new_root/) {
+                            $frontend->error("Source file [$source] already looks like its within the new output_root [$new_root]; skipping it!");
+                            next;
+                        }
                         unless ($source =~ /^$old_root/) {
                             $frontend->error("Source file [$source] doesn't look like its within the current output_root [$old_root]; skipping it!");
                             next;
