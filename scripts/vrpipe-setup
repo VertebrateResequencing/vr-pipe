@@ -218,6 +218,19 @@ if ($setup) {
         $datasource->update;
         $setup->log_event("vrpipe-setup --touch called");
         
+        # for file-based datasource, we have to literally touch the file as well
+        my $instance = $datasource->_source_instance;
+        if ($instance->can('source_file')) {
+            my $path = $instance->source_file->path->stringify;
+            if (-e $path) {
+                my $touched = utime(undef, undef, $path);
+                unless ($touched) {
+                    open(my $fh, '>>', $path);
+                    close($fh);
+                }
+            }
+        }
+        
         $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
     }
     else {
