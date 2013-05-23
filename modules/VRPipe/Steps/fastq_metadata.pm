@@ -5,7 +5,11 @@ VRPipe::Steps::fastq_metadata - a step
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+This step stores metadata on fastq files, based on statistics retrieved from
+fastqcheck.
+
+fastqcheck can be found here:
+https://github.com/VertebrateResequencing/fastqcheck
 
 =head1 AUTHOR
 
@@ -13,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -35,7 +39,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
     method options_definition {
-        return {};
+        return { fastqcheck_exe => VRPipe::StepOption->create(description => 'path to fastqcheck executable', optional => 1, default_value => 'fastqcheck') };
     }
     
     method inputs_definition {
@@ -45,6 +49,8 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self = shift;
+            
+            my $fastqcheck_exe = $self->options->{fastqcheck_exe};
             
             foreach my $fq_file (@{ $self->inputs->{fastq_files} }) {
                 # our output file is our input file
@@ -62,7 +68,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
                     my $ofile = $fqc_file->path;
                     unless ($fqc_file->s) {
                         my $req = $self->new_requirements(memory => 500, time => 1);
-                        $self->dispatch_wrapped_cmd('VRPipe::Steps::fastq_metadata', 'stats_from_fastqcheck', ["fastqcheck $ifile > $ofile", $req, { output_files => [$fqc_file] }]);
+                        $self->dispatch_wrapped_cmd('VRPipe::Steps::fastq_metadata', 'stats_from_fastqcheck', ["$fastqcheck_exe $ifile > $ofile", $req, { output_files => [$fqc_file] }]);
                     }
                 }
                 unless ($fq_file->md5) {
@@ -119,13 +125,13 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
     }
     
     method stats_from_fastqcheck (ClassName|Object $self: Str $cmd_line) {
-        my ($fq_path, $fqc_path) = $cmd_line =~ /^fastqcheck (\S+) > (\S+)$/;
+        my ($fastqcheck_exe, $fq_path, $fqc_path) = $cmd_line =~ /^(\S+) (\S+) > (\S+)$/;
         $fqc_path || $self->throw("bad cmd line [$cmd_line]");
         my $fq_file  = VRPipe::File->get(path => $fq_path);
         my $fqc_file = VRPipe::File->get(path => $fqc_path);
         
         if ($fq_path =~ /\.gz/) {
-            $cmd_line = qq{gunzip -c $fq_path | fastqcheck > $fqc_path};
+            $cmd_line = qq{gunzip -c $fq_path | $fastqcheck_exe > $fqc_path};
         }
         
         $fqc_file->disconnect;

@@ -151,7 +151,8 @@ my $transaction = sub {
         VRPipe::StepBehaviourDefiner->new(%{$behaviour_definition})->define($pipeline);
     }
 };
-VRPipe::Persistent->do_transaction($transaction, "There was a problem trying to create your Pipeline; abandoned", $cmdline->schema);
+my $manager = VRPipe::Manager->get;
+$manager->do_transaction($transaction, "There was a problem trying to create your Pipeline; abandoned");
 
 $cmdline->output("Your Pipeline '$pipeline_name' was successfully created!");
 

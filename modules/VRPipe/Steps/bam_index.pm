@@ -96,7 +96,20 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
         my $bai_file = VRPipe::File->get(path => $bai_path);
         
         $bai_file->update_stats_from_disc(retries => 3);
-        unless ($bai_file->e) {
+        
+        my $bai_already_there = 0;
+        if ($bai_file->e) {
+            my $bam_timestamp = (stat $bam_path)[9];
+            my $bai_timestamp = (stat $bai_path)[9];
+            if ($bai_timestamp >= $bam_timestamp) {
+                $bai_already_there = 1;
+            }
+            else {
+                $bai_file->remove;
+            }
+        }
+        
+        unless ($bai_already_there) {
             $bam_file->disconnect;
             system($cmd_line) && $self->throw("failed to run [$cmd_line]");
             $bai_file->update_stats_from_disc(retries => 3);

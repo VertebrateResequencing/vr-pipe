@@ -140,7 +140,7 @@ foreach my $path (@paths) {
             $files{ $file->id } = $file;
             
             if ($output_types{dataelement} || $output_types{input_file}) {
-                my $stepstate = file_to_stepstate($file);
+                my ($stepstate) = $file->output_by();
                 if ($stepstate) {
                     $file_to_de{ $file->id } = $stepstate->dataelement;
                 }
@@ -223,7 +223,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
                         unless ($force) {
                             next unless exists $allowed_kinds{$smid}->{$kind};
                         }
-                        my @these_files = $show_all ? (@$files) : (grep { $_->s || $_->resolve->s } @$files);
+                        my @these_files = $show_all ? (@$files) : (grep { $_->s || $_->resolve(not_symlinks => 1)->s || $_->resolve->s } @$files);
                         
                         foreach my $file (@these_files) {
                             my $fid = $file->id;
@@ -263,9 +263,13 @@ if ($do_tab) {
 # output file info
 foreach my $fid (sort { $a <=> $b } keys %files) {
     my $file = $files{$fid};
-    my $path = $unresolved ? $file->path->stringify : $file->resolve->path->stringify;
+    my $path = $unresolved ? $file->path->stringify : $file->resolve(not_symlinks => 1)->path->stringify;
     unless ($file->s) {
-        $file = $file->resolve;
+        my $resolved = $file->resolve(not_symlinks => 1);
+        unless ($resolved && $resolved->s) {
+            $resolved = $file->resolve;
+        }
+        $file = $resolved;
     }
     
     if ($do_tab) {
@@ -277,7 +281,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     
     my $stepstate;
     if ($file_setup_needed) {
-        $stepstate = file_to_stepstate($file->resolve);
+        ($stepstate) = $file->output_by();
     }
     
     foreach my $col (@tab_cols) {
@@ -288,7 +292,10 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                 my $setup_id   = $setup->id;
                 my $step_num   = $stepstate->stepmember->step_number;
                 my $output_key = '';
-                my @sofs       = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve->id });
+                my @sofs       = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve(not_symlinks => 1)->id });
+                unless (@sofs) {
+                    @sofs = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve->id });
+                }
                 if (@sofs) {
                     $output_key = ':' . $sofs[0]->output_key;
                 }
@@ -404,27 +411,6 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
 }
 
 exit;
-
-sub file_to_stepstate {
-    my $file = shift;
-    my @sofs = VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' });
-    if (@sofs > 1) {
-        # if all but 1 of them point to the 1, return that one
-        my %stepstates;
-        foreach my $sof (@sofs) {
-            my $ss       = $sof->stepstate;
-            my $ssa      = $ss->same_submissions_as;
-            my $resolved = $ssa ? $ssa : $ss;
-            $stepstates{ $resolved->id } = $resolved;
-        }
-        my @stepstates = keys %stepstates;
-        if (@stepstates == 1) {
-            return $stepstates{ $stepstates[0] };
-        }
-    }
-    return unless @sofs == 1;
-    return $sofs[0]->stepstate;
-}
 
 sub stepstate_chain {
     my $child_stepstate = shift;

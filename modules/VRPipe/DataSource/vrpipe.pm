@@ -39,7 +39,6 @@ use VRPipe::Base;
 
 class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     use Digest::MD5 qw(md5_hex);
-    use Storable qw(nfreeze);
     
     method description {
         return "Use files created by VRPipe pipelines as a datasource.";
@@ -185,7 +184,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         
         # create corresponding dataelementlinks
         my @link_args;
-        my %result_to_eid = map { _res_to_str($_->[0]) => $_->[1] } @{ VRPipe::DataElement->get_column_values(['result', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
+        my %result_to_eid = map { $_->[0] . '|' . $_->[1] => $_->[2] } @{ VRPipe::DataElement->get_column_values(['filelist', 'keyvallist', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
         while (my ($res, $linkargs) = each %result_to_linkargs) {
             my $child = $result_to_eid{$res} || $self->throw("No DataElement was created for result $res?");
             push(@link_args, { %$linkargs, child => $child });
@@ -217,12 +216,9 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     
     sub _res_to_str {
         my $res = shift;
-        VRPipe::DataElement->_deflate_paths($res);
-        my $str = '';
-        foreach my $key ('paths', 'lane', 'group', 'chrom', 'from', 'to') {
-            $str .= '|' . $res->{$key} if defined $res->{$key};
-        }
-        return $str;
+        my $args = { result => $res };
+        VRPipe::DataElement->_convert_result($args);
+        return $args->{filelist} . '|' . $args->{keyvallist};
     }
     
     method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
@@ -362,7 +358,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         # we also need to make a dataelementlink for each dataelement we just
         # made
         my @link_args;
-        my %group_to_eid = map { $_->[0]->{group} => $_->[1] } @{ VRPipe::DataElement->get_column_values(['result', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
+        my %group_to_eid = map { VRPipe::KeyValList->get(id => $_->[0])->as_hashref->{group} => $_->[1] } @{ VRPipe::DataElement->get_column_values(['keyvallist', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
         foreach my $group (sort keys %{$group_hash}) {
             my $hash_ref = $group_hash->{$group};
             if ($filter) {

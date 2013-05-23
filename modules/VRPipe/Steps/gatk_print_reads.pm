@@ -140,7 +140,7 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
         # output file does not necessarily have the same number of reads as
         # the input file since it could be filtered. we check that the magic
         # is correct on the output file instead.
-        if ($bam_type->check_magic) {
+        if ($bam_type->check_type) {
             $out_file->add_metadata({ reads => $output_reads });
             return 1;
         }

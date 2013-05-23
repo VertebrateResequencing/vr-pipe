@@ -20,7 +20,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011, 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -56,7 +56,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             return "An element will comprise all the fastqs for a single lane (read group - column 3), and the fastq files will have metadata from the other columns associated with them.";
         }
         if ($method eq 'sample_fastqs') {
-            return "An element will comprise all the fastqs for a single sample (read group - column 10), and the fastq files will have metadata from the other columns associated with them.";
+            return "An element will comprise all the fastqs for a single sample (column 10), and the fastq files will have metadata from the other columns associated with them.";
         }
         
         return '';
@@ -160,7 +160,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $remote_path ? (remote_path => $remote_path) : ()
             };
             
-            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
+            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq')->original;
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
@@ -182,11 +182,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             
             $vrfile->add_metadata($new_metadata, replace_data => 0);
             
-            unless ($vrfile->s) {
+            unless ($vrfile->resolve->s) {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
-            push(@{ $lanes_hash->{ $pr->[2] }->{paths} }, $fastq);
+            push(@{ $lanes_hash->{ $pr->[2] }->{paths} }, $vrfile->path->stringify);
             if ($changed) {
                 push(@{ $lanes_hash->{ $pr->[2] }->{changed} }, [$vrfile, $new_metadata]);
             }
@@ -315,7 +315,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $remote_path ? (remote_path => $remote_path) : ()
             };
             
-            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
+            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq')->original;
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
@@ -337,11 +337,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             
             $vrfile->add_metadata($new_metadata, replace_data => 0);
             
-            unless ($vrfile->s) {
+            unless ($vrfile->resolve->s) {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
-            push(@{ $samples_hash->{ $pr->[9] }->{paths} }, $fastq);
+            push(@{ $samples_hash->{ $pr->[9] }->{paths} }, $vrfile->path->stringify);
             if ($changed) {
                 push(@{ $samples_hash->{ $pr->[9] }->{changed} }, [$vrfile, $new_metadata]);
             }

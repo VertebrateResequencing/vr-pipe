@@ -249,7 +249,7 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
                     $status = 'RUN';
                 }
             }
-            close($qfh) || $self->warn("Could not close pipe from qstat -j $sid");
+            close($qfh); # (when a $sid does not exist, the close fails; no need to warn about it)
         }
         
         return $status || 'UNKNOWN'; # *** needs to return a word in a defined vocabulary suitable for all schedulers
