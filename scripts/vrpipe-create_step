@@ -246,7 +246,7 @@ my $transaction = sub {
     my $cmd_summary = $command;
     my $actual_cmd  = $command;
     foreach my $exe_name (@exe_names) {
-        my $ph = $exe_name_to_ph{$exe_name};
+        my $ph = $exe_name_to_ph{$exe_name} || next;
         $cmd_summary =~ s/\$$ph /$exe_name /g;
         my $exe_variable = $exe_name . '_exe';
         $actual_cmd =~ s/\$$ph /\$$exe_variable /g;
@@ -355,7 +355,8 @@ my $transaction = sub {
         max_simultaneous   => $max_sim
     );
 };
-VRPipe::Persistent->do_transaction($transaction, "There was a problem trying to create your Step; abandoned", $cmdline->schema);
+my $manager = VRPipe::Manager->get;
+$manager->do_transaction($transaction, "There was a problem trying to create your Step; abandoned");
 
 $cmdline->output("Your Step '$step_name' was successfully created!");
 
