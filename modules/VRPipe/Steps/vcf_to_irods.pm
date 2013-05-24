@@ -41,9 +41,10 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
         return {
             'irods_root' => VRPipe::StepOption->create(description => 'irods root path to which to add objects'),
             'has_index'  => VRPipe::StepOption->create(description => 'boolean, indicates vcf has an index which needs also adding to irods', optional => 1, default_value => 1),
-            'study'   => VRPipe::StepOption->create(description => 'study to which vcf belongs, to be added as irods metadata, if not found in vcf metadata',                              optional => 1),
-            'release' => VRPipe::StepOption->create(description => 'release to which vcf belongs, to be added irods as metadata, if not found in vcf metadata',                            optional => 1),
-            'update'  => VRPipe::StepOption->create(description => 'boolean, indicates program will not fail if vcf is already in irods, will overwrite and add any additional metadata ', optional => 1, default_value => 1),
+            'study'     => VRPipe::StepOption->create(description => 'study to which vcf belongs, to be added as irods metadata, if not found in vcf metadata',                                                                                   optional => 1),
+            'release'   => VRPipe::StepOption->create(description => 'release to which vcf belongs, to be added irods as metadata, if not found in vcf metadata',                                                                                 optional => 1),
+            'update'    => VRPipe::StepOption->create(description => 'boolean, indicates program will not fail if vcf is already in irods, will overwrite and add any additional metadata ',                                                      optional => 1, default_value => 1),
+            'resources' => VRPipe::StepOption->create(description => 'A comma-seperated list of irods resource ids in which to store the vcfs. If > 1 resource, will load-balance the storage; if none provided, no resource will be specified.', optional => 1),
         };
     }
     
@@ -68,6 +69,8 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
             my $study     = $options->{study};
             my $release   = $options->{release};
             my $update    = $options->{update};
+            my $resources = $options->{resources};
+            my @resource  = split(/,/, $resources);
             
             my $req = $self->new_requirements(memory => 100, time => 1);
             
@@ -75,7 +78,13 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
                 my $input_path = $vcf_file->path;
                 my $basename   = $vcf_file->basename;
                 
-                my $cmd = "use VRPipe::Steps::vcf_to_irods; VRPipe::Steps::vcf_to_irods->add_vcf_to_irods('$input_path', '$irods_root', '$has_index','$study', '$release', '$update');";
+                my $resource = '';
+                if ($resources) {
+                    my $ridx = int(rand(@resource));
+                    $resource = $resource[$ridx];
+                }
+                
+                my $cmd = "use VRPipe::Steps::vcf_to_irods; VRPipe::Steps::vcf_to_irods->add_vcf_to_irods('$input_path', '$irods_root', '$has_index','$study', '$release', '$update', '$resource');";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -93,7 +102,7 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
         return "Takes a vcf file and adds the file and its assocated metadata to irods";
     }
     
-    method add_vcf_to_irods (ClassName|Object $self: Str|File $input_vcf_path, Str $irods_root, Bool $has_index , Str $study, Str $release, Bool $update) {
+    method add_vcf_to_irods (ClassName|Object $self: Str|File $input_vcf_path, Str $irods_root, Bool $has_index , Str $study, Str $release, Bool $update, Str $resource) {
         my $vcf_file = VRPipe::File->get(path => $input_vcf_path);
         
         # Add collection using directory structure constructed from md5 checksum, eg
@@ -115,7 +124,8 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
         system("imkdir", "-p", "$idir") && $self->throw("failed to imkdir $idir");
         
         my $iput_cmd = "iput";
-        $iput_cmd .= " -f" if $update;
+        $iput_cmd .= " -f"           if $update;
+        $iput_cmd .= " -R $resource" if $resource;
         
         system("$iput_cmd $input_vcf_path $idir") && $self->throw("failed to $iput_cmd $input_vcf_path $idir");
         if ($has_index) {
