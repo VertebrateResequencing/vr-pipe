@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 173;
+    use Test::Most tests => 176;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -99,6 +99,9 @@ ok $keyval_list = VRPipe::KeyValList->get(hash => {}), 'got a FileList using get
 is_deeply [$keyval_list->id, scalar($keyval_list->keyvals)], [3, 0], 'the created KeyValList has a new id, and no files';
 ok $keyval_list = VRPipe::KeyValList->get(hash => {}), 'got a KeyValList using get() with an empty hash again';
 is $keyval_list->id, 3, 'it had the same id';
+ok $keyval_list = VRPipe::KeyValList->get(keyvals => [['keya', 'vala'], ['keya', 'vala'], ['keya', 'valb'], ['keyb', 'vala']]), 'created a KeyValList using manual keyvals';
+is_deeply [[$keyval_list->get_value('keya')], [$keyval_list->get_value('keyb')]], [['vala', 'valb'], ['vala']], 'get_value() works in list context';
+is $keyval_list->get_value('keya'), 'valb', 'get_value() works in scalar context';
 
 my @ids;
 ok $ids[0] = VRPipe::StepIODefinition->create(type => 'bam', description => 'step_1 bam input'), 'created a InputDefinition using create()';
