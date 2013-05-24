@@ -132,7 +132,8 @@ class VRPipe::File extends VRPipe::Persistent {
         isa         => Persistent,
         traits      => ['VRPipe::Persistent::Attributes'],
         belongs_to  => 'VRPipe::KeyValList',
-        is_nullable => 1
+        is_nullable => 1,
+        # handles     => { meta_value => 'get_value' } *** moose complains about this, don't know why
     );
     
     has 'moved_to' => (
@@ -259,6 +260,10 @@ class VRPipe::File extends VRPipe::Persistent {
             my $keyvallist = $self->keyvallist || return {};
             return $keyvallist->as_hashref;
         }
+    }
+    
+    method meta_value (Str $key) {
+        return $self->keyvallist->get_value($key);
     }
     
     # speed critical, so sub instead of method
