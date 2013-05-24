@@ -104,9 +104,9 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
     # avoid the call stack. Note, if the list had the same key multiple times,
     # our returned hash only contains the last value for that key
     sub as_hashref {
-        my $self = shift;
-        my $return;
-        my $ref = VRPipe::KeyValListMember->get_column_values(['keyval_key', 'val'], { keyvallist => $self->id });
+        my $self   = shift;
+        my $return = {};
+        my $ref    = VRPipe::KeyValListMember->get_column_values(['keyval_key', 'val'], { keyvallist => $self->id });
         foreach my $ref (@$ref) {
             $return->{ $ref->[0] } = $ref->[1];
         }
