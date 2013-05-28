@@ -408,23 +408,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($result->{changed}) {
-                # because 'changed' is based on file metadata changing, and the
-                # file may have had its metadata applied in some other pipeline
-                # for some other datasource, there may be no DataElement to
-                # actually change
-                my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
-                $element || next;
-                
-                # reset element states first
-                foreach my $estate ($element->element_states) {
-                    $estate->pipelinesetup->log_event("vrtrack DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
-                    $estate->start_from_scratch;
-                }
-                # then change metadata in files
-                foreach my $fm (@{ $result->{changed} }) {
-                    my ($vrfile, $new_metadata) = @$fm;
-                    $vrfile->add_metadata($new_metadata, replace_data => 1);
-                }
+                $self->_start_over_elements_due_to_file_metadata_change($result);
             }
         }
         $self->_create_elements(\@element_args);
