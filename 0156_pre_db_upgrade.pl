@@ -51,7 +51,7 @@ foreach ([qw(Job output_files)], [qw(Step options_definition inputs_definition o
                 $count++;
             }
             $dbh->commit;
-            warn " updated $count rows\n";
+            warn " updated $count rows (offset $offset)\n";
         };
         if ($@) {
             my $error = $@;
@@ -68,8 +68,8 @@ warn "\n ## Second, I'll place current File metadata column values into a tempor
 my $create_table = $dbh->prepare(q[CREATE TABLE if not exists temp_file_metadata (file INT NOT NULL, PRIMARY KEY (file), metadata TEXT)]);
 $create_table->execute();
 warn "Created table temp_file_metadata; will store metadata from file table in it...\n";
-my $sth    = $dbh->prepare(q[INSERT INTO temp_file_metadata (file, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = ?]);
-my $offset = 0;
+$sth    = $dbh->prepare(q[INSERT INTO temp_file_metadata (file, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = ?]);
+$offset = 0;
 while (1) {
     my $select = $dbh->prepare(qq[SELECT id, metadata FROM file LIMIT $offset, $limit]);
     $select->execute;
@@ -93,7 +93,7 @@ while (1) {
             $count++;
         }
         $dbh->commit;
-        warn " stored $count rows\n";
+        warn " stored $count rows (offset $offset)\n";
     };
     if ($@) {
         my $error = $@;
@@ -141,7 +141,7 @@ while (1) {
             $count++;
         }
         $dbh->commit;
-        warn " stored $count rows\n";
+        warn " stored $count rows (offset $offset)\n";
     };
     if ($@) {
         my $error = $@;

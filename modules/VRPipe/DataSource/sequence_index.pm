@@ -200,22 +200,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
-                $element || next;
-                foreach my $estate ($element->element_states) {
-                    $estate->pipelinesetup->log_event("sequence_index DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
-                    $estate->start_from_scratch;
-                }
-                
-                #*** problems happen if we start_from_scratch some of them, but
-                # then get killed before updating the metadata...
-                
-                # only now that we've started from scratch do we we alter the
-                # metadata
-                foreach my $fm (@{ $hash_ref->{changed} }) {
-                    my ($vrfile, $new_metadata) = @$fm;
-                    $vrfile->add_metadata($new_metadata, replace_data => 1);
-                }
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref);
             }
         }
         $self->_create_elements(\@element_args);
@@ -355,22 +340,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
-                $element || next;
-                foreach my $estate ($element->element_states) {
-                    $estate->pipelinesetup->log_event("sequence_index DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
-                    $estate->start_from_scratch;
-                }
-                
-                #*** problems happen if we start_from_scratch some of them, but
-                # then get killed before updating the metadata...
-                
-                # only now that we've started from scratch do we we alter the
-                # metadata
-                foreach my $fm (@{ $hash_ref->{changed} }) {
-                    my ($vrfile, $new_metadata) = @$fm;
-                    $vrfile->add_metadata($new_metadata, replace_data => 1);
-                }
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref);
             }
         }
         $self->_create_elements(\@element_args);

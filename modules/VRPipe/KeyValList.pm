@@ -104,14 +104,30 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
     # avoid the call stack. Note, if the list had the same key multiple times,
     # our returned hash only contains the last value for that key
     sub as_hashref {
-        my $self = shift;
-        my $return;
-        my $ref = VRPipe::KeyValListMember->get_column_values(['keyval_key', 'val'], { keyvallist => $self->id });
+        my $self   = shift;
+        my $return = {};
+        my $ref    = VRPipe::KeyValListMember->get_column_values(['keyval_key', 'val'], { keyvallist => $self->id });
         foreach my $ref (@$ref) {
             $return->{ $ref->[0] } = $ref->[1];
         }
         return $return;
     }
+    
+    method get_value (Str $key) {
+        my @vals = VRPipe::KeyValListMember->get_column_values('val', { keyvallist => $self->id, keyval_key => $key });
+        if (wantarray) {
+            return @vals;
+        }
+        else {
+            return pop(@vals);
+        }
+    }
+    
+    # we don't have an add_value or similar, because the list must be immutable;
+    # they are used to store metadata on File rows, and 2 different files could
+    # have the same metadata and therefore store the same keyvallist foreign
+    # key id. So we can't just alter the keyvallist when the metadata on one
+    # of the files changes, because that would affect the other as well
 }
 
 1;
