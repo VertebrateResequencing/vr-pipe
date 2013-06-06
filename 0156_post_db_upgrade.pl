@@ -17,7 +17,7 @@ my $sth    = $dbh->prepare(q[update file set keyvallist = ? where id = ?]);
 my $offset = 0;
 my $total  = 0;
 while (1) {
-    my $select = $dbh->prepare(qq[SELECT file, metadata FROM temp_file_metadata LIMIT $offset, $limit]);
+    my $select = $dbh->prepare(qq[SELECT f.id, metadata FROM ( SELECT file, metadata FROM temp_file_metadata LIMIT $offset, $limit ) o join temp_file_metadata f on f.id = o.id]);
     $select->execute;
     my $count = 0;
     # create all KeyValLists first, separately from updating the column, or we

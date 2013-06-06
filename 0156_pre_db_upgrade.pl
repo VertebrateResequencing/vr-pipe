@@ -71,7 +71,7 @@ warn "Created table temp_file_metadata; will store metadata from file table in i
 $sth    = $dbh->prepare(q[INSERT INTO temp_file_metadata (file, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = ?]);
 $offset = 0;
 while (1) {
-    my $select = $dbh->prepare(qq[SELECT id, metadata FROM file LIMIT $offset, $limit]);
+    my $select = $dbh->prepare(qq[SELECT f.id, metadata FROM ( SELECT id from file LIMIT $offset, $limit ) o join file f on f.id = o.id]);
     $select->execute;
     my $count = 0;
     eval {

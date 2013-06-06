@@ -101,10 +101,11 @@ warn "Will delete File rows no longer needed\n";
 my $offset = 0;
 my $last_id;
 while (1) {
-    # (order by id could be used to help avoid hitting foreign key contraints,
+    # order by id could be used to help avoid hitting foreign key constraints,
     # but it never worked correctly anyway, and it results in >500second
-    # selects)
-    my $select = $dbh->prepare("SELECT id, metadata FROM file where id < $max_id LIMIT $offset, $limit");
+    # selects, as does using where id < $max_id. The nested select also improves
+    # performance by orders of magnitude when LIMIT is high
+    my $select = $dbh->prepare("SELECT f.id, metadata FROM ( SELECT id from file LIMIT $offset, $limit ) o join file f on f.id = o.id");
     $select->execute;
     
     my $deleted = 0;
@@ -115,6 +116,8 @@ while (1) {
             $count++;
             
             my ($id, $meta) = @$row;
+            next if $id > $max_id;
+            
             if (exists $needed_files{$id} || exists $chained_files{$id}) {
                 $skipped++;
                 next;
