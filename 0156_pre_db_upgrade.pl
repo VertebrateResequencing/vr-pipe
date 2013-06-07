@@ -68,8 +68,8 @@ warn "\n ## Second, I'll place current File metadata column values into a tempor
 my $create_table = $dbh->prepare(q[CREATE TABLE if not exists temp_file_metadata (file INT NOT NULL, PRIMARY KEY (file), metadata TEXT)]);
 $create_table->execute();
 warn "Created table temp_file_metadata; will store metadata from file table in it...\n";
-$sth    = $dbh->prepare(q[INSERT INTO temp_file_metadata (file, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = ?]);
-$offset = 0;
+my $sth    = $dbh->prepare(q[INSERT INTO temp_file_metadata (file, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = ?]);
+my $offset = 0;
 while (1) {
     my $select = $dbh->prepare(qq[SELECT f.id, metadata FROM ( SELECT id from file LIMIT $offset, $limit ) o join file f on f.id = o.id]);
     $select->execute;
