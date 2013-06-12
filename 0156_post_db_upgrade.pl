@@ -31,7 +31,7 @@ while (1) {
         push(@execute_args, [$kvl->id, $id]);
         $count++;
     }
-    warn " created/looked up $count keyvallists\n";
+    warn " created/looked up $count keyvallists (offset $offset)\n";
     
     $count = 0;
     eval {
@@ -80,7 +80,7 @@ while (1) {
         push(@execute_args, [$kvl->id, $fl->id, $id]);
         $count++;
     }
-    warn " created/looked up $count keyvallists and filelists\n";
+    warn " created/looked up $count keyvallists and filelists (offset $offset)\n";
     
     $count = 0;
     eval {
