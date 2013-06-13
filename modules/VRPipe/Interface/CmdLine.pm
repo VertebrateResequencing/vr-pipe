@@ -118,7 +118,7 @@ class VRPipe::Interface::CmdLine {
     
     has 'server_ok' => (
         is      => 'ro',
-        isa     => 'Bool',
+        isa     => 'Int',
         lazy    => 1,
         builder => 'check_server'
     );
