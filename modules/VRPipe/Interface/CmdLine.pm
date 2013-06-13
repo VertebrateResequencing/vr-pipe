@@ -382,7 +382,7 @@ class VRPipe::Interface::CmdLine {
         # first we need to make sure that the server bound to the port we
         # configured for our database is actually connected to our database
         # (and we'll auto-start the server if it isn't running at all)
-        $self->die_with_error("Can't connect to server.") unless $self->server_ok;
+        $self->die_with_error("Can't connect to server.") unless $self->server_ok && $self->server_ok > 0;
         
         # now we'll handle the desired request
         my ($ua, undef, $base_url) = @{ $self->_ua_port_baseurl };
