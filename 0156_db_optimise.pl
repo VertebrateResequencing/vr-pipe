@@ -60,7 +60,7 @@ my $num_needed = keys %needed_files;
 warn "Will find the chain of files leading to or from our needed files ($num_needed)\n";
 my %chained_files;
 my $chained = 0;
-while (my ($fid) = each %needed_files) {
+foreach my $fid (sort keys %needed_files) {
     add_chained_ids($fid);
     $chained++;
     if ($chained % $limit == 0) {
@@ -78,10 +78,13 @@ sub add_chained_ids {
     }
     if ($moved_to) {
         $chained_files{$moved_to} = 1;
+        my %in_loop;
         while (1) {
             ($moved_to) = VRPipe::File->get_column_values('moved_to', { id => $moved_to }, { rows => 1 });
             $moved_to || last;
+            last if exists $in_loop{$moved_to}; # break infinite loop
             $chained_files{$moved_to} = 1;
+            $in_loop{$moved_to}       = 1;
         }
     }
     
