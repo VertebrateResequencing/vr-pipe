@@ -437,7 +437,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 #  _has_changed did not set _changed_marker, so are a little weird now but were
 #  kept anyway)
 SKIP: {
-    my $num_tests = 26;
+    my $num_tests = 29;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
     eval "require VRTrack::Factory;";
     skip "VRTrack::Factory not loading", $num_tests if $@;
