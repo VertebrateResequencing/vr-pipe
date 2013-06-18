@@ -93,7 +93,12 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 description   => 'Maximimum indels per cycle, factor above median',
                 optional      => 1,
                 default_value => '8'
-            )
+            ),
+            genotype_source => VRPipe::StepOption->create(
+                description   => 'Genotype results source to apply to lane status',
+                optional      => 1,
+                default_value => 'sequenom'
+            ),
         };
     }
     
@@ -133,7 +138,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             while (my ($lane, $files) = each %by_lane) {
                 $self->throw("There was not exactly 1 bam file and 1 bamcheck file per lane for lane $lane (@$files)") unless @$files == 2;
                 
-                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_min_ins_to_del_ratio => $opts->{auto_qc_min_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent}, auto_qc_max_ic_above_median => $opts->{auto_qc_max_ic_above_median} );";
+                my $cmd = "use VRPipe::Steps::vrtrack_auto_qc; VRPipe::Steps::vrtrack_auto_qc->auto_qc(db => q[$opts->{vrtrack_db}], bam => q[$files->[0]], bamcheck => q[$files->[1]], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_insert_peak_window => $opts->{auto_qc_insert_peak_window}, auto_qc_insert_peak_reads => $opts->{auto_qc_insert_peak_reads}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_min_ins_to_del_ratio => $opts->{auto_qc_min_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent}, auto_qc_max_ic_above_median => $opts->{auto_qc_max_ic_above_median}, genotype_source => q[$opts->{genotype_source}] );";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -147,7 +152,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         return "Considering the stats in the bamcheck file for a lane, and the metadata stored on the bam file and in the VRTrack database for the corresponding lane, automatically decide if the lane passes the quality check.";
     }
     
-    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_min_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?,  Num :$auto_qc_max_ic_above_median? ) {
+    method auto_qc (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str|File :$bamcheck!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_insert_peak_window?, Num :$auto_qc_insert_peak_reads?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_min_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?,  Num :$auto_qc_max_ic_above_median?, Str :$genotype_source ) {
         my $bam_file = VRPipe::File->get(path => $bam);
         my $meta     = $bam_file->metadata;
         my $bc       = VRPipe::Parser->create('bamcheck', { file => $bamcheck });
@@ -176,36 +181,46 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         }
         
         # genotype check results
-        my @gtype_results;
+        my %gtype_results;
+        my $lane_gstatus;
+
         if (defined $auto_qc_gtype_regex) {
             # use gtype info from bam_genotype_checking pipeline, if present
-            my $gstatus;
-            my $gtype_analysis = $meta->{gtype_analysis};
-            if ($gtype_analysis) {
-                ($gstatus) = $gtype_analysis =~ /status=(\S+) expected=(\S+) found=(\S+) ratio=(\S+)/;
-                @gtype_results = ($gstatus, $2, $3, $4);
+            # Set lane GT status if this is the correct source
+            my $gtype_analyses = $meta->{gtype_analysis};
+            if ($gtype_analyses) {
+                my @gtype_analysis = split(/\|/,$gtype_analyses);
+                foreach my $gta (@gtype_analysis) {
+                    my ($gsource,$gstatus,$exp,$fnd,$ratio) = $gta =~ /source=(\S+) status=(\S+) expected=(\S+) found=(\S+) ratio=(\S+)/;
+                    $gtype_results{$gsource} = [$gstatus, $exp, $fnd, $ratio];
+                    $lane_gstatus = $gstatus if $gsource eq $genotype_source;
+                }
             }
             else {
-                # look to see if there's a gtype status in VRTrack database for
-                # this lane
-                my $gt_found = $mapstats->genotype_found;
-                if ($gt_found) {
+                # look to see if there's already a gtype status from the correct source in VRTrack database for this lane
+                my $genotype;
+                my @genotypes = @{ $mapstats->genotypes() };
+                foreach ( @genotypes ) {
+                    $genotype = $_ if $_->source eq $genotype_source;
+                }
+
+                if ($genotype && $genotype->gt_found) {
                     my %lane_info = $vrtrack->lane_info($lane);
-                    if ($gt_found eq $mapstats->genotype_expected || $gt_found eq $lane_info{sample} || $gt_found eq $lane_info{individual} || $gt_found eq $lane_info{individual_acc}) {
-                        $gstatus = 'confirmed';
+                    if ($genotype->gt_found eq $genotype->gt_expected || $genotype->gt_found eq $lane_info{sample} || $genotype->gt_found eq $lane_info{individual} || $genotype->gt_found eq $lane_info{individual_acc}) {
+                        $lane_gstatus = 'confirmed';
                     }
                     else {
-                        $gstatus = 'wrong';
+                        $lane_gstatus = 'wrong';
                     }
                 }
             }
             
-            if ($gstatus) {
+            if ($lane_gstatus) {
                 $status = 1;
-                $reason = qq[The status is '$gstatus'.];
-                if ($gstatus !~ /$auto_qc_gtype_regex/) {
+                $reason = qq[The status is '$lane_gstatus'.];
+                if ($lane_gstatus !~ /$auto_qc_gtype_regex/) {
                     $status = 0;
-                    $reason = "The status ($gstatus) does not match the regex ($auto_qc_gtype_regex).";
+                    $reason = "The status ($lane_gstatus) does not match the regex ($auto_qc_gtype_regex).";
                 }
                 push @qc_status, { test => 'Genotype check', status => $status, reason => $reason };
             }
@@ -454,19 +469,19 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 $mapstats->update;
                 
                 $vrlane->auto_qc_status($status ? 'passed' : 'failed');
-                
-                # also, if we did our own genotype check, write those results back
-                # to VRTrack now
-                if (@gtype_results) {
+
+                # also, if we did our own genotype check, write those results back to VRTrack now
+                if (%gtype_results) {
                     my $mapstats = $vrlane->latest_mapping;
-                    $mapstats->genotype_expected($gtype_results[1]);
-                    $mapstats->genotype_found($gtype_results[2]);
-                    $mapstats->genotype_ratio($gtype_results[3]);
-                    $mapstats->update();
-                    
-                    $vrlane->genotype_status($gtype_results[0]);
+                    foreach my $src (keys %gtype_results) {
+                        my @gt_results = @{$gtype_results{$src}};
+                        $mapstats->add_genotype($src,$gt_results[0],$gt_results[1],$gt_results[2],$gt_results[3]);
+                        $mapstats->update();
+                    }
                 }
-                
+                if ($lane_gstatus) {
+                    $vrlane->genotype_status($lane_gstatus);
+                }
                 $vrlane->update();
             },
             undef,

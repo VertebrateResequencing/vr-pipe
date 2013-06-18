@@ -77,6 +77,30 @@ my $auto_qc_ps = VRPipe::PipelineSetup->create(
     options     => { vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB}, auto_qc_min_ins_to_del_ratio => 0.5 }
 );
 
+# setup genotype checks in bam meta and one in vrtrack
+my $mapstats = "VRTrack::Mapstats"->new($vrtrack,1);
+$mapstats->add_genotype('sequenom','confirmed','gt01','gt01',100);
+$mapstats->add_genotype('g1k','wrong','gt01','gt02',200);
+## We also need to set up a sample etc under the lane lib
+my $lib = VRTrack::Library->new($vrtrack,1);
+$lib->sample_id(1);
+$lib->add_seq_centre('sc_name');
+$lib->add_seq_tech('st_name');
+$lib->update;
+my $sample = VRTrack::Sample->create($vrtrack,'1','1');
+my $seqtek = VRTrack::Seq_tech->create($vrtrack,'1');
+$sample->project_id('1');
+$sample->individual_id('1');
+$sample->update;
+my $project = VRTrack::Project->create($vrtrack,'1');
+my $individual = VRTrack::Individual->create($vrtrack,'1');
+$individual->add_population('EUR');
+$individual->add_species('human');
+$individual->update;
+
+my $file = VRPipe::File->create(path => file('t', 'data', 'autoqc_short.bam')->absolute);
+$file->add_metadata({ gtype_analysis => "source=sequenom status=unknown expected=gt01 found=gt02 ratio=200" });
+
 ok handle_pipeline(), 'vrtrack_auto_qc pipeline ran';
 
 # check autoqc tests on vrtrack database

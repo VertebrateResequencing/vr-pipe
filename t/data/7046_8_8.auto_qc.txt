@@ -1,3 +1,4 @@
+Genotype check:	PASSED	 # The status is 'confirmed'.
 Mapped bases:	PASSED	 # At least 90.0% bases mapped after clipping (96.68%).
 Duplicate reads:	FAILED	 # More than 8.0% reads were duplicates (22.40%).
 Reads mapped in a proper pair:	FAILED	 # Less than 80.0% of reads that were mapped are in a proper pair (77.60%).

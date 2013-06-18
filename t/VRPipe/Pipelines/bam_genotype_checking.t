@@ -80,7 +80,7 @@ foreach (qw(a b c d)) {
     my $bam_meta = VRPipe::File->create(path => file('t', 'data', "hs_chr20.$_.bam")->absolute)->metadata;
     push(@gtype_results, $bam_meta->{gtype_analysis});
 }
-is_deeply \@gtype_results, ['status=unconfirmed expected=NA20526 found=NA20586 ratio=1.016', 'status=unconfirmed expected=NA20527 found=NA20521 ratio=1.000', 'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000', 'status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000'], 'gtype_analysis results were stored correctly as metadata on the input bams';
+is_deeply \@gtype_results, ['source=sequenom status=unconfirmed expected=NA20526 found=NA20586 ratio=1.016', 'source=sequenom status=unconfirmed expected=NA20527 found=NA20521 ratio=1.000', 'source=sequenom status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000', 'source=sequenom status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000'], 'gtype_analysis results were stored correctly as metadata on the input bams';
 
 VRPipe::PipelineSetup->create(
     name        => 'genotype_checking',
@@ -101,7 +101,12 @@ foreach (qw(a b c d)) {
     my $bam_meta = VRPipe::File->create(path => file('t', 'data', "hs_chr20.$_.bam")->absolute)->metadata;
     push(@gtype_results, $bam_meta->{gtype_analysis});
 }
-is_deeply \@gtype_results, ['status=confirmed expected=NA20586 found=NA20586 ratio=1.016', 'status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000', 'status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000', 'status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000'], 'gtype_analysis results were updated correctly when we reran using individual as the expected';
+is_deeply \@gtype_results, 
+ ['source=sequenom status=unconfirmed expected=NA20526 found=NA20586 ratio=1.016|source=sequenom status=confirmed expected=NA20586 found=NA20586 ratio=1.016', 
+  'source=sequenom status=unconfirmed expected=NA20527 found=NA20521 ratio=1.000|source=sequenom status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000', 
+  'source=sequenom status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000|source=sequenom status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000', 
+  'source=sequenom status=unconfirmed expected=NA20526 found=NA20521 ratio=1.000|source=sequenom status=unconfirmed expected=NA20586 found=NA20521 ratio=1.000'], 
+  'gtype_analysis results were updated correctly when we reran using individual as the expected';
 
 done_testing;
 

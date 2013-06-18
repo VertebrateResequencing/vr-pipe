@@ -40,7 +40,12 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
                 description   => 'confidence level to be used as a cutoff to determine whether genotyping has passed or not',
                 optional      => 1,
                 default_value => 1.05
-            )
+            ),
+            gtype_source => VRPipe::StepOption->create(
+                description   => 'provider of gtypex file',
+                optional      => 1,
+                default_value => 'sequenom'
+            ),
         };
     }
     
@@ -60,12 +65,13 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
             my $self      = shift;
             my $options   = $self->options;
             my $min_ratio = $options->{gtype_confidence};
+            my $gtype_source = $options->{gtype_source};
             my $req       = $self->new_requirements(memory => 3900, time => 1);
             
             foreach my $gtypex (@{ $self->inputs->{gtypex_files} }) {
                 my $source_bam  = $gtypex->metadata->{source_bam};
                 my $gtypex_path = $gtypex->path;
-                my $cmd         = "use VRPipe::Steps::gtypex_genotype_analysis; VRPipe::Steps::gtypex_genotype_analysis->analyse_gtypex_output(gtypex => q[$gtypex_path], confidence => q[$min_ratio], source_bam => q[$source_bam]);";
+                my $cmd         = "use VRPipe::Steps::gtypex_genotype_analysis; VRPipe::Steps::gtypex_genotype_analysis->analyse_gtypex_output(gtypex => q[$gtypex_path], confidence => q[$min_ratio], source_bam => q[$source_bam], gtype_source => q[$gtype_source]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -87,7 +93,7 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
         return 0;
     }
     
-    method analyse_gtypex_output (ClassName|Object $self: Str|File :$gtypex, Str|File :$source_bam, Num :$confidence) {
+    method analyse_gtypex_output (ClassName|Object $self: Str|File :$gtypex, Str|File :$source_bam, Num :$confidence, Str :$gtype_source) {
         my $gtypex_file = VRPipe::File->get(path => $gtypex);
         my $meta        = $gtypex_file->metadata;
         my $expected    = $meta->{expected_sample};
@@ -123,29 +129,35 @@ class VRPipe::Steps::gtypex_genotype_analysis with VRPipe::StepRole {
         $ratio = sprintf("%0.3f", $ratio);
         my $gt_status;
         if ($expected_gtype2) {
-            $gt_status = "status=confirmed expected=$expected found=$gtype2 ratio=$ratio";
+            $gt_status = "source=$gtype_source status=confirmed expected=$expected found=$gtype2 ratio=$ratio";
         }
         elsif ($ratio < $confidence) {
             if ($expected) {
-                $gt_status = "status=unconfirmed expected=$expected found=$gtype1 ratio=$ratio";
+                $gt_status = "source=$gtype_source status=unconfirmed expected=$expected found=$gtype1 ratio=$ratio";
             }
             else {
-                $gt_status = "status=unknown expected=none found=$gtype1 ratio=$ratio";
+                $gt_status = "source=$gtype_source status=unknown expected=none found=$gtype1 ratio=$ratio";
             }
         }
         elsif (!$expected) {
-            $gt_status = "status=candidate expected=none found=$gtype1 ratio=$ratio";
+            $gt_status = "source=$gtype_source status=candidate expected=none found=$gtype1 ratio=$ratio";
         }
         elsif ($expected eq $gtype1) {
-            $gt_status = "status=confirmed expected=$expected found=$gtype1 ratio=$ratio";
+            $gt_status = "source=$gtype_source status=confirmed expected=$expected found=$gtype1 ratio=$ratio";
         }
         else {
-            $gt_status = "status=wrong expected=$expected found=$gtype1 ratio=$ratio";
+            $gt_status = "source=$gtype_source status=wrong expected=$expected found=$gtype1 ratio=$ratio";
         }
         
-        my $new_meta = { gtype_analysis => $gt_status };
-        $bam_file->add_metadata($new_meta, replace_data => 1);
-        $gtypex_file->add_metadata($new_meta, replace_data => 1);
+        # Append the GT data to the bam meta and add/replace it in the GT file
+        my $gtype_analysis = $bam_file->metadata->{gtype_analysis};
+        $gtype_analysis .= '|' if $gtype_analysis;
+        $gtype_analysis .= $gt_status;
+        my $bam_meta = { gtype_analysis => $gtype_analysis};
+        $bam_file->add_metadata($bam_meta, replace_data => 1);
+
+        my $gt_meta = { gtype_analysis => $gt_status};
+        $gtypex_file->add_metadata($gt_meta, replace_data => 1);
     }
 }
 

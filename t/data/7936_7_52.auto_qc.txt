@@ -1,3 +1,4 @@
+Genotype check:	FAILED	 # The status (unknown) does not match the regex (^confirmed).
 Mapped bases:	PASSED	 # At least 90.0% bases mapped after clipping (99.79%).
 Duplicate reads:	PASSED	 # 8.0% or fewer reads were duplicates (1.02%).
 Reads mapped in a proper pair:	PASSED	 # 80.0% or more reads that were mapped are in a proper pair (98.98%).
