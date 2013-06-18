@@ -920,7 +920,7 @@ XSL
                 header => [
                     To => $email_to ? join(', ', map { "$_\@$domain" } @$email_to) : $admin_email,
                     $email_admin && $email_to ? (Cc => $admin_email) : (),
-                    From    => '"VRPipe Server" <vrpipe@do.not.reply>',
+                    From    => qq["VRPipe Server" <$admin_email>],
                     Subject => $subject || "VRPipe Server message",
                 ],
                 body => $msg . "\n" . ($long_msg || ''),

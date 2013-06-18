@@ -21,7 +21,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -107,7 +107,7 @@ role VRPipe::StepRole {
     );
     has 'temps' => (
         is      => 'ro',
-        isa     => ArrayRefOfPersistent,
+        isa     => PersistentArrayRef,
         builder => '_build_temps',
         lazy    => 1,
         clearer => '_clear_temps'
@@ -622,8 +622,14 @@ role VRPipe::StepRole {
                 push(@ofiles, map { $_->path } @$files);
             }
             my %ofiles = map { $_ => 1 } @ofiles;
-            my $ofiles = join(', ', keys %ofiles);
-            $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFiles [$ofiles]", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
+            # we could have so many files that attempting to store all their
+            # paths in a single pipelinesetuplog would overflow the maximum
+            # size for the message column in the database, which means our
+            # parse would fail, so we create multiple log lines, one for each
+            # output file
+            foreach my $ofile (keys %ofiles) {
+                $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFile $ofile", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
+            }
         }
         my $temp_files = $self->_temp_files;
         if (@$temp_files) {

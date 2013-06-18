@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 77;
+    use Test::Most tests => 80;
     use VRPipeTest;
     use TestPipelines;
     
@@ -437,7 +437,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 #  _has_changed did not set _changed_marker, so are a little weird now but were
 #  kept anyway)
 SKIP: {
-    my $num_tests = 26;
+    my $num_tests = 29;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
     eval "require VRTrack::Factory;";
     skip "VRTrack::Factory not loading", $num_tests if $@;
@@ -688,6 +688,21 @@ SKIP: {
     get_elements($ds);
     $vrfile->reselect_values_from_db;
     is $vrfile->metadata->{insert_size}, '200', 'changing insert_size in vrtrack changes insert_size metadata on vrpipe files';
+    
+    # test that changing the md5 in the vrtrack db results in the corresponding
+    # dataelement being started from scratch, and the expected_md5 on the file
+    # getting updated
+    my ($test_de) = $vrfile->input_to;
+    my $test_des = VRPipe::DataElementState->create(dataelement => $test_de->id, pipelinesetup => 1, completed_steps => 1);
+    is $test_des->completed_steps, 1, 'got and pretended a dataelementstate completed a step';
+    $file = VRTrack::File->new_by_hierarchy_name($vrtrack, 'ERR003199.filt.fastq.gz');
+    $file->md5('foo');
+    $file->update;
+    get_elements($ds);
+    $test_des->reselect_values_from_db;
+    is $test_des->completed_steps, 0, 'changing md5 on a dataelement input file started it from scratch';
+    $vrfile->reselect_values_from_db;
+    is $vrfile->meta_value('expected_md5'), 'foo', 'and it changed the metadata on the file';
     
     # test getting improved bams that passed qc
     $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'rw');

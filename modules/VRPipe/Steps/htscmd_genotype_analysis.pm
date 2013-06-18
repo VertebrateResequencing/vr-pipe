@@ -5,7 +5,9 @@ VRPipe::Steps::htscmd_genotype_analysis - a step
 
 =head1 DESCRIPTION
 
-The genotype check status is determined by analysing the htscmd gtcheck output file, and computing the ratio of best-match genotype concurrence to next-best concurrence; results are stored as metadata (gtype_analysis) on the bam file.
+The genotype check status is determined by analysing the htscmd gtcheck output
+file, and computing the ratio of best-match genotype concurrence to next-best
+concurrence; results are stored as metadata (gtype_analysis) on the bam file.
 
 =head1 AUTHOR
 
@@ -69,9 +71,9 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
             my $req       = $self->new_requirements(memory => 3900, time => 1);
             
             foreach my $gt_file (@{ $self->inputs->{htscmd_gtcheck_files} }) {
-                my $source_bam  = $gt_file->metadata->{source_bam};
+                my $source_bam   = $gt_file->metadata->{source_bam};
                 my $gt_file_path = $gt_file->path;
-                my $cmd = "use VRPipe::Steps::htscmd_genotype_analysis; VRPipe::Steps::htscmd_genotype_analysis->analyse_htscmd_output(gt_file_path => q[$gt_file_path], source_bam => q[$source_bam], min_ratio => q[$min_ratio], min_sites => q[$min_sites]);";
+                my $cmd          = "use VRPipe::Steps::htscmd_genotype_analysis; VRPipe::Steps::htscmd_genotype_analysis->analyse_htscmd_output(gt_file_path => q[$gt_file_path], source_bam => q[$source_bam], min_ratio => q[$min_ratio], min_sites => q[$min_sites]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -94,28 +96,27 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
     }
     
     method analyse_htscmd_output (ClassName|Object $self: Str|File :$gt_file_path!, Str|File :$source_bam!, Num :$min_ratio!, Num :$min_sites!) {
-
-        my $gt_file     = VRPipe::File->get(path => $gt_file_path);
-        my $meta        = $gt_file->metadata;
-        my $expected    = $meta->{expected_sample};
-
-        my $found_expected = 0;
-        my ($gtype1,$score1, $gtype2, $score2);
+        my $gt_file  = VRPipe::File->get(path => $gt_file_path);
+        my $meta     = $gt_file->metadata;
+        my $expected = $meta->{expected_sample};
         
-        my $pipe = "grep -v '^#' $gt_file_path| sort -nr -k1 |";  # sort descending on Confidence
+        my $found_expected = 0;
+        my ($gtype1, $score1, $gtype2, $score2);
+        
+        my $pipe = "grep -v '^#' $gt_file_path| sort -nr -k1 |"; # sort descending on Confidence
         my $fh;
         open($fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
-
+        
         while (<$fh>) {
             if ($found_expected && defined($gtype1) && defined($gtype2)) { last; }
-
+            
             # 0.435266        0.468085        25905095.2      25      NA20544
-            my ($concurrence,$uncertainty,$avg_depth,$sites,$sample) = split;
-
+            my ($concurrence, $uncertainty, $avg_depth, $sites, $sample) = split;
+            
             next if $sites < $min_sites;
-
+            
             if ($expected && $sample eq $expected) { $found_expected = 1; }
-
+            
             if (!defined $gtype1) {
                 $gtype1 = $sample;
                 $score1 = $concurrence;
@@ -129,12 +130,12 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         
         if ($expected && !$found_expected) { $expected = 0; }
         my $expected_gtype2 = ($expected eq $gtype2 && $score1 == $score2) ? 1 : 0;
-
+        
         # ratio = GT1 score / GT2 score, best-match / next-best
         my $ratio = $score2 != 0 ? $score1 / $score2 : $score1 / 1e-6;
         $ratio = sprintf("%0.3f", $ratio);
         my $gt_status;
-
+        
         if ($expected_gtype2) {
             $gt_status = "status=confirmed expected=$expected found=$gtype2 ratio=$ratio";
         }
@@ -158,8 +159,8 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         
         my $new_meta = { gtype_analysis => $gt_status };
         $gt_file->add_metadata($new_meta, replace_data => 1);
-
-        my @bam_files = split ('#',$source_bam);
+        
+        my @bam_files = split(',', $source_bam);
         foreach my $bam_path (@bam_files) {
             my $bam_file = VRPipe::File->get(path => $bam_path);
             $bam_file->add_metadata($new_meta, replace_data => 1);

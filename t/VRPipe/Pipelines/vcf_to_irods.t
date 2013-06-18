@@ -42,6 +42,7 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
         'irods_root' => "$irods_root",
         'study'      => "TEST_STUDY",
         'release'    => "REL-2012-11-09",
+        'resources'  => "uk10k-green,uk10k-red",
         cleanup      => 1
     }
 );

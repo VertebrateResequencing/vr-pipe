@@ -36,7 +36,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -127,11 +127,13 @@ class VRPipe::File extends VRPipe::Persistent {
         is_nullable => 1
     );
     
-    has 'metadata' => (
-        is      => 'rw',
-        isa     => 'HashRef',
-        traits  => ['VRPipe::Persistent::Attributes'],
-        default => sub { {} }
+    has 'keyvallist' => (
+        is          => 'rw',
+        isa         => Persistent,
+        traits      => ['VRPipe::Persistent::Attributes'],
+        belongs_to  => 'VRPipe::KeyValList',
+        is_nullable => 1,
+        # handles     => { meta_value => 'get_value' } *** moose complains about this, don't know why
     );
     
     has 'moved_to' => (
@@ -217,18 +219,63 @@ class VRPipe::File extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method add_metadata (HashRef $meta, Bool :$replace_data = 1) {
+    # we used to have a column called metadata, which was replaced with
+    # keyvallist; since it's more natural to create files with a metadata arg,
+    # we'll have permanent backwards-compatibility
+    around bulk_create_or_update (ClassName|Object $self: @args) {
+        foreach my $args (@args) {
+            $self->_convert_metadata($args);
+        }
+        return $self->$orig(@args);
+    }
+    
+    around _get (ClassName|Object $self: Bool $create, %args) {
+        $self->_convert_metadata(\%args);
+        return $self->$orig($create, %args);
+    }
+    
+    around search_rs (ClassName|Object $self: HashRef $search_args, Maybe[HashRef] $search_attributes?) {
+        $self->_convert_metadata($search_args);
+        my @args = ($search_args);
+        push(@args, $search_attributes) if $search_attributes;
+        return $self->$orig(@args);
+    }
+    
+    sub _convert_metadata {
+        my ($self, $args) = @_;
+        return unless exists $args->{metadata};
+        my $meta = delete $args->{metadata};
+        $args->{keyvallist} = VRPipe::KeyValList->get(hash => $meta)->id;
+    }
+    
+    # speed critical, so sub instead of method
+    sub metadata {
+        my ($self, $meta) = @_;
+        
+        if ($meta) {
+            $self->keyvallist(VRPipe::KeyValList->get(hash => $meta)->id);
+        }
+        
+        if (defined wantarray) {
+            my $keyvallist = $self->keyvallist || return {};
+            return $keyvallist->as_hashref;
+        }
+    }
+    
+    method meta_value (Str $key) {
+        return $self->keyvallist->get_value($key);
+    }
+    
+    # speed critical, so sub instead of method
+    sub add_metadata {
+        my ($self, $meta, @args) = @_;
+        my %args = (replace_data => 1, @args);
+        my $replace_data = $args{replace_data};
+        
         my $transaction = sub {
-            $self->lock_row($self, 1); #*** the 1 means 'no hack' which means we rely on 'READ COMMITTED' to ensure the existing_meta we get is the most up-to-date metadata, rather than the hack that means this transaction is forced to take 1 second, which is ruinous for datasource updates
+            $self->lock_row($self, 1); #*** the 1 means 'no hack' which means we rely on 'READ COMMITTED' to ensure the existing metadata we get is the most up-to-date metadata, rather than the hack that means this transaction is forced to take 1 second, which is ruinous for datasource updates
             
-            my $existing_meta = $self->metadata;
-            
-            # incase the input $meta was the same hashref as existing_meta, we need
-            # a new ref or update will do nothing
-            my $new_meta = {};
-            while (my ($key, $val) = each %$existing_meta) {
-                $new_meta->{$key} = $val;
-            }
+            my $final_meta = $self->metadata;
             
             while (my ($key, $val) = each %$meta) {
                 # we don't always overwrite existing values
@@ -236,13 +283,12 @@ class VRPipe::File extends VRPipe::Persistent {
                     next unless (defined $val && "$val" ne "");
                 }
                 else {
-                    next if exists $new_meta->{$key};
+                    next if exists $final_meta->{$key};
                 }
-                
-                $new_meta->{$key} = $val;
+                $final_meta->{$key} = $val;
             }
             
-            $self->metadata($new_meta);
+            $self->metadata($final_meta);
             $self->update;
         };
         $self->do_transaction($transaction, "Failed to add_metadata for file " . $self->path);
@@ -440,7 +486,19 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->_check_destination_space($dp->dir);
             
             $self->disconnect;
-            $success = File::Copy::move($sp, $dp);
+            if (-l $sp) {
+                # File::Copy::move copies symlinks across filesystem boundries
+                # as the files they point to instead of copying them as
+                # symlinks
+                my $dst = readlink($sp);
+                $success = symlink($dst, $dp);
+                if ($success) {
+                    unlink($sp);
+                }
+            }
+            else {
+                $success = File::Copy::move($sp, $dp);
+            }
             
             $dest->update_stats_from_disc;
             unless ($success) {
@@ -532,21 +590,21 @@ class VRPipe::File extends VRPipe::Persistent {
 
 =head2 resolve
  
- Title   : move (alias mv)
+ Title   : resolve
  Usage   : my $real_file = $obj->resolve;
  Function: If this file was created as a symlink (using VRPipe::File->symlink),
            returns the VRPipe::File corresponding to the real file. If this file
            was moved somewhere else, returns the VRPipe::File corresponding to
            the current location. If neither of these is true, returns itself.
  Returns : VRPipe::File object
- Args    : n/a
+ Args    : not_symlinks => boolean (do not resolve symlinks)
 
 =cut
     
-    method resolve {
+    method resolve (Bool :$not_symlinks = 0) {
         my $links_resolved;
         my $parent = $self->parent;
-        if ($parent) {
+        if ($parent && !$not_symlinks) {
             $links_resolved = $parent->resolve;
         }
         else {
@@ -556,13 +614,173 @@ class VRPipe::File extends VRPipe::Persistent {
         my $fully_resolved;
         my $moved_to = $links_resolved->moved_to;
         if ($moved_to) {
-            $fully_resolved = $moved_to->resolve;
+            $fully_resolved = $moved_to->resolve(not_symlinks => $not_symlinks);
         }
         else {
             $fully_resolved = $links_resolved;
         }
         
         return $fully_resolved;
+    }
+
+=head2 original
+ 
+ Title   : original
+ Usage   : my $original_file = $obj->original;
+ Function: If this file was the result of moving another file, returns the
+           VRPipe::File corresponding to the original location. Otherwise,
+           returns itself. Does NOT resolve a symlink to the file it links to.
+ Returns : VRPipe::File object in scalar context, list of File ids (back through
+           the chain of moved files to the id of the original file, excluding
+           self) in list context
+ Args    : n/a
+
+=cut
+    
+    method original {
+        my @fids;
+        my $current_id = $self->id;
+        while (1) {
+            my ($parent_id) = VRPipe::File->get_column_values('id', { moved_to => $current_id }, { rows => 1 });
+            $parent_id || last;
+            push(@fids, $parent_id);
+            $current_id = $parent_id;
+        }
+        
+        if (wantarray) {
+            return @fids;
+        }
+        elsif (@fids) {
+            return VRPipe::File->get(id => $fids[-1]);
+        }
+        return $self;
+    }
+
+=head2 output_by
+ 
+ Title   : output_by
+ Usage   : my @step_states = $obj->output_by;
+ Function: If this file was a step output, returns the stepstates that created
+           it.
+ Returns : list of VRPipe::StepState objects; in scalar context returns 1 if
+           any objects would have been returned (not the true count)
+ Args    : Boolean, which if true, only returns a single stepstate (not in a
+           list), and only if there is just 1 stepstate that created it
+           (discounting those that ran the exact same command line).
+
+=cut
+    
+    method output_by (Bool $single = 0) {
+        # resolve first, then work backwards to get all file ids that
+        # represented us in the past
+        my $resolved = $self->resolve(not_symlinks => 1);
+        my @fids = $resolved->original;
+        unshift(@fids, $resolved->id) if $resolved->id != $self->id;
+        unshift(@fids, $self->id);
+        
+        my $quick = 0;
+        if (!wantarray && !$single) {
+            $quick = 1;
+        }
+        
+        # get the stepstates
+        my @sss;
+        foreach my $fid (@fids) {
+            if ($quick) {
+                my $found = VRPipe::StepOutputFile->search({ file => $fid });
+                return 1 if $found;
+            }
+            else {
+                push(@sss, map { $_->stepstate } VRPipe::StepOutputFile->search({ file => $fid }, { prefetch => 'stepstate' }));
+            }
+        }
+        return 0 if $quick;
+        
+        # remove dups
+        my %sss = map { $_->id => $_ } @sss;
+        @sss = sort { $a->id <=> $b->id } values %sss;
+        
+        return @sss unless $single;
+        
+        # if all but 1 of them point to the 1, return that one
+        my %stepstates;
+        foreach my $ss (@sss) {
+            my $ssa = $ss->same_submissions_as;
+            my $resolved = $ssa ? $ssa : $ss;
+            $stepstates{ $resolved->id } = $resolved;
+        }
+        @sss = sort { $a->id <=> $b->id } values %stepstates;
+        if (@sss == 1) {
+            return $sss[0];
+        }
+        
+        # if all of them share the same job, return the first one
+        my %jobs;
+        foreach my $ss (@sss) {
+            foreach my $sub ($ss->submissions) {
+                $jobs{ $sub->job->id }++;
+            }
+        }
+        while (my ($jid, $count) = each %jobs) {
+            if ($count == @sss) {
+                return $sss[0];
+            }
+        }
+        
+        return;
+    }
+
+=head2 input_to
+ 
+ Title   : input_to
+ Usage   : my @dataelements = $obj->input_to;
+ Function: If this file was one of the files of any dataelements, returns them.
+ Returns : list of VRPipe::DataElement objects; in scalar context returns 1 if
+           any objects would have been returned (not the true count)
+ Args    : n/a
+
+=cut
+    
+    method input_to {
+        # work backwards to get all file ids that represented us in the past;
+        # we don't resolve because we can't be the input to something that used
+        # a file path we moved to
+        my @fids = $self->original;
+        unshift(@fids, $self->id);
+        
+        my $quick = 0;
+        if (!wantarray) {
+            $quick = 1;
+        }
+        
+        # get the filelists our files are part of
+        my %fls;
+        foreach my $fid (@fids) {
+            my @fls = VRPipe::FileListMember->get_column_values('filelist', { file => $fid });
+            foreach my $fl (@fls) {
+                $fls{$fl} = 1;
+            }
+        }
+        return 0 unless keys %fls;
+        
+        # get the dataelements that use those filelists
+        my @des;
+        foreach my $flid (keys %fls) {
+            if ($quick) {
+                my $found = VRPipe::DataElement->search({ filelist => $flid });
+                return 1 if $found;
+            }
+            else {
+                push(@des, VRPipe::DataElement->search({ filelist => $flid }));
+            }
+        }
+        return 0 if $quick;
+        
+        # remove dups
+        my %des = map { $_->id => $_ } @des;
+        @des = sort { $a->id <=> $b->id } values %des;
+        
+        return @des;
     }
 
 =head2 copy
@@ -607,7 +825,17 @@ class VRPipe::File extends VRPipe::Persistent {
         $self->_check_destination_space($dest->path->dir);
         
         $self->disconnect;
-        my $success = File::Copy::copy($sp, $dp);
+        my $success;
+        if (-l $sp) {
+            # File::Copy::copy copies symlinks across filesystem boundries
+            # as the files they point to instead of copying them as
+            # symlinks
+            my $dst = readlink($sp);
+            $success = symlink($dst, $dp);
+        }
+        else {
+            $success = File::Copy::copy($sp, $dp);
+        }
         $dest->update_stats_from_disc;
         
         unless ($success) {

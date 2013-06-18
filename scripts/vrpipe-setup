@@ -214,9 +214,22 @@ if ($setup) {
     }
     elsif ($touch) {
         my $datasource = $setup->datasource;
-        $datasource->_changed_marker(undef);
+        $datasource->_changed_marker('undef');
         $datasource->update;
         $setup->log_event("vrpipe-setup --touch called");
+        
+        # for file-based datasource, we have to literally touch the file as well
+        my $instance = $datasource->_source_instance;
+        if ($instance->can('source_file')) {
+            my $path = $instance->source_file->path->stringify;
+            if (-e $path) {
+                my $touched = utime(undef, undef, $path);
+                unless ($touched) {
+                    open(my $fh, '>>', $path);
+                    close($fh);
+                }
+            }
+        }
         
         $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
     }
@@ -284,6 +297,11 @@ if ($setup) {
             $options[$option_num] = [$regulator, "Turn the behaviours (" . join(', ', @methods) . ") of steps (" . join(', ', @steps) . ") on (1) of off (0)", 1, "$default" ne 'mixed' ? $default : '', [0, 1]];
         }
         
+        # allow changing of output root
+        $option_num++;
+        $option_names{output_root} = $option_num;
+        $options[$option_num] = ['output_root', "Absolute path of the root directory that output files should go to", 1, $setup->output_root->stringify, []];
+        
         if ($option_num) {
             $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") currently has these options:");
             
@@ -313,8 +331,13 @@ if ($setup) {
                     $options[$choice]->[3] ? (default   => $options[$choice]->[3]) : (),
                     $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ()
                 );
-                $current_opts->{$chosen_key} = $val;
-                $setup->options($current_opts);
+                if ($chosen_key eq 'output_root') {
+                    $setup->output_root($val);
+                }
+                else {
+                    $current_opts->{$chosen_key} = $val;
+                    $setup->options($current_opts);
+                }
                 $setup->update;
                 $frontend->output("Option updated!\n\n");
                 

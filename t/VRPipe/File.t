@@ -5,7 +5,7 @@ use Path::Class;
 use File::Spec;
 
 BEGIN {
-    use Test::Most tests => 48;
+    use Test::Most tests => 65;
     use VRPipeTest;
 }
 
@@ -29,6 +29,7 @@ $vrfile = VRPipe::File->get(id => 1);
 $vrfile->add_metadata({ baz => 'loman' });
 is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, { foo => 'bar', baz => 'loman' }, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
 cmp_ok $vrfile->s, '>=', 5, 'file has some size';
+is $vrfile->meta_value('foo'), 'bar', 'meta_value() works';
 
 ok my $orig_mtime = $vrfile->mtime, 'got mtime';
 sleep(2);
@@ -102,7 +103,8 @@ $vrdest3->symlink($vrdest4);
 is_deeply [$vrsource->e, $vrdest1->e, $vrdest2->e, $vrdest3->e, $vrdest4->e, $vrdest4->s], [0, 0, 1, 1, 1, $vrdest2->s], 'file existance and sizes are correct after moves';
 is_deeply [$vrdest2->metadata->{test}, $vrdest4->metadata->{test}], ['meta', 'meta'], 'both final moved file and symlink have source metadata';
 my $real_fileid = $vrdest2->id;
-is $vrdest4->resolve->id,  $real_fileid, 'the symlink resolves to the real file';
+is $vrdest4->resolve->id, $real_fileid, 'the symlink resolves to the real file';
+is $vrdest4->resolve(not_symlinks => 1)->id, $vrdest4->id, 'the symlink resolves to itself in not_symlinks mode';
 is $vrsource->resolve->id, $real_fileid, 'the source resolves to the final move destination';
 
 $vrdest4->add_metadata({ test2 => 'meta2' });
@@ -128,6 +130,10 @@ my $vrdest6 = VRPipe::File->create(path => file($tmp_dir, 'dest6.txt'));
 $vrdest4->move($vrdest6);
 ok -l $vrdest6->path, 'moved symlink is a symlink';
 is_deeply [$vrdest6->resolve->id, $vrdest4->resolve->id], [$real_fileid, $real_fileid], 'even a move of a symlink still resolves correctly for both source and dest';
+my @orig_fids = $vrdest6->original;
+is_deeply [\@orig_fids, $vrdest6->original->id], [[$vrdest4->id], $vrdest4->id], 'original() works on moved symlinks';
+@orig_fids = $vrdest2->original;
+is_deeply [\@orig_fids, $vrdest2->original->id], [[$vrdest1->id, $vrsource->id], $vrsource->id], 'original() works on multiply moved files';
 
 my $vrdest7 = VRPipe::File->create(path => file($tmp_dir, 'dest7.txt'));
 my $vrdest8 = VRPipe::File->create(path => file($tmp_dir, 'dest8.txt'));
@@ -188,6 +194,80 @@ is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", $sk
 $vrdest->unlink;
 $vrobj->concatenate($vrsource, $vrdest, unlink_source => 0, add_marker => 1, max_lines => 8);
 is_deeply [$vrdest->slurp], ["line 1\n", "line 2\n", "line 3\n", "line 4\n", $skipped_marker, "line 7\n", "line 8\n", "line 9\n", "line 10\n", $concat_marker], 'concatenate with limit of 8';
+
+# output_by; we need stepstates and stepoutputfiles to test this, which in turn
+# need a bunch of stuff - create all the other object first
+my $ds = VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.fofn3))->absolute);
+$ds->elements;
+my $pipeline = VRPipe::Pipeline->create(name => 'archive_files');
+my $setup = VRPipe::PipelineSetup->create(
+    name        => 'my archive pipeline setup',
+    datasource  => $ds,
+    output_root => '/tmp',
+    pipeline    => $pipeline,
+    options     => { disc_pool_file => '/tmp' },
+    active      => 0
+);
+my $stepstate  = VRPipe::StepState->create(stepmember => 1, dataelement => 1, pipelinesetup => 1, complete => 1);
+my $stepstate2 = VRPipe::StepState->create(stepmember => 1, dataelement => 2, pipelinesetup => 1, complete => 1);
+my $step_out_file  = VRPipe::File->create(path => "/step/o/file");
+my $step_out_file2 = VRPipe::File->create(path => "/step/o/file2");
+my $sof  = VRPipe::StepOutputFile->create(stepstate => $stepstate->id,  file => $step_out_file->id,  output_key => "foo");
+my $sof2 = VRPipe::StepOutputFile->create(stepstate => $stepstate2->id, file => $step_out_file2->id, output_key => "foo");
+# archive_files pipeline moves files without specifying the result was an
+# output file; test that we at least know the result was an output of the
+# original setup that archive_files was run on
+my $moved_out_file = VRPipe::File->create(path => "/moved/o/file");
+$step_out_file->moved_to($moved_out_file->id);
+$step_out_file->update;
+my $scalar_context_result = $moved_out_file->output_by();
+is $scalar_context_result, 1, 'output_by in scalar context returns true for a moved output file';
+my @list_context_result = $moved_out_file->output_by();
+is_deeply [map { $_->id } @list_context_result], [$stepstate->id], 'output_by in list context returns the correct stepstate';
+# test that we can see when multiple stepstates created the same file
+my $stepstate3 = VRPipe::StepState->create(stepmember => 1, dataelement => 3, pipelinesetup => 1, complete => 1, same_submissions_as => $stepstate->id);
+my $sof3 = VRPipe::StepOutputFile->create(stepstate => $stepstate3->id, file => $step_out_file->id, output_key => "foo");
+@list_context_result = $step_out_file->output_by();
+is_deeply [sort map { $_->id } @list_context_result], [$stepstate->id, $stepstate3->id], 'we see both stepstates when both created the same file';
+my $special = $step_out_file->output_by(1);
+is $special->id, $stepstate->id, 'and in the special mode we see the first, since the other had the same subs';
+# they might not always have same_submissions_as, so test when they do and do
+# not have the same job
+my $stepstate4 = VRPipe::StepState->create(stepmember => 1, dataelement => 4, pipelinesetup => 1, complete => 1);
+my $sof4 = VRPipe::StepOutputFile->create(stepstate => $stepstate4->id, file => $step_out_file->id, output_key => "foo");
+my $job1 = VRPipe::Job->create(cmd => 'foo');
+my $job2 = VRPipe::Job->create(cmd => 'bar');
+my $req = VRPipe::Requirements->create(memory => 1, time => 1);
+my $sub1 = VRPipe::Submission->create(job => $job1->id, stepstate => $stepstate->id,  requirements => $req->id);
+my $sub2 = VRPipe::Submission->create(job => $job2->id, stepstate => $stepstate4->id, requirements => $req->id);
+@list_context_result = $step_out_file->output_by();
+is_deeply [sort map { $_->id } @list_context_result], [$stepstate->id, $stepstate3->id, $stepstate4->id], 'we see all 3 stepstates when we added another';
+$special = $step_out_file->output_by(1);
+is $special, undef, 'but in the special mode we see none of them, since one of them had a different job';
+$sub2->job($job1->id);
+$sub2->update;
+$special = $step_out_file->output_by(1);
+is $special->id, $stepstate->id, 'and in the special mode, when it has no same_submissions_as but does have the same job, we see the first stepstate again';
+# test it works when the output file was created as a symlink and then moved
+my $ifile = VRPipe::File->get(path => file(qw(t data file.txt))->absolute);
+my $step_out_symlink = VRPipe::File->create(path => "/step/o/symlink", parent => $ifile->id);
+my $stepstate5 = VRPipe::StepState->create(stepmember => 1, dataelement => 5, pipelinesetup => 1, complete => 1);
+my $sof5 = VRPipe::StepOutputFile->create(stepstate => $stepstate5->id, file => $step_out_symlink->id, output_key => "foo");
+is_deeply [map { $_->id } $step_out_symlink->output_by], [$stepstate5->id], 'output_by works on a symlink output';
+my $moved_out_symlink = VRPipe::File->create(path => '/moved/o/symlink', parent => $ifile->id);
+$step_out_symlink->moved_to($moved_out_symlink->id);
+$step_out_symlink->update;
+is_deeply [map { $_->id } $moved_out_symlink->output_by], [$stepstate5->id], 'output_by works on a symlink output that was moved';
+
+# input_to
+my $ifile7 = VRPipe::File->get(path => file(qw(t data file7.txt))->absolute);
+is $step_out_file->input_to, 0, 'input_to() on a non dataelement file returns 0';
+is $ifile->input_to,         1, 'input_to() on a dataelement file returns 1';
+is_deeply [[map { $_->id } $ifile->input_to], [map { $_->id } $ifile7->input_to]], [[1], [7]], 'input_to works in list context';
+my $moved_ifile = VRPipe::File->create(path => '/tmp/moved_ifile.txt');
+$ifile->moved_to($moved_ifile->id);
+$ifile->update;
+is_deeply [map { $_->id } $moved_ifile->input_to], [1], 'input_to works on a moved input file';
 
 done_testing;
 exit;

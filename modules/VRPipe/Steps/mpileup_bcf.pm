@@ -136,7 +136,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
         
         $bcf_file->update_stats_from_disc(retries => 3);
         
-        if ($bcf->check_magic) {
+        if ($bcf->check_type) {
             return 1;
         }
         else {

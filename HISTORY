@@ -1,3 +1,18 @@
+0.157   Hotfix for the bamcheck step, so that it can cope with bams that have
+        no mapped reads.
+0.156   Critical fix for steps that generate hundreds of output files - now
+        setups that use these steps will not stall with no submissions created.
+0.155   Critical fixes and improvements for vrpipe-mv: in --setup mode it now
+        finds all the files for a setup and warns you if it can't move them
+        (because they are outside of the output_root). It also gains a new mode
+        of operation that lets you easily move all VRPipe output files in one
+        area to another, useful when moving the entire contents of a disc.
+        vrpipe-permissions fixed so that it can change permissions on files that
+        were moved or became apparently non-existent because a user without
+        permission to see the files used VRPipe to try and look at them.
+        vrpipe-fileinfo fixed so that it can more reliably show information such
+        as --setup_info on all files, instead of just giving up and saying
+        'unknown'.
 0.154   New SGE scheduler for use with clusters running SunGridEngine.
         vrpipe-fileinfo --setup_info now outputs a vrpipe datasource compatible
         string of id[step_num:output_key] instead of duplicating the output of
