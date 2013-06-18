@@ -5,7 +5,12 @@ VRPipe::Pipelines::bam_spatial_filter - a pipeline
 
 =head1 DESCRIPTION
 
-
+Runs spatial_filter to identify regions with spatially correlated errors e.g.
+bubbles in aligned BAM files. Creates a lane-wide filter file from a give tag
+file, defaulting to tag 168 (the reads aligning to the solexa phiX control).
+Generates either filtered bams (default), or files with problematic reads 
+marked with the QC fail bit 0x200. 
+The phix bam and lane runParameters xml file are assumed to be in irods.  
 
 =head1 AUTHOR
 
