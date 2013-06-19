@@ -49,14 +49,15 @@ class VRPipe::Schedulers::sge_ec2 extends VRPipe::Schedulers::sge {
     use VRPipe::Config;
     use Path::Class;
     
-    my $vrp_config = VRPipe::Config->new();
-    our $sge_config_file = $vrp_config->sge_config_file;
-    my $log_dir_method = VRPipe::Persistent::SchemaBase->database_deployment . '_logging_directory';
-    my $sge_confs_dir = dir($vrp_config->$log_dir_method(), '.sge_confs');
+    our $completed_config = 0;
     our $ec2_scheduler = VRPipe::SchedulerMethodsFactory->create('ec2', {});
     no warnings 'once';
     our $ec2 = $VRPipe::Schedulers::ec2::ec2;
     
+    my $vrp_config      = VRPipe::Config->new();
+    my $sge_config_file = $vrp_config->sge_config_file;
+    my $log_dir_method  = VRPipe::Persistent::SchemaBase->database_deployment . '_logging_directory';
+    our $sge_confs_dir = dir($vrp_config->$log_dir_method(), '.sge_confs');
     our $complex_attribs = <<COMPLEX;
 #name               shortcut   type      relop requestable consumable default  urgency
 #--------------------------------------------------------------------------------------
@@ -155,69 +156,43 @@ h_stack               INFINITY
 s_core                INFINITY
 h_core                INFINITY
 QUEUE
-    
-    # make sure we've configured the group and queue for all possible ec2
-    # types
-    mkdir($sge_confs_dir) unless -d $sge_confs_dir;
-    foreach my $type (keys %VRPipe::Schedulers::ec2::instance_types) {
-        # group
-        my %host_groups;
-        open(my $hgfh, 'qconf -shgrpl |') || die 'Could not open a pipe from qconf -shgrpl';
-        while (<$hgfh>) {
-            my ($group) = $_ =~ /^\@(\S+)/;
-            $host_groups{$group} = 1 if $group;
-        }
-        if (exists $host_groups{allhosts}) {
-            # get rid of the allhosts group
-            system('qconf -dhgrp @allhosts');
-        }
-        unless (exists $host_groups{$type}) {
-            # add a group for this type
-            my $group_file = file($sge_confs_dir, 'hgrp.' . $type);
-            unless (-s $group_file) {
-                open(my $fh, '>', $group_file) || die "Could not write to $group_file";
-                print $fh "group_name \@$type\nhostlist NONE\n";
-                close($fh);
-            }
-            system('qconf -Ahgrp ' . $group_file);
-        }
-        
-        # queue
-        my %queues;
-        open(my $qfh, 'qconf -sql |') || die 'Could not open a pipe from qconf -sql';
-        while (<$qfh>) {
-            chomp;
-            $queues{$_} = 1 if $_;
-        }
-        if (exists $queues{'all.q'}) {
-            # get rid of the all.q queue
-            system('qconf -dq all.q');
-        }
-        unless (exists $host_groups{$type}) {
-            # add a queue for this type
-            my $queue_file = file($sge_confs_dir, 'q.' . $type);
-            unless (-s $queue_file) {
-                open(my $fh, '>', $queue_file) || die "Could not write to $queue_file";
-                my ($slots, $mb) = @{ $VRPipe::Schedulers::ec2::instance_types{$type} };
-                my $safe_mb = $mb - 500;
-                my $safe_gb = sprintf("%0.1f", $safe_mb / 1024);
-                my $safe_b  = $safe_mb * 1024 * 1024;
-                my $b       = $mb * 1024 * 1024;
-                print $fh "qname $type\nhostlist \@$type\n", $queue_defaults, "slots $slots\ncomplex_values slots=$slots,virtual_free=${safe_gb}G,mem_free=${safe_gb}G\ns_data $safe_b\nh_data $b\ns_rss $safe_b\nh_rss $b\ns_vmem $safe_b\nh_vmem $b\n";
-                close($fh);
-            }
-            system('qconf -Aq ' . $queue_file);
-        }
-    }
-    
-    # complex
-    my $ca_file = file($sge_confs_dir, 'complex_attribs');
-    unless (-s $ca_file) {
-        open(my $fh, '>', $ca_file) || die "Could not write to $ca_file";
-        print $fh $complex_attribs;
-        close($fh);
-    }
-    system('qconf -Mc ' . $ca_file);
+    our $scheduling = <<SCHED;
+algorithm                         default
+schedule_interval                 0:0:15
+maxujobs                          0
+queue_sort_method                 load
+job_load_adjustments              NONE
+load_adjustment_decay_time        0:0:0
+load_formula                      slots
+schedd_job_info                   false
+flush_submit_sec                  0
+flush_finish_sec                  0
+params                            none
+reprioritize_interval             0:0:0
+halftime                          168
+usage_weight_list                 cpu=1.000000,mem=0.000000,io=0.000000
+compensation_factor               5.000000
+weight_user                       0.250000
+weight_project                    0.250000
+weight_department                 0.250000
+weight_job                        0.250000
+weight_tickets_functional         0
+weight_tickets_share              0
+share_override_tickets            TRUE
+share_functional_shares           TRUE
+max_functional_jobs_to_schedule   200
+report_pjob_tickets               TRUE
+max_pending_tasks_per_job         50
+halflife_decay_list               none
+policy_hierarchy                  OFS
+weight_ticket                     0.010000
+weight_waiting_time               0.000000
+weight_deadline                   3600000.000000
+weight_urgency                    0.100000
+weight_priority                   1.000000
+max_reservation                   0
+default_duration                  INFINITY
+SCHED
     
     sub periodic_method {
         return 'launch_extra_instances_and_terminate_old_instances';
@@ -227,7 +202,90 @@ QUEUE
         return 'terminate_all_instances';
     }
     
+    sub do_config {
+        return if $completed_config;
+        
+        mkdir($sge_confs_dir) unless -d $sge_confs_dir;
+        
+        # make sure we've configured the group and queue for all possible ec2
+        # types
+        foreach my $type (keys %VRPipe::Schedulers::ec2::instance_types) {
+            # group
+            my %host_groups;
+            open(my $hgfh, 'qconf -shgrpl |') || die 'Could not open a pipe from qconf -shgrpl';
+            while (<$hgfh>) {
+                my ($group) = $_ =~ /^\@(\S+)/;
+                $host_groups{$group} = 1 if $group;
+            }
+            if (exists $host_groups{allhosts}) {
+                # get rid of the allhosts group
+                system('qconf -dhgrp @allhosts');
+            }
+            unless (exists $host_groups{$type}) {
+                # add a group for this type
+                my $group_file = file($sge_confs_dir, 'hgrp.' . $type);
+                unless (-s $group_file) {
+                    open(my $fh, '>', $group_file) || die "Could not write to $group_file";
+                    print $fh "group_name \@$type\nhostlist NONE\n";
+                    close($fh);
+                }
+                system('qconf -Ahgrp ' . $group_file);
+            }
+            
+            # queue
+            my %queues;
+            open(my $qfh, 'qconf -sql |') || die 'Could not open a pipe from qconf -sql';
+            while (<$qfh>) {
+                chomp;
+                $queues{$_} = 1 if $_;
+            }
+            if (exists $queues{'all.q'}) {
+                # get rid of the all.q queue
+                system('qconf -dq all.q');
+            }
+            unless (exists $host_groups{$type}) {
+                # add a queue for this type
+                my $queue_file = file($sge_confs_dir, 'q.' . $type);
+                unless (-s $queue_file) {
+                    open(my $fh, '>', $queue_file) || die "Could not write to $queue_file";
+                    my ($slots, $mb) = @{ $VRPipe::Schedulers::ec2::instance_types{$type} };
+                    my $safe_mb = $mb - 500;
+                    my $safe_gb = sprintf("%0.1f", $safe_mb / 1024);
+                    my $safe_b  = $safe_mb * 1024 * 1024;
+                    my $b       = $mb * 1024 * 1024;
+                    print $fh "qname $type\nhostlist \@$type\n", $queue_defaults, "slots $slots\ncomplex_values slots=$slots,virtual_free=${safe_gb}G,mem_free=${safe_gb}G\ns_data $safe_b\nh_data $b\ns_rss $safe_b\nh_rss $b\ns_vmem $safe_b\nh_vmem $b\n";
+                    close($fh);
+                }
+                system('qconf -Aq ' . $queue_file);
+            }
+        }
+        
+        # complex: enable memory and cpu reservation
+        my $ca_file = file($sge_confs_dir, 'complex_attribs');
+        unless (-s $ca_file) {
+            open(my $fh, '>', $ca_file) || die "Could not write to $ca_file";
+            print $fh $complex_attribs;
+            close($fh);
+        }
+        system('qconf -Mc ' . $ca_file);
+        
+        # scheduler: make it "fill up hosts" instead of spreading jobs around
+        # evenly, so that we're more likely to end up with empty nodes when
+        # demand is low, so we can terminate them and save money
+        my $s_file = file($sge_confs_dir, 'sconf');
+        unless (-s $s_file) {
+            open(my $fh, '>', $s_file) || die "Could not write to $s_file";
+            print $fh $scheduling;
+            close($fh);
+        }
+        system('qconf -Msconf ' . $s_file);
+        
+        $completed_config = 1;
+    }
+    
     method launch_extra_instances_and_terminate_old_instances (Str :$deployment!) {
+        $self->do_config;
+        
         ## launch extra instances
         
         # look at what we have queuing to get a count of how many of each req
@@ -269,8 +327,10 @@ QUEUE
         
         # consider empty hosts to be those that also haven't run a job in the
         # past hour
-        my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
-        my @empty_hosts;
+        my $min_uptime = 2700;
+        my $max_do_nothing_time = $deployment eq 'production' ? $min_uptime : int($min_uptime / 10);
+        my %to_terminate;
+        my $own_pdn = $VRPipe::Schedulers::ec2::meta->privateDnsName;
         while (my ($host, $details) = each %hosts) {
             # ones we just now launched probably won't be running anything yet
             next if exists $launched_hosts{$host};
@@ -285,51 +345,48 @@ QUEUE
             # obviously it's not empty if it is running a job right now
             next if $details->{jobs};
             
-            # see if a job has run on this host in the past hour
+            # since we're charged by the hour, we won't terminate any nodes
+            # unless they've been up for at least 45mins (in production)
+            my ($ip) = $host =~ /(\d+)-(\d+)-(\d+)-(\d+)/;
+            $ip =~ s/-/./;
+            my ($instance) = $ec2->describe_instances({ 'private-ip-address' => $ip });
+            if ($deployment eq 'production') {
+                next unless $instance->uptime >= $min_uptime;
+            }
+            else {
+                # when testing, allow 5mins for a newly launched node to become
+                # responsive to ssh
+                next if $instance->uptime < 300;
+            }
+            
+            # don't terminate ourselves - the server that calls this method
+            # won't have any handlers running on it
+            my $pdn = $instance->privateDnsName;
+            next if $pdn eq $own_pdn;
+            
+            # see if a job has run on this host in the past 45mins
             next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             
+            # don't terminate an instance that has a handler running on it right
+            # now
+            next if $ec2_scheduler->_handler_processes($host);
+            
             # this host has been sitting there doing nothing for ages
-            push(@empty_hosts, $host);
+            $to_terminate{$host} = $instance;
         }
         
-        if (@empty_hosts) {
+        $self->_clean_up_hosts(\%to_terminate);
+    }
+    
+    method _clean_up_hosts (HashRef $to_terminate) {
+        if (keys %$to_terminate) {
             # stop SGE on the empty hosts
-            my $tmp_config = $self->_altered_config('EXEC_HOST_LIST_RM', join(' ', @empty_hosts));
-            #[edit /gluster/vrpipe/.sge_config to set host in EXEC_HOST_LIST_RM]
+            my $tmp_config = $self->_altered_config('EXEC_HOST_LIST_RM', join(' ', keys %$to_terminate));
             system('cd $SGE_ROOT; ./inst_sge -ux -auto ' . $tmp_config) && $self->throw("Failed to run: inst_sge -ux -auto $tmp_config");
             unlink($tmp_config);
             
             # terminate the instances
-            my $dt_parser = DateTime::Format::Natural->new;
-            my $own_pdn   = $VRPipe::Schedulers::ec2::meta->privateDnsName;
-            foreach my $host (@empty_hosts) {
-                my ($ip) = $host =~ /(\d+)-(\d+)-(\d+)-(\d+)/;
-                $ip =~ s/-/./;
-                my ($instance) = $ec2->describe_instances({ 'private-ip-address' => $ip });
-                
-                # don't terminate ourselves - the server that calls this method
-                # won't have any handlers running on it
-                my $pdn = $instance->privateDnsName;
-                next if $pdn eq $own_pdn;
-                
-                my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
-                
-                # don't terminate if we only just now spawned it and maybe are still
-                # waiting for it to become responsive to ssh
-                my $dstr = $instance->launchTime;
-                $dstr =~ s/(\d)T(\d)/$1 $2/;
-                $dstr =~ s/\.\d+Z$//;
-                my $dt      = $dt_parser->parse_datetime($dstr);
-                my $elapsed = time() - $dt->epoch;
-                next if $elapsed < 300;
-                
-                # don't terminate an instance that has a handler running on it right
-                # now
-                next if $self->_handler_processes($host);
-                
-                # don't terminate if the instance has recently run a Job
-                next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
-                
+            while (my ($host, $instance) = each %$to_terminate) {
                 warn "will terminate instance $host\n";
                 $instance->terminate;
             }
@@ -337,7 +394,34 @@ QUEUE
     }
     
     method terminate_all_instances {
-        $ec2_scheduler->terminate_all_instances;
+        # (this is only run when the testing server goes down, so shouldn't
+        #  affect the production server)
+        warn "will find all instances to terminate them\n";
+        my @all_instances = $ec2->describe_instances({
+                'image-id'            => $VRPipe::Schedulers::ec2::ami,
+                'availability-zone'   => $VRPipe::Schedulers::ec2::availability_zone,
+                'instance-state-name' => 'running'
+            }
+        );
+        
+        # select which ones to terminate
+        my $own_pdn = $VRPipe::Schedulers::ec2::meta->privateDnsName;
+        my %to_terminate;
+        foreach my $instance (@all_instances) {
+            # don't terminate ourselves - the server that calls this method
+            # won't have any handlers running on it
+            my $pdn = $instance->privateDnsName;
+            next if $pdn eq $own_pdn;
+            
+            # don't terminate an instance that has a handler running on it right
+            # now - possibly spawned by a production server
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            next if $ec2_scheduler->_handler_processes($host);
+            
+            $to_terminate{$host} = $instance;
+        }
+        
+        $self->_clean_up_hosts(\%to_terminate);
     }
     
     method _altered_config (Str $key, Str $val) {
