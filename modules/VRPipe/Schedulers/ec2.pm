@@ -310,10 +310,8 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             
             # don't terminate an instance that has a handler running on it right
             # now - possibly spawned by a production server
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
             next if $self->_handler_processes($host);
-            
-            #*** actually, we should tag them when we launch them and only
-            # terminate what we tagged
             
             $instance->terminate;
         }
