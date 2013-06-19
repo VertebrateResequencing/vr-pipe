@@ -264,7 +264,7 @@ sub start_server {
                     if ($sch_periodic_method) {
                         my $working            = 0;
                         my $scheduler_interval = $timer_interval * 10;
-                        $scheduler_watcher = EV::timer $scheduler_interval, $scheduler_interval, sub {
+                        $scheduler_watcher = EV::timer 0, $scheduler_interval, sub {
                             return if $working;
                             $working = 1;
                             fork_call {
