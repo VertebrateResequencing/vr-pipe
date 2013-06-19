@@ -150,6 +150,7 @@ while (1) {
 }
 
 $dbh->do(q[SET FOREIGN_KEY_CHECKS = 1]);
+$dbh->commit;
 $dbh->disconnect;
 warn "\n ## All done; now turn off vrpipe-server, kill any remaining jobs and run 0156_pre_db_upgrade\n\n";
 exit;
