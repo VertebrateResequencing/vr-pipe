@@ -48,6 +48,7 @@ use VRPipe::Base;
 class VRPipe::Schedulers::sge_ec2 extends VRPipe::Schedulers::sge {
     use VRPipe::Config;
     use Path::Class;
+    use DateTime;
     
     our $completed_config = 0;
     our $ec2_scheduler = VRPipe::SchedulerMethodsFactory->create('ec2', {});
@@ -125,7 +126,7 @@ min_cpu_interval      00:05:00
 processors            UNDEFINED
 qtype                 BATCH INTERACTIVE
 ckpt_list             NONE
-pe_list               make
+pe_list               threaded
 rerun                 FALSE
 tmpdir                /tmp
 shell                 /bin/sh
@@ -193,6 +194,20 @@ weight_priority                   1.000000
 max_reservation                   0
 default_duration                  INFINITY
 SCHED
+    our $pe_threaded = <<PE;
+pe_name            threaded
+slots              999
+user_lists         NONE
+xuser_lists        NONE
+start_proc_args    NONE
+stop_proc_args     NONE
+allocation_rule    \$pe_slots
+control_slaves     FALSE
+job_is_first_task  TRUE
+urgency_slots      min
+accounting_summary TRUE
+qsort_args         NONE
+PE
     
     sub periodic_method {
         return 'launch_extra_instances_and_terminate_old_instances';
@@ -206,6 +221,15 @@ SCHED
         return if $completed_config;
         
         mkdir($sge_confs_dir) unless -d $sge_confs_dir;
+        
+        # pe: give us a parallel environment for threaded jobs
+        my $pe_file = file($sge_confs_dir, 'pe');
+        unless (-s $pe_file) {
+            open(my $fh, '>', $pe_file) || die "Could not write to $pe_file";
+            print $fh $pe_threaded;
+            close($fh);
+        }
+        system('qconf -Ap ' . $pe_file);
         
         # make sure we've configured the group and queue for all possible ec2
         # types
@@ -288,9 +312,76 @@ SCHED
         
         ## launch extra instances
         
-        # look at what we have queuing to get a count of how many of each req
-        # we need to run, then launch the appropriate instances for those reqs
+        # look at what we have queuing to get a count of how many of each
+        # instance type we need to launch
+        open(my $qstatfh, 'qstat -g d -r -ne -s p |') || $self->throw('Unable to open a pipe from qstat -g d -r -ne -s p');
+        my ($job_id, $month, $day, $year, $hour, $min, $sec, $slots);
+        my %types;
+        my %job_id_to_type;
+        my $minimum_queue_time = $deployment eq 'production' ? 300 : 30;
+        while (<$qstatfh>) {
+            #18 0.00000 vrpipe_174 ec2-user     qw    06/19/2013 14:23:01  2
+            if (($job_id, $month, $day, $year, $hour, $min, $sec, $slots) = $_ =~ /^\s+(\d+)\s+\S+\s+\S+\s+\S+\s+qw\s+(\d+)\/(\d+)\/(\d+)\s+(\d\d):(\d\d):(\d\d)\s+(\d+)/) {
+                # we'll only consider jobs that have been pending for over 5mins
+                my $dt = DateTime->new(
+                    year      => $year,
+                    month     => $month,
+                    day       => $day,
+                    hour      => $hour,
+                    minute    => $min,
+                    second    => $sec,
+                    time_zone => 'local',
+                );
+                my $elapsed = time() - $dt->epoch;
+                if ($elapsed < $minimum_queue_time) {
+                    undef $job_id;
+                    next;
+                }
+            }
+            
+            if ($job_id) {
+                if (/^\s+Hard Resources:\s+\S+=(\d+)M/) {
+                    my $mb = $1;
+                    my $chosen_type;
+                    my $typed = exists $job_id_to_type{$job_id};
+                    if ($typed) {
+                        $chosen_type = $job_id_to_type{$job_id};
+                    }
+                    else {
+                        foreach my $type (@VRPipe::Schedulers::ec2::ordered_types) {
+                            my ($available_slots, $available_mb) = @{ $VRPipe::Schedulers::ec2::instance_types{$type} };
+                            $available_mb -= 500;
+                            if ($slots <= $available_slots && $mb <= $available_mb) {
+                                $chosen_type = $type;
+                                last;
+                            }
+                        }
+                    }
+                    
+                    if ($chosen_type) {
+                        $types{$chosen_type}++;
+                        unless ($typed) {
+                            $job_id_to_type{$job_id} = $chosen_type;
+                        }
+                    }
+                    elsif (!$typed) {
+                        $job_id_to_type{$job_id} = 0;
+                    }
+                }
+            }
+        }
+        
+        # launch the desired instance types
         my %launched_hosts;
+        while (my ($type, $count) = each %types) {
+            my @instances = $ec2_scheduler->launch_instances($type, $count);
+            
+            foreach my $instance (@instances) {
+                my $pdn = $instance->privateDnsName;
+                my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+                $launched_hosts{$host} = $type;
+            }
+        }
         
         if (keys %launched_hosts) {
             # start SGE on the new hosts
