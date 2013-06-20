@@ -126,7 +126,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             $requirments_string .= " cwd $cwd";
         }
         
-        return $exe . qq[$requirments_string count $count cmd '$cmd'];
+        return $exe . qq[ $requirments_string count $count cmd '$cmd'];
     }
     
     sub submit {
