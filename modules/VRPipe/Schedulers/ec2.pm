@@ -89,7 +89,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     
     sub submit {
         my ($self, %args) = @_;
-        my $queue     = $args{queue}  || $self->throw("No queue supplied");
+        my $type      = $args{queue}  || $self->throw("No queue supplied");
         my $megabytes = $args{memory} || $self->throw("No memory supplied");
         my $count     = $args{count}  || $self->throw("No count supplied");
         my $cmd       = $args{cmd}    || $self->throw("No cmd supplied");
@@ -105,94 +105,29 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         # here...
         
         # do a pass to see if there's room to run the cmd on any of our ips
-        my $usable_ips = $self->_usable_ips($queue, $megabytes, $cpus, $count) || return;
+        my $usable_ips = $self->_usable_ips($type, $megabytes, $cpus, $count) || return;
         
         # spawn new instances if needed
         unless (@$usable_ips == $count) {
             my $needed = $count - @$usable_ips;
-            warn "insufficient suitable instances, will spawn $needed new ones\n";
-            # by default people are limited to a max of 20 instances:
-            # http://www.phacai.com/increase-ec2-instance-quota
-            # so we have to handle a possible error here
-            my %run_instance_args = (
-                -image_id               => $ami,
-                -instance_type          => $queue,
-                -client_token           => $ec2->token,
-                -key_name               => $key_name,
-                -security_group         => \@security_groups,
-                -availability_zone      => $availability_zone,
-                -min_count              => $needed,
-                -max_count              => $needed,
-                -termination_protection => 0,
-                -shutdown_behavior      => 'terminate'
-            );
-            my @new_instances = $ec2->run_instances(%run_instance_args);
-            
-            unless (@new_instances) {
-                my $error = $ec2->error_str;
-                if ($error =~ /instances exceeds your current quota of (\d+)/) {
-                    my $max = $1;
-                    my @all_instances = $ec2->describe_instances({ 'instance-state-name' => 'running' });
-                    $count = $max - @all_instances;
-                    if ($count == 0) {
-                        $backend->log("Unable to spawn any new instances; consider increasing your quota: http://aws.amazon.com/contact-us/ec2-request/");
-                    }
-                    else {
-                        $backend->log("Your EC2 account has an instance quota of $max; we need $needed more instances, but will launch $count new ones instead");
-                        $run_instance_args{'-min_count'} = $count;
-                        $run_instance_args{'-max_count'} = $count;
-                        @new_instances                   = $ec2->run_instances(%run_instance_args);
-                        unless (@new_instances) {
-                            $backend->log("Failed to launch $count new instances: " . $ec2->error_str);
+            if ($needed > 0) {
+                my @new_instances = $self->launch_instances($type, $needed);
+                $count = $count - ($needed - @new_instances);
+                my $available_cpus   = $instance_types{$type}->[0];
+                my $available_memory = $instance_types{$type}->[1];
+                foreach my $instance (@new_instances) {
+                    my $iip         = $instance->privateIpAddress;
+                    my $cpus_used   = 0;
+                    my $memory_used = 0;
+                    while (@$usable_ips < $count) {
+                        if ($cpus <= $available_cpus - $cpus_used && $megabytes <= $available_memory - $memory_used) {
+                            push(@$usable_ips, $iip);
+                            $cpus_used   += $cpus;
+                            $memory_used += $megabytes;
                         }
-                    }
-                }
-                else {
-                    $backend->log("Failed to launch $needed new instances: " . $error);
-                }
-            }
-            
-            $ec2->wait_for_instances(@new_instances) if @new_instances;
-            
-            # check they're all fine
-            my $available_cpus   = $instance_types{$queue}->[0];
-            my $available_memory = $instance_types{$queue}->[1];
-            foreach my $instance (@new_instances) {
-                my $iip    = $instance->privateIpAddress;
-                my $status = $instance->current_status;
-                unless ($status eq 'running') {
-                    $backend->log("Created a new ec2 instance at $iip but it didn't start running normally");
-                    next;
-                }
-                warn "started up instance at $iip\n";
-                
-                # wait for it to become responsive to ssh
-                my $max_tries  = 240;
-                my $responsive = 0;
-                for (1 .. $max_tries) {
-                    my $return = $backend->ssh($iip, 'echo ssh_working');
-                    if ($return && $return =~ /ssh_working/) {
-                        $responsive = 1;
-                        warn "the instance was responsive to ssh\n";
-                        last;
-                    }
-                    sleep(1);
-                }
-                unless ($responsive) {
-                    $backend->log("Newly launched instance $iip is not responding to ssh");
-                    next;
-                }
-                
-                my $cpus_used   = 0;
-                my $memory_used = 0;
-                while (@$usable_ips < $count) {
-                    if ($cpus <= $available_cpus - $cpus_used && $megabytes <= $available_memory - $memory_used) {
-                        push(@$usable_ips, $iip);
-                        $cpus_used   += $cpus;
-                        $memory_used += $megabytes;
-                    }
-                    else {
-                        last;
+                        else {
+                            last;
+                        }
                     }
                 }
             }
@@ -204,9 +139,85 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         $self->_start_new_handlers($usable_ips, $cmd, $cwd ? ($cwd) : ());
     }
     
-    method _cluster_ips (Str $queue?) {
+    method launch_instances (Str $type, PositiveInt $needed) {
+        warn "insufficient suitable instances, will spawn $needed new ones\n";
+        # by default people are limited to a max of 20 instances:
+        # http://www.phacai.com/increase-ec2-instance-quota
+        # so we have to handle a possible error here
+        my %run_instance_args = (
+            -image_id               => $ami,
+            -instance_type          => $type,
+            -client_token           => $ec2->token,
+            -key_name               => $key_name,
+            -security_group         => \@security_groups,
+            -availability_zone      => $availability_zone,
+            -min_count              => $needed,
+            -max_count              => $needed,
+            -termination_protection => 0,
+            -shutdown_behavior      => 'terminate'
+        );
+        my @new_instances = $ec2->run_instances(%run_instance_args);
+        
+        unless (@new_instances) {
+            my $error = $ec2->error_str;
+            if ($error =~ /instances exceeds your current quota of (\d+)/) {
+                my $max           = $1;
+                my @all_instances = $ec2->describe_instances({ 'instance-state-name' => 'running' });
+                my $count         = $max - @all_instances;
+                if ($count == 0) {
+                    $backend->log("Unable to spawn any new instances; consider increasing your quota: http://aws.amazon.com/contact-us/ec2-request/");
+                }
+                else {
+                    $backend->log("Your EC2 account has an instance quota of $max; we need $needed more instances, but will launch $count new ones instead");
+                    $run_instance_args{'-min_count'} = $count;
+                    $run_instance_args{'-max_count'} = $count;
+                    @new_instances                   = $ec2->run_instances(%run_instance_args);
+                    unless (@new_instances) {
+                        $backend->log("Failed to launch $count new instances: " . $ec2->error_str);
+                    }
+                }
+            }
+            else {
+                $backend->log("Failed to launch $needed new instances: " . $error);
+            }
+        }
+        
+        $ec2->wait_for_instances(@new_instances) if @new_instances;
+        
+        # check they're all fine
+        foreach my $instance (@new_instances) {
+            my $iip    = $instance->privateIpAddress;
+            my $status = $instance->current_status;
+            unless ($status eq 'running') {
+                $backend->log("Created a new ec2 instance at $iip but it didn't start running normally");
+                next;
+            }
+            warn "started up instance at $iip\n";
+            
+            # wait for it to become responsive to ssh
+            my $max_tries  = 240;
+            my $responsive = 0;
+            for (1 .. $max_tries) {
+                my $return = $backend->ssh($iip, 'echo ssh_working');
+                if ($return && $return =~ /ssh_working/) {
+                    $responsive = 1;
+                    warn "the instance was responsive to ssh\n";
+                    last;
+                }
+                sleep(1);
+            }
+            unless ($responsive) {
+                $backend->log("Newly launched instance $iip is not responding to ssh");
+                next;
+            }
+        }
+        
+        return @new_instances;
+    }
+    
+    method _cluster_ips (Str $type?) {
         my @current_instances;
-        unless ($queue) {
+        unless ($type) {
             @current_instances = $ec2->describe_instances({
                     'image-id'            => $ami,
                     'availability-zone'   => $availability_zone,
@@ -215,20 +226,20 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             );
         }
         else {
-            # $queue is an instance type, but don't just get back instances
+            # $type is an instance type, but don't just get back instances
             # that exactly match that type; also get instances that match or
             # exceed the specs of that type
             my @itypes;
-            my ($needed_cores, $needed_mem) = @{ $instance_types{$queue} };
-            foreach my $type (@ordered_types) {
-                next if $type eq $queue;
-                my ($available_cores, $available_mem) = @{ $instance_types{$type} };
+            my ($needed_cores, $needed_mem) = @{ $instance_types{$type} };
+            foreach my $itype (@ordered_types) {
+                next if $itype eq $type;
+                my ($available_cores, $available_mem) = @{ $instance_types{$itype} };
                 next if $available_cores < $needed_cores;
                 next if $available_mem < $needed_mem;
-                push(@itypes, $type);
+                push(@itypes, $itype);
             }
             
-            foreach my $itype ($queue, @itypes) {
+            foreach my $itype ($type, @itypes) {
                 push(
                     @current_instances,
                     $ec2->describe_instances({
