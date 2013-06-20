@@ -16,8 +16,9 @@ L<VRPipe::Scheduler>.
 It differs from the sge scheduler by launching or terminating EC2 instances and
 adding/removing them from the SGE cluster according to current demand.
 
-Note that it takes alters configuration of your SGE installation, changing
-things like your complex attributes, queues and groups.
+Note that it alters configuration of your SGE installation, changing things
+like your complex attributes, parallel environment, queues and groups. (And so
+the user that runs vrpipe-server must have permission to do these things.)
 
 =head1 AUTHOR
 
