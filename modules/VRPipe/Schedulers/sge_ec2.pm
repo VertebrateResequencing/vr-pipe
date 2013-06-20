@@ -417,7 +417,7 @@ PE
         close($qfh) || $self->throw("Unable to close pipe from qhost -j -ncb");
         
         # consider empty hosts to be those that also haven't run a job in the
-        # past hour
+        # past 45mins
         my $min_uptime = 2700;
         my $max_do_nothing_time = $deployment eq 'production' ? $min_uptime : int($min_uptime / 10);
         my %to_terminate;
@@ -438,9 +438,10 @@ PE
             
             # since we're charged by the hour, we won't terminate any nodes
             # unless they've been up for at least 45mins (in production)
-            my ($ip) = $host =~ /(\d+)-(\d+)-(\d+)-(\d+)/;
-            $ip =~ s/-/./;
+            my ($ip) = $host =~ /(\d+-\d+-\d+-\d+)/;
+            $ip =~ s/-/./g;
             my ($instance) = $ec2->describe_instances({ 'private-ip-address' => $ip });
+            next unless $instance;
             if ($deployment eq 'production') {
                 next unless $instance->uptime >= $min_uptime;
             }
