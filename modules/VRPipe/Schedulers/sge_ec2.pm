@@ -50,6 +50,7 @@ class VRPipe::Schedulers::sge_ec2 extends VRPipe::Schedulers::sge {
     use VRPipe::Config;
     use Path::Class;
     use DateTime;
+    use POSIX qw(ceil);
     
     our $completed_config = 0;
     our $ec2_scheduler = VRPipe::SchedulerMethodsFactory->create('ec2', {});
@@ -316,13 +317,13 @@ PE
         # look at what we have queuing to get a count of how many of each
         # instance type we need to launch
         open(my $qstatfh, 'qstat -g d -r -ne -s p |') || $self->throw('Unable to open a pipe from qstat -g d -r -ne -s p');
-        my ($job_id, $month, $day, $year, $hour, $min, $sec, $slots);
+        my ($job_id, $slots);
         my %types;
         my %job_id_to_type;
         my $minimum_queue_time = $deployment eq 'production' ? 300 : 30;
         while (<$qstatfh>) {
             #18 0.00000 vrpipe_174 ec2-user     qw    06/19/2013 14:23:01  2
-            if (($job_id, $month, $day, $year, $hour, $min, $sec, $slots) = $_ =~ /^\s+(\d+)\s+\S+\s+\S+\s+\S+\s+qw\s+(\d+)\/(\d+)\/(\d+)\s+(\d\d):(\d\d):(\d\d)\s+(\d+)/) {
+            if (my ($this_job_id, $month, $day, $year, $hour, $min, $sec, $this_slots) = $_ =~ /^\s+(\d+)\s+\S+\s+\S+\s+\S+\s+qw\s+(\d+)\/(\d+)\/(\d+)\s+(\d\d):(\d\d):(\d\d)\s+(\d+)/) {
                 # we'll only consider jobs that have been pending for over 5mins
                 my $dt = DateTime->new(
                     year      => $year,
@@ -334,10 +335,11 @@ PE
                     time_zone => 'local',
                 );
                 my $elapsed = time() - $dt->epoch;
-                if ($elapsed < $minimum_queue_time) {
-                    undef $job_id;
-                    next;
+                if ($elapsed >= $minimum_queue_time) {
+                    $job_id = $this_job_id;
+                    $slots  = $this_slots;
                 }
+                next;
             }
             
             if ($job_id) {
@@ -360,7 +362,7 @@ PE
                     }
                     
                     if ($chosen_type) {
-                        $types{$chosen_type}++;
+                        $types{$chosen_type} += $slots;
                         unless ($typed) {
                             $job_id_to_type{$job_id} = $chosen_type;
                         }
@@ -375,6 +377,9 @@ PE
         # launch the desired instance types
         my %launched_hosts;
         while (my ($type, $count) = each %types) {
+            # $count is the number of threads we want to run on this $type of
+            # instance; adjust based on how many cores each instance has
+            $count = ceil($count / $VRPipe::Schedulers::ec2::instance_types{$type}->[0]);
             my @instances = $ec2_scheduler->launch_instances($type, $count);
             
             foreach my $instance (@instances) {
@@ -392,7 +397,7 @@ PE
             
             # add the new hosts to appropriate queues
             while (my ($host, $type) = each %launched_hosts) {
-                system('qconf -aattr hostgroup hostlist $host \@$type') && $self->throw("Failed to run: qconf -aattr hostgroup hostlist $host \@$type");
+                system("qconf -aattr hostgroup hostlist $host \@$type") && $self->throw("Failed to run: qconf -aattr hostgroup hostlist $host \@$type");
             }
         }
         
