@@ -412,11 +412,11 @@ class VRPipe::Config {
     }
     
     method _skip_unless_ec2_scheduler {
-        return _skip_based_on_scheduler('ec2');
+        return $self->_skip_based_on_scheduler('ec2');
     }
     
     method _skip_unless_sge_ec2_scheduler {
-        return _skip_based_on_scheduler('sge_ec2');
+        return $self->_skip_based_on_scheduler('sge_ec2');
     }
     
     sub _build_ec2_instance_types {
