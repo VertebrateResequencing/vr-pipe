@@ -62,6 +62,8 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
     our $checked_time_limit_type = 0;
     our %possible_time_limit_types = (h_rt => 1, s_rt => 1);
     our %queue_time_limits;
+    our $pe_name;
+    our $checked_pe_name = 0;
     
     method _parse_queue_time_limits {
         # go through all the queue configs to see what time limits they have set
@@ -160,6 +162,30 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
             $self->_parse_queue_time_limits();
         }
         
+        unless ($checked_pe_name) {
+            # look at all the configured parallel environments to find one with
+            # suitable settings
+            open(my $splfh, 'qconf -spl |') || $self->throw("Unable to open a pipe from qconf -spl");
+            while (<$splfh>) {
+                chomp;
+                my $pe = $_ || next;
+                open(my $spfh, "qconf -sp $pe |") || $self->throw("Unable to open a pipe from qconf -sp $pe");
+                my $matches = 0;
+                while (<$spfh>) {
+                    if (/^allocation_rule\s+\$pe_slots/ || /^job_is_first_task\s+TRUE/i) {
+                        $matches++;
+                    }
+                }
+                close($spfh);
+                if ($matches == 2) {
+                    $pe_name = $pe;
+                    last;
+                }
+            }
+            close($splfh);
+            $checked_pe_name = 1;
+        }
+        
         # access the requirements object and build up the string based on
         # memory, time & cpu.
         my $megabytes           = $requirements->memory;
@@ -169,8 +195,8 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
             $requirements_string .= " -l $time_limit_type=$seconds";
         }
         my $cpus = $requirements->cpus;
-        if ($cpus > 1) {
-            $requirements_string .= " -pe threaded $cpus";
+        if ($cpus > 1 && $pe_name) {
+            $requirements_string .= " -pe $pe_name $cpus";
         }
         
         # deal with job arrays
