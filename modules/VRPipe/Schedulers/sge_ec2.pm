@@ -477,24 +477,17 @@ PE
     }
     
     method _clean_up_hosts (HashRef $to_terminate) {
-        if (keys %$to_terminate) {
-            # stop SGE on the empty hosts
-            my $tmp_config = $self->_altered_config('EXEC_HOST_LIST_RM', join(' ', keys %$to_terminate));
-            system('cd $SGE_ROOT; ./inst_sge -ux -auto ' . $tmp_config) && $self->throw("Failed to run: inst_sge -ux -auto $tmp_config");
-            unlink($tmp_config);
-            
-            # terminate the instances
-            while (my ($host, $instance) = each %$to_terminate) {
-                warn "will terminate instance $host\n";
-                $instance->terminate;
-            }
+        while (my ($host, $instance) = each %$to_terminate) {
+            my $type = $instance->instanceType;
+            system("qconf -dattr hostgroup hostlist $host \@$type && qconf -de $host && qconf -dconf $host") && $self->throw("Could not remove $host from SGE");
+            warn "sge_ec2 scheduler will terminate instance $host\n";
+            $instance->terminate;
         }
     }
     
     method terminate_all_instances {
         # (this is only run when the testing server goes down, so shouldn't
         #  affect the production server)
-        warn "will find all instances to terminate them\n";
         my @all_instances = $ec2->describe_instances({
                 'image-id'            => $VRPipe::Schedulers::ec2::ami,
                 'availability-zone'   => $VRPipe::Schedulers::ec2::availability_zone,
