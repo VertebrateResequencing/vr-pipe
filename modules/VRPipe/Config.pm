@@ -232,6 +232,15 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has ec2_max_instances => (
+        is              => 'rw',
+        question        => 'What is the maximum number of instances VRPipe should launch?',
+        skip            => '_skip_unless_ec2_scheduler',
+        env             => 'EC2_MAX_INSTANCES',
+        default         => '1000',
+        question_number => ++$question_number
+    );
+    
     has sge_config_file => (
         is              => 'rw',
         question        => 'What is the absolute path to your SGE config file?',

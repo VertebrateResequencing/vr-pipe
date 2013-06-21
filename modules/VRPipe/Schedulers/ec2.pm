@@ -78,6 +78,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     our $url               = $vrp_config->ec2_url;
     our ($region)          = $url =~ /ec2\.(.+?)\.amazonaws/;
     our $key_name          = $vrp_config->ec2_private_key_name;
+    our $max_instances     = $vrp_config->ec2_max_instances;
     our @ordered_types     = split(',', $vrp_config->ec2_instance_types);
     our $ec2               = VM::EC2->new(-access_key => $access_key, -secret_key => $secret_key, -region => $region);
     our $meta              = $ec2->instance_metadata;
@@ -140,6 +141,18 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     }
     
     method launch_instances (Str $type, PositiveInt $needed) {
+        # we won't launch more instances than the user-set max
+        my @current_instances = $ec2->describe_instances({
+                'image-id'          => $ami,
+                'availability-zone' => $availability_zone
+            }
+        );
+        my $allowed_instances = $max_instances - @current_instances + 1; # +1 because one of them will be the instance we're launching from
+        if ($needed > $allowed_instances) {
+            $needed = $allowed_instances;
+        }
+        return if $needed <= 0;
+        
         warn "insufficient suitable instances, will spawn $needed new ones\n";
         # by default people are limited to a max of 20 instances:
         # http://www.phacai.com/increase-ec2-instance-quota
