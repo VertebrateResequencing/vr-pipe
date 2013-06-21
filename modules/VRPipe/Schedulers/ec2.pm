@@ -142,12 +142,20 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     
     method launch_instances (Str $type, PositiveInt $needed) {
         # we won't launch more instances than the user-set max
-        my @current_instances = $ec2->describe_instances({
-                'image-id'          => $ami,
-                'availability-zone' => $availability_zone
+        my @pending_instances = $ec2->describe_instances({
+                'image-id'            => $ami,
+                'availability-zone'   => $availability_zone,
+                'instance-state-name' => 'pending'
             }
         );
-        my $allowed_instances = $max_instances - @current_instances + 1; # +1 because one of them will be the instance we're launching from
+        my @running_instances = $ec2->describe_instances({
+                'image-id'            => $ami,
+                'availability-zone'   => $availability_zone,
+                'instance-state-name' => 'running'
+            }
+        );
+        my $current_instances = @pending_instances + @running_instances;
+        my $allowed_instances = $max_instances - $current_instances + 1; # +1 because one of them will be the instance we're launching from
         if ($needed > $allowed_instances) {
             $needed = $allowed_instances;
         }
