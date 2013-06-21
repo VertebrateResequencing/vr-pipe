@@ -161,7 +161,6 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         }
         return if $needed <= 0;
         
-        warn "insufficient suitable instances, will spawn $needed new ones\n";
         # by default people are limited to a max of 20 instances:
         # http://www.phacai.com/increase-ec2-instance-quota
         # so we have to handle a possible error here
@@ -213,7 +212,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 $backend->log("Created a new ec2 instance at $iip but it didn't start running normally");
                 next;
             }
-            warn "started up instance at $iip\n";
+            warn "ec2 scheduler started up instance at $iip\n";
             
             # wait for it to become responsive to ssh
             my $max_tries  = 240;
@@ -222,7 +221,6 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 my $return = $backend->ssh($iip, 'echo ssh_working');
                 if ($return && $return =~ /ssh_working/) {
                     $responsive = 1;
-                    warn "the instance was responsive to ssh\n";
                     last;
                 }
                 sleep(1);
@@ -287,7 +285,6 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     method terminate_old_instances (Str :$deployment!) {
         my $dt_parser = DateTime::Format::Natural->new;
         
-        warn "will check for instances that can be terminated\n";
         my $max_do_nothing_time = $deployment eq 'production' ? 3600 : 300;
         my @all_instances = $ec2->describe_instances({
                 'image-id'            => $ami,
@@ -320,13 +317,12 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             # don't terminate if the instance has recently run a Job
             next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             
-            warn "will terminate instance $host\n";
+            warn "ec2 scheduler will terminate instance $host\n";
             $instance->terminate;
         }
     }
     
     method terminate_all_instances {
-        warn "will find all instances to terminate them\n";
         my @all_instances = $ec2->describe_instances({
                 'image-id'            => $ami,
                 'availability-zone'   => $availability_zone,
@@ -345,6 +341,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
             next if $self->_handler_processes($host);
             
+            warn "ec2 scheduler will terminate instance $host\n";
             $instance->terminate;
         }
     }
