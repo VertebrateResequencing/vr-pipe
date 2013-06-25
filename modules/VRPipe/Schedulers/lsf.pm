@@ -19,7 +19,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -42,6 +42,7 @@ use VRPipe::Base;
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     use DateTime;
     use DateTime::TimeZone;
+    use Path::Class;
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
     
     our %months = qw(Jan 1
@@ -58,42 +59,51 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
       Dec 12);
     our $date_regex = qr/(\w+)\s+(\d+) (\d+):(\d+):(\d+)/;
     our %queues;
+    our $mem_limit_multiplier;
     
-    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
-        # access the requirments object and build up the string based on memory,
-        # time, cpu etc.
-        my $queue = $self->determine_queue($requirements);
-        # *** ...
-        my $megabytes          = $requirements->memory;
-        my $m                  = $megabytes * 1000;
-        my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
-        my $cpus               = $requirements->cpus;
-        if ($cpus > 1) {
-            $requirments_string .= " -n$cpus -R 'span[hosts=1]'";
-        }
-        
-        # for command_status() to work efficiently we must always set a job
-        # name that corresponds to the cmd. It must also be unique otherwise
-        # LSF would not start running jobs with duplicate names until previous
-        # ones complete
-        my $job_name = $self->_job_name($cmd, unique => 1);
-        
-        # work out the scheduler output locations and also specify job arrays
-        my $array_def = '';
-        my $output_string;
-        if ($count > 1) {
-            $output_string = "-o $stdo_file.\%I -e $stde_file.\%I";
-            $job_name .= qq{\[1-$count]};
-        }
-        else {
-            $output_string = "-o $stdo_file -e $stde_file";
-        }
-        
-        return qq[bsub -J "$job_name" $output_string $requirments_string '$cmd'];
-    }
-    
-    method determine_queue (VRPipe::Requirements $requirements) {
+    method initialize {
         unless (keys %queues) {
+            # look in lsf.conf to see what units memlimit (bsub -M) is in
+            my $lsf_conf_dir = $ENV{LSF_ENVDIR} || dir('/etc');
+            my $lsf_conf_file = file($lsf_conf_dir, 'lsf.conf');
+            if (-e $lsf_conf_file) {
+                $lsf_conf_file = $lsf_conf_file->resolve;
+            }
+            unless (-s $lsf_conf_file) {
+                # maybe LSF_ENVDIR is set, but lsf.conf is not inside it, and
+                # instead /etc/lsf.conf is a symlink to a uniquely named file?
+                $lsf_conf_file = file('/etc', 'lsf.conf');
+            }
+            if (-s $lsf_conf_file) {
+                open(my $fh, '<', $lsf_conf_file) || $self->throw("Unable to read $lsf_conf_file");
+                while (<$fh>) {
+                    if (my ($unit) = $_ =~ /^\s*LSF_UNIT_FOR_LIMITS\s*=\s*(\w)/) {
+                        if ($unit eq 'M') {
+                            $mem_limit_multiplier = 1;
+                        }
+                        elsif ($unit eq 'G') {
+                            $mem_limit_multiplier = 0.001;
+                        }
+                        else {
+                            # assuming 'K', and if it isn't K, I wouldn't know
+                            # what to do about it, so would default to 1000
+                            # anyway
+                            $mem_limit_multiplier = 1000;
+                        }
+                        
+                        last;
+                    }
+                }
+                close($fh);
+                
+                # default to K if LSF_UNIT_FOR_LIMITS was not specified
+                $mem_limit_multiplier ||= 1000;
+            }
+            else {
+                # just assume LSF_UNIT_FOR_LIMITS is at the default of KB
+                $mem_limit_multiplier = 1000;
+            }
+            
             # parse bqueues -l to figure out what usable queues we have
             open(my $bqlfh, 'bqueues -l |') || $self->throw("Could not open a pipe to bqueues -l");
             my $queue;
@@ -138,10 +148,17 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                     }
                     elsif ($next_is_memlimit) {
                         my $field = 0;
-                        foreach (/(\d+) K/g) {
+                        foreach (/(\d+) (\w)/g) {
                             $field++;
                             if ($field == $next_is_memlimit) {
-                                $queues{$queue}->{memlimit} = $1 / 1000;
+                                my ($val, $unit) = ($1, $2);
+                                if ($unit eq 'G') {
+                                    $val *= 1000;
+                                }
+                                elsif ($unit eq 'K') {
+                                    $val /= 1000;
+                                }
+                                $queues{$queue}->{memlimit} = $val;
                                 last;
                             }
                         }
@@ -185,14 +202,52 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                     $queue_hash->{runlimit} = 31536000;
                 }
                 unless (defined $queue_hash->{memlimit}) {
-                    $queue_hash->{memlimit} = 1000000;
+                    $queue_hash->{memlimit} = 10000000;
                 }
                 unless (defined $queue_hash->{chunk_size}) {
                     $queue_hash->{chunk_size} = 0;
                 }
             }
         }
+        else {
+            warn "had queues already\n";
+        }
+    }
+    
+    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
+        # access the requirements object and build up the string based on
+        # memory, time, cpu etc.
+        my $queue = $self->determine_queue($requirements);
+        # *** ...
+        my $megabytes          = $requirements->memory;
+        my $m                  = $megabytes * $mem_limit_multiplier;
+        my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
+        my $cpus               = $requirements->cpus;
+        if ($cpus > 1) {
+            $requirments_string .= " -n$cpus -R 'span[hosts=1]'";
+        }
         
+        # for command_status() to work efficiently we must always set a job
+        # name that corresponds to the cmd. It must also be unique otherwise
+        # LSF would not start running jobs with duplicate names until previous
+        # ones complete
+        my $job_name = $self->_job_name($cmd, unique => 1);
+        
+        # work out the scheduler output locations and also specify job arrays
+        my $array_def = '';
+        my $output_string;
+        if ($count > 1) {
+            $output_string = "-o $stdo_file.\%I -e $stde_file.\%I";
+            $job_name .= qq{\[1-$count]};
+        }
+        else {
+            $output_string = "-o $stdo_file -e $stde_file";
+        }
+        
+        die qq[bsub -J "$job_name" $output_string $requirments_string '$cmd'], "\n";
+    }
+    
+    method determine_queue (VRPipe::Requirements $requirements) {
         # pick a queue, preferring ones that are more likely to run our job
         # the soonest
         my $seconds   = $requirements->time;
