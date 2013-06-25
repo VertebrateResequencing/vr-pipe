@@ -257,7 +257,8 @@ sub start_server {
                     $backend->log("Submission management started for farm $farm");
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
-                    $scheduler     = VRPipe::Scheduler->create();
+                    $scheduler = VRPipe::Scheduler->create();
+                    $scheduler->initialize;
                     $survival_time = $farm_server->survival_time;
                     
                     # some schedulers may need to do something periodically;
@@ -640,7 +641,7 @@ sub start_server {
     # should keep running if the server goes down)
     if ($deployment eq 'testing') {
         # some schedulers may need to do something when the test server exits
-        my $sch_on_exit_method = $scheduler->on_exit_method;
+        my $sch_on_exit_method = $scheduler ? $scheduler->on_exit_method : undef;
         if ($sch_on_exit_method) {
             $scheduler->scheduler_instance->$sch_on_exit_method;
         }
