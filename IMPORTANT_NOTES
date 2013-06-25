@@ -1,3 +1,73 @@
+# version 0.158
+This is a major, critical upgrade. You should upgrade as soon as possible,
+before you are affected by a significant bug (in versions prior to this one,
+if the version of your installed Storable module changes, all dataelements could
+be withdrawn and new ones created, effectively resetting all your setups).
+
+If you have previously used VRPipe in production, you must make major changes
+to your production database. Depending on the size of your database, this could
+take anywhere from minutes to over a week, during which vrpipe-server must be
+stopped and no other changes to the database should be made. So plan for
+extended down-time.
+
+Follow the upgrade instructions carefully and in order. Most of the upgrade
+steps must be carried out PRIOR to actually installing 0.158.
+
+1) Stop the VRPipe server ('vrpipe-server stop'), ensure that it left no
+   processes behind (check with 'ps aux'), kill off any VRPipe-related jobs
+   and confirm nothing is accessing your production database (eg. log into
+   MySQL and do 'show processlist;').
+2) Ensure that VRPipe in PERL5LIB is >= 0.153 && <= 0.157, schema version 30:
+   $ perldoc -l VRPipe::Persistent::Schema | xargs grep VERSION
+3) Ensure that you're using the correct database details and schema:
+   $ perl -MVRPipe -MDBI -e 'my $dsn = VRPipe::Persistent::SchemaBase->get_dsn; print $dsn, "\n"; my $dbh = DBI->connect($dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password, {}); my ($version) = $dbh->selectrow_array(q[select version from dbix_class_deploymenthandler_versions order by id desc limit 1]); print "Schema version: $version\n";'
+4) Run the following script. You may need up to 2GB free memory, and it could
+   take up to 24hrs to finish running. Check its output: it should be clear if
+   it completed successfully.
+   $ perl 0158_db_optimise.pl
+5) Run the following script. It has low memory requirements and could take up
+   to 6hrs to finish running. Check its output: it should be clear if it
+   completed successfully.
+   $ perl 0158_pre_db_upgrade.pl
+6) Install 0.158 using your normal method, and ensure that worked (the schema
+   version should come up as 31):
+   $ perldoc -l VRPipe::Persistent::Schema | xargs grep VERSION
+7) Run the normal automated db_upgrade script:
+   $ vrpipe-db_upgrade
+8) Unfortunately the automated upgrade here does not do things correctly, and it
+   will fail. Still, do step 7 and let it fail (so that the necessary files are
+   added to your schema directory for future use), then manually alter your
+   database; the following commands may take up to an hour to run:
+    mysql> BEGIN; SET foreign_key_checks=0; ALTER TABLE dataelement DROP COLUMN result, ADD COLUMN filelist integer(9) NOT NULL, ADD COLUMN keyvallist integer(9) NOT NULL, ADD INDEX dataelement_idx_filelist (filelist), ADD INDEX dataelement_idx_keyvallist (keyvallist), ADD CONSTRAINT dataelement_fk_filelist FOREIGN KEY (filelist) REFERENCES filelist (id), ADD CONSTRAINT dataelement_fk_keyvallist FOREIGN KEY (keyvallist) REFERENCES keyvallist (id); ALTER TABLE file DROP COLUMN metadata, ADD COLUMN keyvallist integer(9) NULL, ADD INDEX file_idx_keyvallist (keyvallist), ADD CONSTRAINT file_fk_keyvallist FOREIGN KEY (keyvallist) REFERENCES keyvallist (id); CREATE INDEX keyvallist_idx_lookup on keyvallist (lookup); CREATE INDEX filelist_idx_lookup on filelist (lookup); CREATE INDEX keyvallistmember_idx_keyval_key on keyvallistmember (keyval_key); CREATE INDEX keyvallistmember_idx_val on keyvallistmember (val (255)); DROP TABLE persistentarraymember; DROP TABLE persistentarray; SET foreign_key_checks=1; COMMIT;
+    mysql> insert into dbix_class_deploymenthandler_versions set version = 31, upgrade_sql = '';
+9) Ensure the db upgrade worked:
+   $ perl -MVRPipe -MDBI -e 'my $dsn = VRPipe::Persistent::SchemaBase->get_dsn; print $dsn, "\n"; my $dbh = DBI->connect($dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password, {}); my ($version) = $dbh->selectrow_array(q[select version from dbix_class_deploymenthandler_versions order by id desc limit 1]); print "Schema version: $version\n";'
+10) Run the following script. It has low memory requirements and could take up
+    to 2 days to run. Check its output: it should be clear if it completed
+    successfully.
+    $ perl 0158_post_db_upgrade.pl
+11) The upgrade is complete and it should be safe to start using VRPipe again
+    normally.
+
+Run 'perl Build.PL' to install a new CPAN dependency (JSON::XS). There is also
+a new SiteConfig question if you use the ec2 scheduler (ec2_max_instances).
+
+API changes:
+PersistentArray and PersistentArrayMember classes (and tables) were removed,
+replaced by KeyValList, KeyValListMember, FileList and FileListMember.
+
+The ArrayRefOfPersistent type was renamed PersistentArrayRef, and there is no
+more PersistentArray type.
+
+DataElements no longer have a 'result', but instead a FileList and a KeyValList.
+A result() method provides backwards-compatibility.
+
+File no longer has a 'metadata', but instead a KeyValList. A metadata() method
+provides permanent backwards-compatibility. 
+
+Scheduler classes can now have an initialize() method to cache things in class
+variables for example.
+
 # version 0.155:
 It probably won't have any effect on you, but the bam_to_fastq step briefly
 had a bam2fastq_logs output file that was removed in this version.
