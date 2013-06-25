@@ -63,46 +63,22 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     
     method initialize {
         unless (keys %queues) {
-            # look in lsf.conf to see what units memlimit (bsub -M) is in
-            my $lsf_conf_dir = $ENV{LSF_ENVDIR} || dir('/etc');
-            my $lsf_conf_file = file($lsf_conf_dir, 'lsf.conf');
-            if (-e $lsf_conf_file) {
-                $lsf_conf_file = $lsf_conf_file->resolve;
-            }
-            unless (-s $lsf_conf_file) {
-                # maybe LSF_ENVDIR is set, but lsf.conf is not inside it, and
-                # instead /etc/lsf.conf is a symlink to a uniquely named file?
-                $lsf_conf_file = file('/etc', 'lsf.conf');
-            }
-            if (-s $lsf_conf_file) {
-                open(my $fh, '<', $lsf_conf_file) || $self->throw("Unable to read $lsf_conf_file");
-                while (<$fh>) {
-                    if (my ($unit) = $_ =~ /^\s*LSF_UNIT_FOR_LIMITS\s*=\s*(\w)/) {
-                        if ($unit eq 'M') {
-                            $mem_limit_multiplier = 1;
-                        }
-                        elsif ($unit eq 'G') {
-                            $mem_limit_multiplier = 0.001;
-                        }
-                        else {
-                            # assuming 'K', and if it isn't K, I wouldn't know
-                            # what to do about it, so would default to 1000
-                            # anyway
-                            $mem_limit_multiplier = 1000;
-                        }
-                        
-                        last;
+            # use lsadmin to see what units memlimit (bsub -M) is in
+            my $unit_for_limits = `lsadmin showconf lim | grep LSF_UNIT_FOR_LIMITS`;
+            if ($unit_for_limits) {
+                my ($unit) = $unit_for_limits =~ /=\s*(\w)/;
+                if ($unit) {
+                    if ($unit eq 'M') {
+                        $mem_limit_multiplier = 1;
                     }
+                    elsif ($unit eq 'G') {
+                        $mem_limit_multiplier = 0.001;
+                    }
+                    # elsif 'K' handled below
                 }
-                close($fh);
-                
-                # default to K if LSF_UNIT_FOR_LIMITS was not specified
-                $mem_limit_multiplier ||= 1000;
             }
-            else {
-                # just assume LSF_UNIT_FOR_LIMITS is at the default of KB
-                $mem_limit_multiplier = 1000;
-            }
+            # if something unexpected happened, just assume it's KB
+            $mem_limit_multiplier ||= 1000;
             
             # parse bqueues -l to figure out what usable queues we have
             open(my $bqlfh, 'bqueues -l |') || $self->throw("Could not open a pipe to bqueues -l");
@@ -244,7 +220,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             $output_string = "-o $stdo_file -e $stde_file";
         }
         
-        die qq[bsub -J "$job_name" $output_string $requirments_string '$cmd'], "\n";
+        return qq[bsub -J "$job_name" $output_string $requirments_string '$cmd'];
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
