@@ -72,7 +72,6 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         'c1.xlarge'  => [8, 7000,  2.5,  0.660, 0.26]
     );
     
-    our %queues;
     our $access_key        = $vrp_config->ec2_access_key;
     our $secret_key        = $vrp_config->ec2_secret_key;
     our $url               = $vrp_config->ec2_url;
