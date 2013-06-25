@@ -207,7 +207,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         }
     }
     
-    method temp_files (ArrayRefOfPersistent $new_array?) {
+    method temp_files (PersistentArrayRef $new_array?) {
         my @file_ids = VRPipe::StepOutputFile->get_column_values('file', { stepstate => $self->id, output_key => 'temp' }); # *** can we get file objects out efficiently?
         
         if ($new_array) {

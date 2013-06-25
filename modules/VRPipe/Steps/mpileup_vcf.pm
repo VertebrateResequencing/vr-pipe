@@ -92,20 +92,19 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             
             my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
             my @bam_ids = map { $_->id } @{ $self->inputs->{bam_files} };
-
+            
             $vcf_meta->{caller} = 'samtools_mpileup_bcftools';
-
+            
             # Add bam path(s) and sample(s) to vcf metadata
-            my ($vcf_meta_bams,$vcf_meta_samples);
+            my ($vcf_meta_bams, $vcf_meta_samples);
             my %bam_samples;
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
-
                 my $bam_path = $bam->path;
-                $vcf_meta_bams .= $bam->path->stringify .'#';
-
+                $vcf_meta_bams .= $bam->path->stringify . ',';
+                
                 my $meta = $bam->metadata;
                 if ($meta->{sample}) {
-                    $bam_samples{$meta->{sample}}++;
+                    $bam_samples{ $meta->{sample} }++;
                 }
                 else {
                     my $parser = VRPipe::Parser->create('bam', { file => $bam_path });
@@ -117,10 +116,10 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
                     }
                 }
             }
-            $vcf_meta_bams =~ s/\#$//;
+            $vcf_meta_bams =~ s/\,$//;
             $vcf_meta->{source_bam} = $vcf_meta_bams;
-
-            $vcf_meta_samples = join('#',keys %bam_samples);
+            
+            $vcf_meta_samples = join('#', keys %bam_samples);
             $vcf_meta->{sample} = $vcf_meta_samples;
             
             my $req = $self->new_requirements(memory => 500, time => 1);
@@ -158,7 +157,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             $self->dispatch_vrpipecode($cmd, $req, { output_files => [$vcf_file] });
         };
     }
-
+    
     method description {
         return "Run samtools mpileup and bcftools for one or more bams, generating one vcf without an intermediate bcf";
     }

@@ -1,3 +1,26 @@
+0.158   Critical fix to ensure Setups do not get reset when the version of your
+        installed Storable module changes. See IMPORTANT_NOTES if upgrading.
+        Various fixes related to moving VRPipe-tracked files from one disc to
+        another.
+        Fixed filetype checking for bams, vcfs and bcfs.
+        Fix for the LSF scheduler so that if your LSF administrator has set
+        LSF_UNIT_FOR_LIMITS to something other than KB, VRPipe no longer fails
+        to submit jobs.
+        Fix for the bam_index step so that it will reindex bams if they have a
+        newer timestamp than their .bai files.
+        Fixed the setups handler so that it correctly watches the source file
+        of file-based datasources, updating them when the file is altered.
+        Emails from "VRPipe Server" now have an address of the configured admin
+        instead of a fake address.
+        New sge_ec2 scheduler, providing SunGridEngine load balancing on
+        Amazon EC2.
+        New genome_studio_import_genotype_files pipeline.
+        vrpipe-fileinfo can now be used to search for files that have certain
+        metadata, and is also capable of reporting on files that were inputs
+        to setups, not just setup output files.
+        vrpipe-setup can now be used to change the output root of an existing
+        setup (this does not move any files; it just determines where new
+        output files would go).
 0.157   Hotfix for the bamcheck step, so that it can cope with bams that have
         no mapped reads.
 0.156   Critical fix for steps that generate hundreds of output files - now

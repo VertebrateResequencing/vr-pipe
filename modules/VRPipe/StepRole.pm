@@ -107,7 +107,7 @@ role VRPipe::StepRole {
     );
     has 'temps' => (
         is      => 'ro',
-        isa     => ArrayRefOfPersistent,
+        isa     => PersistentArrayRef,
         builder => '_build_temps',
         lazy    => 1,
         clearer => '_clear_temps'

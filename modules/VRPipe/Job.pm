@@ -145,7 +145,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     
     has 'output_files' => (
         is      => 'rw',
-        isa     => ArrayRefOfPersistent,
+        isa     => PersistentArrayRef,
         traits  => ['VRPipe::Persistent::Attributes'],
         default => sub { [] }
     );

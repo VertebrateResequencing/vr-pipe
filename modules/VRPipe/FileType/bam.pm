@@ -47,7 +47,17 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
     
     around check_type {
         $self->$orig || return 0;
-        return $self->check_magic($self->file, $correct_magic);
+        my $file = $self->file;
+        $self->check_magic($file, $correct_magic) || return 0;
+        
+        # unfortunately bgzip produces the same magic, so we'll incorrectly
+        # validate compressed VCFs. One way to get around this is to decompress
+        # a little bit and see if the BAM\1 magic is there, but we'll just
+        # enforce that the filename ends in .bam for now
+        if ($file =~ /\.bam$/) {
+            return 1;
+        }
+        return 0;
     }
     
     method num_header_lines {

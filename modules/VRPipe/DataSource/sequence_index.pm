@@ -20,7 +20,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011, 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -160,7 +160,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $remote_path ? (remote_path => $remote_path) : ()
             };
             
-            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
+            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq')->original;
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
@@ -182,11 +182,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             
             $vrfile->add_metadata($new_metadata, replace_data => 0);
             
-            unless ($vrfile->s) {
+            unless ($vrfile->resolve->s) {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
-            push(@{ $lanes_hash->{ $pr->[2] }->{paths} }, $fastq);
+            push(@{ $lanes_hash->{ $pr->[2] }->{paths} }, $vrfile->path->stringify);
             if ($changed) {
                 push(@{ $lanes_hash->{ $pr->[2] }->{changed} }, [$vrfile, $new_metadata]);
             }
@@ -200,22 +200,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
-                $element || next;
-                foreach my $estate ($element->element_states) {
-                    $estate->pipelinesetup->log_event("sequence_index DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
-                    $estate->start_from_scratch;
-                }
-                
-                #*** problems happen if we start_from_scratch some of them, but
-                # then get killed before updating the metadata...
-                
-                # only now that we've started from scratch do we we alter the
-                # metadata
-                foreach my $fm (@{ $hash_ref->{changed} }) {
-                    my ($vrfile, $new_metadata) = @$fm;
-                    $vrfile->add_metadata($new_metadata, replace_data => 1);
-                }
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref);
             }
         }
         $self->_create_elements(\@element_args);
@@ -315,7 +300,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
                 $remote_path ? (remote_path => $remote_path) : ()
             };
             
-            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq');
+            my $vrfile           = VRPipe::File->create(path => $fastq, type => 'fq')->original;
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
@@ -337,11 +322,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             
             $vrfile->add_metadata($new_metadata, replace_data => 0);
             
-            unless ($vrfile->s) {
+            unless ($vrfile->resolve->s) {
                 $self->throw("$fastq was in sequence.index file, but not found on disc!") if $require_fastqs;
             }
             
-            push(@{ $samples_hash->{ $pr->[9] }->{paths} }, $fastq);
+            push(@{ $samples_hash->{ $pr->[9] }->{paths} }, $vrfile->path->stringify);
             if ($changed) {
                 push(@{ $samples_hash->{ $pr->[9] }->{changed} }, [$vrfile, $new_metadata]);
             }
@@ -355,22 +340,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                my ($element) = VRPipe::DataElement->search({ datasource => $did, result => $result_hash });
-                $element || next;
-                foreach my $estate ($element->element_states) {
-                    $estate->pipelinesetup->log_event("sequence_index DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
-                    $estate->start_from_scratch;
-                }
-                
-                #*** problems happen if we start_from_scratch some of them, but
-                # then get killed before updating the metadata...
-                
-                # only now that we've started from scratch do we we alter the
-                # metadata
-                foreach my $fm (@{ $hash_ref->{changed} }) {
-                    my ($vrfile, $new_metadata) = @$fm;
-                    $vrfile->add_metadata($new_metadata, replace_data => 1);
-                }
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref);
             }
         }
         $self->_create_elements(\@element_args);

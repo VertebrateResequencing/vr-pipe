@@ -19,7 +19,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -42,6 +42,7 @@ use VRPipe::Base;
 class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     use DateTime;
     use DateTime::TimeZone;
+    use Path::Class;
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
     
     our %months = qw(Jan 1
@@ -58,14 +59,139 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
       Dec 12);
     our $date_regex = qr/(\w+)\s+(\d+) (\d+):(\d+):(\d+)/;
     our %queues;
+    our $mem_limit_multiplier;
+    
+    method initialize {
+        # use lsadmin to see what units memlimit (bsub -M) is in
+        my $unit_for_limits = `lsadmin showconf lim | grep LSF_UNIT_FOR_LIMITS`;
+        if ($unit_for_limits) {
+            my ($unit) = $unit_for_limits =~ /=\s*(\w)/;
+            if ($unit) {
+                if ($unit eq 'M') {
+                    $mem_limit_multiplier = 1;
+                }
+                elsif ($unit eq 'G') {
+                    $mem_limit_multiplier = 0.001;
+                }
+                # elsif 'K' handled below
+            }
+        }
+        # if something unexpected happened, just assume it's KB
+        $mem_limit_multiplier ||= 1000;
+        
+        # parse bqueues -l to figure out what usable queues we have
+        open(my $bqlfh, 'bqueues -l |') || $self->throw("Could not open a pipe to bqueues -l");
+        my $queue;
+        my $next_is_prio        = 0;
+        my $looking_at_defaults = 0;
+        my $next_is_memlimit    = 0;
+        my $next_is_runlimit    = 0;
+        while (<$bqlfh>) {
+            if (/^QUEUE: (\S+)/) {
+                $queue = $1;
+                next;
+            }
+            next unless $queue;
+            
+            if (/^PRIO\s+NICE\s+STATUS\s+MAX\s+JL\/U/) {
+                $next_is_prio = 1;
+            }
+            elsif ($next_is_prio) {
+                my ($prio, undef, undef, $max, $max_user) = split;
+                $queues{$queue}->{prio}     = $prio;
+                $queues{$queue}->{max}      = $max eq '-' ? 1000000 : $max;
+                $queues{$queue}->{max_user} = $max_user eq '-' ? 1000000 : $max;
+                
+                $next_is_prio = 0;
+            }
+            
+            elsif (/^DEFAULT LIMITS:/) {
+                $looking_at_defaults = 1;
+            }
+            elsif (/^MAXIMUM LIMITS:|^SCHEDULING PARAMETERS/) {
+                $looking_at_defaults = 0;
+            }
+            elsif (!$looking_at_defaults) {
+                if (/MEMLIMIT/) {
+                    my $field = 0;
+                    foreach my $word (split(/\s+/, $_)) {
+                        next unless $word;
+                        $field++;
+                        last if $word eq 'MEMLIMIT';
+                    }
+                    $next_is_memlimit = $field;
+                }
+                elsif ($next_is_memlimit) {
+                    my $field = 0;
+                    foreach (/(\d+) (\w)/g) {
+                        $field++;
+                        if ($field == $next_is_memlimit) {
+                            my ($val, $unit) = ($1, $2);
+                            if ($unit eq 'G') {
+                                $val *= 1000;
+                            }
+                            elsif ($unit eq 'K') {
+                                $val /= 1000;
+                            }
+                            $queues{$queue}->{memlimit} = $val;
+                            last;
+                        }
+                    }
+                    $next_is_memlimit = 0;
+                }
+                elsif (/RUNLIMIT/) {
+                    $next_is_runlimit = 1;
+                }
+                elsif ($next_is_runlimit && /^\s*(\d+)(?:\.0)? min/) {
+                    $queues{$queue}->{runlimit} = $1 * 60;
+                    $next_is_runlimit = 0;
+                }
+            }
+            
+            if (/^(USERS|HOSTS):\s+(.+?)\s*$/) {
+                my $type = lc($1);
+                my $vals = $2;
+                my @vals = split(/\s+/, $vals);
+                if ($type eq 'users') {
+                    my %users = map { $_ => 1 } @vals;
+                    my $me = getlogin || getpwuid($<);
+                    unless (exists $users{all} || exists $users{$me}) {
+                        delete $queues{$queue};
+                        undef $queue;
+                    }
+                }
+                else {
+                    $queues{$queue}->{$type} = $vals eq 'all' ? 1000000 : scalar(@vals);
+                }
+            }
+            
+            if (/^CHUNK_JOB_SIZE:\s+(\d+)/) {
+                $queues{$queue}->{chunk_size} = $1;
+            }
+        }
+        close($bqlfh) || $self->throw("Could not close a pipe to bqueues -l");
+        
+        foreach my $queue (keys %queues) {
+            my $queue_hash = $queues{$queue};
+            unless (defined $queue_hash->{runlimit}) {
+                $queue_hash->{runlimit} = 31536000;
+            }
+            unless (defined $queue_hash->{memlimit}) {
+                $queue_hash->{memlimit} = 10000000;
+            }
+            unless (defined $queue_hash->{chunk_size}) {
+                $queue_hash->{chunk_size} = 0;
+            }
+        }
+    }
     
     method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
-        # access the requirments object and build up the string based on memory,
-        # time, cpu etc.
+        # access the requirements object and build up the string based on
+        # memory, time, cpu etc.
         my $queue = $self->determine_queue($requirements);
         # *** ...
         my $megabytes          = $requirements->memory;
-        my $m                  = $megabytes * 1000;
+        my $m                  = $megabytes * $mem_limit_multiplier;
         my $requirments_string = "-q $queue -M$m -R 'select[mem>$megabytes] rusage[mem=$megabytes]'";
         my $cpus               = $requirements->cpus;
         if ($cpus > 1) {
@@ -93,106 +219,6 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     }
     
     method determine_queue (VRPipe::Requirements $requirements) {
-        unless (keys %queues) {
-            # parse bqueues -l to figure out what usable queues we have
-            open(my $bqlfh, 'bqueues -l |') || $self->throw("Could not open a pipe to bqueues -l");
-            my $queue;
-            my $next_is_prio        = 0;
-            my $looking_at_defaults = 0;
-            my $next_is_memlimit    = 0;
-            my $next_is_runlimit    = 0;
-            while (<$bqlfh>) {
-                if (/^QUEUE: (\S+)/) {
-                    $queue = $1;
-                    next;
-                }
-                next unless $queue;
-                
-                if (/^PRIO\s+NICE\s+STATUS\s+MAX\s+JL\/U/) {
-                    $next_is_prio = 1;
-                }
-                elsif ($next_is_prio) {
-                    my ($prio, undef, undef, $max, $max_user) = split;
-                    $queues{$queue}->{prio}     = $prio;
-                    $queues{$queue}->{max}      = $max eq '-' ? 1000000 : $max;
-                    $queues{$queue}->{max_user} = $max_user eq '-' ? 1000000 : $max;
-                    
-                    $next_is_prio = 0;
-                }
-                
-                elsif (/^DEFAULT LIMITS:/) {
-                    $looking_at_defaults = 1;
-                }
-                elsif (/^MAXIMUM LIMITS:|^SCHEDULING PARAMETERS/) {
-                    $looking_at_defaults = 0;
-                }
-                elsif (!$looking_at_defaults) {
-                    if (/MEMLIMIT/) {
-                        my $field = 0;
-                        foreach my $word (split(/\s+/, $_)) {
-                            next unless $word;
-                            $field++;
-                            last if $word eq 'MEMLIMIT';
-                        }
-                        $next_is_memlimit = $field;
-                    }
-                    elsif ($next_is_memlimit) {
-                        my $field = 0;
-                        foreach (/(\d+) K/g) {
-                            $field++;
-                            if ($field == $next_is_memlimit) {
-                                $queues{$queue}->{memlimit} = $1 / 1000;
-                                last;
-                            }
-                        }
-                        $next_is_memlimit = 0;
-                    }
-                    elsif (/RUNLIMIT/) {
-                        $next_is_runlimit = 1;
-                    }
-                    elsif ($next_is_runlimit && /^\s*(\d+)(?:\.0)? min/) {
-                        $queues{$queue}->{runlimit} = $1 * 60;
-                        $next_is_runlimit = 0;
-                    }
-                }
-                
-                if (/^(USERS|HOSTS):\s+(.+?)\s*$/) {
-                    my $type = lc($1);
-                    my $vals = $2;
-                    my @vals = split(/\s+/, $vals);
-                    if ($type eq 'users') {
-                        my %users = map { $_ => 1 } @vals;
-                        my $me = getlogin || getpwuid($<);
-                        unless (exists $users{all} || exists $users{$me}) {
-                            delete $queues{$queue};
-                            undef $queue;
-                        }
-                    }
-                    else {
-                        $queues{$queue}->{$type} = $vals eq 'all' ? 1000000 : scalar(@vals);
-                    }
-                }
-                
-                if (/^CHUNK_JOB_SIZE:\s+(\d+)/) {
-                    $queues{$queue}->{chunk_size} = $1;
-                }
-            }
-            close($bqlfh) || $self->throw("Could not close a pipe to bqueues -l");
-            
-            foreach my $queue (keys %queues) {
-                my $queue_hash = $queues{$queue};
-                unless (defined $queue_hash->{runlimit}) {
-                    $queue_hash->{runlimit} = 31536000;
-                }
-                unless (defined $queue_hash->{memlimit}) {
-                    $queue_hash->{memlimit} = 1000000;
-                }
-                unless (defined $queue_hash->{chunk_size}) {
-                    $queue_hash->{chunk_size} = 0;
-                }
-            }
-        }
-        
         # pick a queue, preferring ones that are more likely to run our job
         # the soonest
         my $seconds   = $requirements->time;

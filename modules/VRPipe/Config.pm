@@ -176,7 +176,7 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'What job scheduler should be used for production?',
         default         => 'LSF',
-        valid           => [qw(LSF SGE local ec2)],
+        valid           => [qw(LSF SGE local ec2 sge_ec2)],
         question_number => ++$question_number
     );
     
@@ -184,14 +184,14 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'What job scheduler should be used for testing?',
         default         => 'local',
-        valid           => [qw(LSF SGE local ec2)],
+        valid           => [qw(LSF SGE local ec2 sge_ec2)],
         question_number => ++$question_number
     );
     
     has ec2_access_key => (
         is              => 'rw',
-        question        => 'What is your AWS access key (a string found at https://portal.aws.amazon.com/gp/aws/securityCredentials?)?',
-        skip            => '_skip_based_on_scheduler',
+        question        => 'What is your AWS access key (a string found at https://console.aws.amazon.com/iam/home?#security_credential)?',
+        skip            => '_skip_unless_ec2_scheduler',
         env             => 'AWS_ACCESS_KEY',
         secure          => 1,
         question_number => ++$question_number
@@ -199,8 +199,8 @@ class VRPipe::Config {
     
     has ec2_secret_key => (
         is              => 'rw',
-        question        => 'What is your AWS secret key (a string found at https://portal.aws.amazon.com/gp/aws/securityCredentials?)?',
-        skip            => '_skip_based_on_scheduler',
+        question        => 'What is your AWS secret key (generated at https://console.aws.amazon.com/iam/home?#security_credential)?',
+        skip            => '_skip_unless_ec2_scheduler',
         env             => 'AWS_SECRET_KEY',
         secure          => 1,
         question_number => ++$question_number
@@ -209,7 +209,7 @@ class VRPipe::Config {
     has ec2_private_key_name => (
         is              => 'rw',
         question        => 'What is your AWS private key name (the name of the key you use to ssh into ec2 instances)?',
-        skip            => '_skip_based_on_scheduler',
+        skip            => '_skip_unless_ec2_scheduler',
         env             => 'EC2_KEYPAIR',
         question_number => ++$question_number
     );
@@ -217,7 +217,7 @@ class VRPipe::Config {
     has ec2_url => (
         is              => 'rw',
         question        => 'What is the url for your ec2 region?',
-        skip            => '_skip_based_on_scheduler',
+        skip            => '_skip_unless_ec2_scheduler',
         env             => 'EC2_URL',
         default         => 'https://ec2.eu-west-1.amazonaws.com',
         question_number => ++$question_number
@@ -226,9 +226,26 @@ class VRPipe::Config {
     has ec2_instance_types => (
         is              => 'rw',
         question        => 'Choose which instance types VRPipe will launch and use to run Jobs; the first type in the comma separate list you supply that matches or exceeds the memory and cpu requirements of the Job will be used',
-        skip            => '_skip_based_on_scheduler',
+        skip            => '_skip_unless_ec2_scheduler',
         env             => 'EC2_INSTANCE_TYPES',
         builder         => '_build_ec2_instance_types',
+        question_number => ++$question_number
+    );
+    
+    has ec2_max_instances => (
+        is              => 'rw',
+        question        => 'What is the maximum number of instances VRPipe should launch?',
+        skip            => '_skip_unless_ec2_scheduler',
+        env             => 'EC2_MAX_INSTANCES',
+        default         => '1000',
+        question_number => ++$question_number
+    );
+    
+    has sge_config_file => (
+        is              => 'rw',
+        question        => 'What is the absolute path to your SGE config file?',
+        skip            => '_skip_unless_sge_ec2_scheduler',
+        env             => 'SGE_CONFIG',
         question_number => ++$question_number
     );
     
@@ -391,16 +408,24 @@ class VRPipe::Config {
         return $self->_default_based_on_production_db('dbport');
     }
     
-    method _skip_based_on_scheduler () {
+    method _skip_based_on_scheduler (Str $type) {
         foreach my $deployment ('production', 'testing') {
             my $method    = $deployment . '_scheduler';
             my $scheduler = $self->$method();
-            if ($scheduler eq 'ec2') {
+            if ($scheduler =~ /$type/) {
                 return 0;
             }
         }
         
         return 1;
+    }
+    
+    method _skip_unless_ec2_scheduler {
+        return $self->_skip_based_on_scheduler('ec2');
+    }
+    
+    method _skip_unless_sge_ec2_scheduler {
+        return $self->_skip_based_on_scheduler('sge_ec2');
     }
     
     sub _build_ec2_instance_types {

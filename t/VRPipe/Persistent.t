@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 157;
+    use Test::Most tests => 176;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -60,6 +60,48 @@ $files[0]->disconnect;
 my $post_disconnect = VRPipe::File->get(id => 1);
 my $pd_worked = $post_disconnect && $post_disconnect->path() eq $input1_path;
 ok $pd_worked, 'we automatically reconnected to the database after a disconnect';
+
+# filelists
+throws_ok { VRPipe::FileList->get() } qr/requires id or members/, 'get() for FileList fails with no args';
+throws_ok { VRPipe::FileList->create() } qr/Validation failed/,   'create() for FileList fails with no args';
+throws_ok { VRPipe::FileList->get(id => 1, files => \@files) } qr/cannot supply both id and members/, 'get() for FileList fails with both id and files supplied';
+ok my $file_list = VRPipe::FileList->create(files => \@files), 'created a FileList using create(files => [...])';
+is_deeply [$file_list->id, ($file_list->files)[0]->id, ($file_list->files)[1]->id], [1, $files[0]->id, $files[1]->id], 'the created FileList has the correct contents';
+undef $file_list;
+ok $file_list = VRPipe::FileList->get(id => 1), 'got a FileList using get(id => 1)';
+is_deeply [$file_list->id, ($file_list->files)[0]->id, ($file_list->files)[1]->id], [1, $files[0]->id, $files[1]->id], 'the gotten FileList has the correct contents';
+ok $file_list = VRPipe::FileList->create(files => \@files), 'created a FileList using the same set of files)';
+is_deeply [$file_list->id, ($file_list->files)[0]->id, ($file_list->files)[1]->id], [1, $files[0]->id, $files[1]->id], 'the created FileList has the same id and contents';
+ok $file_list = VRPipe::FileList->get(files => \@files), 'got a FileList using a set of files';
+is $file_list->id, 1, 'it had the id of the first FileList';
+ok $file_list = VRPipe::FileList->get(files => [$files[1], $files[0]]), 'got a FileList using get()';
+is $file_list->id, 1, 'using get() with files in a previously unused order still returns an existing FileList';
+ok $file_list = VRPipe::FileList->get(files => []), 'got a FileList using get() with an empty files list';
+is_deeply [$file_list->id, scalar($file_list->files)], [2, 0], 'the created FileList has a new id, and no files';
+ok $file_list = VRPipe::FileList->get(files => []), 'got a FileList using get() with an empty files list again';
+is $file_list->id, 2, 'it had the same id';
+
+# keyvallists (one of the File creations above already created a keyvallist)
+throws_ok { VRPipe::KeyValList->get() } qr/requires id or members/, 'get() for KeyValList fails with no args';
+throws_ok { VRPipe::KeyValList->create() } qr/Validation failed/,   'create() for KeyValList fails with no args';
+throws_ok { VRPipe::KeyValList->get(id => 1, hash => {}) } qr/cannot supply both id and members/, 'get() for KeyValList fails with both id and hash supplied';
+my $test_hash = { foo => 'bar', one => 'two' };
+ok my $keyval_list = VRPipe::KeyValList->get(hash => $test_hash), 'created a KeyValList using get(hash => {...})';
+is_deeply [$keyval_list->id, scalar($keyval_list->keyvals), $keyval_list->as_hashref], [2, 2, $test_hash], 'the created KeyValList has the correct contents';
+undef $keyval_list;
+ok $keyval_list = VRPipe::KeyValList->get(id => 2), 'got a KeyValList using get(id => 2)';
+is_deeply [$keyval_list->id, scalar($keyval_list->keyvals), $keyval_list->as_hashref], [2, 2, $test_hash], 'the gotten KeyValList has the correct contents';
+ok $keyval_list = VRPipe::KeyValList->create(keyvals => [$keyval_list->keyvals]), 'created a KeyValList using the same set of keyvals)';
+is_deeply [$keyval_list->id, scalar($keyval_list->keyvals), $keyval_list->as_hashref], [2, 2, $test_hash], 'the created FileList has the same id and contents';
+ok $keyval_list = VRPipe::KeyValList->get(keyvals => [$keyval_list->keyvals]), 'got a KeyValList using a set of keyvals';
+is $keyval_list->id, 2, 'it had the id of the correct KeyValList';
+ok $keyval_list = VRPipe::KeyValList->get(hash => {}), 'got a FileList using get() with an empty hash';
+is_deeply [$keyval_list->id, scalar($keyval_list->keyvals)], [3, 0], 'the created KeyValList has a new id, and no files';
+ok $keyval_list = VRPipe::KeyValList->get(hash => {}), 'got a KeyValList using get() with an empty hash again';
+is $keyval_list->id, 3, 'it had the same id';
+ok $keyval_list = VRPipe::KeyValList->get(keyvals => [['keya', 'vala'], ['keya', 'vala'], ['keya', 'valb'], ['keyb', 'vala']]), 'created a KeyValList using manual keyvals';
+is_deeply [[$keyval_list->get_value('keya')], [$keyval_list->get_value('keyb')]], [['vala', 'valb'], ['vala']], 'get_value() works in list context';
+is $keyval_list->get_value('keya'), 'valb', 'get_value() works in scalar context';
 
 my @ids;
 ok $ids[0] = VRPipe::StepIODefinition->create(type => 'bam', description => 'step_1 bam input'), 'created a InputDefinition using create()';
@@ -305,24 +347,6 @@ undef $subs[1];
 $subs[1] = VRPipe::Submission->get(id => 1);
 is $subs[1]->requirements->id, 2, 'but getting it with a certain requirements changed the requirements for this submission in the db';
 $subs[1] = VRPipe::Submission->create(job => $jobs[0], stepstate => $stepstates[1], requirements => $reqs[1]);
-
-throws_ok { VRPipe::PersistentArray->get() } qr/requires id or members/, 'get() for PersistentArray fails with no args';
-throws_ok { VRPipe::PersistentArray->create() } qr/Validation failed/,   'create() for PersistentArray fails with no args';
-throws_ok { VRPipe::PersistentArray->get(id => 1, members => \@subs) } qr/cannot supply both id and members/, 'get() for PersistentArray fails with both id and members supplied';
-ok my $subs_array = VRPipe::PersistentArray->create(members => \@subs), 'created a PersistentArray using create(members => [...])';
-is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id, $subs_array->member(1)->id, $subs_array->member(2)->id], [1, 1, 2, 1, 2], 'the created PArray has the correct contents';
-undef $subs_array;
-ok $subs_array = VRPipe::PersistentArray->get(id => 1), 'got a PersistentArray using get(id => 1)';
-is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id], [1, 1, 2], 'the gotten PArray has the correct contents';
-ok $subs_array = VRPipe::PersistentArray->create(members => \@subs), 'created a PersistentArray using the same set of members)';
-is_deeply [$subs_array->id, ($subs_array->members)[0]->id, ($subs_array->members)[1]->id, $subs_array->member(1)->id, $subs_array->member(2)->id], [2, 3, 4, 1, 2], 'the created PArray has a new id, new persistentarray members, but the same contents otherwise';
-ok $subs_array = VRPipe::PersistentArray->get(members => \@subs), 'got a PersistentArray using a set of members';
-is $subs_array->id, 1, 'it had the id of the first matching PArray';
-ok $subs_array = VRPipe::PersistentArray->get(members => [$subs[1], $subs[0]], any_order => 1), 'got a PersistentArray using get()';
-is $subs_array->id, 1, 'using get() with members in a previously unused order still returns an existing PArray when any_order is true';
-ok $subs_array = VRPipe::PersistentArray->get(members => [$subs[1], $subs[0]]), 'created a PersistentArray using get()';
-is $subs_array->id, 3, 'using get() with members in a previously unused order returns a new PArray';
-is_deeply [map { $_->id => ref($_) } $subs_array->member_instances], [2 => 'VRPipe::Submission', 1 => 'VRPipe::Submission'], 'member_instances() works';
 
 # now that we have some submissions and pipelinesetup, make some stepstats and
 # test that the multi-row get methods work

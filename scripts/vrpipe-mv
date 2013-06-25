@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,7 +33,7 @@ use File::Find;
 use File::Copy;
 
 my $frontend = VRPipe::FrontEnd->new(
-    description => "Move files on disk, like unix 'mv', also updating the VRPipe database. Also let's you move output files of a particular pipeline setup to a new root directory. Note that a setup might create files outside of its output root, which will not get moved. For large-scale movements (eg. moving everything on one disc to another), use the --old_disc/--new_disc mode.",
+    description => "Move files on disk, like unix 'mv', also updating the VRPipe database. Also let's you move output files of a particular pipeline setup to a new root directory. Note that a setup might create files outside of its output root, which will not get moved. For large-scale movements (eg. moving everything on one disc to another), use the --old_disc/--new_disc mode, which will also move datasource input files.",
     opt_spec    => [
         [],
         [q[To move specified files, use standard unix 'mv' arguments.]],
@@ -42,7 +42,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['setup=s',    'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
         ['new_root=s', q[The new PipelineSetup output root]],
         [],
-        [q[To move all the files output by a ALL pipelinesetups from one disc to another (non-VRPipe files are ignored):]],
+        [q[To move all the files output by and input to ALL pipelinesetups from one disc to another (non-VRPipe files are ignored):]],
         ['old_disc=s', 'The highest level root directory that might contain any VRPipe-created files'],
         ['new_disc=s', q[The corresponding directory on the new disc where files on the old_disc should be transposed to]],
         [],
@@ -150,7 +150,7 @@ if ($setup) {
                 my $smid = $stepm->id;
                 
                 while (my ($kind, $files) = each %$step_outs) {
-                    my @files = grep { $_->update_stats_from_disc; $_->e } map { $_->resolve } @$files;
+                    my @files = grep { $_->update_stats_from_disc; $_->e } map { $_->resolve(not_symlinks => 1) } @$files;
                     next unless @files;
                     
                     foreach my $file (@files) {
@@ -158,6 +158,10 @@ if ($setup) {
                         $done_files{ $file->id } = 1;
                         
                         my $source = $file->path;
+                        if ($source =~ /^$new_root/) {
+                            $frontend->error("Source file [$source] already looks like its within the new output_root [$new_root]; skipping it!");
+                            next;
+                        }
                         unless ($source =~ /^$old_root/) {
                             $frontend->error("Source file [$source] doesn't look like its within the current output_root [$old_root]; skipping it!");
                             next;
@@ -209,9 +213,17 @@ elsif ($old_disc) {
         my ($file) = VRPipe::File->search({ path => $path });
         $file || return;
         my $an_output_file = $file->output_by;
-        return unless $an_output_file;
+        unless ($an_output_file) {
+            my $an_input_file = $file->input_to;
+            return unless $an_input_file;
+        }
         $file->update_stats_from_disc;
         
+        mv_file($file);
+    }
+    
+    sub mv_file {
+        my $file     = shift;
         my $source   = $file->path;
         my $rel_path = File::Spec->abs2rel($source, $old_disc);
         my $dest     = File::Spec->rel2abs($rel_path, $new_disc);
@@ -229,6 +241,19 @@ elsif ($old_disc) {
             $file->move(VRPipe::File->create(path => $dest), check_md5s => $check_md5s);
         }
         $moved++;
+    }
+    
+    # manually move any datasource source files that are on old_disc; we have
+    # to go through everything to catch source files that have been moved to
+    # $old_disc
+    foreach my $ds (VRPipe::DataSource->search({})) {
+        my $instance = $ds->_source_instance;
+        next unless $instance->can('source_file');
+        my $sf = $instance->source_file;
+        my $sp = $sf->path;
+        if ($sp =~ /^$old_disc/) {
+            mv_file($sf);
+        }
     }
     
     $frontend->output("$moved files ", ($pretend ? "would have been" : "were"), " moved") if $verbose;

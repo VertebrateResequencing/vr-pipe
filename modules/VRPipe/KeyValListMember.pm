@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::PersistentArrayMember - an element of a VRPipe::PersistentArray
+VRPipe::KeyValListMember - an element of a VRPipe::KeyValList
 
 =head1 SYNOPSIS
 
@@ -9,7 +9,9 @@ VRPipe::PersistentArrayMember - an element of a VRPipe::PersistentArray
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+For critical speed reasons, instead of having a 'keyval' column that references
+some keyval table, we directly have key and val columns here, so no additional
+table lookup is required.
 
 =head1 AUTHOR
 
@@ -17,7 +19,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -37,42 +39,43 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::PersistentArrayMember extends VRPipe::Persistent {
-    has 'persistentarray' => (
+class VRPipe::KeyValListMember extends VRPipe::Persistent {
+    has 'keyvallist' => (
         is         => 'rw',
         isa        => Persistent,
         coerce     => 1,
         traits     => ['VRPipe::Persistent::Attributes'],
         is_key     => 1,
-        belongs_to => 'VRPipe::PersistentArray'
+        belongs_to => 'VRPipe::KeyValList'
     );
     
-    has 'class' => (
+    has 'keyval_key' => (
         is     => 'rw',
-        isa    => Varchar [64],
+        isa    => Varchar [255],
         traits => ['VRPipe::Persistent::Attributes'],
-        is_key => 1
+        is_key => 1,
     );
     
-    has 'class_id' => (
+    has 'val' => (
         is     => 'rw',
-        isa    => Persistent,                        # uncoerced, we want this to be a plain int always
+        isa    => Text,
         traits => ['VRPipe::Persistent::Attributes'],
-        is_key => 1
-    );
-    
-    has 'array_index' => (
-        is     => 'rw',
-        isa    => IntSQL [8],
-        traits => ['VRPipe::Persistent::Attributes'],
-        is_key => 1
+        is_key => 1,
     );
     
     __PACKAGE__->make_persistent();
     
-    method instantiate {
-        my $class = $self->class;
-        return $class->get(id => $self->class_id);
+    # to avoid issues with database reserved words, the key column is called
+    # 'keyval_key' instead of just 'key'; let's alias to key
+    sub key {
+        my $self = shift;
+        if (@_) {
+            my $key = shift;
+            if (length($key)) {
+                $self->keyval_key($key);
+            }
+        }
+        return $self->keyval_key;
     }
 }
 

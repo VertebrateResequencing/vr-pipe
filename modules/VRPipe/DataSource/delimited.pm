@@ -85,7 +85,7 @@ class VRPipe::DataSource::delimited extends VRPipe::DataSource::list {
             my $del_result;
             for my $key (1 .. @split) {
                 if ($columns_are_paths || exists $path_cols{$key}) {
-                    push(@{ $del_result->{paths} }, VRPipe::File->create(path => file($split[$key - 1])->absolute)->path->stringify); # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
+                    push(@{ $del_result->{paths} }, VRPipe::File->create(path => file($split[$key - 1])->absolute)->original->path->stringify); # we can't bulk_create VRPipe::Files because they do fancy stuff duing create()
                 }
                 else {
                     $del_result->{$key} = $split[$key - 1];

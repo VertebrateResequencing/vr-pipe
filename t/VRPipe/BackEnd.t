@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 4;
+    use Test::Most tests => 5;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Interface::BackEnd');
@@ -16,7 +16,8 @@ my @deliveries = Email::Sender::Simple->default_transport->deliveries;
 my $email      = $deliveries[0]->{email};
 my $email_body = $email->get_body;
 $email_body =~ s/\s+$//;
-is_deeply [scalar(@deliveries), $email->get_header("Subject"), $email->get_header('From'), $email_body], [1, 'VRPipe Server message', '"VRPipe Server" <vrpipe@do.not.reply>', 'log_test'], 'log() also sent an email';
+is_deeply [scalar(@deliveries), $email->get_header("Subject"), $email_body], [1, 'VRPipe Server message', 'log_test'], 'log() also sent an email';
+like $email->get_header('From'), qr/"VRPipe Server" <\S+\@\S+>/, 'from address looks good';
 
 #*** we need lots more testing of all the BackEnd methods...
 

@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011, 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -140,6 +140,58 @@ role VRPipe::DataSourceRole {
         
         # now create/update, setting withdrawn => 0 if not set
         VRPipe::DataElement->bulk_create_or_update(map { $_->{withdrawn} = 0 unless defined $_->{withdrawn}; $_; } @$e_args);
+    }
+    
+    method _start_over_elements_due_to_file_metadata_change (HashRef $result) {
+        # 'changed' is based on file metadata changing, and the file may
+        # have had its metadata applied in some other pipeline for some
+        # other datasource. We'll start_from_scratch all affected
+        # dataelementstates for all datasources, then update the metadata
+        
+        # get all the files with changed metadata
+        my %affected_file_ids;
+        foreach my $fm (@{ $result->{changed} }) {
+            my ($vrfile) = @$fm;
+            $affected_file_ids{ $vrfile->id } = 1;
+        }
+        my @affected_file_ids = keys %affected_file_ids;
+        
+        # get all the dataelements that have those files as inputs
+        my %flids;
+        foreach my $fid (@affected_file_ids) {
+            foreach my $flid (VRPipe::FileListMember->get_column_values('filelist', { file => $fid })) {
+                $flids{$flid} = 1;
+            }
+        }
+        
+        my %elements;
+        foreach my $flid (keys %flids) {
+            foreach my $element (VRPipe::DataElement->search({ filelist => $flid })) {
+                $elements{ $element->id } = $element;
+            }
+        }
+        
+        # reset element states first
+        my $class = ref($self);
+        my ($type) = $class =~ /VRPipe::DataSource::(\S+)/;
+        foreach my $element (values %elements) {
+            foreach my $estate ($element->element_states) {
+                $estate->pipelinesetup->log_event("$type DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
+                $estate->start_from_scratch;
+            }
+        }
+        
+        #*** problems happen if we start_from_scratch some of them, but then get
+        # killed before updating the metadata... also, what happens if something
+        # starts running again following a start_from_scratch before we updated
+        # the metadata?... *** should probably lock up the estates with timed
+        # redis locks, then release them after we do the metadata update...
+        
+        # then change metadata in files
+        foreach my $fm (@{ $result->{changed} }) {
+            my ($vrfile, $new_metadata) = @$fm;
+            $vrfile->add_metadata($new_metadata, replace_data => 1);
+        }
     }
 }
 

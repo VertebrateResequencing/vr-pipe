@@ -108,18 +108,20 @@ ok handle_pipeline(@calling_files, @concat_files), 'all expected calling and con
 is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -DSV -C50 -m2 -F0.0005 -d 10000 -ug -r $region -f $reference_fasta -b $bams_list | bcftools view -p 0.99 -vcgN -s $samples_file - | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
 
 # check final vcfs have metadata
-is_deeply [VRPipe::File->get(path => $concat_files[0])->metadata, VRPipe::File->get(path => $concat_files[2])->metadata],
-  [{
+my $s1meta = VRPipe::File->get(path => $concat_files[0])->metadata;
+my $s2meta = VRPipe::File->get(path => $concat_files[2])->metadata;
+foreach my $meta ($s1meta, $s2meta) {
+    delete $meta->{source_bam}; # contains user-specific directory
+}
+is_deeply [$s1meta, $s2meta], [{
         sample              => 'SAMPLE01',
         chunk_override_file => $override_file,
-        source_bam          => '/lustre/scratch105/vrpipe_testing/cj5/pipelines_test_output/wgs_single_sample_mpileup_calling_test/sample1.bam',
         caller              => 'samtools_mpileup_bcftools'
-
+    
     },
     {
         sample              => 'SAMPLE02',
         chunk_override_file => $override_file,
-        source_bam          => '/lustre/scratch105/vrpipe_testing/cj5/pipelines_test_output/wgs_single_sample_mpileup_calling_test/sample2.bam',
         caller              => 'samtools_mpileup_bcftools'
     }
   ],

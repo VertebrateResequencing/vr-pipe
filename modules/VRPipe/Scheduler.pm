@@ -99,7 +99,13 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
     );
     
     method _instantiate_method_class (ClassName|Object $self:) {
-        return VRPipe::SchedulerMethodsFactory->create(lc($self->type), {});
+        my $class = VRPipe::SchedulerMethodsFactory->create(lc($self->type), {});
+        $class->initialize;
+        return $class;
+    }
+    
+    method initialize {
+        $self->scheduler_instance;
     }
     
     method ensure_running (Str :$cmd!, VRPipe::Requirements :$requirements!, PositiveInt :$count = 1, Str :$cwd?) {

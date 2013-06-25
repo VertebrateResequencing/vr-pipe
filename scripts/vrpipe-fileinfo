@@ -33,13 +33,15 @@ my $frontend = VRPipe::FrontEnd->new(
     description => "Get information on files created by VRPipe - what pipeline created them, and what metadata they have.",
     opt_spec    => [
         [],
-        [q[Specify which file(s) you want to know about by supplying at least one of these alternatives:]],
+        [q[Specify which file(s) you want to know about by supplying at least one of these alternatives (which operate independently):]],
         ['path=s@', 'Get info on the file at this absolute path. Can be repeated'],
+        ['AND/OR'],
+        ['search_by_metadata|m=s@', 'Get info on files with matching metadata. Use the form "key:value", where key or value can contain the % symbol to represent 0 or more of any character, eg. "sample:HG%"; "key" and ":value" by themselves can also be used. Can be repeated, in which case files must match all the criteria given'],
         ['AND/OR'],
         ['setup=s@',          'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' }],
         ['step=s@',           q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated]],
         ['include_withdrawn', q[When getting files generated for setups, also include those for withdrawn dataelements]],
-        ['include_removed',   q[When getting files generated for setups, also include files which have been deleted from from disk]],
+        ['include_removed',   q[When getting files generated for setups, also include files which have been deleted from disk]],
         
         ['limit|l=i', 'Show info only on the first --limit number of files that match the above criteria'],
         [],
@@ -65,10 +67,11 @@ my $frontend = VRPipe::FrontEnd->new(
 
 my $include_withdrawn = $frontend->opts('include_withdrawn');
 my @paths             = $frontend->option_was_set('path') ? @{ $frontend->opts('path') } : ();
+my @meta_search       = $frontend->option_was_set('search_by_metadata') ? @{ $frontend->opts('search_by_metadata') } : ();
 my @setups            = $frontend->option_was_set('setup') ? @{ $frontend->opts('setup') } : ();
 my @steps             = $frontend->option_was_set('step') ? @{ $frontend->opts('step') } : ();
-unless (@paths || @setups) {
-    $frontend->die_with_error("--path or --setup is required");
+unless (@paths || @meta_search || @setups) {
+    $frontend->die_with_error("--path or --search_by_metadata or --setup is required");
 }
 if (@steps && !@setups) {
     $frontend->die_with_error("--step makes no sense without --setup");
@@ -126,7 +129,6 @@ foreach my $col (@tab_cols) {
 
 # handle --paths
 my %files;
-my %file_to_de;
 my $limit_count = 0;
 foreach my $path (@paths) {
     $path = file($path)->absolute;
@@ -137,19 +139,84 @@ foreach my $path (@paths) {
     else {
         my $fid = $file->id;
         unless (exists $files{$fid}) {
-            $files{ $file->id } = $file;
-            
-            if ($output_types{dataelement} || $output_types{input_file}) {
-                my $stepstate = $file->output_by(1);
-                if ($stepstate) {
-                    $file_to_de{ $file->id } = $stepstate->dataelement;
-                }
-            }
-            
+            $files{$fid} = $file;
             $limit_count++;
         }
         if ($limit) {
             last if $limit_count >= $limit;
+        }
+    }
+}
+
+# handle --search_by_metadata
+if (@meta_search && $limit ? ($limit_count < $limit) : 1) {
+    my %kvls;
+    foreach my $search (@meta_search) {
+        my ($key, $val) = split(':', $search);
+        
+        my $criteria = {
+            length($key) ? (keyval_key => $key =~ /%/ ? ({ like => $key }) : ($key)) : (),
+            length($val) ? (val        => $val =~ /%/ ? ({ like => $val }) : ($val)) : (),
+        };
+        
+        my %these_kvls;
+        foreach my $kvl_id (VRPipe::KeyValListMember->get_column_values('keyvallist', $criteria)) {
+            $these_kvls{$kvl_id} = 1;
+        }
+        
+        foreach my $kvl_id (keys %these_kvls) {
+            $kvls{$kvl_id}++;
+        }
+    }
+    
+    my $num_searches = @meta_search;
+    my $found        = 0;
+    KVL: while (my ($kvl_id, $count) = each %kvls) {
+        next unless $count == $num_searches;
+        
+        foreach my $file (VRPipe::File->search({ keyvallist => $kvl_id })) {
+            $found++;
+            unless ($show_all) {
+                $file->update_stats_from_disc;
+                unless ($file->s) {
+                    $file = $file->resolve(not_symlinks => 1);
+                    $file->update_stats_from_disc;
+                    unless ($file->s) {
+                        $file = $file->resolve;
+                        $file->update_stats_from_disc;
+                        next unless $file->s;
+                    }
+                }
+            }
+            my $fid = $file->id;
+            unless (exists $files{$fid}) {
+                $files{$fid} = $file;
+                $limit_count++;
+            }
+            if ($limit) {
+                last KVL if $limit_count >= $limit;
+            }
+        }
+    }
+    
+    unless ($found) {
+        $frontend->error("Your metadata search critera matched no files.");
+    }
+}
+
+# get the dataelement for each file if desired
+my %file_to_de;
+if ($output_types{dataelement} || $output_types{input_file}) {
+    while (my ($fid, $file) = each %files) {
+        my ($stepstate) = $file->output_by();
+        if ($stepstate) {
+            $file_to_de{$fid} = $stepstate->dataelement;
+        }
+        else {
+            my ($de) = $file->input_to();
+            if ($de) {
+                $file_to_de{$fid} = $de;
+            }
         }
     }
 }
@@ -223,7 +290,7 @@ if (@setups && $limit ? ($limit_count < $limit) : 1) {
                         unless ($force) {
                             next unless exists $allowed_kinds{$smid}->{$kind};
                         }
-                        my @these_files = $show_all ? (@$files) : (grep { $_->s || $_->resolve->s } @$files);
+                        my @these_files = $show_all ? (@$files) : (grep { $_->s || $_->resolve(not_symlinks => 1)->s || $_->resolve->s } @$files);
                         
                         foreach my $file (@these_files) {
                             my $fid = $file->id;
@@ -263,9 +330,13 @@ if ($do_tab) {
 # output file info
 foreach my $fid (sort { $a <=> $b } keys %files) {
     my $file = $files{$fid};
-    my $path = $unresolved ? $file->path->stringify : $file->resolve->path->stringify;
+    my $path = $unresolved ? $file->path->stringify : $file->resolve(not_symlinks => 1)->path->stringify;
     unless ($file->s) {
-        $file = $file->resolve;
+        my $resolved = $file->resolve(not_symlinks => 1);
+        unless ($resolved && $resolved->s) {
+            $resolved = $file->resolve;
+        }
+        $file = $resolved;
     }
     
     if ($do_tab) {
@@ -277,7 +348,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     
     my $stepstate;
     if ($file_setup_needed) {
-        $stepstate = $file->output_by(1);
+        ($stepstate) = $file->output_by();
     }
     
     foreach my $col (@tab_cols) {
@@ -288,7 +359,19 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                 my $setup_id   = $setup->id;
                 my $step_num   = $stepstate->stepmember->step_number;
                 my $output_key = '';
-                my @sofs       = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve->id });
+                
+                my $resolved = $file->resolve(not_symlinks => 1);
+                my @fids = $resolved->original;
+                unshift(@fids, $resolved->id) if $resolved->id != $file->id;
+                unshift(@fids, $file->id);
+                my @sofs;
+                foreach my $fid (@fids) {
+                    @sofs = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $fid });
+                    last if @sofs;
+                }
+                unless (@sofs) {
+                    @sofs = VRPipe::StepOutputFile->search({ stepstate => $stepstate->id, file => $file->resolve->id });
+                }
                 if (@sofs) {
                     $output_key = ':' . $sofs[0]->output_key;
                 }

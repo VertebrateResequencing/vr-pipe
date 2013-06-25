@@ -197,10 +197,11 @@ sub start_server {
     # processes can cripple performance, so instead our single server process
     # does all the writing without slowing down anything else)
     my $err_watcher;
+    my $redis_stderr_output_sub;
     unless ($foreground) {
         if ($backend->_log_file_in_use) {
             my $working = 0;
-            $err_watcher = EV::timer 0, $timer_interval, sub {
+            $redis_stderr_output_sub = sub {
                 return if $working;
                 $working = 1;
                 open(my $fh, '>>', $backend->log_file) || return;
@@ -211,6 +212,7 @@ sub start_server {
                 close($fh);
                 $working = 0;
             };
+            $err_watcher = EV::timer 0, $timer_interval, $redis_stderr_output_sub;
         }
     }
     
@@ -255,7 +257,8 @@ sub start_server {
                     $backend->log("Submission management started for farm $farm");
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
-                    $scheduler     = VRPipe::Scheduler->create();
+                    $scheduler = VRPipe::Scheduler->create();
+                    $scheduler->initialize;
                     $survival_time = $farm_server->survival_time;
                     
                     # some schedulers may need to do something periodically;
@@ -264,7 +267,7 @@ sub start_server {
                     if ($sch_periodic_method) {
                         my $working            = 0;
                         my $scheduler_interval = $timer_interval * 10;
-                        $scheduler_watcher = EV::timer $scheduler_interval, $scheduler_interval, sub {
+                        $scheduler_watcher = EV::timer 0, $scheduler_interval, sub {
                             return if $working;
                             $working = 1;
                             fork_call {
@@ -638,10 +641,13 @@ sub start_server {
     # should keep running if the server goes down)
     if ($deployment eq 'testing') {
         # some schedulers may need to do something when the test server exits
-        my $sch_on_exit_method = $scheduler->on_exit_method;
+        my $sch_on_exit_method = $scheduler ? $scheduler->on_exit_method : undef;
         if ($sch_on_exit_method) {
             $scheduler->scheduler_instance->$sch_on_exit_method;
         }
+        
+        # flush any remaining redis stderr to file
+        &$redis_stderr_output_sub() if $redis_stderr_output_sub;
         
         # now we can get rid of the redis server
         if ($backend->redis_pid) {
