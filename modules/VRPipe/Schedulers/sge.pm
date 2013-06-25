@@ -62,8 +62,11 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
     our %possible_time_limit_types = (h_rt => 1, s_rt => 1);
     our %queue_time_limits;
     our $pe_name;
+    our $initialized = 0;
     
     method initialize {
+        return if $initialized;
+        
         # go through all the queue configs to see what time limits they have set
         # on them
         my @queues;
@@ -164,6 +167,8 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
             }
         }
         close($splfh);
+        
+        $initialized = 1;
     }
     
     method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {

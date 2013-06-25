@@ -209,6 +209,7 @@ urgency_slots      min
 accounting_summary TRUE
 qsort_args         NONE
 PE
+    our $initialized = 0;
     
     sub periodic_method {
         return 'launch_extra_instances_and_terminate_old_instances';
@@ -218,7 +219,12 @@ PE
         return 'terminate_all_instances';
     }
     
-    sub initialize {
+    around initialize {
+        return if $initialized;
+        
+        # call sge's initialize method
+        $self->$orig();
+        
         mkdir($sge_confs_dir) unless -d $sge_confs_dir;
         
         # pe: give us a parallel environment for threaded jobs
@@ -302,6 +308,8 @@ PE
             close($fh);
         }
         system('qconf -Msconf ' . $s_file);
+        
+        $initialized = 1;
     }
     
     method launch_extra_instances_and_terminate_old_instances (Str :$deployment!) {
