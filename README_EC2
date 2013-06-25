@@ -1,3 +1,9 @@
+See: https://github.com/VertebrateResequencing/vr-pipe/wiki/AWS
+The following documentation is out of date and this file will soon be removed.
+
+
+
+
 VRPipe can be used on Amazon's cloud service on EC2 nodes.
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Welcome.html
 Note that EC2 support is currently experimental. See notes at the end of this
@@ -18,7 +24,7 @@ When configuring VPRipe during the 'perl Build.PL' phase:
 # Choose 'ec2' as the production and testing scheduler, and supply your security
   credentials when asked. When asked to supply a list of instance types, if you
   don't use the default then ensure that at least one of the types you supply
-  has more than 2GB of memory.
+  has more than 2GB of memory. If you plan on allowing many instances
 # The database you choose should be mysql; you can set up a MySQL server on
   Amazon with RDS: http://aws.amazon.com/rds/ (start with 5GB and increase its
   size later as needed; a micro.t1 instance may be sufficient): the 'host' you
