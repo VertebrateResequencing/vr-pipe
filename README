@@ -21,6 +21,9 @@ vrpipe-status --help
 INSTALLATION
 ------------
 
+For use on Amazon's cloud, see:
+https://github.com/VertebrateResequencing/vr-pipe/wiki/AWS
+
 You will need the source version of samtools compiled with -fPIC and -m64 in the
 CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
 (which should now contain bam.h and libbam.a, and MUST contain the samtools
@@ -37,9 +40,6 @@ way. But note that its maximum number of connections is capped by the max file
 descriptors limit imposed on the user that will run vrpipe-server, so make sure
 that limit (ulimit -n) is higher than the number of CPUs in your cluster.
 Redis can be downloaded from here: http://redis.io/download
-
-For use on Amazon's cloud, follow the installation advice here as well as that
-found in README_EC2.
 
 It is recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and create
 that directory.
