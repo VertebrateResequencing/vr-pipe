@@ -100,6 +100,14 @@ role VRPipe::SchedulerMethodsRole {
     method on_exit_method {
         return undef;
     }
+    
+    # if a scheduler module needs to do some initial setup and cache some stuff
+    # in class variables, it can do that by overriding this method; other
+    # methods are called by vrpipe-server in a fork, so anything they do does
+    # not get cached
+    method initialize {
+        return;
+    }
 }
 
 1;
