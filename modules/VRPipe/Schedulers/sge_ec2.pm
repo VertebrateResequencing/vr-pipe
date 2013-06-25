@@ -52,7 +52,6 @@ class VRPipe::Schedulers::sge_ec2 extends VRPipe::Schedulers::sge {
     use DateTime;
     use POSIX qw(ceil);
     
-    our $completed_config = 0;
     our $ec2_scheduler = VRPipe::SchedulerMethodsFactory->create('ec2', {});
     no warnings 'once';
     our $ec2 = $VRPipe::Schedulers::ec2::ec2;
@@ -219,9 +218,7 @@ PE
         return 'terminate_all_instances';
     }
     
-    sub do_config {
-        return if $completed_config;
-        
+    sub initialize {
         mkdir($sge_confs_dir) unless -d $sge_confs_dir;
         
         # pe: give us a parallel environment for threaded jobs
@@ -305,13 +302,9 @@ PE
             close($fh);
         }
         system('qconf -Msconf ' . $s_file);
-        
-        $completed_config = 1;
     }
     
     method launch_extra_instances_and_terminate_old_instances (Str :$deployment!) {
-        $self->do_config;
-        
         ## launch extra instances
         
         # look at what we have queuing to get a count of how many of each

@@ -59,13 +59,11 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
     );
     our @prefered_memory_limit_types = qw(mem_free s_rss s_data s_vmem virtual_free h_rss h_data h_vmem);
     our $time_limit_type;
-    our $checked_time_limit_type = 0;
     our %possible_time_limit_types = (h_rt => 1, s_rt => 1);
     our %queue_time_limits;
     our $pe_name;
-    our $checked_pe_name = 0;
     
-    method _parse_queue_time_limits {
+    method initialize {
         # go through all the queue configs to see what time limits they have set
         # on them
         my @queues;
@@ -96,96 +94,79 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
             $queue_time_limits{$queue} = $time_limit;
         }
         
-        $checked_time_limit_type = 1;
+        # try and work out how the sge admin has set up their queue memory
+        # limits and pick the best limit type, preferring mem_free over
+        # anything else since it makes the most sense and behaves sensibly.
+        # We also figure out time limits here as well, only caring if one is
+        # required.
+        #*** we don't handle multiple types being required...
+        open(my $scfh, 'qconf -sc |') || $self->throw("Unable to open a pipe from qconf -sc");
+        my (%requestable, %consumable);
+        while (<$scfh>) {
+            my ($name, undef, $type, undef, $requestable, $consumable) = split;
+            $requestable || next;
+            next if $requestable eq 'NO';
+            if ($type eq 'MEMORY' && exists $possible_memory_limit_types{$name}) {
+                if ($requestable eq 'FORCED') {
+                    $memory_limit_type = $name;
+                }
+                elsif ($consumable) {
+                    $consumable{$name} = 1;
+                }
+                else {
+                    $requestable{$name} = 1;
+                }
+            }
+            elsif ($type eq 'TIME' && $requestable eq 'FORCED' && exists $possible_time_limit_types{$name}) {
+                $time_limit_type = $name;
+            }
+        }
+        close($scfh) || $self->throw("Unable to close a pipe from qconf -sc");
+        
+        unless ($memory_limit_type) {
+            if (keys %consumable) {
+                foreach my $type (@prefered_memory_limit_types) {
+                    if (exists $consumable{$type}) {
+                        $memory_limit_type = $type;
+                        last;
+                    }
+                }
+            }
+            elsif (keys %requestable) {
+                foreach my $type (@prefered_memory_limit_types) {
+                    if (exists $requestable{$type}) {
+                        $memory_limit_type = $type;
+                        last;
+                    }
+                }
+            }
+            
+            $self->throw("Could not determine how to request memory given the output of qconf -sc; has this sge installation been configured correctly?") unless $memory_limit_type;
+        }
+        
+        # look at all the configured parallel environments to find one with
+        # suitable settings
+        open(my $splfh, 'qconf -spl |') || $self->throw("Unable to open a pipe from qconf -spl");
+        while (<$splfh>) {
+            chomp;
+            my $pe = $_ || next;
+            open(my $spfh, "qconf -sp $pe |") || $self->throw("Unable to open a pipe from qconf -sp $pe");
+            my $matches = 0;
+            while (<$spfh>) {
+                if (/^allocation_rule\s+\$pe_slots/ || /^job_is_first_task\s+TRUE/i) {
+                    $matches++;
+                }
+            }
+            close($spfh);
+            if ($matches == 2) {
+                $pe_name = $pe;
+                last;
+            }
+        }
+        close($splfh);
     }
     
     method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
-        unless (defined $memory_limit_type) {
-            # try and work out how the sge admin has set up their queue memory
-            # limits and pick the best limit type, preferring mem_free over
-            # anything else since it makes the most sense and behaves sensibly.
-            # We also figure out time limits here as well, only caring if one is
-            # required.
-            #*** we don't handle multiple types being required...
-            open(my $scfh, 'qconf -sc |') || $self->throw("Unable to open a pipe from qconf -sc");
-            my (%requestable, %consumable);
-            while (<$scfh>) {
-                my ($name, undef, $type, undef, $requestable, $consumable) = split;
-                $requestable || next;
-                next if $requestable eq 'NO';
-                if ($type eq 'MEMORY' && exists $possible_memory_limit_types{$name}) {
-                    if ($requestable eq 'FORCED') {
-                        $memory_limit_type = $name;
-                    }
-                    elsif ($consumable) {
-                        $consumable{$name} = 1;
-                    }
-                    else {
-                        $requestable{$name} = 1;
-                    }
-                }
-                elsif ($type eq 'TIME' && $requestable eq 'FORCED' && exists $possible_time_limit_types{$name}) {
-                    $time_limit_type         = $name;
-                    $checked_time_limit_type = 1;
-                }
-            }
-            close($scfh) || $self->throw("Unable to close a pipe from qconf -sc");
-            
-            unless ($memory_limit_type) {
-                if (keys %consumable) {
-                    foreach my $type (@prefered_memory_limit_types) {
-                        if (exists $consumable{$type}) {
-                            $memory_limit_type = $type;
-                            last;
-                        }
-                    }
-                }
-                elsif (keys %requestable) {
-                    foreach my $type (@prefered_memory_limit_types) {
-                        if (exists $requestable{$type}) {
-                            $memory_limit_type = $type;
-                            last;
-                        }
-                    }
-                }
-                
-                $self->throw("Could not determine how to request memory given the output of qconf -sc; has this sge installation been configured correctly?") unless $memory_limit_type;
-            }
-        }
-        
-        unless ($checked_time_limit_type) {
-            # we've already checked qconf -sc to see if h/s_rt is forced and it
-            # isn't; now let's check all the queue configs to see if any have
-            # run time limits. If they don't we're not going to request any time
-            # for our jobs, which means they can run forever without getting
-            # killed
-            $self->_parse_queue_time_limits();
-        }
-        
-        unless ($checked_pe_name) {
-            # look at all the configured parallel environments to find one with
-            # suitable settings
-            open(my $splfh, 'qconf -spl |') || $self->throw("Unable to open a pipe from qconf -spl");
-            while (<$splfh>) {
-                chomp;
-                my $pe = $_ || next;
-                open(my $spfh, "qconf -sp $pe |") || $self->throw("Unable to open a pipe from qconf -sp $pe");
-                my $matches = 0;
-                while (<$spfh>) {
-                    if (/^allocation_rule\s+\$pe_slots/ || /^job_is_first_task\s+TRUE/i) {
-                        $matches++;
-                    }
-                }
-                close($spfh);
-                if ($matches == 2) {
-                    $pe_name = $pe;
-                    last;
-                }
-            }
-            close($splfh);
-            $checked_pe_name = 1;
-        }
-        
         # access the requirements object and build up the string based on
         # memory, time & cpu.
         my $megabytes           = $requirements->memory;
@@ -224,7 +205,6 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
     }
     
     method queue_time (VRPipe::Requirements $requirements) {
-        $self->_parse_queue_time_limits() unless $checked_time_limit_type;
         my $queue = $self->determine_queue($requirements);
         return $queue_time_limits{$queue} || 31536000;
     }
