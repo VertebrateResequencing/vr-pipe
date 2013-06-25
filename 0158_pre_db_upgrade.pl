@@ -154,5 +154,5 @@ while (1) {
 }
 
 $dbh->disconnect;
-warn "\n ## All done; now run vrpipe-db_upgrade followed by 0156_post_db_upgrade\n\n";
+warn "\n ## All done; now follow the manual db_upgrade advice in IMPORTANT_NOTES\n\n";
 exit;
