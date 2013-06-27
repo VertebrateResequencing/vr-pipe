@@ -260,6 +260,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
         else {
             $self->throw("$check_path failed to be made");
         }
+        return 1;
     }
 }
 

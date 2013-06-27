@@ -318,6 +318,8 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             );
         }
         
+        return 1;
+        
         sub add_or_rm_fastq {
             # Create additional files if necessary, or get rid of the unneeded empty files
             my ($self, $path, $based_on, $out_files) = @_;

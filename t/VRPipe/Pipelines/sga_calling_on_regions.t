@@ -40,7 +40,7 @@ VRPipe::PipelineSetup->create(
     output_root => $calling_dir,
     pipeline    => $preprocess_pipeline,
     options     => {
-        reference_index                   => file(qw(t data human_g1k_v37.chr11.chr20.fa.gz.fai))->absolute,
+        reference_index                   => file(qw(t data human_g1k_v37.chr11.chr20.fa.gz.fai))->absolute->stringify,
         split_bam_by_region_chunk_size    => 50000000,
         split_bam_by_region_chunk_overlap => 1000,
         split_bam_by_region_chrom_list    => '11 20',
