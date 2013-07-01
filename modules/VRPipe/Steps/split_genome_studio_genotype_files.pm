@@ -44,6 +44,7 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
         return {
             zgrep_exe          => VRPipe::StepOption->create(description => 'full path to zgrep command that is used to retrieve the header and sample data from the gzipped genome studio genotyping data file', optional => 1, default_value => 'zgrep'),
             header_regex       => VRPipe::StepOption->create(description => 'regex of a field in the header line of the gzipped genome studio genotype file that is used to retrieve the header using zgrep',     optional => 1, default_value => 'Allele1'),
+            reheader_penncnv   => VRPipe::StepOption->create(description => 'optionally, header the genotype file with a penncnv-friendly format',                                                                optional => 1),
             external_gzip_file => VRPipe::StepOption->create(description => 'optionally, provide path to a gzipped genotype file that can override the path provided in the input gtc file metadata',             optional => 1),
         };
     }
@@ -76,6 +77,7 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
             my $options            = $self->options;
             my $zgrep_exe          = $options->{zgrep_exe};
             my $header_regex       = $options->{header_regex};
+            my $reheader_penncnv   = $options->{reheader_penncnv} ? $options->{reheader_penncnv} : undef;
             my $external_gzip_file = $options->{external_gzip_file} ? $options->{external_gzip_file} : undef;
             my $req                = $self->new_requirements(memory => 500, time => 1);
             
@@ -86,7 +88,9 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
                 my $genotype_gzip_path   = $external_gzip_file ? $external_gzip_file : $gtc_file->metadata->{storage_path};
                 my $basename             = $sample . '.genotyping.fcr.txt';
                 my $sample_genotype_file = $self->output_file(output_key => 'gtype_files', basename => $basename, type => 'txt', metadata => $gtc_file->metadata)->path;
-                my $cmd_line             = "$zgrep_exe $header_regex $genotype_gzip_path > $sample_genotype_file && $zgrep_exe $sample $genotype_gzip_path >> $sample_genotype_file";
+                
+                my $header_cmd = $reheader_penncnv ? "$zgrep_exe $header_regex $reheader_penncnv > $sample_genotype_file " : "$zgrep_exe $header_regex $genotype_gzip_path > $sample_genotype_file ";
+                my $cmd_line = $header_cmd . "&& $zgrep_exe $sample $genotype_gzip_path >> $sample_genotype_file";
                 $self->dispatch([$cmd_line, $req]);
             }
         };
