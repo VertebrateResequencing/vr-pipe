@@ -1,0 +1,12 @@
+A	FS10.A
+C	FS10.B
+E	FS10.C
+G	FS10.Control
+I	FS12.A
+K	FS12.B
+B	FS12.C
+D	FS12.Control
+F	FS13.A
+H	FS13.B
+J	FS13.C
+L	FS13.Control

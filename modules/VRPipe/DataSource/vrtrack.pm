@@ -44,7 +44,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
     use Digest::MD5 qw(md5_hex);
     use File::Spec::Functions;
     
-    our %file_type_to_type = (0 => 'fq', 1 => 'fq', 2 => 'fq', 3 => 'fq', 4 => 'bam', 5 => 'bam', 6 => 'cram', 7 => 'gtc');
+    our %file_type_to_type = (0 => 'fq', 1 => 'fq', 2 => 'fq', 3 => 'fq', 4 => 'bam', 5 => 'bam', 6 => 'cram', 7 => 'gtc', 8 => 'gtc');
     
     method description {
         return "Use a VRTrack database to extract information from";
@@ -67,8 +67,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         elsif ($method eq 'lane_fastqs') {
             return "An element will comprise all the fastqs for a single lane, and the fastq files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
-        elsif ($method eq 'analysis_gtc') {
-            return "An element will comprise all the genome studio gtc files for an analysis, and the gtc files will have all relevant available metadata associated with them. Valid keys are: project, study, species, population, individual, sample, platform and library.";
+        elsif ($method eq 'analysis_genome_studio') {
+            return "An element will comprise all the genome studio files (gtc or idat) for an analysis, and the files will have all relevant available metadata associated with them. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
         
         return '';
@@ -124,8 +124,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         elsif ($method eq 'lane_improved_bams') {
             push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=5 and latest=true') });
         }
-        elsif ($method eq 'analysis_gtc') {
-            push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=7 and latest=true') });
+        elsif ($method eq 'analysis_genome_studio') {
+            push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=7 or type=8 and latest=true') });
         }
         
         my $digest = md5_hex join('', map { defined $_ ? $_ : 'NULL' } @$lane_changes);
@@ -231,7 +231,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         return $self->_lane_files(%args);
     }
     
-    method analysis_gtc (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Str :$group_by_metadata?) {
+    method analysis_genome_studio (Defined :$handle!, Str|Dir :$local_root_dir!, Str :$project_regex?, Str :$sample_regex?, Str :$library_regex?, Str :$gt_status?, Str :$qc_status?, Str :$auto_qc_status?, Str :$npg_qc_status?, Str :$group_by_metadata?) {
         my %args;
         $args{handle}            = $handle            if defined($handle);
         $args{local_root_dir}    = $local_root_dir    if defined($local_root_dir);
@@ -245,7 +245,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on bam files
-        $args{'file_type'} = 7;
+        $args{'file_type'} = '7|8';
         return $self->_lane_files(%args);
     }
     
@@ -304,8 +304,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     bases       => $file->raw_bases || 0,
                     paired      => $lane_info{vrlane}->is_paired,
                     lane_id     => $file->lane_id,
-                    $file_type eq '7' ? (analysis_uuid => $lane_info{vrlane}->acc)          : (),
-                    $file_type eq '7' ? (storage_path  => $lane_info{vrlane}->storage_path) : ()
+                    $file_type eq '7|8' ? (analysis_uuid => $lane_info{vrlane}->acc)          : (),
+                    $file_type eq '7|8' ? (storage_path  => $lane_info{vrlane}->storage_path) : ()
                 };
                 
                 # add metadata to file but ensure that we update any fields in

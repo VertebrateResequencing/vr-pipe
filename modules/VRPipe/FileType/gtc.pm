@@ -41,7 +41,7 @@ class VRPipe::FileType::gtc extends VRPipe::FileType::bin {
     around check_type {
         $self->$orig || return 0;
         my $path = $self->file;
-        return $path =~ /\.gtc$/ ? 1 : 0;
+        return $path =~ /(\.gtc$|\.idat$)/ ? 1 : 0;
     }
 }
 
