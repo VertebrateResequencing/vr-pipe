@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 7;
+    use Test::Most tests => 8;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest)]
@@ -108,66 +108,45 @@ my $meta = VRPipe::File->get(path => $genotype_files[0])->metadata;
 is_deeply $meta,
   {
     'analysis_uuid' => '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab',
-    'bases'         => '0',
-    'withdrawn'     => '0',
-    'population'    => 'Population',
-    'paired'        => '0',
-    'reads'         => '0',
-    'project'       => 'Wellcome Trust Strategic Award application – HIPS',
-    'library'       => '283163_B03_qc1hip5533830',
-    'lane_id'       => '1',
-    'individual'    => '2a39941c-12b2-41bf-92f3-70b88b66a3a4',
-    'platform'      => 'SLX',
-    'center_name'   => 'SC',
-    'sample'        => 'qc1hip5533830',
-    'expected_md5'  => '7793f115dadaa5e0a2b4aae5aca89ce9',
-    'study'         => '2624',
-    'lane'          => '9300870166_R06C01',
-    'species'       => 'Homo sapiens',
-    'insert_size'   => '0',
-    'storage_path'  => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
-  },
+    'bases' => '0',
+    'withdrawn' => '0',
+    'population' => 'Population',
+    'paired' => '0',
+    'reads' => '0',
+    'project' => 'Wellcome Trust Strategic Award application – HIPS',
+    'library' => '283163_B03_qc1hip5533830',
+    'lane_id' => '1',
+    'individual' => '2a39941c-12b2-41bf-92f3-70b88b66a3a4',
+    'platform' => 'SLX',
+    'center_name' => 'SC',
+    'sample' => 'qc1hip5533830',
+    'expected_md5' => '7793f115dadaa5e0a2b4aae5aca89ce9',
+    'study' => '2624',
+    'lane' => '9300870166_R06C01',
+    'species' => 'Homo sapiens',
+    'insert_size' => '0',
+    'storage_path' => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
+ },
   'metadata correct for one of the genotype files';
-
-#Run penncnv pipeline using the output genotype files from the import:
+  
+#Run quantisnp using the output genotype files from the import:
 #Add test code here!
-#$output_dir = get_output_dir('penncnv_analysis');
-#VRPipe::PipelineSetup->create(
-#    name       => 'penncnv_calling',
-#    datasource => VRPipe::DataSource->create(
-#        type    => 'vrpipe',
-#        method  => 'all',
-#        source  => 'gtc import and qc[2]',
-#
-#  ),
-#    output_root => $output_dir,
-#    pipeline    => VRPipe::Pipeline->create(name => 'penncnv'), #whatever name of pipeline is.....
-#    options     => {
-#		#options go here.....
-#    }
-#);
+$output_dir = get_output_dir('quantisnp_analysis');
+VRPipe::PipelineSetup->create(
+    name       => 'quantisnp_calling',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'gtc import and qc[2]',
 
-#ok handle_pipeline(), 'penncnv pipeline ran';
+    ),
+    output_root => $output_dir,
+    pipeline    => VRPipe::Pipeline->create(name => 'quantisnp'), #whatever name of pipeline is.....
+    options     => {
+        #options go here.....
+    }
+);
 
-#~
-#~ #Run penncnv pipeline using the output genotype files from the import:
-#~ #Add test code here!
-#~ $output_dir = get_output_dir('quantisnp_analysis');
-#~ VRPipe::PipelineSetup->create(
-#~ name       => 'quantisnp_calling',
-#~ datasource => VRPipe::DataSource->create(
-#~ type    => 'vrpipe',
-#~ method  => 'all',
-#~ source  => 'gtc import and qc[2]',
-#~
-#~ ),
-#~ output_root => $output_dir,
-#~ pipeline    => VRPipe::Pipeline->create(name => 'quantisnp'), #whatever name of pipeline is.....
-#~ options     => {
-#~ #options go here.....
-#~ }
-#~ );
-#~
-#~ ok handle_pipeline(), 'quantisnp pipeline ran';
+ok handle_pipeline(), 'quantisnp pipeline ran'; 
 
 finish;
