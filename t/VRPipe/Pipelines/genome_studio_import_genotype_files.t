@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 10;
+    use Test::Most tests => 7;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest)]
@@ -128,57 +128,5 @@ is_deeply $meta,
     'storage_path'  => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
   },
   'metadata correct for one of the genotype files';
-
-#Run penncnv pipeline using the output genotype files from the import:
-$output_dir = get_output_dir('penncnv_analysis');
-
-#check pipeline has correct steps
-ok my $penn_pipeline = VRPipe::Pipeline->create(name => 'penncnv'), 'able to get the penncnv pipeline';
-my @sp_names;
-foreach my $stepmember ($penn_pipeline->step_members) {
-    push(@sp_names, $stepmember->step->name);
-}
-is_deeply \@sp_names, [qw(penncnv_detect_cnv penncnv_filter_cnv)], 'the penncnv pipeline has the correct steps';
-
-my $penn_ps = VRPipe::PipelineSetup->create(
-    name       => 'penncnv_calling',
-    pipeline   => $penn_pipeline,
-    datasource => VRPipe::DataSource->create(
-        type   => 'vrpipe',
-        method => 'all',
-        source => 'gtc import and qc[2]',
-    ),
-    output_root => $output_dir,
-);
-
-#Get array of output files and check outputs as the pipeline is run
-my @penncnv_files;
-foreach my $sample (qw(qc1hip5529683)) {
-    $element_id++;
-    my @output_subdirs = output_subdirs($element_id, 2);
-    push(@penncnv_files, file(@output_subdirs, '2_penncnv_filter_cnv', $sample . '.genotyping.fcr.txt.rawcnv.filtercnv'));
-}
-ok handle_pipeline(@penncnv_files), 'penncnv pipeline ran ok and produced the expected output files';
-
-#~
-#~ #Run penncnv pipeline using the output genotype files from the import:
-#~ #Add test code here!
-#~ $output_dir = get_output_dir('quantisnp_analysis');
-#~ VRPipe::PipelineSetup->create(
-#~ name       => 'quantisnp_calling',
-#~ datasource => VRPipe::DataSource->create(
-#~ type    => 'vrpipe',
-#~ method  => 'all',
-#~ source  => 'gtc import and qc[2]',
-#~
-#~ ),
-#~ output_root => $output_dir,
-#~ pipeline    => VRPipe::Pipeline->create(name => 'quantisnp'), #whatever name of pipeline is.....
-#~ options     => {
-#~ #options go here.....
-#~ }
-#~ );
-#~
-#~ ok handle_pipeline(), 'quantisnp pipeline ran';
 
 finish;
