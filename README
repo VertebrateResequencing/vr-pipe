@@ -129,9 +129,30 @@ database name. However SQLite is not recommended for production use.
 
 Note that when using MySQL, the server should be configured to allow at least
 1/3 as many connections as you have CPUs in your cluster. It must also allow
-the transaction isolation level to be changed. In practice this means that if
+the transaction isolation level to be changed from a default of REPEATABLE-READ
+to READ-COMMITTED, and gap-locks must be possible
+(innodb_locks_unsafe_for_binlog must be off). In practice this means that if
 you have database replication set up, you may find that you have to reconfigure
 the server to binlog-mode=MIXED and restart/redo your replication server.
+To avoid possible issues we recommend MySQL 5.5 with the following settings in
+my.cnf, where the idea is to maximise transaction concurrency and performance:
+max_connections = 1000
+binlog_cache_size=32M
+innodb_log_file_size=512M
+innodb_log_files_in_group = 2
+innodb_file_per_table = 1
+innodb_fast_shutdown=0
+innodb_buffer_pool_size = 1G
+innodb_change_buffering=all
+innodb_flush_log_at_trx_commit=0
+innodb_log_buffer_size = 32M
+innodb_thread_concurrency=16
+innodb_concurrency_tickets=5000
+innodb_commit_concurrency=50
+innodb_autoinc_lock_mode=2
+binlog_format=mixed
+transaction_isolation = REPEATABLE-READ
+innodb_locks_unsafe_for_binlog = 0
 
 The SGE (Sun|Oracle GridEngine) scheduler has only been tested with SGE 8.1.3
 from: https://arc.liv.ac.uk/trac/SGE. If tests get stuck and nothing happens
