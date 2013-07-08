@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::test_two - a pipeline
+VRPipe::Pipelines::quantisnp - a pipeline
 
 =head1 DESCRIPTION
 
@@ -11,7 +11,7 @@ and ancillary data for analysis of pluripotency.
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+Phil Carter <pc12@sanger.ac.uk>, John Maslen <jm23@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -53,20 +53,14 @@ class VRPipe::Pipelines::quantisnp with VRPipe::PipelineRole {
     
     method adaptor_definitions {
         (
-            #input
-            
-            { from_step => 0, to_step => 1, to_key => 'stepOne_file_input_GS_file' }, # 1st step takes the gs file as input
-            
-            #output                       #input
-            
+            { from_step => 0, to_step => 1, to_key => 'stepOne_file_input_GS_file' },                                                              # 1st step takes the gs file as input
             { from_step => 1, to_step => 2, from_key =>, 'stepOne_file_output_reformatted_file', to_key => 'stepTwo_file_input_reformatted_file' } # 2nd step takes as input the reformat files produced by the first step
-        
         );
     }
     
-    #~ method behaviour_definitions {
-    #~ ({ after_step => 1, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0 });
-    #~ }
+    method behaviour_definitions {
+        ({ after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0 });
+    }
 }
 
-1; # needs this to exit correctly as a package
+1;                                                                                                                                                 # needs this to exit correctly as a package
