@@ -268,6 +268,11 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         foreach my $lane ($self->_filtered_lanes(%args)) {
             my %lane_info = $vrtrack->lane_info($lane);
             my @lane_changed_details;
+            my %objs = $vrtrack->lane_hierarchy_objects($lane_info{vrlane});
+            my $control;
+            if ($objs{sample}->note_id) {
+                $control = $objs{sample}->note_id == 1 ? 'Control' : ($objs{sample}->note_id == 2 ? 'Stem cell' : undef);
+            }
             
             my @files;
             foreach my $file (@{ $lane->files }) {
@@ -304,8 +309,9 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     bases       => $file->raw_bases || 0,
                     paired      => $lane_info{vrlane}->is_paired,
                     lane_id     => $file->lane_id,
-                    $file_type eq '7|8' ? (analysis_uuid => $lane_info{vrlane}->acc)          : (),
-                    $file_type eq '7|8' ? (storage_path  => $lane_info{vrlane}->storage_path) : ()
+                    $file_type eq '7|8' ? (analysis_uuid => $lane_info{vrlane}->acc) : (),
+                    $file_type eq '7|8' && defined $control ? (control => $control) : (),
+                    $file_type eq '7|8' ? (storage_path => $lane_info{vrlane}->storage_path) : ()
                 };
                 
                 # add metadata to file but ensure that we update any fields in
