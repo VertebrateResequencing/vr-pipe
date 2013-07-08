@@ -1,3 +1,6 @@
+0.159   Fixes for compatibility with MySQL 5.5, which is now the recommended
+        version to use; see updated README/IMPORTANT_NOTES for recommended
+        configuration settings.
 0.158   Critical fix to ensure Setups do not get reset when the version of your
         installed Storable module changes. See IMPORTANT_NOTES if upgrading.
         Various fixes related to moving VRPipe-tracked files from one disc to
