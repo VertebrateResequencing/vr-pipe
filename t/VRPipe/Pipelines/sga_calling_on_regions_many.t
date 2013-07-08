@@ -13,10 +13,10 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $preprocess_pipeline = VRPipe::Pipeline->create(name => 'sga_prepare_region_fastq'), 'able to get the sga_prepare_region_fastq pipeline';
-ok my $sga_pipeline        = VRPipe::Pipeline->create(name => 'sga_variant_calling'),      'able to get the sga_variant_calling pipeline';
+ok my $preprocess_pipeline = VRPipe::Pipeline->create(name => 'sga_prepare_many_region_fastq'), 'able to get the sga_prepare_many_region_fastq pipeline';
+ok my $sga_pipeline        = VRPipe::Pipeline->create(name => 'sga_variant_calling'),           'able to get the sga_variant_calling pipeline';
 
-my $calling_dir = get_output_dir('sga_calling_on_regions_test');
+my $calling_dir = get_output_dir('sga_calling_on_regions_many_test');
 
 my $original_ref_fa = VRPipe::File->create(path => file(qw(t data human_g1k_v37.chr11.chr20.fa.gz))->absolute);
 my $ref_fa = file($calling_dir, 'human_g1k_v37.chr11.chr20.fa')->absolute->stringify;
@@ -82,9 +82,9 @@ while (my ($sample, $element_id) = each %samples) {
         my $region = "$$chunk{chrom}_$$chunk{from}-$$chunk{to}";
         push(@input_files, file(@output_subdirs, '1_bam_split_by_region', qq[$region.$sample.bam]));
         next unless ($$chunk{from} == 1); # not all chunks have reads
-        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',   qq[${region}.${sample}_1.fastq]));
-        push(@input_files, file(@output_subdirs, '3_bam_to_fastq',   qq[${region}.${sample}_2.fastq]));
-        push(@input_files, file(@output_subdirs, '4_sga_preprocess', qq[${region}.${sample}.processed.fq.gz]));
+        push(@input_files, file(@output_subdirs, '3_bam_to_fastq_many',   qq[${region}.${sample}_1.fastq]));
+        push(@input_files, file(@output_subdirs, '3_bam_to_fastq_many',   qq[${region}.${sample}_2.fastq]));
+        push(@input_files, file(@output_subdirs, '4_sga_preprocess_many', qq[${region}.${sample}.processed.fq.gz]));
     }
 }
 

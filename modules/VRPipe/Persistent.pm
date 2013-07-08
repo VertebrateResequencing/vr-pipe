@@ -1064,7 +1064,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 # split up the find and create calls. Actually, search() is
                 # faster than find(), and not sure we need any of the fancy
                 # munging that find() does for us.
-                ($return, my @extra) = $rs->search(\%search_args, { for => 'update', order_by => { -asc => 'id' } }) if keys %search_args;
+                ($return, my @extra) = $rs->search(\%search_args, { $create ? (for => 'update') : (), order_by => { -asc => 'id' } }) if keys %search_args;
                 
                 # there should not be any @extra, but some rare weirdness may give
                 # us duplicate rows in the db; take this opportunity to delete them

@@ -1,3 +1,50 @@
+# version 0.159
+You must upgrade to 0.158 first, following the upgrade instructions below for
+that version. Note that the instructions reference some scripts that have been
+deleted in this version, so first 'git checkout 0.158', complete the 0.158
+upgrade, then come back here with 'git checkout master'.
+
+This version fixes some issues with row locking that you may have encountered if
+using MySQL 5.5. If you were using MySQL 5.1 you may also have encountered a
+different issue where certain inserts to the database would fail, causing
+Submissions to fail. This remains an unresolved issue, so we recommend you
+upgrade to 5.5. We also recommend the following settings in my.cnf:
+
+max_connections = 1000
+binlog_cache_size=32M
+innodb_log_file_size=512M
+innodb_log_files_in_group = 2
+innodb_file_per_table = 1
+innodb_fast_shutdown=0
+innodb_buffer_pool_size = 1G
+innodb_change_buffering=all
+innodb_flush_log_at_trx_commit=0
+innodb_log_buffer_size = 32M
+innodb_thread_concurrency=16
+innodb_concurrency_tickets=5000
+innodb_commit_concurrency=50
+innodb_autoinc_lock_mode=2
+binlog_format=mixed
+transaction_isolation = REPEATABLE-READ
+innodb_locks_unsafe_for_binlog = 0
+
+Basically the idea is to maximise transaction concurrency and performance, while
+being aware that VRPipe relies on the isolation level being REPEATABLE-READ by
+default (for gap locking, hence also ensuring innodb_locks_unsafe_for_binlog is
+off).
+The log file and file_per_table changes (or upgrading from MySQL 5.1 to 5.5)
+necessitate a complete refresh of your database files:
+1. log into your database and do 'truncate table pipelinesetuplog;' to make
+   subsequent steps faster and reduce the size of your database significantly
+2. take a mysqldump of your database
+3. drop the database
+4. shut down mysqld cleanly
+5. delete the corresponding ibdata* and ib_logfile* files
+6. alter my.cnf as above
+7. bring mysqld back up
+8. create a new database with the same name as the old one
+9. load the dump you took in step 2. into the new database
+
 # version 0.158
 This is a major, critical upgrade. You should upgrade as soon as possible,
 before you are affected by a significant bug (in versions prior to this one,

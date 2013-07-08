@@ -299,8 +299,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # this step
                             foreach my $input_step_number (@{ $step_inputs{$step_number} || [] }) {
                                 my $input_member = $step_members[$input_step_number - 1];
-                                my $input_ss     = VRPipe::StepState->get(stepmember => $input_member, dataelement => $element, pipelinesetup => $self);
-                                my $input_step   = $input_member->step(step_state => $input_ss);
+                                my ($input_ss) = VRPipe::StepState->search({ stepmember => $input_member, dataelement => $element, pipelinesetup => $self });
+                                my $input_step = $input_member->step(step_state => $input_ss);
                                 while (my ($key, $val) = each %{ $input_step->outputs() }) {
                                     $previous_step_outputs{$key}->{$input_step_number} = $val;
                                 }

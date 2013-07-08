@@ -519,9 +519,11 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     }
                     
                     my $stderr_file = $self->stderr_file;
-                    my $efh         = $stderr_file->open('>>');
-                    print $efh $explanation, "\n";
-                    $stderr_file->close;
+                    if ($stderr_file) {
+                        my $efh = $stderr_file->open('>>');
+                        print $efh $explanation, "\n";
+                        $stderr_file->close;
+                    }
                     $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation$sid_str), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                     
                     $self->_signalled_to_death($signal);

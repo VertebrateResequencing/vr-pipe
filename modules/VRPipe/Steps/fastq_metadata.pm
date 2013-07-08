@@ -152,6 +152,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
         else {
             $self->throw("$fqc_file failed to be made");
         }
+        return 1;
     }
 }
 

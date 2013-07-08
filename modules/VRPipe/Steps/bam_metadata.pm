@@ -121,6 +121,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
             my $bam_file = VRPipe::File->get(path => $bam);
             $bam_file->add_metadata({ original_pg_chain => $pg_chain });
         }
+        return 1;
     }
 }
 

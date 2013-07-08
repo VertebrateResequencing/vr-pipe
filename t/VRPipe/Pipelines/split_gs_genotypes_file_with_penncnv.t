@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 7;
+    use Test::Most tests => 8;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest)]
@@ -131,43 +131,22 @@ is_deeply $meta,
 
 #Run penncnv pipeline using the output genotype files from the import:
 #Add test code here!
-#$output_dir = get_output_dir('penncnv_analysis');
-#VRPipe::PipelineSetup->create(
-#    name       => 'penncnv_calling',
-#    datasource => VRPipe::DataSource->create(
-#        type    => 'vrpipe',
-#        method  => 'all',
-#        source  => 'gtc import and qc[2]',
-#
-#  ),
-#    output_root => $output_dir,
-#    pipeline    => VRPipe::Pipeline->create(name => 'penncnv'), #whatever name of pipeline is.....
-#    options     => {
-#		#options go here.....
-#    }
-#);
+$output_dir = get_output_dir('penncnv_analysis');
+VRPipe::PipelineSetup->create(
+    name       => 'penncnv_calling',
+    datasource => VRPipe::DataSource->create(
+        type   => 'vrpipe',
+        method => 'all',
+        source => 'gtc import and qc[2]',
+    
+    ),
+    output_root => $output_dir,
+    pipeline    => VRPipe::Pipeline->create(name => 'penncnv'), #whatever name of pipeline is.....
+    options     => {
+        #options go here.....
+    }
+);
 
-#ok handle_pipeline(), 'penncnv pipeline ran';
-
-#~
-#~ #Run penncnv pipeline using the output genotype files from the import:
-#~ #Add test code here!
-#~ $output_dir = get_output_dir('quantisnp_analysis');
-#~ VRPipe::PipelineSetup->create(
-#~ name       => 'quantisnp_calling',
-#~ datasource => VRPipe::DataSource->create(
-#~ type    => 'vrpipe',
-#~ method  => 'all',
-#~ source  => 'gtc import and qc[2]',
-#~
-#~ ),
-#~ output_root => $output_dir,
-#~ pipeline    => VRPipe::Pipeline->create(name => 'quantisnp'), #whatever name of pipeline is.....
-#~ options     => {
-#~ #options go here.....
-#~ }
-#~ );
-#~
-#~ ok handle_pipeline(), 'quantisnp pipeline ran';
+ok handle_pipeline(), 'penncnv pipeline ran';
 
 finish;

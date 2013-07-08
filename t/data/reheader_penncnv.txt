@@ -1,0 +1,2 @@
+Name	Sample ID	Allele1 - Top	Allele2 - Top	GC Score	Theta	R	X	Y	X Raw	Y Raw	Pilot.B Allele Freq	Pilot.Log R Ratio
+
