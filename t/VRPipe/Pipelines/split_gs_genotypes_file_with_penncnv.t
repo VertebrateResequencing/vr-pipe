@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 11;
+    use Test::Most tests => 15;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest)]
@@ -107,25 +107,25 @@ my $meta = VRPipe::File->get(path => $genotype_files[0])->metadata;
 is_deeply $meta,
   {
     'analysis_uuid' => '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab',
-    'bases' => '0',
-    'withdrawn' => '0',
-    'population' => 'Population',
-    'paired' => '0',
-    'reads' => '0',
-    'project' => 'Wellcome Trust Strategic Award application – HIPS',
-    'library' => '283163_A01_qc1hip5529683',
-    'lane_id' => '58',
-    'individual' => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-    'platform' => 'SLX',
-    'center_name' => 'SC',
-    'sample' => 'qc1hip5529683',
-    'expected_md5' => 'd7e10a49be4e8b1e42fe71bc68e93856',
-    'study' => '2624',
-    'control' => 'Stem cell',
-    'lane' => '9300870057_R01C01',
-    'species' => 'Homo sapiens',
-    'insert_size' => '0',
-    'storage_path' => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
+    'bases'         => '0',
+    'withdrawn'     => '0',
+    'population'    => 'Population',
+    'paired'        => '0',
+    'reads'         => '0',
+    'project'       => 'Wellcome Trust Strategic Award application – HIPS',
+    'library'       => '283163_A01_qc1hip5529683',
+    'lane_id'       => '58',
+    'individual'    => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+    'platform'      => 'SLX',
+    'center_name'   => 'SC',
+    'sample'        => 'qc1hip5529683',
+    'expected_md5'  => 'd7e10a49be4e8b1e42fe71bc68e93856',
+    'study'         => '2624',
+    'control'       => 'Stem cell',
+    'lane'          => '9300870057_R01C01',
+    'species'       => 'Homo sapiens',
+    'insert_size'   => '0',
+    'storage_path'  => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
   },
   'metadata correct for one of the genotype files';
 
@@ -142,7 +142,7 @@ is_deeply \@sp_names, [qw(penncnv_detect_cnv penncnv_filter_cnv)], 'the penncnv 
 
 my $penn_ps = VRPipe::PipelineSetup->create(
     name       => 'penncnv_calling',
-    pipeline    => $penn_pipeline,    
+    pipeline   => $penn_pipeline,
     datasource => VRPipe::DataSource->create(
         type   => 'vrpipe',
         method => 'all',
@@ -160,32 +160,92 @@ foreach my $sample (qw(qc1hip5529683)) {
 }
 ok handle_pipeline(@penncnv_files), 'penncnv pipeline ran ok and produced the expected output files';
 
-#check genotype file metadata
+#check cnv file metadata
 my $penn_meta = VRPipe::File->get(path => $penncnv_files[0])->metadata;
-is_deeply $meta,
+is_deeply $penn_meta,
   {
     'analysis_uuid' => '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab',
-    'bases' => '0',
-    'withdrawn' => '0',
-    'population' => 'Population',
-    'paired' => '0',
-    'reads' => '0',
-    'project' => 'Wellcome Trust Strategic Award application – HIPS',
-    'library' => '283163_A01_qc1hip5529683',
-    'lane_id' => '58',
-    'individual' => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-    'platform' => 'SLX',
-    'center_name' => 'SC',
-    'sample' => 'qc1hip5529683',
-    'expected_md5' => 'd7e10a49be4e8b1e42fe71bc68e93856',
-    'study' => '2624',
-    'control' => 'Stem cell',
-    'lane' => '9300870057_R01C01',
-    'species' => 'Homo sapiens',
-    'insert_size' => '0',
-    'storage_path' => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
+    'bases'         => '0',
+    'withdrawn'     => '0',
+    'population'    => 'Population',
+    'paired'        => '0',
+    'reads'         => '0',
+    'project'       => 'Wellcome Trust Strategic Award application – HIPS',
+    'library'       => '283163_A01_qc1hip5529683',
+    'lane_id'       => '58',
+    'individual'    => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+    'platform'      => 'SLX',
+    'center_name'   => 'SC',
+    'sample'        => 'qc1hip5529683',
+    'expected_md5'  => 'd7e10a49be4e8b1e42fe71bc68e93856',
+    'study'         => '2624',
+    'control'       => 'Stem cell',
+    'lane'          => '9300870057_R01C01',
+    'species'       => 'Homo sapiens',
+    'insert_size'   => '0',
+    'storage_path'  => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
   },
   'metadata correct for one of the penncnv files';
 
+#Run penncnv pipeline using the output genotype files from the import:
+$output_dir = get_output_dir('reformat_penncnv_bed');
+
+#check pipeline has correct steps
+ok my $bed_pipeline = VRPipe::Pipeline->create(name => 'penncnv_remove_control'), 'able to get the penncnv_remove_control pipeline';
+my @sb_names;
+foreach my $stepmember ($bed_pipeline->step_members) {
+    push(@sb_names, $stepmember->step->name);
+}
+is_deeply \@sb_names, [qw(hipsci_convert_to_bed)], 'the penncnv_remove_control pipeline has the correct steps';
+
+my $penn_bed = VRPipe::PipelineSetup->create(
+    name       => 'penncnv_reformat_bed',
+    pipeline   => $bed_pipeline,
+    datasource => VRPipe::DataSource->create(
+        type   => 'vrpipe',
+        method => 'all',
+        source => 'penncnv_calling[2]',
+    ),
+    output_root => $output_dir,
+    options     => {
+        cnv_analysis_type => 'penncnv',
+    }
+);
+
+#Get array of output files and check outputs as the pipeline is run
+my @pennbed_files;
+foreach my $sample (qw(qc1hip5529683)) {
+    $element_id++;
+    my @output_subdirs = output_subdirs($element_id, 3);
+    push(@pennbed_files, file(@output_subdirs, '1_hipsci_convert_to_bed', '6d3d2acf-29a5-41a2-8992-1414706a527d_' . $sample . '.bed'));
+}
+ok handle_pipeline(@pennbed_files), 'penncnv_remove_control pipeline ran ok and produced the expected output files';
+
+#check cnv file metadata
+my $reformat_meta = VRPipe::File->get(path => $pennbed_files[0])->metadata;
+is_deeply $reformat_meta,
+  {
+    'analysis_uuid' => '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab',
+    'bases'         => '0',
+    'withdrawn'     => '0',
+    'population'    => 'Population',
+    'paired'        => '0',
+    'reads'         => '0',
+    'project'       => 'Wellcome Trust Strategic Award application – HIPS',
+    'library'       => '283163_A01_qc1hip5529683',
+    'lane_id'       => '58',
+    'individual'    => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+    'platform'      => 'SLX',
+    'center_name'   => 'SC',
+    'sample'        => 'qc1hip5529683',
+    'expected_md5'  => 'd7e10a49be4e8b1e42fe71bc68e93856',
+    'study'         => '2624',
+    'control'       => 'Stem cell',
+    'lane'          => '9300870057_R01C01',
+    'species'       => 'Homo sapiens',
+    'insert_size'   => '0',
+    'storage_path'  => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
+  },
+  'metadata correct for one of the reformatted penncnv bed files';
 
 finish;
