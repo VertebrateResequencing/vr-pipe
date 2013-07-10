@@ -204,12 +204,12 @@ is_deeply $quan_meta,
 $output_dir = get_output_dir('reformat_quantisnp_bed');
 
 #check pipeline has correct steps
-ok my $bed_pipeline = VRPipe::Pipeline->create(name => 'quantisnp_remove_control'), 'able to get the quantisnp_remove_control pipeline';
+ok my $bed_pipeline = VRPipe::Pipeline->create(name => 'hipsci_cnv_control_removal'), 'able to get the hipsci_cnv_control_removal pipeline';
 my @sb_names;
 foreach my $stepmember ($bed_pipeline->step_members) {
     push(@sb_names, $stepmember->step->name);
 }
-is_deeply \@sb_names, [qw(hipsci_convert_to_bed)], 'the quantisnp_remove_control pipeline has the correct steps';
+is_deeply \@sb_names, [qw(reformat_cnv_output_to_bed)], 'the hipsci_cnv_control_removal pipeline has the correct steps';
 
 my $quan_bed = VRPipe::PipelineSetup->create(
     name       => 'quantisnp_reformat_bed',
@@ -230,9 +230,9 @@ my @quanbed_files;
 foreach my $sample (qw(qc1hip5529683)) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id, 3);
-    push(@quanbed_files, file(@output_subdirs, '1_hipsci_convert_to_bed', '6d3d2acf-29a5-41a2-8992-1414706a527d_' . $sample . '.bed'));
+    push(@quanbed_files, file(@output_subdirs, '1_reformat_cnv_output_to_bed', '6d3d2acf-29a5-41a2-8992-1414706a527d_' . $sample . '_quantisnp.bed'));
 }
-ok handle_pipeline(@quanbed_files), 'quantisnp_remove_control pipeline ran ok and produced the expected output files';
+ok handle_pipeline(@quanbed_files), 'hipsci_cnv_control_removal pipeline ran ok and produced the expected output files';
 
 #check cnv file metadata
 my $reformat_meta = VRPipe::File->get(path => $quanbed_files[0])->metadata;
