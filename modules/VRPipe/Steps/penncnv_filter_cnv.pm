@@ -1,16 +1,15 @@
 
 =head1 NAME
 
-VRPipe::Steps::genome_studio_expression_reformat - a step
+VRPipe::Steps::penncnv_filter_cnv - a step
 
 =head1 DESCRIPTION
 
-Converts the Genome Studio csv files into a format that is suitable for
-processing by the PluriTest R package to determine pluripotency
+Filters raw CNVs found by PennCNV detect_cnv.pl
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+Phil Carter <pc12@sanger.ac.uk>, John Maslen <jm23@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -36,8 +35,6 @@ use VRPipe::Base;
 
 class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
     method options_definition {
-        # if optional given, not necessary, if not present, must be given
-        
         return {
             filter_cnv_script => VRPipe::StepOption->create(description => 'full path to filter_cnv.pl', optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/filter_cnv.pl'),
         };
@@ -53,8 +50,6 @@ class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
             )
         };
     }
-    
-    #filter_cnv.pl -numsnp 10 -length 130k rawcnv//271298_G06_HAPMAP5265757-Exome1.1-custom-42.rawcnv --confidence 10
     
     method body_sub {
         return sub {
@@ -98,37 +93,7 @@ class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
     method max_simultaneous {
         return 0;
     }
-    
-    # actually running command
-    
-    #    method detect_cnv (ClassName|Object $self: Str $cmd_line) {
-    #        #my ($input_path, $output_path) = $cmd_line =~ /--profile (\S+) .* --out (\S+)$/;
-    #        #my $input_file = VRPipe::File->get(path => $input_path);
-    #        #my $input_recs = $input_file->num_records;
-    #        #$input_file->disconnect; # finished with the file, kind of a close but not really
-    #
-    #        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-    #
-    #        my $output_file = VRPipe::File->get(path => $output_path);
-    #        $output_file->update_stats_from_disc; # get some info so you can pull stuff like lines, # records, etc
-    #        #my $output_lines = $output_file->lines;
-    #
-    #        #reformatted file should have header line with ProbeID as the first item
-    #        #my $reformf    = $output_file->openr; # standard open within vrpipe
-    #        #my $first_line = <$reformf>;
-    #        #unless ($first_line =~ /^ProbeID/) {
-    #           $output_file->unlink; # kind of disconnecting
-    #        #    $self->throw("Reformatted file does not have correct header with Probe ID as the first expected column\n");
-    #        #}
-    #        # Should be one output line per Genome Studio record input
-    #        #if ($output_lines == $input_recs) {
-    #        #    return 1;
-    #        #}
-    #        #else {
-    #        #    $output_file->unlink;
-    #        #    $self->throw("The reformatted file does not have the same number of records as the Genome Studio input file");
-    #        #}
-    #    }
+
 }
 
 1;

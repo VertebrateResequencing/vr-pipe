@@ -54,8 +54,7 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
     
     method body_sub {
         return sub {
-            my $self = shift;
-            
+            my $self    = shift;
             my $options = $self->options;
             $self->handle_standard_options($options);
             
@@ -72,8 +71,6 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             my $sample_info = $self->output_file(basename => "SampleInfo.txt", type => 'txt', temporary => 1);
             my $ofh = $sample_info->openw;
             
-            my @l2r_files;
-            
             foreach my $rd_file (@{ $self->inputs->{rd_files} }) {
                 my $basename = $rd_file->basename;
                 $basename =~ s/\.rd\.txt$/.l2r.txt/;
@@ -87,7 +84,6 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
                 my $bam_sex    = $bam_file->metadata->{sex};
                 
                 my $l2r_file = $self->output_file(output_key => 'l2r_files', basename => $basename, output_dir => $rd_dir, type => 'txt');
-                push(@l2r_files, $l2r_file);
                 my $l2r_path = $l2r_file->path;
                 
                 print $ofh join("\t", $bam_sample, $bam_sex, $bam_path, $rd_path, $l2r_path), "\n";
@@ -97,15 +93,12 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             
             my $features_file = $self->output_file(output_key => 'features_file', basename => 'features.txt', type => 'txt');
             my $features_file_path = $features_file->path;
-            push(@l2r_files, $features_file);
             
             my $corr_matrix_file = $self->output_file(output_key => 'corr_matrix_file', basename => 'corr_matrix.txt', type => 'txt');
             my $corr_matrix_file_path = $corr_matrix_file->path;
-            push(@l2r_files, $corr_matrix_file);
             
             my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SampleLogRatioCall.R $sample_info_path,$regions_file,$features_file_path,$includeChrX,$corr_matrix_file_path,$version,$rpkm,$minSamples";
-            $self->dispatch([$cmd, $req, { output_files => \@l2r_files }]);
-        
+            $self->dispatch([$cmd, $req]);
         };
     }
     
