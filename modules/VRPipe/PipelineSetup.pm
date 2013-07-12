@@ -570,7 +570,16 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         $self->log_event("PipelineSetup->trigger called parse(), which dispatched new things", dataelement => $element->id, stepstate => $state->id);
                                         foreach my $arrayref (@$dispatched) {
                                             my ($cmd, $reqs, $job_args) = @$arrayref;
-                                            my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd), stepstate => $state->submission_search_id, requirements => $reqs);
+                                            
+                                            # protect us against job_args->output_files having too many
+                                            # values to fit in the db by just deleting it in that case:
+                                            # it's a nicety, not a necessity.
+                                            if ($job_args && defined $job_args->{output_files} && $#{ $job_args->{output_files} } > 100) {
+                                                delete $job_args->{output_files};
+                                                undef $job_args unless keys %$job_args;
+                                            }
+                                            
+                                            my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd)->id, stepstate => $state->submission_search_id, requirements => $reqs->id);
                                             $self->log_event("PipelineSetup->trigger called parse(), and the dispatch created a new Submission", dataelement => $element->id, stepstate => $state->id, submission => $sub->id, job => $sub->job->id);
                                         }
                                         $self->debug("created new subs");
