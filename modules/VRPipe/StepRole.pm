@@ -413,8 +413,10 @@ role VRPipe::StepRole {
                 # any more)
                 if ($check_s) {
                     # double-check incase the step did not update_stats_from_disc
-                    $resolved->update_stats_from_disc(retries => 3);
-                    $file->update_stats_from_disc(retries => 3) unless $resolved->id == $file->id;
+                    if (-s $resolved->path != $resolved->s) {
+                        $resolved->update_stats_from_disc(retries => 1);
+                    }
+                    $file->update_stats_from_disc(retries => 1) unless $resolved->id == $file->id;
                 }
                 if ($file->e && (!$resolved->s || $file->mtime > $resolved->mtime)) {
                     $file->moved_to(undef);
@@ -621,14 +623,17 @@ role VRPipe::StepRole {
             while (my ($key, $files) = each %$output_files) {
                 push(@ofiles, map { $_->path } @$files);
             }
-            my %ofiles = map { $_ => 1 } @ofiles;
-            # we could have so many files that attempting to store all their
-            # paths in a single pipelinesetuplog would overflow the maximum
-            # size for the message column in the database, which means our
-            # parse would fail, so we create multiple log lines, one for each
-            # output file
-            foreach my $ofile (keys %ofiles) {
-                $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFile $ofile", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
+            
+            if (@ofiles < 100) {
+                my %ofiles = map { $_ => 1 } @ofiles;
+                # we could have so many files that attempting to store all their
+                # paths in a single pipelinesetuplog would overflow the maximum
+                # size for the message column in the database, which means our
+                # parse would fail, so we create multiple log lines, one for each
+                # output file
+                foreach my $ofile (keys %ofiles) {
+                    $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFile $ofile", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
+                }
             }
         }
         my $temp_files = $self->_temp_files;
