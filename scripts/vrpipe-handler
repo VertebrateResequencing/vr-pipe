@@ -51,7 +51,8 @@ my $cmdline = VRPipe::FrontEnd->new(
         ['requirements|r=i', 'a Requirements id, to handle any Submission with these requirements', { persistent_object => 'Requirements' }],
         ['scheduler|s=i',    'a Scheduler id',                                                      { persistent_object => 'Scheduler' }],
         [],
-        ['debug', 'turn lots of debugging output on, and allow it to work without a server running'],
+        ['debug',   'turn lots of debugging output on, and allow it to work without a server running'],
+        ['setup=s', 'when --debug is on and you are in --mode setups, you can make it only look at a given setup']
     ]
 );
 
@@ -79,7 +80,9 @@ if ($debug || $deployment eq 'testing') {
 }
 
 if ($mode eq 'setups') {
-    handle_setups();
+    my $setup_id = $cmdline->opts('setup');
+    my ($setup) = $setup_id && $debug ? VRPipe::PipelineSetup->search({ id => $setup_id }) : undef;
+    handle_setups($setup);
 }
 elsif ($mode eq 'submissions') {
     my ($req, $scheduler);
@@ -103,21 +106,22 @@ exit 0;
 
 sub handle_setups {
     $backend->log_stderr unless $debug;
+    my $single_setup = shift;
     
     # every 30s we'll check for new setups we're supposed to handle, and also
     # confirm there is still a farmserver up for our farm (and exit if not)
     my %setups;
     my %datasource_watchers;
     my %setup_watchers;
-    my $setups_timer_interval      = $deployment eq 'production' ? 150  : 5;
-    my $datasource_timer_interval  = $deployment eq 'production' ? 300  : 10;
-    my $setup_state_timer_interval = $deployment eq 'production' ? 1800 : 15;
+    my $setups_timer_interval      = $deployment eq 'production' && !$debug ? 150  : 5;
+    my $datasource_timer_interval  = $deployment eq 'production' && !$debug ? 300  : 10;
+    my $setup_state_timer_interval = $deployment eq 'production' && !$debug ? 1800 : 15;
     my %currently_triggering;
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
             unless ($debug) { $fs->alive || die "no farmserver" }
-            @setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
+            @setups = $single_setup ? ($single_setup) : VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
         };
         if ($@) {
             if ($@ =~ /no farmserver/) {
