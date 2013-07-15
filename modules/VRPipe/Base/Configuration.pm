@@ -14,7 +14,7 @@ VRPipe::Base::Configuration - provides configuration mechanics
         
         has dbtype => (
             is      => 'rw',
-            question => 'What DRM should be used?',
+            question => 'What DBMS should be used?',
             default => 'mysql',
             env => 'DBI_DRIVER',
             valid => [qw(mysql postgres)],
