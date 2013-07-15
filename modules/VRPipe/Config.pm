@@ -74,7 +74,7 @@ class VRPipe::Config {
         question        => 'What DBMS should be used for production?',
         default         => 'mysql',
         env             => 'DBI_DRIVER',
-        valid           => [qw(mysql postgres sqlite)],
+        valid           => [qw(mysql sqlite)],
         question_number => ++$question_number
     );
     
@@ -126,7 +126,7 @@ class VRPipe::Config {
         is              => 'rw',
         question        => 'What DBMS should be used for testing?',
         default         => 'sqlite',
-        valid           => [qw(sqlite mysql postgres)],
+        valid           => [qw(sqlite mysql)],
         question_number => ++$question_number
     );
     
