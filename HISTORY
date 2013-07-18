@@ -1,3 +1,5 @@
+0.161   bam_to_fastq step now supports merged bam files containing multiple
+        lanes.
 0.160   Large speed improvement and fixes for steps when they are fed thousands
         of input files.
 0.159   Fixes for compatibility with MySQL 5.5, which is now the recommended
