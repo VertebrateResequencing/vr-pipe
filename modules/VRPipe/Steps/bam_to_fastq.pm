@@ -63,7 +63,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     center_name      => 'center name',
                     platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                     study            => 'name of the study, put in the DS field of the RG header line',
-                    optional         => ['library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size']
+                    optional         => ['lane', 'library', 'sample', 'center_name', 'platform', 'study', 'mean_insert_size']
                 }
             ),
         };
@@ -175,7 +175,7 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
                     center_name      => 'center name',
                     platform         => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
                     study            => 'name of the study',
-                    optional         => ['mate', 'library', 'sample', 'center_name', 'platform', 'study', 'insert_size', 'mean_insert_size']
+                    optional         => ['mate', 'lane', 'library', 'sample', 'center_name', 'platform', 'study', 'insert_size', 'mean_insert_size']
                 }
             ),
         };
@@ -319,71 +319,71 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
         }
         
         return 1;
+    }
+    
+    sub add_or_rm_fastq {
+        # Create additional files if necessary, or get rid of the unneeded empty files
+        my ($self, $path, $based_on, $out_files) = @_;
         
-        sub add_or_rm_fastq {
-            # Create additional files if necessary, or get rid of the unneeded empty files
-            my ($self, $path, $based_on, $out_files) = @_;
-            
-            my $pipe = "wc -l $path |";
-            my $file_size;
-            open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
-            while (<$fh>) {
-                unless (/(\S+) $path/) {
-                    foreach my $out_file (@$out_files) {
-                        $out_file->unlink;
-                    }
-                    $self->throw("Couldn't get count from $pipe : $_");
-                }
-                $file_size = $1;
-                last;
-            }
-            if ($file_size == 0) {
-                unless (system("rm $path") == 0) {
-                    foreach my $out_file (@$out_files) {
-                        $out_file->unlink;
-                    }
-                    $self->throw("failed to rm $path");
-                }
-                return;
-            }
-            
-            # figure out what stepstate we are for and add the fastq as an output file
-            my @existing_stepoutputfiles = VRPipe::StepOutputFile->search({ file => VRPipe::File->get(path => $based_on)->id, output_key => 'fastq_files' });
-            my %stepstates = map { $_->id => $_ } @existing_stepoutputfiles;
-            if (keys %stepstates != 1) {
+        my $pipe = "wc -l $path |";
+        my $file_size;
+        open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
+        while (<$fh>) {
+            unless (/(\S+) $path/) {
                 foreach my $out_file (@$out_files) {
                     $out_file->unlink;
                 }
-                $self->throw("Could not get unique stepstate for $based_on");
+                $self->throw("Couldn't get count from $pipe : $_");
             }
-            
-            my $fastq_meta = VRPipe::File->get(path => $based_on)->metadata;
-            if ($path =~ /_M.fastq/) {
-                $fastq_meta->{paired} = 0;
-                delete $fastq_meta->{mate};
-            }
-            elsif ($path =~ /_1.fastq/) {
-                $fastq_meta->{paired} = 1;
-                my $mate = $path;
-                $mate =~ s/_1.fastq/_2.fastq/;
-                $fastq_meta->{mate} = $mate;
-            }
-            else {
-                $fastq_meta->{paired} = 2;
-                my $mate = $path;
-                $mate =~ s/_2.fastq/_1.fastq/;
-                $fastq_meta->{mate} = $mate;
-            }
-            my $extra_file = VRPipe::File->create(path => $path, metadata => {%$fastq_meta});
-            
-            my $step_state = $existing_stepoutputfiles[0]->stepstate;
-            VRPipe::StepOutputFile->create(
-                file       => $extra_file->id,
-                stepstate  => $step_state,
-                output_key => 'fastq_files',
-            );
-            push(@$out_files, $extra_file);
+            $file_size = $1;
+            last;
         }
+        if ($file_size == 0) {
+            unless (system("rm $path") == 0) {
+                foreach my $out_file (@$out_files) {
+                    $out_file->unlink;
+                }
+                $self->throw("failed to rm $path");
+            }
+            return;
+        }
+        
+        # figure out what stepstate we are for and add the fastq as an output file
+        my @existing_stepoutputfiles = VRPipe::StepOutputFile->search({ file => VRPipe::File->get(path => $based_on)->id, output_key => 'fastq_files' });
+        my %stepstates = map { $_->id => $_ } @existing_stepoutputfiles;
+        if (keys %stepstates != 1) {
+            foreach my $out_file (@$out_files) {
+                $out_file->unlink;
+            }
+            $self->throw("Could not get unique stepstate for $based_on");
+        }
+        
+        my $fastq_meta = VRPipe::File->get(path => $based_on)->metadata;
+        if ($path =~ /_M.fastq/) {
+            $fastq_meta->{paired} = 0;
+            delete $fastq_meta->{mate};
+        }
+        elsif ($path =~ /_1.fastq/) {
+            $fastq_meta->{paired} = 1;
+            my $mate = $path;
+            $mate =~ s/_1.fastq/_2.fastq/;
+            $fastq_meta->{mate} = $mate;
+        }
+        else {
+            $fastq_meta->{paired} = 2;
+            my $mate = $path;
+            $mate =~ s/_2.fastq/_1.fastq/;
+            $fastq_meta->{mate} = $mate;
+        }
+        my $extra_file = VRPipe::File->create(path => $path, metadata => {%$fastq_meta});
+        
+        my $step_state = $existing_stepoutputfiles[0]->stepstate;
+        VRPipe::StepOutputFile->create(
+            file       => $extra_file->id,
+            stepstate  => $step_state,
+            output_key => 'fastq_files',
+        );
+        push(@$out_files, $extra_file);
     }
 }
 

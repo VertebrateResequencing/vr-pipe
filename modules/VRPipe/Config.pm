@@ -71,10 +71,10 @@ class VRPipe::Config {
     
     has production_dbtype => (
         is              => 'rw',
-        question        => 'What DRM should be used for production?',
+        question        => 'What DBMS should be used for production?',
         default         => 'mysql',
         env             => 'DBI_DRIVER',
-        valid           => [qw(mysql postgres sqlite)],
+        valid           => [qw(mysql sqlite)],
         question_number => ++$question_number
     );
     
@@ -124,9 +124,9 @@ class VRPipe::Config {
     
     has testing_dbtype => (
         is              => 'rw',
-        question        => 'What DRM should be used for testing?',
+        question        => 'What DBMS should be used for testing?',
         default         => 'sqlite',
-        valid           => [qw(sqlite mysql postgres)],
+        valid           => [qw(sqlite mysql)],
         question_number => ++$question_number
     );
     
