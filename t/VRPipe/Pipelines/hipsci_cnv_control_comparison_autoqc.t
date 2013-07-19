@@ -20,7 +20,7 @@ open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}")
 print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
 print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
 print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-my @sql = VRPipe::File->create(path => file(qw(t data vrtrack_hipsci_qc1_genotyping_complete.sql))->absolute)->slurp;
+my @sql = VRPipe::File->create(path => file(qw(t data vrtrack_hipsci_qc1_genotyping_autoqc.sql))->absolute)->slurp;
 foreach my $sql (@sql) {
     print $mysqlfh $sql;
 }
