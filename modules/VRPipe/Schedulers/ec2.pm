@@ -292,13 +292,13 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             }
         );
         my $own_pdn = $meta->privateDnsName;
+        my ($own_host) = $own_pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
         foreach my $instance (@all_instances) {
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn;
-            
             my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            next if $host eq $own_host;
             
             # don't terminate if we only just now spawned it and maybe are still
             # waiting for it to become responsive to ssh
@@ -329,15 +329,16 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             }
         );
         my $own_pdn = $meta->privateDnsName;
+        my ($own_host) = $own_pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
         foreach my $instance (@all_instances) {
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn;
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            next if $host eq $own_host;
             
             # don't terminate an instance that has a handler running on it right
             # now - possibly spawned by a production server
-            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
             next if $self->_handler_processes($host);
             
             warn "ec2 scheduler will terminate instance $host\n";

@@ -429,6 +429,7 @@ PE
         my $max_do_nothing_time = $deployment eq 'production' ? $min_uptime : int($min_uptime / 10);
         my %to_terminate;
         my $own_pdn = $VRPipe::Schedulers::ec2::meta->privateDnsName;
+        my ($own_host) = $own_pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
         while (my ($host, $details) = each %hosts) {
             # ones we just now launched probably won't be running anything yet
             next if exists $launched_hosts{$host};
@@ -461,7 +462,8 @@ PE
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn;
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            next if $host eq $own_host;
             
             # see if a job has run on this host in the past 45mins
             next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
@@ -498,16 +500,17 @@ PE
         
         # select which ones to terminate
         my $own_pdn = $VRPipe::Schedulers::ec2::meta->privateDnsName;
+        my ($own_host) = $own_pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
         my %to_terminate;
         foreach my $instance (@all_instances) {
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn;
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            next if $host eq $own_host;
             
             # don't terminate an instance that has a handler running on it right
             # now - possibly spawned by a production server
-            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
             next if $ec2_scheduler->_handler_processes($host);
             
             $to_terminate{$host} = $instance;
