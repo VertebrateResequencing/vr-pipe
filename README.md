@@ -1,28 +1,16 @@
-[You should read IMPORTANT_NOTES which notes version-specific issues]
-
-
 VRPipe is a generic pipeline system designed for use by the Vertebrate
 Resequencing team at the Sanger Institute, but also for broad use for anyone.
 
-For an overview of why it was created, read our vision document:
-https://github.com/VertebrateResequencing/vr-pipe/wiki/Vision
+See the [wiki](https://github.com/VertebrateResequencing/vr-pipe/wiki) for
+further details, including comprehensive installation and usage guides. There
+is also a complete guide for using VRPipe in Amazon's cloud, suitable even for
+those who have never used the cloud before.
 
-It comprises mostly self-documented Perl code. There are both scripts and 
-modules within subfolders.
-
-Help on each module is currently of limited availability, but eventually all
-will be self-documented with POD, which can be read with eg. perldoc.
-
-Each script has a --help option, eg:
-vrpipe-status --help
+The rest of this document covers the essentials, and includes some installation
+advice (how to install problematic CPAN dependencies) not present on the wiki.
 
 
-
-INSTALLATION
-------------
-
-For use on Amazon's cloud, see:
-https://github.com/VertebrateResequencing/vr-pipe/wiki/AWS
+# Install Pre-Requisites
 
 You will need the source version of samtools compiled with -fPIC and -m64 in the
 CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
@@ -48,77 +36,82 @@ You require Module::Build in order for the Build.PL script to work. It is
 recommended you 'install Bundle::CPAN' using 'cpan' prior to attempting setup.
 
 
-First, do the initial setup and dependency installation:
-$ perl Build.PL
+First, do the initial setup and dependency installation:  
+`perl Build.PL`
 
-If this says you have "ERRORS/WARNINGS FOUND IN PREREQUISITES" try:
-$ ./Build installdeps
+If this says you have "ERRORS/WARNINGS FOUND IN PREREQUISITES" try:  
+`./Build installdeps`  
 to install missing prerequisites from CPAN.
 
 installdeps will install things automatically in some random order, but ideally
 you should manually install certain modules in a specific order:
-1) EV
-2) AnyEvent
-3) Continuity (specifically its Coro dependency)
+
+1. EV
+2. AnyEvent
+3. Continuity (specifically its Coro dependency)
 
 Possible problems you may encounter in installing your missing prerequisites:
-# You may find that you have to unset your LANG environment variable temporarily
+
+* You may find that you have to unset your LANG environment variable temporarily
   to install all CPAN prerequisites.
-# You will likely find that Inline::Filters fails its preprocess.t test; this is
-  ok and you can manually use 'cpan' to:
-  cpan> force install Inline::Filters
-# You may find that MooseX::Types::Parameterizable fails its tests. In that case
-  you can manually use 'cpan' to install an earlier version that should work:
-  cpan> install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz
-# If you find that AnyEvent::ForkManager fails tests and emits errors
+* You will likely find that Inline::Filters fails its preprocess.t test; this is
+  ok and you can manually use `cpan` to:  
+  `cpan> force install Inline::Filters`
+* You may find that MooseX::Types::Parameterizable fails its tests. In that case
+  you can manually use 'cpan' to install an earlier version that should work:  
+  `cpan> install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz`
+* If you find that AnyEvent::ForkManager fails tests and emits errors
   mentioning WNOHANG, you will have to cd to the cpan build directory and edit
   line 11 of blib/lib/AnyEvent/ForkManager.pm to read "use POSIX qw(WNOHANG);"
-  (without the quotes). Then you can do "make test" and "make install".
-# Twiggy may fail its disconnect.t test. This is safe to ignore; just:
-  cpan> force install Twiggy
-# You may encounter difficulties installing Proc::ProcessTable, which is one of
+  (without the quotes). Then you can do `make test` and `make install`.
+* Twiggy may fail its disconnect.t test. This is safe to ignore; just:  
+  `cpan> force install Twiggy`
+* You may encounter difficulties installing Proc::ProcessTable, which is one of
   Proc::Killfam's dependencies. In that case, try manually installing an earlier
-  version of it before retrying the Proc::Killfam install normally:
-  cpan> install DURIST/Proc-ProcessTable-0.44.tar.gz
-# Some installs of Perl 5.8.8 can have trouble with Class::Accessor::Grouped (a
+  version of it before retrying the Proc::Killfam install normally:  
+  `cpan> install DURIST/Proc-ProcessTable-0.44.tar.gz`
+* Some installs of Perl 5.8.8 can have trouble with Class::Accessor::Grouped (a
   prerequisite of DBIx::Class), where some tests fail due to desired error
   messages not looking quite right. This should be harmless in reality, so just
-  force install it:
-  cpan> force install Class::Accessor::Grouped
+  force install it:  
+  `cpan> force install Class::Accessor::Grouped`  
   and then try the DBIx::Class installation again normally.
-# If you run into a problem installing XML::LibXML due to an inability to find
+* If you run into a problem installing XML::LibXML due to an inability to find
   the required libs, try using your OS package management system to install it,
-  eg. for Ubuntu:
-  sudo apt-get install libxml-libxml-perl
-# Likewise for XML::LibXSLT:
-  sudo apt-get install libxml-libxslt-perl
-# Crypt::Random has a prerequisite of Math::Pari, which in turn requires pari-gp
+  eg. for Ubuntu:  
+  `sudo apt-get install libxml-libxml-perl`
+* Likewise for XML::LibXSLT:  
+  `sudo apt-get install libxml-libxslt-perl`
+* Crypt::Random has a prerequisite of Math::Pari, which in turn requires pari-gp
   and may have trouble finding and using it. If you encounter problems, try
   entering the cpan build directory where it tried to build Math::Pari, then
-  do:
-  sudo wget ftp://megrez.math.u-bordeaux.fr/pub/pari/unix/OLD/pari-2.3.5.tar.gz
-  sudo perl Makefile.PL Configure pari_tgz=./pari-2.3.5.tgz
-  sudo make; sudo make test; sudo make install
-# Time::Format may fail some tests with errors mentioning problems with
+  do:  
+  `sudo wget ftp://megrez.math.u-bordeaux.fr/pub/pari/unix/OLD/pari-2.3.5.tar.gz`  
+  `sudo perl Makefile.PL Configure pari_tgz=./pari-2.3.5.tgz`  
+  `sudo make; sudo make test; sudo make install`
+* Time::Format may fail some tests with errors mentioning problems with
   Date::Manip. As long as you actually have Date::Manip installed, these
-  failures are probably fine and you can force the install:
-  cpan> force install Time::Format
-# Redis may fail one its tests due to an error message not being in the
-  expected format. This is safe to ignore:
-  cpan> force install Redis
-# If all the prerequisites seem to be installed but running 'perl Build.PL'
+  failures are probably fine and you can force the install:  
+  `cpan> force install Time::Format`
+* Redis may fail one its tests due to an error message not being in the
+  expected format. This is safe to ignore:  
+  `cpan> force install Redis`
+* If all the prerequisites seem to be installed but running 'perl Build.PL'
   gives you an error message mentioning problems with any kind of Moose module,
   one possibility is that you have a mixture of some new Moose modules and old
   ones. You can solve this by updating all your Moose-related modules to their
-  latest versions. Eg. if you have cpanm installed, try:
-  $ cpanm Class::MOP Fey Fey::ORM MooseX::Aliases MooseX::ClassAttribute
+  latest versions. Eg. if you have cpanm installed, try:  
+  `cpanm Class::MOP Fey Fey::ORM MooseX::Aliases MooseX::ClassAttribute
     MooseX::LazyRequire MooseX::Method::Signatures MooseX::NonMoose MooseX::POE
     MooseX::Role::Cmd MooseX::Role::Parameterized MooseX::SemiAffordanceAccessor
-    MooseX::Singleton MooseX::StrictConstructor
-# If you get as far as running "./Build test" (see below), and find some tests
+    MooseX::Singleton MooseX::StrictConstructor`
+* If you get as far as running `./Build test` (see below), and find some tests
   failing with an error message that mentions IO::Uncompress::Gunzip, try
-  installing the latest version of that:
-  cpan> install IO::Uncompress::Gunzip
+  installing the latest version of that:  
+  `cpan> install IO::Uncompress::Gunzip`
+
+
+# Configure
 
 Once the prerequisites are installed you will be asked a number of setup
 questions such as the details of your production and testing databases. It is
@@ -136,116 +129,127 @@ you have database replication set up, you may find that you have to reconfigure
 the server to binlog-mode=MIXED and restart/redo your replication server.
 To avoid possible issues we recommend MySQL 5.5 with the following settings in
 my.cnf, where the idea is to maximise transaction concurrency and performance:
-max_connections = 1000
-binlog_cache_size=32M
-innodb_log_file_size=512M
-innodb_log_files_in_group = 2
-innodb_file_per_table = 1
-innodb_fast_shutdown=0
-innodb_buffer_pool_size = 1G
-innodb_change_buffering=all
-innodb_flush_log_at_trx_commit=0
-innodb_log_buffer_size = 32M
-innodb_thread_concurrency=16
-innodb_concurrency_tickets=5000
-innodb_commit_concurrency=50
-innodb_autoinc_lock_mode=2
-binlog_format=mixed
-transaction_isolation = REPEATABLE-READ
-innodb_locks_unsafe_for_binlog = 0
+
+* max_connections = 1000
+* binlog_cache_size=32M
+* innodb_log_file_size=512M
+* innodb_log_files_in_group = 2
+* innodb_file_per_table = 1
+* innodb_fast_shutdown=0
+* innodb_buffer_pool_size = 1G
+* innodb_change_buffering=all
+* innodb_flush_log_at_trx_commit=0
+* innodb_log_buffer_size = 32M
+* innodb_thread_concurrency=16
+* innodb_concurrency_tickets=5000
+* innodb_commit_concurrency=50
+* innodb_autoinc_lock_mode=2
+* binlog_format=mixed
+* transaction_isolation = REPEATABLE-READ
+* innodb_locks_unsafe_for_binlog = 0
 
 The SGE (Sun|Oracle GridEngine) scheduler has only been tested with SGE 8.1.3
 from: https://arc.liv.ac.uk/trac/SGE. If tests get stuck and nothing happens
-with no obvious error messages, try running:
-$ perl -Imodules -It scripts/vrpipe-server --deployment testing --farm testing_farm -f --debug start
+with no obvious error messages, try running:  
+`perl -Imodules -It scripts/vrpipe-server --deployment testing --farm testing_farm -f --debug start`  
 which should provide an error message. You may then have to alter or subclass
 VRPipe::Schedulers::sge; bug reports or patches welcome.
-
 
 Once setup is complete modules/VRPipe/SiteConfig.pm will have been created. It
 is this file that holds your site-wide configuration of VRPipe.
 
+# Test
 
-To test the code prior to using it:
-$ ./Build test
+To test the code prior to using it:  
+`./Build test`
 
 (Note that there is currently an issue where the first time you ever run tests
 they will fail because the test database wasn't created yet; start the tests
-running until you get at least one 'ok' message, then ctrl-c to kill the tests,
+running until you get past the DataSource.t test, then ctrl-c to kill the tests,
 then start them again: they should now work)
 
 A number of environment variables affect which tests run and how. In most cases
 it is fine to not worry about these extra variables. They are described here for
 the sake of completeness.
-VRPIPE_TEST_PIPELINES, when true, will fully test all the pipelines and steps
+
+* VRPIPE_TEST_PIPELINES, when true, will fully test all the pipelines and steps
                        instead of just the core functionality of the system.
                        These tests take a very long time - potentially hours -
                        so this is off by default. If you're interested in
                        running a particular pipeline, you can test just that
                        pipeline by setting this variable to true and then
                        running:
-               $ ./Build test --test_files t/VRPipe/Pipelines/[name].t --verbose
-GATK, pointing to a directory containing GATK jar files, will enable tests that
+               `./Build test --test_files t/VRPipe/Pipelines/[name].t --verbose`
+* GATK, pointing to a directory containing GATK jar files, will enable tests that
       require GATK
-GATK2, pointing to a directory containing GATK version 2+ jar files, will enable
+* GATK2, pointing to a directory containing GATK version 2+ jar files, will enable
       tests that require GATK version 2 or higher
-PICARD, pointing to a directory containing Picard jar files, will enable tests
+* PICARD, pointing to a directory containing Picard jar files, will enable tests
       that require Picard
-CRAMTOOLS, pointing to a directory containing Cramtools jar files, will enable
+* CRAMTOOLS, pointing to a directory containing Cramtools jar files, will enable
       tests that require Cramtools
-TRIMMOMATIC_JAR_PATH, pointing to the timmomatic .jar file, will enable tests
+* TRIMMOMATIC_JAR_PATH, pointing to the timmomatic .jar file, will enable tests
       that require Trimmomatic
-CONVEX_R_LIB, pointing to a directory containing your R lib files, will enable
+* CONVEX_R_LIB, pointing to a directory containing your R lib files, will enable
       tests of Convex
-VRPIPE_VRTRACK_TESTDB will enable testing of the VRTrack DataSource, using the
+* VRPIPE_VRTRACK_TESTDB will enable testing of the VRTrack DataSource, using the
                       value supplied as the database name (other database
                       details will come from the standard VRTrack environment
                       variables)
+                      
 Additionally, tests that require certain executables will not run unless you
 have those executables in your PATH.
 
 
-To install:
-$ ./Build install
+# Install
+
+`./Build install`
+
 (or just include the modules subdirectory in your PERL5LIB, and include the
 scripts subdirectory in your PATH)
 
-To create your production database (testing database is created automatically):
-$ vrpipe-db_deploy
+To create your production database (testing database is created automatically):  
+`vrpipe-db_deploy`
 
 If in the future the VRPipe code is updated and there is a change to the schema,
-you will need to stop VRPipe, update your code, then run:
-$ vrpipe-db_upgrade
+you will need to stop VRPipe, update your code, then run:  
+`vrpipe-db_upgrade`
 
 
-To use:
+# Usage
+
 Ensure that vrpipe-server is always running on a machine that can submit jobs
 to your job scheduler (it must also be able to ssh to all other machines without
 a password), and that has at least 2GB of free memory (which probably means the
 machine must have at least 3GB physical memory), especially if using the local
-scheduler:
-$ vrpipe-server --farm my_farm start
-Now you can use vrpipe-create_step and vrpipe-create_pipeline to create
-pipelines if necessary. Then end-users can set up a pipeline using vrpipe-setup.
+scheduler:  
+`vrpipe-server --farm my_farm start`
+
+Now you can use `vrpipe-create_step` and `vrpipe-create_pipeline` to create
+pipelines if necessary. Then end-users can set up a pipeline using `vrpipe-setup`.
 vrpipe-setup and vrpipe-status will be the most commonly used scripts. The web
 front-end is currently limited to providing status, but it does so a bit nicer
 and a bit faster than vrpipe-status cmd line tool. You can alter what it
 displays by manually appending vrpipe-status arguments to the url, eg.
 http://[serverurl]/status?brief=1&incomplete=1&user=me
 
-Access to output files can be achieved with vrpipe-output. When you have an
-output file but can't remember how it was made, use vrpipe-fileinfo.
+Access to output files can be achieved with `vrpipe-output`. When you have an
+output file but can't remember how it was made, use `vrpipe-fileinfo`.
+
+Each vrpipe-* script has a --help option, eg:  
+`vrpipe-status --help`
 
 As a general point, any Perl script you write that wants to use some VRPipe
 code should typically "use VRPipe;". After that most things should work without
 further "use" statements. To choose the deployment you can "import" the one you
-want. eg. to work with your testing database:
-    use VRPipe 'testing';
-or on the command-line:
-$ perl -MVRPipe=testing -e '...'
+want. eg. to work with your testing database:  
+`use VRPipe 'testing';`  
+or on the command-line:  
+`perl -MVRPipe=testing -e '...'`
 
 
-When things go wrong:
+# When Things Go Wrong
+
 For normal errors caused by failing jobs in a pipeline, and for most other
 issues, you should receive an email that either specifies the problem, or asks
 you to investigate (and fix) with vrpipe-submissions. Using vrpipe-status will
@@ -267,22 +271,20 @@ completed successfully. Just be careful not to redo any step that outputs files
 that might be used by other running jobs in your setup, or by other setups.
 
 
-
-EXTERNAL SOFTWARE
------------------
+# External Software
 
 Some software need environment variables setup (using setenv in csh or export in
 bash). The following list shows the name of the software, the environment
 variable you need to set, and the value you should set it to, separated by
 commas.
 
-samtools,SAMTOOLS,/path/to/samtools/source_directory
-cramtools,CRAMTOOLS,/path/to/cramtools_jar_files
+* samtools,SAMTOOLS,/path/to/samtools/source_directory
+* cramtools,CRAMTOOLS,/path/to/cramtools_jar_files
 
-eg. to have cramtools work properly in the pipelines you might do:
-setenv CRAMTOOLS /path/to/cramtools_jar_files
-or
-export CRAMTOOLS=/path/to/cramtools_jar_files
+eg. to have cramtools work properly in the pipelines you might do:  
+`setenv CRAMTOOLS /path/to/cramtools_jar_files`  
+or  
+`export CRAMTOOLS=/path/to/cramtools_jar_files`  
 depending on what shell you are using.
 
 These values are used internally and are independent of values you might set
@@ -292,16 +294,16 @@ A number of other environment variables are used to setup default values for
 when running vrpipe-setup, but are not required to use the software (ie. you can
 just manually enter the required path each time you setup the pipeline):
 
-GATK,GATK,/path/to/GATK_jar_files
-GATK2,GATK2,/path/to/GATK2_jar_files
-picard,PICARD,/path/to/picard_jar_files
-R,R_LIB,/path/to/R_library_files
-bismark,BISMARK_GENOME_FOLDER,/path/to/bismark_genome_files
-trimmomatic,TRIMMOMATIC_JAR_PATH,/path/to/trimmomatic_jar_file
+* GATK,GATK,/path/to/GATK_jar_files
+* GATK2,GATK2,/path/to/GATK2_jar_files
+* picard,PICARD,/path/to/picard_jar_files
+* R,R_LIB,/path/to/R_library_files
+* bismark,BISMARK_GENOME_FOLDER,/path/to/bismark_genome_files
+* trimmomatic,TRIMMOMATIC_JAR_PATH,/path/to/trimmomatic_jar_file
 
 
-COPYRIGHT & LICENSE
--------------------
+# COPYRIGHT & LICENSE
+
 Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
@@ -316,7 +318,7 @@ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program. If not, see L<http://www.gnu.org/licenses/>.
+this program. If not, see http://www.gnu.org/licenses/.
 
 The usage of a range of years within a copyright statement contained within this
 distribution should be interpreted as being equivalent to a list of years
