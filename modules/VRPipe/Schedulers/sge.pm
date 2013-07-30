@@ -75,7 +75,7 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
             chomp;
             push(@queues, $_) if $_;
         }
-        close($sqlfh) || $self->throw("Could not close a pipe from qconf -sql");
+        close($sqlfh);
         
         foreach my $queue (@queues) {
             open(my $sqfh, "qconf -sq $queue |") || $self->throw("Could not open a pipe from qconf -sq $queue");
