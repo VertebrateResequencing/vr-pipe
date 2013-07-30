@@ -9,6 +9,9 @@ those who have never used the cloud before.
 The rest of this document covers the essentials, and includes some installation
 advice (how to install problematic CPAN dependencies) not present on the wiki.
 
+NB: when upgrading, always read the IMPORTANT_NOTES file and follow the guidance
+for all versions since your currently installed version.
+
 
 # Install Pre-Requisites
 
