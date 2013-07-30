@@ -222,9 +222,6 @@ PE
     around initialize {
         return if $initialized;
         
-        # call sge's initialize method
-        $self->$orig();
-        
         mkdir($sge_confs_dir) unless -d $sge_confs_dir;
         
         # pe: give us a parallel environment for threaded jobs
@@ -308,6 +305,9 @@ PE
             close($fh);
         }
         system('qconf -Msconf ' . $s_file);
+        
+        # call sge's initialize method
+        $self->$orig();
         
         $initialized = 1;
     }
@@ -429,6 +429,7 @@ PE
         my $max_do_nothing_time = $deployment eq 'production' ? $min_uptime : int($min_uptime / 10);
         my %to_terminate;
         my $own_pdn = $VRPipe::Schedulers::ec2::meta->privateDnsName;
+        my ($own_host) = $own_pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
         while (my ($host, $details) = each %hosts) {
             # ones we just now launched probably won't be running anything yet
             next if exists $launched_hosts{$host};
@@ -450,18 +451,19 @@ PE
             my ($instance) = $ec2->describe_instances({ 'private-ip-address' => $ip });
             next unless $instance;
             if ($deployment eq 'production') {
-                next unless $instance->uptime >= $min_uptime;
+                next unless $instance->up_time >= $min_uptime;
             }
             else {
                 # when testing, allow 5mins for a newly launched node to become
                 # responsive to ssh
-                next if $instance->uptime < 300;
+                next if $instance->up_time < 300;
             }
             
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn;
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            next if $host eq $own_host;
             
             # see if a job has run on this host in the past 45mins
             next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
@@ -498,16 +500,17 @@ PE
         
         # select which ones to terminate
         my $own_pdn = $VRPipe::Schedulers::ec2::meta->privateDnsName;
+        my ($own_host) = $own_pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
         my %to_terminate;
         foreach my $instance (@all_instances) {
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
             my $pdn = $instance->privateDnsName;
-            next if $pdn eq $own_pdn;
+            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
+            next if $host eq $own_host;
             
             # don't terminate an instance that has a handler running on it right
             # now - possibly spawned by a production server
-            my ($host) = $pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
             next if $ec2_scheduler->_handler_processes($host);
             
             $to_terminate{$host} = $instance;

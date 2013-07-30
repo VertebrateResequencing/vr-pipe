@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::penncnv - a pipeline
+VRPipe::Pipelines::penncnv_cnv_calling - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,9 +33,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::penncnv with VRPipe::PipelineRole {
+class VRPipe::Pipelines::penncnv_cnv_calling with VRPipe::PipelineRole {
     method name {
-        return 'penncnv';
+        return 'penncnv_cnv_calling';
     }
     
     method description {

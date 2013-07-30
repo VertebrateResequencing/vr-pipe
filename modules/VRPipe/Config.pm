@@ -190,7 +190,7 @@ class VRPipe::Config {
     
     has ec2_access_key => (
         is              => 'rw',
-        question        => 'What is your AWS access key (a string found at https://console.aws.amazon.com/iam/home?#security_credential)?',
+        question        => 'What is your AWS access key (given when you first made your IAM user, who needs full EC2 permissions)?',
         skip            => '_skip_unless_ec2_scheduler',
         env             => 'AWS_ACCESS_KEY',
         secure          => 1,
@@ -199,7 +199,7 @@ class VRPipe::Config {
     
     has ec2_secret_key => (
         is              => 'rw',
-        question        => 'What is your AWS secret key (generated at https://console.aws.amazon.com/iam/home?#security_credential)?',
+        question        => 'What is your AWS secret key (given when you first made your IAM user, who needs full EC2 permissions)?',
         skip            => '_skip_unless_ec2_scheduler',
         env             => 'AWS_SECRET_KEY',
         secure          => 1,

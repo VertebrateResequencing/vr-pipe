@@ -43,11 +43,11 @@ class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            cnv_file => VRPipe::StepIODefinition->create(
+            cnv_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 max_files   => -1,
                 description => 'Output from hipsci pipeline',
-                metadata    => { sample => 'sample name for cell line', control => 'determine if cell line is control or stem cell', individual => 'cohort id', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
+                metadata    => { sample => 'sample name for cell line', control => 'determine if cell line is control or stem cell', individual => 'cohort id', analysis_uuid => 'analysis_uuid' },
             )
         };
     }
@@ -59,14 +59,14 @@ class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
             my $cell_control_tag  = $options->{cell_control_tag};
             my $cnv_analysis_type = $options->{cnv_analysis_type};
             my $req               = $self->new_requirements(memory => 500, time => 1);
-            foreach my $cnv_file (@{ $self->inputs->{cnv_file} }) {
+            foreach my $cnv_file (@{ $self->inputs->{cnv_files} }) {
                 my $cnv_path   = $cnv_file->path;
                 my $meta       = $cnv_file->metadata;
                 my $sample     = $meta->{sample};
                 my $control    = $meta->{control};
                 my $individual = $meta->{individual};
-                my $basename   = $control eq $cell_control_tag ? $individual . '_' . $cnv_analysis_type . '_CONTROL.bed' : $individual . '_' . $sample . '_' . $cnv_analysis_type . '.bed';
-                my $bed_file   = $self->output_file(output_key => 'bed_file', basename => "$basename", type => 'txt', metadata => $cnv_file->metadata);
+                my $basename   = $control eq $cell_control_tag ? $individual . '_' . $sample . '_' . $cnv_analysis_type . '_CONTROL.bed' : $individual . '_' . $sample . '_' . $cnv_analysis_type . '.bed';
+                my $bed_file   = $self->output_file(output_key => 'bed_files', basename => "$basename", type => 'txt', metadata => $cnv_file->metadata);
                 my $bed_path   = $bed_file->path;
                 my $cmd        = "use VRPipe::Steps::reformat_cnv_output_to_bed; VRPipe::Steps::reformat_cnv_output_to_bed->bed_conversion_output(q[$cnv_path], q[$bed_path], q[$cnv_analysis_type]);";
                 $self->dispatch_vrpipecode($cmd, $req, { output_files => [$bed_file] });
@@ -76,12 +76,12 @@ class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
     
     method outputs_definition {
         return {
-            bed_file => VRPipe::StepIODefinition->create(
+            bed_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'Converted bed format file for CNV comparison',
-                max_files   => -1,                                                                                                                    # -1 = As many as you like
+                max_files   => -1,                                                                                                                                                                 # -1 = As many as you like
                 min_files   => 0,
-                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
+                metadata    => { sample => 'sample name for cell line', control => 'determine if cell line is control or stem cell', individual => 'cohort id', analysis_uuid => 'analysis_uuid' },
             )
         };
     }
@@ -114,8 +114,10 @@ class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
             if ($cnv_type eq 'penncnv') {
                 @cnv_chr_arr = split(/^chr(.*)\:([0-9]+)\-([0-9]+)/, $cnv_chr_arr[0]);
             }
-            print $bed_fh join("\t", @cnv_chr_arr[1 .. 3]), "\n";
-            $expected_lines++;
+            if ($cnv_chr_arr[3] =~ /^[0-9]+$/) {
+                print $bed_fh join("\t", @cnv_chr_arr[1 .. 3]), "\n";
+                $expected_lines++;
+            }
         }
         $bed_file->close;
         

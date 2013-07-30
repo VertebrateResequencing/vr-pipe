@@ -1,15 +1,17 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::hipsci_cnv_control_removal - a pipeline
+VRPipe::Pipelines::vrtrack_update_mapstats_hipsci - a pipeline
 
 =head1 DESCRIPTION
 
-Remove control CNV from stem cell CNVs.
+Update vrtrack mapstats table with cnv calling data. Specifically, numbers of
+CNVs with and without those  intersecting with the control sample CNVs removed.
+The chromosome coordinates are also stored.
 
 =head1 AUTHOR
 
-Phil Carter <pc12@sanger.ac.uk>, John Maslen <jm23@sanger.ac.uk>.
+John Maslen <jm23@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -33,28 +35,22 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::hipsci_cnv_control_removal with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vrtrack_update_mapstats_hipsci with VRPipe::PipelineRole {
     method name {
-        return 'hipsci_cnv_control_removal';
+        return 'vrtrack_update_mapstats_hipsci';
     }
     
     method description {
-        return 'Remove control CNV';
+        return 'Pipeline to update vrtrack mapstats for hipsci genotyping post CNV calling';
     }
     
     method step_names {
-        (
-            'reformat_cnv_output_to_bed',
-        );
+        ('vrtrack_update_mapstats_hipsci');
     }
     
     method adaptor_definitions {
-        ({ from_step => 0, to_step => 1, to_key => 'cnv_file' });
+        ({ from_step => 0, to_step => 1, to_key => 'diff_files' });
     }
-    
-    #~ method behaviour_definitions {
-    #~ ({ after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0 });
-    #~ }
 }
 
-1; # needs this to exit correctly as a package
+1;

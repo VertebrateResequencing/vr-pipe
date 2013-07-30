@@ -1,13 +1,11 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::quantisnp - a pipeline
+VRPipe::Pipelines::cnv_control_comparison - a pipeline
 
 =head1 DESCRIPTION
 
-Reformats the gene expression files outputted by Genome Studio and then runs
-the R PluriTest  analysis package on these reformatted files to generate graphs
-and ancillary data for analysis of pluripotency.
+Remove control CNV from stem cell CNVs.
 
 =head1 AUTHOR
 
@@ -35,26 +33,26 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::quantisnp with VRPipe::PipelineRole {
+class VRPipe::Pipelines::cnv_control_comparison with VRPipe::PipelineRole {
     method name {
-        return 'quantisnp';
+        return 'cnv_control_comparison';
     }
     
     method description {
-        return 'Reformat genotyping data for use with QuantiSNP, then detect CNVs using Quantisnp';
+        return 'Reformat CNV files from penncnv or quantisnp into bed format, then compare sample CNV output to that of the control cell type. Produces output files of intersection between control and sample and sample minus contol (i.e. the diff)';
     }
     
     method step_names {
         (
-            'quantisnp_reformat_gs_export',
-            'quantisnp_detect_cnv'
+            'reformat_cnv_output_to_bed',
+            'cnv_control_comparison'
         );
     }
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key => 'stepOne_file_input_GS_file' },                                                              # 1st step takes the gs file as input
-            { from_step => 1, to_step => 2, from_key =>, 'stepOne_file_output_reformatted_file', to_key => 'stepTwo_file_input_reformatted_file' } # 2nd step takes as input the reformat files produced by the first step
+            { from_step => 0, to_step => 1, to_key   => 'cnv_files' },
+            { from_step => 1, to_step => 2, from_key => 'bed_files', to_key => 'bed_files' }
         );
     }
     
@@ -63,4 +61,4 @@ class VRPipe::Pipelines::quantisnp with VRPipe::PipelineRole {
     }
 }
 
-1;                                                                                                                                                 # needs this to exit correctly as a package
+1;
