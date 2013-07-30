@@ -222,9 +222,6 @@ PE
     around initialize {
         return if $initialized;
         
-        # call sge's initialize method
-        $self->$orig();
-        
         mkdir($sge_confs_dir) unless -d $sge_confs_dir;
         
         # pe: give us a parallel environment for threaded jobs
@@ -308,6 +305,9 @@ PE
             close($fh);
         }
         system('qconf -Msconf ' . $s_file);
+        
+        # call sge's initialize method
+        $self->$orig();
         
         $initialized = 1;
     }
@@ -451,12 +451,12 @@ PE
             my ($instance) = $ec2->describe_instances({ 'private-ip-address' => $ip });
             next unless $instance;
             if ($deployment eq 'production') {
-                next unless $instance->uptime >= $min_uptime;
+                next unless $instance->up_time >= $min_uptime;
             }
             else {
                 # when testing, allow 5mins for a newly launched node to become
                 # responsive to ssh
-                next if $instance->uptime < 300;
+                next if $instance->up_time < 300;
             }
             
             # don't terminate ourselves - the server that calls this method
