@@ -1,3 +1,6 @@
+0.162   Fixes for the ec2-related schedulers. README file reformatted as
+        README.md. The VRPipe wiki on github now contains detailed installation
+        and usage guides.
 0.161   bam_to_fastq step now supports merged bam files containing multiple
         lanes.
 0.160   Large speed improvement and fixes for steps when they are fed thousands
