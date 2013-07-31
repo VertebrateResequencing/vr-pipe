@@ -413,7 +413,9 @@ role VRPipe::StepRole {
                 # any more)
                 if ($check_s) {
                     # double-check incase the step did not update_stats_from_disc
-                    if (-s $resolved->path != $resolved->s) {
+                    my $actual_s   = -s $resolved->path;
+                    my $resolved_s = $resolved->s;
+                    if ((defined $actual_s && defined $resolved_s && $actual_s != $resolved_s) || (!defined $actual_s && $resolved_s) || (defined $actual_s && !defined $resolved_s)) {
                         $resolved->update_stats_from_disc(retries => 1);
                     }
                     $file->update_stats_from_disc(retries => 1) unless $resolved->id == $file->id;
