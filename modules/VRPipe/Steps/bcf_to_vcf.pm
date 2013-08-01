@@ -211,6 +211,12 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         $output_file->update_stats_from_disc(retries => 3);
         
+        my $ft = VRPipe::FileType->create('vcf', { file => $output_path });
+        unless ($ft->num_header_lines > 0) {
+            $output_file->unlink;
+            $self->throw("Output VCF [$output_path] has no header lines");
+        }
+        
         my $output_records = $output_file->num_records;
         if ($output_records < $minimum_records) {
             $output_file->unlink;
