@@ -57,8 +57,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use DateTime;
     use DateTime::Format::Natural;
     use DateTime::TimeZone;
+    use VRPipe::Config;
     
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
+    
+    my $vrp_config = VRPipe::Config->new();
+    my $admin_user = $vrp_config->admin_user();
+    $admin_user = "$admin_user";
     
     has 'name' => (
         is     => 'rw',
@@ -120,7 +125,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         is      => 'rw',
         isa     => Varchar [64],
         traits  => ['VRPipe::Persistent::Attributes'],
-        default => 'vrpipe'
+        default => $admin_user
     );
     
     has 'desired_farm' => (
