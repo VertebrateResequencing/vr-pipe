@@ -36,6 +36,7 @@ use POSIX qw(floor);
 use List::Util 'shuffle';
 use Path::Class;
 use Cwd 'getcwd';
+use Digest::MD5;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -174,6 +175,7 @@ sub start_server {
     
     $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
     my $timer_interval = $deployment eq 'production' ? 30 : 5;
+    my $inter_message_time = 3600;
     
     my $watcher_error_sub = sub {
         my $err = $@ || return;
@@ -189,6 +191,30 @@ sub start_server {
             $err         = 'VRPipe database not created yet, cannot do all functions';
             $email_admin = 0;
         }
+        
+        # only log the same error message once per hour
+        my $redis = $backend->redis;
+        if ($redis) {
+            # try and make the 'same' error message that differs only by
+            # references in stack traces literally the same
+            my $standardised_error = $err;
+            $standardised_error =~ s/(SCALAR|ARRAY|HASH|CODE|REF)\([^\)]+\)/$1()/g;
+            
+            # get the md5 checksum of the message to use as a key name for
+            # a redis lock
+            my $dmd5 = Digest::MD5->new();
+            $dmd5->add($standardised_error);
+            my $checksum = $dmd5->hexdigest;
+            
+            # do not log if we can't get a lock
+            unless ($redis->set($checksum => 1, EX => $inter_message_time, 'NX')) {
+                return;
+            }
+        }
+        else {
+            return;
+        }
+        
         $backend->log($err, email_admin => $email_admin);
     };
     
