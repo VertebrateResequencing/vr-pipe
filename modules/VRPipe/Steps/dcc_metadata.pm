@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -72,39 +72,18 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             unless ($release_date =~ /^\d{8}$/) {
                 $self->throw("Release date ($release_date) not of the correct form (YYYYMMDD).");
             }
+            my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 $bam->add_metadata({ release_date => $release_date }, replace_data => 0);
                 my $in_path  = $bam->path;
-                my $ofile    = $self->output_file(output_key => 'dcc_ready_bam_files', basename => $bam->basename, type => 'bam', metadata => $bam->metadata);
-                my $out_path = $ofile->path;
-                my $req      = $self->new_requirements(memory => 500, time => 1);
-                my $this_cmd = "use VRPipe::Steps::dcc_metadata; VRPipe::Steps::dcc_metadata->check_dcc_metadata(q[$in_path], q[$out_path], sequence_index => q[$sequence_index]);";
-                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$ofile] });
+                my $this_cmd = "use VRPipe::Steps::dcc_metadata; VRPipe::Steps::dcc_metadata->check_dcc_metadata(q[$in_path], sequence_index => q[$sequence_index]);";
+                $self->dispatch_vrpipecode($this_cmd, $req);
             }
         };
     }
     
     method outputs_definition {
-        return {
-            dcc_ready_bam_files => VRPipe::StepIODefinition->create(
-                type        => 'bam',
-                description => 'a bam file with associated metadata',
-                max_files   => -1,
-                metadata    => {
-                    sample         => 'sample name',
-                    center_name    => 'center name',
-                    library        => 'library name',
-                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                    study          => 'name of the study, put in the DS field of the RG header line',
-                    population     => 'sample population',
-                    analysis_group => 'project analysis group',
-                    split_sequence => 'chromosomal split',
-                    reads          => 'total number of reads (sequences)',
-                    release_date   => 'DCC sequence index release date',
-                    optional       => ['library', 'study', 'center_name', 'split_sequence']
-                }
-            )
-        };
+        return {};
     }
     
     method post_process_sub {
@@ -118,15 +97,12 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;          # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
-    method check_dcc_metadata (ClassName|Object $self: Str|File $bam!, Str|File $symlink!, Str|File :$sequence_index!) {
+    method check_dcc_metadata (ClassName|Object $self: Str|File $bam!, Str|File :$sequence_index!) {
         unless (ref($bam) && ref($bam) eq 'VRPipe::File') {
             $bam = VRPipe::File->get(path => file($bam));
-        }
-        unless (ref($symlink) && ref($symlink) eq 'VRPipe::File') {
-            $symlink = VRPipe::File->get(path => file($symlink));
         }
         my $meta = $bam->metadata;
         
@@ -142,7 +118,7 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
         my %si_lanes;
         while ($sip->next_record()) {
             next if ($parsed_record->[20]);
-            next unless ($parsed_record->[9]  eq $meta->{sample});
+            next unless ($parsed_record->[9] eq $meta->{sample});
             next unless ($parsed_record->[12] eq $meta->{platform});
             next unless ($parsed_record->[25] eq $meta->{analysis_group});
             $si_lanes{ $parsed_record->[2] } = 1;
@@ -198,7 +174,6 @@ class VRPipe::Steps::dcc_metadata with VRPipe::StepRole {
             $self->throw(join "\n", @fails);
         }
         else {
-            $bam->symlink($symlink);
             return 1;
         }
     }

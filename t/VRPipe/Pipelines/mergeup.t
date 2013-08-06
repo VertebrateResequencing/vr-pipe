@@ -149,10 +149,16 @@ handle_pipeline(@mapping_files);
 
 my @split_files;
 my @split_files_removed;
+my @release_bais;
 foreach my $element (@{ get_elements($merge_libraries_pipelinesetup->datasource) }) {
     my @output_subdirs = output_subdirs($element->id, 3);
     foreach my $file ('fake_chr1.pe.1.bam', 'fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
         push(@split_files, file(@output_subdirs, '4_bam_split_by_sequence', $file));
+        
+        # release pipeline also makes indexes on these bams
+        unless ($file eq 'fake_chr1.pe.1.bam') {
+            push(@release_bais, $split_files[-1] . '.bai');
+        }
     }
     if ($element->result->{group} =~ /SAMPLE01/) {
         push @split_files_removed, (1, 1, 1);
@@ -167,22 +173,20 @@ my @release_files_removed;
 foreach my $element (@{ get_elements($release_pipeline_setup->datasource) }) {
     my @output_subdirs = output_subdirs($element->id, 4);
     foreach my $file ('fake_chr2.pe.1.bam', 'unmapped.pe.1.bam') {
-        push(@release_files, file(@output_subdirs, '1_dcc_metadata',        $file));
-        push(@release_files, file(@output_subdirs, '1_dcc_metadata',        $file . '.bai'));
         push(@release_files, file(@output_subdirs, '3_bam_stats',           $file . '.bas'));
         push(@release_files, file(@output_subdirs, '4_md5_file_production', $file . '.md5'));
         push(@release_files, file(@output_subdirs, '5_md5_file_production', $file . '.bai.md5'));
         push(@release_files, file(@output_subdirs, '6_md5_file_production', $file . '.bas.md5'));
     }
     if ($element->result->{group} =~ /SAMPLE01/) {
-        push @release_files_removed, (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+        push @release_files_removed, (1, 1, 1, 1, 1, 1, 1, 1);
     }
     else {
-        push @release_files_removed, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        push @release_files_removed, (0, 0, 0, 0, 0, 0, 0, 0);
     }
 }
 
-ok handle_pipeline(@mapping_files, @split_files, @release_files), 'pipelines ran ok and correct output files created';
+ok handle_pipeline(@mapping_files, @split_files, @release_bais, @release_files), 'pipelines ran ok and correct output files created';
 
 is_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 1, stepmember => 6, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 1, stepmember => 7, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 1, stepmember => 8, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 2, stepmember => 11, dataelement => 5)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 2, stepmember => 12, dataelement => 5)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 3, stepmember => 13, dataelement => 8)->cmd_summary->summary], ['bwa index -a is $reference_fasta', 'bwa aln -q 15 -f $sai_file $reference_fasta $fastq_file', 'bwa sampe -a 600 -r $rg_line -f $sam_file $reference_fasta $sai_file(s) $fastq_file(s)', 'samtools view -bSu $sam_file | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd -u - $reference_fasta > $fixed_bam_file', 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam VALIDATION_STRINGENCY=SILENT', 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT', 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam VALIDATION_STRINGENCY=SILENT'], 'cmd summaries for the major steps were as expected';
 
