@@ -46,7 +46,7 @@ class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::Pipelin
     
     method step_names {
         (
-            'pluritest_merge_annotation_files',
+            'pluritest_annotation_profile_files',
             'pluritest_reformat_genome_studio_expression_files',
             'pluritest_plot_gene_expression',
             'pluritest_vrtrack_update_images',
