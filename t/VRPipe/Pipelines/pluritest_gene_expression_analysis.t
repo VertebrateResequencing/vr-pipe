@@ -112,7 +112,7 @@ foreach my $stepmember ($merge_pipeline->step_members) {
     push(@sb_names, $stepmember->step->name);
 }
 
-is_deeply \@sb_names, [qw(pluritest_merge_annotation_files pluritest_reformat_genome_studio_expression_files pluritest_plot_gene_expression pluritest_vrtrack_update_images)], 'the pluritest_gene_expression_analysis pipeline has the correct steps';
+is_deeply \@sb_names, [qw(pluritest_annotation_profile_files pluritest_reformat_genome_studio_expression_files pluritest_plot_gene_expression pluritest_vrtrack_update_images)], 'the pluritest_gene_expression_analysis pipeline has the correct steps';
 
 my $r_bin_path       = '/software/vertres/installs/R-2.15/R';
 my $pluritest_script = '/software/vertres/scripts/pluriTest_commandLine_vrpipe.r';
