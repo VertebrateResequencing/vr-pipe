@@ -42,9 +42,7 @@ class VRPipe::Steps::fastq_metadata_many extends VRPipe::Steps::fastq_metadata {
             
             my (@outfiles, @io_map);
             foreach my $fq_file (@{ $self->inputs->{fastq_files} }) {
-                # our output file is our input file
                 my $ifile = $fq_file->path;
-                $self->output_file(output_key => 'fastq_files_with_metadata', output_dir => $ifile->dir, basename => $ifile->basename, type => 'fq');
                 
                 # we expect the datasource to fill in most if not all metadata,
                 # but some things may need calculating
@@ -62,7 +60,7 @@ class VRPipe::Steps::fastq_metadata_many extends VRPipe::Steps::fastq_metadata {
                 my $files_string = join ',', @io_map;
                 my $req = $self->new_requirements(memory => 500, time => 1);
                 my $this_cmd = "use VRPipe::Steps::fastq_metadata_many; VRPipe::Steps::fastq_metadata_many->stats_from_fastqcheck_many(fastqcheck => $fastqcheck_exe, files => { $files_string });";
-                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
+                $self->dispatch_vrpipecode($this_cmd, $req);
             }
         };
     }
@@ -76,7 +74,7 @@ class VRPipe::Steps::fastq_metadata_many extends VRPipe::Steps::fastq_metadata {
             my $self = shift;
             
             my $all_ok = 1;
-            foreach my $ofile (@{ $self->outputs->{fastq_files_with_metadata} }) {
+            foreach my $ofile (@{ $self->inputs->{fastq_files} }) {
                 my $meta = $ofile->metadata;
                 unless ($meta->{bases} && $meta->{reads} && $meta->{avg_read_length}) {
                     $self->warn("some metadata was missing from the dataelement of " . $ofile->path . ", and our fastqcheck run failed to resolved that");
