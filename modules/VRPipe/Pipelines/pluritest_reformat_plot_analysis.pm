@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::pluritest_gene_expression_analysis - a pipeline
+VRPipe::Pipelines::pluritest_reformat_plot_analysis - a pipeline
 
 =head1 DESCRIPTION
 
@@ -35,9 +35,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::PipelineRole {
+class VRPipe::Pipelines::pluritest_reformat_plot_analysis with VRPipe::PipelineRole {
     method name {
-        return 'pluritest_gene_expression_analysis';
+        return 'pluritest_reformat_plot_analysis';
     }
     
     method description {
@@ -46,27 +46,23 @@ class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::Pipelin
     
     method step_names {
         (
-            'pluritest_merge_annotation_files',
-            'pluritest_reformat_genome_studio_expression_files',
-            'pluritest_plot_gene_expression',
-            'pluritest_vrtrack_update_images',
+            'genome_studio_expression_reformat',
+            'plot_pluritest_gene_expression'
         );
     }
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key   => 'idat_files' },
-            { from_step => 1, to_step => 2, from_key => 'profile_file', to_key => 'profile_files' },
-            { from_step => 1, to_step => 2, from_key => 'annotation_file', to_key => 'annotation_files' },
-            { from_step => 1, to_step => 2, from_key => 'mapping_file', to_key => 'mapping_files' },
-            { from_step => 2, to_step => 3, from_key =>, 'reformat_files', to_key => 'conv_files' },
-            { from_step => 3, to_step => 4, from_key =>, 'pluritest_plots', to_key => 'pluritest_plots' },
+            { from_step => 0, to_step => 1, to_key   => 'profile_files' },
+            { from_step => 0, to_step => 1, to_key   => 'annotation_files' },
+            { from_step => 0, to_step => 1, to_key   => 'mapping_files' },
+            { from_step => 1, to_step => 2, from_key =>, 'reformat_files', to_key => 'conv_files' },
         );
     }
     
-    method behaviour_definitions {
-        ({ after_step => 4, behaviour => 'delete_outputs', act_on_steps => [1, 2], regulated_by => 'cleanup', default_regulation => 0 });
-    }
+    #~ method behaviour_definitions {
+    #~ ({ after_step => 1, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0 });
+    #~ }
 }
 
 1;
