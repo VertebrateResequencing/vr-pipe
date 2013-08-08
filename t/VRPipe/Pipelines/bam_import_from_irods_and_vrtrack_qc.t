@@ -141,7 +141,8 @@ is_deeply $meta,
     targeted_rmdup_reads_mapped     => "7764264",
     targeted_bases_of_100X_coverage => "240676",
     targeted_rmdup_bases            => "778373600",
-    targeted_forward_reads          => "3930964"
+    targeted_forward_reads          => "3930964",
+    targeted_filtered_reads         => "7861907"
   },
   'metadata correct for one of the bam files';
 
