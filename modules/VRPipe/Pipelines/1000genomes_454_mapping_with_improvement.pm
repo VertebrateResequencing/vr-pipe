@@ -83,6 +83,7 @@ class VRPipe::Pipelines::1000genomes_454_mapping_with_improvement with VRPipe::P
             { from_step => 11, to_step => 13, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 13, to_step => 14, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 13, to_step => 15, from_key => 'realigned_bam_files', to_key => 'bam_files' },
+            { from_step => 14, to_step => 15, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 15, to_step => 16, from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
             { from_step => 13, to_step => 16, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 14, to_step => 16, from_key => 'bai_files', to_key => 'bai_files' },

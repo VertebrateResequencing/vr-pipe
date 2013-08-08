@@ -56,7 +56,12 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files') };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files'),
+            # gatk requires the bam files already be indexed, but we otherwise
+            # don't refer to them in this step
+            bai_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'index files for the input bam files')
+        };
     }
     
     method body_sub {
