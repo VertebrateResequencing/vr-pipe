@@ -51,6 +51,7 @@ class VRPipe::Steps::vrtrack_update_mapstats_hipsci extends VRPipe::Steps::vrtra
     
     method body_sub {
         return sub {
+            #add metadata for analysis type to add to mapstats, i.e. penncnv/quantisnp.....
             my $self = shift;
             my $opts = $self->options;
             my $db   = $opts->{vrtrack_db};

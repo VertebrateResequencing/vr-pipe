@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::pluritest_merge_annotation_files - a step
+VRPipe::Steps::pluritest_annotation_profile_files - a step
 
 =head1 DESCRIPTION
 
@@ -45,7 +45,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::pluritest_merge_annotation_files  with VRPipe::StepRole  {
+class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  {
     use File::Compare qw(compare_text);
     #use File::Basename qw(basename);
     method options_definition {
@@ -136,7 +136,7 @@ class VRPipe::Steps::pluritest_merge_annotation_files  with VRPipe::StepRole  {
             my $mapping_file_path           = $mapping_file->path;
             my $profile_file                = $self->output_file(output_key => 'profile_file', basename => $random . '_profile.txt', type => 'txt');
             my $profile_file_path           = $profile_file->path;
-            my $this_cmd                    = "use VRPipe::Steps::pluritest_merge_annotation_files; VRPipe::Steps::pluritest_merge_annotation_files->merge_annotation_files(q[$merged_annotation_file_path], q[$mapping_file_path], q[$profile_file_path], q[$header_regex], q[$random], profile_paths => [qw(@profile_paths)], annotation_paths => [qw(@annotation_paths)], sample_tags => { $map_string }, profile_lanes => [qw(@profile_lanes)], annot_profile_map => [qw(@annot_profile_map)]);";
+            my $this_cmd                    = "use VRPipe::Steps::pluritest_annotation_profile_files; VRPipe::Steps::pluritest_annotation_profile_files->merge_annotation_files(q[$merged_annotation_file_path], q[$mapping_file_path], q[$profile_file_path], q[$header_regex], q[$random], profile_paths => [qw(@profile_paths)], annotation_paths => [qw(@annotation_paths)], sample_tags => { $map_string }, profile_lanes => [qw(@profile_lanes)], annot_profile_map => [qw(@annot_profile_map)]);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$merged_annotation_file, $mapping_file, $profile_file] });
         };
     }
@@ -266,7 +266,6 @@ class VRPipe::Steps::pluritest_merge_annotation_files  with VRPipe::StepRole  {
         $profile_file->close;
     }
     return 1;
-
 }
 
 1;
