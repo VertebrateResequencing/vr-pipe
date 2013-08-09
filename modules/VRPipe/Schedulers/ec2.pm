@@ -178,7 +178,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         
         unless (@new_instances) {
             my $error = $ec2->error_str;
-            if ($error =~ /instances exceeds your current quota of (\d+)/ || $error =~ /\[InstanceLimitExceeded\] (\d+) instance\(s\) are already running/) {
+            if ($error =~ /instances exceeds your current quota of (\d+)/ || $error =~ /\[InstanceLimitExceeded\].+?(\d+)/) {
                 my $max           = $1;
                 my @all_instances = $ec2->describe_instances({ 'instance-state-name' => 'running' });
                 my $count         = $max - @all_instances;
