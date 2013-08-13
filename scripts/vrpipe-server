@@ -337,7 +337,7 @@ sub start_server {
                     $farm_server->stop_beating; # parent process is beating
                     
                     # claim our setups
-                    my @setups = $farm_server->claim_setups;
+                    my @setups = grep { !$_->currently_complete } $farm_server->claim_setups;
                     
                     if (@setups) {
                         # make sure the redis server is alive
@@ -665,6 +665,7 @@ sub start_server {
     
     # cleanup handlers when testing (but not in production, since handlers
     # should keep running if the server goes down)
+    $farm_server->delete;
     if ($deployment eq 'testing') {
         # some schedulers may need to do something when the test server exits
         my $sch_on_exit_method = $scheduler ? $scheduler->on_exit_method : undef;
