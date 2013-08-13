@@ -297,10 +297,13 @@ sub start_server {
                             return if $working;
                             $working = 1;
                             fork_call {
-                                $scheduler->scheduler_instance->$sch_periodic_method(deployment => $deployment);
-                                return;
+                                return $scheduler->scheduler_instance->$sch_periodic_method(deployment => $deployment);
                             }
                             sub {
+                                if (@_ && $scheduler->scheduler_instance->can($_[0])) {
+                                    my ($method, @args) = @_;
+                                    $scheduler->scheduler_instance->$method(@args);
+                                }
                                 $working = 0;
                                 $@ || return;
                                 &{$watcher_error_sub};
