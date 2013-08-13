@@ -933,6 +933,11 @@ XSL
         }
     }
     
+    method debug (Str $msg!) {
+        return unless $self->verbose > 0;
+        return $self->log($msg);
+    }
+    
     method xml_tag (Str $tag, Str $cdata, Str $attribs?) {
         $attribs ||= '';
         $attribs &&= ' ' . $attribs;
