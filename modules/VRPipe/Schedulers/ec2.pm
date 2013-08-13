@@ -155,14 +155,12 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         );
         my $current_instances = @pending_instances + @running_instances;
         my $allowed_instances = $max_instances - $current_instances + 1; # +1 because one of them will be the instance we're launching from
+        $backend->debug("[ec2scheduler] Got a request to launch $needed $type instances; allowed to launch $allowed_instances");
         if ($needed > $allowed_instances) {
             $needed = $allowed_instances;
         }
         return if $needed <= 0;
         
-        # by default people are limited to a max of 20 instances:
-        # http://www.phacai.com/increase-ec2-instance-quota
-        # so we have to handle a possible error here
         my %run_instance_args = (
             -image_id               => $ami,
             -instance_type          => $type,
@@ -176,27 +174,62 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         );
         my @new_instances = $ec2->run_instances(%run_instance_args);
         
-        unless (@new_instances) {
-            my $error = $ec2->error_str;
-            if ($error =~ /instances exceeds your current quota of (\d+)/ || $error =~ /\[InstanceLimitExceeded\].+?(\d+)/) {
-                my $max           = $1;
-                my @all_instances = $ec2->describe_instances({ 'instance-state-name' => 'running' });
-                my $count         = $max - @all_instances;
-                if ($count == 0) {
-                    $backend->log("Unable to spawn any new instances; consider increasing your quota: http://aws.amazon.com/contact-us/ec2-request/");
-                }
-                else {
-                    $backend->log("Your EC2 account has an instance quota of $max; we need $needed more instances, but will launch $count new ones instead");
+        $backend->debug("[ec2scheduler] Tried to launch $needed $type instances; actually launched " . scalar(@new_instances));
+        
+        # by default people are limited to a max of 20 instances:
+        # http://www.phacai.com/increase-ec2-instance-quota
+        # so we have to handle a possible error here. Unfortunately I don't
+        # know of a way of finding out the quota, and the error messages change
+        # on some random basis, with a different meaning for the numbers in the
+        # error message. So if it's a quota issue we'll just lower our requested
+        # number until it works
+        if ($ec2->is_error) {
+            if ($ec2->error->code eq 'InstanceLimitExceeded') {
+                my @pending_instances = $ec2->describe_instances({
+                        'availability-zone'   => $availability_zone,
+                        'instance-state-name' => 'pending'
+                    }
+                );
+                my @running_instances = $ec2->describe_instances({
+                        'availability-zone'   => $availability_zone,
+                        'instance-state-name' => 'running'
+                    }
+                );
+                my $total_instances = @pending_instances + @running_instances;
+                
+                my $count = $needed - 1;
+                while ($count > 0) {
                     $run_instance_args{'-min_count'} = $count;
                     $run_instance_args{'-max_count'} = $count;
                     @new_instances                   = $ec2->run_instances(%run_instance_args);
-                    unless (@new_instances) {
-                        $backend->log("Failed to launch $count new instances: " . $ec2->error_str);
+                    if ($ec2->is_error) {
+                        if ($ec2->error->code eq 'InstanceLimitExceeded') {
+                            $count--;
+                            $backend->debug("[ec2scheduler] got InstanceLimitExceeded, will try $count instances");
+                        }
+                        else {
+                            $backend->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota, and also failed to launch $count new instances: " . $ec2->error_str);
+                            last;
+                        }
                     }
+                    else {
+                        # try and work out what the quota must be and then set
+                        # $max_instances so that we can avoid this code path in
+                        # future
+                        my $quota = $count + $total_instances;
+                        $max_instances = $quota - ($total_instances - $current_instances + 1);
+                        
+                        $backend->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota of ~$quota, but launched $count new ones instead; in future I will only try to launch up to $max_instances instances");
+                        
+                        last;
+                    }
+                }
+                if ($count == 0) {
+                    $backend->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota; consider increasing your quota: http://aws.amazon.com/contact-us/ec2-request/");
                 }
             }
             else {
-                $backend->log("Failed to launch $needed new instances: " . $error);
+                $backend->log("[ec2scheduler] Failed to launch $needed new instances: " . $ec2->error_str);
             }
         }
         
@@ -207,10 +240,10 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             my $iip    = $instance->privateIpAddress;
             my $status = $instance->current_status;
             unless ($status eq 'running') {
-                $backend->log("Created a new ec2 instance at $iip but it didn't start running normally");
+                $backend->log("[ec2scheduler] Created a new ec2 instance at $iip but it didn't start running normally");
                 next;
             }
-            warn "ec2 scheduler started up instance at $iip\n";
+            $backend->log("[ec2scheduler] Started up instance at $iip");
             
             # wait for it to become responsive to ssh
             my $max_tries  = 240;
@@ -224,7 +257,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 sleep(1);
             }
             unless ($responsive) {
-                $backend->log("Newly launched instance $iip is not responding to ssh");
+                $backend->log("[ec2scheduler] Newly launched instance $iip is not responding to ssh");
                 next;
             }
         }
@@ -315,7 +348,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             # don't terminate if the instance has recently run a Job
             next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             
-            warn "ec2 scheduler will terminate instance $host\n";
+            $self->log("[ec2scheduler] Will terminate instance $host");
             $instance->terminate;
         }
     }
@@ -340,7 +373,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             # now - possibly spawned by a production server
             next if $self->_handler_processes($host);
             
-            warn "ec2 scheduler will terminate instance $host\n";
+            $self->log("[ec2scheduler] Will terminate instance $host");
             $instance->terminate;
         }
     }

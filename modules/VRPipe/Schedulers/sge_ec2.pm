@@ -54,7 +54,8 @@ class VRPipe::Schedulers::sge_ec2 extends VRPipe::Schedulers::sge {
     
     our $ec2_scheduler = VRPipe::SchedulerMethodsFactory->create('ec2', {});
     no warnings 'once';
-    our $ec2 = $VRPipe::Schedulers::ec2::ec2;
+    our $ec2     = $VRPipe::Schedulers::ec2::ec2;
+    our $backend = $VRPipe::Schedulers::ec2::backend;
     
     my $vrp_config      = VRPipe::Config->new();
     my $sge_config_file = $vrp_config->sge_config_file;
@@ -317,7 +318,7 @@ PE
         
         # look at what we have queuing to get a count of how many of each
         # instance type we need to launch
-        open(my $qstatfh, 'qstat -g d -r -ne -s p |') || $self->throw('Unable to open a pipe from qstat -g d -r -ne -s p');
+        open(my $qstatfh, 'qstat -g d -r -ne -s p |') || $self->throw('[sge_ec2scheduler] Unable to open a pipe from qstat -g d -r -ne -s p');
         my ($job_id, $slots);
         my %types;
         my %job_id_to_type;
@@ -377,10 +378,12 @@ PE
         
         # launch the desired instance types
         my %launched_hosts;
+        my $intitial_ec2_max_instances = $VRPipe::Schedulers::ec2::max_instances;
         while (my ($type, $count) = each %types) {
             # $count is the number of threads we want to run on this $type of
             # instance; adjust based on how many cores each instance has
             $count = ceil($count / $VRPipe::Schedulers::ec2::instance_types{$type}->[0]);
+            $backend->debug("[sge_ec2scheduler] Will launch $count $type instances");
             my @instances = $ec2_scheduler->launch_instances($type, $count);
             
             foreach my $instance (@instances) {
@@ -393,19 +396,19 @@ PE
         if (keys %launched_hosts) {
             # start SGE on the new hosts
             my $tmp_config = $self->_altered_config('EXEC_HOST_LIST', join(' ', keys %launched_hosts));
-            system('cd $SGE_ROOT; ./inst_sge -x -auto ' . $tmp_config) && $self->throw("Failed to run: inst_sge -x -auto $tmp_config");
+            system('cd $SGE_ROOT; ./inst_sge -x -auto ' . $tmp_config) && $self->throw("[sge_ec2scheduler] Failed to run: inst_sge -x -auto $tmp_config");
             unlink($tmp_config);
             
             # add the new hosts to appropriate queues
             while (my ($host, $type) = each %launched_hosts) {
-                system("qconf -aattr hostgroup hostlist $host \@$type") && $self->throw("Failed to run: qconf -aattr hostgroup hostlist $host \@$type");
+                system("qconf -aattr hostgroup hostlist $host \@$type") && $self->throw("[sge_ec2scheduler] Failed to run: qconf -aattr hostgroup hostlist $host \@$type");
             }
         }
         
         ## terminate old instances
         
         # start by seeing which hosts are not currently running any jobs
-        open(my $qfh, 'qhost -j -ncb |') || $self->throw("Unable to open pipe from qhost -j -ncb");
+        open(my $qfh, 'qhost -j -ncb |') || $self->throw("[sge_ec2scheduler] Unable to open pipe from qhost -j -ncb");
         <$qfh>;
         <$qfh>;
         <$qfh>; # ignore the first 3 lines
@@ -421,7 +424,7 @@ PE
                 $hosts{$host}->{jobs}++;
             }
         }
-        close($qfh) || $self->throw("Unable to close pipe from qhost -j -ncb");
+        close($qfh) || $self->throw("[sge_ec2scheduler] Unable to close pipe from qhost -j -ncb");
         
         # consider empty hosts to be those that also haven't run a job in the
         # past 45mins
@@ -477,13 +480,51 @@ PE
         }
         
         $self->_clean_up_hosts(\%to_terminate);
+        
+        # if the EC2 scheduler set its class variable $max_instances due to
+        # a discovered quota, we'll return a method name and the current value
+        # of that so that vrpipe-server can set it in globally, instead of the
+        # change being lost because this method was called in a fork
+        my $current_ec2_max_instances = $VRPipe::Schedulers::ec2::max_instances;
+        if ($current_ec2_max_instances != $intitial_ec2_max_instances) {
+            return ('_set_ec2_max_instances', $current_ec2_max_instances);
+        }
+    }
+    
+    method _set_ec2_max_instances (Int $mi) {
+        $VRPipe::Schedulers::ec2::max_instances = $mi;
     }
     
     method _clean_up_hosts (HashRef $to_terminate) {
         while (my ($host, $instance) = each %$to_terminate) {
             my $type = $instance->instanceType;
-            system("qconf -dattr hostgroup hostlist $host \@$type && qconf -de $host && qconf -dconf $host") && $self->throw("Could not remove $host from SGE");
-            warn "sge_ec2 scheduler will terminate instance $host\n";
+            
+            # try to remove the host from SGE a couple of times until it works
+            my $worked = 0;
+            for (1 .. 3) {
+                $worked = 0;
+                
+                foreach my $cmd ("qconf -dattr hostgroup hostlist $host \@$type", "qconf -de $host", "qconf -dconf $host") {
+                    $backend->debug("[sge_ec2scheduler] About to try and do {$cmd}\n");
+                    my $exit_code = system($cmd);
+                    if ($exit_code) {
+                        $backend->log("[sge_ec2scheduler] Tried to run {$cmd} but it exited with code $exit_code");
+                        last;
+                    }
+                    else {
+                        $worked++;
+                    }
+                }
+                
+                last if $worked == 3;
+                sleep(5);
+            }
+            
+            unless ($worked == 3) {
+                $backend->log("[sge_ec2scheduler] Could not remove $host from SGE prior to instance termination");
+            }
+            
+            $backend->log("[sge_ec2scheduler] Will terminate instance $host");
             $instance->terminate;
         }
     }
@@ -521,8 +562,8 @@ PE
     
     method _altered_config (Str $key, Str $val) {
         my $ofile = file($sge_confs_dir, 'config_tmp');
-        open(my $fho, '>', $ofile)           || $self->throw("Could not write to $ofile");
-        open(my $fhi, '<', $sge_config_file) || $self->throw("Could not read from $sge_config_file");
+        open(my $fho, '>', $ofile)           || $self->throw("[sge_ec2scheduler] Could not write to $ofile");
+        open(my $fhi, '<', $sge_config_file) || $self->throw("[sge_ec2scheduler] Could not read from $sge_config_file");
         my $found = 0;
         while (<$fhi>) {
             if (/^$key/) {
