@@ -284,7 +284,7 @@ sub start_server {
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
                     $scheduler = VRPipe::Scheduler->create();
-                    $scheduler->initialize;
+                    $scheduler->initialize_for_server;
                     $survival_time = $farm_server->survival_time;
                     
                     # some schedulers may need to do something periodically;

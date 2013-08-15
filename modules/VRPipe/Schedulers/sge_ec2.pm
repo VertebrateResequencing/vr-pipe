@@ -220,9 +220,9 @@ PE
         return 'terminate_all_instances';
     }
     
-    around initialize {
+    around initialize_for_server {
         return if $initialized;
-        $ec2_scheduler->initialize;
+        $ec2_scheduler->initialize_for_server;
         
         mkdir($sge_confs_dir) unless -d $sge_confs_dir;
         
@@ -308,7 +308,7 @@ PE
         }
         system('qconf -Msconf ' . $s_file);
         
-        # call sge's initialize method
+        # call sge's initialize_for_server method, if any
         $self->$orig();
         
         $initialized = 1;
