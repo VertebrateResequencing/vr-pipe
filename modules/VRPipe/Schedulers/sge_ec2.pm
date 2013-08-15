@@ -222,6 +222,7 @@ PE
     
     around initialize {
         return if $initialized;
+        $ec2_scheduler->initialize;
         
         mkdir($sge_confs_dir) unless -d $sge_confs_dir;
         
