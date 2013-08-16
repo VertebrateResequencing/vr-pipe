@@ -277,7 +277,7 @@ PE
                 unless (-s $queue_file) {
                     open(my $fh, '>', $queue_file) || die "Could not write to $queue_file";
                     my ($slots, $mb) = @{ $VRPipe::Schedulers::ec2::instance_types{$type} };
-                    my $safe_mb = $mb - 500;
+                    my $safe_mb = $mb - 100;
                     my $safe_gb = sprintf("%0.1f", $safe_mb / 1024);
                     my $safe_b  = $safe_mb * 1024 * 1024;
                     my $b       = $mb * 1024 * 1024;
