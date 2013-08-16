@@ -584,6 +584,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                                 undef $job_args unless keys %$job_args;
                                             }
                                             
+                                            # advertise that we're creating subs
+                                            # with this reqs->id so that if we
+                                            # create another one soon
+                                            # vrpipe-server will put them both
+                                            # in the same job array
+                                            $redis->set('generating_subs_for_req_' . $reqs->id => 1, EX => 5);
+                                            
                                             my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd)->id, stepstate => $state->submission_search_id, requirements => $reqs->id);
                                             $self->log_event("PipelineSetup->trigger called parse(), and the dispatch created a new Submission", dataelement => $element->id, stepstate => $state->id, submission => $sub->id, job => $sub->job->id);
                                         }

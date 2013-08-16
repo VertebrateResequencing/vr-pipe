@@ -392,6 +392,15 @@ sub start_server {
                         while (my $subs = $sub_pager->next(no_resetting => 1)) {
                             foreach my $sub (@$subs) {
                                 my $sub_id = $sub->id;
+                                my $req_id = $sub->requirements->id;
+                                
+                                # delay looking at subs with this req_id while
+                                # handler's are in the process of generating
+                                # new subs with this req_id; this way we're more
+                                # likely to get single large arrays for greater
+                                # efficiency
+                                next if $redis->exists('generating_subs_for_req_' . $req_id);
+                                
                                 # if the job is a block_and_skip_if_ok job, we
                                 # don't actually block because of race condition
                                 # issues, and because of fail and restart
@@ -414,7 +423,6 @@ sub start_server {
                                 
                                 # we'll want to make sure there'll be a
                                 # handler for this one
-                                my $req_id = $sub->requirements->id;
                                 $req_counts{$req_id}++;
                                 $step_counts{$step_id}++;
                                 
