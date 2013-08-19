@@ -320,13 +320,20 @@ PE
         # look at what we have queuing to get a count of how many of each
         # instance type we need to launch
         open(my $qstatfh, 'qstat -g d -r -ne -s p |') || $self->throw('[sge_ec2scheduler] Unable to open a pipe from qstat -g d -r -ne -s p');
-        my ($job_id, $slots);
+        my ($job_id, $slots, $array_index);
         my %types;
         my %job_id_to_type;
         my $minimum_queue_time = $deployment eq 'production' ? 300 : 30;
+        
+        # we're going to keep track of which job ids result in us launching new
+        # instances, so that the next time this method gets called we won't
+        # launch more instances for the same jobs (because SGE was slow at
+        # starting them running on the new instances)
+        my $redis = $backend->redis;
+        
         while (<$qstatfh>) {
             #18 0.00000 vrpipe_174 ec2-user     qw    06/19/2013 14:23:01  2
-            if (my ($this_job_id, $month, $day, $year, $hour, $min, $sec, $this_slots) = $_ =~ /^\s+(\d+)\s+\S+\s+\S+\s+\S+\s+qw\s+(\d+)\/(\d+)\/(\d+)\s+(\d\d):(\d\d):(\d\d)\s+(\d+)/) {
+            if (my ($this_job_id, $month, $day, $year, $hour, $min, $sec, $this_slots, $this_array_index) = $_ =~ /^\s+(\d+)\s+\S+\s+\S+\s+\S+\s+qw\s+(\d+)\/(\d+)\/(\d+)\s+(\d\d):(\d\d):(\d\d)\s+(\d+)(?:\s+(\d+))?/) {
                 # we'll only consider jobs that have been pending for over 5mins
                 my $dt = DateTime->new(
                     year      => $year,
@@ -339,13 +346,18 @@ PE
                 );
                 my $elapsed = time() - $dt->epoch;
                 if ($elapsed >= $minimum_queue_time) {
-                    $job_id = $this_job_id;
-                    $slots  = $this_slots;
+                    $job_id      = $this_job_id;
+                    $slots       = $this_slots;
+                    $array_index = $this_array_index;
                 }
                 next;
             }
             
             if ($job_id) {
+                $array_index ||= 0;
+                my $redis_key = 'sge_ec2_job_id.' . $job_id . '.' . $array_index;
+                next if $redis->exists($redis_key);
+                
                 if (/^\s+Hard Resources:\s+\S+=(\d+)M/) {
                     my $mb = $1;
                     my $chosen_type;
@@ -366,6 +378,7 @@ PE
                     
                     if ($chosen_type) {
                         $types{$chosen_type} += $slots;
+                        $redis->set($redis_key => 1, EX => 1800);
                         unless ($typed) {
                             $job_id_to_type{$job_id} = $chosen_type;
                         }
@@ -452,15 +465,11 @@ PE
             # unless they've been up for at least 45mins (in production)
             my ($ip) = $host =~ /(\d+-\d+-\d+-\d+)/;
             $ip =~ s/-/./g;
+            next if $redis->exists('starting_instance.' . $ip);
             my ($instance) = $ec2->describe_instances({ 'private-ip-address' => $ip });
             next unless $instance;
             if ($deployment eq 'production') {
                 next unless $instance->up_time >= $min_uptime;
-            }
-            else {
-                # when testing, allow 5mins for a newly launched node to become
-                # responsive to ssh
-                next if $instance->up_time < 300;
             }
             
             # don't terminate ourselves - the server that calls this method
