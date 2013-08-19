@@ -241,6 +241,24 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has ec2_spot_price_percent => (
+        is              => 'rw',
+        question        => 'What percentage of the on-demand price should spot bids be placed at (0 (or over 100) disables spot bidding, 100 recommended if you want to bid)?',
+        skip            => '_skip_unless_ec2_scheduler',
+        env             => 'EC2_SPOT_PRICE_PERCENT',
+        default         => '0',
+        question_number => ++$question_number
+    );
+    
+    has ec2_spot_force_percent => (
+        is              => 'rw',
+        question        => 'If the resulting spot bid price is lower than the lowest successful bid of the past 24hrs, do you want to force the use of your too-low bid (answer 1), or bid at the lowest historical price (answer 0)?',
+        skip            => '_skip_unless_spot',
+        env             => 'EC2_SPOT_FORCE_PERCENT',
+        default         => '0',
+        question_number => ++$question_number
+    );
+    
     has sge_config_file => (
         is              => 'rw',
         question        => 'What is the absolute path to your SGE config file?',
@@ -422,6 +440,12 @@ class VRPipe::Config {
     
     method _skip_unless_ec2_scheduler {
         return $self->_skip_based_on_scheduler('ec2');
+    }
+    
+    method _skip_unless_spot {
+        return 1 if $self->_skip_unless_ec2_scheduler;
+        return 0 if $self->ec2_spot_price_percent;
+        return 1;
     }
     
     method _skip_unless_sge_ec2_scheduler {
