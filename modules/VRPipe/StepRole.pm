@@ -670,6 +670,49 @@ role VRPipe::StepRole {
                 $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
             }
             else {
+                # change group ownership on files and enable world access to
+                # all parent dirs if user set group on the setup
+                my $ps    = $stepstate->pipelinesetup;
+                my $group = $ps->unix_group;
+                if ($group) {
+                    my (undef, undef, $gid) = getgrnam($group);
+                    if ($gid) {
+                        my $hash = $self->outputs;
+                        my @paths;
+                        while (my ($key, $val) = each %$hash) {
+                            foreach my $file (@$val) {
+                                push(@paths, $file->path);
+                            }
+                        }
+                        
+                        # change the group on the files
+                        chown $<, $gid, @paths;
+                        
+                        # in case we are running as root we'll try and change
+                        # the user of the files as well
+                        my (undef, undef, $uid) = getpwnam($ps->user);
+                        if ($uid && $uid != $<) {
+                            chown $uid, $gid, @paths;
+                            
+                            # make sure we still have write access to the files
+                            chmod 0660, @paths; # -rw-rw----
+                        }
+                        
+                        # try and make parent dirs accessible
+                        my %dirs;
+                        foreach my $path (@paths) {
+                            my $dir = file($path)->dir;
+                            $dirs{$dir} = 1;
+                            my $num_parents = $dir->dir_list;
+                            for (1 .. $num_parents) {
+                                $dir = $dir->parent;
+                                $dirs{$dir} = 1;
+                            }
+                        }
+                        chmod 0755, keys %dirs; # -rwxrwxr-x
+                    }
+                }
+                
                 return;
             }
         }

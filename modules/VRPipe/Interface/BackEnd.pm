@@ -255,6 +255,10 @@ XSL
             <xsl:value-of select="./attribute[@name='output_root']"/>
             <xsl:text>
 </xsl:text>
+            <xsl:text>Output file unix group: </xsl:text>
+            <xsl:value-of select="./attribute[@name='unix_group']"/>
+            <xsl:text>
+</xsl:text>
             <xsl:text>DataSource: </xsl:text>
             <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='id']"/>
             <xsl:text> | </xsl:text>

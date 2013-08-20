@@ -128,6 +128,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         default => $admin_user
     );
     
+    has 'unix_group' => (
+        is          => 'rw',
+        isa         => Varchar [64],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
+    
     has 'desired_farm' => (
         is          => 'rw',
         isa         => Varchar [64],
