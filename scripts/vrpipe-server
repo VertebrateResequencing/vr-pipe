@@ -960,6 +960,7 @@ sub status {
                 }
                 $object .= '</attribute>';
                 $object .= $backend->xml_tag('attribute', $setup->output_root->stringify, q[name="output_root"]);
+                $object .= $backend->xml_tag('attribute', $setup->unix_group || 'default', q[name="unix_group"]);
                 
                 # datasource details
                 $object .= '<attribute name="datasource"><object class="DataSource" display_mode="full">';

@@ -4,9 +4,10 @@ use warnings;
 use Cwd;
 use File::Copy;
 use Path::Class qw(file dir);
+use POSIX qw(getgroups);
 
 BEGIN {
-    use Test::Most tests => 11;
+    use Test::Most tests => 14;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -130,7 +131,16 @@ $steps[4] = VRPipe::Step->create(
 foreach my $step (@steps) {
     $multi_step_pipeline->add_step($step);
 }
-my $second_pipelinesetup = VRPipe::PipelineSetup->create(name => 'ps2', datasource => $single_element_datasource, output_root => $second_pipeline_output_dir, pipeline => $multi_step_pipeline);
+my (undef, undef, undef, $gid) = getpwuid $<;
+my $default_group = getgrgid $gid;
+my @groups = map { scalar getgrgid($_) } getgroups();
+my $other_group;
+foreach my $og (@groups) {
+    next if $og eq $default_group;
+    $other_group = $og;
+    last;
+}
+my $second_pipelinesetup = VRPipe::PipelineSetup->create(name => 'ps2', datasource => $single_element_datasource, output_root => $second_pipeline_output_dir, pipeline => $multi_step_pipeline, $other_group ? (unix_group => $other_group) : ());
 
 $single_element_datasource->elements;
 my @second_output_files = (file(output_subdirs(VRPipe::DataElement->get(datasource => $single_element_datasource->id, result => { line => "single_element" })->id, 2), "1_step_1", 'output1.txt'));
@@ -146,6 +156,35 @@ my @manager_setups = $manager->setups;
 is @manager_setups, 2, 'setups() returns the correct number of PipelineSetups';
 
 is handle_pipeline(@first_output_files, @second_output_files), 1, 'multi-step pipeline completed via Manager';
+
+# check that the file group and directory permissions are as expected
+SKIP: {
+    skip "You do not belong to more than 1 group, so can't test changing group permissions", 3 unless $other_group;
+    ok check_group($default_group, @first_output_files),  'When unix_group is not set, output files belong to default group';
+    ok check_group($other_group,   @second_output_files), 'When unix_group is set, output files belong to the desired group';
+    
+    my $perms_correct = 1;
+    foreach my $path (@second_output_files) {
+        my $file = file($path);
+        my $dir  = $file->dir;
+        my (undef, undef, $mode) = stat($dir);
+        $mode = sprintf("%04o", $mode & 07777);
+        unless ($mode eq '0755') {
+            $perms_correct = 0;
+            last;
+        }
+    }
+    ok $perms_correct, 'When unix_group is set, the directories get set to 0755';
+    
+    sub check_group {
+        my (undef, undef, $desired_gid) = getgrnam(shift);
+        foreach my $file (@_) {
+            my (undef, undef, $mode, undef, undef, $gid) = stat($file);
+            return 0 if $gid != $desired_gid;
+        }
+        return 1;
+    }
+}
 
 # now lets create a pipeline using a pre-written step, where we'll test that a
 # step can work with both a datasource input and the outputs of a previous step
@@ -252,6 +291,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
     
     my @subs = VRPipe::Submission->search({ 'stepstate.pipelinesetup' => $ps_id }, { order_by => { -asc => 'me.id' }, join => ['stepstate'] });
     my %job_std;
+    sleep(5); # give some time for -handlers to call archive_output()
     foreach my $sub (@subs) {
         my $pars     = $sub->job_stdout;
         my $pr       = $pars->parsed_record;
