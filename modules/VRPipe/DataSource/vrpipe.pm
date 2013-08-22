@@ -50,13 +50,13 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option is a string of the form 'metadata_key#regex'. If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
+            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option is a string of the form 'metadata_key#regex'; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas). If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
         }
         elsif ($method eq 'group_by_metadata') {
-            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'. If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
+            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas). If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
         }
         elsif ($method eq 'group_all') {
-            return "All output files in the vrpipe datasource will be grouped into a single element. The filter option is a string of the form 'metadata_key#regex' which will select only files with metadata matching the regex.";
+            return "All output files in the vrpipe datasource will be grouped into a single element. The filter option is a string of the form 'metadata_key#regex' which will select only files with metadata matching the regex; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas).";
         }
         
         return '';
@@ -222,10 +222,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     }
     
     method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
-        my ($key, $regex);
+        my @krs;
         if ($filter) {
-            ($key, $regex) = split('#', $filter);
-            $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless ($key && $regex);
+            foreach my $kr (split(',', $filter)) {
+                my ($key, $regex) = split('#', $kr);
+                $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless ($key && $regex);
+                push(@krs, [$key, $regex]);
+            }
+            $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless @krs;
         }
         
         my @output_files;
@@ -285,20 +289,26 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                                 next unless exists $stepmembers->{$smid}->{$kind};
                             }
                             
-                            foreach my $file (@$files) {
+                            FILE: foreach my $file (@$files) {
                                 my $pass_filter = 0;
                                 my $meta        = $file->metadata;
                                 if ($filter) {
                                     # if "filter_after_grouping => 0", we filter before grouping
                                     # by skipping files which don't match the regex or don't
                                     # have the required metadata
-                                    if (defined $meta->{$key}) {
-                                        $pass_filter = $meta->{$key} =~ m/$regex/;
-                                        next if (!$filter_after_grouping && !$pass_filter);
+                                    my $passes = 0;
+                                    foreach my $kr (@krs) {
+                                        my ($key, $regex) = @$kr;
+                                        if (defined $meta->{$key}) {
+                                            my $this_passed = $meta->{$key} =~ m/$regex/ ? 1 : 0;
+                                            next FILE if (!$filter_after_grouping && !$this_passed);
+                                            $passes += $this_passed;
+                                        }
+                                        else {
+                                            next FILE unless $filter_after_grouping;
+                                        }
                                     }
-                                    else {
-                                        next unless $filter_after_grouping;
-                                    }
+                                    $pass_filter = $passes == @krs ? 1 : 0;
                                 }
                                 
                                 if ($maintain_element_grouping) {
