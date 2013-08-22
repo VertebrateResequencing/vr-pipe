@@ -64,7 +64,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa_mem with VRPipe::PipelineRole {
             { from_step => 4, to_step => 6,  from_key => 'local_fastq_files', to_key => 'fastq_files' },
             { from_step => 6, to_step => 7,  from_key => 'split_fastq_files', to_key => 'fastq_files' },
             { from_step => 7, to_step => 8,  from_key => 'bwa_mem_sam_files', to_key => 'sam_files' },
-            { from_step => 1, to_step => 9,  from_key => 'reference_dict', to_key => 'dict_file' },
+            { from_step => 2, to_step => 9,  from_key => 'reference_dict', to_key => 'dict_file' },
             { from_step => 8, to_step => 9,  from_key => 'fixed_bam_files', to_key => 'bam_files' },
             { from_step => 9, to_step => 10, from_key => 'merged_lane_bams', to_key => 'bam_files' },
         );
