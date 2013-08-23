@@ -759,6 +759,7 @@ sub status {
     my $list            = $opts->{list};
     my $incomplete_only = $opts->{incomplete};
     my $brief           = $opts->{brief};
+    my $show_steps      = $brief ? 0 : $opts->{show_steps};
     my $defunct_only    = $opts->{defunct};
     my $gs              = $opts->{global_summary};
     if ($defunct_only) {
@@ -948,6 +949,24 @@ sub status {
                 }
                 $object .= $backend->xml_tag('attribute', $step_members, q[name="num_steps"]);
                 $object .= '</object></attribute>';
+                
+                if ($show_steps) {
+                    # pipeline step details
+                    $object .= '<attribute name="steps">';
+                    my (%steps, @step_order);
+                    foreach my $sm ($pipeline->step_members) {
+                        my $step_num = $sm->step_number;
+                        my $step     = $sm->step;
+                        my $name     = $step->name;
+                        my $inputs   = join(', ', keys %{ $step->inputs_definition || {} }) || '';
+                        my $outputs  = join(', ', keys %{ $step->outputs_definition || {} }) || '';
+                        my $step_id  = "$step_num.$name";
+                        $steps{$step_id} = "Description: " . $step->description . "; Inputs: $inputs; Outputs: $outputs";
+                        push(@step_order, $step_id);
+                    }
+                    $object .= $backend->hash_to_xml(\%steps, \@step_order);
+                    $object .= '</attribute>';
+                }
                 
                 # setup options and output root
                 my $ps_opts = $setup->options;

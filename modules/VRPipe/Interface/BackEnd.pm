@@ -239,6 +239,11 @@ XSL
             <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='description']"/>
             <xsl:text>
 </xsl:text>
+            <xsl:choose>
+                <xsl:when test="./attribute[@name='steps']/hash">
+                    <xsl:apply-templates select="./attribute[@name='steps']/hash/pair"/>
+                </xsl:when>
+            </xsl:choose>
             <xsl:text>PipelineSetup options:
 </xsl:text>
             <xsl:choose>
