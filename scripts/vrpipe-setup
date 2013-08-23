@@ -28,6 +28,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::FrontEnd;
 use POSIX qw(getgroups);
+use VRPipe::StepStatsUtil;
 
 my $frontend = VRPipe::FrontEnd->new(
     description => "Setup a new pipeline, or alter the configuration of an existing one.",
@@ -35,6 +36,7 @@ my $frontend = VRPipe::FrontEnd->new(
         [],
         [q[Run with no options to create a new PipelineSetup.]],
         ['based_on=s', 'Provide the name or id of an existing PipelineSetup to create a new PipelineSetup based on it', { persistent_object => 'PipelineSetup' }],
+        [q[(--extra_options can also be used here; see below)]],
         [],
         [q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:]],
         ['list|l',   'Just list out the setup names and ids, so you can subsequently rerun using --setup'],
@@ -42,7 +44,7 @@ my $frontend = VRPipe::FrontEnd->new(
         [],
         [q[To alter an existing PipelineSetup:]],
         ['setup=s',       'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' }],
-        ['extra_options', q[When changing an existing setup, be given the option to override step resource requirments (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]],
+        ['extra_options', q[Be given the option to override step resource requirements (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]],
         ['deactivate',    'Turn off the given --setup'],
         ['reactivate',    'Turn on the given --setup'],
         ['touch',         'Force a refresh of the dataelements corresponding to the given --setup'],
@@ -71,9 +73,8 @@ if ($setup && $list) {
 if ($user eq 'all' && !$list) {
     $frontend->die_with_error("--user all when not listing with --list don't make sense; when creating a new setup set a real user name with --user, or leave it to the default");
 }
-if (($extra_options || $deactivate || $reactivate) && !$setup) {
-    $frontend->error("--extra_options, --deactivate and --activate only make sense when given a --setup; ignoring them");
-    undef $extra_options;
+if (($deactivate || $reactivate) && !$setup) {
+    $frontend->error("--deactivate and --activate only make sense when given a --setup; ignoring them");
     undef $deactivate;
     undef $reactivate;
 }
@@ -258,21 +259,26 @@ if ($setup) {
                 # also give the generic memory/time etc. options user could set
                 # for this step
                 my $step_name = $step->name;
-                foreach my $resource (qw(memory time cpus tmp_space)) { # local_space custom
+                foreach my $ref (['memory', 'MB'], ['time', 'seconds']) { #  cpus tmp_space local_space custom
+                    my ($resource, $unit) = @$ref;
                     my $key = $step_name . '_' . $resource;
                     next if exists $option_names{$key};
                     $option_num++;
                     $option_names{$key} = $option_num;
-                    $options[$option_num] = [$key, "Override the $resource requirement for the step '$step_name'", 1, '', []];
+                    my $ssu        = VRPipe::StepStatsUtil->new(step => $step);
+                    my $rec_method = 'recommended_' . $resource;
+                    my $rec        = $ssu->$rec_method();
+                    my $current    = $rec ? ' (currently averaging ' . $rec . ')' : '';
+                    $options[$option_num] = [$key, "Override the $resource requirement (in $unit) for the step '$step_name'$current", 1, '', []];
                 }
                 
-                # and an option to limit the number of simultanous jobs for this
+                # and an option to limit the number of simultaneous jobs for this
                 # step
                 my $key = $step_name . '_max_simultaneous';
                 unless (exists $option_names{$key}) {
                     $option_num++;
                     $option_names{$key} = $option_num;
-                    $options[$option_num] = [$key, "Limit the number of simultaneous jobs for the step '$step_name'", 1, '', []];
+                    $options[$option_num] = [$key, "Limit the number of simultaneous jobs for the step '$step_name'", 1, $step->max_simultaneous, []];
                 }
             }
         }
@@ -521,6 +527,8 @@ else {
     my %step_options;
     my %step_option_order;
     my $soo_i = 0;
+    my %step_extras;
+    my @step_extras_order;
     foreach my $step (@steps) {
         my $step_name = $step->name;
         my $def       = $step->options_definition;
@@ -534,6 +542,30 @@ else {
             # *** how do we better handle different steps having the same option
             #     key but different vsos? Ignored for now; we just use the last
             $step_options{$key}->{vso} = $vso;
+        }
+        
+        if ($extra_options) {
+            # also give the generic memory/time etc. options user could set
+            # for this step
+            foreach my $ref (['memory', 'MB'], ['time', 'seconds']) { #  cpus tmp_space local_space custom
+                my ($resource, $unit) = @$ref;
+                my $key = $step_name . '_' . $resource;
+                next if exists $step_extras{$key};
+                push(@step_extras_order, $key);
+                my $ssu        = VRPipe::StepStatsUtil->new(step => $step);
+                my $rec_method = 'recommended_' . $resource;
+                my $rec        = $ssu->$rec_method();
+                my $current    = $rec ? ' (currently averaging ' . $rec . ')' : '';
+                $step_extras{$key} = ["Override the $resource requirement (in $unit) for the step '$step_name'$current"];
+            }
+            
+            # and an option to limit the number of simultaneous jobs for this
+            # step
+            my $key = $step_name . '_max_simultaneous';
+            unless (exists $step_extras{$key}) {
+                push(@step_extras_order, $key);
+                $step_extras{$key} = ["Limit the number of simultaneous jobs for the step '$step_name'", $step->max_simultaneous];
+            }
         }
     }
     my %pipeline_args;
@@ -563,12 +595,21 @@ else {
             }
         }
     }
-    else {
-        $frontend->output("\n(the ", $pipeline->name, " pipeline has no options)");
+    if (keys %step_extras) {
+        foreach my $key (@step_extras_order) {
+            my ($desc, $default) = @{ $step_extras{$key} };
+            if ($based_on_options && defined $based_on_options->{$key}) {
+                $default = $based_on_options->{$key};
+            }
+            my $arg = $frontend->ask_question(question => "\t$key | $desc", $default ? (default => $default) : (), required => 0);
+            if (defined $arg && $arg =~ /^\d+$/) {
+                $pipeline_args{$key} = $arg;
+            }
+        }
     }
-    
-    # *** ask for resource requirement overrides for each step? But we don't
-    #     know what defaults each step has...
+    if (!keys %step_options && !keys %step_extras) {
+        $frontend->output("\n(the ", $pipeline->name, " pipeline has no options to set)");
+    }
     
     # set regulations
     my $reg = behaviours_to_regulators(get_pipeline_behaviours($pipeline));
@@ -598,7 +639,7 @@ else {
     my $output_root = $frontend->ask_question(question => "Please provide the absolute path to the root directory that output files will be written to", required => 1, $based_on ? (default => $based_on->output_root->stringify) : (), strip_leading_trailing_whitespace => 1);
     
     # group?
-    my $group = $frontend->ask_question(question => "Which Unix group should output files should belong to (no answer uses the default group of the user that runs vrpipe-server)", required => 0, $based_on ? (default => $based_on->unix_group) : (), strip_leading_trailing_whitespace => 1);
+    my $group = $frontend->ask_question(question => "Which Unix group should output files should belong to (no answer uses the default group of the user that runs vrpipe-server)", required => 0, $based_on ? (default => $based_on->unix_group || '') : (), strip_leading_trailing_whitespace => 1);
     
     # what farm (vrpipe-server) should it run from?
     my $prev_desired_farm;
