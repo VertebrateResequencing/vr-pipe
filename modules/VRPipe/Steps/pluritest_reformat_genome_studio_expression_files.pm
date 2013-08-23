@@ -37,7 +37,7 @@ use VRPipe::Base;
 class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPipe::StepRole {
     method options_definition {
         return {
-            reformat_exe           => VRPipe::StepOption->create(description => 'full path to genome_studio_gene_expression_reformat.pl', optional => 1, default_value => 'genome_studio_gene_expression_reformat.pl'),
+            reformat_exe           => VRPipe::StepOption->create(description => 'full path to genome_studio_gene_expression_reformat.pl', optional => 1, default_value => 'genome_studio_gene_expression_profile_reformat.pl'),
             reformat_sample_number => VRPipe::StepOption->create(description => 'restrict reformatting to this number of samples',        optional => 1, default_value => 7),
         };
     }
