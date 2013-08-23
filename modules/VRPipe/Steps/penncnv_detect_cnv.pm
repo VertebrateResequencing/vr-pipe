@@ -36,9 +36,10 @@ use VRPipe::Base;
 class VRPipe::Steps::penncnv_detect_cnv with VRPipe::StepRole {
     method options_definition {
         return {
-            detect_cnv_script => VRPipe::StepOption->create(description => 'full path to detect_cnv.pl', optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/detect_cnv.pl'),
-            detect_cnv_hmm    => VRPipe::StepOption->create(description => 'full path to custom.hmm',    optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/lib/custom.hmm'),
-            detect_cnv_pfb    => VRPipe::StepOption->create(description => 'full path to PFB',           optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/lib/HumanExome12v1.1.hg19.pfb'),
+            detect_cnv_script => VRPipe::StepOption->create(description => 'full path to detect_cnv.pl',                                             optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/detect_cnv.pl'),
+            detect_cnv_hmm    => VRPipe::StepOption->create(description => 'full path to custom.hmm',                                                optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/lib/custom.hmm'),
+            detect_cnv_pfb    => VRPipe::StepOption->create(description => 'full path to PFB',                                                       optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/lib/HumanExome12v1.1.hg19.pfb'),
+            cnv_analysis_type => VRPipe::StepOption->create(description => 'type of cnv analysis, added to file metadata for downstream processing', optional => 1, default_value => 'penncnv'),
         };
     }
     
@@ -60,17 +61,19 @@ class VRPipe::Steps::penncnv_detect_cnv with VRPipe::StepRole {
             my $detect_cnv_script  = $options->{detect_cnv_script};
             my $detect_cnv_hmm     = $options->{detect_cnv_hmm};
             my $detect_cnv_pfb     = $options->{detect_cnv_pfb};
+            my $cnv_analysis_type  = $options->{cnv_analysis_type};
             my $detect_cnv_options = "-test -hmm $detect_cnv_hmm -pfb $detect_cnv_pfb --confidence --region 1-22 --minsnp 1";
             my $req                = $self->new_requirements(memory => 500, time => 1);
             foreach my $gs_file (@{ $self->inputs->{stepOne_file_input_GS_file} }) {
-                my $gs_path      = $gs_file->path;
-                my $basename     = $gs_file->basename . '.rawcnv';
+                my $gs_path  = $gs_file->path;
+                my $basename = $gs_file->basename . '.rawcnv';
+                my $new_meta = { cnv_analysis_type => $cnv_analysis_type };
+                $gs_file->add_metadata($new_meta);
                 my $raw_cnv_file = $self->output_file(output_key => 'stepOne_file_output_raw_cnv_file', basename => "$basename", type => 'txt', metadata => $gs_file->metadata);
                 my $out_path     = $raw_cnv_file->path;
                 my $logFile      = $out_path . '.LOG';
                 my $cmd_line     = "perl $detect_cnv_script $detect_cnv_options -log $logFile -out $out_path $gs_path";
-                print STDERR "############ DETECT_CNV: $cmd_line  #############################\n";
-                $self->dispatch([$cmd_line, $req]); # RUN THE COMMAND
+                $self->dispatch([$cmd_line, $req]);
             }
         };
     }
