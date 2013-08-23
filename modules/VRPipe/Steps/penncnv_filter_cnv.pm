@@ -64,8 +64,7 @@ class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
                 my $filter_cnv_file = $self->output_file(output_key => 'stepTwo_file_output_filter_cnv_file', basename => "$basename", type => 'txt', metadata => $raw_cnv_file->metadata);
                 my $out_path        = $filter_cnv_file->path;
                 my $cmd_line        = "perl $filter_cnv_script $filter_cnv_options --out $out_path $raw_cnv_path";
-                print STDERR "############ FILTER_CNV: $cmd_line  #############################\n";
-                $self->dispatch([$cmd_line, $req]); # RUN THE COMMAND
+                $self->dispatch([$cmd_line, $req]);
             }
         };
     }

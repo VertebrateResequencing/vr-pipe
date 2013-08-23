@@ -111,7 +111,7 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
                     my $img = $mapstats->add_image_by_filename($path);
                     $img->caption($caption);
                     $img->update;
-                    $mapstats->reads_mapped($caption);
+                    $mapstats->genotype_expected($caption);
                 }
                 $mapstats->update;
                 

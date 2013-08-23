@@ -37,8 +37,9 @@ use VRPipe::Base;
 class VRPipe::Steps::quantisnp_reformat_gs_export with VRPipe::StepRole {
     method options_definition {
         return {
-            reformat_script => VRPipe::StepOption->create(description => 'full path to convert_fcr_to_quanti-per_sample.pl',       optional => 0, default_value => '/lustre/scratch106/user/jm23/hip1/quantisnp/convert_fcr_to_quanti-per_sample.pl'),
-            manifest_file   => VRPipe::StepOption->create(description => 'full path to manifest file HumanCoreExome-12v1-0_A.csv', optional => 0, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/HumanCoreExome-12v1-0_A.csv'),
+            reformat_script   => VRPipe::StepOption->create(description => 'full path to convert_fcr_to_quanti-per_sample.pl',                       optional => 0, default_value => '/lustre/scratch106/user/jm23/hip1/quantisnp/convert_fcr_to_quanti-per_sample.pl'),
+            manifest_file     => VRPipe::StepOption->create(description => 'full path to manifest file HumanCoreExome-12v1-0_A.csv',                 optional => 0, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/HumanCoreExome-12v1-0_A.csv'),
+            cnv_analysis_type => VRPipe::StepOption->create(description => 'type of cnv analysis, added to file metadata for downstream processing', optional => 1, default_value => 'quantisnp'),
         };
     }
     
@@ -55,19 +56,21 @@ class VRPipe::Steps::quantisnp_reformat_gs_export with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self            = shift;
-            my $options         = $self->options;
-            my $reformat_script = $options->{reformat_script};
-            my $manifest_file   = $options->{manifest_file};
-            my $req             = $self->new_requirements(memory => 500, time => 1);
+            my $self              = shift;
+            my $options           = $self->options;
+            my $reformat_script   = $options->{reformat_script};
+            my $manifest_file     = $options->{manifest_file};
+            my $cnv_analysis_type = $options->{cnv_analysis_type};
+            my $req               = $self->new_requirements(memory => 500, time => 1);
             foreach my $gs_file (@{ $self->inputs->{stepOne_file_input_GS_file} }) {
-                my $gs_path          = $gs_file->path;
-                my $basename         = $gs_file->basename . '.reformat';
+                my $gs_path  = $gs_file->path;
+                my $basename = $gs_file->basename . '.reformat';
+                my $new_meta = { cnv_analysis_type => $cnv_analysis_type };
+                $gs_file->add_metadata($new_meta);
                 my $reformatted_file = $self->output_file(output_key => 'stepOne_file_output_reformatted_file', basename => "$basename", type => 'txt', metadata => $gs_file->metadata);
                 my $out_path         = $reformatted_file->path;
                 my $cmd_line         = "perl $reformat_script $gs_path $manifest_file > $out_path";
-                print STDERR "############ REFORMAT: $cmd_line  #############################\n";
-                $self->dispatch([$cmd_line, $req]); # RUN THE COMMAND
+                $self->dispatch([$cmd_line, $req]);
             }
         };
     }
