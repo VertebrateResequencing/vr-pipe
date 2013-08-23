@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::genome_studio_expression_reformat - a step
+VRPipe::Steps::pluritest_reformat_genome_studio_expression_files - a step
 
 =head1 DESCRIPTION
 
@@ -34,23 +34,32 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
+class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPipe::StepRole {
     method options_definition {
         return {
-            reformat_exe           => VRPipe::StepOption->create(description => 'full path to genome_studio_gene_expression_reformat.pl', optional => 1, default_value => 'genome_studio_gene_expression_reformat.pl'),
-            reformat_annotation    => VRPipe::StepOption->create(description => 'Genome Studio annotation file (PC to expand this!)'),
-            reformat_mapping       => VRPipe::StepOption->create(description => 'file containing mapping of Genome Studio file columns to sample id'),
+            reformat_exe           => VRPipe::StepOption->create(description => 'full path to genome_studio_gene_expression_reformat.pl', optional => 1, default_value => 'genome_studio_gene_expression_profile_reformat.pl'),
             reformat_sample_number => VRPipe::StepOption->create(description => 'restrict reformatting to this number of samples',        optional => 1, default_value => 7),
         };
     }
     
     method inputs_definition {
         return {
-            gs_file => VRPipe::StepIODefinition->create(
+            annotation_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
+                description => 'the annotation file that is used by pluritest - if more than one is provided, the intersection of the annotation files is produced ',
+                max_files   => -1
+            ),
+            mapping_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'a file that maps the samples to the columns in the sample profile file',
+                max_files   => -1
+            ),
+            profile_files => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                description => 'a file that contains the GenomeStudio profile for the samples',
                 max_files   => -1,
-                description => 'Genome Studio file containing gene expression data that needs to be reformatted'
-            )
+                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
+            ),
         };
     }
     
@@ -59,19 +68,25 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
             my $self                   = shift;
             my $options                = $self->options;
             my $reformat_exe           = $options->{reformat_exe};
-            my $reformat_annotation    = $options->{reformat_annotation};
-            my $reformat_mapping       = $options->{reformat_mapping};
             my $reformat_sample_number = $options->{reformat_sample_number};
-            my $reformat_options       = "--annot $reformat_annotation --mapping $reformat_mapping --samples $reformat_sample_number";
+            
+            # group the profile with its mapping and annotation files
+            my %by_tag;
+            foreach my $file (@{ $self->inputs->{profile_files} }, @{ $self->inputs->{annotation_files} }, @{ $self->inputs->{mapping_files} }) {
+                push(@{ $by_tag{ $file->metadata->{merge_tag_id} } }, $file->path);
+            }
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            foreach my $gs_file (@{ $self->inputs->{gs_file} }) {
-                my $gs_path       = $gs_file->path;
-                my $basename      = $gs_file->basename . '.reformat';
-                my $reformat_file = $self->output_file(output_key => 'reformat_files', basename => "$basename", type => 'txt');
-                my $out_path      = $reformat_file->path;
-                my $cmd_line      = "$reformat_exe --profile $gs_path $reformat_options --out $out_path";
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::genome_studio_expression_reformat', 'reformat_gs_file', [$cmd_line, $req, { output_files => [$reformat_file] }]);
+            while (my ($tag, $files) = each %by_tag) {
+                $self->throw("There was not exactly 1 annotation file and 1 mapping file and 1 profile file per merge tag id $tag (@$files)") unless @$files == 3;
+                my $reformat_options = "--annot " . $files->[1] . " --mapping " . $files->[2] . " --samples $reformat_sample_number";
+                my $profile_path     = $files->[0];
+                my $profile_file     = VRPipe::File->get(path => $profile_path);
+                my $basename         = $profile_file->basename . '.reformat';
+                my $reformat_file    = $self->output_file(output_key => 'reformat_files', basename => "$basename", type => 'txt', metadata => $profile_file->metadata);
+                my $out_path         = $reformat_file->path;
+                my $cmd_line         = "$reformat_exe --profile $profile_path $reformat_options --out $out_path";
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::pluritest_reformat_genome_studio_expression_files', 'reformat_gs_file', [$cmd_line, $req, { output_files => [$reformat_file] }]);
             }
         
         };
@@ -83,7 +98,8 @@ class VRPipe::Steps::genome_studio_expression_reformat with VRPipe::StepRole {
                 type        => 'txt',
                 description => 'Files with reformatted Genome Studio gene expression data',
                 max_files   => -1,
-                min_files   => 0
+                min_files   => 0,
+                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }

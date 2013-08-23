@@ -1,3 +1,31 @@
+0.163   Improvements and bugfixes for the ec2 and sge_ec2 schedulers, resulting
+        in more reliable instance launching and termination. EC2 spot requests
+        are now supported.
+        Increased the likelyhood of generating single large job arrays instead
+        of multiple smaller ones, for greater scheduling efficiency.
+        When vrpipe-server encounters problems, the admin is no longer emailed
+        the same error more than once per hour.
+        The default user for new setups is now the admin, not the fake user
+        'vrpipe'.
+        The fastq_metadata step no longer claims to output a file, avoiding
+        possible problems when resetting the step.
+        GATK steps that take bam files now correctly specify bai files as
+        required inputs to avoid restart-related failures.
+        Possible fix for vrpipe-handlers getting stuck after temporary loss of
+        db connection.
+        Fixed copy and move operations to discs that were nearly empty.
+        vrpipe-setup now allows specifying which unix group output files will be
+        chowned as, and if vrpipe-setup was run as root the files will also be
+        owned by the user that created the setup. --extra_options can now also
+        be used when creating a new setup, allowing the overriding of memory and
+        time for certain steps.
+        vrpipe-fileinfo --path, --setup and --search_by_metadata options now
+        work addively instead of independently.
+        The vrpipe datasource filter option now allows multiple comma separated
+        filters to be specified.
+        vrpipe-status has a new --show_steps option to show what steps a
+        pipeline has, letting you work out which step outputs your files of
+        interest.
 0.162   Fixes for the ec2-related schedulers. README file reformatted as
         README.md. The VRPipe wiki on github now contains detailed installation
         and usage guides.

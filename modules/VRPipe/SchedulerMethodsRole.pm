@@ -108,6 +108,12 @@ role VRPipe::SchedulerMethodsRole {
     method initialize {
         return;
     }
+    
+    # as per initialize, but sometimes we need to do stuff that should only be
+    # done once by vrpipe-server, not every time a handler runs
+    method initialize_for_server {
+        return;
+    }
 }
 
 1;

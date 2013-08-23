@@ -57,7 +57,7 @@ VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type    => 'vrpipe',
         method  => 'group_by_metadata',
-        source  => '1[5]',
+        source  => '1[4]',
         options => { metadata_keys => 'continent|chrom|from|to' }
     ),
     output_root => $calling_dir,

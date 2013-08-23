@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 21;
+    use Test::Most tests => 22;
     use VRPipeTest (required_exe => [qw(cat)]);
     use TestPipelines;
 }
@@ -185,6 +185,21 @@ foreach my $element (@{ get_elements($ds_test) }) {
     push(@results, result_with_inflated_paths($element));
 }
 is_deeply \@results, [{ paths => [$step_four_base_files[1]] }], 'metadata filtering for "all" vrpipe datasource method worked as expected';
+
+foreach my $path ($step_four_base_files[0], $step_four_base_files[2]) {
+    VRPipe::File->get(path => $path)->add_metadata({ filter_test_key => 'filter_test_value' });
+}
+$ds_test = VRPipe::DataSource->create(
+    type    => 'vrpipe',
+    method  => 'all',
+    source  => '1[4]',
+    options => { filter => 'one_meta#50,filter_test_key#filter_test_value' }
+);
+@results = ();
+foreach my $element (@{ get_elements($ds_test) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply \@results, [{ paths => [$step_four_base_files[0]] }, { paths => [$step_four_base_files[2]] }], 'metadata filtering for "all" vrpipe datasource method worked as expected when 2 different filters were used';
 
 $ds_test = VRPipe::DataSource->create(
     type    => 'vrpipe',

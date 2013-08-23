@@ -56,9 +56,9 @@ class VRPipe::Pipelines::1000genomes_release with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
-            { from_step => 1, to_step => 2, from_key => 'dcc_ready_bam_files', to_key => 'bam_files' },
-            { from_step => 1, to_step => 3, from_key => 'dcc_ready_bam_files', to_key => 'bam_files' },
-            { from_step => 1, to_step => 4, from_key => 'dcc_ready_bam_files', to_key => 'md5_file_input' },
+            { from_step => 0, to_step => 2, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 3, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 4, to_key   => 'md5_file_input' },
             { from_step => 2, to_step => 5, from_key => 'bai_files', to_key => 'md5_file_input' },
             { from_step => 3, to_step => 6, from_key => 'bas_files', to_key => 'md5_file_input' },
         );

@@ -48,7 +48,7 @@ VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type    => 'fofn_with_metadata_with_genome_chunking',
         method  => 'grouped_by_metadata',
-        source  => $fofn_file->path,
+        source  => $fofn_file->path->stringify,
         options => {
             reference_index     => file(qw(t data S_suis_P17.fa.fai))->absolute->stringify,
             chrom_list          => 'fake_chr1 fake_chr2',
@@ -61,7 +61,7 @@ VRPipe::PipelineSetup->create(
     output_root => $calling_dir,
     pipeline    => $calling_pipeline,
     options     => {
-        reference_fasta => $ref_fa->path,
+        reference_fasta => $ref_fa->path->stringify,
         cleanup         => 0,
     }
 );

@@ -57,8 +57,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use DateTime;
     use DateTime::Format::Natural;
     use DateTime::TimeZone;
+    use VRPipe::Config;
     
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
+    
+    my $vrp_config = VRPipe::Config->new();
+    my $admin_user = $vrp_config->admin_user();
+    $admin_user = "$admin_user";
     
     has 'name' => (
         is     => 'rw',
@@ -120,7 +125,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         is      => 'rw',
         isa     => Varchar [64],
         traits  => ['VRPipe::Persistent::Attributes'],
-        default => 'vrpipe'
+        default => $admin_user
+    );
+    
+    has 'unix_group' => (
+        is          => 'rw',
+        isa         => Varchar [64],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
     );
     
     has 'desired_farm' => (
@@ -578,6 +590,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                                 delete $job_args->{output_files};
                                                 undef $job_args unless keys %$job_args;
                                             }
+                                            
+                                            # advertise that we're creating subs
+                                            # with this reqs->id so that if we
+                                            # create another one soon
+                                            # vrpipe-server will put them both
+                                            # in the same job array
+                                            $redis->set('generating_subs_for_req_' . $reqs->id => 1, EX => 5);
                                             
                                             my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd)->id, stepstate => $state->submission_search_id, requirements => $reqs->id);
                                             $self->log_event("PipelineSetup->trigger called parse(), and the dispatch created a new Submission", dataelement => $element->id, stepstate => $state->id, submission => $sub->id, job => $sub->job->id);

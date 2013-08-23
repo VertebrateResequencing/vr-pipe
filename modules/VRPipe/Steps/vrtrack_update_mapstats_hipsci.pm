@@ -51,6 +51,7 @@ class VRPipe::Steps::vrtrack_update_mapstats_hipsci extends VRPipe::Steps::vrtra
     
     method body_sub {
         return sub {
+            #add metadata for analysis type to add to mapstats, i.e. penncnv/quantisnp.....
             my $self = shift;
             my $opts = $self->options;
             my $db   = $opts->{vrtrack_db};
@@ -74,8 +75,9 @@ class VRPipe::Steps::vrtrack_update_mapstats_hipsci extends VRPipe::Steps::vrtra
         my $diff_file = VRPipe::File->get(path => $diff);
         my $meta = $diff_file->metadata;
         $diff_file->disconnect;
-        my $cnv_total = $meta->{cnv_total};
-        my $cnv_diff  = $meta->{cnv_minus_control};
+        my $cnv_total         = $meta->{cnv_total};
+        my $cnv_diff          = $meta->{cnv_minus_control};
+        my $cnv_analysis_type = $meta->{cnv_analysis_type};
         
         # get the lane and mapstats object from VRTrack
         my $vrtrack = $self->get_vrtrack(db => $db);
@@ -93,6 +95,7 @@ class VRPipe::Steps::vrtrack_update_mapstats_hipsci extends VRPipe::Steps::vrtra
                     $mapstats->raw_bases($cnv_total);
                     $mapstats->clip_bases($cnv_diff);
                     $mapstats->genotype_found($coordinates);
+                    $mapstats->genotype_expected($cnv_analysis_type);
                     $mapstats->update;
                 }
             );

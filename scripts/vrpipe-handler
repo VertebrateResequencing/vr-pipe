@@ -472,24 +472,24 @@ sub handle_submissions {
         if ($submission) {
             $backend->debug("looking at sub");
             
-            if ($deployment eq 'testing') {
-                my $still_in_db = VRPipe::Job->search({ id => $submission->job->id });
-                $still_in_db ||= VRPipe::SidToSub->search({ id => $sidtosub->job->id });
-                unless ($still_in_db) {
-                    return exit_handler("Looks like the database was dropped");
-                }
-                
-                # in production we don't want to kill a job part-way through
-                # running it just because the server went down, but in testing
-                # it means the test finished, and we want to clean up any
-                # remaining handlers
-                if (!$debug && !$fs->alive) {
-                    return exit_handler("Looks like the $farm server stopped");
-                }
-            }
-            my $redis = $backend->redis;
-            
             eval {
+                if ($deployment eq 'testing') {
+                    my $still_in_db = VRPipe::Job->search({ id => $submission->job->id });
+                    $still_in_db ||= VRPipe::SidToSub->search({ id => $sidtosub->job->id });
+                    unless ($still_in_db) {
+                        return exit_handler("Looks like the database was dropped");
+                    }
+                    
+                    # in production we don't want to kill a job part-way through
+                    # running it just because the server went down, but in testing
+                    # it means the test finished, and we want to clean up any
+                    # remaining handlers
+                    if (!$debug && !$fs->alive) {
+                        return exit_handler("Looks like the $farm server stopped");
+                    }
+                }
+                my $redis = $backend->redis;
+                
                 # refresh expire time so no other process can grab this sub
                 # while we're still working on it
                 $redis->expire($grabbed_key, $redis_ex);
@@ -600,6 +600,7 @@ sub handle_submissions {
                     $backend->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
                 }
             };
+            
             if ($@) {
                 # we want to avoid exiting while we're still running a job, so
                 # just blindly ignore the problem and hope it goes away...
@@ -607,35 +608,37 @@ sub handle_submissions {
             }
         }
         unless ($submission) {
-            if (time() >= $end_time) {
-                return exit_handler("There is not enough time to start working on a new submission");
-            }
-            if (!$debug && !$fs->alive) {
-                return exit_handler("There is no longer a server for farm $farm");
-            }
-            my $redis = $backend->redis;
+            $backend->debug("have no sub");
             
-            # if we were given only one Submission to do, run it then exit
-            if ($given_sub) {
-                $backend->debug("was given a sub");
-                $given_sub->reselect_values_from_db;
-                if ($given_sub->done || $given_sub->failed) {
-                    return exit_handler("Handled the given Submission");
+            eval {
+                if (time() >= $end_time) {
+                    return exit_handler("There is not enough time to start working on a new submission");
+                }
+                if (!$debug && !$fs->alive) {
+                    return exit_handler("There is no longer a server for farm $farm");
+                }
+                my $redis = $backend->redis;
+                
+                # if we were given only one Submission to do, run it then exit
+                if ($given_sub) {
+                    $backend->debug("was given a sub");
+                    $given_sub->reselect_values_from_db;
+                    if ($given_sub->done || $given_sub->failed) {
+                        return exit_handler("Handled the given Submission");
+                    }
+                    else {
+                        $submission = $given_sub;
+                    }
                 }
                 else {
-                    $submission = $given_sub;
-                }
-            }
-            else {
-                my $still_in_db = VRPipe::SidToSub->search({ id => $sidtosub->id });
-                unless ($still_in_db) {
-                    return exit_handler("Our SidToSub got deleted");
-                }
-                
-                # try to claim and run the sub_id we got from the redis queue
-                # (and get one from the queue if we don't have one)
-                $backend->debug("will check if sid has grabbed a sub yet");
-                eval {
+                    my $still_in_db = VRPipe::SidToSub->search({ id => $sidtosub->id });
+                    unless ($still_in_db) {
+                        return exit_handler("Our SidToSub got deleted");
+                    }
+                    
+                    # try to claim and run the sub_id we got from the redis queue
+                    # (and get one from the queue if we don't have one)
+                    $backend->debug("will check if sid has grabbed a sub yet");
                     $sidtosub->reselect_values_from_db;
                     my $sub_id = $sidtosub->sub_id;
                     
@@ -703,17 +706,18 @@ sub handle_submissions {
                     else {
                         $backend->debug("no suitable subs in the redis queue");
                     }
-                };
-                if ($@) {
-                    exit_handler("There was a problem claiming and running a new submission: $@");
                 }
-                elsif (!defined $submission) {
-                    # wait for 5 failed attempts in a row to get a submission
-                    # before exiting
-                    $no_subs_found++;
-                    if ($no_subs_found == 5) {
-                        exit_handler("No submissions to work on");
-                    }
+            };
+            
+            if ($@) {
+                exit_handler("There was a problem claiming and running a new submission: $@");
+            }
+            elsif (!defined $submission) {
+                # wait for 5 failed attempts in a row to get a submission
+                # before exiting
+                $no_subs_found++;
+                if ($no_subs_found == 5) {
+                    exit_handler("No submissions to work on");
                 }
             }
         }

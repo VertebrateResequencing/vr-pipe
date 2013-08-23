@@ -36,6 +36,7 @@ use POSIX qw(floor);
 use List::Util 'shuffle';
 use Path::Class;
 use Cwd 'getcwd';
+use Digest::MD5;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -174,6 +175,7 @@ sub start_server {
     
     $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
     my $timer_interval = $deployment eq 'production' ? 30 : 5;
+    my $inter_message_time = 3600;
     
     my $watcher_error_sub = sub {
         my $err = $@ || return;
@@ -189,6 +191,30 @@ sub start_server {
             $err         = 'VRPipe database not created yet, cannot do all functions';
             $email_admin = 0;
         }
+        
+        # only log the same error message once per hour
+        my $redis = $backend->redis;
+        if ($redis) {
+            # try and make the 'same' error message that differs only by
+            # references in stack traces literally the same
+            my $standardised_error = $err;
+            $standardised_error =~ s/(SCALAR|ARRAY|HASH|CODE|REF)\([^\)]+\)/$1()/g;
+            
+            # get the md5 checksum of the message to use as a key name for
+            # a redis lock
+            my $dmd5 = Digest::MD5->new();
+            $dmd5->add($standardised_error);
+            my $checksum = $dmd5->hexdigest;
+            
+            # do not log if we can't get a lock
+            unless ($redis->set($checksum => 1, EX => $inter_message_time, 'NX')) {
+                return;
+            }
+        }
+        else {
+            return;
+        }
+        
         $backend->log($err, email_admin => $email_admin);
     };
     
@@ -258,7 +284,7 @@ sub start_server {
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
                     $scheduler = VRPipe::Scheduler->create();
-                    $scheduler->initialize;
+                    $scheduler->initialize_for_server;
                     $survival_time = $farm_server->survival_time;
                     
                     # some schedulers may need to do something periodically;
@@ -271,10 +297,13 @@ sub start_server {
                             return if $working;
                             $working = 1;
                             fork_call {
-                                $scheduler->scheduler_instance->$sch_periodic_method(deployment => $deployment);
-                                return;
+                                return $scheduler->scheduler_instance->$sch_periodic_method(deployment => $deployment);
                             }
                             sub {
+                                if (@_ && $scheduler->scheduler_instance->can($_[0])) {
+                                    my ($method, @args) = @_;
+                                    $scheduler->scheduler_instance->$method(@args);
+                                }
                                 $working = 0;
                                 $@ || return;
                                 &{$watcher_error_sub};
@@ -311,7 +340,7 @@ sub start_server {
                     $farm_server->stop_beating; # parent process is beating
                     
                     # claim our setups
-                    my @setups = $farm_server->claim_setups;
+                    my @setups = grep { !$_->currently_complete } $farm_server->claim_setups;
                     
                     if (@setups) {
                         # make sure the redis server is alive
@@ -363,6 +392,15 @@ sub start_server {
                         while (my $subs = $sub_pager->next(no_resetting => 1)) {
                             foreach my $sub (@$subs) {
                                 my $sub_id = $sub->id;
+                                my $req_id = $sub->requirements->id;
+                                
+                                # delay looking at subs with this req_id while
+                                # handler's are in the process of generating
+                                # new subs with this req_id; this way we're more
+                                # likely to get single large arrays for greater
+                                # efficiency
+                                next if $redis->exists('generating_subs_for_req_' . $req_id);
+                                
                                 # if the job is a block_and_skip_if_ok job, we
                                 # don't actually block because of race condition
                                 # issues, and because of fail and restart
@@ -385,7 +423,6 @@ sub start_server {
                                 
                                 # we'll want to make sure there'll be a
                                 # handler for this one
-                                my $req_id = $sub->requirements->id;
                                 $req_counts{$req_id}++;
                                 $step_counts{$step_id}++;
                                 
@@ -639,7 +676,13 @@ sub start_server {
     
     # cleanup handlers when testing (but not in production, since handlers
     # should keep running if the server goes down)
+    eval { $farm_server->delete if $farm_server; };
     if ($deployment eq 'testing') {
+        # make sure all our handlers have exited ***... I don't know of a good
+        # way to ensure this; let's just wait 6 seconds and hope they commit
+        # suicide now that the farmserver is gone
+        sleep(6);
+        
         # some schedulers may need to do something when the test server exits
         my $sch_on_exit_method = $scheduler ? $scheduler->on_exit_method : undef;
         if ($sch_on_exit_method) {
@@ -716,6 +759,7 @@ sub status {
     my $list            = $opts->{list};
     my $incomplete_only = $opts->{incomplete};
     my $brief           = $opts->{brief};
+    my $show_steps      = $brief ? 0 : $opts->{show_steps};
     my $defunct_only    = $opts->{defunct};
     my $gs              = $opts->{global_summary};
     if ($defunct_only) {
@@ -906,6 +950,24 @@ sub status {
                 $object .= $backend->xml_tag('attribute', $step_members, q[name="num_steps"]);
                 $object .= '</object></attribute>';
                 
+                if ($show_steps) {
+                    # pipeline step details
+                    $object .= '<attribute name="steps">';
+                    my (%steps, @step_order);
+                    foreach my $sm ($pipeline->step_members) {
+                        my $step_num = $sm->step_number;
+                        my $step     = $sm->step;
+                        my $name     = $step->name;
+                        my $inputs   = join(', ', keys %{ $step->inputs_definition || {} }) || '';
+                        my $outputs  = join(', ', keys %{ $step->outputs_definition || {} }) || '';
+                        my $step_id  = "$step_num.$name";
+                        $steps{$step_id} = "Description: " . $step->description . "; Inputs: $inputs; Outputs: $outputs";
+                        push(@step_order, $step_id);
+                    }
+                    $object .= $backend->hash_to_xml(\%steps, \@step_order);
+                    $object .= '</attribute>';
+                }
+                
                 # setup options and output root
                 my $ps_opts = $setup->options;
                 $object .= '<attribute name="options">';
@@ -917,6 +979,7 @@ sub status {
                 }
                 $object .= '</attribute>';
                 $object .= $backend->xml_tag('attribute', $setup->output_root->stringify, q[name="output_root"]);
+                $object .= $backend->xml_tag('attribute', $setup->unix_group || 'default', q[name="unix_group"]);
                 
                 # datasource details
                 $object .= '<attribute name="datasource"><object class="DataSource" display_mode="full">';

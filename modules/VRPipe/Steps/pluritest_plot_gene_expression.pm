@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::plot_pluritest_gene_expression - a step
+VRPipe::Steps::pluritest_plot_gene_expression - a step
 
 =head1 DESCRIPTION
 
@@ -35,7 +35,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
+class VRPipe::Steps::pluritest_plot_gene_expression with VRPipe::StepRole {
     method options_definition {
         return {
             pluritest_script => VRPipe::StepOption->create(description => 'path to modified pluritest R script'),
@@ -50,7 +50,8 @@ class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
                 type        => 'txt',
                 description => 'Files with reformatted Genom Studio gene expression data',
                 max_files   => -1,
-                min_files   => 0
+                min_files   => 0,
+                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }
@@ -65,15 +66,15 @@ class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
             my $r_bin_path       = $options->{r_bin_path};
             
             foreach my $conv_file (@{ $self->inputs->{conv_files} }) {
-                #my $meta       = $conv_file->metadata;
+                my $meta      = $conv_file->metadata;
                 my $conv_path = $conv_file->path;
                 $self->output_file(temporary  => 1,                 basename => 'pluritest_log.txt',      type => 'txt');
-                $self->output_file(output_key => 'csv_file',        basename => 'pluritest.csv',          type => 'txt');
-                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image01.png',  type => 'bin'); #may need to add metadata
-                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image02a.png', type => 'bin'); #may need to add metadata
-                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image02.png',  type => 'bin'); #may need to add metadata
-                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image03.png',  type => 'bin'); #may need to add metadata
-                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image03c.png', type => 'bin'); #may need to add metadata
+                $self->output_file(output_key => 'csv_file',        basename => 'pluritest.csv',          type => 'txt', metadata => $conv_file->metadata);
+                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image01.png',  type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
+                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image02a.png', type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
+                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image02.png',  type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
+                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image03.png',  type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
+                $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image03c.png', type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
                 my $cmd = qq[$r_bin_path --slave --args $conv_path $pluritest_data < $pluritest_script];
                 $self->dispatch([$cmd, $req]);
             }
@@ -86,12 +87,14 @@ class VRPipe::Steps::plot_pluritest_gene_expression with VRPipe::StepRole {
                 type        => 'bin',
                 description => 'png files produced by pluritest R script to assist in determination of pluripotency of stem cell lines',
                 min_files   => 5,
-                max_files   => -1
+                max_files   => -1,
+                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             ),
             csv_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'csv file with ancillary pluritest data per sample',
-                max_files   => -1
+                max_files   => -1,
+                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }

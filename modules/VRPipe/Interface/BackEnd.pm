@@ -239,6 +239,11 @@ XSL
             <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='description']"/>
             <xsl:text>
 </xsl:text>
+            <xsl:choose>
+                <xsl:when test="./attribute[@name='steps']/hash">
+                    <xsl:apply-templates select="./attribute[@name='steps']/hash/pair"/>
+                </xsl:when>
+            </xsl:choose>
             <xsl:text>PipelineSetup options:
 </xsl:text>
             <xsl:choose>
@@ -253,6 +258,10 @@ XSL
             </xsl:choose>
             <xsl:text>PipelineSetup output root: </xsl:text>
             <xsl:value-of select="./attribute[@name='output_root']"/>
+            <xsl:text>
+</xsl:text>
+            <xsl:text>Output file unix group: </xsl:text>
+            <xsl:value-of select="./attribute[@name='unix_group']"/>
             <xsl:text>
 </xsl:text>
             <xsl:text>DataSource: </xsl:text>
@@ -931,6 +940,11 @@ XSL
                 warn "$time{'yyyy-mm-dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
             }
         }
+    }
+    
+    method debug (Str $msg!) {
+        return unless $self->verbose > 0;
+        return $self->log($msg);
     }
     
     method xml_tag (Str $tag, Str $cdata, Str $attribs?) {

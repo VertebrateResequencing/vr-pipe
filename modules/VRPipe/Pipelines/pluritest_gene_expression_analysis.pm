@@ -46,21 +46,27 @@ class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::Pipelin
     
     method step_names {
         (
-            'genome_studio_expression_reformat',
-            'plot_pluritest_gene_expression'
+            'pluritest_annotation_profile_files',
+            'pluritest_reformat_genome_studio_expression_files',
+            'pluritest_plot_gene_expression',
+            'pluritest_vrtrack_update_images',
         );
     }
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key   => 'gs_file' },
-            { from_step => 1, to_step => 2, from_key =>, 'reformat_files', to_key => 'conv_files' },
+            { from_step => 0, to_step => 1, to_key   => 'idat_files' },
+            { from_step => 1, to_step => 2, from_key => 'profile_file', to_key => 'profile_files' },
+            { from_step => 1, to_step => 2, from_key => 'annotation_file', to_key => 'annotation_files' },
+            { from_step => 1, to_step => 2, from_key => 'mapping_file', to_key => 'mapping_files' },
+            { from_step => 2, to_step => 3, from_key =>, 'reformat_files', to_key => 'conv_files' },
+            { from_step => 3, to_step => 4, from_key =>, 'pluritest_plots', to_key => 'pluritest_plots' },
         );
     }
     
-    #~ method behaviour_definitions {
-    #~ ({ after_step => 1, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup', default_regulation => 0 });
-    #~ }
+    method behaviour_definitions {
+        ({ after_step => 4, behaviour => 'delete_outputs', act_on_steps => [1, 2], regulated_by => 'cleanup', default_regulation => 0 });
+    }
 }
 
 1;

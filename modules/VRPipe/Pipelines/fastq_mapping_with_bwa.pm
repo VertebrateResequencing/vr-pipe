@@ -60,7 +60,7 @@ class VRPipe::Pipelines::fastq_mapping_with_bwa with VRPipe::PipelineRole {
         (
             { from_step => 0, to_step => 3, to_key   => 'fastq_files' },
             { from_step => 3, to_step => 4, from_key => 'local_fastq_files', to_key => 'fastq_files' },
-            { from_step => 4, to_step => 5, from_key => 'fastq_files_with_metadata', to_key => 'fastq_files' },
+            { from_step => 3, to_step => 5, from_key => 'local_fastq_files', to_key => 'fastq_files' },
             { from_step => 5, to_step => 6, from_key => 'split_fastq_files', to_key => 'fastq_files' },
             { from_step => 5, to_step => 7, from_key => 'split_fastq_files', to_key => 'fastq_files' },
             { from_step => 6, to_step => 7, from_key => 'bwa_sai_files', to_key => 'sai_files' },

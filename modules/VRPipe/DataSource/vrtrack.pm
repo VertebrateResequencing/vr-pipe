@@ -273,6 +273,10 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             if ($objs{sample}->note_id) {
                 $control = $objs{sample}->note_id == 1 ? 'Control' : ($objs{sample}->note_id == 2 ? 'Stem cell' : undef);
             }
+            my $lib_tag_sequence;
+            if ($objs{library}->library_tag_sequence) {
+                $lib_tag_sequence = $objs{library}->library_tag_sequence;
+            }
             
             my @files;
             foreach my $file (@{ $lane->files }) {
@@ -311,7 +315,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     lane_id     => $file->lane_id,
                     $file_type eq '7|8' ? (analysis_uuid => $lane_info{vrlane}->acc) : (),
                     $file_type eq '7|8' && defined $control ? (control => $control) : (),
-                    $file_type eq '7|8' ? (storage_path => $lane_info{vrlane}->storage_path) : ()
+                    $file_type eq '7|8' ? (storage_path => $lane_info{vrlane}->storage_path) : (),
+                    $file_type eq '7|8' && defined $lib_tag_sequence ? (library_tag => $lib_tag_sequence) : ()
                 };
                 
                 # add metadata to file but ensure that we update any fields in

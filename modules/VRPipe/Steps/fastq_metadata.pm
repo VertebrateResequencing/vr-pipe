@@ -53,9 +53,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
             my $fastqcheck_exe = $self->options->{fastqcheck_exe};
             
             foreach my $fq_file (@{ $self->inputs->{fastq_files} }) {
-                # our output file is our input file
                 my $ifile = $fq_file->path;
-                $self->output_file(output_key => 'fastq_files_with_metadata', output_dir => $ifile->dir, basename => $ifile->basename, type => 'fq');
                 
                 # we expect the datasource to fill in most if not all metadata,
                 # but some things may need calculating
@@ -79,19 +77,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return {
-            fastq_files_with_metadata => VRPipe::StepIODefinition->create(
-                type        => 'fq',
-                description => 'a fastq file with associated metadata',
-                max_files   => -1,
-                metadata    => {
-                    bases           => 'total number of base pairs',
-                    reads           => 'total number of reads (sequences)',
-                    avg_read_length => 'the average length of reads',
-                    #*** etc.
-                }
-            )
-        };
+        return {};
     }
     
     method post_process_sub {
@@ -99,7 +85,7 @@ class VRPipe::Steps::fastq_metadata with VRPipe::StepRole {
             my $self = shift;
             
             my $all_ok = 1;
-            foreach my $ofile (@{ $self->outputs->{fastq_files_with_metadata} }) {
+            foreach my $ofile (@{ $self->inputs->{fastq_files} }) {
                 my $meta = $ofile->metadata;
                 unless ($meta->{bases} && $meta->{reads} && $meta->{avg_read_length}) {
                     $self->warn("some metadata was missing from the dataelement of " . $ofile->path . ", and our fastqcheck run failed to resolved that");

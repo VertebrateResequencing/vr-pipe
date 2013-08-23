@@ -874,7 +874,7 @@ class VRPipe::File extends VRPipe::Persistent {
             
             my $total_bytes  = $ref->{blocks};
             my $bytes_free   = $ref->{bfree};
-            my $percent_free = 100 - (100 / $total_bytes * $bytes_free); # ($ref->{per} is user-specific)
+            my $percent_free = 100 / $total_bytes * $bytes_free; # ($ref->{per} is user-specific)
             $self->throw("There is not enough disk space remaining at $dir ($percent_free\%) to safely copy or move files there.") if $percent_free < $percent_free_required;
         }
     }

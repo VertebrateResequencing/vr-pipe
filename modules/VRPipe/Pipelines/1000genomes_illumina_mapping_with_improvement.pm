@@ -68,7 +68,7 @@ class VRPipe::Pipelines::1000genomes_illumina_mapping_with_improvement with VRPi
         (
             { from_step => 0,  to_step => 3,  to_key   => 'fastq_files' },
             { from_step => 3,  to_step => 4,  from_key => 'local_fastq_files', to_key => 'fastq_files' },
-            { from_step => 4,  to_step => 5,  from_key => 'fastq_files_with_metadata', to_key => 'fastq_files' },
+            { from_step => 3,  to_step => 5,  from_key => 'local_fastq_files', to_key => 'fastq_files' },
             { from_step => 5,  to_step => 6,  from_key => 'split_fastq_files', to_key => 'fastq_files' },
             { from_step => 5,  to_step => 7,  from_key => 'split_fastq_files', to_key => 'fastq_files' },
             { from_step => 6,  to_step => 7,  from_key => 'bwa_sai_files', to_key => 'sai_files' },
@@ -81,6 +81,7 @@ class VRPipe::Pipelines::1000genomes_illumina_mapping_with_improvement with VRPi
             { from_step => 10, to_step => 12, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 12, to_step => 13, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 12, to_step => 14, from_key => 'realigned_bam_files', to_key => 'bam_files' },
+            { from_step => 13, to_step => 14, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 14, to_step => 15, from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
             { from_step => 12, to_step => 15, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 13, to_step => 15, from_key => 'bai_files', to_key => 'bai_files' },
