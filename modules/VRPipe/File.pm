@@ -483,7 +483,7 @@ class VRPipe::File extends VRPipe::Persistent {
             # copy, even though we may do a direct mv requiring no additional
             # disk space if both sp and dp are on the same filesystem... but
             # whatever)
-            $self->_check_destination_space($dp->dir);
+            $self->check_destination_space($dp->dir);
             
             $self->disconnect;
             if (-l $sp) {
@@ -822,7 +822,7 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         
         # is it safe to copy?
-        $self->_check_destination_space($dest->path->dir);
+        $self->check_destination_space($dest->path->dir);
         
         $self->disconnect;
         my $success;
@@ -864,19 +864,28 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     alias cp => 'copy';
     
-    method _check_destination_space (Dir $dir, Int $percent_free_required = 5) {
+    method check_destination_space (Dir $dir, Int $percent_free_required = 5, Bool $throw = 1) {
         # we won't use a dir if there is less than 5% disk space left on the
         # disk it is mounted on. We obviously also won't use a dir if it doesn't
         # have enough disk space to hold our file
         my $ref = dfportable($dir);
         if (defined($ref)) {
-            $self->throw("There is not enough disk space available at $dir to hold " . $self->path) if $ref->{bavail} < $self->s;
+            if ($ref->{bavail} < $self->s) {
+                $self->throw("There is not enough disk space available at $dir to hold " . $self->path) if $throw;
+                return 0;
+            }
             
             my $total_bytes  = $ref->{blocks};
             my $bytes_free   = $ref->{bfree};
             my $percent_free = 100 / $total_bytes * $bytes_free; # ($ref->{per} is user-specific)
-            $self->throw("There is not enough disk space remaining at $dir ($percent_free\%) to safely copy or move files there.") if $percent_free < $percent_free_required;
+            
+            if ($percent_free < $percent_free_required) {
+                $self->throw("There is not enough disk space remaining at $dir ($percent_free\%) to safely copy or move files there.") if $throw;
+                return 0;
+            }
         }
+        
+        return 1;
     }
     
     method update_stats_from_disc (PositiveInt :$retries = 1) {

@@ -52,8 +52,15 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             my $disc_pool_file = file($options->{disc_pool_file});
             $self->throw("disc_pool_file must be an absolute path") unless $disc_pool_file->is_absolute;
             
+            # we do not allow for multiple input files because if 1 gets moved
+            # successfully but 1 does not and the user does a reset to fix
+            # the failure, the successfully moved file gets deleted and our
+            # input no longer exists!
+            my ($file) = @{ $self->inputs->{file} };
+            
             # parse the disc_pool_file; we don't cache these results in a class
             # variable because disc_pool_file could be updated at any time.
+            # Also, we want to pick a disc that has enough free space
             my $fh = $disc_pool_file->openr;
             my @dirs;
             while (<$fh>) {
@@ -61,17 +68,16 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
                 next if /^#/;
                 my $dir = $_;
                 next unless dir($dir)->is_absolute;
+                next unless $file->check_destination_space(dir($dir), 5, 0);
                 push(@dirs, $dir);
             }
             my $max = @dirs;
             
-            my $req = $self->new_requirements(memory => 500, time => 1); # md5sum can be memory intensive??
+            unless ($max) {
+                $self->throw("None of the discs in the pool ($disc_pool_file) have enough free space left to safely move " . $file->path . " to");
+            }
             
-            # we do not allow for multiple input files because if 1 gets moved
-            # successfully but 1 does not and the user does a reset to fix
-            # the failure, the successfully moved file gets deleted and our
-            # input no longer exists!
-            my ($file) = @{ $self->inputs->{file} };
+            my $req = $self->new_requirements(memory => 500, time => 1); # md5sum can be memory intensive??
             
             # make sure the file isn't already in the pool
             my $path = $file->path;
