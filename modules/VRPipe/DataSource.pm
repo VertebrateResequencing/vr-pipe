@@ -198,8 +198,11 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         return $self->$orig;
     }
     
-    method _prepare_elements_and_states (Bool $status_messages = 0) {
+    method _prepare_elements_and_states (Bool $status_messages?) {
         my $source = $self->_source_instance || return;
+        unless (defined $status_messages) {
+            $status_messages = $self->verbose > 0 ? 1 : 0;
+        }
         
         my @setup_ids = VRPipe::PipelineSetup->get_column_values('id', { datasource => $self->id });
         
