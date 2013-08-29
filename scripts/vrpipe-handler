@@ -475,7 +475,7 @@ sub handle_submissions {
             eval {
                 if ($deployment eq 'testing') {
                     my $still_in_db = VRPipe::Job->search({ id => $submission->job->id });
-                    $still_in_db ||= VRPipe::SidToSub->search({ id => $sidtosub->job->id });
+                    $still_in_db ||= VRPipe::SidToSub->search({ id => $sidtosub->id });
                     unless ($still_in_db) {
                         return exit_handler("Looks like the database was dropped");
                     }
