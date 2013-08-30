@@ -82,7 +82,7 @@ elapsed($l, __LINE__);
 
 # later we need a datasource row in the db to make the dataelements, so we just
 # create a list one and then withdraw its single element
-my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
+my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute->stringify);
 $ds->elements;
 my @elements = VRPipe::DataElement->search({});
 $elements[0]->withdrawn(1);
@@ -135,7 +135,7 @@ foreach my $step (@steps) {
     $pipeline->add_step($step);
 }
 my $output_root = get_output_dir('profiling_output_dir');
-my $ref         = file($output_root, 'ref.fa');
+my $ref         = file($output_root, 'ref.fa')->stringify;
 my $setup       = VRPipe::PipelineSetup->create(name => 'ps1', datasource => $ds, output_root => $output_root, pipeline => $pipeline, active => 0, options => { reference_fasta => $ref }, controlling_farm => 'testing_farm');
 
 # dataelement (and their associated files and metadata) creation tests
