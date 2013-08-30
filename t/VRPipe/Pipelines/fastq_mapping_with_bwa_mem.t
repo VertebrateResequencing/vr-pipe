@@ -39,7 +39,6 @@ my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
     output_root => $mapping_output_dir,
     pipeline    => $mapping_pipeline,
     options     => {
-        bwa_exe                       => '/nfs/users/nfs_s/sm15/src/bwa/bwa',
         reference_fasta               => $ref_fa,
         reference_assembly_name       => 'SSuis1',
         reference_public_url          => 'ftp://s.suis.com/ref.fa',
