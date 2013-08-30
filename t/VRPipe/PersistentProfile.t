@@ -129,8 +129,7 @@ $steps[1] = VRPipe::Step->create(
     outputs_definition => { step2_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'step2_output file') },
     post_process_sub   => sub            { return 1 }
 );
-VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 2, adaptor_hash => { from_datasource => { data_element => 0 } });
-VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 2, adaptor_hash => { from_step1      => { step1_output => 1 } });
+VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 2, adaptor_hash => { from_datasource => { data_element => 0 }, from_step1 => { step1_output => 1 } });
 foreach my $step (@steps) {
     $pipeline->add_step($step);
 }
@@ -492,3 +491,29 @@ sub report {
 #   197..207: 0.04 seconds
 #   314..316: 0.00 seconds
 #   191..193: 0.00 seconds
+
+# MySQL 5.5, VRPipe v0.164 (fixed adaptor_hash definition to avoid transaction
+# failures):
+# Most time consuming sections:
+#   56..65: 28.28 seconds
+#   29..33: 16.48 seconds
+#   43..54: 15.58 seconds
+#   36..40: 13.45 seconds
+#   242..256: 12.56 seconds
+#   249..251: 12.50 seconds (0.2501 avg over 50 loops)
+#   336..338: 10.80 seconds
+#   216..218: 9.84 seconds
+#   340..354: 7.74 seconds
+#   347..349: 7.66 seconds (0.0806 avg over 95 loops)
+#   67..74: 6.67 seconds
+#   143..181: 6.66 seconds
+#   266..304: 4.94 seconds
+#   77..81: 3.64 seconds
+#   316..318: 1.87 seconds
+#   193..195: 1.64 seconds
+#   261..263: 0.28 seconds
+#   364..386: 0.08 seconds
+#   319..329: 0.04 seconds
+#   196..206: 0.03 seconds
+#   313..315: 0.00 seconds
+#   190..192: 0.00 seconds
