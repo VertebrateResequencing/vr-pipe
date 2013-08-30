@@ -292,6 +292,7 @@ role VRPipe::StepRole {
         return {} unless $step_adaptor;
         
         my %return;
+        keys %$hash;      # reset the iterator in case we threw in a previous pass
         while (my ($key, $val) = each %$hash) {
             if ($val->isa('VRPipe::File')) {
                 $return{$key} = [$val->e ? $val : $val->resolve];
