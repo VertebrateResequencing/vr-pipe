@@ -365,7 +365,49 @@ if ($setup) {
             $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") has no options that can be set (try rerunning with --extra_options ?).");
         }
         
-        # (probably not a good idea to allow changing datasource options?...)
+        # allow changing the datasource, but only if a) no other setups use the
+        # current ds and the new settings don't match another ds (in which case
+        # we keep the current ds->id and update it to the new settings), or b)
+        # other setups use the current ds but we don't yet have any stepstates
+        # (in which case we'll get a new ds->id)
+        my $current_ds = $setup->datasource;
+        my $other_setups = VRPipe::PipelineSetup->search({ datasource => $current_ds->id });
+        my ($chosen_ds_type, $chosen_method, $ds_source, $chosen_method_args);
+        while (!$chosen_ds_type) {
+            my $answer = $frontend->ask_question(question => "Do you want to alter the datasource?", possibles => [qw(y n)], default => 'n');
+            last if $answer eq 'n';
+            
+            # ask the user for the new ds settings
+            ($chosen_ds_type, $chosen_method, $ds_source, $chosen_method_args) = get_ds_details($current_ds);
+            
+            # see if a ds corresponding to the new settings already exists
+            my $already_exists = 0;
+            my $transaction    = sub {
+                my ($new_ds) = VRPipe::DataSource->search({ type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args });
+                if ($new_ds && $new_ds->id != $based_on->id) {
+                    $already_exists = $new_ds->id;
+                }
+            };
+            $based_on->do_transaction($transaction, "Could not search for DataSources");
+            
+            if ($other_setups == 1 && !$already_exists) {
+                # no other datasource has the new settings, so we'll update
+                # the current datasource and keep any existing dataelements and
+                # *states.
+                $current_ds->type($chosen_ds_type);
+                $current_ds->method($chosen_method);
+                $current_ds->source($ds_source);
+                $current_ds->options($chosen_method_args);
+                $current_ds->_changed_marker('forced_update');
+                $current_ds->update;
+                $frontend->output("Datasource updated!\n\n");
+            }
+            else {
+                # we can switch the setup to use a different (new or pre-
+                # existing) ds if the current_ds hasn't yet been used
+                $frontend->output("Your new settings match another pre-existing datasource for a different setup");
+            }
+        }
     }
 }
 elsif ($list) {
@@ -401,7 +443,7 @@ else {
     }
     my @steps = map { $_->step } @sms;
     
-    # find the steps whoes input is the data element
+    # find the steps whose input is the data element
     my @adaptors = VRPipe::StepAdaptor->search({ pipeline => $pipeline->id });
     my %source_input_step_num_to_kind;
     foreach my $adaptor (@adaptors) {
@@ -435,93 +477,7 @@ else {
     }
     
     # ask the user for the DataSource details
-    my @ds_types;
-    my $ds_num = 0;
-    $frontend->output("\n");
-    my ($based_on_ds, $based_on_ds_type, $based_on_ds_type_num, $based_on_ds_method, $based_on_ds_method_num, $based_on_ds_options);
-    if ($based_on) {
-        $based_on_ds         = $based_on->datasource;
-        $based_on_ds_type    = $based_on_ds->type;
-        $based_on_ds_method  = $based_on_ds->method;
-        $based_on_ds_options = $based_on_ds->options;
-    }
-    foreach my $ds_type ($frontend->sub_modules('DataSource')) {
-        $ds_num++;
-        my $ds_module = "VRPipe::DataSource::$ds_type";
-        eval "require $ds_module;";
-        if ($@) {
-            die $@;
-        }
-        my $ds = $ds_module->new;
-        $frontend->output("$ds_num. $ds_type (", $ds->description, ")");
-        $ds_types[$ds_num] = $ds_type;
-        
-        if ($based_on_ds_type && $based_on_ds_type eq $ds_type) {
-            $based_on_ds_type_num = $ds_num;
-        }
-    }
-    my $chosen_ds_num = $frontend->pick_number(question => "Pick a DataSource type from the above list", max => $ds_num, $based_on_ds ? (default => $based_on_ds_type_num) : ());
-    my $chosen_ds_type = $ds_types[$chosen_ds_num];
-    if (defined $based_on_ds_type && $based_on_ds_type ne $chosen_ds_type) {
-        undef $based_on_ds;
-        undef $based_on_ds_type;
-        undef $based_on_ds_method;
-        undef $based_on_ds_options;
-    }
-    
-    # get the source
-    my $ds_module = "VRPipe::DataSource::$chosen_ds_type";
-    my $ds        = $ds_module->new;
-    $frontend->output("$chosen_ds_type DataSources have a source described as:\n", $ds->source_description);
-    my $ds_source = $frontend->ask_question(question => "Supply the source", required => 1, $based_on_ds ? (default => $based_on_ds->source) : (), strip_leading_trailing_whitespace => 1);
-    
-    # pick a method
-    $frontend->output("\n");
-    my $chosen_method;
-    my @method_names = $ds->get_methods;
-    if (@method_names == 1) {
-        $chosen_method = $method_names[0];
-        $frontend->output("The $chosen_ds_type DataSource has only one method: $chosen_method (", $ds->method_description($chosen_method), ")");
-    }
-    else {
-        my $method_num = 0;
-        my @ds_methods;
-        foreach my $method (@method_names) {
-            $method_num++;
-            $frontend->output("$method_num. $method (", $ds->method_description($method), ")");
-            $ds_methods[$method_num] = $method;
-            
-            if ($based_on_ds_method && $based_on_ds_method eq $method) {
-                $based_on_ds_method_num = $method_num;
-            }
-        }
-        my $chosen_method_num = $frontend->pick_number(question => "Pick one of the $chosen_ds_type DataSource methods from the above list", max => $method_num, $based_on_ds ? (default => $based_on_ds_method_num) : ());
-        $chosen_method = $ds_methods[$chosen_method_num];
-    }
-    
-    # pick method options
-    my %chosen_method_args;
-    my @method_opts = $ds->method_options($chosen_method);
-    if (@method_opts) {
-        $frontend->output("\nPlease provide your options to the '$chosen_method' method:");
-        foreach my $method_opt (@method_opts) {
-            my ($kind, $name, $req, $default, $constraint) = @$method_opt;
-            next unless $kind eq 'named';
-            my $comment = $req ? 'REQUIRED' : 'optional';
-            if ($based_on_ds_options && defined $based_on_ds_options->{$name}) {
-                $default = $based_on_ds_options->{$name};
-            }
-            my $arg = $frontend->ask_question(question => "\t$name ($comment, a $constraint)", $default ? (default => $default) : (), required => $req);
-            if (defined $arg && "$arg" ne '') {
-                $chosen_method_args{$name} = $arg;
-            }
-        }
-    }
-    else {
-        $frontend->output("(the '$chosen_method' method has no options)");
-    }
-    
-    #*** check the source actually works, and works with the pipeline...
+    my ($chosen_ds_type, $chosen_method, $ds_source, $chosen_method_args) = get_ds_details($based_on, 0);
     
     # pick pipeline (step) options
     my %step_options;
@@ -659,14 +615,14 @@ else {
     # confirm with the user everything is correct
     $frontend->output("\nWe've now gathered all information; here's what you've asked for:");
     $frontend->output("\tPipelineSetup name: $setup_name (for user $user $farm_confirmation)");
-    $frontend->display_hash("\tDataSource: $chosen_ds_type\->$chosen_method with source $ds_source", \%chosen_method_args);
+    $frontend->display_hash("\tDataSource: $chosen_ds_type\->$chosen_method with source $ds_source", $chosen_method_args);
     $frontend->display_hash("\tPipeline: " . $pipeline->name . " (outputting to $output_root " . ($group ? "belonging to group $group" : '') . ")", \%pipeline_args);
     
     my $correct = $frontend->ask_question(question => "Is all of this correct?", possibles => [qw(y n)], required => 1);
     
     # actually create the datasource and pipelinesetup
     if ($correct eq 'y') {
-        my $ds = VRPipe::DataSource->create(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => \%chosen_method_args);
+        my $ds = VRPipe::DataSource->create(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => $chosen_method_args);
         my $ps = VRPipe::PipelineSetup->create(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args, user => $user, $group ? (unix_group => $group) : (), $farm ? (desired_farm => $farm) : ());
         $frontend->output("\nYour new PipelineSetup has been created!\nName: $setup_name; Id: ", $ps->id, " (remember at least one of these for use later)");
         $ps->log_event("vrpipe-setup used to create this new PipelineSetup");
@@ -720,4 +676,98 @@ sub behaviours_to_regulators {
     }
     
     return \%reg;
+}
+
+sub get_ds_details {
+    my $based_on = shift;
+    
+    my @ds_types;
+    my $ds_num = 0;
+    $frontend->output("\n");
+    my ($based_on_ds, $based_on_ds_type, $based_on_ds_type_num, $based_on_ds_method, $based_on_ds_method_num, $based_on_ds_options);
+    if ($based_on) {
+        $based_on_ds         = $based_on->datasource;
+        $based_on_ds_type    = $based_on_ds->type;
+        $based_on_ds_method  = $based_on_ds->method;
+        $based_on_ds_options = $based_on_ds->options;
+    }
+    foreach my $ds_type ($frontend->sub_modules('DataSource')) {
+        $ds_num++;
+        my $ds_module = "VRPipe::DataSource::$ds_type";
+        eval "require $ds_module;";
+        if ($@) {
+            die $@;
+        }
+        my $ds = $ds_module->new;
+        $frontend->output("$ds_num. $ds_type (", $ds->description, ")");
+        $ds_types[$ds_num] = $ds_type;
+        
+        if ($based_on_ds_type && $based_on_ds_type eq $ds_type) {
+            $based_on_ds_type_num = $ds_num;
+        }
+    }
+    my $chosen_ds_num = $frontend->pick_number(question => "Pick a DataSource type from the above list", max => $ds_num, $based_on_ds ? (default => $based_on_ds_type_num) : ());
+    my $chosen_ds_type = $ds_types[$chosen_ds_num];
+    if (defined $based_on_ds_type && $based_on_ds_type ne $chosen_ds_type) {
+        undef $based_on_ds;
+        undef $based_on_ds_type;
+        undef $based_on_ds_method;
+        undef $based_on_ds_options;
+    }
+    
+    # get the source
+    my $ds_module = "VRPipe::DataSource::$chosen_ds_type";
+    my $ds        = $ds_module->new;
+    $frontend->output("$chosen_ds_type DataSources have a source described as:\n", $ds->source_description);
+    my $ds_source = $frontend->ask_question(question => "Supply the source", required => 1, $based_on_ds ? (default => $based_on_ds->source) : (), strip_leading_trailing_whitespace => 1);
+    
+    # pick a method
+    $frontend->output("\n");
+    my $chosen_method;
+    my @method_names = $ds->get_methods;
+    if (@method_names == 1) {
+        $chosen_method = $method_names[0];
+        $frontend->output("The $chosen_ds_type DataSource has only one method: $chosen_method (", $ds->method_description($chosen_method), ")");
+    }
+    else {
+        my $method_num = 0;
+        my @ds_methods;
+        foreach my $method (@method_names) {
+            $method_num++;
+            $frontend->output("$method_num. $method (", $ds->method_description($method), ")");
+            $ds_methods[$method_num] = $method;
+            
+            if ($based_on_ds_method && $based_on_ds_method eq $method) {
+                $based_on_ds_method_num = $method_num;
+            }
+        }
+        my $chosen_method_num = $frontend->pick_number(question => "Pick one of the $chosen_ds_type DataSource methods from the above list", max => $method_num, $based_on_ds ? (default => $based_on_ds_method_num) : ());
+        $chosen_method = $ds_methods[$chosen_method_num];
+    }
+    
+    # pick method options
+    my %chosen_method_args;
+    my @method_opts = $ds->method_options($chosen_method);
+    if (@method_opts) {
+        $frontend->output("\nPlease provide your options to the '$chosen_method' method:");
+        foreach my $method_opt (@method_opts) {
+            my ($kind, $name, $req, $default, $constraint) = @$method_opt;
+            next unless $kind eq 'named';
+            my $comment = $req ? 'REQUIRED' : 'optional';
+            if ($based_on_ds_options && defined $based_on_ds_options->{$name}) {
+                $default = $based_on_ds_options->{$name};
+            }
+            my $arg = $frontend->ask_question(question => "\t$name ($comment, a $constraint)", defined $default ? (default => $default) : (), required => $req);
+            if (defined $arg && "$arg" ne '') {
+                $chosen_method_args{$name} = $arg;
+            }
+        }
+    }
+    else {
+        $frontend->output("(the '$chosen_method' method has no options)");
+    }
+    
+    #*** check the source actually works, and works with the pipeline...
+    
+    return ($chosen_ds_type, $chosen_method, $ds_source, \%chosen_method_args);
 }
