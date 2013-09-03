@@ -21,7 +21,7 @@ happen and in what order.
 It is possible to create a pipeline on the fly by C<create()>ing one of these
 objects (suppling a new unique name), and then associating existing or new
 StepMembers, StepAdaptors and StepBehvaiours. This is how the
-B<vrpipe-pipeline_create> frontend lets users create their own pipelines.
+B<vrpipe-create_pipeline> frontend lets users create their own pipelines.
 
 Normally, however, you would define a Pipeline in a .pm file as
 C<VRPipe::Pipelines::[your_pipeline_name]>. Special tricks automatically
