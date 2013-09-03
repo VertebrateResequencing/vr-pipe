@@ -82,15 +82,16 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
             my $req                = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $gtc_file (@{ $self->inputs->{gtc_files} }) {
-                my $sample = $gtc_file->metadata->{sample};
+                my $sample     = $gtc_file->metadata->{sample};
+                my $library    = $gtc_file->metadata->{library};
+                my $lib_sample = (split /_/, $library)[-1];
                 #the gzipped file has already been downloaded by the iRODS vrtrack updater and the path is stored in the storage_path metadata field
                 #alternatively, it can be overridden by an external gzipped genotype file if required
                 my $genotype_gzip_path   = $external_gzip_file ? $external_gzip_file : $gtc_file->metadata->{storage_path};
                 my $basename             = $sample . '.genotyping.fcr.txt';
                 my $sample_genotype_file = $self->output_file(output_key => 'gtype_files', basename => $basename, type => 'txt', metadata => $gtc_file->metadata)->path;
-                
-                my $header_cmd = $reheader_penncnv ? "$zgrep_exe $header_regex $reheader_penncnv > $sample_genotype_file " : "$zgrep_exe $header_regex $genotype_gzip_path > $sample_genotype_file ";
-                my $cmd_line = $header_cmd . "&& $zgrep_exe $sample $genotype_gzip_path >> $sample_genotype_file";
+                my $header_cmd           = $reheader_penncnv ? "$zgrep_exe $header_regex $reheader_penncnv > $sample_genotype_file " : "$zgrep_exe $header_regex $genotype_gzip_path > $sample_genotype_file ";
+                my $cmd_line             = $header_cmd . "&& $zgrep_exe $lib_sample $genotype_gzip_path >> $sample_genotype_file";
                 $self->dispatch([$cmd_line, $req]);
             }
         };
