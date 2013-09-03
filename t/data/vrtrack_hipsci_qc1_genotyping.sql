@@ -1,6 +1,6 @@
 -- MySQL dump 10.11
 --
--- Host: mcs10    Database: vrtrack_hipsci_qc1_genotyping
+-- Host: mcs10    Database: vrtrack_trash
 -- ------------------------------------------------------
 -- Server version	5.0.37-log
 
@@ -850,7 +850,7 @@ SET character_set_client = @saved_cs_client;
 
 LOCK TABLES `sample` WRITE;
 /*!40000 ALTER TABLE `sample` DISABLE KEYS */;
-INSERT INTO `sample` VALUES (58,58,0,NULL,'qc1hip5529683','qc1hip5529683',NULL,NULL,'2013-07-08 10:37:32',0),(59,58,1,NULL,'qc1hip5529683','qc1hip5529683',NULL,NULL,'2013-07-08 10:37:32',0),(60,58,1,1625183,'qc1hip5529683','99e5a955-db3c-4010-9b2b-5a68588d0381',5,2,'2013-07-08 10:37:32',1);
+INSERT INTO `sample` VALUES (58,58,0,NULL,'FS18.A','qc1hip5529683',NULL,NULL,'2013-07-08 10:37:32',0),(59,58,1,NULL,'FS18.A','qc1hip5529683',NULL,NULL,'2013-07-08 10:37:32',0),(60,58,1,1625183,'FS18.A','99e5a955-db3c-4010-9b2b-5a68588d0381',5,2,'2013-07-08 10:37:32',1);
 /*!40000 ALTER TABLE `sample` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1126,4 +1126,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2013-07-08 13:04:53
+-- Dump completed on 2013-09-02 15:18:31
