@@ -117,7 +117,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
         }
         close($fh);
         
-        if ($pg_chain) {
+        if ($pg_chain && (length($pg_chain) < 20000)) {
             my $bam_file = VRPipe::File->get(path => $bam);
             $bam_file->add_metadata({ original_pg_chain => $pg_chain });
         }
