@@ -93,7 +93,7 @@ foreach my $lane (@lanes) {
 
 my @genotype_files;
 my $element_id = 0;
-foreach my $sample (qw(qc1hip5529683)) {
+foreach my $sample (qw(FS18.A)) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@genotype_files, file(@output_subdirs, '2_split_genome_studio_genotype_files', $sample . '.genotyping.fcr.txt'));
@@ -117,7 +117,7 @@ is_deeply $meta,
     'library'       => '283163_A01_qc1hip5529683',
     'lane_id'       => '58',
     'individual'    => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-    'sample'        => 'qc1hip5529683',
+    'sample'        => 'FS18.A',
     'center_name'   => 'SC',
     'platform'      => 'SLX',
     'study'         => '2624',
@@ -154,7 +154,7 @@ VRPipe::PipelineSetup->create(
 
 #Get array of output files and check outputs as the pipeline is run
 my @penncnv_files;
-foreach my $sample (qw(qc1hip5529683)) {
+foreach my $sample (qw(FS18.A)) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id, 2);
     push(@penncnv_files, file(@output_subdirs, '2_penncnv_filter_cnv', $sample . '.genotyping.fcr.txt.rawcnv.filtercnv'));
@@ -176,7 +176,7 @@ is_deeply $penn_meta,
     'library'           => '283163_A01_qc1hip5529683',
     'lane_id'           => '58',
     'individual'        => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-    'sample'            => 'qc1hip5529683',
+    'sample'            => 'FS18.A',
     'center_name'       => 'SC',
     'platform'          => 'SLX',
     'study'             => '2624',
