@@ -13,7 +13,7 @@ BEGIN {
     use TestPipelines;
     
     use_ok('VRPipe::Persistent::Schema');
-    use_ok('VRPipe::Interface::BackEnd');
+    use_ok('VRPipe::Persistent::InMemory');
 }
 
 my %times;
@@ -210,11 +210,8 @@ is_deeply \@element_ids, [2 .. 51], 'created correct dataelements';
 
 # now test the speed of triggering all these dataelements through a 2 step
 # pipeline, the first of which is a block_and_skip
-my $backend = VRPipe::Interface::BackEnd->new(deployment => 'testing', farm => 'testing_farm');
-$backend->start_redis_server;
-my $redis = $backend->redis;
 $l = start_clock(__LINE__);
-$setup->trigger(first_step_only => 1, prepare_elements => 0, redis => $redis);
+$setup->trigger(first_step_only => 1, prepare_elements => 0);
 elapsed($l, __LINE__);
 
 my @jobs = VRPipe::Job->search({ id => { '>' => $job_offset } });
@@ -247,7 +244,7 @@ unless ($setup->currently_complete) {
             foreach my $des (@$dess) {
                 my $de = $des->dataelement;
                 my $j  = start_clock(__LINE__);
-                $setup->trigger(dataelement => $de, redis => $redis);
+                $setup->trigger(dataelement => $de);
                 elapsed($j, __LINE__);
             }
         }
@@ -334,7 +331,7 @@ is_deeply [scalar(keys %element_ids), exists $element_ids{75}], [70, 1], 'update
 # now retest the trigger, especially so we can test the speed of skipping things
 # that have already been done
 $l = start_clock(__LINE__);
-$setup->trigger(first_step_only => 1, prepare_elements => 0, redis => $redis);
+$setup->trigger(first_step_only => 1, prepare_elements => 0);
 elapsed($l, __LINE__);
 
 $l = start_clock(__LINE__);
@@ -345,7 +342,7 @@ unless ($setup->currently_complete) {
             foreach my $des (@$dess) {
                 my $de = $des->dataelement;
                 my $j  = start_clock(__LINE__);
-                $setup->trigger(dataelement => $de, redis => $redis);
+                $setup->trigger(dataelement => $de);
                 elapsed($j, __LINE__);
             }
         }
@@ -365,6 +362,7 @@ $l = start_clock(__LINE__);
 my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => 'testing_farm', 'pipelinesetup.active' => 0, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
 
 my $queued = 0;
+my $im     = VRPipe::Persistent::InMemory->new();
 while (my $subs = $sub_pager->next(no_resetting => 1)) {
     foreach my $sub (@$subs) {
         my $sub_id = $sub->id;
@@ -379,7 +377,7 @@ while (my $subs = $sub_pager->next(no_resetting => 1)) {
         
         # queue this one in redis
         my $req_id = $sub->requirements->id;
-        $redis->sadd($req_id, $sub_id);
+        $im->enqueue($req_id, $sub_id);
         $queued++;
     }
 }

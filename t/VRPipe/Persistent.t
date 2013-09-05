@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 176;
+    use Test::Most tests => 177;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -537,7 +537,7 @@ is $jobs[2]->heartbeat_interval(1), 1, 'heartbeat_interval of a job can be set d
 $epoch_time = time();
 $jobs[2]->run;
 run_job($jobs[2]);
-is_deeply [defined($jobs[2]->end_time), $jobs[2]->ok, $jobs[2]->exit_code], [1, 1, 0], 'test job status got updated correctly for an ok job';
+is_deeply [defined($jobs[2]->end_time), $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->locked], [1, 1, 0, 0], 'test job status got updated correctly for an ok job';
 ok $jobs[2]->pid,  'pid was set';
 ok $jobs[2]->host, 'host was set';
 ok $jobs[2]->user, 'user was set';
@@ -558,6 +558,7 @@ is $stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
 $jobs[2]->run;
 run_job($jobs[2]);
 is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
+ok !$jobs[2]->locked, 'the job is unlocked after returning from run() early';
 ok $jobs[2]->reset_job, 'could reset a job';
 is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time], [0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
 my $own_pid   = $$;

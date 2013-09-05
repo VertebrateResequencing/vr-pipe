@@ -69,10 +69,12 @@ use VRPipe::Base;
 class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
     use VRPipe::Interface::CmdLine;
     use VRPipe::Persistent::SchemaBase;
+    use VRPipe::Persistent::InMemory;
     use POSIX qw(ceil);
     
     our $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
     our $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+    my $im = VRPipe::Persistent::InMemory->new();
     
     has '_find_handler_processes_cmd' => (
         is      => 'ro',
@@ -247,7 +249,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             return $free;
         }
         else {
-            $backend->log("Unable to get free memory on the system given: $free_output");
+            $im->log("Unable to get free memory on the system given: $free_output");
             return 0;
         }
     }
@@ -267,7 +269,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             return ceil($grep_bytes / 1048576);
         }
         else {
-            $backend->log("Unable to get process memory given: $proc_grep");
+            $im->log("Unable to get process memory given: $proc_grep");
             return 0;
         }
     }
@@ -281,7 +283,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
                 print "Job <$ip:$pgid> is submitted\n";
             }
             else {
-                $backend->log("Failed to launch cmd on $ip via ssh");
+                $im->log("Failed to launch cmd on $ip via ssh");
             }
         }
     }

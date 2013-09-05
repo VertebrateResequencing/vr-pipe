@@ -171,11 +171,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         default => 0
     );
     
-    has '_redis' => (
-        is  => 'rw',
-        isa => 'Object'
-    );
-    
     has '_signalled_to_death' => (
         is  => 'rw',
         isa => 'Str'
@@ -355,7 +350,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         return $end_time - $start_time->epoch;
     }
     
-    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?, Object :$redis?) {
+    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?) {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
@@ -368,12 +363,9 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         # avoid the db-based transaction and locking mechanism below by doing a
         # safer, simple redis lock with NX. We don't rely on this though, since
         # the redis server could go down and we'd lose all locks
-        if ($redis) {
-            unless ($redis->set('job.' . $self->id => 1, EX => 300, 'NX')) {
-                $ss->pipelinesetup->log_event("Job->run() called, but there is a redis lock on it", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
-                return 0;
-            }
-            $self->_redis($redis);
+        unless ($self->lock(unlock_after => 300)) {
+            $ss->pipelinesetup->log_event("Job->run() called, but there is a lock on it", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+            return 0;
         }
         
         # check we're allowed to run, in a transaction to avoid race condition
@@ -402,6 +394,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $response) {
+            $self->unlock;
             return $response;
         }
         
@@ -530,6 +523,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     
                     $self->kill_job($submission);
                     $self->disconnect;
+                    $self->unlock;
                 };
                 $self->store_watcher($signal_watcher);
             }
@@ -658,7 +652,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 if (@to_trigger) {
                     foreach my $ref (@to_trigger) {
                         my ($setup, $de) = @$ref;
-                        my $error_message = $setup->trigger(dataelement => $de, $redis ? (redis => $redis) : ());
+                        my $error_message = $setup->trigger(dataelement => $de);
                         
                         if ($ss) {
                             if ($error_message) {
@@ -677,7 +671,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->stop_beating;
                 $self->heartbeat($last_beat);
                 $self->update;
-                $redis->del('job.' . $self->id) if $redis;
+                $self->unlock;
                 $self->disconnect;
                 
                 #*** theoretically updating file existence now might be too
@@ -809,17 +803,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     around beat_heart {
         $self->reselect_values_from_db unless $self->_i_started_running;
         return unless $self->start_time;
-        my $redis = $self->_redis;
-        if ($redis) {
-            my $refreshed = $redis->expire('job.' . $self->id, $self->survival_time);
-            unless ($refreshed) {
-                warn "pid $$ unable to refresh redis lock";
-                
-                # presumably the redis server went down and we lost the lock;
-                # if the server came back let's try and create the lock again
-                $redis->set('job.' . $self->id => 1, EX => $self->survival_time, 'NX');
-            }
-        }
+        $self->refresh_lock(unlock_after => $self->survival_time);
         return $self->$orig;
     }
     
