@@ -58,6 +58,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     use DateTime::Format::Natural;
     use LWP::UserAgent;
     use JSON::XS;
+    use VRPipe::Persistent::InMemory;
     
     #*** are instance type details not query-able? Do we have to hard-code it?
     # the costs seem stable, but differs by region; I only include them here to
@@ -148,11 +149,13 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
     our %instance_lowest_spot_price;
     our $lowest_spot_price_check_time;
     
+    my $im = VRPipe::Persistent::InMemory->new();
+    
     around initialize_for_server {
         return if $initialized;
         
         if ($spot_price_percent) {
-            $backend->log("[ec2scheduler] Spot requests enabled");
+            $im->log("[ec2scheduler] Spot requests enabled");
             
             # grab the latest on-demand instance pricing for our region
             my $area = $region;
@@ -182,7 +185,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                                 my $usd = $vc->{prices}->{USD};
                                 next unless $usd && $usd =~ /^[\d\.]+$/; # can be N/A
                                 $instance_on_demand_price{$type} = $usd;
-                                $backend->debug("[ec2scheduler] on-demand price for $type = $usd");
+                                $im->debug("[ec2scheduler] on-demand price for $type = $usd");
                             }
                         }
                     }
@@ -191,14 +194,14 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 }
             }
             else {
-                $backend->log("[ec2scheduler] Spot requests disabled because I could not download the on-demand price list at $price_list_url :" . $response->status_line);
+                $im->log("[ec2scheduler] Spot requests disabled because I could not download the on-demand price list at $price_list_url :" . $response->status_line);
                 $spot_price_percent = 0;
             }
             
             $self->_get_lowest_spot_prices;
         }
         else {
-            $backend->log("[ec2scheduler] Spot requests disabled");
+            $im->log("[ec2scheduler] Spot requests disabled");
         }
         
         # call parent's initialize method
@@ -218,7 +221,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         # find the lowest spot prices in the last 24hrs, so we know if the
         # user's $spot_price_percent of on-demand price should be used, or if we
         # should use the lowest spot (which ever is higher)
-        $backend->debug("[ec2scheduler] Will check the lowest spot prices over the last 24hrs");
+        $im->debug("[ec2scheduler] Will check the lowest spot prices over the last 24hrs");
         
         my $yesterday = DateTime->from_epoch(epoch => time() - 86400);
         while (my ($type, $odp) = each %instance_on_demand_price) {
@@ -232,7 +235,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 }
             }
             
-            $backend->debug("[ec2scheduler] lowest spot price for $type = $min_price");
+            $im->debug("[ec2scheduler] lowest spot price for $type = $min_price");
             $instance_lowest_spot_price{$type} = $min_price;
         }
         
@@ -308,7 +311,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         my $current_instances = @pending_instances + @running_instances;
         my $allowed_instances = $max_instances - $current_instances + 1; # +1 because one of them will be the instance we're launching from
         
-        $backend->debug("[ec2scheduler] Got a request to launch $needed $type instances; allowed to launch $allowed_instances");
+        $im->debug("[ec2scheduler] Got a request to launch $needed $type instances; allowed to launch $allowed_instances");
         if ($needed > $allowed_instances) {
             $needed = $allowed_instances;
         }
@@ -334,7 +337,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             unless ($spot_force_percent) {
                 my $min = $instance_lowest_spot_price{$type};
                 if ($min > $bid) {
-                    $backend->debug("[ec2scheduler] Minimum historical spot price was greater than $spot_price_percent\% of on-demand price ($bid), so will bid at $min");
+                    $im->debug("[ec2scheduler] Minimum historical spot price was greater than $spot_price_percent\% of on-demand price ($bid), so will bid at $min");
                     $bid = $min;
                 }
             }
@@ -342,7 +345,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             if ($bid > $odp) {
                 # if the bid is greater than on-demand price, switch to
                 # on-demand mode
-                $backend->debug("[ec2scheduler] Bid $bid is greater than on-demand price; switching to on-demand mode");
+                $im->debug("[ec2scheduler] Bid $bid is greater than on-demand price; switching to on-demand mode");
                 @new_instances = $ec2->run_instances(%run_instance_args);
             }
             else {
@@ -383,7 +386,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                                     $spot_args{'-instance_count'}--;
                                 }
                                 else {
-                                    $backend->log("[ec2scheduler] Failed to request $needed new spot instances: " . $ec2->error_str);
+                                    $im->log("[ec2scheduler] Failed to request $needed new spot instances: " . $ec2->error_str);
                                     last;
                                 }
                             }
@@ -394,14 +397,14 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                                 my $quota = $spot_args{'-instance_count'} + $total_requests;
                                 $max_instances = $quota + ($total_instances - $total_requests);
                                 
-                                $backend->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota of ~$quota, but launched " . $spot_args{'-instance_count'} . " new ones instead; in future I will only try to launch up to $max_instances instances");
+                                $im->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota of ~$quota, but launched " . $spot_args{'-instance_count'} . " new ones instead; in future I will only try to launch up to $max_instances instances");
                                 
                                 last;
                             }
                         }
                     }
                     else {
-                        $backend->log("[ec2scheduler] Failed to request $needed new spot instances: " . $ec2->error_str);
+                        $im->log("[ec2scheduler] Failed to request $needed new spot instances: " . $ec2->error_str);
                     }
                 }
                 
@@ -411,15 +414,15 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                         my $state  = $request->state;
                         
                         if ($state ne 'open' && $state ne 'active') {
-                            $backend->log("[ec2scheduler] Spot instance request id: " . $request->spotInstanceRequestId . " entered unexpected state '$state'; skipping this request");
+                            $im->log("[ec2scheduler] Spot instance request id: " . $request->spotInstanceRequestId . " entered unexpected state '$state'; skipping this request");
                             last;
                         }
                         
-                        $backend->debug("[ec2scheduler] spot instance request id: " . $request->spotInstanceRequestId . " | state: $state; status: $status");
+                        $im->debug("[ec2scheduler] spot instance request id: " . $request->spotInstanceRequestId . " | state: $state; status: $status");
                         
                         my $instanceid = $request->instanceId;
                         if ($instanceid) {
-                            $backend->debug("[ec2scheduler] Spot instance request " . $request->spotInstanceRequestId . " resulted in instance $instanceid");
+                            $im->debug("[ec2scheduler] Spot instance request " . $request->spotInstanceRequestId . " resulted in instance $instanceid");
                             push(@new_instances, $request->instance);
                             last;
                         }
@@ -432,7 +435,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             @new_instances = $ec2->run_instances(%run_instance_args);
         }
         
-        $backend->debug("[ec2scheduler] Tried to launch $needed $type instances; actually launched " . scalar(@new_instances));
+        $im->debug("[ec2scheduler] Tried to launch $needed $type instances; actually launched " . scalar(@new_instances));
         
         # by default people are limited to a max of 20 instances:
         # http://www.phacai.com/increase-ec2-instance-quota
@@ -466,10 +469,10 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                     if ($ec2->is_error) {
                         if ($ec2->error->code eq 'InstanceLimitExceeded') {
                             $count--;
-                            $backend->debug("[ec2scheduler] got InstanceLimitExceeded, will try $count instances");
+                            $im->debug("[ec2scheduler] got InstanceLimitExceeded, will try $count instances");
                         }
                         else {
-                            $backend->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota, and also failed to launch $count new instances: " . $ec2->error_str);
+                            $im->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota, and also failed to launch $count new instances: " . $ec2->error_str);
                             last;
                         }
                     }
@@ -481,18 +484,18 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                             my $quota = $count + $total_instances;
                             $max_instances = $quota - ($total_instances - $current_instances + 1);
                             
-                            $backend->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota of ~$quota, but launched $count new ones instead; in future I will only try to launch up to $max_instances instances");
+                            $im->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota of ~$quota, but launched $count new ones instead; in future I will only try to launch up to $max_instances instances");
                         }
                         
                         last;
                     }
                 }
                 if ($count == 0) {
-                    $backend->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota; consider increasing your quota: http://aws.amazon.com/contact-us/ec2-request/");
+                    $im->log("[ec2scheduler] Failed to launch $needed more instances due to exceeding your quota; consider increasing your quota: http://aws.amazon.com/contact-us/ec2-request/");
                 }
             }
             else {
-                $backend->log("[ec2scheduler] Failed to launch $needed new instances: " . $ec2->error_str);
+                $im->log("[ec2scheduler] Failed to launch $needed new instances: " . $ec2->error_str);
             }
         }
         
@@ -501,12 +504,11 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         if (@new_instances) {
             $ec2->wait_for_instances(@new_instances);
             
-            my $redis = $backend->redis;
             foreach my $instance (@new_instances) {
                 my $iip    = $instance->privateIpAddress;
                 my $status = $instance->current_status;
                 unless ($status eq 'running') {
-                    $backend->log("[ec2scheduler] Created a new ec2 instance at $iip but it didn't start running normally: will terminate it");
+                    $im->log("[ec2scheduler] Created a new ec2 instance at $iip but it didn't start running normally: will terminate it");
                     $instance->terminate;
                     next;
                 }
@@ -514,7 +516,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 # lock the instance so we don't try and terminate it before it
                 # becomes responsive to SSH
                 my $lock_key = 'starting_instance.' . $iip;
-                $redis->set($lock_key => 1, EX => 360);
+                $im->note($lock_key, unlock_after => 360);
                 
                 # wait for it to become responsive to ssh
                 my $max_time   = time() + 300;
@@ -535,18 +537,18 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                     sleep(1);
                 }
                 unless ($responsive) {
-                    $backend->log("[ec2scheduler] Newly launched instance $iip is not responding to ssh: will terminate it");
+                    $im->log("[ec2scheduler] Newly launched instance $iip is not responding to ssh: will terminate it");
                     $instance->terminate;
-                    $redis->del($lock_key);
+                    $im->forget_note($lock_key);
                     next;
                 }
                 
-                $backend->log("[ec2scheduler] Started up instance at $iip");
+                $im->log("[ec2scheduler] Started up instance at $iip");
                 push(@good_instances, $instance);
                 
                 # update the lock timeout so that we don't terminate an instance
                 # within a minute of starting it
-                $redis->set($lock_key => 1, EX => 60);
+                $im->note($lock_key, unlock_after => 60);
             }
         }
         
@@ -611,9 +613,8 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 'instance-state-name' => 'running'
             }
         );
-        my $own_pdn    = $meta->privateDnsName;
+        my $own_pdn = $meta->privateDnsName;
         my ($own_host) = $own_pdn =~ /(ip-\d+-\d+-\d+-\d+)/;
-        my $redis      = $backend->redis;
         foreach my $instance (@all_instances) {
             # don't terminate ourselves - the server that calls this method
             # won't have any handlers running on it
@@ -623,7 +624,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             
             # don't terminate if we only just now spawned it and maybe are still
             # waiting for it to become responsive to ssh
-            next if $redis->exists('starting_instance.' . $instance->privateIpAddress);
+            next if $im->noted('starting_instance.' . $instance->privateIpAddress);
             my $dstr = $instance->launchTime;
             $dstr =~ s/(\d)T(\d)/$1 $2/;
             $dstr =~ s/\.\d+Z$//;

@@ -37,6 +37,7 @@ use List::Util 'shuffle';
 use Path::Class;
 use Cwd 'getcwd';
 use Digest::MD5;
+use VRPipe::Persistent::InMemory;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -61,6 +62,7 @@ my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 my $debug                 = $cmdline->opts('debug');
 my $survival_time;
 my $scheduler;
+my $im = VRPipe::Persistent::InMemory->new();
 
 my $command = shift;
 unless ($command) {
@@ -166,9 +168,6 @@ sub start_server {
         $backend->set_verbose_global(1);
     }
     
-    # start the redis server for logging purposes
-    $backend->start_redis_server;
-    
     # daemonize unless we're not supposed to
     my $cwd = getcwd();
     $backend->daemonize unless $foreground;
@@ -193,29 +192,23 @@ sub start_server {
         }
         
         # only log the same error message once per hour
-        my $redis = $backend->redis;
-        if ($redis) {
-            # try and make the 'same' error message that differs only by
-            # references in stack traces literally the same
-            my $standardised_error = $err;
-            $standardised_error =~ s/(SCALAR|ARRAY|HASH|CODE|REF)\([^\)]+\)/$1()/g;
-            
-            # get the md5 checksum of the message to use as a key name for
-            # a redis lock
-            my $dmd5 = Digest::MD5->new();
-            $dmd5->add($standardised_error);
-            my $checksum = $dmd5->hexdigest;
-            
-            # do not log if we can't get a lock
-            unless ($redis->set($checksum => 1, EX => $inter_message_time, 'NX')) {
-                return;
-            }
-        }
-        else {
+        # try and make the 'same' error message that differs only by
+        # references in stack traces literally the same
+        my $standardised_error = $err;
+        $standardised_error =~ s/(SCALAR|ARRAY|HASH|CODE|REF)\([^\)]+\)/$1()/g;
+        
+        # get the md5 checksum of the message to use as a key name for
+        # a redis lock
+        my $dmd5 = Digest::MD5->new();
+        $dmd5->add($standardised_error);
+        my $checksum = $dmd5->hexdigest;
+        
+        # do not log if we can't get a lock
+        unless ($im->lock($checksum, unlock_after => $inter_message_time)) {
             return;
         }
         
-        $backend->log($err, email_admin => $email_admin);
+        $im->log($err, email_admin => $email_admin);
     };
     
     # set up a timer that will write out stderr (which includes logs) to the log
@@ -223,23 +216,19 @@ sub start_server {
     # processes can cripple performance, so instead our single server process
     # does all the writing without slowing down anything else)
     my $err_watcher;
-    my $redis_stderr_output_sub;
+    my $im_stderr_output_sub;
     unless ($foreground) {
-        if ($backend->_log_file_in_use) {
-            my $working = 0;
-            $redis_stderr_output_sub = sub {
-                return if $working;
-                $working = 1;
-                open(my $fh, '>>', $backend->log_file) || return;
-                my $redis = $backend->redis || return;
-                while (my $line = $redis->lpop('stderr')) {
-                    print $fh $line;
-                }
-                close($fh);
-                $working = 0;
-            };
-            $err_watcher = EV::timer 0, $timer_interval, $redis_stderr_output_sub;
-        }
+        my $working = 0;
+        $im_stderr_output_sub = sub {
+            return if $working;
+            $working = 1;
+            fork_call {
+                $im->write_stderr;
+                return;
+            }
+            sub { $working = 0; };
+        };
+        $err_watcher = EV::timer 0, $timer_interval, $im_stderr_output_sub;
     }
     
     # (for timers we use periodic instead of timer because timer seems to have
@@ -280,7 +269,7 @@ sub start_server {
                         $watcher_error_sub;
                     }
                     
-                    $backend->log("Submission management started for farm $farm");
+                    $im->log("Submission management started for farm $farm");
                     $handler_path = $cmdline->vrpipe_script_command('vrpipe-handler', $deployment);
                     $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
                     $scheduler = VRPipe::Scheduler->create();
@@ -311,17 +300,17 @@ sub start_server {
                         };
                     }
                     
-                    # start and setup our connection to the redis-server
-                    my $ok = $backend->start_redis_server;
+                    # make sure the redis server is alive
+                    my $ok = $im->datastore_ok;
                     unless ($ok) {
-                        $backend->log("Can't continue submission management");
+                        $im->log("Can't continue submission management because I can't connect to the in-memory datastore");
                         $farm_server->stop_beating;
                         $farm_server->delete;
                         undef $farm_server;
                     }
                 }
                 else {
-                    $backend->log("Could not start submission management for farm $farm because some other server process is (or was recently) doing that");
+                    $im->log("Could not start submission management for farm $farm because some other server process is (or was recently) doing that");
                     undef $farm_server;
                 }
             }
@@ -344,13 +333,12 @@ sub start_server {
                     
                     if (@setups) {
                         # make sure the redis server is alive
-                        my $ok = $backend->start_redis_server;
+                        my $ok = $im->datastore_ok;
                         unless ($ok) {
-                            $backend->log("Can't continue submission management");
+                            $im->log("Can't continue submission management because I can't connect to the in-memory datastore");
                             undef $farm_server;
                             return;
                         }
-                        my $redis = $backend->redis;
                         
                         # make sure we have a setups handler running for our
                         # farm. since our setups handler will run on a node
@@ -392,14 +380,15 @@ sub start_server {
                         while (my $subs = $sub_pager->next(no_resetting => 1)) {
                             foreach my $sub (@$subs) {
                                 my $sub_id = $sub->id;
-                                my $req_id = $sub->requirements->id;
+                                my $req    = $sub->requirements;
+                                my $req_id = $req->id;
                                 
                                 # delay looking at subs with this req_id while
                                 # handler's are in the process of generating
                                 # new subs with this req_id; this way we're more
                                 # likely to get single large arrays for greater
                                 # efficiency
-                                next if $redis->exists('generating_subs_for_req_' . $req_id);
+                                next if $req->noted('generating_subs');
                                 
                                 # if the job is a block_and_skip_if_ok job, we
                                 # don't actually block because of race condition
@@ -427,7 +416,7 @@ sub start_server {
                                 $step_counts{$step_id}++;
                                 
                                 next if exists $already_taken{$req_id}->{$sub_id};
-                                next if $redis->exists('grabbed.' . $sub_id);
+                                next if $sub->noted('grabbed');
                                 
                                 #*** note the race condition between testing
                                 # if a handler grabbed it above, and adding it
@@ -438,7 +427,7 @@ sub start_server {
                                 # happening if grabbed exists
                                 
                                 # queue this one in redis
-                                $redis->sadd($req_id, $sub_id);
+                                $im->enqueue($req_id, $sub_id);
                                 $redis_queue{$req_id}->{$sub_id} = 1;
                             }
                         }
@@ -466,17 +455,17 @@ sub start_server {
                         my @req_ids = VRPipe::Requirements->get_column_values('me.id', {});
                         foreach my $req_id (@req_ids) {
                             unless (exists $redis_queue{$req_id}) {
-                                $redis->del($req_id);
+                                $im->drop_queue($req_id);
                                 next;
                             }
                             
-                            my $sub_ids = $redis->smembers($req_id);
+                            my $sub_ids = $im->queue($req_id);
                             my @to_rem;
                             foreach my $sub_id (@$sub_ids) {
                                 next if exists $redis_queue{$req_id}->{$sub_id};
                                 push(@to_rem, $sub_id);
                             }
-                            $redis->srem($req_id, @to_rem) if @to_rem;
+                            $im->dequeue($req_id, \@to_rem) if @to_rem;
                         }
                         
                         # submit the submission handlers to the scheduler
@@ -484,7 +473,7 @@ sub start_server {
                         while (my ($req_id, $count) = each %req_counts) {
                             my $cmd = "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id";
                             
-                            #$backend->log("will ensure that $count sub handlers are running for [$cmd]");
+                            #$im->log("will ensure that $count sub handlers are running for [$cmd]");
                             my @running_sids = $scheduler->ensure_running(
                                 cmd   => $cmd,
                                 count => $count,
@@ -502,7 +491,7 @@ sub start_server {
                         my $leeway = $deployment eq 'production' ? 300 : 60;
                         my @sids_to_kill;
                         foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm })) {
-                            #$backend->log("checking if sidtosub " . $sidtosub->id . " is defunct");
+                            #$im->log("checking if sidtosub " . $sidtosub->id . " is defunct");
                             my $sid     = $sidtosub->sid;
                             my $aid     = $sidtosub->aid;
                             my $sid_aid = "$sid\[$aid]";
@@ -523,11 +512,11 @@ sub start_server {
                                 # check that it has not been longer than 5mins
                                 # between sid_id being assigned and the sub's
                                 # job starting
-                                #$backend->log("$dstr it is currently running");
+                                #$im->log("$dstr it is currently running");
                                 my $sub_id = $sidtosub->sub_id;
                                 
                                 if ($sub_id) {
-                                    #$backend->log("$dstr it has been assigned a sub_id sub $sub_id");
+                                    #$im->log("$dstr it has been assigned a sub_id sub $sub_id");
                                     my ($sub) = VRPipe::Submission->search({ 'me.id' => $sub_id }, { prefetch => 'job' });
                                     if ($sub) {
                                         # if sub done/failed, the handler will soon
@@ -547,28 +536,29 @@ sub start_server {
                                             # lock version of the job's heart
                                             # beat, which runs until the trigger
                                             # is over
-                                            next if $redis->exists('job.' . $sub->job->id);
-                                            my $job_end = $sub->job->end_time;
+                                            my $job = $sub->job;
+                                            next if $job->locked;
+                                            my $job_end = $job->end_time;
                                             if (!$job_end || time() > ($job_end->epoch + ($leeway * 3))) {
-                                                $backend->log("$dstr is currently running, but its claimed submission finished ages ago");
+                                                $im->log("$dstr is currently running, but its claimed submission finished ages ago");
                                                 $kill = 1;
                                             }
                                             else {
                                                 next;
                                             }
                                         }
-                                        #$backend->log("$dstr that sub isn't done yet");
+                                        #$im->log("$dstr that sub isn't done yet");
                                         
                                         unless ($kill) {
                                             # if the job has started and is running, all
                                             # is well
                                             my $tsh = $sub->job->time_since_heartbeat;
-                                            #$backend->log("$dstr the job had a tsh of $tsh");
+                                            #$im->log("$dstr the job had a tsh of $tsh");
                                             next if defined($tsh) && $tsh <= $leeway;
-                                            #$backend->log("$dstr the job is dead or hasn't started yet");
+                                            #$im->log("$dstr the job is dead or hasn't started yet");
                                             
                                             next if $sidtosub->time_since_assignment <= $leeway;
-                                            $backend->log("$dstr it's been over 5mins since assignment and the job (" . $sub->job->id . ") is dead or hasn't started yet (time since heartbeat == " . (defined $tsh ? $tsh : 'undef') . ')');
+                                            $im->log("$dstr it's been over 5mins since assignment and the job (" . $sub->job->id . ") is dead or hasn't started yet (time since heartbeat == " . (defined $tsh ? $tsh : 'undef') . ')');
                                         }
                                     }
                                 }
@@ -578,7 +568,7 @@ sub start_server {
                                     # this req_id anymore?
                                     my $req_id = $sidtosub->req_id;
                                     unless ($req_counts{$req_id}) {
-                                        #$backend->log("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
+                                        #$im->log("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
                                     }
                                     else {
                                         # ok, we still need it, perhaps it got
@@ -587,11 +577,11 @@ sub start_server {
                                         # assignment time, so we can see how
                                         # long it has been sitting undefined
                                         next if $sidtosub->time_since_assignment <= $leeway;
-                                        #$backend->log("$dstr it's been over 5mins since the handler tried to get a new submission");
+                                        #$im->log("$dstr it's been over 5mins since the handler tried to get a new submission");
                                     }
                                 }
                                 
-                                #$backend->log("$dstr we'll ask the scheduler to kill this");
+                                #$im->log("$dstr we'll ask the scheduler to kill this");
                                 push(@sids_to_kill, [$sid, $aid]);
                             }
                             
@@ -599,7 +589,7 @@ sub start_server {
                             # with an assigned sub but aren't doing anything
                             # with it (we are stuck), or we're not running so
                             # must have exited
-                            #$backend->log("$dstr we'll delete the sidtosub");
+                            #$im->log("$dstr we'll delete the sidtosub");
                             $sidtosub->delete;
                         }
                         
@@ -611,7 +601,7 @@ sub start_server {
                             unless ($created) {
                                 my $run_time = $scheduler->run_time($sid, $aid);
                                 if ($run_time > $leeway) {
-                                    $backend->log("we'll kill sid $sid\[$aid] because it never created a sidtosub");
+                                    $im->log("we'll kill sid $sid\[$aid] because it never created a sidtosub");
                                     push(@sids_to_kill, [$sid, $aid]);
                                 }
                             }
@@ -636,7 +626,7 @@ sub start_server {
                         # getting dropped and recreated while the server is
                         # running
                         if ($err =~ /no longer in db/) {
-                            $backend->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
+                            $im->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
                             $farm_server->end_it_all if $farm_server;
                             undef $farm_server;
                         }
@@ -671,7 +661,7 @@ sub start_server {
     my $sigquit_watcher = EV::signal 'QUIT', sub { shutdown_server("SIGQUIT received"); };
     
     # run the event loop
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
+    $im->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " has started for farm $farm (pid $$).", email_admin => 1, subject => 'The VRPipe Server is alive!') if $farm;
     EV::run;
     
     # cleanup handlers when testing (but not in production, since handlers
@@ -690,21 +680,19 @@ sub start_server {
         }
         
         # flush any remaining redis stderr to file
-        &$redis_stderr_output_sub() if $redis_stderr_output_sub;
+        &$im_stderr_output_sub() if $im_stderr_output_sub;
         
         # now we can get rid of the redis server
-        if ($backend->redis_pid) {
-            kill(9, $backend->redis_pid);
-        }
+        $im->terminate_datastore;
     }
     
-    $backend->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
+    $im->log("The $deployment server at $url for VRPipe database " . $backend->dsn . " ($farm farm) is exiting!", email_admin => 1, subject => 'The VRPipe Server is dead!') if $farm;
     exit 0;
 }
 
 sub shutdown_server {
     my $msg = shift;
-    $backend->log($msg . ", will gracefully shut down server.");
+    $im->log($msg . ", will gracefully shut down server.");
     EV::unloop;
 }
 

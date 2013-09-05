@@ -238,6 +238,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     use VRPipe::Persistent::Pager;
     use Data::Dumper;
     use JSON::XS;
+    use VRPipe::Persistent::InMemory;
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
@@ -944,6 +945,60 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 return $row;
             }
             return;
+        });
+        
+        # provide easy-to-use lock methods using our id and InMemory (Redis)
+        my $in_memory = VRPipe::Persistent::InMemory->new();
+        
+        $meta->add_method('lock' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $in_memory->lock($lock_key, @_);
+        });
+        
+        $meta->add_method('refresh_lock' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $in_memory->refresh_lock($lock_key, @_);
+        });
+        
+        $meta->add_method('unlock' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $in_memory->unlock($lock_key);
+        });
+        
+        $meta->add_method('locked' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $in_memory->locked($lock_key);
+        });
+        
+        $meta->add_method('block_until_unlocked' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $in_memory->block_until_unlocked($lock_key);
+        });
+        
+        $meta->add_method('note' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            my $note     = shift;
+            return $in_memory->note($lock_key . '.' . $note, @_);
+        });
+        
+        $meta->add_method('forget_note' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            my $note     = shift;
+            return $in_memory->forget_note($lock_key . '.' . $note);
+        });
+        
+        $meta->add_method('noted' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            my $note     = shift;
+            return $in_memory->noted($lock_key . '.' . $note);
         });
         
         # set up meta data to add indexes for the key columns after schema deploy

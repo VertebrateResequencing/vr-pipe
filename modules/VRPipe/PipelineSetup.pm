@@ -199,7 +199,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?, Object :$redis?) {
+    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -255,22 +255,16 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 # stepstates, we also use redis to skip the whole des to be
                 # extra certain and reduce db load. (We can't rely on redis
                 # because the redis server may go down and we'll lose our locks)
-                my $esid       = $estate->id;
-                my $redis_lock = 'es.' . $esid;
-                my $redis_ex   = 1200;
-                if ($redis) {
-                    # since we just want to skip and do nothing (even in the
-                    # case of 'single de' mode) if another process is looking at
-                    # this des, we don't have to do anything fancy beyond the NX
-                    unless ($redis->set($redis_lock => 1, EX => $redis_ex, 'NX')) {
-                        $self->debug("estate $esid is being triggered by another process, will skip it");
-                        next;
-                    }
-                    $self->debug("working on estate $esid having got the redis lock");
+                my $esid         = $estate->id;
+                my $unlock_after = 1200;
+                # since we just want to skip and do nothing (even in the
+                # case of 'single de' mode) if another process is looking at
+                # this des, we don't have to do anything fancy beyond the NX
+                unless ($estate->lock(unlock_after => $unlock_after)) {
+                    $self->debug("estate $esid is being triggered by another process, will skip it");
+                    next;
                 }
-                else {
-                    $self->debug("working on estate $esid");
-                }
+                $self->debug("working on estate $esid having got the redis lock");
                 
                 my $sm_error;
                 foreach my $member (@step_members) {
@@ -298,7 +292,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         # forces this transaction to always take 1 second
                         my $before_lock_time = time();
                         $self->lock_row($state, 1);
-                        $redis->expire($redis_lock, $redis_ex) if $redis;
+                        $estate->refresh_lock(unlock_after => $unlock_after);
                         
                         # however it's really important that we do read the
                         # latest data, so we do the fix 'manually'
@@ -348,7 +342,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     my ($pp_error, $possible_db_error);
                                     $self->debug("will post_process");
                                     $self->log_event("PipelineSetup->trigger, will post_process because all Submissions are done", dataelement => $element->id, stepstate => $state->id);
-                                    $redis->expire($redis_lock, $redis_ex) if $redis;
+                                    $estate->refresh_lock(unlock_after => $unlock_after);
                                     eval { # (try catch not used because stupid perltidy is stupid)
                                         $pp_error = $step->post_process();
                                     };
@@ -432,7 +426,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             my ($parse_return, $possible_db_error);
                             $self->debug("will parse");
                             $self->log_event("PipelineSetup->trigger will parse", dataelement => $element->id, stepstate => $state->id);
-                            $redis->expire($redis_lock, $redis_ex) if $redis;
+                            $estate->refresh_lock(unlock_after => $unlock_after);
                             try {
                                 $parse_return = $step->parse();
                             }
@@ -596,7 +590,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                             # create another one soon
                                             # vrpipe-server will put them both
                                             # in the same job array
-                                            $redis->set('generating_subs_for_req_' . $reqs->id => 1, EX => 5);
+                                            $reqs->note('generating_subs', forget_after => 5);
                                             
                                             my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd)->id, stepstate => $state->submission_search_id, requirements => $reqs->id);
                                             $self->log_event("PipelineSetup->trigger called parse(), and the dispatch created a new Submission", dataelement => $element->id, stepstate => $state->id, submission => $sub->id, job => $sub->job->id);
@@ -634,7 +628,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     $redos++;
                     if ($redos <= $max_redos) {
                         $self->debug("redo");
-                        $redis->del($redis_lock) if $redis;
+                        $estate->unlock;
                         redo ESTATE;
                     }
                     else {
@@ -644,7 +638,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     }
                 }
                 
-                $redis->del($redis_lock) if $redis;
+                $estate->unlock;
                 $redos = 0;
             }
         }

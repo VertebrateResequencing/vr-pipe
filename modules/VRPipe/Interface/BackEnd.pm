@@ -49,15 +49,10 @@ class VRPipe::Interface::BackEnd {
     use Plack::Request;
     use XML::LibXSLT;
     use XML::LibXML;
-    use Sys::Hostname::Long;
     use POSIX qw(setsid setuid);
     use Cwd qw(chdir getcwd);
-    use Time::Format;
     use Module::Find;
-    use Email::Sender::Simple;
-    use Email::Simple::Creator;
-    use Sys::Hostname::Long;
-    use Redis;
+    use VRPipe::Persistent::InMemory;
     
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -391,18 +386,6 @@ XSL
         writer => '_set_scheduler'
     );
     
-    has 'admin_user' => (
-        is     => 'ro',
-        isa    => 'Str',
-        writer => '_set_admin_user'
-    );
-    
-    has 'email_domain' => (
-        is     => 'ro',
-        isa    => 'Str',
-        writer => '_set_email_domain'
-    );
-    
     has 'schema' => (
         is      => 'ro',
         isa     => 'VRPipe::Persistent::Schema',
@@ -477,23 +460,6 @@ XSL
         }
     );
     
-    has 'redis_pid' => (
-        is  => 'rw',
-        isa => PositiveInt,
-    );
-    
-    has 'redis_port' => (
-        is     => 'ro',
-        isa    => PositiveInt,
-        writer => '_set_redis_port'
-    );
-    
-    has 'redis_server' => (
-        is     => 'ro',
-        isa    => 'Str',
-        writer => '_set_redis_server'
-    );
-    
     has 'login_shell_script' => (
         is     => 'ro',
         isa    => 'Str',
@@ -539,12 +505,6 @@ XSL
         my $scheduler = $vrp_config->$method_name();
         $self->_set_scheduler("$scheduler");
         
-        my $admin_user = $vrp_config->admin_user();
-        $self->_set_admin_user("$admin_user");
-        
-        my $email_domain = $vrp_config->email_domain();
-        $self->_set_email_domain("$email_domain");
-        
         my $login_shell_script = $vrp_config->login_shell_script();
         $self->_set_login_shell_script("$login_shell_script");
         
@@ -560,62 +520,6 @@ XSL
         $self->_set_log_dir("$log_dir");
         
         require VRPipe::Persistent::Schema;
-        
-        $method_name = $deployment . '_redis_port';
-        my $redis_port = $vrp_config->$method_name();
-        $redis_port = "$redis_port" if $redis_port;
-        unless ($redis_port) {
-            die "VRPipe SiteConfig had no port specified for $method_name\n";
-        }
-        $self->_set_redis_port($redis_port);
-        my $hostname;
-        my $farm = $self->farm;
-        if ($farm) {
-            my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
-            $hostname = $fs->hostname if $fs;
-        }
-        $hostname ||= 'localhost';
-        $self->_set_redis_server("$hostname:$redis_port");
-    }
-    
-    sub start_redis_server {
-        my $self           = shift;
-        my $logging_dir    = $self->log_dir;
-        my $redis_pid_file = file($logging_dir, 'redis.pid');
-        
-        my $redis_pid = $self->redis_pid;
-        if ($redis_pid) {
-            unless (kill(0, $redis_pid)) {
-                unlink($redis_pid_file);
-                $self->log("The Redis server has died");
-            }
-            else {
-                return 1;
-            }
-        }
-        
-        my $redis_port       = $self->redis_port;
-        my $redis_server_cmd = "redis-server --daemonize yes --pidfile $redis_pid_file --port $redis_port --timeout 180 --tcp-keepalive 60 --loglevel notice --logfile $logging_dir/redis.log --set-max-intset-entries 2048";
-        system($redis_server_cmd);
-        sleep(1);
-        
-        unless (-s $redis_pid_file) {
-            $self->log("Failed to start the Redis server; see $logging_dir/redis.log for details");
-            return 0;
-        }
-        else {
-            $redis_pid = $redis_pid_file->slurp;
-            chomp($redis_pid);
-            $self->redis_pid($redis_pid);
-            $self->log("Started a Redis server with pid $redis_pid");
-            return 1;
-        }
-    }
-    
-    method redis (Str $server?, PositiveInt $reconnect?) {
-        $server ||= $self->redis_server;
-        $reconnect ||= $self->deployment eq 'production' ? 60 : 6;
-        return Redis->new(server => $server, reconnect => $reconnect, encoding => undef);
     }
     
     # mostly based on http://www.perlmonks.org/?node_id=374409, and used instead
@@ -668,7 +572,8 @@ XSL
             setuid($self->uid) if $deployment eq 'production';
             
             # reopen STDERR for logging purposes
-            $self->log_stderr;
+            my $im = VRPipe::Persistent::InMemory->new;
+            $im->log_stderr;
             
             return 1;
         }
@@ -679,47 +584,6 @@ XSL
         # So we wait for the first child to exit
         waitpid($pid, 0);
         exit 0;
-    }
-    
-    method log_stderr {
-        if ($self->log_file) {
-            my $ok;
-            eval {
-                my $redis = $self->redis;
-                $ok = $redis->ping;
-            };
-            
-            if ($ok) {
-                tie *STDERR, 'VRPipe::Interface::BackEnd', $self->redis_server, $self->deployment eq 'production' ? 60 : 6, $self->log_file;
-            }
-            else {
-                $ok = open(STDERR, '>>', $self->log_file);
-            }
-            $self->_log_file_in_use(1) if $ok;
-        }
-    }
-    
-    sub TIEHANDLE {
-        my ($pkg, $server, $reconnect, $log_file) = @_;
-        return bless { server => $server, reconnect => $reconnect, log_file => $log_file }, $pkg;
-    }
-    
-    sub PRINT {
-        my $config = shift;
-        my ($ok, $redis);
-        eval {
-            $redis = Redis->new(server => $config->{server}, reconnect => $config->{reconnect}, encoding => undef);
-            $ok = $redis->ping;
-        };
-        
-        if ($ok) {
-            $redis->rpush('stderr', @_);
-        }
-        else {
-            open(my $fh, '>>', $config->{log_file}) || return;
-            print $fh @_;
-            close($fh);
-        }
     }
     
     method install_pipelines_and_steps {
@@ -909,42 +773,6 @@ XSL
         }
         
         return \%opts;
-    }
-    
-    method log (Str $msg!, ArrayRef[Str] :$email_to?, Bool :$email_admin?, Str :$subject?, Str :$long_msg?, Bool :$force_when_testing?) {
-        chomp($msg);
-        
-        # we'll just warn, which will end up in the log file automatically; we
-        # do not try and do anything fancy with flock() since that can be too
-        # slow or end up locking the log file forever
-        my $log_msg = "$time{'yyyy-mm-dd hh:mm:ss'} | pid $$ | $msg\n";
-        warn $log_msg;
-        
-        if (($force_when_testing || $self->deployment eq 'production') && ($email_to || $email_admin)) {
-            # email the desired users
-            my $domain      = $self->email_domain;
-            my $admin_email = $self->admin_user . '@' . $domain;
-            
-            my $email = Email::Simple->create(
-                header => [
-                    To => $email_to ? join(', ', map { "$_\@$domain" } @$email_to) : $admin_email,
-                    $email_admin && $email_to ? (Cc => $admin_email) : (),
-                    From    => qq["VRPipe Server" <$admin_email>],
-                    Subject => $subject || "VRPipe Server message",
-                ],
-                body => $msg . "\n" . ($long_msg || ''),
-            );
-            my $sent = Email::Sender::Simple->try_to_send($email);
-            
-            unless ($sent) {
-                warn "$time{'yyyy-mm-dd hh:mm:ss'}: previous message failed to get sent to [", join(', ', ($email_to ? @$email_to : (), $email_admin ? '' : ())), "]\n";
-            }
-        }
-    }
-    
-    method debug (Str $msg!) {
-        return unless $self->verbose > 0;
-        return $self->log($msg);
     }
     
     method xml_tag (Str $tag, Str $cdata, Str $attribs?) {
