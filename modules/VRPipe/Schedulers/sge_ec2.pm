@@ -451,13 +451,6 @@ PE
             # ones we just now launched probably won't be running anything yet
             next if exists $launched_hosts{$host};
             
-            # 'load' is a value that drops off over time once nothing is
-            # running on the machine; in production wait until it as the lowest
-            # value of 0.01
-            if ($deployment eq 'production') {
-                next if $details->{load} > 0.01;
-            }
-            
             # obviously it's not empty if it is running a job right now
             next if $details->{jobs};
             
