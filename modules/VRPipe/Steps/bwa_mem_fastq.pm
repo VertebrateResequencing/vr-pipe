@@ -93,7 +93,8 @@ class VRPipe::Steps::bwa_mem_fastq with VRPipe::StepRole {
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => 'bwa mem ' . $bwa_opts . ' $reference_fasta $fastq_file(s) > $sam_file'));
             
-            my $req = $self->new_requirements(memory => 4900, time => 2);
+            my ($cpus) = $bwa_opts =~ m/-t\s*(\d+)/;
+            my $req = $self->new_requirements(memory => 4900, time => 2, $cpus ? (cpus => $cpus) : ());
             
             my @fq_files = @{ $self->inputs->{fastq_files} };
             
@@ -239,14 +240,23 @@ class VRPipe::Steps::bwa_mem_fastq with VRPipe::StepRole {
         
         my $expected_reads = $sam_file->metadata->{reads};
         $sam_file->update_stats_from_disc(retries => 3);
-        my $lines = $sam_file->lines;
         
-        if ($lines > $expected_reads) {
+        my $actual_records = 0;
+        my $ft = VRPipe::FileType->create('bam', { file => $sam_path });
+        $sam_file->disconnect;
+        $actual_records = $ft->num_records;
+        
+        if ($actual_records == $expected_reads) {
+            return 1;
+        }
+        elsif ($actual_records > $expected_reads) {
+            # allow multiple alignments
+            $sam_file->add_metadata({ reads => $actual_records }, replace_data => 1);
             return 1;
         }
         else {
             $sam_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $lines lines were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
+            $self->throw("cmd [$cmd_line] failed because $actual_records records were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
         }
     }
 }

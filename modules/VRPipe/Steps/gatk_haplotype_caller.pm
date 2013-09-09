@@ -97,6 +97,17 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
                         $$vcf_meta{to}    = $$sites_meta{to};
                     }
                 }
+                if (defined $$sites_meta{seq_no}) {
+                    ## need to add this so we can vcf-concat will work
+                    if (defined $$vcf_meta{seq_no}) {
+                        unless ($$vcf_meta{seq_no} eq $$sites_meta{seq_no}) {
+                            $self->throw("seq_no metadata for output VCF and input sites file does not match");
+                        }
+                    }
+                    else {
+                        $$vcf_meta{seq_no} = $$sites_meta{seq_no};
+                    }
+                }
             }
             
             my $bams_list_path = $self->output_file(basename => 'bams.list', type => 'txt', temporary => 1)->path;

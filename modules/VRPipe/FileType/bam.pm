@@ -69,7 +69,8 @@ class VRPipe::FileType::bam extends VRPipe::FileType::bin {
     
     method num_records {
         my $path    = $self->file;
-        my $records = `$samtools_exe view -c $path`;
+        my $sam     = -T $path ? 'S' : '';
+        my $records = `$samtools_exe view -${sam}c $path`;
         ($records) = $records =~ /^(\d+)/m;
         $records ||= 0;
         return $records;
