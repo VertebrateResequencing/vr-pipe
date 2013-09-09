@@ -4,7 +4,7 @@ use warnings;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 98;
+    use Test::Most tests => 107;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -147,6 +147,25 @@ my $good_time = $elapsed == 4 || $elapsed == 5;
 ok $good_time, 'block_until_unlocked() made us wait until the lock expired';
 ok !$im->locked('test_lock5'), 'locked() returns false after waiting on the block';
 
+$time = time();
+ok $im->lock('test_lock6', unlock_after => 4), 'lock attempt on a new key worked';
+ok $im->locked('test_lock6'), 'locked() still works immediately after locking';
+$im->block_until_locked('test_lock6', check_every => 1);
+$elapsed = time() - $time;
+$good_time = $elapsed == 0 || $elapsed == 1;
+ok $good_time, 'block_until_locked() did not make us wait on a key we just locked ourselves';
+$time = time();
+{
+    $fm->start and next;
+    $im->block_until_locked('test_lock6', check_every => 1);
+    $fm->finish(0, []);
+}
+$fm->wait_all_children;
+$elapsed = time() - $time;
+$good_time = $elapsed == 4 || $elapsed == 5;
+ok $good_time, 'block_until_locked() made us wait on a key locked by another process';
+ok $im->locked('test_lock6'), 'locked() returns true after waiting on the block';
+
 # test note taking
 $tested_positive = 0;
 for my $loop_num (1 .. $num_loops) {
@@ -204,6 +223,19 @@ $req->block_until_unlocked(check_every => 1);
 $elapsed = time() - $time;
 ok $good_time, 'block_until_unlocked() made us wait until the lock expired';
 ok !$req->locked, 'locked() returns false after waiting on the block';
+
+$time = time();
+ok $req->lock(unlock_after => 4), 'locked it again';
+ok $req->locked, 'locked() returned true for it';
+{
+    $fm->start and next;
+    $req->block_until_locked(check_every => 1);
+    $fm->finish(0, []);
+}
+$fm->wait_all_children;
+$elapsed = time() - $time;
+ok $good_time, 'block_until_locked() made us wait until the lock expired and was aquired by another process';
+ok $req->locked, 'locked() returns true after waiting on the block';
 
 ok $file1->note('test_note'),  'was able to set a note() on a VRPipe::Persistent instance';
 ok $file1->noted('test_note'), 'noted() returns true for it';

@@ -279,12 +279,12 @@ class VRPipe::Persistent::InMemory {
     method unlock (Str $key!, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         return unless $self->_own_lock($redis_key);
-        $self->_redis->del($redis_key);
+        return $self->_redis->del($redis_key);
     }
     
     method forget_note (Str $key!) {
         my $redis_key = 'note.' . $key;
-        $self->_redis->del($redis_key);
+        return $self->_redis->del($redis_key);
     }
     
     method locked (Str $key!, Str :$key_prefix = 'lock') {
@@ -296,8 +296,18 @@ class VRPipe::Persistent::InMemory {
         return $self->locked($key, key_prefix => 'note');
     }
     
-    method block_until_unlocked (Str $key!, Int :$check_every = 2) {
-        while ($self->locked($key)) {
+    method block_until_unlocked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock') {
+        while ($self->locked($key, key_prefix => $key_prefix)) {
+            my $cv = AnyEvent->condvar;
+            my $sleep = AnyEvent->timer(after => $check_every, cb => sub { $cv->send });
+            $cv->recv;
+        }
+    }
+    
+    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock') {
+        my $redis_key = $key_prefix . '.' . $key;
+        return if $self->_own_lock($redis_key);
+        while (!$self->lock($key, key_prefix => $key_prefix)) {
             my $cv = AnyEvent->condvar;
             my $sleep = AnyEvent->timer(after => $check_every, cb => sub { $cv->send });
             $cv->recv;
