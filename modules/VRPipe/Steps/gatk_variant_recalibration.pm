@@ -81,7 +81,11 @@ class VRPipe::Steps::gatk_variant_recalibration extends VRPipe::Steps::gatk {
                 )
             );
             
-            my $req = $self->new_requirements(memory => 4000, time => 1);
+            my ($cpus) = $recal_opts =~ m/-nt (\d+)/;
+            unless ($cpus) {
+                ($cpus) = $recal_opts =~ m/--num_threads (\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 4000, time => 1, $cpus ? (cpus => $cpus) : ());
             my $jvm_args = $self->jvm_args($req->memory);
             
             my @vcfs = map { '-input ' . $_->path } @{ $self->inputs->{vcf_files} };
