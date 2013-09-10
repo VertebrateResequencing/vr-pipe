@@ -138,8 +138,6 @@ role VRPipe::Base::Debuggable {
         else {
             carp($message);
         }
-        
-        $self->log($message);
     }
 
 =head2 debug
@@ -183,8 +181,6 @@ role VRPipe::Base::Debuggable {
         my $throw_message = "\n-----------------------------------------------------------------------------\n";
         $throw_message .= $first_line . "\n\n" . $self->stack_trace($message);
         $throw_message .= "\n-----------------------------------------------------------------------------\n\n";
-        
-        $self->log($throw_message, 2);
         
         die $throw_message;
     }
