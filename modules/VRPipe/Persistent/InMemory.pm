@@ -51,6 +51,7 @@ class VRPipe::Persistent::InMemory {
     use Email::Sender::Simple;
     use Email::Simple::Creator;
     use AnyEvent;
+    use Scalar::Util qw(weaken isweak);
     
     has '_deployment' => (
         is     => 'ro',
@@ -87,6 +88,18 @@ class VRPipe::Persistent::InMemory {
         isa     => 'Str',
         lazy    => 1,
         builder => '_build_redis_server'
+    );
+    
+    has '_maintenance_watchers' => (
+        is      => 'ro',
+        isa     => 'HashRef[Object]',
+        traits  => ['Hash'],
+        default => sub { {} },
+        handles => {
+            '_add_maintenance_watcher'    => 'set',
+            '_have_maintenance_watcher'   => 'exists',
+            '_delete_maintenance_watcher' => 'delete'
+        },
     );
     
     our $vrp_config   = VRPipe::Config->new();
@@ -279,6 +292,7 @@ class VRPipe::Persistent::InMemory {
     method unlock (Str $key!, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         return unless $self->_own_lock($redis_key);
+        $self->_delete_maintenance_watcher($redis_key);
         return $self->_redis->del($redis_key);
     }
     
@@ -287,8 +301,11 @@ class VRPipe::Persistent::InMemory {
         return $self->_redis->del($redis_key);
     }
     
-    method locked (Str $key!, Str :$key_prefix = 'lock') {
+    method locked (Str $key!, Str :$key_prefix = 'lock', Bool :$by_me = 0) {
         my $redis_key = $key_prefix . '.' . $key;
+        if ($by_me) {
+            return $self->_own_lock($redis_key);
+        }
         return $self->_redis->exists($redis_key);
     }
     
@@ -304,14 +321,56 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock') {
+    method block_until_locked (Str $key!, Int :$check_every = 2, Int :$unlock_after = 300, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
-        while (!$self->lock($key, key_prefix => $key_prefix)) {
+        while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix)) {
             my $cv = AnyEvent->condvar;
             my $sleep = AnyEvent->timer(after => $check_every, cb => sub { $cv->send });
             $cv->recv;
         }
+    }
+    
+    method maintain_lock (Str $key!, Int :$refresh_every?, Int :$leeway_multiplier?, Str :$key_prefix = 'lock') {
+        my $redis_key = $key_prefix . '.' . $key;
+        $self->throw("maintain_lock() cannot be used unless we own the lock") unless $self->_own_lock($redis_key);
+        
+        unless ($self->_have_maintenance_watcher($redis_key)) {
+            unless ($refresh_every) {
+                $refresh_every = $self->_deployment eq 'testing' ? 3 : 60;
+            }
+            
+            unless ($leeway_multiplier) {
+                if ($refresh_every < 60) {
+                    $leeway_multiplier = 10;
+                }
+                elsif ($refresh_every < 300) {
+                    $leeway_multiplier = 3;
+                }
+                else {
+                    $leeway_multiplier = 1;
+                }
+            }
+            my $survival_time = $refresh_every * $leeway_multiplier;
+            
+            my $w = AnyEvent->timer(
+                after    => 0,
+                interval => $refresh_every,
+                cb       => sub {
+                    weaken($self) unless isweak($self);
+                    unless ($self->_own_lock($redis_key)) {
+                        $self->warn("maintain_lock disabled because somehow we no longer own the lock?!");
+                        $self->_delete_maintenance_watcher($redis_key);
+                    }
+                    
+                    $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time);
+                }
+            );
+            
+            $self->_add_maintenance_watcher($redis_key, $w);
+        }
+        
+        return 1;
     }
     
     method enqueue (Str $key!, Str $value!) {

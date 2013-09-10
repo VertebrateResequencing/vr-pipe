@@ -2,9 +2,11 @@
 use strict;
 use warnings;
 use Parallel::ForkManager;
+use EV;
+use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 107;
+    use Test::Most tests => 131;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -29,6 +31,7 @@ is_deeply [scalar(@deliveries), $email->get_header("Subject"), $email_body], [1,
 like $email->get_header('From'), qr/"VRPipe Server" <\S+\@\S+>/, 'from address looks good';
 
 # check that we can log to redis
+while ($redis->lpop('stderr')) { next } # clean out anything still stuck in redis
 ok my $log_file = $im->_log_file, '_log_file returning something';
 my $log_file_line = 0;
 latest_log_file_lines();
@@ -135,6 +138,17 @@ sleep(2);
 ok !$im->locked('test_lock5'), 'locked() returns false beyond the refresh time';
 ok $im->lock('test_lock5', unlock_after => 4), 'lock attempt on the expired key works again';
 ok $im->locked('test_lock5'), 'locked() still works immediately after locking';
+$tested_positive = 0;
+{
+    $fm->start and next;
+    my $locked = $im->locked('test_lock5');
+    my $by_me  = $im->locked('test_lock5', by_me => 1);
+    my $ok     = $locked && !$by_me;
+    $fm->finish(0, [$ok]);
+}
+$fm->wait_all_children;
+is $tested_positive, 1, 'locked(by_me) fails for another process while just locked() works';
+ok $im->locked('test_lock5', by_me => 1), 'locked(by_me) works for the owner process';
 ok $im->unlock('test_lock5'), 'unlock() seems to have worked';
 ok !$im->locked('test_lock5'), 'locked() returns false after unlocking';
 
@@ -165,6 +179,48 @@ $elapsed = time() - $time;
 $good_time = $elapsed == 4 || $elapsed == 5;
 ok $good_time, 'block_until_locked() made us wait on a key locked by another process';
 ok $im->locked('test_lock6'), 'locked() returns true after waiting on the block';
+
+my $ev_timer = EV::timer 0, 0, sub {
+    my $im = VRPipe::Persistent::InMemory->new;
+    ok $im->lock('test_lock7', unlock_after => 2), 'lock attempt on a new key worked';
+    ok $im->lock('test_lock8', unlock_after => 2), 'lock worked on another new key';
+    ok $im->maintain_lock('test_lock7', refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work';
+    
+    my $cv = AnyEvent->condvar;
+    my $sleep_timer = AnyEvent->timer(after => 3, cb => sub { $cv->send });
+    $cv->recv;
+    
+    ok !$im->locked('test_lock8'), 'an unmaintained lock became unlocked after waiting beyond initial expiry';
+    ok $im->locked('test_lock7'), 'a maintained lock is still locked after waiting beyond initial expiry';
+    undef($im);
+    $im = VRPipe::Persistent::InMemory->new;
+    ok $im->locked('test_lock7'), 'a maintained lock is still locked immediately after undefing the instance that created it';
+    
+    $cv = AnyEvent->condvar;
+    $sleep_timer = AnyEvent->timer(after => 3, cb => sub { $cv->send });
+    $cv->recv;
+    
+    ok !$im->locked('test_lock7'), 'a maintained lock became unlocked after waiting beyond survival time following undef of inmemory instance';
+    
+    ok $im->lock('test_lock8', unlock_after => 2), 'required lock on unused key';
+    throws_ok { $im->maintain_lock('test_lock7') } qr/cannot be used unless we own the lock/, 'maintain_lock() on an unlocked key throws';
+    ok $im->maintain_lock('test_lock8', refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work again';
+    
+    $cv = AnyEvent->condvar;
+    $sleep_timer = AnyEvent->timer(after => 3, cb => sub { $cv->send });
+    $cv->recv;
+    
+    ok $im->locked('test_lock8'), 'a maintained lock is still locked after waiting beyond initial expiry';
+    ok $im->unlock('test_lock8'), 'unlock() seemed to work';
+    
+    $cv = AnyEvent->condvar;
+    $sleep_timer = AnyEvent->timer(after => 3, cb => sub { $cv->send });
+    $cv->recv;
+    
+    ok !$im->locked('test_lock8'), 'a maintained lock remained unlocked after waiting beyond survival time following unlock()';
+    EV::unloop;
+};
+EV::run;
 
 # test note taking
 $tested_positive = 0;
@@ -199,6 +255,17 @@ my $file2 = VRPipe::File->create(path => '/bar');
 my $req = VRPipe::Requirements->create(memory => 1, time => 1);
 ok $file1->lock,   'was able to get a lock() on a VRPipe::Persistent instance with no args';
 ok $file1->locked, 'locked() returns true for it';
+$tested_positive = 0;
+{
+    $fm->start and next;
+    my $locked = $file1->locked();
+    my $by_me  = $file1->locked(by_me => 1);
+    my $ok     = $locked && !$by_me;
+    $fm->finish(0, [$ok]);
+}
+$fm->wait_all_children;
+is $tested_positive, 1, 'locked(by_me) fails for another process while just locked() works';
+ok $file1->locked(by_me => 1), 'locked(by_me) works for the owner process';
 ok !$file2->locked, 'locked() returns false for an unlocked Persistent instance with a different id';
 ok !$req->locked,   'locked() returns false for an unlocked Persistent instance with the same id but different class';
 ok $file1->unlock, 'unlock() worked on the locked Persistent';
@@ -229,13 +296,41 @@ ok $req->lock(unlock_after => 4), 'locked it again';
 ok $req->locked, 'locked() returned true for it';
 {
     $fm->start and next;
-    $req->block_until_locked(check_every => 1);
+    $req->block_until_locked(check_every => 1, unlock_after => 2);
     $fm->finish(0, []);
 }
 $fm->wait_all_children;
 $elapsed = time() - $time;
 ok $good_time, 'block_until_locked() made us wait until the lock expired and was aquired by another process';
 ok $req->locked, 'locked() returns true after waiting on the block';
+
+$ev_timer = EV::timer 0, 0, sub {
+    my $req  = VRPipe::Requirements->create(memory => 2, time => 2);
+    my $req2 = VRPipe::Requirements->create(memory => 3, time => 3);
+    $req->lock(unlock_after => 2);
+    $req2->lock(unlock_after => 2);
+    ok $req->maintain_lock(refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work on a Persistent object';
+    ok $req2->maintain_lock(refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work on a second Persistent object of the same class';
+    
+    my $cv = AnyEvent->condvar;
+    my $sleep_timer = AnyEvent->timer(after => 3, cb => sub { $cv->send });
+    $cv->recv;
+    
+    ok $req->locked, 'a maintained lock is still locked after waiting beyond initial expiry';
+    undef($req);
+    $req = VRPipe::Requirements->get(memory => 2, time => 2);
+    ok $req->locked, 'a maintained lock is still locked immediately after undefing the instance that created it';
+    
+    $cv = AnyEvent->condvar;
+    $sleep_timer = AnyEvent->timer(after => 3, cb => sub { $cv->send });
+    $cv->recv;
+    
+    ok !$req->locked, 'a maintained lock became unlocked after waiting beyond survival time following undef of Persistent instance';
+    ok $req2->locked, 'the maintained lock on the other Persistent instance was unaffected';
+    ok $req2->unlock, 'the unaffected one could be unlocked';
+    EV::unloop;
+};
+EV::run;
 
 ok $file1->note('test_note'),  'was able to set a note() on a VRPipe::Persistent instance';
 ok $file1->noted('test_note'), 'noted() returns true for it';
