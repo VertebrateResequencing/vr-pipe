@@ -107,6 +107,7 @@ sub required_modules {
         'POSIX'                          => 0,
         'Proc::Killfam'                  => 0,
         'Redis'                          => 1.9,
+        'Scalar::Util'                   => 0,
         'Sys::CPU'                       => 0,
         'Sys::Hostname'                  => 0,
         'Sys::Hostname::Long'            => 0,
