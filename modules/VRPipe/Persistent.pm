@@ -889,25 +889,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             }
             
-            # even with read committed isolation level we still sometimes fail
-            # to read committed data in a transaction that was waiting on a lock
-            my $transaction_with_sleep = sub {
-                my $transaction_start_time = time();
-                my $return                 = &$transaction;
-                
-                # for lock_row() hack to function, all transactions must take
-                # at least 1 second *** why doesn't merely using READ COMMITTED
-                # work?!
-                if (ref($self) && $self->{'_lock_row_called'}) {
-                    unless (time() - $transaction_start_time > 0) {
-                        sleep(1);
-                    }
-                    delete $self->{'_lock_row_called'};
-                }
-                
-                return $return;
-            };
-            
             my $retries     = 0;
             my $max_retries = 10;
             my $row;
@@ -915,12 +896,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             while ($retries <= $max_retries) {
                 try {
                     if ($get_row) {
-                        $row = $schema->txn_do($transaction_with_sleep);
+                        $row = $schema->txn_do($transaction);
                     }
                     else {
                         # there is a large speed increase in bulk_create_or_update
                         # if we call txn_do in void context
-                        $schema->txn_do($transaction_with_sleep);
+                        $schema->txn_do($transaction);
                     }
                 }
                 catch ($err) {
@@ -989,10 +970,14 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->_in_memory->block_until_unlocked($lock_key, @_);
         });
         
+        # returning 1 means we blocked and reselected values from db
         $meta->add_method('block_until_locked' => sub { 
             my $self     = shift;
             my $lock_key = $table_name . '.' . $self->id;
-            return $self->_in_memory->block_until_locked($lock_key, @_);
+            return if $self->lock();
+            $self->_in_memory->block_until_locked($lock_key, @_);
+            $self->reselect_values_from_db;
+            return 1;
         });
         
         $meta->add_method('maintain_lock' => sub { 
@@ -1027,49 +1012,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
         $meta->add_attribute('idxd_cols' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
-    }
-    
-    # in a do_transaction() sub, use this to lock the table row of the
-    # Persistent instance you'll update, or just don't want to be changed by
-    # another process while you're working. lock_row() calls should really be
-    # the first thing done in a do_transaction() sub.
-    sub lock_row {
-        my ($self, $row, $no_hack) = @_;
-        
-        my $before_lock_time = time();
-        
-        # get the lock
-        my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
-        
-        # reselect in case another process committed a change
-        my $before = $row->_serialize_row unless $no_hack;
-        $row->reselect_values_from_db;
-        my $after = $row->_serialize_row unless $no_hack;
-        
-        # even with the benefit of 'read committed' transactional isolation
-        # level we can still end up sometimes reading old data, so if we were
-        # not the first process to get the lock and we were waiting, we'll force
-        # the transaction to restart
-        #*** for this hack to work, we must force all transactions that do row
-        # locking to take at least 1 second! Bleugh
-        #*** we could also do something like change the lock timeout, but this
-        # requires MySQL 5.5+
-        if (!$no_hack && $before eq $after) {
-            if (time() > $before_lock_time) {
-                die "forcing transaction retry to get latest db values\n";
-            }
-            $self->{'_lock_row_called'} = 1;
-        }
-    }
-    
-    sub _serialize_row {
-        my $self = shift;
-        my @key_vals;
-        foreach my $key (sort keys %{ $self->{_column_data} }) {
-            next unless defined $self->{_column_data}->{$key};
-            push(@key_vals, "$key=>$self->{_column_data}->{$key}");
-        }
-        return join('|', @key_vals);
     }
     
     # get method expects all the psuedo keys and will get or create the

@@ -223,7 +223,7 @@ sub pretend_completion {
     my ($jobs, $subs) = @_;
     foreach my $job (@$jobs) {
         $job->exit_code(0);
-        foreach my $col (qw(start_time heartbeat end_time)) {
+        foreach my $col (qw(start_time end_time)) {
             $job->$col(DateTime->now);
         }
         $job->update;

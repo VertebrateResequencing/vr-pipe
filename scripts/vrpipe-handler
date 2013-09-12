@@ -121,7 +121,7 @@ sub handle_setups {
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
-            unless ($debug) { $fs->alive || die "no farmserver" }
+            unless ($debug) { $fs->locked || die "no farmserver" }
             @setups = $single_setup ? ($single_setup) : VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
         };
         if ($@) {
@@ -448,7 +448,7 @@ sub handle_submissions {
             
             # create a sidtosub
             $sidtosub = VRPipe::SidToSub->create(farm => $farm, req_id => $req->id, sid => $scheduler->get_scheduler_id, aid => $scheduler->get_1based_index, sub_id => $sub_id, assignment_time => DateTime->now);
-            $im->debug("created sidtosub " . $sidtosub->id);
+            $im->debug("created sidtosub " . $sidtosub->id . " for sid " . $scheduler->get_scheduler_id . "[" . $scheduler->get_1based_index . "] and sub $sub_id");
         }
         else {
             return exit_handler("There were no submissions for req $req_id in the queue");
@@ -460,7 +460,7 @@ sub handle_submissions {
     # every so often we'll check on our submission to see how it is doing.
     # if we don't have one, we'll grab one from the redis queue
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
-    my ($submission, $job_instance, $working, $no_subs_found);
+    my ($submission, $job, $working, $no_subs_found);
     
     my $handled_submissions = 0;
     my $watcher = EV::timer 0, $timer_interval, sub {
@@ -480,19 +480,14 @@ sub handle_submissions {
                     }
                     
                     # in production we don't want to kill a job part-way through
-                    # running it just because the server went down, but in testing
-                    # it means the test finished, and we want to clean up any
-                    # remaining handlers
-                    if (!$debug && !$fs->alive) {
+                    # running it just because the server went down, but in
+                    # testing it means the test finished, and we want to clean
+                    # up any remaining handlers
+                    if (!$debug && !$fs->locked) {
                         return exit_handler("Looks like the $farm server stopped");
                     }
                 }
                 
-                # refresh expire time so no other process can grab this sub
-                # while we're still working on it
-                $submission->note('grabbed', forget_after => $forget_notes_after);
-                
-                my $job = $job_instance;
                 if (!$job->start_time) {
                     # hmmm, this really shouldn't happen
                     $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions had started to run a Job, yet it has no start_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
@@ -608,7 +603,7 @@ sub handle_submissions {
                 if (time() >= $end_time) {
                     return exit_handler("There is not enough time to start working on a new submission");
                 }
-                if (!$debug && !$fs->alive) {
+                if (!$debug && !$fs->locked) {
                     return exit_handler("There is no longer a server for farm $farm");
                 }
                 
@@ -648,10 +643,11 @@ sub handle_submissions {
                     
                     if ($sub_id) {
                         $im->debug("we grabbed a sub, will try to run it");
-                        my ($sub) = VRPipe::Submission->search({ id => $sub_id });
-                        unless ($sub) {
+                        ($submission) = VRPipe::Submission->search({ id => $sub_id });
+                        unless ($submission) {
                             $sidtosub->sub_id(undef);
                             $sidtosub->update;
+                            $grabbed_sub->forget_note('grabbed');
                             $im->debug("not assigned an existing submission");
                         }
                         else {
@@ -668,17 +664,19 @@ sub handle_submissions {
                                 # actually run it; give it more time in that
                                 # case
                                 if ($handled_submissions == 0 && $time_needed - $remaining_time < 300) {
-                                    $sub->extra_time;
+                                    $submission->extra_time;
                                 }
                                 
                                 return exit_handler("Not enough time to try and run our submission ($remaining_time < $time_needed)");
                             }
                             
-                            (my $response, $job_instance) = $sub->claim_and_run(allowed_time => $remaining_time);
+                            my $response;
+                            ($response, $job) = $submission->claim_and_run(allowed_time => $remaining_time);
                             if ($response == 0) {
                                 # there was some problem with this sub and it
                                 # just got reset; let's ignore it for now and
                                 # deal with it on the next 'loop'
+                                undef $submission;
                             }
                             elsif ($response == 2 || $response == 3) {
                                 # the job already exited and the sub is
@@ -687,10 +685,10 @@ sub handle_submissions {
                                 # unassign it
                                 $sidtosub->sub_id(undef);
                                 $sidtosub->update;
+                                undef $submission;
                             }
                             elsif ($response == 1) {
                                 # we just started running the sub's job
-                                $submission = $sub;
                                 $handled_submissions++;
                                 $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful (sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])', stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                             }
@@ -726,6 +724,9 @@ sub handle_submissions {
     
     if ($grabbed_sub) {
         $grabbed_sub->forget_note('grabbed');
+    }
+    if ($submission) {
+        $submission->unlock;
     }
     
     $im->debug("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");

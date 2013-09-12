@@ -637,7 +637,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
             next if $self->_handler_processes($host);
             
             # don't terminate if the instance has recently run a Job
-            next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
+            next if VRPipe::Job->search({ host => $host, end_time => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             
             $self->log("[ec2scheduler] Will terminate instance $host");
             $instance->terminate;

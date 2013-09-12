@@ -272,9 +272,10 @@ class VRPipe::File extends VRPipe::Persistent {
         my %args = (replace_data => 1, @args);
         my $replace_data = $args{replace_data};
         
+        $self->block_until_locked;
+        $self->maintain_lock;
+        
         my $transaction = sub {
-            $self->lock_row($self, 1); #*** the 1 means 'no hack' which means we rely on 'READ COMMITTED' to ensure the existing metadata we get is the most up-to-date metadata, rather than the hack that means this transaction is forced to take 1 second, which is ruinous for datasource updates
-            
             my $final_meta = $self->metadata;
             
             while (my ($key, $val) = each %$meta) {
@@ -292,6 +293,7 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->update;
         };
         $self->do_transaction($transaction, "Failed to add_metadata for file " . $self->path);
+        $self->unlock;
         
         my $resolve = $self->resolve;
         if ($resolve ne $self) {

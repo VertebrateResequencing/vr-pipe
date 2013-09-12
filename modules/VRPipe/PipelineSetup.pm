@@ -251,20 +251,18 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 my $completed_steps = $estate->completed_steps;
                 next if $completed_steps == $num_steps;
                 
-                # in addition to the db-based locking we do later on for
-                # stepstates, we also use redis to skip the whole des to be
-                # extra certain and reduce db load. (We can't rely on redis
-                # because the redis server may go down and we'll lose our locks)
-                my $esid         = $estate->id;
-                my $unlock_after = 1200;
-                # since we just want to skip and do nothing (even in the
-                # case of 'single de' mode) if another process is looking at
-                # this des, we don't have to do anything fancy beyond the NX
-                unless ($estate->lock(unlock_after => $unlock_after)) {
+                # we use a redis lock to skip the whole des to avoid triggering
+                # the same thing multiple times simultaneously. Since we just
+                # want to skip and do nothing (even in the case of 'single de'
+                # mode) if another process is looking at this des, we don't have
+                # to do anything fancy
+                my $esid = $estate->id;
+                unless ($estate->lock) {
                     $self->debug("estate $esid is being triggered by another process, will skip it");
                     next;
                 }
                 $self->debug("working on estate $esid having got the redis lock");
+                $estate->maintain_lock;
                 
                 my $sm_error;
                 foreach my $member (@step_members) {
@@ -282,24 +280,15 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     # we need to lock state so that 2 parses or post_process
                     # don't run at the same time, 1 completing the state, the
                     # other failing the post_process because the 1st deleted the
-                    # temp files, or similar problems
+                    # temp files, or similar problems *** is the estate lock
+                    # sufficient?
+                    # $state->lock;
+                    # $state->maintain_lock;
+                    
                     my ($do_next, $do_last);
                     my %previous_step_outputs = ();
                     my $pso_calculated        = 0;
                     my $transaction           = sub {
-                        # for speed reasons we can't use lock_row's trick to
-                        # ensure we read the latest committed data, as the trick
-                        # forces this transaction to always take 1 second
-                        my $before_lock_time = time();
-                        $self->lock_row($state, 1);
-                        $estate->refresh_lock(unlock_after => $unlock_after);
-                        
-                        # however it's really important that we do read the
-                        # latest data, so we do the fix 'manually'
-                        if (time() > ($before_lock_time + 30)) {
-                            die "forcing transaction retry to get latest db values\n";
-                        }
-                        
                         unless ($pso_calculated) {
                             # work out the previous step outputs relevant to
                             # this step
@@ -342,7 +331,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     my ($pp_error, $possible_db_error);
                                     $self->debug("will post_process");
                                     $self->log_event("PipelineSetup->trigger, will post_process because all Submissions are done", dataelement => $element->id, stepstate => $state->id);
-                                    $estate->refresh_lock(unlock_after => $unlock_after);
                                     eval { # (try catch not used because stupid perltidy is stupid)
                                         $pp_error = $step->post_process();
                                     };
@@ -426,7 +414,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             my ($parse_return, $possible_db_error);
                             $self->debug("will parse");
                             $self->log_event("PipelineSetup->trigger will parse", dataelement => $element->id, stepstate => $state->id);
-                            $estate->refresh_lock(unlock_after => $unlock_after);
                             try {
                                 $parse_return = $step->parse();
                             }

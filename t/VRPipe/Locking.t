@@ -3,9 +3,10 @@ use strict;
 use warnings;
 use Path::Class qw(file dir);
 use Parallel::ForkManager;
+use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 6;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -13,9 +14,7 @@ BEGIN {
 # make a stepstate for some basic testing
 my $test_pipeline = VRPipe::Pipeline->create(name => 'test_pipeline');
 my $ds = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
-my $ps = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $test_pipeline, options => {});
-$ps->active(0); # stop the server trying to do something with this ps
-$ps->update;
+my $ps = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $test_pipeline, options => {}, active => 0);
 $ds->elements;
 my $ss = VRPipe::StepState->create(stepmember => 1, dataelement => 1, pipelinesetup => 1);
 my $des = VRPipe::DataElementState->get(id => 1);
@@ -35,7 +34,7 @@ $fm->run_on_finish(
         $confirmed_complete++ if $cc;
     }
 );
-for (1 .. 3) {
+for (1 .. 1) {
     $did_complete       = 0;
     $already_complete   = 0;
     $confirmed_complete = 0;
@@ -51,12 +50,14 @@ for (1 .. 3) {
         
         #sleep($i);
         
+        $ss->block_until_locked;
+        $ss->maintain_lock;
+        
         my ($dc, $ac, $cc);
-        #warn "$$ loop start\n";
+        #warn "$$ loop start, ss->complete is ", $ss->complete, "\n";
         my $transaction = sub {
             #warn "$$ transaction start\n";
             #my ($state) = VRPipe::StepState->search({ id => $ss->id }, { for => 'update' });
-            $ss->lock_row($ss);
             #$state->reselect_values_from_db;
             
             if ($ss->complete) {
@@ -67,22 +68,30 @@ for (1 .. 3) {
                 sleep(5);
                 #warn "$$ completing\n";
                 if (nested_transaction()) {
+                    #warn "$$ nested_transaction returned true\n";
                     $des->reselect_values_from_db;
                     if ($des->completed_steps == 1) {
+                        #warn "$$ des completed_steps was 1\n";
                         $ss->complete(1);
                         $ss->update;
                         $dc = 1;
+                        #warn "$$ set ss->complete(1)\n";
                         
                         if (nested_transaction_two()) {
+                            #warn "$$ nested_transaction_two also returned true, will set cc = 1\n";
                             $cc = 1;
                         }
+                    }
+                    else {
+                        #warn "$$ des->completed_steps was ", $des->completed_steps, "\n";
                     }
                 }
             }
             #warn "$$ transaction end\n";
         };
         $ss->do_transaction($transaction, 'failed');
-        #warn "$$ loop end\n";
+        $ss->unlock;
+        #warn "$$ loop end, ss->complete is ", $ss->complete, "\n";
         $fm->finish(0, [$dc, $ac, $cc]);
     }
     $fm->wait_all_children;
@@ -90,10 +99,14 @@ for (1 .. 3) {
 }
 
 sub nested_transaction {
-    my $at_zero     = 0;
+    my $at_zero = 0;
+    
+    my $des = VRPipe::DataElementState->get(id => 1);
+    #warn "   $$ will bul for des\n";
+    $des->block_until_locked;
+    #warn "   $$ got lock for des\n";
+    
     my $transaction = sub {
-        my $des = VRPipe::DataElementState->get(id => 1);
-        $ss->lock_row($des);
         if ($des->completed_steps == 0) {
             $at_zero = 1;
             $des->completed_steps(1);
@@ -101,6 +114,8 @@ sub nested_transaction {
         }
     };
     $ss->do_transaction($transaction, 'failed nested');
+    $des->unlock;
+    #warn "   $$ unlocked des, at_zero is $at_zero\n";
     return $at_zero;
 }
 
@@ -168,18 +183,7 @@ is scalar(@logs), 0, 'no start_over calls were made';
 # at a time. we don't mind the same pid repeating these things, since that
 # suggests just a retry of a loop (serial repetition) instead of something
 # actually bad happening (parallel repetition)
-my @job_ids = VRPipe::Job->get_column_values('id', {});
-my $ran_once_count = 0;
-foreach my $jid (@job_ids) {
-    my @logs = VRPipe::PipelineSetupLog->search({ job_id => $jid, message => { like => "%cmd-running child exited with code 0%" } });
-    my %by_pid = map { $_->pid => 1 } @logs;
-    my $count = keys %by_pid;
-    $ran_once_count++ if $count == 1;
-    if ($count != 1) {
-        warn "job_id $jid is bad\n";
-    }
-}
-is $ran_once_count, scalar(@job_ids), 'all jobs only ran once';
+check_jobs_ran_once();
 
 my @ss_ids = VRPipe::StepState->get_column_values('id', { pipelinesetup => { '!=' => 1 } });
 my $triggered_once_count = 0;
@@ -196,3 +200,18 @@ is $triggered_once_count, scalar(@ss_ids), 'all stepstates only triggered the ne
 
 done_testing;
 exit;
+
+sub check_jobs_ran_once {
+    my @job_ids = VRPipe::Job->get_column_values('id', {});
+    my $ran_once_count = 0;
+    foreach my $jid (@job_ids) {
+        my @logs = VRPipe::PipelineSetupLog->search({ job_id => $jid, message => { like => "%cmd-running child exited with code 0%" } });
+        my %by_pid = map { $_->pid => 1 } @logs;
+        my $count = keys %by_pid;
+        $ran_once_count++ if $count == 1;
+        if ($count != 1) {
+            warn "job_id $jid is bad\n";
+        }
+    }
+    is $ran_once_count, scalar(@job_ids), 'all jobs only ran once';
+}

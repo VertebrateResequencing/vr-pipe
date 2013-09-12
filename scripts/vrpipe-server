@@ -60,7 +60,6 @@ my $farm                  = $cmdline->opts('farm');
 my $max_subs              = $cmdline->opts('max_submissions');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 my $debug                 = $cmdline->opts('debug');
-my $survival_time;
 my $scheduler;
 my $im = VRPipe::Persistent::InMemory->new();
 
@@ -274,7 +273,6 @@ sub start_server {
                     $handler_path =~ s/^\S+perl/perl/; # different nodes may have different perls installed at different locations
                     $scheduler = VRPipe::Scheduler->create();
                     $scheduler->initialize_for_server;
-                    $survival_time = $farm_server->survival_time;
                     
                     # some schedulers may need to do something periodically;
                     # set up a watcher for that now
@@ -299,12 +297,11 @@ sub start_server {
                             };
                         };
                     }
-                    
                     # make sure the redis server is alive
                     my $ok = $im->datastore_ok;
                     unless ($ok) {
                         $im->log("Can't continue submission management because I can't connect to the in-memory datastore");
-                        $farm_server->stop_beating;
+                        $farm_server->unlock;
                         $farm_server->delete;
                         undef $farm_server;
                     }
@@ -316,6 +313,7 @@ sub start_server {
             }
             else {
                 $still_working = 1;
+                my $fs_ok = $farm_server && $farm_server->locked(by_me => 1) && $farm_server->search({ id => $farm_server->id });
                 fork_call {
                     # this fork_call should not take that long, but it is
                     # critical that it not get stuck, or the server will seem to
@@ -325,8 +323,7 @@ sub start_server {
                     alarm $fork_alarm_time;
                     
                     # check we're still valid
-                    die "no longer in db\n" unless ($farm_server && $farm_server->alive);
-                    $farm_server->stop_beating; # parent process is beating
+                    die "no longer in db\n" unless $fs_ok;
                     
                     # claim our setups
                     my @setups = grep { !$_->currently_complete } $farm_server->claim_setups;
@@ -417,6 +414,8 @@ sub start_server {
                                 
                                 next if exists $already_taken{$req_id}->{$sub_id};
                                 next if $sub->noted('grabbed');
+                                next if $sub->locked;
+                                next if $sub->job->locked;
                                 
                                 #*** note the race condition between testing
                                 # if a handler grabbed it above, and adding it
@@ -491,18 +490,20 @@ sub start_server {
                         my $leeway = $deployment eq 'production' ? 300 : 60;
                         my @sids_to_kill;
                         foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm })) {
-                            #$im->log("checking if sidtosub " . $sidtosub->id . " is defunct");
                             my $sid     = $sidtosub->sid;
                             my $aid     = $sidtosub->aid;
                             my $sid_aid = "$sid\[$aid]";
                             my $dstr    = "[sidtosub " . $sidtosub->id . " sid $sid_aid]";
+                            #$im->debug("$dstr checking if defunct");
                             
                             unless (exists $running_in_scheduler{$sid_aid}) {
+                                #$im->debug("$dstr don't know that the scheduler is running this sid");
                                 # we might not know it's running because
                                 # %running_in_scheduler is only populated for
                                 # req_ids we still needed to run, so check with
                                 # the scheduler
                                 my $status = $scheduler->sid_status($sid, $aid);
+                                #$im->debug("$dstr sid_status said $status");
                                 if ($status eq 'RUN') {
                                     $running_in_scheduler{$sid_aid} = 1;
                                 }
@@ -512,11 +513,11 @@ sub start_server {
                                 # check that it has not been longer than 5mins
                                 # between sid_id being assigned and the sub's
                                 # job starting
-                                #$im->log("$dstr it is currently running");
+                                #$im->debug("$dstr it is currently running");
                                 my $sub_id = $sidtosub->sub_id;
                                 
                                 if ($sub_id) {
-                                    #$im->log("$dstr it has been assigned a sub_id sub $sub_id");
+                                    #$im->debug("$dstr it has been assigned a sub_id sub $sub_id");
                                     my ($sub) = VRPipe::Submission->search({ 'me.id' => $sub_id }, { prefetch => 'job' });
                                     if ($sub) {
                                         # if sub done/failed, the handler will soon
@@ -547,18 +548,16 @@ sub start_server {
                                                 next;
                                             }
                                         }
-                                        #$im->log("$dstr that sub isn't done yet");
+                                        #$im->debug("$dstr that sub isn't done yet");
                                         
                                         unless ($kill) {
                                             # if the job has started and is running, all
                                             # is well
-                                            my $tsh = $sub->job->time_since_heartbeat;
-                                            #$im->log("$dstr the job had a tsh of $tsh");
-                                            next if defined($tsh) && $tsh <= $leeway;
-                                            #$im->log("$dstr the job is dead or hasn't started yet");
+                                            next if $sub->job->locked;
+                                            #$im->debug("$dstr the job is dead or hasn't started yet");
                                             
                                             next if $sidtosub->time_since_assignment <= $leeway;
-                                            $im->log("$dstr it's been over 5mins since assignment and the job (" . $sub->job->id . ") is dead or hasn't started yet (time since heartbeat == " . (defined $tsh ? $tsh : 'undef') . ')');
+                                            $im->log("$dstr it's been over 5mins since assignment and the job (" . $sub->job->id . ") is dead or hasn't started yet");
                                         }
                                     }
                                 }
@@ -568,7 +567,7 @@ sub start_server {
                                     # this req_id anymore?
                                     my $req_id = $sidtosub->req_id;
                                     unless ($req_counts{$req_id}) {
-                                        #$im->log("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
+                                        #$im->debug("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
                                     }
                                     else {
                                         # ok, we still need it, perhaps it got
@@ -577,11 +576,11 @@ sub start_server {
                                         # assignment time, so we can see how
                                         # long it has been sitting undefined
                                         next if $sidtosub->time_since_assignment <= $leeway;
-                                        #$im->log("$dstr it's been over 5mins since the handler tried to get a new submission");
+                                        #$im->debug("$dstr it's been over 5mins since the handler tried to get a new submission");
                                     }
                                 }
                                 
-                                #$im->log("$dstr we'll ask the scheduler to kill this");
+                                #$im->debug("$dstr we'll ask the scheduler to kill this");
                                 push(@sids_to_kill, [$sid, $aid]);
                             }
                             
@@ -589,7 +588,7 @@ sub start_server {
                             # with an assigned sub but aren't doing anything
                             # with it (we are stuck), or we're not running so
                             # must have exited
-                            #$im->log("$dstr we'll delete the sidtosub");
+                            #$im->debug("$dstr we'll delete the sidtosub");
                             $sidtosub->delete;
                         }
                         
@@ -627,7 +626,7 @@ sub start_server {
                         # running
                         if ($err =~ /no longer in db/) {
                             $im->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
-                            $farm_server->end_it_all if $farm_server;
+                            $farm_server->unlock;
                             undef $farm_server;
                         }
                         &{$watcher_error_sub};
@@ -666,7 +665,12 @@ sub start_server {
     
     # cleanup handlers when testing (but not in production, since handlers
     # should keep running if the server goes down)
-    eval { $farm_server->delete if $farm_server; };
+    eval {
+        if ($farm_server) {
+            $farm_server->unlock;
+            $farm_server->delete;
+        }
+    };
     if ($deployment eq 'testing') {
         # make sure all our handlers have exited ***... I don't know of a good
         # way to ensure this; let's just wait 6 seconds and hope they commit
@@ -731,7 +735,14 @@ sub _get_steplimit {
         if ($step_limit) {
             # see how many of this step are currently
             # running, globally
-            $step_counts->{$step_id} = VRPipe::Submission->search({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0, 'job.heartbeat' => { '>' => DateTime->from_epoch(epoch => time() - $survival_time) } }, { join => ['job', { stepstate => 'stepmember' }] });
+            my $pager = VRPipe::Submission->search_paged({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0 }, { join => { stepstate => 'stepmember' }, prefetch => 'job' });
+            my $count = 0;
+            while (my $subs = $pager->next) {
+                foreach my $sub (@$subs) {
+                    $count++ if $sub->job->locked;
+                }
+            }
+            $step_counts->{$step_id} = $count;
         }
     }
     
@@ -824,7 +835,7 @@ sub status {
                         $step_counts{$step_id}++;
                         $should_be_running++;
                         
-                        if ($job->alive(no_suicide => 1)) {
+                        if ($job->locked) {
                             $actually_running++;
                         }
                     }
@@ -1009,7 +1020,7 @@ sub status {
                 my $farm = $setup->controlling_farm;
                 if ($farm) {
                     my ($farm_server) = VRPipe::FarmServer->search({ farm => $farm });
-                    if (!$farm_server || !$farm_server->alive) {
+                    if (!$farm_server || !$farm_server->locked) {
                         $object .= $backend->xml_tag('attribute', "WARNING! setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm is currently alive", q[name="problems"]);
                     }
                 }
@@ -1022,7 +1033,7 @@ sub status {
                         my $sub_state = $sub->failed ? 'failed' : 'scheduled';
                         if ($sub_state eq 'scheduled') {
                             my $job = $sub->job;
-                            $sub_state = $job->end_time ? 'processing' : ($job->heartbeat ? 'running' : 'pending');
+                            $sub_state = $job->end_time ? 'processing' : ($job->locked ? 'running' : 'pending');
                         }
                         $sub_stats{$sub_state}++;
                     }

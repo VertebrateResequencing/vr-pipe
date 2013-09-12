@@ -472,7 +472,7 @@ PE
             next if $host eq $own_host;
             
             # see if a job has run on this host in the past 45mins
-            next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
+            next if VRPipe::Job->search({ host => $host, end_time => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             
             # don't terminate an instance that has a handler running on it right
             # now
