@@ -31,7 +31,6 @@ is_deeply [scalar(@deliveries), $email->get_header("Subject"), $email_body], [1,
 like $email->get_header('From'), qr/"VRPipe Server" <\S+\@\S+>/, 'from address looks good';
 
 # check that we can log to redis
-while ($redis->lpop('stderr')) { next } # clean out anything still stuck in redis
 ok my $log_file = $im->_log_file, '_log_file returning something';
 my $log_file_line = 0;
 latest_log_file_lines();
@@ -345,9 +344,6 @@ ok $file1->locked, 'locked() returns true';
 ok $file1->noted('test_note2'), 'noted() returns true';
 
 # test queuing
-$redis->del('lock.test_queue');
-$redis->del('queue.test_queue');
-$redis->del('queue.test_queue2');
 ok $im->lock('test_queue'), 'was able to get a lock with name test_queue';
 is_deeply [$im->queue('test_queue')], [], 'queue() returns empty array for queue test_queue';
 ok $im->enqueue('test_queue', 'foo'), 'enqueue() seemed to work';

@@ -50,6 +50,7 @@ use strict;
 use warnings;
 use base 'Test::DBIx::Class';
 use VRPipe::Persistent::SchemaBase;
+use VRPipe::Persistent::InMemory;
 use File::Spec;
 use File::Which qw(which);
 $SQL::Translator::Schema::DEBUG = 0; # suppress stupid warning in test harness
@@ -117,6 +118,9 @@ sub _initialize_schema {
         keep_db          => 1,
         connect_info     => [VRPipe::Persistent::SchemaBase->get_dsn, VRPipe::Persistent::SchemaBase->get_user, VRPipe::Persistent::SchemaBase->get_password]
     };
+    
+    my $im = VRPipe::Persistent::InMemory->new;
+    $im->_redis->flushdb;
     
     return $class->SUPER::_initialize_schema($config);
 }
