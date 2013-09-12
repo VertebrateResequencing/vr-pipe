@@ -98,7 +98,8 @@ class VRPipe::Persistent::InMemory {
         handles => {
             '_add_maintenance_watcher'    => 'set',
             '_have_maintenance_watcher'   => 'exists',
-            '_delete_maintenance_watcher' => 'delete'
+            '_delete_maintenance_watcher' => 'delete',
+            '_clear_maintenance_watchers' => 'clear'
         },
     );
     
