@@ -44,6 +44,7 @@ use VRPipe::Base;
 role VRPipe::StepRole {
     use Digest::MD5;
     use VRPipe::StepStatsUtil;
+    use VRPipe::Persistent::InMemory;
     
     method name {
         my $class = ref($self);
@@ -291,6 +292,7 @@ role VRPipe::StepRole {
         my ($step_adaptor) = VRPipe::StepAdaptor->search({ pipeline => $self->step_state->stepmember->pipeline->id, to_step => $step_num });
         return {} unless $step_adaptor;
         
+        my $im = VRPipe::Persistent::InMemory->new();
         my %return;
         keys %$hash;      # reset the iterator in case we threw in a previous pass
         while (my ($key, $val) = each %$hash) {
@@ -329,45 +331,63 @@ role VRPipe::StepRole {
                     }
                 }
                 
+                # it is expensive to VRPipe::FileType->create, and expensive to
+                # check_type(), so we create the former once and cache the final
+                # result of the latter if all passed
+                my $wanted_type = $val->type;
+                my $type = VRPipe::FileType->create($wanted_type, { file => 'to_be_replaced' });
+                
                 my @vrfiles;
                 my @skip_reasons;
-                foreach my $result (@$results) {
-                    unless (ref($result) && ref($result) eq 'VRPipe::File') {
-                        $result = VRPipe::File->get(path => file($result)->absolute);
-                    }
-                    
-                    my $wanted_type = $val->type;
-                    unless ($wanted_type eq 'any') {
-                        my $resolved = $result->resolve;
-                        my $has_size = 0;
-                        if ($resolved->s) {
-                            $has_size = 1;
-                            my $type = VRPipe::FileType->create($wanted_type, { file => $resolved->path });
-                            unless ($type->check_type) {
-                                # the type check will fail if the file doesn't
-                                # really exist, so make sure
-                                $resolved->update_stats_from_disc;
-                                if ($resolved->s) {
-                                    push(@skip_reasons, "file " . $result->path . " was not the correct type ($wanted_type)");
+                my $all_good = 'input_files_all_good.' . join(',', map { $_->id } @$results);
+                if ($im->noted($all_good)) {
+                    @vrfiles = @$results;
+                    $im->note($all_good); # to refresh the timeout
+                }
+                else {
+                    foreach my $result (@$results) {
+                        unless (ref($result) && ref($result) eq 'VRPipe::File') {
+                            $result = VRPipe::File->get(path => file($result)->absolute);
+                        }
+                        
+                        my $wanted_type = $val->type;
+                        unless ($wanted_type eq 'any') {
+                            my $resolved = $result->resolve;
+                            
+                            my $has_size = 0;
+                            if ($resolved->s) {
+                                $has_size = 1;
+                                $type->file($resolved->path);
+                                unless ($type->check_type) {
+                                    # the type check will fail if the file doesn't
+                                    # really exist, so make sure
+                                    $resolved->update_stats_from_disc;
+                                    if ($resolved->s) {
+                                        push(@skip_reasons, "file " . $result->path . " was not the correct type ($wanted_type)");
+                                        next;
+                                    }
+                                    else {
+                                        $result->update_stats_from_disc;
+                                        $has_size = 0;
+                                    }
+                                }
+                            }
+                            unless ($has_size) {
+                                my $db_type = $result->type;
+                                if ($db_type && $wanted_type ne $db_type) {
+                                    push(@skip_reasons, "file " . $result->path . " was not the correct type, expected type $wanted_type and got type $db_type");
                                     next;
                                 }
-                                else {
-                                    $result->update_stats_from_disc;
-                                    $has_size = 0;
-                                }
                             }
                         }
-                        unless ($has_size) {
-                            my $db_type = $result->type;
-                            if ($db_type && $wanted_type ne $db_type) {
-                                push(@skip_reasons, "file " . $result->path . " was not the correct type, expected type $wanted_type and got type $db_type");
-                                next;
-                            }
-                        }
+                        
+                        push(@vrfiles, $result);
                     }
-                    
-                    push(@vrfiles, $result);
+                    if (@vrfiles == @$results) {
+                        $im->note($all_good);
+                    }
                 }
+                
                 my $max_allowed = $val->max_files;
                 my $min_allowed = $val->min_files;
                 if (!@vrfiles && @skip_reasons) {
@@ -395,7 +415,10 @@ role VRPipe::StepRole {
         return \%return;
     }
     
-    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs) {
+    method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs, Bool $inputs_mode = 0) {
+        # (in inputs_mode we do not have to check file existence and type since
+        # inputs() already did that)
+        
         my (@missing, @messages);
         # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
@@ -406,13 +429,13 @@ role VRPipe::StepRole {
             }
             
             foreach my $file (@$val) {
-                $file->reselect_values_from_db;
-                my $resolved = $file->resolve;
+                my $resolved = $inputs_mode ? $file : $file->resolve;
+                
                 # we may be in a situation where $file has been moved elsewhere
                 # in the past, but now we've recreated a possibly different
                 # $file, so $resolved is out-of-date (or possibly doesn't exist
                 # any more)
-                if ($check_s) {
+                if ($check_s && !$inputs_mode) {
                     # double-check incase the step did not update_stats_from_disc
                     my $actual_s   = -s $resolved->path;
                     my $resolved_s = $resolved->s;
@@ -435,7 +458,7 @@ role VRPipe::StepRole {
                     my $bad = 0;
                     
                     # check the filetype is correct
-                    if ($check_s) {
+                    if ($check_s && !$inputs_mode) {
                         my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
                         unless ($type->check_type) {
                             push(@messages, $resolved->path . " exists, but is the wrong type (not a " . $resolved->type . " file)!");
@@ -468,7 +491,7 @@ role VRPipe::StepRole {
     }
     
     method missing_input_files {
-        return $self->_missing($self->inputs, $self->inputs_definition);
+        return $self->_missing($self->inputs, $self->inputs_definition, 1);
     }
     
     method missing_output_files {
@@ -618,6 +641,7 @@ role VRPipe::StepRole {
         
         # store output and temp files on the StepState
         my $output_files = $self->_output_files;
+        
         if (keys %$output_files) {
             my $step_state = $self->step_state;
             $step_state->output_files($output_files);
@@ -639,6 +663,7 @@ role VRPipe::StepRole {
                 }
             }
         }
+        
         my $temp_files = $self->_temp_files;
         if (@$temp_files) {
             my $step_state = $self->step_state;
