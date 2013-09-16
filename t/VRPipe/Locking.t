@@ -6,7 +6,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 9;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -197,6 +197,134 @@ foreach my $ss_id (@ss_ids) {
     }
 }
 is $triggered_once_count, scalar(@ss_ids), 'all stepstates only triggered the next step once';
+
+# following test for author only on LSF, since we need 1000+ submissions running
+# at once
+SKIP: {
+    my $host = hostname();
+    skip "author-only 1000 submission tests", 3 unless $host eq 'uk10k-1-1-01';
+    
+    # long after the above problems were resolved, it was found that a bam_index
+    # pipeline fell over when given a datasource of ~3000 dataelements where
+    # there were groups of ~50 dataelements that all had the same list of ~1000
+    # bams. The symptoms were that tons of select for updates on the same
+    # stepstate id would clog up all the database connections, and the same job
+    # would run multiple times in a row, exiting 0 but being considered dead by
+    # the next handler to claim_and_run it
+    
+    # confirmed that this test at least duplicated the mass (>600) of processes
+    # all doing:
+    # SELECT me.pipelinesetup, me.dataelement, me.id, me.cmd_summary, me.same_submissions_as, me.stepmember, me.complete FROM stepstate me WHERE ( id = '1' ) ORDER BY me.id ASC FOR UPDATE
+    # this is while stepstates are slowly being created and we only had the
+    # first 10 or so, all same_submissions_as 1 (and 1000 submissions)
+    # the number of processes stacked up was similar to number of jobs running
+    # in LSF. And it did soon stack over 1000, run out of connections and then
+    # the test script died
+    
+    # fixing that issue then raised the problem of it being really slow (~10s+)
+    # to create each stepstate, with the time spent mostly in running the
+    # body_sub - for further improvement we need to farm out step handlers
+    # instead of having the setup handler parse steps in a single-process loop
+    
+    # make a simple 1-step pipeline
+    my $fake_bam_index_step = VRPipe::Step->create(
+        name              => 'fake_bam_index',
+        inputs_definition => { in_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'input file', max_files => -1) },
+        body_sub          => sub {
+            my $self = shift;
+            my $req = $self->new_requirements(memory => 500, time => 1);
+            foreach my $in (@{ $self->inputs->{in_files} }) {
+                my $in_path  = $in->path;
+                my $out      = $self->output_file(output_key => 'out_files', output_dir => $in->dir, basename => $in->basename . '.out', type => 'txt');
+                my $out_path = $out->path;
+                $self->dispatch([qq{cat $in_path >> $out_path}, $req, { output_files => [$out], block_and_skip_if_ok => 1 }]);
+            }
+        },
+        outputs_definition => { out_files => VRPipe::StepIODefinition->create(type => 'txt', description => 'output file', max_files => -1) },
+        post_process_sub   => sub         { return 1 },
+        description        => 'cat input to output'
+    );
+    
+    my $pipeline = VRPipe::Pipeline->create(name => 'fake_bam_index_pipeline', description => 'simple test pipeline that behaves like bam_index');
+    $pipeline->add_step($fake_bam_index_step);
+    VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 1, adaptor_hash => { in_files => { data_element => 0 } });
+    
+    # make the groups of input files we need to test with, and create
+    # dataelements as we go since it is too slow to just call $datasource->
+    # elements() afterwards in the normal way
+    my $output_root = get_output_dir('locking_test');
+    my $inputs_dir = dir($output_root, 'inputs');
+    mkdir($inputs_dir);
+    my $source_file = file($output_root, 'inputs.fofn');
+    my $datasource = VRPipe::DataSource->create(
+        type    => 'fofn_with_metadata',
+        method  => 'grouped_by_metadata',
+        source  => $source_file->stringify,
+        options => { metadata_keys => "group" }
+    );
+    my $ds_id = $datasource->id;
+    
+    note "will make input files and dataelements...";
+    my $source_fh = $source_file->openw;
+    print $source_fh "path\tgroup\n";
+    my @ofiles;
+    my @e_args;
+    for my $sub_dir (1 .. 3) {
+        my $dir = dir($inputs_dir, $sub_dir);
+        mkdir($dir);
+        my $paths;
+        for my $i (1 .. 1000) {
+            my $ifile = file($dir, "file.$i");
+            push(@$paths, $ifile->stringify);
+            
+            my $in_fh = $ifile->openw;
+            print $in_fh "input file $i\n";
+            close($in_fh);
+            VRPipe::File->create(path => $ifile, type => 'txt');
+            
+            my $ofile = file($ifile . '.out');
+            push(@ofiles, $ofile);
+            
+            for my $j (1 .. 10) {
+                print $source_fh $ifile, "\t", "$sub_dir.$j", "\n";
+            }
+        }
+        
+        for my $j (1 .. 10) {
+            push(@e_args, { datasource => $ds_id, result => { paths => $paths, group => "$sub_dir.$j" } });
+        }
+    }
+    close($source_fh);
+    VRPipe::DataElement->bulk_create_or_update(@e_args);
+    note "... created dataelements, will run pipeline";
+    
+    my $sf = VRPipe::File->create(path => $source_file);
+    $sf->update_md5;
+    $datasource->_changed_marker($sf->md5);
+    $datasource->update;
+    $datasource->elements;
+    
+    my $pipelinesetup = VRPipe::PipelineSetup->create(
+        name        => 'ps1',
+        datasource  => $datasource,
+        output_root => $output_root,
+        pipeline    => $pipeline
+    );
+    
+    # create and run the setup and confirm all jobs only ran once
+    ok handle_pipeline(@ofiles), 'fastq_metadata pipeline ran ok and all input files still exist';
+    check_jobs_ran_once();
+    my $out_lines = 0;
+    foreach my $ofile (@ofiles) {
+        my $fh    = $ofile->openr;
+        my @lines = <$fh>;
+        if (@lines != 1) {
+            warn " $ofile had ", scalar(@lines), " lines\n";
+        }
+        $out_lines += @lines;
+    }
+    is $out_lines, 3000, 'each output file was only written to once';
+}
 
 done_testing;
 exit;
