@@ -209,7 +209,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -238,6 +238,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     use VRPipe::Persistent::Pager;
     use Data::Dumper;
     use JSON::XS;
+    use VRPipe::Persistent::InMemory;
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
@@ -267,6 +268,13 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         builder => '_determine_if_from_non_persistent'
     );
     
+    has '_in_memory' => (
+        is      => 'ro',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_in_memory_obj'
+    );
+    
     # for when this instance was not retrieved via get()
     method _determine_if_from_non_persistent {
         if ($self->can('name')) {
@@ -293,6 +301,10 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         }
         
         return;
+    }
+    
+    method _build_in_memory_obj {
+        return VRPipe::Persistent::InMemory->new();
     }
     
     method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$many_to_many?) {
@@ -877,25 +889,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             }
             
-            # even with read committed isolation level we still sometimes fail
-            # to read committed data in a transaction that was waiting on a lock
-            my $transaction_with_sleep = sub {
-                my $transaction_start_time = time();
-                my $return                 = &$transaction;
-                
-                # for lock_row() hack to function, all transactions must take
-                # at least 1 second *** why doesn't merely using READ COMMITTED
-                # work?!
-                if (ref($self) && $self->{'_lock_row_called'}) {
-                    unless (time() - $transaction_start_time > 0) {
-                        sleep(1);
-                    }
-                    delete $self->{'_lock_row_called'};
-                }
-                
-                return $return;
-            };
-            
             my $retries     = 0;
             my $max_retries = 10;
             my $row;
@@ -903,12 +896,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             while ($retries <= $max_retries) {
                 try {
                     if ($get_row) {
-                        $row = $schema->txn_do($transaction_with_sleep);
+                        $row = $schema->txn_do($transaction);
                     }
                     else {
                         # there is a large speed increase in bulk_create_or_update
                         # if we call txn_do in void context
-                        $schema->txn_do($transaction_with_sleep);
+                        $schema->txn_do($transaction);
                     }
                 }
                 catch ($err) {
@@ -946,54 +939,79 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return;
         });
         
+        # provide easy-to-use lock methods using our id and InMemory (Redis)
+        $meta->add_method('lock' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $self->_in_memory->lock($lock_key, @_);
+        });
+        
+        $meta->add_method('refresh_lock' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $self->_in_memory->refresh_lock($lock_key, @_);
+        });
+        
+        $meta->add_method('unlock' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $self->_in_memory->unlock($lock_key, @_);
+        });
+        
+        $meta->add_method('locked' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $self->_in_memory->locked($lock_key, @_);
+        });
+        
+        $meta->add_method('block_until_unlocked' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $self->_in_memory->block_until_unlocked($lock_key, @_);
+        });
+        
+        # returning 1 means we blocked and reselected values from db
+        $meta->add_method('block_until_locked' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return if $self->lock();
+            $self->_in_memory->block_until_locked($lock_key, @_);
+            $self->reselect_values_from_db;
+            return 1;
+        });
+        
+        $meta->add_method('maintain_lock' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            return $self->_in_memory->maintain_lock($lock_key, @_);
+        });
+        
+        $meta->add_method('note' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            my $note     = shift;
+            return $self->_in_memory->note($lock_key . '.' . $note, @_);
+        });
+        
+        $meta->add_method('forget_note' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            my $note     = shift;
+            return $self->_in_memory->forget_note($lock_key . '.' . $note, @_);
+        });
+        
+        $meta->add_method('noted' => sub { 
+            my $self     = shift;
+            my $lock_key = $table_name . '.' . $self->id;
+            my $note     = shift;
+            return $self->_in_memory->noted($lock_key . '.' . $note, @_);
+        });
+        
         # set up meta data to add indexes for the key columns after schema deploy
         $meta->add_attribute('cols_to_idx' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
         $meta->add_attribute('idxd_cols' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
-    }
-    
-    # in a do_transaction() sub, use this to lock the table row of the
-    # Persistent instance you'll update, or just don't want to be changed by
-    # another process while you're working. lock_row() calls should really be
-    # the first thing done in a do_transaction() sub.
-    sub lock_row {
-        my ($self, $row, $no_hack) = @_;
-        
-        my $before_lock_time = time();
-        
-        # get the lock
-        my ($locked) = $row->search({ id => $row->id }, { for => 'update' });
-        
-        # reselect in case another process committed a change
-        my $before = $row->_serialize_row unless $no_hack;
-        $row->reselect_values_from_db;
-        my $after = $row->_serialize_row unless $no_hack;
-        
-        # even with the benefit of 'read committed' transactional isolation
-        # level we can still end up sometimes reading old data, so if we were
-        # not the first process to get the lock and we were waiting, we'll force
-        # the transaction to restart
-        #*** for this hack to work, we must force all transactions that do row
-        # locking to take at least 1 second! Bleugh
-        #*** we could also do something like change the lock timeout, but this
-        # requires MySQL 5.5+
-        if (!$no_hack && $before eq $after) {
-            if (time() > $before_lock_time) {
-                die "forcing transaction retry to get latest db values\n";
-            }
-            $self->{'_lock_row_called'} = 1;
-        }
-    }
-    
-    sub _serialize_row {
-        my $self = shift;
-        my @key_vals;
-        foreach my $key (sort keys %{ $self->{_column_data} }) {
-            next unless defined $self->{_column_data}->{$key};
-            push(@key_vals, "$key=>$self->{_column_data}->{$key}");
-        }
-        return join('|', @key_vals);
     }
     
     # get method expects all the psuedo keys and will get or create the

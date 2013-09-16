@@ -28,7 +28,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -78,13 +78,16 @@ class VRPipe::Manager extends VRPipe::Persistent {
         return $self->$orig(id => 1, global_limit => $global_limit);
     }
     
-    method register_farm_server (Str $farm, Bool :$only_ours = 0, Bool :$die_when_murdered = 0) {
+    method register_farm_server (Str $farm, Bool :$only_ours = 0) {
+        my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
+        return if ($fs && $fs->locked);
         my $transaction = sub {
-            my ($fs) = VRPipe::FarmServer->search({ farm => $farm }, { for => 'update' });
-            return if ($fs && $fs->alive);
-            $fs = VRPipe::FarmServer->create(farm => $farm, hostname => hostname_long, only_ours => $only_ours, die_when_murdered => $die_when_murdered);
-            $fs->start_beating;
-            return $fs;
+            my $fs = VRPipe::FarmServer->create(farm => $farm, hostname => hostname_long, only_ours => $only_ours);
+            if ($fs->lock) {
+                $fs->maintain_lock;
+                return $fs;
+            }
+            return;
         };
         
         return $self->do_transaction($transaction, "Could not register farm $farm");

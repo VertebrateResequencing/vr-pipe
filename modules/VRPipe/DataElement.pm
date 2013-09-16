@@ -73,6 +73,9 @@ class VRPipe::DataElement extends VRPipe::Persistent {
         default => 0
     );
     
+    our $last_paths;
+    our $last_filelist;
+    
     __PACKAGE__->make_persistent(); # has_many => [element_states => 'VRPipe::DataElementState'] doesn't work because of ordering issues?
     
     method element_states {
@@ -144,7 +147,18 @@ class VRPipe::DataElement extends VRPipe::Persistent {
         # convert paths in the result to a filelist
         my $paths = $result->{paths};
         if (defined $paths && ref($paths)) {
-            $args->{filelist} = VRPipe::FileList->get(files => [map { VRPipe::File->get(path => $_) } @{$paths}])->id;
+            # we might see the same set of $paths in multiple sequential calls
+            # to _convert_result, and if there are thousands of paths we can
+            # potentially save hours by caching the result
+            my $paths_str = join('.', @$paths);
+            if ($last_paths && $last_paths eq $paths_str) {
+                $args->{filelist} = $last_filelist;
+            }
+            else {
+                $args->{filelist} = VRPipe::FileList->get(files => [map { VRPipe::File->get(path => $_) } @{$paths}])->id;
+                $last_paths       = $paths_str;
+                $last_filelist    = $args->{filelist};
+            }
         }
         $args->{filelist} ||= VRPipe::FileList->get(files => [])->id;
         

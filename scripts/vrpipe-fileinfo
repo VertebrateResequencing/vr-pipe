@@ -288,9 +288,6 @@ if (@setups) {
                     my $step_outs = $stepstate->output_files;
                     my $smid      = $stepm->id;
                     my $force     = exists $allowed_kinds{$smid}->{all};
-                    my $step_name = $stepm->step->name;
-                    my $step_num  = $stepm->step_number;
-                    my $step_desc = "Step $step_num ($step_name)";
                     
                     while (my ($kind, $files) = each %$step_outs) {
                         unless ($force) {

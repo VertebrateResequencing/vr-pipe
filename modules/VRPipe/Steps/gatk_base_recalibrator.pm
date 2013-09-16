@@ -74,7 +74,7 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
                 )
             );
             
-            my $req = $self->new_requirements(memory => 4500, time => 2);
+            my $req = $self->new_requirements(memory => 6000, time => 2);
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $recal_base = $bam->basename;

@@ -51,11 +51,12 @@ class VRPipe::Schedulers::sge_ec2 extends VRPipe::Schedulers::sge {
     use Path::Class;
     use DateTime;
     use POSIX qw(ceil);
+    use VRPipe::Persistent::InMemory;
     
     our $ec2_scheduler = VRPipe::SchedulerMethodsFactory->create('ec2', {});
     no warnings 'once';
-    our $ec2     = $VRPipe::Schedulers::ec2::ec2;
-    our $backend = $VRPipe::Schedulers::ec2::backend;
+    our $ec2 = $VRPipe::Schedulers::ec2::ec2;
+    my $im = VRPipe::Persistent::InMemory->new();
     
     my $vrp_config      = VRPipe::Config->new();
     my $sge_config_file = $vrp_config->sge_config_file;
@@ -329,7 +330,6 @@ PE
         # instances, so that the next time this method gets called we won't
         # launch more instances for the same jobs (because SGE was slow at
         # starting them running on the new instances)
-        my $redis = $backend->redis;
         
         while (<$qstatfh>) {
             #18 0.00000 vrpipe_174 ec2-user     qw    06/19/2013 14:23:01  2
@@ -355,8 +355,8 @@ PE
             
             if ($job_id) {
                 $array_index ||= 0;
-                my $redis_key = 'sge_ec2_job_id.' . $job_id . '.' . $array_index;
-                next if $redis->exists($redis_key);
+                my $lock_key = 'sge_ec2_job_id.' . $job_id . '.' . $array_index;
+                next if $im->noted($lock_key);
                 
                 if (/^\s+Hard Resources:\s+\S+=(\d+)M/) {
                     my $mb = $1;
@@ -378,7 +378,7 @@ PE
                     
                     if ($chosen_type) {
                         $types{$chosen_type} += $slots;
-                        $redis->set($redis_key => 1, EX => 1800);
+                        $im->note($lock_key, forget_after => 1800);
                         unless ($typed) {
                             $job_id_to_type{$job_id} = $chosen_type;
                         }
@@ -397,7 +397,7 @@ PE
             # $count is the number of threads we want to run on this $type of
             # instance; adjust based on how many cores each instance has
             $count = ceil($count / $VRPipe::Schedulers::ec2::instance_types{$type}->[0]);
-            $backend->debug("[sge_ec2scheduler] Will launch $count $type instances");
+            $im->debug("[sge_ec2scheduler] Will launch $count $type instances");
             my @instances = $ec2_scheduler->launch_instances($type, $count);
             
             foreach my $instance (@instances) {
@@ -451,13 +451,6 @@ PE
             # ones we just now launched probably won't be running anything yet
             next if exists $launched_hosts{$host};
             
-            # 'load' is a value that drops off over time once nothing is
-            # running on the machine; in production wait until it as the lowest
-            # value of 0.01
-            if ($deployment eq 'production') {
-                next if $details->{load} > 0.01;
-            }
-            
             # obviously it's not empty if it is running a job right now
             next if $details->{jobs};
             
@@ -465,7 +458,7 @@ PE
             # unless they've been up for at least 45mins (in production)
             my ($ip) = $host =~ /(\d+-\d+-\d+-\d+)/;
             $ip =~ s/-/./g;
-            next if $redis->exists('starting_instance.' . $ip);
+            next if $im->noted('starting_instance.' . $ip);
             my ($instance) = $ec2->describe_instances({ 'private-ip-address' => $ip });
             next unless $instance;
             if ($deployment eq 'production') {
@@ -479,7 +472,7 @@ PE
             next if $host eq $own_host;
             
             # see if a job has run on this host in the past 45mins
-            next if VRPipe::Job->search({ host => $host, heartbeat => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
+            next if VRPipe::Job->search({ host => $host, end_time => { '>=' => DateTime->from_epoch(epoch => time() - $max_do_nothing_time) } });
             
             # don't terminate an instance that has a handler running on it right
             # now
@@ -515,10 +508,10 @@ PE
                 $worked = 0;
                 
                 foreach my $cmd ("qconf -dattr hostgroup hostlist $host \@$type", "qconf -de $host", "qconf -dconf $host") {
-                    $backend->debug("[sge_ec2scheduler] About to try and do {$cmd}\n");
+                    $im->debug("[sge_ec2scheduler] About to try and do {$cmd}\n");
                     my $exit_code = system($cmd);
                     if ($exit_code) {
-                        $backend->log("[sge_ec2scheduler] Tried to run {$cmd} but it exited with code $exit_code");
+                        $im->log("[sge_ec2scheduler] Tried to run {$cmd} but it exited with code $exit_code");
                         last;
                     }
                     else {
@@ -531,10 +524,10 @@ PE
             }
             
             unless ($worked == 3) {
-                $backend->log("[sge_ec2scheduler] Could not remove $host from SGE prior to instance termination");
+                $im->log("[sge_ec2scheduler] Could not remove $host from SGE prior to instance termination");
             }
             
-            $backend->log("[sge_ec2scheduler] Will terminate instance $host");
+            $im->log("[sge_ec2scheduler] Will terminate instance $host");
             $instance->terminate;
         }
     }

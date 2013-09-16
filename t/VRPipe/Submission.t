@@ -14,9 +14,7 @@ my $scheduler = VRPipe::Scheduler->create;
 my $req       = VRPipe::Requirements->create(memory => 500, time => 3600);
 my $pipeline  = VRPipe::Pipeline->create(name => 'test_pipeline');
 my $ds        = VRPipe::DataSource->create(type => 'list', method => 'all', source => file(qw(t data datasource.onelist))->absolute);
-my $ps        = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {});
-$ps->active(0); # stop the server trying to do something with this ps
-$ps->update;
+my $ps        = VRPipe::PipelineSetup->create(name => 'ps', datasource => $ds, output_root => dir(qw(tmp)), pipeline => $pipeline, options => {}, active => 0);
 $ds->elements;
 my $ss = VRPipe::StepState->create(stepmember => 1, dataelement => 1, pipelinesetup => 1);
 my @job_args;
@@ -44,7 +42,8 @@ for (1 .. 4) {
     $fm->start and next;
     
     my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1); # simulate that we've done EV::run
+    $submissions[0]->job->refresh_lock(unlock_after => 4);
+    $submissions[0]->refresh_lock(unlock_after => 4);
     
     $fm->finish($claimed_and_ran);
 }
@@ -56,12 +55,10 @@ my $run_job = $submissions[0]->job;
 is_deeply [$submissions[0]->_claim, defined $run_job->start_time], [1, 1], "claim_and_run resulted in the submission's _claim being true and the job's start_time being set";
 
 $num_claimed = 0;
-$submissions[0]->job->beat_heart;
 for (1 .. 4) {
     $fm->start and next;
     
     my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1);
     
     $fm->finish($claimed_and_ran);
 }
@@ -72,8 +69,7 @@ is $num_claimed, 0, 'when we attempt to claim_and_run the same submission again,
 # make sure that if a process dies in such a way that a submission is left with
 # _claim true and the job dead, we can re-claim the submission and try to run
 # the job again
-$run_job->beat_heart;
-sleep($run_job->survival_time + 1);
+sleep(5);
 
 $num_claimed = 0;
 for (1 .. 4) {
@@ -81,7 +77,12 @@ for (1 .. 4) {
     
     #$submissions[0]->set_verbose_global(1);
     my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    if ($claimed_and_ran == 0) {
+        ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    }
     #$submissions[0]->set_verbose_global(0);
+    $submissions[0]->job->refresh_lock(unlock_after => 4);
+    $submissions[0]->refresh_lock(unlock_after => 4);
     
     $fm->finish($claimed_and_ran);
 }
@@ -89,17 +90,16 @@ $fm->wait_all_children;
 
 is $num_claimed, 1, 'we were able to reclaim a submission when the _claim got stuck on and the job died';
 
-$run_job->reselect_values_from_db;
-$run_job->beat_heart;
-sleep($run_job->survival_time + 1);
-$run_job->beat_heart;
+sleep(2);
 
 $num_claimed = 0;
 for (1 .. 4) {
     $fm->start and next;
     
     my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->beat_heart if ($claimed_and_ran && $claimed_and_ran == 1);
+    if ($claimed_and_ran == 0) {
+        ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
+    }
     
     $fm->finish($claimed_and_ran);
 }
@@ -116,5 +116,7 @@ my ($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
 is $claimed_and_ran, 0, 'not able to immediately claim_and_run a previously claimed but unrun submission';
 ($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
 is $claimed_and_ran, 1, 'able to claim_and_run a previously claimed but unrun submission on the next try';
+$submissions[1]->job->refresh_lock(unlock_after => 1);
+$submissions[1]->refresh_lock(unlock_after => 1);
 
 exit;

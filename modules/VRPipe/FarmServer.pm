@@ -37,7 +37,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::FarmServer extends VRPipe::Persistent::Living {
+class VRPipe::FarmServer extends VRPipe::Persistent {
     use DateTime;
     use POSIX qw(ceil);
     
@@ -76,7 +76,10 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         my $own_farm_name = $self->farm;
         
         # delete any farms no longer alive
-        $self->search_rs({ heartbeat => { '<' => DateTime->from_epoch(epoch => time() - $self->survival_time) } })->delete;
+        foreach my $fs ($self->search({})) {
+            next if $fs->locked;
+            $fs->delete;
+        }
         
         my $transaction = sub {
             # unless we're only doing setups assigned directly to us, we want to
@@ -122,24 +125,6 @@ class VRPipe::FarmServer extends VRPipe::Persistent::Living {
         $self->do_transaction($transaction, "Could not claim PipelineSetups for farm $own_farm_name");
         
         return VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $own_farm_name });
-    }
-    
-    around beat_heart {
-        # when testing, our attempts to beat heart can fail because the test
-        # script drops the tables at the start; avoid ugly error messages and
-        # getting stuck for ages and let vrpipe-server cleanly detect that the
-        # farmserver row disappeared
-        eval { $self->$orig; };
-        if ($@) {
-            if ($@ =~ /update failed.+row not found/) {
-                return 0;
-            }
-            else {
-                die $@;
-            }
-        }
-        
-        return 1;
     }
 }
 

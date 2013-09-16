@@ -54,7 +54,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Job extends VRPipe::Persistent::Living {
+class VRPipe::Job extends VRPipe::Persistent {
     use EV;
     use AnyEvent;
     use DateTime;
@@ -65,6 +65,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
     use Proc::ProcessTable;
     use POSIX qw(ceil);
     use VRPipe::Interface::BackEnd;
+    use Scalar::Util qw(weaken isweak);
     
     my $ppt = Proc::ProcessTable->new(cache_ttys => 1);
     our $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
@@ -156,24 +157,6 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         lazy    => 1,
         builder => '_build_cmd_monitor',
         handles => { start_monitoring => 'start', stop_monitoring => 'stop' }
-    );
-    
-    has '_living_id' => (
-        is          => 'rw',
-        isa         => Varchar [32],
-        traits      => ['VRPipe::Persistent::Attributes'],
-        is_nullable => 1
-    );
-    
-    has '_i_started_running' => (
-        is      => 'rw',
-        isa     => 'Bool',
-        default => 0
-    );
-    
-    has '_redis' => (
-        is  => 'rw',
-        isa => 'Object'
     );
     
     has '_signalled_to_death' => (
@@ -355,7 +338,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         return $end_time - $start_time->epoch;
     }
     
-    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?, Object :$redis?) {
+    method run (VRPipe::Submission :$submission?, PositiveInt :$allowed_time?) {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
@@ -368,19 +351,17 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         # avoid the db-based transaction and locking mechanism below by doing a
         # safer, simple redis lock with NX. We don't rely on this though, since
         # the redis server could go down and we'd lose all locks
-        if ($redis) {
-            unless ($redis->set('job.' . $self->id => 1, EX => 300, 'NX')) {
-                $ss->pipelinesetup->log_event("Job->run() called, but there is a redis lock on it", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
-                return 0;
-            }
-            $self->_redis($redis);
+        unless ($self->lock) {
+            $ss->pipelinesetup->log_event("Job->run() called, but there is a lock on it", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+            return 0;
         }
+        
+        # maintain the lock so that another process can check if we're running
+        $self->maintain_lock;
         
         # check we're allowed to run, in a transaction to avoid race condition
         my $start_time  = DateTime->now();
         my $transaction = sub {
-            $self->lock_row($self);
-            
             if ($self->start_time) {
                 if ($self->end_time) {
                     $response = -1;
@@ -396,12 +377,11 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             # set the start time
             $self->reset_job;
             $self->start_time($start_time);
-            $self->_living_id("$self");
-            $self->_i_started_running(1);
             $self->update;
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $response) {
+            $self->unlock;
             return $response;
         }
         
@@ -409,15 +389,15 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         # single-fire watcher so that nothing actually happens here without the
         # caller doing EV::run
         my $delayed_fork = EV::timer 0, 0, sub {
+            weaken($self) unless isweak($self);
+            
             my $cmd_pid = fork();
             if (!defined $cmd_pid) {
+                $self->unlock;
                 $self->throw("attempt to fork cmd failed: $!");
             }
             elsif ($cmd_pid) {
-                # parent, start our heartbeat so that another process can check
-                # if we're running (it will also stop us running if another
-                # process murders us)
-                $self->start_beating;
+                # parent
             }
             elsif ($cmd_pid == 0) {
                 # child, run the command after changing to the correct dir and
@@ -426,6 +406,10 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 $self->host(hostname());
                 $self->user(getlogin || getpwuid($<));
                 $self->update;
+                
+                # stop the lock maintenance watchers
+                $self->_in_memory->_clear_maintenance_watchers;
+                $submission->_in_memory->_clear_maintenance_watchers if $submission;
                 
                 # get all info from db and disconnect before using the info below
                 my $dir         = $self->dir;
@@ -530,6 +514,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     
                     $self->kill_job($submission);
                     $self->disconnect;
+                    $self->unlock;
                 };
                 $self->store_watcher($signal_watcher);
             }
@@ -538,8 +523,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
             #    SIGSTOPed, the node running us becomes unresponsive, this Job
             #    starts up on another node, fails to kill our pid and starts
             #    running cmd again, then this node comes back to life and we are
-            #    SIGCONTed. Our heartbeat will cause us to commit suicide, but
-            #    only after up to 60 seconds - plenty of time for our cmd_pid to
+            #    SIGCONTed. Our loss of lock will cause us to throw, but only
+            #    after up to 60 seconds - plenty of time for our cmd_pid to
             #    corrupt the output of the other running Job. I tried
             #    experimenting with a SIGCONT watcher, and with turning trace on
             #    for the child watcher, but these didn't seem to let me kill the
@@ -560,41 +545,27 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 # stop beating and set our end_time and exit_code, which is more
                 # critical
                 my $end_time = DateTime->now();
-                my $last_beat = $self->heartbeat || $end_time;
                 my @to_trigger;
                 my $transaction = sub {
-                    # update ourselves, first locking rows
-                    $self->lock_row($self);
-                    my ($step_state, $setup);
-                    if ($submission) {
-                        $self->lock_row($submission);
-                        $step_state = $submission->stepstate;
-                        $setup      = $step_state->pipelinesetup;
-                        if ($exit_code == 0) {
-                            $self->lock_row($step_state);
-                        }
-                    }
+                    # update ourselves (our still-maintained redis lock should
+                    # ensure we're seeing the latest data)
+                    $self->throw("The Job's lock has been lost prior to completing Job status") unless $self->locked(by_me => 1);
                     @to_trigger = ();
                     
-                    unless ($self->heartbeat) {
-                        #*** things get wonky if somehow we've completed running
-                        # before a heartbeat occurred, so add one now
-                        $self->heartbeat($end_time);
-                    }
                     unless ($self->start_time) {
-                        #*** likewise, we can somehow manage to have no start
-                        # time as well. This is very bad, but there's not much
+                        #*** we can somehow manage to have no start
+                        # time?? This is very bad, but there's not much
                         # we can do about it now other than set it to end_time
                         $self->start_time($end_time);
                     }
                     $self->exit_code($exit_code);
                     $self->end_time($end_time);
-                    $self->_living_id(undef);
-                    $self->_i_started_running(0);
                     $self->update;
                     
                     # update our Submission
                     if ($submission) {
+                        $self->throw("The Submission's lock has been lost prior to completing Job status") unless $submission->locked(by_me => 1);
+                        
                         if ($exit_code == 0) {
                             # say the sub is done
                             $submission->_done(1);
@@ -609,8 +580,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             # done to see if the step is complete. We can't just
                             # get quick counts though otherwise the for =>
                             # update lock doesn't do anything
-                            my $stepstate_id = $step_state->id;
-                            my @step_subs    = VRPipe::Submission->search({ stepstate => $stepstate_id }, { for => 'update' });
+                            my $stepstate_id = $ss->id;
+                            my @step_subs    = VRPipe::Submission->search({ stepstate => $stepstate_id });
                             my $done         = 0;
                             foreach my $sub (@step_subs) {
                                 next if $sub->id == $submission->id;
@@ -620,8 +591,8 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                             $submission->update;
                             
                             if ($done == @step_subs - 1) {
-                                $setup->log_event("At end of Job->run() noted that all Submissions for this Job's Submission's StepState are done, so will trigger the next Step", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
-                                push(@to_trigger, [$setup, $step_state->dataelement]);
+                                $ss->pipelinesetup->log_event("At end of Job->run() noted that all Submissions for this Job's Submission's StepState are done, so will trigger the next Step", stepstate => $ss->id, dataelement => $ss->dataelement->id);
+                                push(@to_trigger, [$ss->pipelinesetup, $ss->dataelement]);
                                 
                                 # also trigger any dataelements that have the
                                 # same submissions as $step_state
@@ -650,34 +621,24 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 # be disastrous if the trigger had a behaviour that deleted our
                 # inputs and then the job gets tried again because it looks
                 # dead.
-                # It's awkward to trigger after setting end_time though, because
-                # the handler that spawned us may now exit before we finish
-                # triggering. However it's not the end of the world if there's
-                # an error doing these triggers, since the setups handler will
-                # detect the stall and trigger again
                 if (@to_trigger) {
                     foreach my $ref (@to_trigger) {
                         my ($setup, $de) = @$ref;
-                        my $error_message = $setup->trigger(dataelement => $de, $redis ? (redis => $redis) : ());
+                        my $error_message = $setup->trigger(dataelement => $de);
                         
-                        if ($ss) {
-                            if ($error_message) {
-                                $setup->log_event("Job->run() completed and tried to trigger the next step but failed: $error_message", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
-                            }
-                            else {
-                                $setup->log_event("Job->run() completed and successfully triggered the next step", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
-                            }
+                        if ($error_message) {
+                            $setup->log_event("Job->run() completed and tried to trigger the next step but failed: $error_message", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                        }
+                        else {
+                            $setup->log_event("Job->run() completed and successfully triggered the next step", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
                         }
                     }
                 }
                 
-                # stop beating now (not before the above, since that can
-                # take a while, and we don't want another process thinking
-                # we died before setting end_time and triggering)
-                $self->stop_beating;
-                $self->heartbeat($last_beat);
+                # update and unlock now (not before the above, since that can
+                # take a while, and we don't want another process thinking we
+                # died before setting end_time and triggering)
                 $self->update;
-                $redis->del('job.' . $self->id) if $redis;
                 $self->disconnect;
                 
                 #*** theoretically updating file existence now might be too
@@ -701,6 +662,7 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                 }
                 
                 $self->disconnect;
+                $self->unlock;
                 $self->clear_watchers;
             };
             $self->store_watcher($child_watcher);
@@ -771,66 +733,9 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
                     $ss->unlink_temp_files;
                 }
             }
+            
+            $self->unlock;
         }
-    }
-    
-    around _still_exists {
-        # we don't delete ourselves from the db when dead, which means if we get
-        # paused and another version of us begins running elsewhere, it will
-        # have the same id. Instead, if another instance starts running it will
-        # have changed _living_id
-        if ($self->_i_started_running) {
-            my $still_exists = $self->search({ id => $self->id, '_living_id' => "$self" });
-            return $still_exists;
-        }
-        else {
-            return 1;
-        }
-    }
-    
-    # we can't have a heartbeat unless we started
-    around time_since_heartbeat {
-        my $start_time = $self->start_time || return;
-        
-        # also, to help with edge-cases, if we only just started and have not
-        # yet beat our heart, we'll consider our start_time to be our beat time
-        if (!$self->heartbeat) {
-            my $elapsed = time() - $start_time->epoch;
-            if ($elapsed < $self->survival_time) {
-                return $elapsed;
-            }
-            return;
-        }
-        else {
-            return $self->$orig;
-        }
-    }
-    
-    around beat_heart {
-        $self->reselect_values_from_db unless $self->_i_started_running;
-        return unless $self->start_time;
-        my $redis = $self->_redis;
-        if ($redis) {
-            my $refreshed = $redis->expire('job.' . $self->id, $self->survival_time);
-            unless ($refreshed) {
-                warn "pid $$ unable to refresh redis lock";
-                
-                # presumably the redis server went down and we lost the lock;
-                # if the server came back let's try and create the lock again
-                $redis->set('job.' . $self->id => 1, EX => $self->survival_time, 'NX');
-            }
-        }
-        return $self->$orig;
-    }
-    
-    around end_it_all {
-        $self->stop_beating;
-        $self->stop_monitoring;
-        $self->clear_watchers;
-    }
-    
-    around murder_response {
-        $self->end_it_all;
     }
     
     method reset_job {
@@ -838,12 +743,9 @@ class VRPipe::Job extends VRPipe::Persistent::Living {
         $self->pid(undef);
         $self->host(undef);
         $self->user(undef);
-        $self->heartbeat(undef);
         $self->start_time(undef);
         $self->peak_memory(undef);
         $self->end_time(undef);
-        $self->_living_id(undef);
-        $self->_i_started_running(0);
         $self->update;
         $self->reselect_values_from_db;
         return 1;

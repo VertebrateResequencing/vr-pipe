@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 176;
+    use Test::Most tests => 174;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -497,10 +497,10 @@ my $j_count_exited = VRPipe::Job->search({ dir => '/fake_dir', exit_code => 0 })
 is_deeply [$j_count, $j_count_exited], [0, 1000], 'bulk_create_or_update worked when updating, and no duplicate rows were created';
 @job_args = ();
 foreach my $i (1 .. 10) {
-    push(@job_args, { cmd => "fake_job with running set $i", dir => '/fake_dir', start_time => DateTime->now, heartbeat => DateTime->now });
+    push(@job_args, { cmd => "fake_job with running set $i", dir => '/fake_dir', start_time => DateTime->now });
 }
 VRPipe::Job->bulk_create_or_update({ cmd => "fake_job withouth running set", dir => '/fake_dir' }, @job_args);
-$j_count = VRPipe::Job->search({ heartbeat => { '!=' => undef } });
+$j_count = VRPipe::Job->search({ start_time => { '!=' => undef } });
 is $j_count, 10, 'bulk_create_or_update was able to create and set non keys when it was first supplied some args that lacked the non key column';
 
 my $fm = Parallel::ForkManager->new(2);
@@ -529,27 +529,22 @@ is_deeply [map { $_->name } @{ $prewritten_pipeline->steps }], [qw(test_step_one
 is_deeply [map { $_->id } @{ $prewritten_pipeline->adaptors }], [1, 2, 3, 4], 'adaptors method worked';
 is_deeply [map { $_->id } @{ $prewritten_pipeline->behaviours }], [1, 2, 3], 'behaviours method worked';
 
-my %heartbeats;
 # running jobs directly
 my $tempdir = $jobs[1]->tempdir();
 $jobs[2] = VRPipe::Job->create(cmd => qq[echo "job3"; sleep 3; perl -e 'print "foo\n"'], dir => $tempdir);
-is $jobs[2]->heartbeat_interval(1), 1, 'heartbeat_interval of a job can be set directly and transiently';
 $epoch_time = time();
 $jobs[2]->run;
 run_job($jobs[2]);
-is_deeply [defined($jobs[2]->end_time), $jobs[2]->ok, $jobs[2]->exit_code], [1, 1, 0], 'test job status got updated correctly for an ok job';
+is_deeply [defined($jobs[2]->end_time), $jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->locked], [1, 1, 0, 0], 'test job status got updated correctly for an ok job';
 ok $jobs[2]->pid,  'pid was set';
 ok $jobs[2]->host, 'host was set';
 ok $jobs[2]->user, 'user was set';
-my $start_time     = $jobs[2]->start_time->epoch;
-my $end_time       = $jobs[2]->end_time->epoch;
-my $heartbeat_time = $jobs[2]->heartbeat->epoch;
-my $ok             = $start_time >= $epoch_time && $start_time <= $epoch_time + 1;
+my $start_time = $jobs[2]->start_time->epoch;
+my $end_time   = $jobs[2]->end_time->epoch;
+my $ok         = $start_time >= $epoch_time && $start_time <= $epoch_time + 1;
 ok $ok, 'start_time is correct';
 $ok = $end_time > $start_time && $end_time <= $start_time + 6;
 ok $ok, 'end_time is correct';
-$ok = $heartbeat_time > $start_time && $heartbeat_time <= $end_time;
-ok $ok, 'time of last heartbeat correct';
 ok my $stdout_file = $jobs[2]->stdout_file, 'got a stdout file';
 is $stdout_file->slurp(chomp => 1), 'job3foo', 'stdout file had correct contents';
 ok my $stderr_file = $jobs[2]->stderr_file, 'got a stderr file';
@@ -558,8 +553,9 @@ is $stderr_file->slurp(chomp => 1), '', 'stderr file was empty';
 $jobs[2]->run;
 run_job($jobs[2]);
 is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
+ok !$jobs[2]->locked, 'the job is unlocked after returning from run() early';
 ok $jobs[2]->reset_job, 'could reset a job';
-is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->heartbeat, $jobs[2]->start_time, $jobs[2]->end_time], [0, undef, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
+is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->start_time, $jobs[2]->end_time], [0, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
 my $own_pid   = $$;
 my $child_pid = fork();
 if ($child_pid) {
@@ -585,7 +581,6 @@ else {
 }
 
 $jobs[3] = VRPipe::Job->create(cmd => qq[echo "job4"; perl -e 'die "bar\n"'], dir => $tempdir);
-$jobs[3]->heartbeat_interval(1);
 $jobs[3]->run;
 run_job($jobs[3]);
 is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code =~ /65280|512/], [1, 0, 1], 'test job status got updated correctly for a job that dies internally';
@@ -619,20 +614,12 @@ for my $i (1 .. 5) {
     push(@test_jobs, VRPipe::Job->create(cmd => qq[perl -e 'foreach (1..9) { print "\$_\n"; sleep(1); } print \$\$, "\n"'], dir => $output_dir));
     push(@subs_array, VRPipe::Submission->create(job => $test_jobs[-1], stepstate => $stepstates[0], requirements => $reqs[0]));
 }
-%heartbeats = ();
 wait_until_done(@subs_array);
 my $good_outputs = 0;
 foreach my $sub (@subs_array) {
     $good_outputs++ if std_to_str($sub->job_stdout) eq join("\n", 1 .. 9) . "\n" . $sub->job->pid . "\n";
 }
 is $good_outputs, scalar(@test_jobs), 'stdout files of all arrayed jobs had the correct contents';
-my $good_beats = 0;
-while (my ($sub_id, $hhash) = each %heartbeats) {
-    my $beats = keys %{$hhash};
-    my $num   = keys %{$hhash};
-    $good_beats++ if ($num >= 3 && $num <= 4);
-}
-is $good_beats, 5, 'each arrayed job had the correct number of heartbeats';
 
 done_testing;
 exit;
@@ -654,7 +641,7 @@ sub wait_until_done {
     my @subs = @_;
     
     my $count = 0;
-    my $sub;
+    my ($sub, $job);
     my $watcher = EV::timer 0, 2, sub {
         $count++;
         if ($count > 500) {
@@ -667,17 +654,13 @@ sub wait_until_done {
                 EV::unloop;
                 return;
             }
-            $sub->claim_and_run;
+            (undef, $job) = $sub->claim_and_run;
         }
         
         $sub->reselect_values_from_db;
         if ($sub->done || $sub->failed) {
             $sub->archive_output;
             undef $sub;
-        }
-        else {
-            my $heartbeat = $sub->job->heartbeat || return;
-            $heartbeats{ $sub->id }->{ $heartbeat->epoch }++;
         }
     };
     

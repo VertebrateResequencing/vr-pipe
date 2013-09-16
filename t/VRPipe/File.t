@@ -170,7 +170,7 @@ $vrcopy->unlink;
 throws_ok { $vrsource->copy($vrcopy) } qr/There is not enough disk space available/, 'copy with a file too large for destination throws';
 $vrsource->s($true_s);
 $vrsource->update;
-throws_ok { $vrsource->_check_destination_space($vrcopy->path->absolute->dir, 100) } qr/There is not enough disk space remaining/, 'check for there being 100% remaining space at destination throws';
+throws_ok { $vrsource->check_destination_space($vrcopy->path->absolute->dir, 100) } qr/There is not enough disk space remaining/, 'check for there being 100% remaining space at destination throws';
 
 # create_fofn
 my $fofn = VRPipe::File->create(path => file($tmp_dir, 'list.fofn'));

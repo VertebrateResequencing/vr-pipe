@@ -1,3 +1,15 @@
+# version 0.164
+(you must first upgrade to 0.163, see notes below)
+The database schema has changed, so run vrpipe-db_upgrade.
+
+Significant changes were made to the API used in the core of VRPipe, but these
+are unlikely to affect you:
+lock_row() in Persistent, use of transactions for locking and Living has been
+removed in place of InMemory->lock related methods.
+Job no longer has a heartbeat, so you can't confirm a job is currently running
+just by looking at the time of the last heartbeat in the MySQL database. Instead
+you can run a perl one-liner and see if $job->locked().
+
 # version 0.163
 (you must first upgrade to 0.159, see notes below)
 The database schema has changed, so run vrpipe-db_upgrade.

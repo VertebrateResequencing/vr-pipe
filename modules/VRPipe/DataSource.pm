@@ -198,84 +198,29 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         return $self->$orig;
     }
     
-    method _prepare_elements_and_states (Bool $status_messages = 0) {
+    method _prepare_elements_and_states (Bool $status_messages?) {
         my $source = $self->_source_instance || return;
+        unless (defined $status_messages) {
+            $status_messages = $self->verbose > 0 ? 1 : 0;
+        }
+        
+        # we must not go through and update the dataelements more than once
+        # simultaneously, and we must not return elements in a partially updated
+        # state, so we lock/block at this point
+        my $blocked = $self->block_until_locked;
+        if (1 || $blocked) { #*** I think it's an artifact of the test in DataSource.t that I have to force this reselect
+            $self->reselect_values_from_db;
+            my $current_marker = $self->_changed_marker;
+            if ($current_marker) {
+                $source->_changed_marker($current_marker);
+            }
+        }
+        $self->maintain_lock;
         
         my @setup_ids = VRPipe::PipelineSetup->get_column_values('id', { datasource => $self->id });
         
+        my $generated_elements = 0;
         if ($source->_has_changed) {
-            # we must not go through and update the dataelements more than
-            # once simultaneously, and we must not return elements in a
-            # partially updated state, so we lock/block at this point
-            my $block    = 0;
-            my $continue = 1;
-            do {
-                my $transaction = sub {
-                    $self->lock_row($self);
-                    my $lock_time = $self->_lock;
-                    
-                    # check that the process that got the lock is still running,
-                    # otherwise ignore the lock
-                    if ($lock_time) {
-                        my $elapsed = time() - $lock_time->epoch;
-                        if ($elapsed > 60) {
-                            undef $lock_time;
-                        }
-                    }
-                    
-                    # if some other process has a recent lock, we will block
-                    if ($lock_time) {
-                        $block = 1;
-                        warn "another process is updating dataelements, please wait...\n" if $status_messages;
-                        sleep(2);
-                        return;
-                    }
-                    
-                    # if we had been blocking and now there is no more lock (the
-                    # for => update lock or the _lock lock), likely that the
-                    # datasource is now up to date and we don't have to do
-                    # anything
-                    my $current_marker = $self->_changed_marker;
-                    if ($current_marker) {
-                        $block = 0;
-                        $source->_changed_marker($current_marker);
-                        $continue = $source->_has_changed;
-                    }
-                    
-                    if ($continue) {
-                        # get the lock for ourselves
-                        $self->_lock(DateTime->now());
-                        $self->update;
-                    }
-                };
-                $self->do_transaction($transaction, "DataSource lock/block failed");
-            } while ($block);
-            return unless $continue;
-            
-            # we have a lock, but can't risk our process getting killed and the
-            # lock being left open, so we have to re-claim the lock every 15s
-            # so that the above blocking code doesn't ignore the lock. We do
-            # this by spawning a lock process
-            my $my_pid   = $$;
-            my $lock_pid = fork();
-            if (!defined $lock_pid) {
-                $self->throw("attempt to fork for lock failed: $!");
-            }
-            elsif ($lock_pid == 0) {
-                # child, initiate a lock that will end when the parent stops
-                # running
-                sleep(2);
-                while (1) {
-                    kill(0, $my_pid) || last;
-                    warn "updating dataelements, please wait...\n" if $status_messages;
-                    $self->_lock(DateTime->now());
-                    $self->update;
-                    $self->disconnect;
-                    sleep 15;
-                }
-                exit(0);
-            }
-            
             # we need to create a DataElementState for each setup using this
             # datasource for each new dataelement. To minimise time wasted
             # trying to create DES when they already exist, before getting new
@@ -284,6 +229,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             
             # now get the source to create new dataelements:
             $source->_generate_elements;
+            $generated_elements = 1;
             
             # now page through dataelements with a higher id than previous most
             # recent:
@@ -300,12 +246,6 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             
             # we're done, so update changed marker
             $self->_changed_marker($source->_changed_marker);
-            
-            # cleanup the lock process and set _lock() to 1 minute ago (we can't
-            # undef it, but doing this gives the same result)
-            kill(9, $lock_pid);
-            waitpid($lock_pid, 0);
-            $self->_lock(DateTime->from_epoch(epoch => time() - 60));
             $self->update;
         }
         else {
@@ -328,8 +268,9 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             }
             VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
         }
+        $self->unlock;
         
-        return 1;
+        return $generated_elements;
     }
 }
 
