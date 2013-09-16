@@ -1,3 +1,13 @@
+0.164   archive_files step improved so that it no longer generates submissions
+        that are guaranteed to fail.
+        Massive improvement to speed and reliability for steps that deal with
+        1000s of input files.
+        vrpipe-rm --filter option renamed --search_by_metadata for consistency
+        with vrpipe-fileinfo; this option now also works properly and more
+        quickly.
+        Critical fix for sge_ec2 scheduler so that everything does not stall out
+        when SGE has a dead host.
+        bwa_mem_fastq step fixed to record correct reads metadata.
 0.163   Improvements and bugfixes for the ec2 and sge_ec2 schedulers, resulting
         in more reliable instance launching and termination. EC2 spot requests
         are now supported.
