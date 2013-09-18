@@ -207,6 +207,7 @@ class VRPipe::Persistent::InMemory {
                 my $fh = $host_file->openw;
                 print $fh $hostname, "\n";
                 close($fh);
+                chmod 0644, $host_file;
                 $self->debug("Wrote Redis host file $host_file");
             }
         }
