@@ -539,6 +539,15 @@ class VRPipe::Job extends VRPipe::Persistent {
                 
                 $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                 
+                if ($submission && !$submission->locked(by_me => 1)) {
+                    $self->warn("The Submission's (" . $submission->id . ") lock has been lost prior to completing Job status");
+                    return;
+                }
+                if (!$self->locked(by_me => 1)) {
+                    $self->warn("Our (job " . $self->id . ") lock has been lost prior to completing Job status");
+                    return;
+                }
+                
                 #*** ideally we want to update_stats_from_disc on all our
                 # output files, but that is time consuming and potentially
                 # risky: we can end up exiting during that phase before we
@@ -549,7 +558,6 @@ class VRPipe::Job extends VRPipe::Persistent {
                 my $transaction = sub {
                     # update ourselves (our still-maintained redis lock should
                     # ensure we're seeing the latest data)
-                    $self->throw("The Job's lock has been lost prior to completing Job status") unless $self->locked(by_me => 1);
                     @to_trigger = ();
                     
                     unless ($self->start_time) {
@@ -564,8 +572,6 @@ class VRPipe::Job extends VRPipe::Persistent {
                     
                     # update our Submission
                     if ($submission) {
-                        $self->throw("The Submission's lock has been lost prior to completing Job status") unless $submission->locked(by_me => 1);
-                        
                         if ($exit_code == 0) {
                             # say the sub is done
                             $submission->_done(1);
