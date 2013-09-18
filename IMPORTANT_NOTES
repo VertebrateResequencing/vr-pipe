@@ -1,3 +1,7 @@
+# version 0.165
+(you must first upgrade to 0.164, see notes below)
+The database schema has changed, so run vrpipe-db_upgrade.
+
 # version 0.164
 (you must first upgrade to 0.163, see notes below)
 The database schema has changed, so run vrpipe-db_upgrade.
