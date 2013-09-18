@@ -51,7 +51,6 @@ you should manually install certain modules in a specific order:
 
 1. EV
 2. AnyEvent
-3. Continuity (specifically its Coro dependency)
 
 Possible problems you may encounter in installing your missing prerequisites:
 

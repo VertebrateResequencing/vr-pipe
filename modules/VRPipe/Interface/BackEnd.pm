@@ -44,8 +44,6 @@ class VRPipe::Interface::BackEnd {
     use VRPipe::Config;
     use AnyEvent::ForkManager;
     use Twiggy::Server;
-    use Continuity;
-    use Continuity::Adapt::PSGI;
     use Plack::Request;
     use XML::LibXSLT;
     use XML::LibXML;
@@ -429,18 +427,6 @@ XSL
         builder => '_build_psgi_server'
     );
     
-    has 'continuations' => (
-        is      => 'ro',
-        isa     => 'HashRef',
-        default => sub { {} },
-        traits  => ['Hash'],
-        handles => {
-            store_continuation       => 'set',
-            continuation_for_page    => 'get',
-            continuation_page_stored => 'exists'
-        }
-    );
-    
     has 'manager' => (
         is      => 'ro',
         isa     => 'VRPipe::Manager',
@@ -698,19 +684,6 @@ XSL
             );
             $pm->wait_all_children;
         };
-    }
-    
-    method psgi_continuation_response (CodeRef $sub, HashRef $env) {
-        my $page = $env->{PATH_INFO};
-        
-        my $app;
-        unless ($self->continuation_page_stored($page)) {
-            my $adapt = Continuity::Adapt::PSGI->new;
-            my $continuity = Continuity->new(port => $self->port, adapter => $adapt, callback => $sub);
-            $self->store_continuation($page => $adapt->loop_hook);
-        }
-        
-        return &{ $self->continuation_for_page($page) }($env);
     }
     
     method transform_xml (Str $xml, Str $format) {
