@@ -1007,6 +1007,13 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->_in_memory->noted($lock_key . '.' . $note, @_);
         });
         
+        # if we'll use a Persistent instance in a repeatedly called fork we want
+        # to get the connection details of redis just once, so we provide an
+        # initialise method
+        $meta->add_method('initialize_inmemory' => sub { 
+            return shift->_in_memory->datastore_ok;
+        });
+        
         # set up meta data to add indexes for the key columns after schema deploy
         $meta->add_attribute('cols_to_idx' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);

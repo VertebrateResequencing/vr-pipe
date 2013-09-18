@@ -122,13 +122,6 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         is_key               => 1
     );
     
-    has '_lock' => (
-        is          => 'rw',
-        isa         => Datetime,
-        traits      => ['VRPipe::Persistent::Attributes'],
-        is_nullable => 1
-    );
-    
     has '_changed_marker' => (
         is          => 'rw',
         isa         => Varchar [255],
@@ -182,14 +175,6 @@ class VRPipe::DataSource extends VRPipe::Persistent {
     
     # for critical columns that get updated by multiple processes, ensure we
     # always get the latest value from db
-    around _lock (Datetime $datetime?) {
-        if ($datetime) {
-            return $self->$orig($datetime);
-        }
-        $self->reselect_values_from_db;
-        return $self->$orig;
-    }
-    
     around _changed_marker (Str $marker?) {
         if ($marker) {
             return $self->$orig($marker);

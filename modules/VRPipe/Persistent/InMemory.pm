@@ -207,6 +207,7 @@ class VRPipe::Persistent::InMemory {
                 my $fh = $host_file->openw;
                 print $fh $hostname, "\n";
                 close($fh);
+                chmod 0644, $host_file;
                 $self->debug("Wrote Redis host file $host_file");
             }
         }
@@ -316,9 +317,7 @@ class VRPipe::Persistent::InMemory {
     
     method block_until_unlocked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock') {
         while ($self->locked($key, key_prefix => $key_prefix)) {
-            my $cv = AnyEvent->condvar;
-            my $sleep = AnyEvent->timer(after => $check_every, cb => sub { $cv->send });
-            $cv->recv;
+            sleep($check_every);
         }
     }
     
@@ -326,9 +325,7 @@ class VRPipe::Persistent::InMemory {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
         while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix)) {
-            my $cv = AnyEvent->condvar;
-            my $sleep = AnyEvent->timer(after => $check_every, cb => sub { $cv->send });
-            $cv->recv;
+            sleep($check_every);
         }
     }
     

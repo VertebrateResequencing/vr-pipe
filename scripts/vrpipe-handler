@@ -188,7 +188,8 @@ sub handle_setups {
                 # create a watcher for each setup's datasource to keep it
                 # up-to-date
                 foreach my $setup (@new_setups) {
-                    my $ds    = $setup->datasource;
+                    my $ds = $setup->datasource;
+                    $ds->initialize_inmemory; # prior to forking
                     my $ds_id = $ds->id;
                     $datasource_watchers{$ds_id}->{count}++;
                     next if defined $datasource_watchers{$ds_id}->{watcher};
@@ -270,6 +271,7 @@ sub handle_setups {
                 # create a watcher to check the state of each setup, so we
                 # can notify user of stalled/ failed/ completed ones
                 foreach my $setup (@new_setups) {
+                    $setup->initialize_inmemory;
                     my $sid = $setup->id;
                     next if defined $setup_watchers{$sid};
                     
