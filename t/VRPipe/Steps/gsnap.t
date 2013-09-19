@@ -18,7 +18,7 @@ BEGIN {
 my ($output_dir, $pipeline, $step) = create_single_step_pipeline('gsnap', 'fastq_files');
 my $gmap_build_dir = dir(qw(t data sacCer3 gmap_build));
 SKIP: {
-    skip "no genome directory found to run test, try running gmap_build test", 2 if (!$gmap_build_dir->stat);
+    skip "no genome directory found to run test, try running gmap_build test", 3 if (!$gmap_build_dir->stat);
     is_deeply [$step->id, $step->description], [1, 'Step for GSNAP mapper'], 'GSNAP step created and has correct description';
     
     my $setup = VRPipe::PipelineSetup->create(
