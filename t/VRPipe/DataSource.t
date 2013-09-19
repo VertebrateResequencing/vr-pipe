@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 80;
+    use Test::Most tests => 84;
     use VRPipeTest;
     use TestPipelines;
     
@@ -242,7 +242,7 @@ my $chunks = [{ chrom => 11, from => 1, to => 10000000, seq_no => 1, chunk_overr
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_genome_chunking',
     method  => 'group_all',
-    source  => file(qw(t data datasource.fofn))->absolute->stringify,
+    source  => file(qw(t data bams.fofn))->absolute->stringify,
     options => { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 }
   ),
   'could create a fofn_with_genome_chunking datasource with group_all method';
@@ -253,14 +253,83 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 my @expected = ();
 foreach my $chunk (@$chunks) {
-    push @expected, { paths => [file('t', 'data', 'file.bam')->absolute, file('t', 'data', 'file.cat')->absolute, file('t', 'data', 'file.txt')->absolute], %$chunk },;
+    push @expected, { paths => [file('t', 'data', 'NA19334.bam')->absolute, file('t', 'data', 'NA19381.bam')->absolute, file('t', 'data', 'NA20281.bam')->absolute], %$chunk },;
 }
 is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking group_all method';
 
-$ds = $ds->_source_instance;
-is_deeply [$ds->method_options('group_all')], [['named', 'reference_index', 1, undef, 'Str|File'], ['named', 'chunk_override_file', 1, undef, 'Str|File'], ['named', 'chunk_size', 1, '1000000', 'Int'], ['named', 'chunk_overlap', 1, '0', 'Int'], ['named', 'chrom_list', 0, undef, 'Str'], ['named', 'ploidy', 0, undef, 'Str|File']], 'method_options call for fofn_with_genome_chunking datasource got correct result';
+my $ds_si = $ds->_source_instance;
+is_deeply [$ds_si->method_options('group_all')], [['named', 'reference_index', 1, undef, 'Str|File'], ['named', 'chunk_override_file', 1, undef, 'Str|File'], ['named', 'chunk_size', 1, '1000000', 'Int'], ['named', 'chunk_overlap', 1, '0', 'Int'], ['named', 'chrom_list', 0, undef, 'Str'], ['named', 'ploidy', 0, undef, 'Str|File']], 'method_options call for fofn_with_genome_chunking datasource got correct result';
 
-is $ds->method_description('group_all'), q[All files in the file will be grouped into a single element. Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.], 'method description for fofn_with_genome_chunking group_all method is correct';
+is $ds_si->method_description('group_all'), q[All files in the file will be grouped into a single element. Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.], 'method description for fofn_with_genome_chunking group_all method is correct';
+
+# confirm that a step that accepts multiple file types from the datasource only
+# receives the bam files for the bam input and nothing for the other
+{
+    my $single_step = VRPipe::Step->create(
+        name              => '2_type_step',
+        inputs_definition => {
+            bams => VRPipe::StepIODefinition->create(type => 'bam', description => 'bams', max_files => -1),
+            vcf  => VRPipe::StepIODefinition->create(type => 'txt', min_files   => 0,      max_files => 1, description => 'a vcf')
+        },
+        body_sub => sub {
+            my $self  = shift;
+            my @bams  = @{ $self->inputs->{bams} || [] };
+            my @vcfs  = @{ $self->inputs->{vcf} || [] };
+            my $ofile = $self->output_file(output_key => 'the_output', basename => 'out.o', type => 'txt', metadata => { bams => scalar(@bams), vcfs => scalar(@vcfs) });
+            my $fh    = $ofile->openw;
+            print $fh "foo\n";
+            $ofile->close;
+            return 1;
+        },
+        outputs_definition => { the_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'the output', metadata => { bams => 'num bams', vcfs => 'num vcfs' }) },
+        post_process_sub   => sub          { return 1; },
+        description        => '2_type_step'
+    );
+    
+    my $single_step_pipeline = VRPipe::Pipeline->create(name => '2_type_step pipeline', description => '2_type_step pipeline');
+    $single_step_pipeline->add_step($single_step);
+    VRPipe::StepAdaptor->create(pipeline => $single_step_pipeline, to_step => 1, adaptor_hash => { bams => { data_element => 0 }, vcf => { data_element => 0 } });
+    my $output_root = get_output_dir('datasource_2type_output');
+    my $ps = VRPipe::PipelineSetup->create(name => '2type_ps', datasource => $ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
+    
+    #$ps->verbose(1); # uncomment to see why this isn't working if the following test fails or the test script stalls here
+    $ps->trigger();
+    
+    my @ss = VRPipe::StepState->search({ pipelinesetup => $ps->id, complete => 1 });
+    is scalar(@ss), 21, 'a step that takes 2 file types completed when given multiple of the required type and 0 of the optional';
+    my ($bams, $vcfs) = (0, 0);
+    foreach my $ss (@ss) {
+        my ($file) = $ss->output_files_list;
+        my $meta = $file->metadata;
+        $bams += $meta->{bams};
+        $vcfs += $meta->{vcfs};
+    }
+    is_deeply [$bams, $vcfs], [63, 0], 'the step saw the correct number of input bams and vcfs';
+    
+    # also confirm it works when we also supply a vcf file
+    $ds = VRPipe::DataSource->create(
+        type    => 'fofn_with_genome_chunking',
+        method  => 'group_all',
+        source  => file(qw(t data bams_and_vcf.fofn))->absolute->stringify,
+        options => { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 }
+    );
+    
+    $ps = VRPipe::PipelineSetup->create(name => '2type_ps2', datasource => $ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
+    
+    #$ps->verbose(1);
+    $ps->trigger();
+    
+    @ss = VRPipe::StepState->search({ pipelinesetup => $ps->id, complete => 1 });
+    is scalar(@ss), 21, 'a step that takes 2 file types completed when given multiple of the required type and 1 of the optional';
+    ($bams, $vcfs) = (0, 0);
+    foreach my $ss (@ss) {
+        my ($file) = $ss->output_files_list;
+        my $meta = $file->metadata;
+        $bams += $meta->{bams};
+        $vcfs += $meta->{vcfs};
+    }
+    is_deeply [$bams, $vcfs], [63, 21], 'the step saw the correct number of input bams and vcfs';
+}
 
 # genome chunking with ploidy
 # {

@@ -339,7 +339,7 @@ role VRPipe::StepRole {
                 
                 my @vrfiles;
                 my @skip_reasons;
-                my $all_good = 'input_files_all_good.' . join(',', map { $_->id } @$results);
+                my $all_good = 'input_files_all_good.' . $wanted_type . '.' . join(',', map { $_->id } @$results);
                 if ($im->noted($all_good)) {
                     @vrfiles = @$results;
                     $im->note($all_good); # to refresh the timeout
@@ -350,7 +350,6 @@ role VRPipe::StepRole {
                             $result = VRPipe::File->get(path => file($result)->absolute);
                         }
                         
-                        my $wanted_type = $val->type;
                         unless ($wanted_type eq 'any') {
                             my $resolved = $result->resolve;
                             
