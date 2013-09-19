@@ -52,6 +52,7 @@ class VRPipe::Persistent::InMemory {
     use Email::Simple::Creator;
     use AnyEvent;
     use Scalar::Util qw(weaken isweak);
+    use Time::HiRes qw(sleep);
     
     has '_deployment' => (
         is     => 'ro',
@@ -324,8 +325,16 @@ class VRPipe::Persistent::InMemory {
     method block_until_locked (Str $key!, Int :$check_every = 2, Int :$unlock_after = 300, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
+        my $sleep_time = 0.01;
         while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix)) {
-            sleep($check_every);
+            if ($sleep_time >= $check_every) {
+                $sleep_time = $check_every;
+            }
+            else {
+                $sleep_time *= 2;
+            }
+            
+            sleep($sleep_time);
         }
     }
     
@@ -356,6 +365,7 @@ class VRPipe::Persistent::InMemory {
                 interval => $refresh_every,
                 cb       => sub {
                     weaken($self) unless isweak($self);
+                    $self || return;
                     unless ($self->_own_lock($redis_key)) {
                         $self->warn("maintain_lock disabled because somehow we no longer own the lock?!");
                         $self->_delete_maintenance_watcher($redis_key);
