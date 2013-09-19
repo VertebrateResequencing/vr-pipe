@@ -373,11 +373,19 @@ role VRPipe::StepRole {
                                 }
                             }
                             unless ($has_size) {
-                                my $db_type = $result->type;
-                                if ($db_type && $wanted_type ne $db_type) {
+                                my $db_type = $resolved->type;
+                                if ($db_type && $wanted_type ne $db_type && $db_type ne 'any') {
                                     push(@skip_reasons, "file " . $result->path . " was not the correct type, expected type $wanted_type and got type $db_type");
                                     next;
                                 }
+                            }
+                        }
+                        elsif (!$result->e) {
+                            # missing_input_files() assumes we've already done
+                            # the confirmation of file existence
+                            my $resolved = $result->resolve;
+                            unless ($resolved->e) {
+                                $resolved->update_stats_from_disc;
                             }
                         }
                         
