@@ -242,7 +242,15 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
-    our $json    = JSON::XS->new->utf8->canonical;
+    our $json    = JSON::XS->new->utf8->canonical->convert_blessed;
+    
+    sub Path::Class::File::TO_JSON {
+        return shift->stringify;
+    }
+    
+    sub Path::Class::Dir::TO_JSON {
+        return shift->stringify;
+    }
     
     our %factory_modules;
     
@@ -431,9 +439,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                                 return $hash;
                             },
                             deflate => sub {
-                                my $hash = shift;
-                                while (my ($key, $instance) = each %$hash) { my $ref = ref($instance); my $id = $instance->id; $hash->{$key} = "$ref~$id"; }
-                                return $json->encode($hash);
+                                return $json->encode(shift);
                               }
                         };
                     }
@@ -446,10 +452,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                                 return \@inflated;
                             },
                             deflate => sub {
-                                my $array = shift;
-                                my @deflate;
-                                foreach my $instance (@$array) { my $ref = ref($instance); my $id = $instance->id; push(@deflate, "$ref~$id"); }
-                                return $json->encode(\@deflate);
+                                return $json->encode(shift);
                               }
                         };
                     }
@@ -609,6 +612,12 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
             );
         }
+        
+        # in json, represent ourselves as class~id
+        $meta->add_method('TO_JSON' => sub { 
+            my $self = shift;
+            return ref($self) . '~' . $self->id;
+        });
         
         # like discard_changes, except we don't clumsily wipe out the whole
         # $self hash
