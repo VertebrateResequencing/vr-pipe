@@ -37,8 +37,8 @@ use VRPipe::Base;
 class VRPipe::Steps::quantisnp_reformat_gs_export with VRPipe::StepRole {
     method options_definition {
         return {
-            reformat_script   => VRPipe::StepOption->create(description => 'full path to convert_fcr_to_quanti-per_sample.pl',                       optional => 0, default_value => '/lustre/scratch106/user/jm23/hip1/quantisnp/convert_fcr_to_quanti-per_sample.pl'),
-            manifest_file     => VRPipe::StepOption->create(description => 'full path to manifest file HumanCoreExome-12v1-0_A.csv',                 optional => 0, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/HumanCoreExome-12v1-0_A.csv'),
+            reformat_script   => VRPipe::StepOption->create(description => 'full path to convert_fcr_to_quanti-per_sample.pl',                       optional => 0, default_value => 'convert_fcr_to_quanti-per_sample.pl'),
+            manifest_file     => VRPipe::StepOption->create(description => 'full path to manifest file HumanCoreExome-12v1-0_A.csv',                 optional => 0, default_value => '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/QuantiSNP/HumanCoreExome-12v1-0_A.csv'),
             cnv_analysis_type => VRPipe::StepOption->create(description => 'type of cnv analysis, added to file metadata for downstream processing', optional => 1, default_value => 'quantisnp'),
         };
     }
