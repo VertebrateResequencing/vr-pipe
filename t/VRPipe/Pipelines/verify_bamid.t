@@ -2,12 +2,12 @@
 use strict;
 use warnings;
 use Path::Class;
-use Cwd;
 
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES)],
+        required_exe => 'verifyBamID'
     );
     use TestPipelines;
 }
@@ -27,7 +27,7 @@ my $ofofnwm = VRPipe::File->create(path => file($output_dir, 'verifybam.fofnwm')
 my $ofh = $ofofnwm->openw or die;
 my $ifofnwm = VRPipe::File->create(path => file(qw(t data verifybam.fofnwm))->absolute);
 my $ifh = $ifofnwm->openr or die;
-my $ddir = cwd() . '/t/data';
+my $ddir = dir(qw(t data))->absolute;
 while (<$ifh>) {
     if (/^path/) {
         $ofh->write($_);
@@ -50,7 +50,6 @@ my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        'verify_bamid_exe'  => '/lustre/scratch106/user/cj5/verifyBamID/verifyBamID/bin/verifyBamID',
         'verify_bamid_opts' => '--ignoreRG',
         cleanup             => 0
     }
