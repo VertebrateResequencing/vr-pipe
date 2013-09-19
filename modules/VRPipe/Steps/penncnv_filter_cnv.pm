@@ -36,7 +36,7 @@ use VRPipe::Base;
 class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
     method options_definition {
         return {
-            filter_cnv_script => VRPipe::StepOption->create(description => 'full path to filter_cnv.pl', optional => 1, default_value => '/software/vertres/bin-external/PennCNV/filter_cnv.pl'),
+            filter_cnv_script => VRPipe::StepOption->create(description => 'full path to filter_cnv.pl', optional => 0),
         };
     }
     

@@ -141,6 +141,11 @@ foreach my $stepmember ($penn_pipeline->step_members) {
 }
 is_deeply \@sp_names, [qw(penncnv_detect_cnv penncnv_filter_cnv)], 'the penncnv_cnv_calling pipeline has the correct steps';
 
+my $detect_cnv_script = '/software/vertres/bin-external/PennCNV/detect_cnv.pl';
+my $detect_cnv_hmm    = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/PennCNV/lib/custom.hmm';
+my $detect_cnv_pfb    = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/PennCNV/lib/HumanExome12v1.1.hg19.pfb';
+my $filter_cnv_script = '/software/vertres/bin-external/PennCNV/filter_cnv.pl';
+
 VRPipe::PipelineSetup->create(
     name       => 'penncnv_calling',
     pipeline   => $penn_pipeline,
@@ -150,6 +155,12 @@ VRPipe::PipelineSetup->create(
         source => 'gtc import and qc[2]',
     ),
     output_root => $output_dir,
+    options     => {
+        detect_cnv_script => $detect_cnv_script,
+        detect_cnv_hmm    => $detect_cnv_hmm,
+        detect_cnv_pfb    => $detect_cnv_pfb,
+        filter_cnv_script => $filter_cnv_script,
+    }
 );
 
 #Get array of output files and check outputs as the pipeline is run
