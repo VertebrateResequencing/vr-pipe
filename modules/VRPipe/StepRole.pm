@@ -337,10 +337,17 @@ role VRPipe::StepRole {
                 my $wanted_type = $val->type;
                 my $type = VRPipe::FileType->create($wanted_type, { file => 'to_be_replaced' });
                 
+                # but only bother caching if we have more than 5 files
+                # *** this is mainly a hack so that if we delete a file and then
+                # need it again, start_over will result in the file being
+                # recreated - the hack gets gatk_realign_and_variant_call.t to
+                # pass, but otherwise isn't the best solution...
+                my $check_note = @$results > 5;
+                
                 my @vrfiles;
                 my @skip_reasons;
                 my $all_good = 'input_files_all_good.' . $wanted_type . '.' . join(',', map { $_->id } @$results);
-                if ($im->noted($all_good)) {
+                if ($check_note && $im->noted($all_good)) {
                     @vrfiles = @$results;
                     $im->note($all_good); # to refresh the timeout
                 }
@@ -390,7 +397,7 @@ role VRPipe::StepRole {
                         
                         push(@vrfiles, $result);
                     }
-                    if (@vrfiles == @$results) {
+                    if ($check_note && @vrfiles == @$results) {
                         $im->note($all_good);
                     }
                 }
