@@ -59,8 +59,8 @@ class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::Pipelin
             { from_step => 1, to_step => 2, from_key => 'profile_file', to_key => 'profile_files' },
             { from_step => 1, to_step => 2, from_key => 'annotation_file', to_key => 'annotation_files' },
             { from_step => 1, to_step => 2, from_key => 'mapping_file', to_key => 'mapping_files' },
-            { from_step => 2, to_step => 3, from_key =>, 'reformat_files', to_key => 'conv_files' },
-            { from_step => 3, to_step => 4, from_key =>, 'pluritest_plots', to_key => 'pluritest_plots' },
+            { from_step => 2, to_step => 3, from_key => 'reformat_files', to_key => 'conv_files' },
+            { from_step => 3, to_step => 4, from_key => 'pluritest_plots', to_key => 'pluritest_plots' },
         );
     }
     

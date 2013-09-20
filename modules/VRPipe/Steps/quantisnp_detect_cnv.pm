@@ -36,10 +36,10 @@ use VRPipe::Base;
 class VRPipe::Steps::quantisnp_detect_cnv with VRPipe::StepRole {
     method options_definition {
         return {
-            run_quantisnp_script => VRPipe::StepOption->create(description => 'full path to run_quantisnp2.sh', optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/run_quantisnp2.sh'),
-            v79_dir              => VRPipe::StepOption->create(description => 'full path to v79 dir',           optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/QSNP_dirs/v79'),
-            levels_file          => VRPipe::StepOption->create(description => 'full path to levels.dat',        optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/QSNP_dirs/config/levels.dat'),
-            params_file          => VRPipe::StepOption->create(description => 'full path to params.dat',        optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/QSNP_dirs/config/params.dat'),
+            run_quantisnp_script => VRPipe::StepOption->create(description => 'full path to run_quantisnp2.sh', optional => 0),
+            v79_dir              => VRPipe::StepOption->create(description => 'full path to v79 dir',           optional => 0),
+            levels_file          => VRPipe::StepOption->create(description => 'full path to levels.dat',        optional => 0),
+            params_file          => VRPipe::StepOption->create(description => 'full path to params.dat',        optional => 0),
         };
     }
     
@@ -73,7 +73,6 @@ class VRPipe::Steps::quantisnp_detect_cnv with VRPipe::StepRole {
                 my $quantisnp_cnv_file = $self->output_file(output_key => 'stepTwo_file_output_quantisnp_file', basename => "$basename", type => 'txt', metadata => $reformat_meta);
                 my $out_dir            = $quantisnp_cnv_file->dir;
                 my $cmd_line           = "sh $run_quantisnp_script $v79_dir --outdir $out_dir --input-files $reformatted_path --sampleid $sample --levels $levels_file --config $params_file $quantisnp_detect_cnv_options";
-                print STDERR "############ QUANTISNP DETECT_CNV: $cmd_line  #############################\n";
                 $self->dispatch([$cmd_line, $req]);
             }
         };

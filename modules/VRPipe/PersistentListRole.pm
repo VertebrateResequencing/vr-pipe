@@ -44,6 +44,7 @@ use VRPipe::Base;
 
 role VRPipe::PersistentListRole {
     use Digest::MD5;
+    use VRPipe::Persistent::InMemory;
     
     requires '_member_class';
     requires '_foreign_key';
@@ -72,10 +73,22 @@ role VRPipe::PersistentListRole {
         }
         elsif ($members) {
             # have we previously made a list for these $members?
-            my ($return) = $self->search({ lookup => $self->_string_to_lookup($self->_members_to_string($members)) }, { rows => 1 });
-            return $return if $return;
+            my $lookup = $self->_string_to_lookup($self->_members_to_string($members));
             
-            return $self->create($self->_member_key . 's' => $members);
+            my $im       = VRPipe::Persistent::InMemory->new();
+            my $lock_key = 'PersistentList.' . $lookup;
+            $im->block_until_locked($lock_key);
+            $im->maintain_lock($lock_key);
+            
+            my ($return) = $self->search({ lookup => $lookup }, { rows => 1 });
+            if ($return) {
+                $im->unlock($lock_key);
+                return $return;
+            }
+            
+            my $created = $self->create($self->_member_key . 's' => $members);
+            $im->unlock($lock_key);
+            return $created;
         }
         else {
             $self->throw("List->get requires id or members");
@@ -85,7 +98,14 @@ role VRPipe::PersistentListRole {
     method _create_list (ClassName|Object $self: $orig, PersistentArrayRef $members!) {
         # create a new row, then use the new id to create new ListMember rows
         # for each supplied member
-        my $list = $self->$orig(lookup => $self->_string_to_lookup($self->_members_to_string($members)));
+        my $lookup = $self->_string_to_lookup($self->_members_to_string($members));
+        
+        my $im       = VRPipe::Persistent::InMemory->new();
+        my $lock_key = 'PersistentList.' . $lookup;
+        $im->block_until_locked($lock_key);
+        $im->maintain_lock($lock_key);
+        
+        my $list = $self->$orig(lookup => $lookup);
         
         my @lm_args;
         my $foreign_key = $self->_foreign_key;
@@ -96,6 +116,7 @@ role VRPipe::PersistentListRole {
         my $member_class = $self->_member_class;
         $member_class->bulk_create_or_update(@lm_args);
         
+        $im->unlock($lock_key);
         return $list;
     }
     

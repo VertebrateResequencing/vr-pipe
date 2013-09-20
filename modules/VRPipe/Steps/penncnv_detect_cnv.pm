@@ -36,9 +36,9 @@ use VRPipe::Base;
 class VRPipe::Steps::penncnv_detect_cnv with VRPipe::StepRole {
     method options_definition {
         return {
-            detect_cnv_script => VRPipe::StepOption->create(description => 'full path to detect_cnv.pl',                                             optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/detect_cnv.pl'),
-            detect_cnv_hmm    => VRPipe::StepOption->create(description => 'full path to custom.hmm',                                                optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/lib/custom.hmm'),
-            detect_cnv_pfb    => VRPipe::StepOption->create(description => 'full path to PFB',                                                       optional => 1, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/PennCNV/PennCNV/lib/HumanExome12v1.1.hg19.pfb'),
+            detect_cnv_script => VRPipe::StepOption->create(description => 'full path to detect_cnv.pl',                                             optional => 0),
+            detect_cnv_hmm    => VRPipe::StepOption->create(description => 'full path to custom.hmm',                                                optional => 0),
+            detect_cnv_pfb    => VRPipe::StepOption->create(description => 'full path to PFB',                                                       optional => 0),
             cnv_analysis_type => VRPipe::StepOption->create(description => 'type of cnv analysis, added to file metadata for downstream processing', optional => 1, default_value => 'penncnv'),
         };
     }

@@ -141,6 +141,13 @@ foreach my $stepmember ($quan_pipeline->step_members) {
 }
 is_deeply \@sq_names, [qw(quantisnp_reformat_gs_export quantisnp_detect_cnv)], 'the quantisnp_cnv_calling pipeline has the correct steps';
 
+my $reformat_script      = 'convert_fcr_to_quanti-per_sample.pl';
+my $manifest_file        = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/QuantiSNP/HumanCoreExome-12v1-0_A.csv';
+my $run_quantisnp_script = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/QuantiSNP/run_quantisnp2.sh';
+my $v79_dir              = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/QuantiSNP/QSNP_dirs/v79';
+my $levels_file          = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/QuantiSNP/QSNP_dirs/config/levels.dat';
+my $params_file          = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/QuantiSNP/QSNP_dirs/config/params.dat';
+
 VRPipe::PipelineSetup->create(
     name       => 'quantisnp_calling',
     pipeline   => $quan_pipeline,
@@ -150,6 +157,14 @@ VRPipe::PipelineSetup->create(
         source => 'gtc import and qc[2]',
     ),
     output_root => $output_dir,
+    options     => {
+        reformat_script      => $reformat_script,
+        manifest_file        => $manifest_file,
+        run_quantisnp_script => $run_quantisnp_script,
+        v79_dir              => $v79_dir,
+        levels_file          => $levels_file,
+        params_file          => $params_file,
+    },
 );
 
 #Get array of output files and check outputs as the pipeline is run

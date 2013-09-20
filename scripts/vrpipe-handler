@@ -462,7 +462,7 @@ sub handle_submissions {
     # every so often we'll check on our submission to see how it is doing.
     # if we don't have one, we'll grab one from the redis queue
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
-    my ($submission, $job, $working, $no_subs_found);
+    my ($submission, $job, $job_start_time, $working, $no_subs_found);
     
     my $handled_submissions = 0;
     my $watcher = EV::timer 0, $timer_interval, sub {
@@ -490,43 +490,16 @@ sub handle_submissions {
                     }
                 }
                 
-                if (!$job->start_time) {
-                    # hmmm, this really shouldn't happen
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions had started to run a Job, yet it has no start_time", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                    $im->log("sub " . $submission->id . " job had not started?!");
-                    # $submission->_reset_job;
-                    # $submission->_reset;
-                    # undef $submission;
-                    # if ($sidtosub) {
-                    #     $sidtosub->sub_id(undef);
-                    #     $sidtosub->update;
-                    # }
-                    #*** these attempts to reset never work properly, leaving us
-                    # in a state where 2 different processes are running our
-                    # job. Instead what will happen is that when the job
-                    # finishes it will set the missing start_time to the
-                    # end_time(), and then we'll proceed normally. Looking like
-                    # we took 0seconds to run is better than running the job
-                    # twice concurrently
-                    return;
-                }
+                my $close_to_time_limit = (time() - $job_start_time) > ($current_req_time - $seconds_before_switching);
+                my $still_locked = $job->locked(by_me => 1);
                 
-                my $close_to_time_limit = $job->wall_time > ($current_req_time - $seconds_before_switching);
-                
-                if ($job->end_time) {
+                if (!$still_locked && $job->end_time) {
                     $job->reselect_values_from_db;
                     $submission->reselect_values_from_db;
-                    $submission->archive_output;
+                    eval { $submission->archive_output; };
                     
                     if ($submission->done) {
                         $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission was done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                        
-                        # the job completion may have triggered the next step,
-                        # in which case the job process is still doing
-                        # something; wait until the heart has stopped beating
-                        $req->disconnect;
-                        $job->block_until_unlocked;
-                        $im->debug("waited for the next step trigger to finish");
                     }
                     elsif ($submission->failed) {
                         # Job->run itself would have adjusted $submission's
@@ -556,6 +529,10 @@ sub handle_submissions {
                     
                     $im->debug("will undef submission");
                     undef $submission;
+                }
+                elsif (!$still_locked) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it lost the lock on a job it was monitoring", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                    return exit_handler("lost the lock on job of submission " . $submission->id);
                 }
                 elsif ($close_to_time_limit) {
                     # user's scheduler might kill the submission if it runs too
@@ -596,6 +573,12 @@ sub handle_submissions {
                 # we want to avoid exiting while we're still running a job, so
                 # just blindly ignore the problem and hope it goes away...
                 $im->log("There was a problem monitoring Submission " . $submission->id . ": $@");
+                
+                if ($submission->done) {
+                    # we encountered some error yet we managed to complete our
+                    # work, so just exit
+                    return exit_handler("encountered an unusual error yet finished handling submission " . $submission->id);
+                }
             }
         }
         unless ($submission) {
@@ -693,6 +676,7 @@ sub handle_submissions {
                                 # we just started running the sub's job
                                 $handled_submissions++;
                                 $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful (sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])', stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
+                                $job_start_time = $job->start_time->epoch;
                             }
                         }
                     }

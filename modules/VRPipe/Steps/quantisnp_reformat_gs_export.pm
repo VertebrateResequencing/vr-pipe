@@ -37,8 +37,8 @@ use VRPipe::Base;
 class VRPipe::Steps::quantisnp_reformat_gs_export with VRPipe::StepRole {
     method options_definition {
         return {
-            reformat_script   => VRPipe::StepOption->create(description => 'full path to convert_fcr_to_quanti-per_sample.pl',                       optional => 0, default_value => '/lustre/scratch106/user/jm23/hip1/quantisnp/convert_fcr_to_quanti-per_sample.pl'),
-            manifest_file     => VRPipe::StepOption->create(description => 'full path to manifest file HumanCoreExome-12v1-0_A.csv',                 optional => 0, default_value => '/lustre/scratch102/user/pc12/genotyping/packages/QuantiSNP/HumanCoreExome-12v1-0_A.csv'),
+            reformat_script   => VRPipe::StepOption->create(description => 'full path to convert_fcr_to_quanti-per_sample.pl',                       optional => 0),
+            manifest_file     => VRPipe::StepOption->create(description => 'full path to manifest file HumanCoreExome-12v1-0_A.csv',                 optional => 0),
             cnv_analysis_type => VRPipe::StepOption->create(description => 'type of cnv analysis, added to file metadata for downstream processing', optional => 1, default_value => 'quantisnp'),
         };
     }
@@ -69,7 +69,7 @@ class VRPipe::Steps::quantisnp_reformat_gs_export with VRPipe::StepRole {
                 $gs_file->add_metadata($new_meta);
                 my $reformatted_file = $self->output_file(output_key => 'stepOne_file_output_reformatted_file', basename => "$basename", type => 'txt', metadata => $gs_file->metadata);
                 my $out_path         = $reformatted_file->path;
-                my $cmd_line         = "perl $reformat_script $gs_path $manifest_file > $out_path";
+                my $cmd_line         = "$reformat_script $gs_path $manifest_file > $out_path";
                 $self->dispatch([$cmd_line, $req]);
             }
         };

@@ -337,10 +337,17 @@ role VRPipe::StepRole {
                 my $wanted_type = $val->type;
                 my $type = VRPipe::FileType->create($wanted_type, { file => 'to_be_replaced' });
                 
+                # but only bother caching if we have more than 5 files
+                # *** this is mainly a hack so that if we delete a file and then
+                # need it again, start_over will result in the file being
+                # recreated - the hack gets gatk_realign_and_variant_call.t to
+                # pass, but otherwise isn't the best solution...
+                my $check_note = @$results > 5;
+                
                 my @vrfiles;
                 my @skip_reasons;
-                my $all_good = 'input_files_all_good.' . join(',', map { $_->id } @$results);
-                if ($im->noted($all_good)) {
+                my $all_good = 'input_files_all_good.' . $wanted_type . '.' . join(',', map { $_->id } @$results);
+                if ($check_note && $im->noted($all_good)) {
                     @vrfiles = @$results;
                     $im->note($all_good); # to refresh the timeout
                 }
@@ -350,7 +357,6 @@ role VRPipe::StepRole {
                             $result = VRPipe::File->get(path => file($result)->absolute);
                         }
                         
-                        my $wanted_type = $val->type;
                         unless ($wanted_type eq 'any') {
                             my $resolved = $result->resolve;
                             
@@ -373,17 +379,25 @@ role VRPipe::StepRole {
                                 }
                             }
                             unless ($has_size) {
-                                my $db_type = $result->type;
-                                if ($db_type && $wanted_type ne $db_type) {
+                                my $db_type = $resolved->type;
+                                if ($db_type && $wanted_type ne $db_type && $db_type ne 'any') {
                                     push(@skip_reasons, "file " . $result->path . " was not the correct type, expected type $wanted_type and got type $db_type");
                                     next;
                                 }
                             }
                         }
+                        elsif (!$result->e) {
+                            # missing_input_files() assumes we've already done
+                            # the confirmation of file existence
+                            my $resolved = $result->resolve;
+                            unless ($resolved->e) {
+                                $resolved->update_stats_from_disc;
+                            }
+                        }
                         
                         push(@vrfiles, $result);
                     }
-                    if (@vrfiles == @$results) {
+                    if ($check_note && @vrfiles == @$results) {
                         $im->note($all_good);
                     }
                 }

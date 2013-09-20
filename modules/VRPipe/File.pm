@@ -274,6 +274,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         $self->block_until_locked;
         $self->maintain_lock;
+        $self->reselect_values_from_db; # block_until_locked won't have done this if it didn't have to block
         
         my $transaction = sub {
             my $final_meta = $self->metadata;

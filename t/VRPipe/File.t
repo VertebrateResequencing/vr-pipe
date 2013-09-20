@@ -3,9 +3,10 @@ use strict;
 use warnings;
 use Path::Class;
 use File::Spec;
+use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 65;
+    use Test::Most tests => 68;
     use VRPipeTest;
 }
 
@@ -268,6 +269,66 @@ my $moved_ifile = VRPipe::File->create(path => '/tmp/moved_ifile.txt');
 $ifile->moved_to($moved_ifile->id);
 $ifile->update;
 is_deeply [map { $_->id } $moved_ifile->input_to], [1], 'input_to works on a moved input file';
+
+# test that we can add different metadata in 10 roughly overlapping processes (2
+# different updates to 5 different files) and all metadata is kept
+my $fm = Parallel::ForkManager->new(10);
+my $common_meta = { original_pg_chain => 'asdlfk asdlfkj a;lskfj ;asdkfj;laksd fj;aksj dfl;kjasdf ;laskdjf;lkaj sdf;' };
+my %unique_meta;
+my @meta_files;
+for my $i (1 .. 5) {
+    for my $l (qw(a b c d e f g h i j k)) {
+        $unique_meta{$i}->{$l} = $l . $i;
+    }
+    push(@meta_files, VRPipe::File->create(path => file($tmp_dir, 'metafile.' . $i)));
+}
+for my $i (1 .. 5) {
+    my $meta_file = $meta_files[$i - 1];
+    
+    for my $j (1 .. 2) {
+        my $meta = $j == 1 ? $common_meta : $unique_meta{$i};
+        
+        $fm->start and next;
+        
+        sleep($j); # this is critical for revealing the bug
+        $meta_file->add_metadata($meta);
+        
+        $fm->finish(0);
+    }
+}
+$fm->wait_all_children;
+
+my %actual_meta;
+my %expected_meta;
+for my $i (1 .. 5) {
+    my $meta_file = $meta_files[$i - 1];
+    $meta_file->reselect_values_from_db;
+    $actual_meta{$i} = $meta_file->metadata;
+    $expected_meta{$i} = { %{ $unique_meta{$i} }, %{$common_meta} };
+}
+
+is_deeply \%actual_meta, \%expected_meta, 'add_metadata() worked for 10 processes roughly overlapping';
+
+my @kvlms = VRPipe::KeyValListMember->search({ keyval_key => 'original_pg_chain' });
+is scalar(@kvlms), 6, 'No KeyValListMembers were duplicated incorrectly';
+
+# also test that we don't duplicate identical filelists when they're created
+# in parallel
+my @fillist_files;
+for my $i (1 .. 10) {
+    push(@fillist_files, VRPipe::File->create(path => file($tmp_dir, 'filelist.' . $i)));
+}
+for my $i (1 .. 10) {
+    $fm->start and next;
+    
+    VRPipe::FileList->create(files => \@fillist_files);
+    
+    $fm->finish(0);
+}
+$fm->wait_all_children;
+
+my @fls = VRPipe::FileList->search({});
+is scalar(@fls), 8, 'only 1 FileList was created when creating the same list 10 times in parallel'; # the other 7 were made by previous tests
 
 done_testing;
 exit;

@@ -45,6 +45,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListRole {
+    use VRPipe::Persistent::InMemory;
+    
     sub _member_class { 'VRPipe::KeyValListMember' }
     sub _member_key   { 'keyval' }
     sub _foreign_key  { 'keyvallist' }
@@ -80,7 +82,14 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
         # because we don't have a real keyval class but instead store data on
         # the Member class directly for speed reasons, we have to implement this
         # ourselves
-        my $list = $self->$orig(lookup => $self->_string_to_lookup($self->_members_to_string($keyvals)));
+        my $lookup = $self->_string_to_lookup($self->_members_to_string($keyvals));
+        
+        my $im       = VRPipe::Persistent::InMemory->new();
+        my $lock_key = 'PersistentList.' . $lookup;
+        $im->block_until_locked($lock_key);
+        $im->maintain_lock($lock_key);
+        
+        my $list = $self->$orig(lookup => $lookup);
         
         my @lm_args;
         my $lid = $list->id;
@@ -90,6 +99,7 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
         }
         VRPipe::KeyValListMember->bulk_create_or_update(@lm_args);
         
+        $im->unlock($lock_key);
         return $list;
     }
     
