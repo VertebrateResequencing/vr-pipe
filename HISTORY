@@ -1,3 +1,5 @@
+0.167   Critical fix for correctly retrying submissions that failed due to
+        using too much memory.
 0.166   Critical fix for adding file metadata correctly without losing
         existing metadata.
         Critical fix for steps that accept multiple file types.
