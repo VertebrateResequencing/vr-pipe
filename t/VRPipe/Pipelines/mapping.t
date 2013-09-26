@@ -361,7 +361,7 @@ is $dict_file->slurp, "\@HD\tVN:1.0\tSO:unsorted
 \@SQ\tSN:fake_chr2\tLN:1716851\tM5:6dd2836053e5c4bd14ad49b5b2f2eb88\tUR:ftp://s.suis.com/ref.fa\tAS:SSuis1\tSP:S.Suis\n", '.dict file content is correct';
 
 $existing_outputs = 0;
-foreach my $suffix (qw(amb ann bwt pac rbwt rpac rsa sa)) {
+foreach my $suffix (qw(bwt pac sa amb ann)) {
     $existing_outputs += -s file($ref_dir, 'S_suis_P17.fa.' . $suffix) ? 1 : 0;
 }
 %recorded_outputs = ();
@@ -374,7 +374,7 @@ foreach my $element_id (1 .. 4) {
     }
 }
 $recorded_outputs = keys %recorded_outputs;
-is_deeply [$existing_outputs, $recorded_outputs], [8, 8], 'all the ref index files that should have been created by the bwa_index step exist and were recorded as step outputs';
+is_deeply [$existing_outputs, $recorded_outputs], [5, 5], 'all the ref index files that should have been created by the bwa_index step exist and were recorded as step outputs';
 
 $recorded_outputs = 0;
 foreach my $element_id (1 .. 4) {

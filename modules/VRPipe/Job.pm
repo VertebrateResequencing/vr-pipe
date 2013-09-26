@@ -539,13 +539,21 @@ class VRPipe::Job extends VRPipe::Persistent {
                 
                 $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
                 
-                if ($submission && !$submission->locked(by_me => 1)) {
-                    $self->warn("The Submission's (" . $submission->id . ") lock has been lost prior to completing Job status");
-                    return;
-                }
-                if (!$self->locked(by_me => 1)) {
-                    $self->warn("Our (job " . $self->id . ") lock has been lost prior to completing Job status");
-                    return;
+                if ($exit_code == 0) {
+                    # we shouldn't have exited with success yet lost our lock,
+                    # so in this case we return early before updating any
+                    # columns on job or submission to avoid screwing up another
+                    # process that might now be running the same job
+                    # (getting killed can lose our lock, and in that case we
+                    # will continue and record the submission as failed)
+                    if ($submission && !$submission->locked(by_me => 1)) {
+                        $self->warn("The Submission's (" . $submission->id . ") lock has been lost prior to completing Job status");
+                        return;
+                    }
+                    if (!$self->locked(by_me => 1)) {
+                        $self->warn("Our (job " . $self->id . ") lock has been lost prior to completing Job status");
+                        return;
+                    }
                 }
                 
                 #*** ideally we want to update_stats_from_disc on all our

@@ -1,3 +1,11 @@
+# version 0.166
+(you must first upgrade to 0.165, see notes below)
+Prior versions had a bug where vrpipe-handler could get stuck running for ever
+even after completing their work, filling up the log with endless error
+messages. Before upgrading, stop the server and kill all existing handler jobs
+still running in your scheduler and delete your log file, which may have grown
+to massive size.
+
 # version 0.165
 (you must first upgrade to 0.164, see notes below)
 The database schema has changed, so run vrpipe-db_upgrade.
