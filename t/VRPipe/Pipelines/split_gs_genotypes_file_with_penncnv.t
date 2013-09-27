@@ -145,6 +145,9 @@ my $detect_cnv_script = '/software/vertres/bin-external/PennCNV/detect_cnv.pl';
 my $detect_cnv_hmm    = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/PennCNV/lib/custom.hmm';
 my $detect_cnv_pfb    = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/genotyping/PennCNV/lib/HumanExome12v1.1.hg19.pfb';
 my $filter_cnv_script = '/software/vertres/bin-external/PennCNV/filter_cnv.pl';
+my $filter_numsnps    = 8;
+my $filter_length     = '120k';
+my $filter_confidence = 8;
 
 VRPipe::PipelineSetup->create(
     name       => 'penncnv_calling',
@@ -160,6 +163,9 @@ VRPipe::PipelineSetup->create(
         detect_cnv_hmm    => $detect_cnv_hmm,
         detect_cnv_pfb    => $detect_cnv_pfb,
         filter_cnv_script => $filter_cnv_script,
+        filter_numsnps    => $filter_numsnps,
+        filter_length     => $filter_length,
+        filter_confidence => $filter_confidence,
     }
 );
 

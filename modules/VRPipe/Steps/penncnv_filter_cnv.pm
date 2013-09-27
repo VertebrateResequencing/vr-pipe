@@ -37,6 +37,9 @@ class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
     method options_definition {
         return {
             filter_cnv_script => VRPipe::StepOption->create(description => 'full path to filter_cnv.pl', optional => 0),
+            filter_numsnps    => VRPipe::StepOption->create(description => 'number of snps filter',      optional => 1, default_value => 10),
+            filter_length     => VRPipe::StepOption->create(description => 'length of cnv filter',       optional => 1, default_value => '130k'),
+            filter_confidence => VRPipe::StepOption->create(description => 'confidence score filter',    optional => 1, default_value => 10),
         };
     }
     
@@ -56,7 +59,10 @@ class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
             my $self               = shift;
             my $options            = $self->options;
             my $filter_cnv_script  = $options->{filter_cnv_script};
-            my $filter_cnv_options = "--numsnp 10 --length 130k --confidence 10";
+            my $filter_numsnps     = $options->{filter_numsnps};
+            my $filter_length      = $options->{filter_length};
+            my $filter_confidence  = $options->{filter_confidence};
+            my $filter_cnv_options = "--numsnp " . $filter_numsnps . " --length " . $filter_length . " --confidence " . $filter_confidence;
             my $req                = $self->new_requirements(memory => 500, time => 1);
             foreach my $raw_cnv_file (@{ $self->inputs->{stepTwo_file_input_raw_cnv_file} }) {
                 my $raw_cnv_path    = $raw_cnv_file->path;
