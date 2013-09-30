@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 174;
+    use Test::Most tests => 177;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -80,6 +80,17 @@ ok $file_list = VRPipe::FileList->get(files => []), 'got a FileList using get() 
 is_deeply [$file_list->id, scalar($file_list->files)], [2, 0], 'the created FileList has a new id, and no files';
 ok $file_list = VRPipe::FileList->get(files => []), 'got a FileList using get() with an empty files list again';
 is $file_list->id, 2, 'it had the same id';
+
+# check that a filelist of files 1 and 2 is not the same as the filelist for
+# file 12! Make at least 12 files
+for my $i (1 .. 12) {
+    VRPipe::File->create(path => file($output_dir, "output$i.txt"), type => 'txt');
+}
+ok $file_list = VRPipe::FileList->create(files => [VRPipe::File->get(id => 1), VRPipe::File->get(id => 2)]), 'created a FileList of files 1 and 2';
+my $one_and_two_list_id = $file_list->id;
+ok $file_list = VRPipe::FileList->create(files => [VRPipe::File->get(id => 12)]), 'created a FileList of file 12';
+my $twelve_list_id = $file_list->id;
+isnt $one_and_two_list_id, $twelve_list_id, 'the 2 FileLists were different';
 
 # keyvallists (one of the File creations above already created a keyvallist)
 throws_ok { VRPipe::KeyValList->get() } qr/requires id or members/, 'get() for KeyValList fails with no args';
