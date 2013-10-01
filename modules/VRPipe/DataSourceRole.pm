@@ -54,10 +54,8 @@ role VRPipe::DataSourceRole {
     );
     
     has '_handle' => (
-        is      => 'rw',
-        isa     => 'Defined',
-        lazy    => 1,
-        builder => '_open_source'
+        is  => 'rw',
+        isa => 'Defined',
     );
     
     has '_changed_marker' => (
@@ -78,11 +76,14 @@ role VRPipe::DataSourceRole {
     requires 'method_description';
     
     method _generate_elements {
-        my $handle = $self->_handle || return;
+        # get a fresh handle every time
+        my $handle = $self->_open_source || return;
+        $self->_handle($handle);
+        
+        # call the datasource method
         my $method = $self->method;
         $self->can($method) || $self->throw("Invalid method '$method' for " . ref($self));
         $self->$method(%{ $self->options }, handle => $handle);
-        # $self->_update_changed_marker; # datasource _prepare... does this, no need to duplicate
     }
     
     method get_methods {
