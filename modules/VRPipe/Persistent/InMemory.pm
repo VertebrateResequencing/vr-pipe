@@ -398,7 +398,7 @@ class VRPipe::Persistent::InMemory {
                     weaken($self) unless isweak($self);
                     $self || return;
                     unless ($self->_own_lock($redis_key)) {
-                        $self->warn("maintain_lock disabled because somehow we no longer own the lock?!");
+                        $self->warn("maintain_lock disabled for $redis_key because somehow we no longer own the lock?!");
                         $self->_delete_maintenance_watcher($redis_key);
                     }
                     
