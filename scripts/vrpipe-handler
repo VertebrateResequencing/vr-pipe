@@ -677,7 +677,11 @@ sub handle_submissions {
                         elsif ($response == 1) {
                             # we just started running the sub's job
                             $handled_submissions++;
-                            $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful (sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])', stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
+                            my $extra = '';
+                            if (!$given_sub && $sidtosub) {
+                                $extra = "(sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])';
+                            }
+                            $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful" . $extra, stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
                             $job_start_time = $job->start_time->epoch;
                         }
                     }
