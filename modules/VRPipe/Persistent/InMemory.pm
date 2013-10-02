@@ -107,6 +107,7 @@ class VRPipe::Persistent::InMemory {
     our $vrp_config   = VRPipe::Config->new();
     our $email_domain = $vrp_config->email_domain();
     our $admin_email  = $vrp_config->admin_user() . '@' . $email_domain;
+    our %redis_instances;
     
     our $hostname;
     
@@ -217,7 +218,37 @@ class VRPipe::Persistent::InMemory {
     }
     
     method _redis {
-        return Redis->new(server => $self->_redis_server, reconnect => $self->_reconnect_time, encoding => undef);
+        my $redis;
+        
+        # we have a class variable to store a redis instance so we can reuse
+        # the connection once made, but we make sure to get a new instance for
+        # each pid in case we fork - we can't use the same instance in
+        # multiple processes at once
+        unless (defined $redis_instances{$$}) {
+            # try 3 times to get a working redis instance
+            for my $try (1 .. 3) {
+                eval { $redis = Redis->new(server => $self->_redis_server, reconnect => $self->_reconnect_time, encoding => undef); };
+                if ($@) {
+                    if ($try == 3) {
+                        $self->throw($@);
+                    }
+                    else {
+                        sleep(1);
+                    }
+                }
+                else {
+                    last;
+                }
+            }
+            
+            $redis_instances{$$} = $redis;
+        }
+        else {
+            $redis = $redis_instances{$$};
+            # *** check it works with a ->ping? Or is that too expensive?
+        }
+        
+        return $redis;
     }
     
     method datastore_ok {

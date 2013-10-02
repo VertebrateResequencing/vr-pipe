@@ -55,7 +55,7 @@ role VRPipe::PersistentListRole {
         my ($self, $members) = @_;
         return 'undef' unless @$members;
         my @ids = sort { $a <=> $b } map { $_->id } @$members;
-        return join('', @ids);
+        return join(',', @ids);
     }
     
     sub _string_to_lookup {
