@@ -905,8 +905,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             my $row;
             my $get_row = defined wantarray();
             while ($retries <= $max_retries) {
-                VRPipe::Persistent::InMemory->cede;
-                
                 try {
                     if ($get_row) {
                         $row = $schema->txn_do($transaction);
@@ -916,6 +914,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         # if we call txn_do in void context
                         $schema->txn_do($transaction);
                     }
+                    VRPipe::Persistent::InMemory->cede; # *** this must come after txn_do, not before, but I don't know why
                 }
                 catch ($err) {
                     $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
