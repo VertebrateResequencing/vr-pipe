@@ -6,7 +6,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 132;
+    use Test::Most tests => 141;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -31,10 +31,13 @@ is_deeply [scalar(@deliveries), $email->get_header("Subject"), $email_body], [1,
 like $email->get_header('From'), qr/"VRPipe Server" <\S+\@\S+>/, 'from address looks good';
 
 # check that we can log to redis
-ok my $log_file = $im->_log_file, '_log_file returning something';
+ok my $log_file = $VRPipe::Persistent::InMemory::log_file, 'class variable $log_file was set';
 my $log_file_line = 0;
-latest_log_file_lines();
 $im->log_stderr;
+while ($redis->lpop('stderr')) {
+    next; # clear out anything in there, ie. from the running vrpipe-server
+}
+latest_log_file_lines();
 warn "This first warning should not appear on STDERR\n";
 warn "This second warning should not appear on STDERR\n";
 is $redis->lpop('stderr'), "This first warning should not appear on STDERR\n", 'the first warning was in redis';
@@ -254,6 +257,27 @@ my $ev_timer = EV::timer 0, 0, sub {
     $cv->recv;
     
     ok !$im->locked('test_lock8'), 'a maintained lock remained unlocked after waiting beyond survival time following unlock()';
+    
+    ok $im->lock('test_lock9', unlock_after => 2), 'lock worked on another new key';
+    ok $im->maintain_lock('test_lock9', refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work';
+    my $t_end = time() + 4;
+    my $m     = 1;
+    while (time() < $t_end) {
+        $m = $m * $m;
+    }
+    ok !$im->locked('test_lock9'), 'a maintained lock was lost after waiting beyond initial expiry while using the CPU';
+    
+    ok $im->lock('test_lock9', unlock_after => 2), 'lock worked again after losing the lock';
+    ok $im->maintain_lock('test_lock9', refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work again';
+    $t_end = time() + 4;
+    $m     = 1;
+    while (time() < $t_end) {
+        $m = $m * $m;
+        $im->cede;
+    }
+    ok $im->locked('test_lock9'), 'a maintained lock is still locked after waiting beyond initial expiry while using the CPU combined with manual cede() calls';
+    $im->unlock('test_lock9');
+    
     EV::unloop;
 };
 EV::run;
@@ -364,6 +388,18 @@ $ev_timer = EV::timer 0, 0, sub {
     ok !$req->locked, 'a maintained lock became unlocked after waiting beyond survival time following undef of Persistent instance';
     ok $req2->locked, 'the maintained lock on the other Persistent instance was unaffected';
     ok $req2->unlock, 'the unaffected one could be unlocked';
+    
+    ok $req2->lock(unlock_after => 2), 'locked a Persistent again';
+    ok $req2->maintain_lock(refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work again on it';
+    my $t_end = time() + 4;
+    my $m     = 1;
+    while (time() < $t_end) {
+        $m = $m * $m;
+        VRPipe::Requirements->get(id => 1); # or any Persistent method that ultimately calls do_transaction or search_rs
+    }
+    ok $req2->locked, 'a maintained lock is still locked after waiting beyond initial expiry while using the CPU combined with Persistent->get()';
+    $req2->unlock;
+    
     EV::unloop;
 };
 EV::run;

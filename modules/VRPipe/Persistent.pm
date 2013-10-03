@@ -797,6 +797,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 $search_attributes->{order_by} = { -asc => 'me.id' };
             }
             
+            VRPipe::Persistent::InMemory->cede;
+            
             return $rs->search($search_args, $search_attributes ? $search_attributes : ());
         });
         
@@ -903,6 +905,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             my $row;
             my $get_row = defined wantarray();
             while ($retries <= $max_retries) {
+                VRPipe::Persistent::InMemory->cede;
+                
                 try {
                     if ($get_row) {
                         $row = $schema->txn_do($transaction);
