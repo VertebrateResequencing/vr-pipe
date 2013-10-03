@@ -528,6 +528,7 @@ sub handle_submissions {
                     }
                     
                     $im->debug("will undef submission");
+                    $submission->unlock;
                     undef $submission;
                 }
                 elsif (!$still_locked) {
