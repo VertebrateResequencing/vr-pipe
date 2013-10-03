@@ -67,7 +67,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     
     has 'name' => (
         is     => 'rw',
-        isa    => Varchar [64],
+        isa    => Varchar [128],
         traits => ['VRPipe::Persistent::Attributes'],
         is_key => 1
     );
