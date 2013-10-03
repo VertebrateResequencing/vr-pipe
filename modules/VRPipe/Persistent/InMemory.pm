@@ -231,7 +231,7 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method lock (Str $key!, Int :$unlock_after = 300, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0) {
+    method lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0) {
         my $redis     = $self->_redis;
         my $redis_key = $key_prefix . '.' . $key;
         if ($non_exclusive) {
@@ -262,18 +262,18 @@ class VRPipe::Persistent::InMemory {
         return 0;
     }
     
-    method note (Str $key!, Int :$forget_after = 300) {
+    method note (Str $key!, Int :$forget_after = 900) {
         return $self->lock($key, unlock_after => $forget_after, key_prefix => 'note', non_exclusive => 1);
     }
     
-    method refresh_lock (Str $key!, Int :$unlock_after = 300, Str :$key_prefix = 'lock') {
+    method refresh_lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         return unless $self->_own_lock($redis_key);
         
         my $redis = $self->_redis;
         my $refreshed = $redis->expire($redis_key, $unlock_after);
         unless ($refreshed) {
-            warn "pid $$ unable to refresh redis lock";
+            warn "pid $$ unable to refresh redis lock for $redis_key";
             
             # presumably the redis server went down and we lost the lock;
             # if the server came back let's try and create the lock again
@@ -318,7 +318,7 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method block_until_locked (Str $key!, Int :$check_every = 2, Int :$unlock_after = 300, Str :$key_prefix = 'lock') {
+    method block_until_locked (Str $key!, Int :$check_every = 2, Int :$unlock_after = 900, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
         my $sleep_time = 0.01;
@@ -345,7 +345,7 @@ class VRPipe::Persistent::InMemory {
             
             unless ($leeway_multiplier) {
                 if ($refresh_every < 60) {
-                    $leeway_multiplier = 10;
+                    $leeway_multiplier = 15;
                 }
                 elsif ($refresh_every < 300) {
                     $leeway_multiplier = 3;
@@ -372,8 +372,12 @@ class VRPipe::Persistent::InMemory {
                     }
                     
                     unless ($self->_own_lock($redis_key)) {
-                        $self->warn("maintain_lock disabled for $redis_key because somehow we no longer own the lock?!");
+                        my $val = $self->_redis->get($redis_key);
+                        $val ||= "[not set at all]";
+                        my $expected = hostname() . '!.!' . $$;
+                        $self->warn("pid $$ | maintain_lock disabled for $redis_key because somehow we no longer own the lock?! (expected $expected but we have $val)");
                         $self->_delete_maintenance_watcher($redis_key);
+                        return;
                     }
                     
                     $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time);
