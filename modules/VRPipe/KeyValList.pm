@@ -87,7 +87,6 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
         my $im       = VRPipe::Persistent::InMemory->new();
         my $lock_key = 'PersistentList.' . $lookup;
         $im->block_until_locked($lock_key);
-        $im->maintain_lock($lock_key);
         
         my $list = $self->$orig(lookup => $lookup);
         
