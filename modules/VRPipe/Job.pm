@@ -666,7 +666,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                 }
                 
                 my $o_files = $self->output_files;
-                if (@$o_files) {
+                if ($o_files && @$o_files) {
                     foreach my $o_file (@$o_files) {
                         $o_file->update_stats_from_disc(retries => 3);
                     }
@@ -730,7 +730,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             }
             
             my $ofiles = $self->output_files;
-            if (@$ofiles) {
+            if ($ofiles && @$ofiles) {
                 foreach my $file (@$ofiles) {
                     $file->unlink;
                 }
