@@ -54,16 +54,16 @@ class VRPipe::Persistent::InMemory {
     use Scalar::Util qw(weaken isweak);
     use Time::HiRes qw(sleep);
     
-    has '_maintenance_watchers' => (
+    has '_maintenance_children' => (
         is      => 'ro',
-        isa     => 'HashRef[Object]',
+        isa     => 'HashRef[Int]',
         traits  => ['Hash'],
         default => sub { {} },
         handles => {
-            '_add_maintenance_watcher'    => 'set',
-            '_have_maintenance_watcher'   => 'exists',
-            '_delete_maintenance_watcher' => 'delete',
-            '_clear_maintenance_watchers' => 'clear'
+            '_add_maintenance_child'    => 'set',
+            '_have_maintenance_child'   => 'exists',
+            '_delete_maintenance_child' => 'delete',
+            '_all_maintenance_children' => 'values'
         },
     );
     
@@ -73,7 +73,6 @@ class VRPipe::Persistent::InMemory {
     our %redis_instances;
     
     our ($deployment, $reconnect_time, $log_dir, $log_file, $redis_port, $redis_server);
-    our $maintenance_watchers_running = 0;
     
     sub BUILD {
         my $self = shift;
@@ -249,13 +248,13 @@ class VRPipe::Persistent::InMemory {
         return $got_lock;
     }
     
-    method _own_lock (Str $key!) {
+    method _own_lock (Str $key!, Int $my_pid = $$) {
         my $redis = $self->_redis;
         my $val   = $redis->get($key);
         if ($val) {
             my ($hostname, $pid) = split('!.!', $val);
             return 0 unless ($hostname && $pid);
-            if ($hostname eq hostname() && $pid == $$) {
+            if ($hostname eq hostname() && $pid == $my_pid) {
                 return 1;
             }
         }
@@ -266,9 +265,9 @@ class VRPipe::Persistent::InMemory {
         return $self->lock($key, unlock_after => $forget_after, key_prefix => 'note', non_exclusive => 1);
     }
     
-    method refresh_lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock') {
+    method refresh_lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock', :$lock_owners_pid?) {
         my $redis_key = $key_prefix . '.' . $key;
-        return unless $self->_own_lock($redis_key);
+        return unless $self->_own_lock($redis_key, $lock_owners_pid || $$);
         
         my $redis = $self->_redis;
         my $refreshed = $redis->expire($redis_key, $unlock_after);
@@ -287,12 +286,21 @@ class VRPipe::Persistent::InMemory {
         my $redis_key = $key_prefix . '.' . $key;
         return unless $self->_own_lock($redis_key);
         
-        if ($self->_have_maintenance_watcher($redis_key)) {
-            $self->_delete_maintenance_watcher($redis_key);
-            $maintenance_watchers_running--;
+        if ($self->_have_maintenance_child($redis_key)) {
+            my $child_pid = $self->_delete_maintenance_child($redis_key);
+            kill(9, $child_pid);
+            waitpid $child_pid, 0;
         }
         
         return $self->_redis->del($redis_key);
+    }
+    
+    sub DEMOLISH {
+        my $self = shift;
+        foreach my $child_pid ($self->_all_maintenance_children) {
+            kill(9, $child_pid);
+            waitpid $child_pid, 0;
+        }
     }
     
     method forget_note (Str $key!) {
@@ -338,7 +346,7 @@ class VRPipe::Persistent::InMemory {
         my $redis_key = $key_prefix . '.' . $key;
         $self->throw("maintain_lock() cannot be used unless we own the lock") unless $self->_own_lock($redis_key);
         
-        unless ($self->_have_maintenance_watcher($redis_key)) {
+        unless ($self->_have_maintenance_child($redis_key)) {
             unless ($refresh_every) {
                 $refresh_every = $deployment eq 'testing' ? 3 : 60;
             }
@@ -356,63 +364,46 @@ class VRPipe::Persistent::InMemory {
             }
             my $survival_time = $refresh_every * $leeway_multiplier;
             
-            my $initial_pid = $$;
-            my $w           = AnyEvent->timer(
-                after    => 0,
-                interval => $refresh_every,
-                cb       => sub {
-                    weaken($self) unless isweak($self);
-                    $self || return;
+            # we used to just have an AnyEvent->timer that called refresh_lock
+            # periodically, but that timer doesn't fire while normal code is
+            # busy running. I also couldn't get a 'cede' type method working
+            # due to recursion in AnyEvent watchers. Instead we fork to
+            # periodically calls refresh_lock
+            # *** should we use Proc::FastSpawn or AnyEvent::Fork for greater
+            # speed and lower memory?
+            my $my_pid   = $$;
+            my $lock_pid = fork();
+            if (!defined $lock_pid) {
+                $self->throw("attempt to fork for lock failed: $!");
+            }
+            elsif ($lock_pid == 0) {
+                # child, initiate a lock that will end when the parent stops
+                # running
+                sleep($refresh_every);
+                
+                while (1) {
+                    kill(0, $my_pid) || last;
                     
-                    # auto-disable this timer if we've changed pid - ie. we
-                    # started this timer in a parent and this is a fork
-                    if ($initial_pid != $$) {
-                        $self->_delete_maintenance_watcher($redis_key);
-                        return;
-                    }
-                    
-                    unless ($self->_own_lock($redis_key)) {
+                    unless ($self->_own_lock($redis_key, $my_pid)) {
                         my $val = $self->_redis->get($redis_key);
                         $val ||= "[not set at all]";
-                        my $expected = hostname() . '!.!' . $$;
-                        $self->warn("pid $$ | maintain_lock disabled for $redis_key because somehow we no longer own the lock?! (expected $expected but we have $val)");
-                        $self->_delete_maintenance_watcher($redis_key);
-                        return;
+                        my $expected = hostname() . '!.!' . $my_pid;
+                        warn "pid $my_pid | maintain_lock disabled for $redis_key because somehow we no longer own the lock?! (expected $expected but we have $val)\n";
+                        last;
                     }
                     
-                    $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time);
+                    $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time, lock_owners_pid => $my_pid);
+                    
+                    sleep $refresh_every;
                 }
-            );
+                
+                exit(0);
+            }
             
-            $self->_add_maintenance_watcher($redis_key, $w);
-            $maintenance_watchers_running++;
+            $self->_add_maintenance_child($redis_key, $lock_pid);
         }
         
         return 1;
-    }
-    
-    # maintain_lock()'s AnyEvent timer only works if we don't spend longer than
-    # its survival time blocking outside of watchers; if you have a CPU
-    # intensive loop after calling maintain_lock(), sprinkle some cede() calls
-    # in there so that the timer gets polled and can run sometimes
-    sub cede {
-        # we can't just return if _maintenance_watchers empty because we want
-        # this to work on any instance, and also as a class method. But we do
-        # want to return if there are no maintenance watchers globally, which is
-        # why we keep a manual count of them in a class variable
-        return unless $maintenance_watchers_running;
-        
-        # a 'hack' to get AnyEvent to poll all watchers globally
-        #*** is there a better way to do this?
-        my $cb = AnyEvent->condvar;
-        my $w  = AnyEvent->timer(
-            after => 0,
-            cb    => sub { $cb->send },
-        );
-        
-        eval { $cb->recv; };
-        # (this fails if we're inside a watcher when cede() is called, but
-        # that's probably ok)
     }
     
     method enqueue (Str $key!, Str $value!) {

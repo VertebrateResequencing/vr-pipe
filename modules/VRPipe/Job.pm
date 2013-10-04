@@ -407,10 +407,6 @@ class VRPipe::Job extends VRPipe::Persistent {
                 $self->user(getlogin || getpwuid($<));
                 $self->update;
                 
-                # stop the lock maintenance watchers
-                $self->_in_memory->_clear_maintenance_watchers;
-                $submission->_in_memory->_clear_maintenance_watchers if $submission;
-                
                 # get all info from db and disconnect before using the info below
                 my $dir         = $self->dir;
                 my $cmd         = $self->cmd;

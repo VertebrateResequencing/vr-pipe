@@ -6,7 +6,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 141;
+    use Test::Most tests => 138;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -265,17 +265,7 @@ my $ev_timer = EV::timer 0, 0, sub {
     while (time() < $t_end) {
         $m = $m * $m;
     }
-    ok !$im->locked('test_lock9'), 'a maintained lock was lost after waiting beyond initial expiry while using the CPU';
-    
-    ok $im->lock('test_lock9', unlock_after => 2), 'lock worked again after losing the lock';
-    ok $im->maintain_lock('test_lock9', refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work again';
-    $t_end = time() + 4;
-    $m     = 1;
-    while (time() < $t_end) {
-        $m = $m * $m;
-        $im->cede;
-    }
-    ok $im->locked('test_lock9'), 'a maintained lock is still locked after waiting beyond initial expiry while using the CPU combined with manual cede() calls';
+    ok $im->locked('test_lock9'), 'a maintained lock was kept after waiting beyond initial expiry while using the CPU';
     $im->unlock('test_lock9');
     
     EV::unloop;
@@ -395,7 +385,6 @@ $ev_timer = EV::timer 0, 0, sub {
     my $m     = 1;
     while (time() < $t_end) {
         $m = $m * $m;
-        VRPipe::Requirements->get(id => 1); # or any Persistent method that ultimately calls do_transaction or search_rs
     }
     ok $req2->locked, 'a maintained lock is still locked after waiting beyond initial expiry while using the CPU combined with Persistent->get()';
     $req2->unlock;
