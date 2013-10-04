@@ -217,6 +217,7 @@ if (@exe_names) {
 # ask for meta info about Step, and confirm
 my $memory    = $cmdline->ask_question(question => "How many MB of memory will running the cmd_line usually use?",            required => 1);
 my $time      = $cmdline->ask_question(question => "How long will running the cmd_line usually take, in minutes?",            required => 1);
+my $cpus      = $cmdline->ask_question(question => "How many CPUs does the cmd_line use?",                                    default  => 1, required => 1);
 my $max_sim   = $cmdline->ask_question(question => "How many simultaneous jobs doing this Step is safe? (0 means unlimited)", default  => 0, required => 1);
 my $step_name = $cmdline->ask_question(question => "What would you like to call your new Step?",                              required => 1, not_allowed => \&VRPipe::FrontEnd::already_exists, na_args => [$cmdline, 'Step', 'name']);
 my $step_desc = $cmdline->ask_question(question => "Describe what this Step does",                                            required => 1);
@@ -335,7 +336,7 @@ my $transaction = sub {
     
     # define the dispatch and finish
     $time *= 60;
-    $body_sub_str .= qq[\$self->dispatch(["$actual_cmd", \$self->new_requirements(memory => $memory, time => $time)]); ];
+    $body_sub_str .= qq[\$self->dispatch(["$actual_cmd", \$self->new_requirements(memory => $memory, time => $time, cpus => $cpus)]); ];
     $body_sub_str .= '}';
     
     my $body_sub = eval "sub $body_sub_str";

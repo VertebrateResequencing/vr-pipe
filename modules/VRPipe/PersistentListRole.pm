@@ -55,7 +55,7 @@ role VRPipe::PersistentListRole {
         my ($self, $members) = @_;
         return 'undef' unless @$members;
         my @ids = sort { $a <=> $b } map { $_->id } @$members;
-        return join('', @ids);
+        return join(',', @ids);
     }
     
     sub _string_to_lookup {
@@ -78,7 +78,6 @@ role VRPipe::PersistentListRole {
             my $im       = VRPipe::Persistent::InMemory->new();
             my $lock_key = 'PersistentList.' . $lookup;
             $im->block_until_locked($lock_key);
-            $im->maintain_lock($lock_key);
             
             my ($return) = $self->search({ lookup => $lookup }, { rows => 1 });
             if ($return) {
@@ -103,7 +102,6 @@ role VRPipe::PersistentListRole {
         my $im       = VRPipe::Persistent::InMemory->new();
         my $lock_key = 'PersistentList.' . $lookup;
         $im->block_until_locked($lock_key);
-        $im->maintain_lock($lock_key);
         
         my $list = $self->$orig(lookup => $lookup);
         

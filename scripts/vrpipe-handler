@@ -528,6 +528,7 @@ sub handle_submissions {
                     }
                     
                     $im->debug("will undef submission");
+                    $submission->unlock;
                     undef $submission;
                 }
                 elsif (!$still_locked) {
@@ -593,6 +594,7 @@ sub handle_submissions {
                 }
                 
                 # if we were given only one Submission to do, run it then exit
+                my $sub_id;
                 if ($given_sub) {
                     $im->debug("was given a sub");
                     $given_sub->reselect_values_from_db;
@@ -600,7 +602,7 @@ sub handle_submissions {
                         return exit_handler("Handled the given Submission");
                     }
                     else {
-                        $submission = $given_sub;
+                        $sub_id = $given_sub->id;
                     }
                 }
                 else {
@@ -613,7 +615,7 @@ sub handle_submissions {
                     # (and get one from the queue if we don't have one)
                     $im->debug("will check if sid has grabbed a sub yet");
                     $sidtosub->reselect_values_from_db;
-                    my $sub_id = $sidtosub->sub_id;
+                    $sub_id = $sidtosub->sub_id;
                     
                     unless ($sub_id) {
                         # get one from the redis queue
@@ -625,64 +627,68 @@ sub handle_submissions {
                             $sidtosub->update;
                         }
                     }
-                    
-                    if ($sub_id) {
-                        $im->debug("we grabbed a sub, will try to run it");
-                        ($submission) = VRPipe::Submission->search({ id => $sub_id });
-                        unless ($submission) {
-                            $sidtosub->sub_id(undef);
-                            $sidtosub->update;
-                            $grabbed_sub->forget_note('grabbed');
-                            $im->debug("not assigned an existing submission");
-                        }
-                        else {
-                            # we'll try and claim this one to run
-                            undef $no_subs_found;
-                            my $remaining_time = int($end_time - time());
-                            if ($remaining_time < $time_needed) {
-                                $sidtosub->delete;
-                                
-                                # it's possible that we're dealing with a sub
-                                # with time requirements close to or matching
-                                # the limit of the queue we get submitted to,
-                                # which would mean we always exit here and never
-                                # actually run it; give it more time in that
-                                # case
-                                if ($handled_submissions == 0 && $time_needed - $remaining_time < 300) {
-                                    $submission->extra_time;
-                                }
-                                
-                                return exit_handler("Not enough time to try and run our submission ($remaining_time < $time_needed)");
-                            }
-                            
-                            my $response;
-                            ($response, $job) = $submission->claim_and_run(allowed_time => $remaining_time);
-                            if ($response == 0) {
-                                # there was some problem with this sub and it
-                                # just got reset; let's ignore it for now and
-                                # deal with it on the next 'loop'
-                                undef $submission;
-                            }
-                            elsif ($response == 2 || $response == 3) {
-                                # the job already exited and the sub is
-                                # done/failed, or the job is currently running
-                                # under another process; in either case
-                                # unassign it
-                                $sidtosub->sub_id(undef);
-                                $sidtosub->update;
-                                undef $submission;
-                            }
-                            elsif ($response == 1) {
-                                # we just started running the sub's job
-                                $handled_submissions++;
-                                $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful (sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])', stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
-                                $job_start_time = $job->start_time->epoch;
-                            }
-                        }
+                }
+                
+                if ($sub_id) {
+                    $im->debug("we grabbed a sub, will try to run it");
+                    ($submission) = VRPipe::Submission->search({ id => $sub_id });
+                    unless ($submission) {
+                        $sidtosub->sub_id(undef);
+                        $sidtosub->update;
+                        $grabbed_sub->forget_note('grabbed');
+                        $im->debug("not assigned an existing submission");
                     }
                     else {
-                        $im->debug("no suitable subs in the redis queue");
+                        # we'll try and claim this one to run
+                        undef $no_subs_found;
+                        my $remaining_time = int($end_time - time());
+                        if ($remaining_time < $time_needed) {
+                            $sidtosub->delete;
+                            
+                            # it's possible that we're dealing with a sub
+                            # with time requirements close to or matching
+                            # the limit of the queue we get submitted to,
+                            # which would mean we always exit here and never
+                            # actually run it; give it more time in that
+                            # case
+                            if ($handled_submissions == 0 && $time_needed - $remaining_time < 300) {
+                                $submission->extra_time;
+                            }
+                            
+                            return exit_handler("Not enough time to try and run our submission ($remaining_time < $time_needed)");
+                        }
+                        
+                        my $response;
+                        ($response, $job) = $submission->claim_and_run(allowed_time => $remaining_time);
+                        if ($response == 0) {
+                            # there was some problem with this sub and it
+                            # just got reset; let's ignore it for now and
+                            # deal with it on the next 'loop'
+                            undef $submission;
+                        }
+                        elsif ($response == 2 || $response == 3) {
+                            # the job already exited and the sub is
+                            # done/failed, or the job is currently running
+                            # under another process; in either case
+                            # unassign it
+                            $sidtosub->sub_id(undef);
+                            $sidtosub->update;
+                            undef $submission;
+                        }
+                        elsif ($response == 1) {
+                            # we just started running the sub's job
+                            $handled_submissions++;
+                            my $extra = '';
+                            if (!$given_sub && $sidtosub) {
+                                $extra = "(sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])';
+                            }
+                            $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful" . $extra, stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
+                            $job_start_time = $job->start_time->epoch;
+                        }
                     }
+                }
+                else {
+                    $im->debug("no suitable subs in the redis queue");
                 }
             };
             

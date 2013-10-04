@@ -440,31 +440,6 @@ sub report {
     }
 }
 
-# MySQL, VRPipe v0.154:
-# Most time consuming sections:
-#   240..254: 167.91 seconds [triggering the second step]
-#   247..249: 167.88 seconds (3.36 avg over 50 loops) [trigger calls]
-#   337..351: 99.99 seconds [triggering the second step after updating elements]
-#   344..346: 99.7499999999999 seconds (1.05 avg over 95 loops) [trigger calls]
-#   333..335: 84.32 seconds [first step trigger after updating]
-#   43..54: 17.43 seconds [initial file creation with added metadata]
-#   56..65: 15.19 seconds [getting files and adding metadata]
-#   29..33: 14.93 seconds [initial job creation]
-#   36..40: 10.68 seconds [getting back the jobs by cmd]
-#   214..216: 6.33 seconds [the initial first step trigger]
-#   142..180: 5.61 seconds [initial creation of files for the dataelements]
-#   264..302: 3.71 seconds [new files for the extra dataelements]
-#   67..74: 3.38 seconds [checking file metadata]
-#   77..81: 3.38 seconds [getting files by path]
-#   314..316: 1.38 seconds [update bulk creation of dataelements]
-#   192..194: 1.11 seconds [initial bulk creation of dataelements]
-#   259..261: 0.44 seconds [completing subs and jobs]
-#   317..326: 0.13 seconds [update bulk creation of dataelementstates]
-#   362..384: 0.08 seconds [choosing submissions to queue]
-#   195..204: 0.03 seconds [initial bulk creation of dataelementstates]
-#   189..191: 0 seconds [initial withdrawal of all dataelements]
-#   311..313: 0 seconds [update withdrawal of all dataelements]
-
 # MySQL, VRPipe v0.155 (introduction of keyvallists on DataElement and File):
 # Most time consuming sections:
 #   243..257: 167.70 seconds
@@ -514,4 +489,29 @@ sub report {
 #   319..329: 0.04 seconds
 #   196..206: 0.03 seconds
 #   313..315: 0.00 seconds
+#   190..192: 0.00 seconds
+
+# MySQL 5.5, VRPipe v0.168 (after greater redis usage and connection fix)
+# Most time consuming sections:
+#   56..65: 31.40 seconds
+#   239..253: 20.21 seconds
+#   246..248: 20.16 seconds (0.4031 avg over 50 loops)
+#   43..54: 19.33 seconds
+#   333..335: 13.73 seconds
+#   29..33: 12.70 seconds
+#   36..40: 11.68 seconds
+#   337..351: 11.43 seconds
+#   344..346: 11.35 seconds (0.1195 avg over 95 loops)
+#   213..215: 10.61 seconds
+#   143..181: 7.05 seconds
+#   67..74: 6.64 seconds
+#   263..301: 5.07 seconds
+#   77..81: 3.53 seconds
+#   313..315: 1.85 seconds
+#   193..195: 1.80 seconds
+#   258..260: 0.24 seconds
+#   361..384: 0.09 seconds
+#   316..326: 0.04 seconds
+#   196..206: 0.03 seconds
+#   310..312: 0.00 seconds
 #   190..192: 0.00 seconds

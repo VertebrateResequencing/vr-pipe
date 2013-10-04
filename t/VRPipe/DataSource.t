@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 84;
+    use Test::Most tests => 86;
     use VRPipeTest;
     use TestPipelines;
     
@@ -95,6 +95,51 @@ for (1 .. 4) {
 }
 $fm->wait_all_children;
 is $num_prepared, 1, '_prepare_elements_and_states only occurs once at a time';
+
+# properly test that datasource updates work correctly when we use the same
+# datasource instance
+{
+    # create a simple fofn ds with multiple elements to test with
+    my $output_root       = get_output_dir('datasource_updating_fofn_output');
+    my $source_file       = file($output_root, 'source.fofn');
+    my $source_inputs_dir = dir($output_root, 'inputs');
+    mkdir($source_inputs_dir);
+    my $sfh          = $source_file->openw;
+    my $num_elements = 5;
+    for my $i (1 .. $num_elements) {
+        my $input_file = file($source_inputs_dir, 'input.' . $i . '.txt');
+        my $ifh = $input_file->openw;
+        print $ifh "$i\n";
+        close($ifh);
+        print $sfh "$input_file\n";
+    }
+    close($sfh);
+    my $ds = VRPipe::DataSource->create(
+        type    => 'fofn',
+        method  => 'all',
+        source  => $source_file->stringify,
+        options => {}
+    );
+    
+    my $element_count = @{ get_elements($ds) };
+    is $element_count, $num_elements, "our test datasource starts with $num_elements dataelements";
+    
+    # now update the ds to have more elements
+    open($sfh, '>>', $source_file);
+    my $new_num_elements = ($num_elements / 5) + $num_elements;
+    for my $i (($num_elements + 1) .. $new_num_elements) {
+        my $input_file = file($source_inputs_dir, 'input.' . $i . '.txt');
+        my $ifh = $input_file->openw;
+        print $ifh "$i\n";
+        close($ifh);
+        print $sfh "$input_file\n";
+    }
+    close($sfh);
+    
+    # check the element count is correct
+    $element_count = @{ get_elements($ds) };
+    is $element_count, $new_num_elements, "the test datasource correctly updated to $new_num_elements dataelements even when we reused the same instance";
+}
 
 # delimited
 ok $ds = VRPipe::DataSource->create(
@@ -289,6 +334,7 @@ is $ds_si->method_description('group_all'), q[All files in the file will be grou
     my $single_step_pipeline = VRPipe::Pipeline->create(name => '2_type_step pipeline', description => '2_type_step pipeline');
     $single_step_pipeline->add_step($single_step);
     VRPipe::StepAdaptor->create(pipeline => $single_step_pipeline, to_step => 1, adaptor_hash => { bams => { data_element => 0 }, vcf => { data_element => 0 } });
+    
     my $output_root = get_output_dir('datasource_2type_output');
     my $ps = VRPipe::PipelineSetup->create(name => '2type_ps', datasource => $ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
     
@@ -498,6 +544,101 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     # needs to trigger fractions of a second after ps2
     $ps3_element_count = VRPipe::DataElement->search({ datasource => $group_ds->id });
     is $ps3_element_count, 0, 'since ps2 is still incomplete, ps3 has no elements';
+    
+    # *** we encountered some kind of bug where a a datasource update was
+    # resulting in some number of elements getting withdrawn for a few hours,
+    # then it fixed itself after a while. Test below tried to replicate the bug
+    # but unsuccessful; I could have already fixed it?...
+    
+    # $output_root = get_output_dir('datasource_big_fofn_output');
+    # my $big_source_file = file($output_root, 'source.fofn');
+    # my $big_source_inputs_dir = dir($output_root, 'inputs');
+    # mkdir($big_source_inputs_dir);
+    # my $sfh = $big_source_file->openw;
+    # my $big_num = 50;
+    # for my $i (1..$big_num) {
+    #     my $input_file = file($big_source_inputs_dir, 'input.'.$i.'.txt');
+    #     my $ifh = $input_file->openw;
+    #     print $ifh "$i\n";
+    #     close($ifh);
+    #     print $sfh "$input_file\n";
+    # }
+    # close($sfh);
+    # my $big_ds = VRPipe::DataSource->create(
+    #     type    => 'fofn',
+    #     method  => 'all',
+    #     source  => $big_source_file->stringify,
+    #     options => {}
+    # );
+    
+    # # now make a completed setup using this ds
+    # my $ps_big = VRPipe::PipelineSetup->create(name => 'ps_big', datasource => $big_ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
+    # my $element_count = @{ get_elements($big_ds) };
+    # is $element_count, $big_num, "ps_big has $big_num dataelements";
+    # $ps_big->trigger();
+    # $ps_big->trigger(); #*** not sure why the second trigger is necessary, but it is
+    
+    # # and a completed child using a vrpipe ds
+    # my $big_vrpipe_ds = VRPipe::DataSource->create(
+    #     type    => 'vrpipe',
+    #     method  => 'all',
+    #     source  => 'ps_big[1]',
+    #     options => {}
+    # );
+    # $output_root2 = get_output_dir('datasource_big_vrpipe_output');
+    # my $ps_big_child = VRPipe::PipelineSetup->create(name => 'ps_big_child', datasource => $big_vrpipe_ds, output_root => $output_root2, pipeline => $single_step_pipeline, active => 0);
+    # $element_count = @{ get_elements($big_vrpipe_ds) };
+    # is $element_count, $big_num, "big_vrpipe_ds has $big_num dataelements";
+    # $ps_big_child->trigger();
+    # $ps_big_child->trigger();
+    
+    # # now update big_ds and try calling elements() on both ds simultaneously
+    # # while ps_big is being triggered
+    # open($sfh, '>>', $big_source_file);
+    # my $new_big_num = ($big_num / 5) + $big_num;
+    # for my $i (($big_num + 1)..$new_big_num) {
+    #     my $input_file = file($big_source_inputs_dir, 'input.'.$i.'.txt');
+    #     my $ifh = $input_file->openw;
+    #     print $ifh "$i\n";
+    #     close($ifh);
+    #     print $sfh "$input_file\n";
+    # }
+    # close($sfh);
+    # $fm = Parallel::ForkManager->new(3);
+    # foreach my $ds (0, $big_ds, $big_vrpipe_ds) {
+    #     my $ds_id = "$ds" eq "0" ? $big_ds->id : $ds->id;
+    #     $fm->start and next;
+    #     if ("$ds" eq "0") {
+    #         my $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
+    #         my $stepstates = VRPipe::StepState->search({pipelinesetup => $ps_big->id});
+    #         warn "ds $ds_id has $count elements before trigger(), and $stepstates stepstates\n";
+    #         $ps_big->trigger;
+    #         $ps_big->trigger;
+    #         $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
+    #         $stepstates = VRPipe::StepState->search({pipelinesetup => $ps_big->id});
+    #         warn "ds $ds_id now has $count elements after trigger() and $stepstates stepstates\n";
+    #     }
+    #     else {
+    #         my $c = 0;
+    #         while (1) {
+    #             my $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
+    #             warn "   ds $ds_id had $count elements before elements()\n";
+    #             $ds->elements();
+    #             $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
+    #             warn "   ds $ds_id now has $count elements after elements()\n";
+    #             my $stepstates = VRPipe::StepState->search({pipelinesetup => $ps_big->id});
+    #             warn "    - after doing ds $ds_id elements(), we now have $stepstates stepstates() for ps_big\n";
+    #             last if $stepstates == $new_big_num;
+    #             $c++ if $count == $new_big_num;
+    #             last if $c == 20;
+    #         }
+    #     }
+    #     $fm->finish(0);
+    # }
+    # $fm->wait_all_children;
+    
+    # $element_count = @{ get_elements($big_ds) };
+    # is $element_count, $new_big_num, "ps_big updated to $new_big_num dataelements";
 }
 
 # test a special vrtrack test database; these tests are meant for the author

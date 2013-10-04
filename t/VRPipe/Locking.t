@@ -171,6 +171,7 @@ foreach my $basename (qw(2822_6.fastq 2822_6_1.fastq 2822_6_2.fastq 2822_7_1.fas
 }
 
 ok handle_pipeline(@ofiles), 'fastq_metadata pipeline ran ok and all input files still exist';
+
 my $fastq = VRPipe::File->create(path => file(qw(t data 2822_6.fastq))->absolute);
 is $fastq->metadata->{avg_read_length}, 10, 'it actually added some metadata';
 
@@ -202,7 +203,7 @@ is $triggered_once_count, scalar(@ss_ids), 'all stepstates only triggered the ne
 # at once
 SKIP: {
     my $host = hostname();
-    skip "author-only 1000 submission tests", 3 unless $host eq 'uk10k-1-1-01';
+    skip "author-only 1000 submission tests", 3 unless $host eq 'uk10k-1-1-01' && $ENV{VRPIPE_OPTIONAL_TESTS};
     
     # long after the above problems were resolved, it was found that a bam_index
     # pipeline fell over when given a datasource of ~3000 dataelements where

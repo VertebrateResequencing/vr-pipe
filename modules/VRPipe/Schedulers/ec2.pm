@@ -516,7 +516,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 # lock the instance so we don't try and terminate it before it
                 # becomes responsive to SSH
                 my $lock_key = 'starting_instance.' . $iip;
-                $im->note($lock_key, unlock_after => 360);
+                $im->note($lock_key, forget_after => 360);
                 
                 # wait for it to become responsive to ssh
                 my $max_time   = time() + 300;
@@ -548,7 +548,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
                 
                 # update the lock timeout so that we don't terminate an instance
                 # within a minute of starting it
-                $im->note($lock_key, unlock_after => 60);
+                $im->note($lock_key, forget_after => 60);
             }
         }
         

@@ -1,3 +1,13 @@
+0.168   Critical fix to stop VRPipe overloading the system's network
+        connections; associated large speed increase.
+        Critical fix for ec2 scheduler so that it works again.
+        Avoidance of possible DataElement "corruption".
+        Possible fix for strange DataSource update behaviour - they should now
+        update properly in a single attempt.
+        vrpipe-create_step now asks how many CPUs a cmd uses.
+        vrpipe-file_info works properly on VRPipe-created symlinks again, and
+        --dataelement option works on --paths again.
+        PipelineSetup names can now be 128 characters long instead of just 64.
 0.167   Critical fix for correctly retrying submissions that failed due to
         using too much memory.
 0.166   Critical fix for adding file metadata correctly without losing
