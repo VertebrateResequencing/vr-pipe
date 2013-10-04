@@ -797,8 +797,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 $search_attributes->{order_by} = { -asc => 'me.id' };
             }
             
-            VRPipe::Persistent::InMemory->cede;
-            
             return $rs->search($search_args, $search_attributes ? $search_attributes : ());
         });
         
@@ -914,7 +912,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                         # if we call txn_do in void context
                         $schema->txn_do($transaction);
                     }
-                    VRPipe::Persistent::InMemory->cede; # *** this must come after txn_do, not before, but I don't know why
                 }
                 catch ($err) {
                     $self->throw("Rollback failed!") if ($err =~ /Rollback failed/);
