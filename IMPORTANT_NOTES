@@ -1,3 +1,19 @@
+# version 0.168
+(you must first upgrade to 0.166 or later, see notes below)
+There is a change to how some information is stored in the database in this
+version, so please follow these upgrade instructions carefully:
+1) Stop the VRPipe server ('vrpipe-server stop'), ensure that it left no
+   processes behind (check with 'ps aux'), kill off any VRPipe-related jobs
+   and confirm nothing is accessing your production database (eg. log into
+   MySQL and do 'show processlist;').
+2) Install this latest software in your usual way
+3) Run the normal automated db_upgrade script:
+   $ vrpipe-db_upgrade
+4) Run this Perl one-liner; it could take anywhere from seconds to hours to run
+   depending on this size of your database:
+   $ perl -Imodules -MVRPipe -Mstrict -we 'my $pager = VRPipe::FileList->search_paged({}); while (my $fls = $pager->next) { foreach my $fl (@$fls) { my $str = join(",", sort { $a <=> $b } VRPipe::FileListMember->get_column_values("file", { filelist => $fl->id })); my $dmd5 = Digest::MD5->new(); $dmd5->add($str); $fl->lookup($dmd5->hexdigest); $fl->update; } }'
+5) Now you can start using VRPipe again as normal.
+
 # version 0.166
 (you must first upgrade to 0.165, see notes below)
 Prior versions had a bug where vrpipe-handler could get stuck running for ever
