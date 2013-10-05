@@ -67,7 +67,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     
     has 'name' => (
         is     => 'rw',
-        isa    => Varchar [64],
+        isa    => Varchar [128],
         traits => ['VRPipe::Persistent::Attributes'],
         is_key => 1
     );
@@ -276,14 +276,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     );
                     
                     $self->debug("working on stepstate " . $state->id);
-                    
-                    # we need to lock state so that 2 parses or post_process
-                    # don't run at the same time, 1 completing the state, the
-                    # other failing the post_process because the 1st deleted the
-                    # temp files, or similar problems *** is the estate lock
-                    # sufficient?
-                    # $state->lock;
-                    # $state->maintain_lock;
                     
                     my ($do_next, $do_last);
                     my %previous_step_outputs = ();

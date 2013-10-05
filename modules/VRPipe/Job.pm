@@ -407,10 +407,6 @@ class VRPipe::Job extends VRPipe::Persistent {
                 $self->user(getlogin || getpwuid($<));
                 $self->update;
                 
-                # stop the lock maintenance watchers
-                $self->_in_memory->_clear_maintenance_watchers;
-                $submission->_in_memory->_clear_maintenance_watchers if $submission;
-                
                 # get all info from db and disconnect before using the info below
                 my $dir         = $self->dir;
                 my $cmd         = $self->cmd;
@@ -666,7 +662,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                 }
                 
                 my $o_files = $self->output_files;
-                if (@$o_files) {
+                if ($o_files && @$o_files) {
                     foreach my $o_file (@$o_files) {
                         $o_file->update_stats_from_disc(retries => 3);
                     }
@@ -730,7 +726,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             }
             
             my $ofiles = $self->output_files;
-            if (@$ofiles) {
+            if ($ofiles && @$ofiles) {
                 foreach my $file (@$ofiles) {
                     $file->unlink;
                 }

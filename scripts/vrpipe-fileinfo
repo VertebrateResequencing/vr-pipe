@@ -210,13 +210,22 @@ if (@meta_search) {
 # get the dataelement for each file if desired
 my %file_to_de;
 if ($output_types{dataelement} || $output_types{input_file}) {
-    while (my ($fid, $file) = each %files) {
+    while (my ($fid, $file_a) = each %files) {
+        my (undef, $file) = @$file_a;
         my ($stepstate) = $file->output_by();
+        unless ($stepstate) {
+            my $parent = $file->parent->resolve(not_symlinks => 1);
+            ($stepstate) = $parent->output_by() if $parent;
+        }
         if ($stepstate) {
             $file_to_de{$fid} = $stepstate->dataelement;
         }
         else {
             my ($de) = $file->input_to();
+            unless ($de) {
+                my $parent = $file->parent->resolve(not_symlinks => 1);
+                ($de) = $parent->input_to() if $parent;
+            }
             if ($de) {
                 $file_to_de{$fid} = $de;
             }
@@ -379,6 +388,10 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     my $stepstate;
     if ($file_setup_needed) {
         ($stepstate) = $file->output_by();
+        unless ($stepstate) {
+            my $parent = $file->parent->resolve(not_symlinks => 1);
+            ($stepstate) = $parent->output_by() if $parent;
+        }
     }
     
     foreach my $col (@tab_cols) {
