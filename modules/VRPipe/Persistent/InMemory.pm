@@ -253,11 +253,21 @@ class VRPipe::Persistent::InMemory {
         my $val   = $redis->get($key);
         if ($val) {
             my ($hostname, $pid) = split('!.!', $val);
-            return 0 unless ($hostname && $pid);
+            unless ($hostname && $pid) {
+                $self->debug("_own_lock failed for $key because it was set with an unexpected value of $val");
+                return 0;
+            }
             if ($hostname eq hostname() && $pid == $my_pid) {
                 return 1;
             }
+            else {
+                $self->debug("_own_lock failed for $key because that is owned by $hostname|$pid, not " . hostname() . "|$my_pid");
+            }
         }
+        else {
+            $self->debug("_own_lock failed for $key because that key is not set");
+        }
+        
         return 0;
     }
     
@@ -290,6 +300,7 @@ class VRPipe::Persistent::InMemory {
             my $child_pid = $self->_delete_maintenance_child($redis_key);
             kill(9, $child_pid);
             waitpid $child_pid, 0;
+            $self->debug("maintenance child $child_pid killed during unlock of $redis_key");
         }
         
         return $self->_redis->del($redis_key);
@@ -345,6 +356,7 @@ class VRPipe::Persistent::InMemory {
     method maintain_lock (Str $key!, Int :$refresh_every?, Int :$leeway_multiplier?, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         $self->throw("maintain_lock() cannot be used unless we own the lock") unless $self->_own_lock($redis_key);
+        $self->debug("maintain_lock called successfully for $redis_key since we own the lock; lock value is " . $self->_redis->get($redis_key));
         
         unless ($self->_have_maintenance_child($redis_key)) {
             unless ($refresh_every) {
@@ -352,10 +364,10 @@ class VRPipe::Persistent::InMemory {
             }
             
             unless ($leeway_multiplier) {
-                if ($refresh_every < 60) {
+                if ($refresh_every <= 60) {
                     $leeway_multiplier = 15;
                 }
-                elsif ($refresh_every < 300) {
+                elsif ($refresh_every <= 300) {
                     $leeway_multiplier = 3;
                 }
                 else {
@@ -379,28 +391,20 @@ class VRPipe::Persistent::InMemory {
             elsif ($lock_pid == 0) {
                 # child, initiate a lock that will end when the parent stops
                 # running
-                sleep($refresh_every);
-                
                 while (1) {
                     kill(0, $my_pid) || last;
-                    
-                    unless ($self->_own_lock($redis_key, $my_pid)) {
-                        my $val = $self->_redis->get($redis_key);
-                        $val ||= "[not set at all]";
-                        my $expected = hostname() . '!.!' . $my_pid;
-                        warn "pid $my_pid | maintain_lock disabled for $redis_key because somehow we no longer own the lock?! (expected $expected but we have $val)\n";
-                        last;
-                    }
-                    
+                    last unless $self->_own_lock($redis_key, $my_pid);
                     $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time, lock_owners_pid => $my_pid);
-                    
+                    $self->debug("maintain_lock child $$ for $redis_key refreshed the lock");
                     sleep $refresh_every;
                 }
-                
+                $self->debug("maintain_lock child $$ for $redis_key exiting");
                 exit(0);
             }
             
+            $self->debug("maintain_lock for $redis_key forked maintenance child $lock_pid which will refresh every $refresh_every for $survival_time seconds");
             $self->_add_maintenance_child($redis_key, $lock_pid);
+        
         }
         
         return 1;
