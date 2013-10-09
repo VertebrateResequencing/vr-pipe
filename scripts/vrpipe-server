@@ -242,6 +242,7 @@ sub start_server {
         # submit handlers to the farm and assign submissions to those handlers
         $farm_watcher = EV::periodic 0, $timer_interval, 0, sub {
             return if $still_working;
+            $still_working = 1;
             
             unless ($farm_server) {
                 # ideally we only want to be in this if ($farm) section if we
@@ -310,10 +311,11 @@ sub start_server {
                     $im->log("Could not start submission management for farm $farm because some other server process is (or was recently) doing that");
                     undef $farm_server;
                 }
+                $still_working = 0;
             }
             else {
-                $still_working = 1;
-                my $fs_ok = $farm_server && $farm_server->locked(by_me => 1) && $farm_server->search({ id => $farm_server->id });
+                my $still_locked = $farm_server->locked(by_me => 1);
+                
                 fork_call {
                     # this fork_call should not take that long, but it is
                     # critical that it not get stuck, or the server will seem to
@@ -323,7 +325,9 @@ sub start_server {
                     alarm $fork_alarm_time;
                     
                     # check we're still valid
-                    die "no longer in db\n" unless $fs_ok;
+                    die "farmserver ", $farm_server->id, " is no longer locked\n" unless $still_locked;
+                    my $in_db = $farm_server->search({ id => $farm_server->id });
+                    die "farmserver ", $farm_server->id, " is no longer in the database\n" unless $in_db;
                     
                     # claim our setups
                     my @setups = grep { !$_->currently_complete } $farm_server->claim_setups;
@@ -624,8 +628,9 @@ sub start_server {
                         # when running a bunch of tests where the database keeps
                         # getting dropped and recreated while the server is
                         # running
-                        if ($err =~ /no longer in db/) {
-                            $im->log("Could not continue submission management for farm $farm because our entry was removed from the FarmServer tracking table.", email_admin => 1);
+                        if ($err =~ /^farmserver/) {
+                            chomp($err);
+                            $im->log("Could not continue submission management for farm $farm because $err.", email_admin => 1);
                             $farm_server->unlock;
                             undef $farm_server;
                         }
