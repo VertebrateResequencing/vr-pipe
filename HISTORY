@@ -1,3 +1,4 @@
+0.170   Fix for "Could not continue submission management for farm" issue.
 0.169   Critical fix for the "Magic number checking on storable string failed"
         error affecting DataSource updates and vrpipe-server.
 0.168   Critical fix to stop VRPipe overloading the system's network
