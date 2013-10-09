@@ -6,7 +6,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 138;
+    use Test::Most tests => 142;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -267,6 +267,36 @@ my $ev_timer = EV::timer 0, 0, sub {
     }
     ok $im->locked('test_lock9'), 'a maintained lock was kept after waiting beyond initial expiry while using the CPU';
     $im->unlock('test_lock9');
+    
+    my $child_pid = fork();
+    if (defined $child_pid && $child_pid == 0) {
+        $im->lock('test_lock10', unlock_after => 2);
+        $im->maintain_lock('test_lock10', refresh_every => 1, leeway_multiplier => 2);
+        exit(0);
+    }
+    waitpid($child_pid, 0);
+    $t_end = time() + 4;
+    $m     = 1;
+    while (time() < $t_end) {
+        $m = $m * $m;
+    }
+    ok !$im->locked('test_lock10'), 'a lock maintained in a forked child was lost after child exit beyond expiry time in parent';
+    
+    ok $im->lock('test_lock10', unlock_after => 2), 'lock worked on another new key';
+    ok $im->maintain_lock('test_lock10', refresh_every => 1, leeway_multiplier => 2), 'maintain_lock() seemed to work';
+    $child_pid = fork();
+    if (defined $child_pid && $child_pid == 0) {
+        sleep(1);
+        exit(0);
+    }
+    waitpid($child_pid, 0);
+    $t_end = time() + 4;
+    $m     = 1;
+    while (time() < $t_end) {
+        $m = $m * $m;
+    }
+    ok $im->locked('test_lock10'), 'a lock maintained in the parent before forking a child was kept beyond expiry time after the child exited';
+    $im->unlock('test_lock10');
     
     EV::unloop;
 };

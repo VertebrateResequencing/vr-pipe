@@ -53,11 +53,10 @@ class VRPipe::Persistent::InMemory {
     use AnyEvent;
     use Scalar::Util qw(weaken isweak);
     use Time::HiRes qw(sleep);
-    use Config;
     
     has '_maintenance_children' => (
         is      => 'ro',
-        isa     => 'HashRef[Int]',
+        isa     => 'HashRef[ArrayRef[Int]]',
         traits  => ['Hash'],
         default => sub { {} },
         handles => {
@@ -242,7 +241,7 @@ class VRPipe::Persistent::InMemory {
         }
         
         my $got_lock = $redis->set(
-            $redis_key => $non_exclusive ? 0 : hostname() . '~.~' . $$,
+            $redis_key => $non_exclusive ? 0 : hostname() . '!.!' . $$,
             EX => $unlock_after,
             $non_exclusive ? () : ('NX')
         );
@@ -253,7 +252,7 @@ class VRPipe::Persistent::InMemory {
         my $redis = $self->_redis;
         my $val   = $redis->get($key);
         if ($val) {
-            my ($hostname, $pid) = split('~.~', $val);
+            my ($hostname, $pid) = split('!.!', $val);
             unless ($hostname && $pid) {
                 $self->debug("_own_lock failed for $key because it was set with an unexpected value of $val");
                 return 0;
@@ -298,10 +297,12 @@ class VRPipe::Persistent::InMemory {
         return unless $self->_own_lock($redis_key);
         
         if ($self->_have_maintenance_child($redis_key)) {
-            my $child_pid = $self->_delete_maintenance_child($redis_key);
-            kill(9, $child_pid);
-            waitpid $child_pid, 0;
-            $self->debug("maintenance child $child_pid killed during unlock of $redis_key");
+            my ($owner_pid, $child_pid) = @{ $self->_delete_maintenance_child($redis_key) };
+            if ($owner_pid == $$) {
+                kill(9, $child_pid);
+                waitpid $child_pid, 0;
+                $self->debug("maintenance child $child_pid killed during unlock of $redis_key");
+            }
         }
         
         return $self->_redis->del($redis_key);
@@ -309,9 +310,12 @@ class VRPipe::Persistent::InMemory {
     
     sub DEMOLISH {
         my $self = shift;
-        foreach my $child_pid ($self->_all_maintenance_children) {
-            kill(9, $child_pid);
-            waitpid $child_pid, 0;
+        foreach my $ref ($self->_all_maintenance_children) {
+            my ($owner_pid, $child_pid) = @$ref;
+            if ($owner_pid == $$) {
+                kill(9, $child_pid);
+                waitpid $child_pid, 0;
+            }
         }
     }
     
@@ -382,6 +386,8 @@ class VRPipe::Persistent::InMemory {
             # busy running. I also couldn't get a 'cede' type method working
             # due to recursion in AnyEvent watchers. Instead we fork to
             # periodically calls refresh_lock
+            # *** should we use Proc::FastSpawn or AnyEvent::Fork for greater
+            # speed and lower memory?
             my $my_pid   = $$;
             my $lock_pid = fork();
             if (!defined $lock_pid) {
@@ -390,29 +396,19 @@ class VRPipe::Persistent::InMemory {
             elsif ($lock_pid == 0) {
                 # child, initiate a lock that will end when the parent stops
                 # running
-                my $perl = $Config{perlpath};
-                if ($^O ne 'VMS') {
-                    $perl .= $Config{_exe} unless $perl =~ m/$Config{_exe}$/i;
+                while (1) {
+                    kill(0, $my_pid) || last;
+                    last unless $self->_own_lock($redis_key, $my_pid);
+                    $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time, lock_owners_pid => $my_pid);
+                    $self->debug("maintain_lock child $$ for $redis_key refreshed the lock");
+                    sleep $refresh_every;
                 }
-                
-                # we exec because this seems to work more reliably than just
-                # running code directly
-                my $redis_server = $self->_redis_server;
-                my $host         = hostname();
-                my $debug        = $self->verbose > 0 ? qq[ \$r->rpush("stderr", "maintain_lock child $$ for $redis_key refreshed the lock\\n");] : '';
-                my $cmd          = $perl . qq[ -e 'use strict; use warnings; use Redis; my \$r = Redis->new(server => "$redis_server", reconnect => $reconnect_time, encoding => undef); while (1) { kill(0, $my_pid) || last; my \$v = \$r->get("$redis_key"); if (\$v) { my (\$h, \$pid) = split("~.~", \$v); last unless \$h && \$pid; last unless (\$h eq "$host" && \$pid == $my_pid); } else { last; } \$r->expire("$redis_key", $survival_time);$debug sleep $refresh_every; } exit(0);'];
-                
-                my $shell = $vrp_config->exec_shell;
-                if ($shell) {
-                    exec {$shell} $shell, '-c', $cmd;
-                }
-                else {
-                    exec $cmd;
-                }
+                $self->debug("maintain_lock child $$ for $redis_key exiting");
+                exit(0);
             }
             
             $self->debug("maintain_lock for $redis_key forked maintenance child $lock_pid which will refresh every $refresh_every for $survival_time seconds");
-            $self->_add_maintenance_child($redis_key, $lock_pid);
+            $self->_add_maintenance_child($redis_key, [$$, $lock_pid]);
         }
         
         return 1;
