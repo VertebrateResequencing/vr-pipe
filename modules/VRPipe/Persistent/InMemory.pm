@@ -301,7 +301,6 @@ class VRPipe::Persistent::InMemory {
             if ($owner_pid == $$) {
                 kill(9, $child_pid);
                 waitpid $child_pid, 0;
-                $self->debug("maintenance child $child_pid killed during unlock of $redis_key");
             }
         }
         
@@ -361,7 +360,6 @@ class VRPipe::Persistent::InMemory {
     method maintain_lock (Str $key!, Int :$refresh_every?, Int :$leeway_multiplier?, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         $self->throw("maintain_lock() cannot be used unless we own the lock") unless $self->_own_lock($redis_key);
-        $self->debug("maintain_lock called successfully for $redis_key since we own the lock; lock value is " . $self->_redis->get($redis_key));
         
         unless ($self->_have_maintenance_child($redis_key)) {
             unless ($refresh_every) {
@@ -400,14 +398,11 @@ class VRPipe::Persistent::InMemory {
                     kill(0, $my_pid) || last;
                     last unless $self->_own_lock($redis_key, $my_pid);
                     $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time, lock_owners_pid => $my_pid);
-                    $self->debug("maintain_lock child $$ for $redis_key refreshed the lock");
                     sleep $refresh_every;
                 }
-                $self->debug("maintain_lock child $$ for $redis_key exiting");
                 exit(0);
             }
             
-            $self->debug("maintain_lock for $redis_key forked maintenance child $lock_pid which will refresh every $refresh_every for $survival_time seconds");
             $self->_add_maintenance_child($redis_key, [$$, $lock_pid]);
         }
         
