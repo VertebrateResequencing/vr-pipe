@@ -130,6 +130,7 @@ foreach my $col (@tab_cols) {
 
 # handle --paths
 my %files;
+my %path_files;
 my $do_path_limiting = $limit && !@meta_search && !@setups;
 my $limit_count      = 0;
 my $matches_needed   = 0;
@@ -146,7 +147,8 @@ foreach my $path (@paths) {
         my $fid = $file->id;
         unless (exists $files{$fid}) {
             $files{$fid} = [1, $file];
-            $limit_count++ if ($show_all || $file->s);
+            $path_files{$fid} = 1;
+            $limit_count++;
         }
         if ($do_path_limiting) {
             last if $limit_count >= $limit;
@@ -346,7 +348,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     next unless $files{$fid}->[0] == $matches_needed;
     my $file = $files{$fid}->[1];
     
-    unless ($show_all) {
+    unless ($show_all || exists $path_files{$fid}) {
         unless ($file->s) {
             $file->update_stats_from_disc;
             unless ($file->s) {
