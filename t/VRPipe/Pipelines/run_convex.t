@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 12;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES CONVEX_R_LIB)],
         max_retries  => 1,
@@ -24,7 +24,7 @@ foreach my $stepmember ($pipeline1->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 
-my @expected_step_names = qw(convex_read_depth bam_metadata_with_sex);
+my @expected_step_names = qw(bam_metadata_with_sex convex_read_depth);
 is_deeply \@s_names, \@expected_step_names, 'the rd pipeline has the correct steps';
 
 my $convex_r_libs = $ENV{CONVEX_R_LIB};
@@ -60,7 +60,7 @@ while (<$oh>) {
     
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
-    push(@output_files, file(@output_subdirs, '1_convex_read_depth', $fn));
+    push(@output_files, file(@output_subdirs, '2_convex_read_depth', $fn));
 }
 close($oh);
 
@@ -78,15 +78,15 @@ foreach my $stepmember ($pipeline2->step_members) {
 @expected_step_names = qw(convex_breakpoints convex_L2R);
 is_deeply \@s_names, \@expected_step_names, 'the l2r pipeline has the correct steps';
 
-my $bp_file_name = "$output_dir/breakpoints.txt";
+# my $bp_file_name = "$output_dir/breakpoints.txt";
 
 my $pipelinesetup2 = VRPipe::PipelineSetup->create(
     name       => 'convex_l2r_bp_generation_pipeline',
     datasource => VRPipe::DataSource->create(
         type    => 'vrpipe',
-        method  => 'group_by_metadata',
-        source  => 'convex_read_depth_generation_pipeline[convex_read_depth]',
-        options => { metadata_keys => 'batch' }
+        method  => 'group_all',
+        source  => 'convex_read_depth_generation_pipeline[0,2]',
+        options => {}
     ),
     
     output_root => $output_dir,
@@ -98,20 +98,23 @@ my $pipelinesetup2 = VRPipe::PipelineSetup->create(
         rscript_cmd         => '/software/bin/Rscript --vanilla',
         r_libs              => $convex_r_libs,
         includeChrX         => 0,
-        bp_file_name        => $bp_file_name,
-        minSamples          => 2
+        # bp_file_name        => $bp_file_name,
+        minSamples => 2
     }
 );
 
 for (my $i = 0; $i < @output_files; $i++) {
     $output_files[$i] =~ s/rd\.txt/l2r.txt/;
 }
-push @output_files, $bp_file_name;
+# push @output_files, $bp_file_name;
 
 my $de = ${ get_elements($pipelinesetup2->datasource) }[0];
 my @output_subdirs = output_subdirs($de->id, $pipelinesetup2->id);
-push(@output_files, file(@output_subdirs, '2_convex_L2R', 'corr_matrix.txt')->absolute->stringify);
-push(@output_files, file(@output_subdirs, '2_convex_L2R', 'features.txt')->absolute->stringify);
+push(@output_files, file(@output_subdirs, '2_convex_L2R', 'SampleInfo.txt')->absolute->stringify);
+my $corr_matrix_file = file(@output_subdirs, '2_convex_L2R', 'corr_matrix.txt')->absolute->stringify;
+push(@output_files, $corr_matrix_file);
+my $features_file = file(@output_subdirs, '2_convex_L2R', 'features.txt')->absolute->stringify;
+push(@output_files, $features_file);
 
 ok handle_pipeline(@output_files, @final_files), 'l2r pipeline ran and created all expected output files';
 
@@ -125,14 +128,18 @@ foreach my $stepmember ($pipeline3->step_members) {
 }
 
 @expected_step_names = qw(convex_gam_correction convex_cnv_call);
-is_deeply \@s_names, \@expected_step_names, 'the rd pipeline has the correct steps';
+is_deeply \@s_names, \@expected_step_names, 'the convex_cnv_calling pipeline has the correct steps';
 
-my $features_file       = file(qw(t data cnv hs_chr20.convex.features))->absolute->stringify;
 my $centromere_reg_file = file(qw(t data cnv hs_chr20.convex.aps_table_hg19.txt))->absolute->stringify;
 
 my $pipelinesetup3 = VRPipe::PipelineSetup->create(
-    name        => 'convex_cnv_calling_pipeline',
-    datasource  => VRPipe::DataSource->create(type => 'vrpipe', method => 'all', source => 'convex_read_depth_generation_pipeline[convex_read_depth]'),
+    name       => 'convex_cnv_calling_pipeline',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 'convex_read_depth_generation_pipeline[convex_read_depth]|convex_l2r_bp_generation_pipeline[convex_L2R:l2r_files]',
+        options => { metadata_keys => 'sample' }
+    ),
     output_root => $output_dir,
     pipeline    => $pipeline3,
     options     => {
@@ -141,7 +148,7 @@ my $pipelinesetup3 = VRPipe::PipelineSetup->create(
         rscript_cmd         => '/software/bin/Rscript --vanilla',
         r_libs              => $convex_r_libs,
         features_file       => $features_file,
-        breakpoints_file    => $bp_file_name,
+        # breakpoints_file    => $bp_file_name,
         sw_exec             => "$convex_home/exec/swa_lin64",
         centromere_reg_file => $centromere_reg_file,
     }
@@ -149,18 +156,66 @@ my $pipelinesetup3 = VRPipe::PipelineSetup->create(
 
 my $i = 0;
 my @cnv_output_files;
-foreach $de (@{ get_elements($pipelinesetup3->datasource) }) {
+foreach my $de (@{ get_elements($pipelinesetup3->datasource) }) {
     @output_subdirs = output_subdirs($de->id, $pipelinesetup3->id);
     
     my $basename = file($output_files[$i])->basename;
     $basename =~ s/l2r\.txt/gam.txt/;
     push(@cnv_output_files, file(@output_subdirs, '1_convex_gam_correction', $basename));
-    $basename =~ s/gam\.txt/cnv_calls.txt/;
+    $basename =~ s/gam\.txt/cnvs.txt/;
     push(@cnv_output_files, file(@output_subdirs, '2_convex_cnv_call', $basename));
     
     $i++;
 }
 
 ok handle_pipeline(@cnv_output_files, @final_files), 'cnv call pipeline ran and created all expected output files';
+
+# mean_mad pipeline
+#############################
+ok my $pipeline4 = VRPipe::Pipeline->create(name => 'convex_mean_mad_calculation'), 'able to create the convex_mean_mad_calculation pipeline';
+
+@s_names = ();
+foreach my $stepmember ($pipeline4->step_members) {
+    push(@s_names, $stepmember->step->name);
+}
+
+@expected_step_names = qw(convex_mean_mad convex_plots);
+is_deeply \@s_names, \@expected_step_names, 'the convex_mean_mad_calculation pipeline has the correct steps';
+
+my $pipelinesetup4 = VRPipe::PipelineSetup->create(
+    name        => 'convex_mean_mad_pipeline',
+    datasource  => VRPipe::DataSource->create(type => 'vrpipe', method => 'group_all', source => '1[0,2]|2[2:l2r_files]|3[1,2]'),
+    output_root => $output_dir,
+    pipeline    => $pipeline4,
+    options     => {
+        cleanup             => 0,
+        convex_rscript_path => "$convex_home/Rbatch",
+        convex_classpath    => $classpath,
+        rscript_cmd         => '/software/bin/Rscript --vanilla',
+        r_libs              => $convex_r_libs,
+        features_file       => $features_file,
+        regions_file        => $regions_file,
+        corr_matrix_file    => $corr_matrix_file,
+    }
+);
+
+$i = 0;
+my @mm_output_files;
+foreach my $cnv_file (@cnv_output_files) {
+    my $mm_file = $cnv_file;
+    $mm_file =~ s/txt$/mm.txt/;
+    push @mm_output_files, $mm_file;
+}
+
+ok handle_pipeline(@mm_output_files), 'convex_mean_mad_calculation pipeline ran and created all expected mean_mad files';
+
+my @plot_files;
+foreach my $de (@{ get_elements($pipelinesetup4->datasource) }) {
+    @output_subdirs = output_subdirs($de->id, $pipelinesetup4->id);
+    push(@plot_files, file(@output_subdirs, '2_convex_plots', 'CNVstats_CallsperSample.png'));
+    push(@plot_files, file(@output_subdirs, '2_convex_plots', 'CNVstats_DelDupRatio.png'));
+}
+
+ok handle_pipeline(@plot_files), 'plot files created as expected';
 
 done_testing;

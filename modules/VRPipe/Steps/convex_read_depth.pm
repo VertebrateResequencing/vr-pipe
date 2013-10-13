@@ -45,7 +45,7 @@ class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants', metadata => { sample => 'sample name' }) };
     }
     
     method body_sub {
@@ -71,8 +71,8 @@ class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
                     output_key => 'rd_files',
                     basename   => $basename,
                     type       => 'txt',
-                    metadata   => { source_bam => $bam_file->path->stringify, batch => 1 }
-                ); # batch metadata is used to merge up for L2R pipeline
+                    metadata   => $bam_file->metadata
+                );
                 my $rd_path = $rd_file->path;
                 
                 my $cmd = $self->java_exe . " $jvm_args -classpath $convex_classpath ReadDepth -bam_file $bam_path -regions_file $regions_file";
@@ -87,7 +87,7 @@ class VRPipe::Steps::convex_read_depth extends VRPipe::Steps::java {
     }
     
     method outputs_definition {
-        return { rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a read depths file for each input bam'), };
+        return { rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a read depths file for each input bam', metadata => { sample => 'sample name' }), };
     }
     
     method post_process_sub {

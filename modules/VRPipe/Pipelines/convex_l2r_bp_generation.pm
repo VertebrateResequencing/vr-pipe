@@ -57,6 +57,7 @@ class VRPipe::Pipelines::convex_l2r_bp_generation with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key => 'rd_files' },
+            { from_step => 0, to_step => 2, to_key => 'bam_files' },
             { from_step => 0, to_step => 2, to_key => 'rd_files' }
         );
     }

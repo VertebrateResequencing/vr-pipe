@@ -45,7 +45,10 @@ class VRPipe::Steps::convex_gam_correction extends VRPipe::Steps::r_script {
     }
     
     method inputs_definition {
-        return { rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more convex read depth files'), };
+        return {
+            rd_files  => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'read depth (rd) txt files per-sample', metadata => { sample => 'sample name' }),
+            l2r_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'l2r txt files per-sample',             metadata => { sample => 'sample name' }),
+        };
     }
     
     method body_sub {
@@ -59,33 +62,33 @@ class VRPipe::Steps::convex_gam_correction extends VRPipe::Steps::r_script {
             my $breakpoints_file    = $options->{'breakpoints_file'};
             my $convex_rscript_path = $options->{'convex_rscript_path'};
             
-            my $req = $self->new_requirements(memory => 2000, time => 1);
+            my %samples;
+            foreach my $txt (@{ $self->inputs->{rd_files} }, @{ $self->inputs->{l2r_files} }, @{ $self->inputs->{l2r_files} }) {
+                my $sample = $txt->metadata->{sample};
+                $samples{$sample}{rd}  = $txt       if ($txt->path =~ /rd.txt$/);
+                $samples{$sample}{l2r} = $txt->path if ($txt->path =~ /l2r.txt$/);
+            }
             
-            foreach my $rd_file (@{ $self->inputs->{rd_files} }) {
+            my $req = $self->new_requirements(memory => 2000, time => 1);
+            foreach my $sample (keys %samples) {
+                my $rd_file  = $samples{$sample}{rd};
+                my $l2r_path = $samples{$sample}{l2r};
+                
                 my $rd_path  = $rd_file->path;
                 my $basename = $rd_file->basename;
                 $basename =~ s/\.rd\.txt$/.gam.txt/;
                 
-                my $bam_path   = $rd_file->metadata->{source_bam};
-                my $bam_file   = VRPipe::File->get(path => $bam_path);
-                my $bam_sample = $bam_file->metadata->{sample};
-                
-                my $gam_file = $self->output_file(output_key => 'gam_files', basename => $basename, type => 'txt', metadata => { sample => $bam_sample });
+                my $gam_file = $self->output_file(output_key => 'gam_files', basename => $basename, type => 'txt', metadata => $rd_file->metadata);
                 my $gam_path = $gam_file->path;
                 
-                my $l2r_path = $rd_path;
-                
-                $l2r_path =~ s/\.rd\.txt$/.l2r.txt/; # L2R file in same dir as RD file
-                
                 my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/GAMCorrectionPerSample.R $l2r_path,$features_file,$gam_path,$rd_path,$breakpoints_file";
-                
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::convex_gam_correction', 'run_gam_correction', [$cmd, $req, { output_files => [$gam_file] }]);
             }
         };
     }
     
     method outputs_definition {
-        return { gam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a GAM Correction file for each input Read depth and L2R file'), };
+        return { gam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a GAM Correction file for each input Read depth and L2R file', metadata => { sample => 'sample name' }) };
     }
     
     method post_process_sub {
@@ -97,7 +100,7 @@ class VRPipe::Steps::convex_gam_correction extends VRPipe::Steps::r_script {
     }
     
     method max_simultaneous {
-        return 0;                                    # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method run_gam_correction (ClassName|Object $self: Str $cmd_line) {

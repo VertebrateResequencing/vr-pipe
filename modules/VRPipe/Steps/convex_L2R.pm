@@ -49,7 +49,10 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
     }
     
     method inputs_definition {
-        return { rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)'), };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => 'bam files',                                                metadata => { sample => 'sample name', sex => 'sample sex' }),
+            rd_files  => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)', metadata => { sample => 'sample name' }),
+        };
     }
     
     method body_sub {
@@ -65,28 +68,38 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
             my $rpkm                = $options->{'rpkm'};
             my $minSamples          = $options->{'minSamples'};
             
+            my %samples;
+            foreach my $bam (@{ $self->inputs->{bam_files} }) {
+                my $meta   = $bam->metadata;
+                my $sample = $meta->{sample};
+                $samples{$sample}{bam} = $bam;
+                $samples{$sample}{sex} = $meta->{sex};
+            }
+            foreach my $txt (@{ $self->inputs->{rd_files} }) {
+                my $sample = $txt->metadata->{sample};
+                $samples{$sample}{rd} = $txt if ($txt->path =~ /rd.txt$/);
+            }
+            
             my $req = $self->new_requirements(memory => 2000, time => 1);
             
             # Create a tab-seperated SampleInfo file from the read depth for SampleLogRatioCall.R
-            my $sample_info = $self->output_file(basename => "SampleInfo.txt", type => 'txt', temporary => 1);
+            my $sample_info = $self->output_file(output_key => 'sample_info_file', basename => "SampleInfo.txt", type => 'txt');
             my $ofh = $sample_info->openw;
             
-            foreach my $rd_file (@{ $self->inputs->{rd_files} }) {
+            foreach my $sample (keys %samples) {
+                my $rd_file  = $samples{$sample}{rd};
+                my $bam_path = $samples{$sample}{bam};
+                my $sex      = $samples{$sample}{sex};
+                
                 my $basename = $rd_file->basename;
                 $basename =~ s/\.rd\.txt$/.l2r.txt/;
                 
-                my $rd_dir  = $rd_file->dir;
                 my $rd_path = $rd_file->path;
                 
-                my $bam_path   = $rd_file->metadata->{source_bam};
-                my $bam_file   = VRPipe::File->get(path => $bam_path);
-                my $bam_sample = $bam_file->metadata->{sample};
-                my $bam_sex    = $bam_file->metadata->{sex};
-                
-                my $l2r_file = $self->output_file(output_key => 'l2r_files', basename => $basename, output_dir => $rd_dir, type => 'txt');
+                my $l2r_file = $self->output_file(output_key => 'l2r_files', basename => $basename, output_dir => $rd_file->dir, type => 'txt', metadata => $rd_file->metadata);
                 my $l2r_path = $l2r_file->path;
                 
-                print $ofh join("\t", $bam_sample, $bam_sex, $bam_path, $rd_path, $l2r_path), "\n";
+                print $ofh join("\t", $sample, $sex, $bam_path, $rd_path, $l2r_path), "\n";
             }
             $sample_info->close;
             my $sample_info_path = $sample_info->path;
@@ -104,9 +117,10 @@ class VRPipe::Steps::convex_L2R extends VRPipe::Steps::r_script {
     
     method outputs_definition {
         return {
+            sample_info_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'sample info file listing sample, sex, bam_path, read_depth_path, l2r_path'),
             features_file    => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'a single convex features file for each set of L2R files'),
             corr_matrix_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1,  description => 'a single convex correlation matrix file for each set of L2R files'),
-            l2r_files        => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a log 2 ratio file for each input read depths file'),
+            l2r_files        => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a log 2 ratio file for each input read depths file', metadata => { sample => 'sample name' }),
         };
     }
     

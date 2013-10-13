@@ -47,8 +47,8 @@ class VRPipe::Pipelines::convex_read_depth_generation with VRPipe::PipelineRole 
     
     method step_names {
         (
-            'convex_read_depth',     #1
-            'bam_metadata_with_sex', #2
+            'bam_metadata_with_sex', #1
+            'convex_read_depth',     #2
         );
     }
     
