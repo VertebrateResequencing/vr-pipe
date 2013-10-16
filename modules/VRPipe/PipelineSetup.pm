@@ -205,7 +205,19 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         my @step_members = $pipeline->step_members;
         my $num_steps    = scalar(@step_members);
         
-        my $datasource  = $self->datasource;
+        # don't trigger while datasource is updating, return immediately if
+        # it's already locked, otherwise wait until we get the lock, with a
+        # small chance of the harmless race condition in between
+        my $datasource = $self->datasource;
+        return if $datasource->locked;
+        $datasource->block_until_locked;
+        $self->reselect_values_from_db;
+        if ($self->datasource->id != $datasource->id) {
+            $datasource->unlock;
+            return;
+        }
+        $datasource->maintain_lock;
+        
         my $output_root = $self->output_root;
         $self->make_path($output_root);
         
@@ -621,6 +633,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 $redos = 0;
             }
         }
+        
+        $datasource->unlock;
         
         $self->debug("trigger returning");
         return $error_message;
