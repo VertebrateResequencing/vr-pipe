@@ -1,3 +1,14 @@
+0.171   vrpipe-fileinfo --path mode now always show details on that path, even
+        if it has been deleted (no need to specify --include_removed).
+        Some bam processing steps now transfer over individual, project and
+        species metadata from their input to their output files.
+        Triggering setups (working out what work they have to do next) no longer
+        occurs while that setup's datasource is being updated, avoiding some
+        wasted effort.
+        vrpipe-setup now allows changing the datasource in some (safe)
+        circumstances.
+        vrpipe-elements --start_from_scratch now works more reliably.
+        vrtrack datasource now notices changes to sample names.
 0.170   Fix for "Could not continue submission management for farm" issue.
 0.169   Critical fix for the "Magic number checking on storable string failed"
         error affecting DataSource updates and vrpipe-server.
