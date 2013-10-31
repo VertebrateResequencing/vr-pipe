@@ -53,7 +53,7 @@ my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(irods_get_files_by_basename split_genome_studio_genotype_files)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(irods_get_files_by_basename split_genome_studio_genotype_files genome_studio_fcr_to_vcf)], 'the pipeline has the correct steps';
 
 #create external genotype gzip file for testing to override the path in gtc file metadata
 my $external_gzip_source = file(qw(t data hipsci_genotyping.fcr.txt.gz));
@@ -80,6 +80,7 @@ VRPipe::PipelineSetup->create(
         irods_get_zone     => 'archive',
         external_gzip_file => $external_gzip_file,
         reheader_penncnv   => $external_reheader_penncnv,
+        snp_manifest       => file(qw(t data ...))->absolute->stringify,
         cleanup            => 1
     }
 );
