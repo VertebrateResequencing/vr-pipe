@@ -128,6 +128,9 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=7 or type=8 and latest=true') });
         }
         
+        # we care about sample names changing
+        push(@$lane_changes, @{ VRTrack::Sample->_all_values_by_field($vrtrack_source, 'name', 'ssid') });
+        
         my $digest = md5_hex join('', map { defined $_ ? $_ : 'NULL' } @$lane_changes);
         return $digest;
     }
