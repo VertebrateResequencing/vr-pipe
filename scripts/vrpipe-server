@@ -330,7 +330,7 @@ sub start_server {
                     die "farmserver ", $farm_server->id, " is no longer in the database\n" unless $in_db;
                     
                     # claim our setups
-                    my @setups = grep { !$_->currently_complete } $farm_server->claim_setups;
+                    my @setups = grep { $deployment eq 'testing' ? !$_->currently_complete : 1 } $farm_server->claim_setups;
                     
                     if (@setups) {
                         # make sure the redis server is alive
