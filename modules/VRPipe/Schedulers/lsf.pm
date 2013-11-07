@@ -100,7 +100,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 my ($prio, undef, undef, $max, $max_user) = split;
                 $queues{$queue}->{prio}     = $prio;
                 $queues{$queue}->{max}      = $max eq '-' ? 1000000 : $max;
-                $queues{$queue}->{max_user} = $max_user eq '-' ? 1000000 : $max;
+                $queues{$queue}->{max_user} = $max_user eq '-' ? 1000000 : $max_user;
                 
                 $next_is_prio = 0;
             }
