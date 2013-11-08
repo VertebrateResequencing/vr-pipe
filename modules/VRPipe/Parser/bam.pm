@@ -113,7 +113,7 @@ use VRPipe::Base;
 class VRPipe::Parser::bam with VRPipe::ParserRole {
     use Devel::GlobalDestruction;
     
-    use Inline C => Config => FILTERS => 'Strip_POD' => INC => "-I$ENV{SAMTOOLS}" => LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" => CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
+    use Inline C => Config => FILTERS => 'Strip_POD' => INC => "-I$ENV{SAMTOOLS}" => LIBS => "-L$ENV{SAMTOOLS} -lbam -lz -lpthread" => CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64';
     my $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
     
     our %flags = (
