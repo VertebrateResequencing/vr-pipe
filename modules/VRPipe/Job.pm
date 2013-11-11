@@ -433,6 +433,9 @@ class VRPipe::Job extends VRPipe::Persistent {
                 # be meaningless for us.
                 my $shell = VRPipe::Config->new->exec_shell;
                 if ($shell) {
+                    if ($shell =~ /bash$/ && $cmd =~ / \| /) {
+                        $cmd = 'set -o pipefail; ' . $cmd;
+                    }
                     exec {$shell} $shell, '-c', $cmd;
                 }
                 else {
