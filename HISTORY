@@ -1,3 +1,9 @@
+0.173   LSF scheduler now has an improved method of picking the queue to submit
+        jobs to.
+        Jobs with cmd lines that have mutltiple things piped together will now
+        be considered failed if any cmd in the set of pipes exits non-0, instead 
+        of if just the last cmd exits non-0.
+        Fix for the bam parser, allowing tests to pass on modern systems.
 0.172   Fixed setup stalling introduced in previous version.
         Submission failure emails now include the setup name.
         vrpipe-server now always spawns a setup handler in production, so that
