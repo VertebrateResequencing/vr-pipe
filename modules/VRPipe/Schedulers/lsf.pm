@@ -43,6 +43,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
     use DateTime;
     use DateTime::TimeZone;
     use Path::Class;
+    use POSIX qw(ceil);
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
     
     our %months = qw(Jan 1
@@ -59,6 +60,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
       Dec 12);
     our $date_regex = qr/(\w+)\s+(\d+) (\d+):(\d+):(\d+)/;
     our %queues;
+    our @sorted_queues;
     our $mem_limit_multiplier;
     
     method initialize {
@@ -86,6 +88,14 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         my $looking_at_defaults = 0;
         my $next_is_memlimit    = 0;
         my $next_is_runlimit    = 0;
+        my %highest             = (runlimit => 0, memlimit => 0, max => 0, max_user => 0, users => 0, hosts => 0);
+        my $update_highest      = sub {
+            my ($type, $new_val) = @_;
+            return unless $new_val;
+            if ($new_val > $highest{$type}) {
+                $highest{$type} = $new_val;
+            }
+        };
         while (<$bqlfh>) {
             if (/^QUEUE: (\S+)/) {
                 $queue = $1;
@@ -99,8 +109,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             elsif ($next_is_prio) {
                 my ($prio, undef, undef, $max, $max_user) = split;
                 $queues{$queue}->{prio}     = $prio;
-                $queues{$queue}->{max}      = $max eq '-' ? 1000000 : $max;
-                $queues{$queue}->{max_user} = $max_user eq '-' ? 1000000 : $max;
+                $queues{$queue}->{max}      = $max unless $max eq '-';
+                $queues{$queue}->{max_user} = $max_user unless $max_user eq '-';
+                &$update_highest('max',      $queues{$queue}->{max});
+                &$update_highest('max_user', $queues{$queue}->{max_user});
                 
                 $next_is_prio = 0;
             }
@@ -134,6 +146,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                                 $val /= 1000;
                             }
                             $queues{$queue}->{memlimit} = $val;
+                            &$update_highest('memlimit', $val);
                             last;
                         }
                     }
@@ -144,6 +157,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 }
                 elsif ($next_is_runlimit && /^\s*(\d+)(?:\.0)? min/) {
                     $queues{$queue}->{runlimit} = $1 * 60;
+                    &$update_highest('runlimit', $queues{$queue}->{runlimit});
                     $next_is_runlimit = 0;
                 }
             }
@@ -161,7 +175,8 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                     }
                 }
                 else {
-                    $queues{$queue}->{$type} = $vals eq 'all' ? 1000000 : scalar(@vals);
+                    $queues{$queue}->{$type} = scalar(@vals) unless $vals eq 'all';
+                    &$update_highest($type, $queues{$queue}->{$type});
                 }
             }
             
@@ -171,18 +186,73 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         }
         close($bqlfh) || $self->throw("Could not close a pipe to bqueues -l");
         
+        # for each criteria we're going to sort the queues on later, hard-code
+        # [weight, sort-order, significant_change, highest_multiplier]
+        # we want to avoid chunked queues because that means jobs will run
+        # sequentially instead of in parallel. for time and memory, prefer the
+        # queue that is more limited, since we suppose they might be less busy
+        # or will at least become free sooner
+        my %criteria_handling = (hosts => [10, 1, 25, 2], max_user => [6, 1, 10, 10], max => [5, 1, 20, 5], prio => [4, 1, 50], chunk_size => [10000, 0, 1], runlimit => [2, 0, 3600, 12], memlimit => [2, 0, 16000, 10]);
+        
+        # fill in some default values for the criteria on all the queues
+        my %defaults = (runlimit => 31536000, memlimit => 10000000, max => 10000000, max_user => 10000000, users => 10000000, hosts => 10000000, chunk_size => 0);
+        while (my ($criterion, $highest) = each %highest) {
+            next unless $highest;
+            $defaults{$criterion} = $highest + ($criteria_handling{$criterion}->[2] * $criteria_handling{$criterion}->[3]);
+        }
         foreach my $queue (keys %queues) {
             my $queue_hash = $queues{$queue};
-            unless (defined $queue_hash->{runlimit}) {
-                $queue_hash->{runlimit} = 31536000;
-            }
-            unless (defined $queue_hash->{memlimit}) {
-                $queue_hash->{memlimit} = 10000000;
-            }
-            unless (defined $queue_hash->{chunk_size}) {
-                $queue_hash->{chunk_size} = 0;
+            while (my ($criterion, $default) = each %defaults) {
+                next if defined $queue_hash->{$criterion};
+                $queue_hash->{$criterion} = $default;
             }
         }
+        
+        # sort the queues, those most likely to run jobs sooner coming first
+        my %ranking;
+        my %punished_for_max_user;
+        foreach my $criterion (qw(max_user max hosts prio chunk_size runlimit memlimit)) { # instead of while loop, because max_user must come first
+            my $specs = $criteria_handling{$criterion};
+            my ($weight, $sort_order, $significant_change) = @$specs;
+            
+            my $sort = $sort_order == 0 ? sub { $queues{$a}->{$criterion} <=> $queues{$b}->{$criterion} } : sub { $queues{$b}->{$criterion} <=> $queues{$a}->{$criterion} };
+            
+            my @sorted = sort $sort keys %queues;
+            my $prev_val;
+            my $rank = 0;
+            foreach my $queue (@sorted) {
+                my $val = $queues{$queue}->{$criterion};
+                if (defined $prev_val) {
+                    my $diff = abs($val - $prev_val);
+                    if ($diff >= $significant_change) {
+                        if ($criterion eq 'runlimit') {
+                            # because the variance in runlimit can be so
+                            # massive, increase rank sequentially
+                            $rank++;
+                        }
+                        else {
+                            $rank += ceil($diff / $significant_change);
+                        }
+                    }
+                }
+                my $punishment = $rank * $weight;
+                if ($punishment) {
+                    if ($criterion eq 'max_user') {
+                        $punished_for_max_user{$queue} = 1;
+                    }
+                    elsif ($criterion eq 'max') {
+                        # don't double-punish for queues that have both max_user
+                        # and max
+                        $punishment = 0;
+                    }
+                    $ranking{$queue} += $punishment;
+                }
+                
+                $prev_val = $val;
+            }
+        }
+        
+        @sorted_queues = sort { $ranking{$a} <=> $ranking{$b} } keys %ranking;
     }
     
     method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
@@ -224,17 +294,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         my $seconds   = $requirements->time;
         my $megabytes = $requirements->memory;
         my $chosen_queue;
-        foreach my $queue (
-            sort {
-                     $queues{$b}->{hosts} <=> $queues{$a}->{hosts}
-                  || $queues{$b}->{max_user} <=> $queues{$a}->{max_user}
-                  || $queues{$b}->{max} <=> $queues{$a}->{max}
-                  || $queues{$b}->{prio} <=> $queues{$a}->{prio}
-                  || $queues{$a}->{chunk_size} <=> $queues{$b}->{chunk_size} # we want to avoid chunked queues because that means jobs will run sequentially instead of in parallel
-                  || $queues{$a}->{runlimit} <=> $queues{$b}->{runlimit}     # for time and memory, prefer the queue that is more limited, since we suppose they might be less busy or will at least become free sooner
-                  || $queues{$a}->{memlimit} <=> $queues{$b}->{memlimit}
-            } keys %queues
-          ) {
+        foreach my $queue (@sorted_queues) {
             my $mem_limit = $queues{$queue}->{memlimit};
             next if $mem_limit && $mem_limit < $megabytes;
             my $time_limit = $queues{$queue}->{runlimit};

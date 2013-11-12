@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 86;
+    use Test::Most tests => 88;
     use VRPipeTest;
     use TestPipelines;
     
@@ -770,6 +770,14 @@ SKIP: {
     is $ds->_source_instance->_has_changed, 1, 'changing withdrawn is always detected';
     $lane_to_add_file_for->is_withdrawn(0);
     $lane_to_add_file_for->update;
+    $ds->_source_instance->_has_changed;
+    is $ds->_source_instance->_has_changed, 0, 'prior to changing sample, _has_changed is false';
+    my $sample = VRTrack::Sample->new($vrtrack, 1);
+    $sample->name('foo');
+    $sample->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing sample name is always detected';
+    $sample->name('NA07056');
+    $sample->update;
     
     $ds = VRPipe::DataSource->create(
         type    => 'vrtrack',
