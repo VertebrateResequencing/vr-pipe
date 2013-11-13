@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 7;
+    use Test::Most tests => 8;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest)]
@@ -55,19 +55,9 @@ foreach my $stepmember ($pipeline->step_members) {
 }
 is_deeply \@s_names, [qw(irods_get_files_by_basename split_genome_studio_genotype_files genome_studio_fcr_to_vcf)], 'the pipeline has the correct steps';
 
-#create external genotype gzip file for testing to override the path in gtc file metadata
-my $external_gzip_source = file(qw(t data hipsci_genotyping.fcr.txt.gz));
-my $gzip_dir = dir($output_dir, 'external_gzip');
-$pipeline->make_path($gzip_dir);
-my $external_gzip_file = file($gzip_dir, 'hipsci_genotyping.fcr.txt.gz')->stringify;
-copy($external_gzip_source, $external_gzip_file);
-
-#create external reheader file for penncnv analyses
-my $reheader_penncnv = file(qw(t data reheader_penncnv.txt));
-my $reheader_dir = dir($output_dir, 'reheader');
-$pipeline->make_path($reheader_dir);
-my $external_reheader_penncnv = file($reheader_dir, 'penncnv_reheader.txt')->stringify;
-copy($reheader_penncnv, $external_reheader_penncnv);
+my $external_gzip_file        = file(qw(t data hipsci_genotyping.fcr.txt.gz))->absolute->stringify;
+my $external_reheader_penncnv = file(qw(t data reheader_penncnv.txt))->absolute->stringify;
+my $snp_manifest_file         = file(qw(t data hipsci_genotyping.snp.manifest))->absolute->stringify;
 
 # create pipeline setup
 VRPipe::PipelineSetup->create(
@@ -80,12 +70,12 @@ VRPipe::PipelineSetup->create(
         irods_get_zone     => 'archive',
         external_gzip_file => $external_gzip_file,
         reheader_penncnv   => $external_reheader_penncnv,
-        snp_manifest       => file(qw(t data ...))->absolute->stringify,
-        cleanup            => 1
+        snp_manifest       => $snp_manifest_file,
+        cleanup            => 0
     }
 );
 
-#get arrays of output files
+# get arrays of output files
 my @irods_files;
 my @lanes = qw(name 283163_A01_qc1hip5529683);
 foreach my $lane (@lanes) {
@@ -93,15 +83,17 @@ foreach my $lane (@lanes) {
 }
 
 my @genotype_files;
+my @vcf_files;
 my $element_id = 0;
 foreach my $sample (qw(FS18.A)) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@genotype_files, file(@output_subdirs, '2_split_genome_studio_genotype_files', $sample . '.genotyping.fcr.txt'));
+    push(@vcf_files,      file(@output_subdirs, '3_genome_studio_fcr_to_vcf',           $sample . '.genotyping.fcr.vcf'));
 }
 
 #run pipeline and check outputs
-ok handle_pipeline(@genotype_files), 'bam import from irods and split genome studio genotype file pipeline ran ok';
+ok handle_pipeline(@genotype_files, @vcf_files), 'bam import from irods and split genome studio genotype file pipeline ran ok';
 
 #check genotype file metadata
 my $meta = VRPipe::File->get(path => $genotype_files[0])->metadata;
@@ -130,5 +122,8 @@ is_deeply $meta,
     'storage_path'  => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
   },
   'metadata correct for one of the genotype files';
+
+# check the VCF is correct
+is_deeply [$vcf_files[0]->slurp], [file(qw(t data hipsci_genotyping.snp.vcf))->slurp], 'VCF file produced was as expected';
 
 finish;

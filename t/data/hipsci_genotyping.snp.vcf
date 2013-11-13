@@ -1,0 +1,16 @@
+##fileformat=VCFv4.0
+##fileDate=20131113
+##source=/lustre/scratch105/vrpipe_testing/sb10/pipelines_test_output/genome_studio_import_genotype_files/d/1/a/f/1/2_split_genome_studio_genotype_files/FS18.A.genotyping.fcr.txt HipSci genotyping file
+##INFO=<ID=NS,Number=1,Type=Integer,Description="Number of Samples With Data">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GC,Number=1,Type=Float,Description="GenCall score">
+##FORMAT=<ID=IA,Number=1,Type=Float,Description="Intensity of the A Allele">
+##FORMAT=<ID=IB,Number=1,Type=Float,Description="Intensity of the B Allele">
+##FORMAT=<ID=BAF,Number=1,Type=Float,Description="B Allele Frequency">
+##FORMAT=<ID=LRR,Number=1,Type=Float,Description="Log R Ratio">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	FS18.A
+MT	6753	200610-10	A	G	.	.	NS=1	GT:GC:IA:IB:BAF:LRR	1/1:0.5414:2.758:0.174:0.0000:-0.0435
+Y	12166721	2010-08-Y-2009	T	C	.	.	NS=1	GT:GC:IA:IB:BAF:LRR	1/1:0.2265:1.950:0.632:0.0000:-0.0266
+9	130186700	exm-rs10819291	T	C	.	.	NS=1	GT:GC:IA:IB:BAF:LRR	0/0:0.7053:0.075:1.231:0.9905:-0.0916
+12	104099458	exm1031262	T	C	.	.	NS=1	GT:GC:IA:IB:BAF:LRR	0/0:0.5335:0.024:1.107:0.9985:0.0886
+12	113440906	exm1039137	A	G	.	.	NS=1	GT:GC:IA:IB:BAF:LRR	0/0:0.5114:0.016:1.082:1.0000:-0.0766

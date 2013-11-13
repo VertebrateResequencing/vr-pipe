@@ -9,11 +9,11 @@ This step converts the data in a single-sample fcr file (eg. produced by the
 split_genome_studio_genotype_files step) into an accurate VCF with correct SNP
 positions and strand orientation.
 
-A necessary option for this is 'snp_manifest' option that provides a file with
+A necessary option for this is 'snp_manifest', which provides a file with
 information on the SNPs referenced in the FCR file.
 
-The file should have 6 tab separated columns: SNP ID, Ilumina strand, SNP, chr,
-coord, strand-file strand
+The file should have 6 tab separated columns: SNP ID, Illumina strand, SNP,
+chr, coord, strand-file strand
 
 eg: SNP1   BOT [T/C]    MT  6753    +
 
@@ -88,7 +88,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
                 my $basename = $fcr_file->basename;
                 $basename =~ s/\.txt$//;
                 $basename .= '.vcf';
-                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename =>, type => 'vcf', metadata => $fcr_file->metadata)->path;
+                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $fcr_file->metadata)->path;
                 my $fcr_file_path = $fcr_file->path;
                 
                 my $cmd = "use VRPipe::Steps::genome_studio_fcr_to_vcf; VRPipe::Steps::genome_studio_fcr_to_vcf->fcr_to_vcf(fcr => q[$fcr_file_path], vcf => q[$vcf_file_path], snp_manifest => q[$snp_manifest_file]);";
@@ -115,10 +115,12 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
         my $vcf_file = VRPipe::File->get(path => $vcf);
         my $ofh      = $vcf_file->openw;
         
-        # get date and sample name for VCF header
-        my $dt     = DateTime->now;
-        my $date   = $dt->ymd('');
-        my $sample = $fcr_file->meta_value('sample');
+        # get date and sample name for VCF header; the fcr file may have the
+        # library name instead of sample name, so get that as well
+        my $dt      = DateTime->now;
+        my $date    = $dt->ymd('');
+        my $sample  = $fcr_file->meta_value('sample');
+        my $library = $fcr_file->meta_value('library');
         
         # print VCF header
         print $ofh "##fileformat=VCFv4.0\n";
@@ -154,7 +156,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
         while (<$ifh>) {
             chomp;
             my @vals = split(/\t/);
-            next unless $vals[1] eq $sample;
+            next unless $vals[1] eq $library || $vals[1] eq $sample;
             
             my $genotypeSNPName   = $vals[0];
             my $genotypeAlleleOne = $vals[2];
