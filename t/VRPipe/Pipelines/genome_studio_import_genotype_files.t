@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 9;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest)]
@@ -21,17 +21,22 @@ open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}")
 print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
 print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
 print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-my @sql = VRPipe::File->create(path => file(qw(t data vrtrack_hipsci_qc1_genotyping.sql))->absolute)->slurp;
-foreach my $sql (@sql) {
+foreach my $sql (VRPipe::File->create(path => file(qw(t data vrtrack_hipsci_qc1_genotyping.sql))->absolute)->slurp) {
     print $mysqlfh $sql;
 }
 close($mysqlfh);
+
+# (for testing purposes in another test script, the vrtrack db here has 8
+#  samples, 4 per individual, but the library name for lane 9300870057_R02C02
+#  (sample fpdr_3, individual 6d3d2acf-29a5-41a2-8992-1414706a527d) was changed
+#  from 283163_H01_qc1hip5533833 to 283163_G01_qc1hip5529689 (for an unrelated
+#  individual))
 
 # setup pipeline
 my $output_dir = get_output_dir('genome_studio_import_genotype_files');
 my $irods_dir = dir($output_dir, 'irods_import')->stringify;
 
-#setup vrtrack datasource
+# setup vrtrack datasource
 ok my $ds = VRPipe::DataSource->create(
     type    => 'vrtrack',
     method  => 'analysis_genome_studio',
@@ -40,14 +45,14 @@ ok my $ds = VRPipe::DataSource->create(
   ),
   'could create a vrtrack datasource';
 
-#check correct number of gtc file retrieved
+# check correct number of gtc file retrieved
 my $results = 0;
 foreach my $element (@{ get_elements($ds) }) {
     $results++;
 }
-is $results, 1, 'got correct number of gtc files from the vrtrack db';
+is $results, 8, 'got correct number of gtc files from the vrtrack db';
 
-#check pipeline has correct steps
+# check pipeline has correct steps
 ok my $pipeline = VRPipe::Pipeline->create(name => 'genome_studio_import_genotype_files'), 'able to get the genome_studio_import_genotype_files pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
@@ -85,7 +90,7 @@ foreach my $lane (@lanes) {
 my @genotype_files;
 my @vcf_files;
 my $element_id = 0;
-foreach my $sample (qw(FS18.A)) {
+foreach my $sample (qw(fpdj fpdj_2 fpdj_1 fpdr fpdr_2 fpdr_1 fpdj_3 fpdr_3)) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@genotype_files, file(@output_subdirs, '2_split_genome_studio_genotype_files', $sample . '.genotyping.fcr.txt'));
@@ -105,25 +110,27 @@ is_deeply $meta,
     'population'    => 'Population',
     'paired'        => '0',
     'reads'         => '0',
-    'project'       => 'Wellcome Trust Strategic Award application – HIPS',
-    'library'       => '283163_A01_qc1hip5529683',
-    'library_tag'   => 'R01C01',
-    'lane_id'       => '58',
-    'individual'    => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+    'project'       => 'G0325 [coreex] Wellcome Trust Strategic Award application - HIPS',
+    'library'       => '283163_D02_qc1hip5533824',
+    'library_tag'   => '9300870057_R06C02',
+    'lane_id'       => '151',
+    'individual'    => 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2',
     'platform'      => 'SLX',
     'center_name'   => 'SC',
-    'sample'        => 'FS18.A',
-    'expected_md5'  => 'd7e10a49be4e8b1e42fe71bc68e93856',
+    'sample'        => 'fpdj',
+    'expected_md5'  => 'a965097662c37a2d74a7ca429f58f726',
     'study'         => '2624',
-    'control'       => 'Stem cell',
-    'lane'          => '9300870057_R01C01',
+    'control'       => 'Control',
+    'lane'          => '9300870057_R06C02',
     'species'       => 'Homo sapiens',
     'insert_size'   => '0',
-    'storage_path'  => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
+    'storage_path'  => '/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
   },
   'metadata correct for one of the genotype files';
 
 # check the VCF is correct
-is_deeply [$vcf_files[0]->slurp], [file(qw(t data hipsci_genotyping.snp.vcf))->slurp], 'VCF file produced was as expected';
+is_deeply [$vcf_files[0]->slurp], [file(qw(t data hipsci_genotyping.fpdj.snp.vcf))->slurp], 'VCF file produced was as expected';
+$meta = VRPipe::File->get(path => $vcf_files[0])->metadata;
+is $meta->{individual}, 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2', 'the VCF file has individual metadata';
 
 finish;

@@ -51,7 +51,19 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
     use DateTime;
     
     method options_definition {
-        return { snp_manifest => VRPipe::StepOption->create(description => 'snp chip manifest and strand summary file', optional => 0) };
+        return {
+            snp_manifest => VRPipe::StepOption->create(description => 'snp chip manifest and strand summary file', optional => 0),
+            vcf_sort_exe => VRPipe::StepOption->create(
+                description   => 'path to the vcf-sort executable',
+                optional      => 1,
+                default_value => 'vcf-sort'
+            ),
+            vcf_sort_options => VRPipe::StepOption->create(
+                description   => 'options to vcf-sort',
+                optional      => 1,
+                default_value => '--chromosomal-order'
+            )
+        };
     }
     
     method inputs_definition {
@@ -82,16 +94,25 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
             my $options           = $self->options;
             my $snp_manifest_file = $options->{snp_manifest};
             $self->throw("snp_manifest file $snp_manifest_file does not exist") unless -s $snp_manifest_file;
+            
+            my $vcf_sort      = $options->{vcf_sort_exe};
+            my $vcf_sort_opts = $options->{vcf_sort_options};
+            if ($vcf_sort_opts) {
+                $vcf_sort .= ' ' . $vcf_sort_opts;
+            }
+            
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $fcr_file (@{ $self->inputs->{fcr_files} }) {
                 my $basename = $fcr_file->basename;
                 $basename =~ s/\.txt$//;
+                my $unsorted = $basename . '.unsorted.vcf';
                 $basename .= '.vcf';
+                $self->output_file(basename => $unsorted, type => 'vcf', temporary => 1);
                 my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $fcr_file->metadata)->path;
                 my $fcr_file_path = $fcr_file->path;
                 
-                my $cmd = "use VRPipe::Steps::genome_studio_fcr_to_vcf; VRPipe::Steps::genome_studio_fcr_to_vcf->fcr_to_vcf(fcr => q[$fcr_file_path], vcf => q[$vcf_file_path], snp_manifest => q[$snp_manifest_file]);";
+                my $cmd = "use VRPipe::Steps::genome_studio_fcr_to_vcf; VRPipe::Steps::genome_studio_fcr_to_vcf->fcr_to_vcf(fcr => q[$fcr_file_path], vcf => q[$vcf_file_path], snp_manifest => q[$snp_manifest_file], vcf_sort => q[$vcf_sort]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -109,11 +130,14 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
         return "Convert single-sample genotype data text files (FCR files) to VCF suitable for calling with.";
     }
     
-    method fcr_to_vcf (ClassName|Object $self: Str|File :$fcr, Str|File :$vcf, Str|File :$snp_manifest) {
+    method fcr_to_vcf (ClassName|Object $self: Str|File :$fcr, Str|File :$vcf, Str|File :$snp_manifest, Str :$vcf_sort) {
         open(my $mfh, '<', $snp_manifest) || die "Could not read from $snp_manifest\n";
         my $fcr_file = VRPipe::File->get(path => $fcr);
         my $vcf_file = VRPipe::File->get(path => $vcf);
-        my $ofh      = $vcf_file->openw;
+        my $vcf_file_unsorted = $vcf;
+        $vcf_file_unsorted =~ s/\.vcf$/.unsorted.vcf/;
+        $vcf_file_unsorted = VRPipe::File->get(path => $vcf_file_unsorted);
+        my $ofh = $vcf_file_unsorted->openw;
         
         # get date and sample name for VCF header; the fcr file may have the
         # library name instead of sample name, so get that as well
@@ -121,6 +145,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
         my $date    = $dt->ymd('');
         my $sample  = $fcr_file->meta_value('sample');
         my $library = $fcr_file->meta_value('library');
+        $vcf_file->disconnect;
         
         # print VCF header
         print $ofh "##fileformat=VCFv4.0\n";
@@ -153,6 +178,8 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
         
         # go through the fcr file and output the VCF records
         my $ifh = $fcr_file->openr;
+        $vcf_file->disconnect;
+        my $records = 0;
         while (<$ifh>) {
             chomp;
             my @vals = split(/\t/);
@@ -203,9 +230,21 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
             
             # write conversion
             print $ofh "$manifestSummaryChr\t$manifestSummaryMapInfo\t$genotypeSNPName\t$firstRefAllele\t$secondRefAllele\t.\t.\tNS=1\tGT:GC:IA:IB:BAF:LRR\t$matchOne/$matchTwo:$genotypeGCScore:$intensityA:$intensityB:$BAF:$LRR\n";
+            $records++;
         }
         $fcr_file->close;
-        $vcf_file->close;
+        $vcf_file_unsorted->close;
+        
+        # sort the vcf file
+        my $vcf_sort_cmd = "$vcf_sort " . $vcf_file_unsorted->path . " > " . $vcf_file->path;
+        system($vcf_sort_cmd) && die "VCF sort [$vcf_sort_cmd] failed\n";
+        
+        # check it has the correct number of lines
+        $vcf_file->update_stats_from_disc;
+        my $actual_records = $vcf_file->num_records;
+        unless ($actual_records == $records) {
+            die "Expected $records records in the sorted VCF file, but only got $actual_records\n";
+        }
     }
 }
 
