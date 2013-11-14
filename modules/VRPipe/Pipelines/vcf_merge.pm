@@ -39,7 +39,7 @@ class VRPipe::Pipelines::vcf_merge with VRPipe::PipelineRole {
     }
     
     method description {
-        return 'Merge multiple VCF files with vcf-isec';
+        return 'Merge multiple VCF files which contain the same set of samples with vcf-isec';
     }
     
     method step_names {

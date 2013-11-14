@@ -123,7 +123,7 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     }
     
     method description {
-        return "Merges compressed VCFs, creating a single output VCF";
+        return "Merges compressed VCFs using vcf-isec which contain the same set of samples, creating a single output VCF with that set of samples";
     }
     
     method max_simultaneous {
