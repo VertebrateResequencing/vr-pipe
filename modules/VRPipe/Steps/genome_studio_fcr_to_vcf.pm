@@ -127,7 +127,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
     }
     
     method description {
-        return "Convert single-sample genotype data text files (FCR files) to VCF suitable for calling with.";
+        return "Convert single-sample genotype data text files (FCR files) to sorted VCF suitable for calling with.";
     }
     
     method fcr_to_vcf (ClassName|Object $self: Str|File :$fcr, Str|File :$vcf, Str|File :$snp_manifest, Str :$vcf_sort) {
