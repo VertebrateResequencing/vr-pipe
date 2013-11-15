@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::genome_studio_import_genotype_files - a pipeline
+VRPipe::Pipelines::genome_studio_import_from_irods - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,7 +33,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::genome_studio_import_genotype_files with VRPipe::PipelineRole {
+class VRPipe::Pipelines::genome_studio_import_from_irods with VRPipe::PipelineRole {
     method name {
         return 'genome_studio_import_from_irods';
     }
