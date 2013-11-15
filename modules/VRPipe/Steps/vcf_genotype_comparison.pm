@@ -5,9 +5,9 @@ VRPipe::Steps::vcf_genotype_comparison - a step
 
 =head1 DESCRIPTION
 
-Compare the genotypes of the samples in a VCF using bcftools gtcheck. Adds ''
-metadata to the VCF file indicating if all its samples were similar to each
-other.
+Compare the genotypes of the samples in a VCF using bcftools gtcheck. Adds
+'genotype_maximum_deviation' metadata to the VCF file indicating if all its
+samples were similar to each other.
 
 =head1 AUTHOR
 
@@ -90,8 +90,8 @@ class VRPipe::Steps::vcf_genotype_comparison with VRPipe::StepRole {
                     metadata   => $vcf->metadata
                 );
                 my $gtypex_path = $gtypex_file->path;
-                my $cmd         = qq[$bcftools gtcheck $gtcheck_opts $vcf_path > $gtypex_path];
-                $self->dispatch([$cmd, $req, { output_files => [$gtypex_file] }]);
+                my $cmd         = qq[$bcftools_exe gtcheck $gtcheck_opts $vcf_path > $gtypex_path];
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_genotype_comparison', 'compare_genotypes', [$cmd, $req, { output_files => [$gtypex_file] }]);
             }
         };
     }
@@ -102,7 +102,7 @@ class VRPipe::Steps::vcf_genotype_comparison with VRPipe::StepRole {
                 type        => 'txt',
                 max_files   => -1,
                 description => 'file of genotype concurrence scores calculated by bcftools gtcheck',
-                metadata    => { expected_sample => 'name of expected sample', source_bam => 'input bam path' }
+                metadata    => { genotype_maximum_deviation => "maximum deviation in genotype and the sample causing that deviation" }
             )
         };
     }
@@ -112,11 +112,35 @@ class VRPipe::Steps::vcf_genotype_comparison with VRPipe::StepRole {
     }
     
     method description {
-        return "Compare the genotypes of the samples in a VCF to each other to confirm they are the same using bcftools gtcheck";
+        return "Compare the genotypes of the samples in a VCF to each other to confirm they come from the same individual using bcftools gtcheck";
     }
     
     method max_simultaneous {
         return 0;
+    }
+    
+    method compare_genotypes (ClassName|Object $self: Str $cmd_line) {
+        my ($vcf_path, $output_path) = $cmd_line =~ /(\S+) > (\S+)$/;
+        
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        my $vcf_file    = VRPipe::File->get(path => $vcf_path);
+        my $output_file = VRPipe::File->get(path => $output_path);
+        $output_file->update_stats_from_disc;
+        
+        my $fh = $output_file->openr;
+        while (<$fh>) {
+            next unless /^MD\s+(\S+)\s+(\S+)/;
+            my $md     = $1;
+            my $sample = $2;
+            
+            foreach my $file ($vcf_file, $output_file) {
+                $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
+            }
+            
+            last;
+        }
+        $output_file->close;
     }
 }
 
