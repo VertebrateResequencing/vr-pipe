@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::genome_studio_import_genotype_files - a pipeline
+VRPipe::Pipelines::genome_studio_import_from_irods - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,19 +33,20 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::genome_studio_import_genotype_files with VRPipe::PipelineRole {
+class VRPipe::Pipelines::genome_studio_import_from_irods with VRPipe::PipelineRole {
     method name {
         return 'genome_studio_import_from_irods';
     }
     
     method description {
-        return 'Import gtc files from iRODS along with metadata containing location of stored genome studio genotypes file. The metadata is used to obtain individual sample genotype files for genotype analysis.';
+        return 'Import gtc files from iRODS along with metadata containing location of stored genome studio genotypes file. The metadata is used to obtain individual sample genotype files for genotype analysis. Also converts the genotype files (fcr) to VCF.';
     }
     
     method step_names {
         (
             'irods_get_files_by_basename',        #1
             'split_genome_studio_genotype_files', #2
+            'genome_studio_fcr_to_vcf',           #3
         );
     }
     
@@ -53,6 +54,7 @@ class VRPipe::Pipelines::genome_studio_import_genotype_files with VRPipe::Pipeli
         (
             { from_step => 0, to_step => 1, to_key   => 'basenames' },
             { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'gtc_files' },
+            { from_step => 2, to_step => 3, from_key => 'gtype_files', to_key => 'fcr_files' }
         );
     }
     

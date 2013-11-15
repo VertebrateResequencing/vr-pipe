@@ -1,19 +1,20 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::vcf_merge - a pipeline
+VRPipe::Pipelines::vcf_merge_and_compare_genotypes - a pipeline
 
 =head1 DESCRIPTION
 
-Pipeline to merge multiple VCF files with teh vcftools utility vcf-isec
+Pipeline to merge multiple VCF files with vcftools vcf-isec, then compare the
+genotypes of the samples to see if they all came from the same individual.
 
 =head1 AUTHOR
 
-Shane McCarthy <sm15@sanger.ac.uk>.
+Sendu Bala <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,20 +34,21 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vcf_merge with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vcf_merge_and_compare_genotypes with VRPipe::PipelineRole {
     method name {
-        return 'vcf_merge';
+        return 'vcf_merge_and_compare_genotypes';
     }
     
     method description {
-        return 'Merge multiple VCF files which contain the same set of samples with vcf-isec';
+        return 'Merge multiple VCF files with vcf-isec, then compare genotypes of the samples to see if they all came from the same individual';
     }
     
     method step_names {
         (
-            'vcf_index', #1
-            'vcf_merge', #2
-            'vcf_index', #3
+            'vcf_index',                   #1
+            'vcf_merge_different_samples', #2
+            'vcf_index',                   #3
+            'vcf_genotype_comparison',     #4
         );
     }
     
@@ -55,6 +57,7 @@ class VRPipe::Pipelines::vcf_merge with VRPipe::PipelineRole {
             { from_step => 0, to_step => 1, to_key   => 'vcf_files' },
             { from_step => 0, to_step => 2, to_key   => 'vcf_files' },
             { from_step => 2, to_step => 3, from_key => 'merged_vcf', to_key => 'vcf_files' },
+            { from_step => 2, to_step => 4, from_key => 'merged_vcf', to_key => 'vcf_files' },
         );
     }
     
