@@ -1,19 +1,20 @@
 
 =head1 NAME
 
-VRPipe::Steps::vcf_merge - a step
+VRPipe::Steps::vcf_merge_different_samples - a step
 
 =head1 DESCRIPTION
 
-Run vcf-isec to merge a set of  VCFs, creating a single output VCF
+Run bcftools merge to merge a set of VCFs each with a different sample,
+creating a single output VCF with all the input samples.
 
 =head1 AUTHOR
 
-Chris Joyce <cj5@sanger.ac.uk>.
+Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2013 Genome Research Limited.
 
 This file is part of VRPipe.
 
