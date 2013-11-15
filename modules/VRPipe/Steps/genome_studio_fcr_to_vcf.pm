@@ -62,6 +62,11 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
                 description   => 'options to vcf-sort',
                 optional      => 1,
                 default_value => '--chromosomal-order'
+            ),
+            bgzip_exe => VRPipe::StepOption->create(
+                description   => 'path to the bgzip executable',
+                optional      => 1,
+                default_value => 'bgzip'
             )
         };
     }
@@ -100,6 +105,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
             if ($vcf_sort_opts) {
                 $vcf_sort .= ' ' . $vcf_sort_opts;
             }
+            my $bgzip = $options->{bgzip_exe};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
@@ -107,12 +113,12 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
                 my $basename = $fcr_file->basename;
                 $basename =~ s/\.txt$//;
                 my $unsorted = $basename . '.unsorted.vcf';
-                $basename .= '.vcf';
+                $basename .= '.vcf.gz';
                 $self->output_file(basename => $unsorted, type => 'vcf', temporary => 1);
                 my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $fcr_file->metadata)->path;
                 my $fcr_file_path = $fcr_file->path;
                 
-                my $cmd = "use VRPipe::Steps::genome_studio_fcr_to_vcf; VRPipe::Steps::genome_studio_fcr_to_vcf->fcr_to_vcf(fcr => q[$fcr_file_path], vcf => q[$vcf_file_path], snp_manifest => q[$snp_manifest_file], vcf_sort => q[$vcf_sort]);";
+                my $cmd = "use VRPipe::Steps::genome_studio_fcr_to_vcf; VRPipe::Steps::genome_studio_fcr_to_vcf->fcr_to_vcf(fcr => q[$fcr_file_path], vcf => q[$vcf_file_path], snp_manifest => q[$snp_manifest_file], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -127,15 +133,15 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
     }
     
     method description {
-        return "Convert single-sample genotype data text files (FCR files) to sorted VCF suitable for calling with.";
+        return "Convert single-sample genotype data text files (FCR files) to sorted compressed VCF suitable for calling with.";
     }
     
-    method fcr_to_vcf (ClassName|Object $self: Str|File :$fcr, Str|File :$vcf, Str|File :$snp_manifest, Str :$vcf_sort) {
+    method fcr_to_vcf (ClassName|Object $self: Str|File :$fcr, Str|File :$vcf, Str|File :$snp_manifest, Str :$vcf_sort, Str :$bgzip) {
         open(my $mfh, '<', $snp_manifest) || die "Could not read from $snp_manifest\n";
         my $fcr_file = VRPipe::File->get(path => $fcr);
         my $vcf_file = VRPipe::File->get(path => $vcf);
         my $vcf_file_unsorted = $vcf;
-        $vcf_file_unsorted =~ s/\.vcf$/.unsorted.vcf/;
+        $vcf_file_unsorted =~ s/\.vcf.gz$/.unsorted.vcf/;
         $vcf_file_unsorted = VRPipe::File->get(path => $vcf_file_unsorted);
         my $ofh = $vcf_file_unsorted->openw;
         
@@ -236,7 +242,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
         $vcf_file_unsorted->close;
         
         # sort the vcf file
-        my $vcf_sort_cmd = "$vcf_sort " . $vcf_file_unsorted->path . " > " . $vcf_file->path;
+        my $vcf_sort_cmd = "$vcf_sort " . $vcf_file_unsorted->path . " | $bgzip -c > " . $vcf_file->path;
         system($vcf_sort_cmd) && die "VCF sort [$vcf_sort_cmd] failed\n";
         
         # check it has the correct number of lines
