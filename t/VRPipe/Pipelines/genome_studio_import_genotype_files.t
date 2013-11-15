@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 16;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest)]
@@ -26,7 +26,7 @@ foreach my $sql (VRPipe::File->create(path => file(qw(t data vrtrack_hipsci_qc1_
 }
 close($mysqlfh);
 
-# (for testing purposes in another test script, the vrtrack db here has 8
+# (for testing purposes later on in this script, the vrtrack db here has 8
 #  samples, 4 per individual, but the library name for lane 9300870057_R02C02
 #  (sample fpdr_3, individual 6d3d2acf-29a5-41a2-8992-1414706a527d) was changed
 #  from 283163_H01_qc1hip5533833 to 283163_G01_qc1hip5529689 (for an unrelated
@@ -94,13 +94,13 @@ foreach my $sample (qw(fpdj fpdj_2 fpdj_1 fpdr fpdr_2 fpdr_1 fpdj_3 fpdr_3)) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@genotype_files, file(@output_subdirs, '2_split_genome_studio_genotype_files', $sample . '.genotyping.fcr.txt'));
-    push(@vcf_files,      file(@output_subdirs, '3_genome_studio_fcr_to_vcf',           $sample . '.genotyping.fcr.vcf'));
+    push(@vcf_files,      file(@output_subdirs, '3_genome_studio_fcr_to_vcf',           $sample . '.genotyping.fcr.vcf.gz'));
 }
 
-#run pipeline and check outputs
+# run pipeline and check outputs
 ok handle_pipeline(@genotype_files, @vcf_files), 'bam import from irods and split genome studio genotype file pipeline ran ok';
 
-#check genotype file metadata
+# check genotype file metadata
 my $meta = VRPipe::File->get(path => $genotype_files[0])->metadata;
 is_deeply $meta,
   {
@@ -129,8 +129,75 @@ is_deeply $meta,
   'metadata correct for one of the genotype files';
 
 # check the VCF is correct
-is_deeply [$vcf_files[0]->slurp], [file(qw(t data hipsci_genotyping.fpdj.snp.vcf))->slurp], 'VCF file produced was as expected';
+is_deeply [vcf_lines($vcf_files[0])], [vcf_lines(file(qw(t data hipsci_genotyping.fpdj.snp.vcf.gz)))], 'VCF file produced was as expected';
 $meta = VRPipe::File->get(path => $vcf_files[0])->metadata;
 is $meta->{individual}, 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2', 'the VCF file has individual metadata';
 
+# we'll take this opportunity to test the vcf_merge_and_compare_genotypes
+# pipeline as well
+$output_dir = get_output_dir('vcf_merge_and_compare_genotypes');
+$ds         = VRPipe::DataSource->create(
+    type    => 'vrpipe',
+    method  => 'group_by_metadata',
+    source  => '1[3]',
+    options => { metadata_keys => 'individual' }
+);
+
+# check pipeline has correct steps
+ok $pipeline = VRPipe::Pipeline->create(name => 'vcf_merge_and_compare_genotypes'), 'able to get the vcf_merge_and_compare_genotypes pipeline';
+@s_names = ();
+foreach my $stepmember ($pipeline->step_members) {
+    push(@s_names, $stepmember->step->name);
+}
+is_deeply \@s_names, [qw(vcf_index vcf_merge_different_samples vcf_index vcf_genotype_comparison)], 'the pipeline has the correct steps';
+
+# create pipeline setup
+VRPipe::PipelineSetup->create(
+    name        => 'genotype comparison',
+    datasource  => $ds,
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {}
+);
+
+my (@merged_vcf_files, @gtypex_files, @expected_metadata);
+foreach my $element_id (9, 10) {
+    my @output_subdirs = output_subdirs($element_id, 2);
+    push(@genotype_files,   file(@output_subdirs, '2_vcf_merge_different_samples', 'merged.vcf.gz'));
+    push(@merged_vcf_files, file(@output_subdirs, '4_vcf_genotype_comparison',     'merged.vcf.gz.gtypex'));
+    
+    my $individual = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
+    my %expected = (individual => $individual);
+    if ($individual eq 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2') {
+        $expected{genotype_maximum_deviation} = "0.000000:fpdj_3";
+    }
+    else {
+        $expected{genotype_maximum_deviation} = "14.230598:fpdr_3";
+    }
+    push(@expected_metadata, \%expected);
+}
+
+ok handle_pipeline(@merged_vcf_files, @gtypex_files), 'vcf_merge_and_compare_genotypes pipeline ran ok';
+
+foreach my $vcf_path (@merged_vcf_files) {
+    $meta = VRPipe::File->get(path => $vcf_path)->metadata;
+    my $expected = shift @expected_metadata;
+    foreach my $key (qw(individual genotype_maximum_deviation)) {
+        is $meta->{$key}, $expected->{$key}, "$key metadata was correct for one of the merged VCF files";
+    }
+}
+
 finish;
+exit;
+
+sub vcf_lines {
+    my $vcf_file = shift;
+    my @lines;
+    open(my $fh, "zcat $vcf_file |");
+    while (<$fh>) {
+        next if /^##fileDate/;
+        push(@lines, $_);
+    }
+    close($fh);
+    return @lines;
+}
