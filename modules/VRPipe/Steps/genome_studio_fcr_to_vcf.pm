@@ -200,7 +200,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
             if (($genotypeAlleleOne eq 'D') || ($genotypeAlleleOne eq 'I')) {
                 next;
             }
-            if (($genotypeAlleleOne eq '-') || ($genotypeAlleleOne eq '-')) {
+            if (($genotypeAlleleOne eq '-') || ($genotypeAlleleTwo eq '-')) {
                 next;
             }
             
@@ -221,10 +221,10 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
             
             # match the alleles against the ref alleles
             my $matchOne = my $matchTwo = 0;
-            if ($genotypeAlleleOne eq $firstRefAllele) {
+            if ($genotypeAlleleOne ne $firstRefAllele) {
                 $matchOne = 1;
             }
-            if ($genotypeAlleleTwo eq $firstRefAllele) {
+            if ($genotypeAlleleTwo ne $firstRefAllele) {
                 $matchTwo = 1;
             }
             
