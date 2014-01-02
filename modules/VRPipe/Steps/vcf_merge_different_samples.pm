@@ -77,7 +77,16 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
             my $merged_meta = $self->common_metadata($self->inputs->{vcf_files});
             my $merged_vcf  = $self->output_file(output_key => 'merged_vcf', basename => $merged_basename, type => 'vcf', metadata => $merged_meta);
             my $output_path = $merged_vcf->path;
-            my $this_cmd    = qq[$bcftools_exe merge $bcfopts @input_set > $output_path];
+            
+            if (@input_set == 1) {
+                # merge doesn't work on 1 input file; just symlink the input to
+                # output
+                my $source = $self->inputs->{vcf_files}->[0];
+                $source->symlink($merged_vcf);
+                return 1;
+            }
+            
+            my $this_cmd = qq[$bcftools_exe merge $bcfopts @input_set > $output_path];
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
