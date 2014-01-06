@@ -157,7 +157,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 }
                 elsif ($next_is_runlimit && /^\s*(\d+)(?:\.0)? min/) {
                     $queues{$queue}->{runlimit} = $1 * 60;
-                    &$update_highest('runlimit', $queues{$queue}->{runlimit});
+                    #&$update_highest('runlimit', $queues{$queue}->{runlimit});
+                    # for queues that do not specify a run limit, we won't base
+                    # the default on the highest value seen on other queues, but
+                    # on a hard-coded 1 year
                     $next_is_runlimit = 0;
                 }
             }
@@ -302,6 +305,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             
             $chosen_queue = $queue;
             last;
+        }
+        
+        unless ($chosen_queue) {
+            $self->throw("Unable to find a queue suitable for a submission needing $seconds seconds and $megabytes MB");
         }
         
         return $chosen_queue;
