@@ -327,7 +327,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $current_metadata = $vrfile->metadata;
                 my $changed          = 0;
                 if ($current_metadata && keys %$current_metadata) {
-                    foreach my $meta (qw(expected_md5 lane project study center_name sample population platform library insert_size)) {
+                    foreach my $meta (qw(expected_md5 lane project study center_name sample population platform library insert_size reads)) {
                         next unless defined $new_metadata->{$meta};
                         if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
                             $self->debug("metadata '$meta' changed from $current_metadata->{$meta} to $new_metadata->{$meta} for file $file_abs_path, so will mark lane " . $lane->name . " as changed");
