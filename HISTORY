@@ -1,3 +1,5 @@
+0.175   Hotfix so that the vrtrack datasource notices and updates when a lane
+        changes it number of reads.
 0.174   Hotfix so that the LSF scheduler can correctly choose queues that have
         no time limit defined.
 0.173   LSF scheduler now has an improved method of picking the queue to submit
