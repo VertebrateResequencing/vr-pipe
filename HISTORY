@@ -1,3 +1,5 @@
+0.176   Hotfix so that the vrtrack datasource ignores when a lane changes to
+        0 reads.
 0.175   Hotfix so that the vrtrack datasource notices and updates when a lane
         changes it number of reads.
 0.174   Hotfix so that the LSF scheduler can correctly choose queues that have
