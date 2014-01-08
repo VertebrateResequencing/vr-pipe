@@ -391,8 +391,11 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     if ($file_setup_needed) {
         ($stepstate) = $file->output_by();
         unless ($stepstate) {
-            my $parent = $file->parent->resolve(not_symlinks => 1);
-            ($stepstate) = $parent->output_by() if $parent;
+            my $parent = $file->parent;
+            if ($parent) {
+                $parent = $parent->resolve(not_symlinks => 1);
+                ($stepstate) = $parent->output_by();
+            }
         }
     }
     
