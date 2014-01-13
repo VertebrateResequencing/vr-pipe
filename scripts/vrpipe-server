@@ -350,10 +350,8 @@ sub start_server {
                         $scheduler->ensure_running(
                             cmd => $shcmd,
                             $deployment eq 'testing' ? (cwd => $cwd) : (),
-                            requirements => VRPipe::Requirements->create(memory => 1500, time => 3600)
+                            requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
                         );
-                        # (in production this submits a job to the scheduler
-                        #  with a name like *9762b9ae16282af15a8d855bd55c8fa5*)
                         
                         # make sure we have sufficient submission handlers
                         # running...
