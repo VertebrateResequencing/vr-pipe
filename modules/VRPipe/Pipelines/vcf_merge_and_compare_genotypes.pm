@@ -10,7 +10,7 @@ genotypes of the samples to see if they all came from the same individual.
 
 =head1 AUTHOR
 
-Sendu Bala <sm15@sanger.ac.uk>.
+Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
