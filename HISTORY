@@ -1,3 +1,10 @@
+0.177   vrpipe-handler for setups can sometimes need more memory, so its
+        requirements have been increased to 2900MB.
+        vrpipe-permissions now has a --filter option to pick files to alter
+        based on their metadata.
+        vrtrack datasource now checks individual name and alias, and prefers to
+        use alias as the individual.
+        New Sanger-specific sequenom import pipeline.
 0.176   Hotfix so that the vrtrack datasource ignores when a lane changes to
         0 reads.
 0.175   Hotfix so that the vrtrack datasource notices and updates when a lane
