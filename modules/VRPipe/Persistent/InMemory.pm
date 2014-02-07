@@ -264,9 +264,6 @@ class VRPipe::Persistent::InMemory {
                 $self->debug("_own_lock failed for $key because that is owned by $hostname|$pid, not " . hostname() . "|$my_pid");
             }
         }
-        else {
-            $self->debug("_own_lock failed for $key because that key is not set");
-        }
         
         return 0;
     }

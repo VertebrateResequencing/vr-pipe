@@ -345,7 +345,10 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         foreach my $hash_ref (@{ $self->_all_results(%args, complete_all => 1) }) {
             my @group_keys;
             foreach my $key (@meta_keys) {
-                $self->throw("Metadata key $key not present in file " . $hash_ref->{paths}->[0] . "\n") unless (exists $hash_ref->{metadata}->{$key});
+                unless (exists $hash_ref->{metadata}->{$key}) {
+                    $self->warn("Metadata key $key not present in file " . $hash_ref->{paths}->[0] . "\n");
+                    next;
+                }
                 push @group_keys, $hash_ref->{metadata}->{$key};
             }
             my $group_key = join '|', @group_keys;

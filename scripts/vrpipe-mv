@@ -133,6 +133,7 @@ if ($setup) {
     my $num_elements  = 0;
     my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
     my %done_files;
+    my $errors = 0;
     while (my $estates = $estates_pager->next) {
         foreach my $element_state (@$estates) {
             # move outputs
@@ -179,7 +180,13 @@ if ($setup) {
                             unless (-d $dest_dir) {
                                 $file->make_path($dest_dir);
                             }
-                            $file->move(VRPipe::File->create(path => $dest), check_md5s => $check_md5s);
+                            
+                            eval { $file->move(VRPipe::File->create(path => $dest), check_md5s => $check_md5s); };
+                            if ($@) {
+                                $frontend->error("Failed to move $source => $old_root, skipping");
+                                $errors++;
+                                next;
+                            }
                         }
                         $moved++;
                     }
@@ -189,8 +196,14 @@ if ($setup) {
     }
     
     unless ($pretend) {
-        $setup->output_root($new_root);
-        $setup->update;
+        unless ($errors) {
+            $setup->output_root($new_root);
+            $setup->update;
+            $frontend->output("Output root of the setup has been updated.") if $verbose;
+        }
+        else {
+            $frontend->error("$errors files could not be moved; the output root of the setup has NOT been altered.");
+        }
         
         if ($deactivated) {
             $frontend->output("Reactivating the setup.") if $verbose;
