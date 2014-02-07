@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 98;
+    use Test::Most tests => 100;
     use VRPipeTest;
     use TestPipelines;
     
@@ -710,7 +710,7 @@ SKIP: {
     sleep(5);
     get_elements($ds);
     $file->reselect_values_from_db;
-    is_deeply $file->metadata, { study_id => 2623, foo => 'car' }, 'metadata in VRPipe updated correctly after waiting a minute';
+    is_deeply $file->metadata, { study_id => 2623, foo => 'car' }, 'metadata in VRPipe updated correctly after waiting 5 seconds';
     
     # add a new file to make sure we pick that up as well
     system("iput -R uk10k-green t/data/file3.txt /uk10k/home/sb10#Sanger1/vrpipe_testing");
@@ -736,7 +736,7 @@ SKIP: {
 #  _has_changed did not set _changed_marker, so are a little weird now but were
 #  kept anyway)
 SKIP: {
-    my $num_tests = 29;
+    my $num_tests = 31;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
     eval "require VRTrack::Factory;";
     skip "VRTrack::Factory not loading", $num_tests if $@;
@@ -867,6 +867,17 @@ SKIP: {
     is $ds->_source_instance->_has_changed, 1, 'changing sample name is always detected';
     $sample->name('NA07056');
     $sample->update;
+    my $individual = VRTrack::Individual->new($vrtrack, 1);
+    $individual->name('foo');
+    $individual->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing individual name is always detected';
+    $individual->name('NA07056');
+    $individual->update;
+    $individual->alias('foo');
+    $individual->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing individual alias is always detected';
+    $individual->alias('NA07056');
+    $individual->update;
     
     $ds = VRPipe::DataSource->create(
         type    => 'vrtrack',
@@ -922,6 +933,10 @@ SKIP: {
       ),
       'could create a vrtrack datasource';
     
+    $individual = VRTrack::Individual->new_by_name($vrtrack, 'NA19190');
+    $individual->alias('NA19190_from_alias');
+    $individual->update;
+    
     @results = ();
     foreach my $element (@{ get_elements($ds) }) {
         push(@results, result_with_inflated_paths($element));
@@ -946,7 +961,7 @@ SKIP: {
         'reads'        => '45859',
         'library'      => 'g1k_sc_NA19190_YRI_1',
         'lane_id'      => '101',
-        'individual'   => 'NA19190',
+        'individual'   => 'NA19190_from_alias',
         'center_name'  => 'SC',
         'sample'       => 'NA19190',
         'platform'     => 'SLX',
