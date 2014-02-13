@@ -140,7 +140,7 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     }
     
     method merge_vcf (ClassName|Object $self: Str $cmd_line) {
-        my ($first_input_path, $output_path) = $cmd_line =~ /^\S+ .* (\S+?.gz) .* (\S+)$/;
+        my ($first_input_path, $output_path) = $cmd_line =~ /^\S+.*? (\S+?.gz) .* (\S+)$/;
         
         my $first_input_file = VRPipe::File->get(path => $first_input_path);
         my $first_input_lines = $first_input_file->lines;
