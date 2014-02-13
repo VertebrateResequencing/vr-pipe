@@ -445,6 +445,10 @@ class VRPipe::Interface::CmdLine {
             $answer = <STDIN>;
             chomp($answer);
             
+            # always strip control characters, which can break vrpipe-server
+            # *** must we limit ourselves to printable ascii as well?: tr/\x20-\x7f//cd;
+            $answer =~ tr/\x00-\x1f\x7f//d;
+            
             if ($possibles) {
                 my $valid = 1;
                 my @answers = $allow_multiple ? split(/$allow_multiple/, $answer) : ($answer);
