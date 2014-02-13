@@ -1,3 +1,7 @@
+0.178   Front-end vrpipe-* scripts now strip control codes the user may enter
+        while typing.
+        Fix for the vcf_merge step so that it works when the post_merge_vcftools
+        option includes a .gz path.
 0.177   vrpipe-handler for setups can sometimes need more memory, so its
         requirements have been increased to 2900MB.
         vrpipe-permissions now has a --filter option to pick files to alter
