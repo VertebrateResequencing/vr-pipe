@@ -46,6 +46,7 @@ $fofn_file->close;
 
 my $gatk_filter_file    = file(qw(t data uk10k_gatk_20110715.filter))->absolute->stringify;
 my $mpileup_filter_file = file(qw(t data uk10k_mpileup_20110715.filter))->absolute->stringify;
+my $annots_file         = file(qw(t data annots-rsIDs-AFs.2011-10-05.tab.gz))->absolute->stringify;
 
 VRPipe::PipelineSetup->create(
     name       => 'gatk single sample calling',
@@ -93,7 +94,10 @@ VRPipe::PipelineSetup->create(
     ),
     output_root => $calling_dir,
     pipeline    => $merge_pipeline,
-    options     => { metadata_priority => 'caller#GATK_UnifiedGenotyper:samtools_mpileup_bcftools' }
+    options     => {
+        metadata_priority   => 'caller#GATK_UnifiedGenotyper:samtools_mpileup_bcftools',
+        post_merge_vcftools => "vcf-annotate --fill-ICF --fill-type -a $annots_file -c CHROM,FROM,ID,REF,ALT"
+    }
 );
 
 ok handle_pipeline(), 'calling and merge pipelines ran ok';
