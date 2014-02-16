@@ -59,6 +59,7 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
             
             my $options           = $self->options;
             my $isec_exe          = $options->{'vcf-isec_exe'};
+            my $isec_options      = $options->{vcf_isec_options};
             my $metadata_priority = $options->{metadata_priority};
             my $post_filter       = $options->{post_merge_vcftools};
             
@@ -101,7 +102,15 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
             my $filter = $post_filter ? " | $post_filter" : '';
             
             my $output_path = $merged_vcf->path;
-            my $this_cmd    = qq[$isec_exe -f -n +1 @input_set$filter | bgzip -c > $output_path];
+            my $this_cmd    = qq[$isec_exe $isec_options @input_set$filter | bgzip -c > $output_path];
+            
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'vcf-isec',
+                    version => 0,
+                    summary => "vcf-isec $isec_options \@input_vcfs$filter | bgzip -c > \$output_path"
+                )
+            );
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf] }]);
@@ -123,7 +132,7 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     }
     
     method description {
-        return "Merges compressed VCFs, creating a single output VCF";
+        return "Merges compressed VCFs using vcf-isec which contain the same set of samples, creating a single output VCF with that set of samples";
     }
     
     method max_simultaneous {
@@ -131,7 +140,7 @@ class VRPipe::Steps::vcf_merge with VRPipe::StepRole {
     }
     
     method merge_vcf (ClassName|Object $self: Str $cmd_line) {
-        my ($first_input_path, $output_path) = $cmd_line =~ /^\S+ -f -n \+1 (\S+) .* bgzip -c > (\S+)$/;
+        my ($first_input_path, $output_path) = $cmd_line =~ /^\S+.*? (\S+?.gz) .* (\S+)$/;
         
         my $first_input_file = VRPipe::File->get(path => $first_input_path);
         my $first_input_lines = $first_input_file->lines;

@@ -128,6 +128,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=7 or type=8 and latest=true') });
         }
         
+        # we care about sample names changing
+        push(@$lane_changes, @{ VRTrack::Sample->_all_values_by_field($vrtrack_source, 'name', 'ssid') });
+        
+        # we care about individual name and alias changing
+        push(@$lane_changes, @{ VRTrack::Individual->_all_values_by_field($vrtrack_source, 'name',  'individual_id') });
+        push(@$lane_changes, @{ VRTrack::Individual->_all_values_by_field($vrtrack_source, 'alias', 'individual_id') });
+        
         my $digest = md5_hex join('', map { defined $_ ? $_ : 'NULL' } @$lane_changes);
         return $digest;
     }
@@ -302,12 +309,12 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     study        => $lane_info{study},
                     $lane_info{species} ? (species => $lane_info{species}) : (),
                     population  => $lane_info{population},
-                    individual  => $lane_info{individual},
+                    individual  => $lane_info{individual_alias} || $lane_info{individual}, #*** should we make the alias preference an option?
                     sample      => $lane_info{sample},
                     platform    => $lane_info{seq_tech},
                     library     => $lane_info{library},
                     lane        => $lane_info{lane},
-                    withdrawn   => $lane_info{withdrawn} || 0,   #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
+                    withdrawn   => $lane_info{withdrawn} || 0,                             #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
                     insert_size => $lane_info{insert_size} || 0,
                     reads       => $file->raw_reads || 0,
                     bases       => $file->raw_bases || 0,
@@ -324,8 +331,9 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $current_metadata = $vrfile->metadata;
                 my $changed          = 0;
                 if ($current_metadata && keys %$current_metadata) {
-                    foreach my $meta (qw(expected_md5 lane project study center_name sample population platform library insert_size)) {
+                    foreach my $meta (qw(expected_md5 lane project study center_name individual sample population platform library insert_size reads)) {
                         next unless defined $new_metadata->{$meta};
+                        next if $meta eq 'reads' && $new_metadata->{$meta} == 0;
                         if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
                             $self->debug("metadata '$meta' changed from $current_metadata->{$meta} to $new_metadata->{$meta} for file $file_abs_path, so will mark lane " . $lane->name . " as changed");
                             $changed = 1;
@@ -336,7 +344,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     # some fields we'll just blindly update the metadata for,
                     # since they do not appear in bam headers; there's no need
                     # to start_from_scratch when they change??...
-                    foreach my $meta (qw(species individual)) {
+                    foreach my $meta (qw(species)) {
                         next unless defined $new_metadata->{$meta};
                         if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
                             $vrfile->add_metadata({ $meta => $new_metadata->{$meta} }, replace_data => 1);

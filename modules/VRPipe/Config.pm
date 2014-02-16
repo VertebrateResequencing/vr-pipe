@@ -336,7 +336,7 @@ class VRPipe::Config {
     
     has exec_shell => (
         is       => 'rw',
-        question => 'When VRPipe executes commands with exec(), what shell should be used (avoid the use of dash on Ubuntu, which is its default sh)?',
+        question => 'When VRPipe executes commands with exec(), what shell should be used (avoid the use of dash on Ubuntu, which is its default sh; bash is STRONGLY recommended)?',
         default  => sub {
             my $shell = which('bash') || which('sh');
             if ($shell) { $shell = abs_path($shell); undef $shell if $shell =~ /dash$/ }

@@ -76,7 +76,15 @@ if ($all && !$force_with_all && $start_from_scratch) {
 }
 
 my @setups = $frontend->get_pipelinesetups($desired_ele ? (allow_no_setups => 1) : ());
-my @element_states;
+my (@element_states, @datasources);
+if ($start_from_scratch) {
+    $SIG{'INT'} = sub {
+        foreach my $ds (@datasources) {
+            $ds->unlock;
+        }
+        exit 0;
+    };
+}
 if ($desired_ele) {
     my $e = $frontend->opts('element');
     if ($e && @setups != 1) {
@@ -94,11 +102,26 @@ if ($desired_ele) {
     }
     
     @element_states = ($es);
+    if ($start_from_scratch) {
+        my $ds = $es->pipelinesetup->datasource;
+        $frontend->output("Will wait until the datasource for setup ", $es->pipelinesetup->id, " is not being updated or triggered...");
+        $ds->block_until_locked;
+        $ds->maintain_lock;
+        push(@datasources, $ds);
+    }
 }
 else {
     foreach my $setup (@setups) {
+        if ($start_from_scratch) {
+            my $ds = $setup->datasource;
+            $frontend->output("Will wait until the datasource for setup ", $setup->id, " is not being updated or triggered...");
+            $ds->block_until_locked;
+            $ds->maintain_lock;
+            push(@datasources, $ds);
+        }
+        
         if ($all) {
-            @element_states = $setup->dataelementstates(include_withdrawn => !$exclude_withdrawn);
+            push(@element_states, $setup->dataelementstates(include_withdrawn => !$exclude_withdrawn));
         }
         else {
             my $estates_pager = $setup->datasource->incomplete_element_states($setup, include_withdrawn => !$exclude_withdrawn, prepare => 0);
@@ -313,6 +336,12 @@ if ($count > 0 && $withdraw) {
     }
 }
 
+foreach my $ds (@datasources) {
+    $ds->unlock;
+}
+
+exit;
+
 sub output_root {
     my ($estate)       = @_;
     my $des_id         = $estate->id;
@@ -323,5 +352,3 @@ sub output_root {
     
     return file($pipeline_root, @subdirs, $de_id);
 }
-
-exit;

@@ -1,3 +1,42 @@
+0.178   Front-end vrpipe-* scripts now strip control codes the user may enter
+        while typing.
+        Fix for the vcf_merge step so that it works when the post_merge_vcftools
+        option includes a .gz path.
+0.177   vrpipe-handler for setups can sometimes need more memory, so its
+        requirements have been increased to 2900MB.
+        vrpipe-permissions now has a --filter option to pick files to alter
+        based on their metadata.
+        vrtrack datasource now checks individual name and alias, and prefers to
+        use alias as the individual.
+        New Sanger-specific sequenom import pipeline.
+0.176   Hotfix so that the vrtrack datasource ignores when a lane changes to
+        0 reads.
+0.175   Hotfix so that the vrtrack datasource notices and updates when a lane
+        changes it number of reads.
+0.174   Hotfix so that the LSF scheduler can correctly choose queues that have
+        no time limit defined.
+0.173   LSF scheduler now has an improved method of picking the queue to submit
+        jobs to.
+        Jobs with cmd lines that have mutltiple things piped together will now
+        be considered failed if any cmd in the set of pipes exits non-0, instead 
+        of if just the last cmd exits non-0.
+        Fix for the bam parser, allowing tests to pass on modern systems.
+0.172   Fixed setup stalling introduced in previous version.
+        Submission failure emails now include the setup name.
+        vrpipe-server now always spawns a setup handler in production, so that
+        new work for setups can be discovered when all setups were complete
+        when the server was last stopped.
+0.171   vrpipe-fileinfo --path mode now always show details on that path, even
+        if it has been deleted (no need to specify --include_removed).
+        Some bam processing steps now transfer over individual, project and
+        species metadata from their input to their output files.
+        Triggering setups (working out what work they have to do next) no longer
+        occurs while that setup's datasource is being updated, avoiding some
+        wasted effort.
+        vrpipe-setup now allows changing the datasource in some (safe)
+        circumstances.
+        vrpipe-elements --start_from_scratch now works more reliably.
+        vrtrack datasource now notices changes to sample names.
 0.170   Fix for "Could not continue submission management for farm" issue.
 0.169   Critical fix for the "Magic number checking on storable string failed"
         error affecting DataSource updates and vrpipe-server.

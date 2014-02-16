@@ -10,7 +10,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 177;
+    use Test::Most tests => 179;
     use VRPipeTest;
     
     use_ok('VRPipe::Persistent');
@@ -598,6 +598,16 @@ is_deeply [defined($jobs[3]->end_time), $jobs[3]->ok, $jobs[3]->exit_code =~ /65
 is $jobs[3]->stdout_file->slurp(chomp => 1), 'job4', 'stdout file had correct contents';
 is $jobs[3]->stderr_file->slurp(chomp => 1), 'bar',  'stderr file had the correct contents';
 is $jobs[3]->run, -1, 'run() on a failed job does not work';
+
+# test that jobs exit non-zero when any part of a pipe fails
+my $pipe_job = VRPipe::Job->create(cmd => qq[true | true], dir => $tempdir);
+$pipe_job->run;
+run_job($pipe_job);
+is $pipe_job->exit_code, 0, 'a successful pipe job exits code 0';
+$pipe_job = VRPipe::Job->create(cmd => qq[false | true], dir => $tempdir);
+$pipe_job->run;
+run_job($pipe_job);
+isnt $pipe_job->exit_code, 0, 'a pipe job where the first part of the pipe fails exits non-zero';
 
 # running jobs via a submission
 my $t_before = time();

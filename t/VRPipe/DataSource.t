@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 86;
+    use Test::Most tests => 100;
     use VRPipeTest;
     use TestPipelines;
     
@@ -641,13 +641,102 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     # is $element_count, $new_big_num, "ps_big updated to $new_big_num dataelements";
 }
 
+# author-only tests for the irods datasource
+SKIP: {
+    my $num_tests = 11;
+    skip "author-only tests for an iRods datasource", $num_tests unless $ENV{VRPIPE_AUTHOR_TESTS};
+    
+    my $output_root = get_output_dir('datasource_irods_import_dir');
+    
+    # real-world test
+    ok my $ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'all',
+        source  => 'seq',
+        options => {
+            file_query     => q[sequenom_plate LIKE '%' and study_id = 2622 and dcterms:created '<' 2013-07-26],
+            local_root_dir => $output_root
+        }
+      ),
+      'could create an irods datasource';
+    
+    my @results;
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, result_with_inflated_paths($element));
+    }
+    is_deeply \@results, [{ paths => [file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv))], irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv' }, { paths => [file($output_root, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv))], irods_path => '/seq/sequenom/14/62/84/QC288261____20130701_C01.csv' }, { paths => [file($output_root, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv))], irods_path => '/seq/sequenom/95/35/0e/QC288261____20130701_A01.csv' }, { paths => [file($output_root, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv))], irods_path => '/seq/sequenom/d8/7c/21/QC288261____20130701_E01.csv' }], 'got correct results for irods all';
+    
+    my $file = VRPipe::File->create(path => file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)));
+    is_deeply $file->metadata, { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f' }, 'correct file metadata was present on one of the irods files';
+    
+    # more complete test with our own freshly-added files and metadata
+    system("irm -fr /uk10k/home/sb10#Sanger1/vrpipe_testing > /dev/null 2> /dev/null");
+    system("imkdir -p /uk10k/home/sb10#Sanger1/vrpipe_testing");
+    system("iput -R uk10k-green t/data/file.txt /uk10k/home/sb10#Sanger1/vrpipe_testing");
+    system("iput -R uk10k-green t/data/file2.txt /uk10k/home/sb10#Sanger1/vrpipe_testing");
+    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt study_id 2623");
+    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt study_id 2623");
+    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt foo bar");
+    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt simon says");
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'all',
+        source  => 'uk10k',
+        options => {
+            file_query     => q[study_id = 2623],
+            local_root_dir => $output_root
+        }
+      ),
+      'could create another irods datasource';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, result_with_inflated_paths($element));
+    }
+    
+    no warnings; # because my irods paths have #'s in them
+    
+    is_deeply \@results, [{ paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt' }, { paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file2.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt' }], 'got correct results for irods all';
+    
+    $file = VRPipe::File->create(path => file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file.txt)));
+    is_deeply $file->metadata, { study_id => 2623, foo => 'bar' }, 'correct file metadata was present on one of the irods files';
+    
+    # alter a bit of metadata and test that VRPipe notices the change
+    system("imeta -z uk10k mod -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt foo bar v:car");
+    get_elements($ds);
+    $file->reselect_values_from_db;
+    is_deeply $file->metadata, { study_id => 2623, foo => 'bar' }, 'metadata in VRPipe unchanged after change in irods, due to cached result';
+    sleep(5);
+    get_elements($ds);
+    $file->reselect_values_from_db;
+    is_deeply $file->metadata, { study_id => 2623, foo => 'car' }, 'metadata in VRPipe updated correctly after waiting 5 seconds';
+    
+    # add a new file to make sure we pick that up as well
+    system("iput -R uk10k-green t/data/file3.txt /uk10k/home/sb10#Sanger1/vrpipe_testing");
+    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file3.txt study_id 2623");
+    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file3.txt simple simon");
+    sleep(5);
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, result_with_inflated_paths($element));
+    }
+    
+    is_deeply \@results, [{ paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt' }, { paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file2.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt' }, { paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file3.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file3.txt' }], 'got correct results for irods all after adding a new file';
+    
+    $file = VRPipe::File->create(path => file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file3.txt)));
+    is_deeply $file->metadata, { study_id => 2623, simple => 'simon' }, 'correct file metadata was present on the newly added irods file';
+    
+    system("irm -fr /uk10k/home/sb10#Sanger1/vrpipe_testing");
+}
+
 # test a special vrtrack test database; these tests are meant for the author
 # only, but will also work for anyone with a working VRTrack::Factory setup
 # (the '_has_changed gives no change' tests were written at a time when
 #  _has_changed did not set _changed_marker, so are a little weird now but were
 #  kept anyway)
 SKIP: {
-    my $num_tests = 29;
+    my $num_tests = 31;
     skip "author-only tests for a VRTrack datasource", $num_tests unless $ENV{VRPIPE_VRTRACK_TESTDB};
     eval "require VRTrack::Factory;";
     skip "VRTrack::Factory not loading", $num_tests if $@;
@@ -770,6 +859,25 @@ SKIP: {
     is $ds->_source_instance->_has_changed, 1, 'changing withdrawn is always detected';
     $lane_to_add_file_for->is_withdrawn(0);
     $lane_to_add_file_for->update;
+    $ds->_source_instance->_has_changed;
+    is $ds->_source_instance->_has_changed, 0, 'prior to changing sample, _has_changed is false';
+    my $sample = VRTrack::Sample->new($vrtrack, 1);
+    $sample->name('foo');
+    $sample->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing sample name is always detected';
+    $sample->name('NA07056');
+    $sample->update;
+    my $individual = VRTrack::Individual->new($vrtrack, 1);
+    $individual->name('foo');
+    $individual->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing individual name is always detected';
+    $individual->name('NA07056');
+    $individual->update;
+    $individual->alias('foo');
+    $individual->update;
+    is $ds->_source_instance->_has_changed, 1, 'changing individual alias is always detected';
+    $individual->alias('NA07056');
+    $individual->update;
     
     $ds = VRPipe::DataSource->create(
         type    => 'vrtrack',
@@ -825,6 +933,10 @@ SKIP: {
       ),
       'could create a vrtrack datasource';
     
+    $individual = VRTrack::Individual->new_by_name($vrtrack, 'NA19190');
+    $individual->alias('NA19190_from_alias');
+    $individual->update;
+    
     @results = ();
     foreach my $element (@{ get_elements($ds) }) {
         push(@results, result_with_inflated_paths($element));
@@ -849,7 +961,7 @@ SKIP: {
         'reads'        => '45859',
         'library'      => 'g1k_sc_NA19190_YRI_1',
         'lane_id'      => '101',
-        'individual'   => 'NA19190',
+        'individual'   => 'NA19190_from_alias',
         'center_name'  => 'SC',
         'sample'       => 'NA19190',
         'platform'     => 'SLX',

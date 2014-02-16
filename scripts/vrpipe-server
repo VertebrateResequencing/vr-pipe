@@ -330,7 +330,7 @@ sub start_server {
                     die "farmserver ", $farm_server->id, " is no longer in the database\n" unless $in_db;
                     
                     # claim our setups
-                    my @setups = grep { !$_->currently_complete } $farm_server->claim_setups;
+                    my @setups = grep { $deployment eq 'testing' ? !$_->currently_complete : 1 } $farm_server->claim_setups;
                     
                     if (@setups) {
                         # make sure the redis server is alive
@@ -350,10 +350,8 @@ sub start_server {
                         $scheduler->ensure_running(
                             cmd => $shcmd,
                             $deployment eq 'testing' ? (cwd => $cwd) : (),
-                            requirements => VRPipe::Requirements->create(memory => 1500, time => 3600)
+                            requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
                         );
-                        # (in production this submits a job to the scheduler
-                        #  with a name like *9762b9ae16282af15a8d855bd55c8fa5*)
                         
                         # make sure we have sufficient submission handlers
                         # running...

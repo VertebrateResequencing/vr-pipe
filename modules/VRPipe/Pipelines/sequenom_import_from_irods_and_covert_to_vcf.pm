@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::genome_studio_import_genotype_files - a pipeline
+VRPipe::Pipelines::sequenom_import_from_irods_and_covert_to_vcf - a pipeline
 
 =head1 DESCRIPTION
 
@@ -9,7 +9,7 @@ VRPipe::Pipelines::genome_studio_import_genotype_files - a pipeline
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -33,26 +33,26 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::genome_studio_import_genotype_files with VRPipe::PipelineRole {
+class VRPipe::Pipelines::sequenom_import_from_irods_and_covert_to_vcf with VRPipe::PipelineRole {
     method name {
-        return 'genome_studio_import_from_irods';
+        return 'sequenom_import_from_irods_and_covert_to_vcf';
     }
     
     method description {
-        return 'Import gtc files from iRODS along with metadata containing location of stored genome studio genotypes file. The metadata is used to obtain individual sample genotype files for genotype analysis.';
+        return 'Import sequenom CSV files from iRODS, then convert the CSV files to VCFs, adding sequenom_gender metadata.';
     }
     
     method step_names {
         (
-            'irods_get_files_by_basename',        #1
-            'split_genome_studio_genotype_files', #2
+            'irods_get_files_by_basename', #1
+            'sequenom_csv_to_vcf',         #2
         );
     }
     
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'basenames' },
-            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'gtc_files' },
+            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'csv_files' },
         );
     }
     

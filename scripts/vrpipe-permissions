@@ -35,6 +35,7 @@ my $frontend = VRPipe::FrontEnd->new(
     opt_spec    => [
         ['setup=s',  'Pipeline setup (id or name) - REQUIRED', { persistent_object => 'PipelineSetup' }],
         ['steps=s@', q[A step name/number to choose which step outputs you want to change permissions on. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]],
+        ['filter=s', q[Select files based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions]],
         [],
         [q[To change the group on the files:]],
         ['chgrp=s', q[Supply the string you would give to the unix 'chgrp' command (excluding options and path)]],
@@ -54,6 +55,17 @@ unless ($setup) {
 }
 unless ($frontend->option_was_set('chgrp') || $frontend->option_was_set('chmod') || $frontend->option_was_set('chown')) {
     $frontend->die_with_error("At least one of --chgrp, --chmod or --chown is required");
+}
+
+my %filters;
+my $filter = $frontend->opts('filter');
+if ($filter) {
+    foreach my $keyval (split(',', $filter)) {
+        $keyval =~ s/^\s+//;
+        $keyval =~ s/\s+$//;
+        my ($key, $val) = $keyval =~ /^([^=]+)=(.+)/;
+        $filters{$key} = $val;
+    }
 }
 
 # handle --steps
@@ -120,7 +132,16 @@ while (my $estates = $estates_pager->next) {
                     next unless exists $allowed_kinds{$smid}->{$kind};
                 }
                 
-                foreach my $file (grep { $_->update_stats_from_disc; $_->e } map { $_->resolve } @$files) {
+                FILE: foreach my $file (grep { $_->update_stats_from_disc; $_->e } map { $_->resolve } @$files) {
+                    if ($filter) {
+                        my $meta = $file->metadata;
+                        foreach my $key (keys %filters) {
+                            my $val = $meta->{$key} || next FILE;
+                            my $regex = $filters{$key};
+                            next FILE unless $val =~ /$regex/;
+                        }
+                    }
+                    
                     $paths{ $file->path->stringify } = 1;
                 }
             }
