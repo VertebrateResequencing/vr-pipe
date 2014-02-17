@@ -45,6 +45,9 @@ role VRPipe::StepRole {
     use Digest::MD5;
     use VRPipe::StepStatsUtil;
     use VRPipe::Persistent::InMemory;
+    use Cwd 'abs_path';
+    use File::stat;
+    use Fcntl qw(:mode);
     
     method name {
         my $class = ref($self);
@@ -715,16 +718,32 @@ role VRPipe::StepRole {
                 my $ps    = $stepstate->pipelinesetup;
                 my $group = $ps->unix_group;
                 if ($group) {
+                    my $hash = $self->outputs;
+                    my @paths;
+                    while (my ($key, $val) = each %$hash) {
+                        foreach my $file (@$val) {
+                            # but only do this if we were the first to create
+                            # the files
+                            my @step_states = $file->output_by;
+                            return if @step_states > 1;
+                            my $path = $file->path;
+                            if (-l $path) {
+                                my $real = abs_path($path);
+                                if ($real ne $path) {
+                                    my ($real_file) = VRPipe::File->search({ path => $real });
+                                    if ($real_file) {
+                                        @step_states = $real_file->output_by;
+                                        return if @step_states;
+                                    }
+                                }
+                            }
+                            
+                            push(@paths, $path);
+                        }
+                    }
+                    
                     my (undef, undef, $gid) = getgrnam($group);
                     if ($gid) {
-                        my $hash = $self->outputs;
-                        my @paths;
-                        while (my ($key, $val) = each %$hash) {
-                            foreach my $file (@$val) {
-                                push(@paths, $file->path);
-                            }
-                        }
-                        
                         # change the group on the files
                         chown $<, $gid, @paths;
                         
@@ -734,8 +753,22 @@ role VRPipe::StepRole {
                         if ($uid && $uid != $<) {
                             chown $uid, $gid, @paths;
                             
-                            # make sure we still have write access to the files
-                            chmod 0660, @paths; # -rw-rw----
+                            # make sure we still have write access to the files,
+                            # but don't chmod if files already are world
+                            # readable
+                            my $all_can_read = 1;
+                            foreach my $path (@paths) {
+                                my $mode = stat($path)->mode;
+                                my $readable = ($mode & S_IRUSR) && ($mode & S_IRGRP) && ($mode & S_IROTH);
+                                unless ($readable) {
+                                    $all_can_read = 0;
+                                    last;
+                                }
+                            }
+                            
+                            unless ($all_can_read) {
+                                chmod 0660, @paths; # -rw-rw----
+                            }
                         }
                         
                         # try and make parent dirs accessible
