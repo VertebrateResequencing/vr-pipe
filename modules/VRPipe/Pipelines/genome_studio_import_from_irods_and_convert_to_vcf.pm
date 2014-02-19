@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::genome_studio_import_from_irods - a pipeline
+VRPipe::Pipelines::genome_studio_import_from_irods_and_convert_to_vcf - a pipeline
 
 =head1 DESCRIPTION
 
@@ -9,11 +9,11 @@ VRPipe::Pipelines::genome_studio_import_from_irods - a pipeline
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+Sendu Bala <jm23@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,9 +33,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::genome_studio_import_from_irods with VRPipe::PipelineRole {
+class VRPipe::Pipelines::genome_studio_import_from_irods_and_convert_to_vcf with VRPipe::PipelineRole {
     method name {
-        return 'genome_studio_import_from_irods';
+        return 'genome_studio_import_from_irods_and_convert_to_vcf';
     }
     
     method description {
@@ -46,7 +46,8 @@ class VRPipe::Pipelines::genome_studio_import_from_irods with VRPipe::PipelineRo
         (
             'irods_get_files_by_basename',        #1
             'split_genome_studio_genotype_files', #2
-            'genome_studio_fcr_to_vcf',           #3
+            'illumina_coreexome_manifest_to_map', #3
+            'genome_studio_fcr_to_vcf',           #4
         );
     }
     
@@ -54,7 +55,8 @@ class VRPipe::Pipelines::genome_studio_import_from_irods with VRPipe::PipelineRo
         (
             { from_step => 0, to_step => 1, to_key   => 'basenames' },
             { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'gtc_files' },
-            { from_step => 2, to_step => 3, from_key => 'gtype_files', to_key => 'fcr_files' }
+            { from_step => 2, to_step => 4, from_key => 'gtype_files', to_key => 'fcr_files' },
+            { from_step => 3, to_step => 4, from_key => 'map_file', to_key => 'map_file' }
         );
     }
     

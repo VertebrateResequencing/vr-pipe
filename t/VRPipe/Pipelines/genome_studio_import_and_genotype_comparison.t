@@ -6,10 +6,10 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 16;
+    use Test::Most tests => 18;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
-        required_exe => [qw(iget iquest)]
+        required_exe => [qw(iget iquest fcr-to-vcf sort bgzip)]
     );
     use TestPipelines;
     
@@ -33,7 +33,7 @@ close($mysqlfh);
 #  individual))
 
 # setup pipeline
-my $output_dir = get_output_dir('genome_studio_import_genotype_files');
+my $output_dir = get_output_dir('genome_studio_import_from_irods_and_convert_to_vcf');
 my $irods_dir = dir($output_dir, 'irods_import')->stringify;
 
 # setup vrtrack datasource
@@ -53,16 +53,18 @@ foreach my $element (@{ get_elements($ds) }) {
 is $results, 8, 'got correct number of gtc files from the vrtrack db';
 
 # check pipeline has correct steps
-ok my $pipeline = VRPipe::Pipeline->create(name => 'genome_studio_import_genotype_files'), 'able to get the genome_studio_import_genotype_files pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'genome_studio_import_from_irods_and_convert_to_vcf'), 'able to get the genome_studio_import_from_irods_and_convert_to_vcf pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(irods_get_files_by_basename split_genome_studio_genotype_files genome_studio_fcr_to_vcf)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(irods_get_files_by_basename split_genome_studio_genotype_files illumina_coreexome_manifest_to_map genome_studio_fcr_to_vcf)], 'the pipeline has the correct steps';
 
 my $external_gzip_file        = file(qw(t data hipsci_genotyping.fcr.txt.gz))->absolute->stringify;
 my $external_reheader_penncnv = file(qw(t data reheader_penncnv.txt))->absolute->stringify;
-my $snp_manifest_file         = file(qw(t data hipsci_genotyping.snp.manifest))->absolute->stringify;
+my $manifest_file_soure       = file(qw(t data hipsci_genotyping.snp.manifest))->absolute->stringify;
+my $manifest_file             = file($output_dir, 'hipsci_genotyping.manifest')->stringify;
+copy($manifest_file_soure, $manifest_file);
 
 # create pipeline setup
 VRPipe::PipelineSetup->create(
@@ -75,7 +77,7 @@ VRPipe::PipelineSetup->create(
         irods_get_zone     => 'archive',
         external_gzip_file => $external_gzip_file,
         reheader_penncnv   => $external_reheader_penncnv,
-        snp_manifest       => $snp_manifest_file,
+        coreexome_manifest => $manifest_file,
         cleanup            => 0
     }
 );
@@ -94,7 +96,7 @@ foreach my $sample (qw(fpdj fpdj_2 fpdj_1 fpdr fpdr_2 fpdr_1 fpdj_3 fpdr_3)) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@genotype_files, file(@output_subdirs, '2_split_genome_studio_genotype_files', $sample . '.genotyping.fcr.txt'));
-    push(@vcf_files,      file(@output_subdirs, '3_genome_studio_fcr_to_vcf',           $sample . '.genotyping.fcr.vcf.gz'));
+    push(@vcf_files,      file(@output_subdirs, '4_genome_studio_fcr_to_vcf',           "$sample/$sample.vcf.gz"));
 }
 
 # run pipeline and check outputs
@@ -139,7 +141,7 @@ $output_dir = get_output_dir('vcf_merge_and_compare_genotypes');
 $ds         = VRPipe::DataSource->create(
     type    => 'vrpipe',
     method  => 'group_by_metadata',
-    source  => '1[3]',
+    source  => '1[4]',
     options => { metadata_keys => 'individual' }
 );
 
@@ -169,10 +171,10 @@ foreach my $element_id (9, 10) {
     my $individual = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (individual => $individual);
     if ($individual eq 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2') {
-        $expected{genotype_maximum_deviation} = "0.000000:fpdj_3";
+        $expected{genotype_maximum_deviation} = ['==', 0, 'fpdj_3'];
     }
     else {
-        $expected{genotype_maximum_deviation} = "14.230598:fpdr_3";
+        $expected{genotype_maximum_deviation} = ['>', 10, 'fpdr_3'];
     }
     push(@expected_metadata, \%expected);
 }
@@ -182,9 +184,13 @@ ok handle_pipeline(@merged_vcf_files, @gtypex_files), 'vcf_merge_and_compare_gen
 foreach my $vcf_path (@merged_vcf_files) {
     $meta = VRPipe::File->get(path => $vcf_path)->metadata;
     my $expected = shift @expected_metadata;
-    foreach my $key (qw(individual genotype_maximum_deviation)) {
-        is $meta->{$key}, $expected->{$key}, "$key metadata was correct for one of the merged VCF files";
-    }
+    
+    is $meta->{individual}, $expected->{individual}, "individual metadata was correct for one of the merged VCF files";
+    
+    my ($cmp, $eval, $esample) = @{ $expected->{genotype_maximum_deviation} };
+    my ($aval, $asample) = split(':', $meta->{genotype_maximum_deviation});
+    cmp_ok $aval, $cmp, $eval, "genotype_maximum_deviation metadata value was correct for one of the merged VCF files";
+    is $asample, $esample, "genotype_maximum_deviation metadata sample was correct for one of the merged VCF files";
 }
 
 finish;
