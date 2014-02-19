@@ -115,6 +115,7 @@ foreach my $stepmember ($merge_pipeline->step_members) {
 is_deeply \@sb_names, [qw(pluritest_annotation_profile_files pluritest_reformat_genome_studio_expression_files pluritest_plot_gene_expression pluritest_vrtrack_update_images)], 'the pluritest_gene_expression_analysis pipeline has the correct steps';
 
 my $r_bin_path       = '/software/vertres/installs/R-2.15/R';
+my $r_libs           = '/software/vertres/lib/R-2.15.2/';
 my $pluritest_script = '/software/vertres/scripts/pluriTest_commandLine_vrpipe.r';
 my $pluritest_data   = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/expression/pluritest.RData';
 
@@ -131,6 +132,7 @@ my $annot_merge = VRPipe::PipelineSetup->create(
         pluritest_script => $pluritest_script,
         pluritest_data   => $pluritest_data,
         r_bin_path       => $r_bin_path,
+        r_libs           => $r_libs,
         vrtrack_db       => $ENV{VRPIPE_VRTRACK_TESTDB}
     },
     output_root => $output_dir,
