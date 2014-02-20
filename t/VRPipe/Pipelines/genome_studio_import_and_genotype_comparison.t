@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 18;
+    use Test::Most tests => 22;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest fcr-to-vcf sort bgzip)]
@@ -68,7 +68,7 @@ copy($manifest_file_soure, $manifest_file);
 
 # create pipeline setup
 VRPipe::PipelineSetup->create(
-    name        => 'gtc import and qc',
+    name        => 'gtc import',
     datasource  => $ds,
     output_root => $output_dir,
     pipeline    => $pipeline,
@@ -92,7 +92,8 @@ foreach my $lane (@lanes) {
 my @genotype_files;
 my @vcf_files;
 my $element_id = 0;
-foreach my $sample (qw(fpdj fpdj_2 fpdj_1 fpdr fpdr_2 fpdr_1 fpdj_3 fpdr_3)) {
+my @samples    = qw(fpdj fpdj_2 fpdj_1 fpdr fpdr_2 fpdr_1 fpdj_3 fpdr_3);
+foreach my $sample (@samples) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id);
     push(@genotype_files, file(@output_subdirs, '2_split_genome_studio_genotype_files', $sample . '.genotyping.fcr.txt'));
@@ -191,6 +192,92 @@ foreach my $vcf_path (@merged_vcf_files) {
     my ($aval, $asample) = split(':', $meta->{genotype_maximum_deviation});
     cmp_ok $aval, $cmp, $eval, "genotype_maximum_deviation metadata value was correct for one of the merged VCF files";
     is $asample, $esample, "genotype_maximum_deviation metadata sample was correct for one of the merged VCF files";
+}
+
+# we'll also take the opportunity to test the penncnv pipeline, since that also
+# uses files from the genome studio import
+SKIP: {
+    my $num_tests = 4;
+    skip "penncnv cnv calling tests disabled without VRPIPE_PENNCNV_SCRIPT_DIR and VRPIPE_PENNCNV_LIB_DIR environment variables", $num_tests unless ($ENV{VRPIPE_PENNCNV_SCRIPT_DIR} && $ENV{VRPIPE_PENNCNV_LIB_DIR});
+    
+    $output_dir = get_output_dir('penncnv_cnv_calling');
+    
+    # check pipeline has correct steps
+    ok my $penn_pipeline = VRPipe::Pipeline->create(name => 'penncnv_cnv_calling'), 'able to get the penncnv_cnv_calling pipeline';
+    my @sp_names;
+    foreach my $stepmember ($penn_pipeline->step_members) {
+        push(@sp_names, $stepmember->step->name);
+    }
+    is_deeply \@sp_names, [qw(penncnv_detect_cnv penncnv_filter_cnv)], 'the penncnv_cnv_calling pipeline has the correct steps';
+    
+    my $penncnv_script_dir = $ENV{VRPIPE_PENNCNV_SCRIPT_DIR};
+    my $detect_cnv_script  = file($penncnv_script_dir, 'detect_cnv.pl');
+    my $filter_cnv_script  = file($penncnv_script_dir, 'filter_cnv.pl');
+    my $penncnv_lib_dir    = $ENV{VRPIPE_PENNCNV_LIB_DIR};
+    my $detect_cnv_hmm     = file($penncnv_lib_dir, 'custom.hmm');
+    my $detect_cnv_pfb     = file($penncnv_lib_dir, 'HumanExome12v1.1.hg19.pfb');
+    my $filter_numsnps     = 8;
+    my $filter_length      = '120k';
+    my $filter_confidence  = 8;
+    
+    VRPipe::PipelineSetup->create(
+        name       => 'penncnv_calling',
+        pipeline   => $penn_pipeline,
+        datasource => VRPipe::DataSource->create(
+            type   => 'vrpipe',
+            method => 'all',
+            source => '1[2]',
+        ),
+        output_root => $output_dir,
+        options     => {
+            detect_cnv_script => $detect_cnv_script,
+            detect_cnv_hmm    => $detect_cnv_hmm,
+            detect_cnv_pfb    => $detect_cnv_pfb,
+            filter_cnv_script => $filter_cnv_script,
+            filter_numsnps    => $filter_numsnps,
+            filter_length     => $filter_length,
+            filter_confidence => $filter_confidence,
+        }
+    );
+    
+    # get array of output files and check outputs as the pipeline is run
+    my @penncnv_files;
+    $element_id = 10;
+    foreach my $sample (@samples) {
+        $element_id++;
+        my @output_subdirs = output_subdirs($element_id, 3);
+        push(@penncnv_files, file(@output_subdirs, '2_penncnv_filter_cnv', $sample . '.genotyping.fcr.txt.rawcnv.filtercnv'));
+    }
+    ok handle_pipeline(@penncnv_files), 'penncnv_cnv_calling pipeline ran ok and produced the expected output files';
+    
+    # check cnv file metadata
+    my $penn_meta = VRPipe::File->get(path => $penncnv_files[0])->metadata;
+    is_deeply $penn_meta,
+      {
+        'population'        => 'Population',
+        'withdrawn'         => '0',
+        'bases'             => '0',
+        'analysis_uuid'     => '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab',
+        'paired'            => '0',
+        'library_tag'       => 'R01C01',
+        'reads'             => '0',
+        'project'           => 'Wellcome Trust Strategic Award application – HIPS',
+        'library'           => '283163_A01_qc1hip5529683',
+        'lane_id'           => '58',
+        'individual'        => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+        'sample'            => 'FS18.A',
+        'center_name'       => 'SC',
+        'platform'          => 'SLX',
+        'study'             => '2624',
+        'expected_md5'      => 'd7e10a49be4e8b1e42fe71bc68e93856',
+        'lane'              => '9300870057_R01C01',
+        'control'           => 'Stem cell',
+        'species'           => 'Homo sapiens',
+        'insert_size'       => '0',
+        'cnv_analysis_type' => 'penncnv',
+        'storage_path'      => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
+      },
+      'metadata correct for one of the penncnv files';
 }
 
 finish;
