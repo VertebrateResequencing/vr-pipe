@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 43;
+    use Test::Most tests => 44;
     use VRPipeTest (required_exe => [qw(samtools bcftools fastqcheck)]);
     
     use_ok('VRPipe::FileType');
@@ -73,12 +73,16 @@ is $ft->check_type(), 0, 'the bgzipped file fails to validate as a bcf';
 
 # arbitrary filetypes should be supported and treated like 'any', just checking
 # the file extension
-my $type1 = VRPipe::File->create(path => file(qw(t data 2822_6_1.type1))->absolute);
-ok $ft = VRPipe::FileType->create('type1', { file => $type1->path }), 'could create a type1 filetype';
+my $type1 = VRPipe::File->create(path => file(qw(t data 2822_6_1.typ1))->absolute);
+ok $ft = VRPipe::FileType->create('typ1', { file => $type1->path }), 'could create a typ1 filetype';
 isa_ok($ft, 'VRPipe::FileType::any');
-is $ft->type, 'type1', 'type1 type is correct';
-is $ft->check_type(), 1, 'a type1 file passes the check';
-$ft->file(file(qw(t data 2822_6.pe.type2))->absolute);
-is $ft->check_type(), 0, 'a type2 file failes a type1 check';
+is $ft->type, 'typ1', 'typ1 type is correct';
+is $ft->check_type(), 1, 'a typ1 file passes the check';
+$ft->file(file(qw(t data 2822_6.pe.typ2))->absolute);
+is $ft->check_type(), 0, 'a typ2 file failes a typ1 check';
+
+# because the database has a length limit of 4, however, we don't allow long
+# filetypes
+throws_ok { $ft = VRPipe::FileType->create('foobar', {}); } qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype of greater than 4 characters';
 
 exit;
