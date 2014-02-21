@@ -19,6 +19,8 @@ foreach my $stepmember ($pipeline->step_members) {
 is_deeply \@step_names, [qw(irods_get_files_by_basename sequenom_csv_to_vcf)], 'the sequenom_import_from_irods_and_covert_to_vcf pipeline has the correct steps';
 
 my $output_root = get_output_dir('sequenom_import');
+my $sequenom_plex_storage_dir = dir($output_root, 'sequenom_plex_storage_dir');
+mkdir($sequenom_plex_storage_dir);
 
 my $file_query = q[sequenom_plate LIKE '%' and study_id = 2622 and dcterms:created '<' 2013-07-26];
 
@@ -38,10 +40,7 @@ my $ps = VRPipe::PipelineSetup->create(
     datasource  => $ds,
     output_root => $output_root,
     pipeline    => $pipeline,
-    options     => {
-        irods_get_zone => 'seq',
-        snp_manifest   => file(qw(t data W30467_snp_set_info_1000Genomes.tsv))->absolute->stringify
-    }
+    options     => { sequenom_plex_storage_dir => $sequenom_plex_storage_dir }
 );
 
 my @vcf_files;
@@ -81,17 +80,17 @@ foreach my $element_id (5, 6, 7) {
     my $individual = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (sample_cohort => $individual);
     if ($individual eq '20f8a331-69ac-4510-94ab-e3a69c50e46f') {
-        $expected{genotype_maximum_deviation} = "0.000000:QC1Hip-2";
+        $expected{genotype_maximum_deviation} = "0.000000e+00:QC1Hip-2";
         $expected{sequenom_gender}            = 'M';
         $expected{sample}                     = undef;
     }
     elsif ($individual eq '3d52354f-8d84-457d-a668-099a758f0e7b') {
-        $expected{genotype_maximum_deviation} = '0.000000:QC1Hip-4';
+        $expected{genotype_maximum_deviation} = '0.000000e+00:QC1Hip-4';
         $expected{sequenom_gender}            = 'F';
         $expected{sample}                     = 'QC1Hip-4';
     }
     else {
-        $expected{genotype_maximum_deviation} = "0.000000:QC1Hip-3";
+        $expected{genotype_maximum_deviation} = "0.000000e+00:QC1Hip-3";
         $expected{sequenom_gender}            = 'M';
         $expected{sample}                     = 'QC1Hip-3';
     }

@@ -42,9 +42,10 @@ use VRPipe::Base;
 
 class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
     use DateTime;
+    use VRPipe::Persistent::InMemory;
     
     method _build_irods_exes {
-        return { iget => 'iget', iquest => 'iquest', ichksum => 'ichksum' };
+        return { iget => 'iget', ichksum => 'ichksum', imeta => 'imeta' };
     }
     
     around options_definition {
@@ -55,9 +56,10 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 optional      => 1,
                 default_value => 'seq'
             ),
-            snp_manifest => VRPipe::StepOption->create(
-                description => 'file with position and strand of each SNP; if not supplied, an appropriate one will be found and used',
-                optional    => 1
+            sequenom_plex_storage_dir    => VRPipe::StepOption->create(description => 'absolute path to a directory where plex manifest files can be stored'),
+            sequencescape_reference_name => VRPipe::StepOption->create(
+                description   => 'the name of the reference found in sequencescape that future sequencing data would be mapped with',
+                default_value => 'Homo_sapiens (1000Genomes)'
             ),
             vcf_sort_exe => VRPipe::StepOption->create(
                 description   => 'path to the vcf-sort executable',
@@ -83,7 +85,10 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 type        => 'txt',
                 description => 'csv file with sequenom_plex metadata',
                 max_files   => -1,
-                # metadata    => { sequenom_plex => 'sequenom plate plex identifier' }
+                metadata    => {
+                    sequenom_plex => 'sequenom plate plex identifier',
+                    optional      => ['sequenom_plex']
+                }
             ),
         };
     }
@@ -94,7 +99,10 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 type        => 'txt',
                 description => 'VCF file',
                 max_files   => -1,
-                metadata    => { sequenom_gender => 'gender of sample derived from sequenom result' }
+                metadata    => {
+                    sequenom_plex   => 'sequenom plate plex identifier',
+                    sequenom_gender => 'gender of sample derived from sequenom result'
+                }
             )
         };
     }
@@ -109,8 +117,15 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             if ($vcf_sort_opts) {
                 $vcf_sort .= ' ' . $vcf_sort_opts;
             }
-            my $bgzip = $options->{bgzip_exe};
-            my $snp_manifest_file = $options->{snp_manifest} || '';
+            my $bgzip   = $options->{bgzip_exe};
+            my $imeta   = $options->{imeta_exe};
+            my $iget    = $options->{iget_exe};
+            my $ichksum = $options->{ichksum_exe};
+            my $zone    = $options->{irods_get_zone};
+            
+            my $manifest_dir = $options->{sequenom_plex_storage_dir};
+            $self->throw("sequenom_plex_storage_path does not exist") unless -d $manifest_dir;
+            my $ref_name = $options->{sequencescape_reference_name};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             
@@ -123,7 +138,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $csv_file->metadata)->path;
                 my $csv_file_path = $csv_file->path;
                 
-                my $cmd = "use VRPipe::Steps::sequenom_csv_to_vcf; VRPipe::Steps::sequenom_csv_to_vcf->csv_to_vcf(csv => q[$csv_file_path], vcf => q[$vcf_file_path], snp_manifest => q[$snp_manifest_file], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip]);";
+                my $cmd = "use VRPipe::Steps::sequenom_csv_to_vcf; VRPipe::Steps::sequenom_csv_to_vcf->csv_to_vcf(csv => q[$csv_file_path], vcf => q[$vcf_file_path], manifest_dir => q[$manifest_dir], reference_name => q[$ref_name], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip], imeta => q[$imeta], iget => q[$iget], ichksum => q[$ichksum], zone => q[$zone]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -141,21 +156,51 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         return "Convert a CSV file containing sequenom results into a sorted compressed VCF suitable for calling with.";
     }
     
-    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Maybe[Str|File] :$snp_manifest?) {
+    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone) {
         my $csv_file = VRPipe::File->get(path => $csv);
         my $vcf_file = VRPipe::File->get(path => $vcf);
         my $vcf_file_unsorted = $vcf;
         $vcf_file_unsorted =~ s/\.vcf.gz$/.unsorted.vcf/;
         $vcf_file_unsorted = VRPipe::File->get(path => $vcf_file_unsorted);
         
-        unless ($snp_manifest) {
-            # search for it in irods based on the $csv sequenom_plex
-            my $sequenom_plex = $csv_file->meta_value('sequenom_plex');
-            #***...
-            die "determining snp manifest from sequenom_plex not yet implemented\n";
+        # figure out the correct snp manifest file to use based on plex and
+        # reference
+        my $sequenom_plex = $csv_file->meta_value('sequenom_plex');
+        unless ($sequenom_plex) {
+            # parse the csv to figure out the plex
+            my $fh = $csv_file->openr;
+            <$fh>;
+            my $line = <$fh>;
+            my (undef, $id) = split(/\s+/, $line);
+            ($sequenom_plex) = split('-', $id);
+            $sequenom_plex || $self->throw("Could not parse out sequenom_plex from $id in " . $csv_file->path);
         }
         
-        open(my $mfh, '<', $snp_manifest) || die "Could not read from $snp_manifest\n";
+        my $reference_base = $reference_name;
+        $reference_base =~ s/[\s\(\)]+//g;
+        my $snp_manifest_basename = $sequenom_plex . '.' . $reference_base . '.manifest';
+        my $snp_manifest = VRPipe::File->create(path => file($manifest_dir, $snp_manifest_basename));
+        unless ($snp_manifest->s) {
+            # search for it in irods based on the sequenom_plex and reference
+            my ($irods_path) = $self->search_by_metadata(metadata => { reference_name => $reference_name, sequenom_plex => $sequenom_plex }, imeta => $imeta, zone => $zone);
+            $irods_path || $self->throw("Could not find a manifest file in zone $zone matching metadata reference_name => $reference_base, sequenom_plex => $sequenom_plex");
+            
+            # we could have multiple processes in parallel all trying to get
+            # this same file at the same time; lock and block
+            my $im       = VRPipe::Persistent::InMemory->new;
+            my $lock_key = 'sequenom_csv_to_vcf.' . $snp_manifest->path;
+            $im->block_until_locked($lock_key);
+            $snp_manifest->reselect_values_from_db;
+            $snp_manifest->update_stats_from_disc;
+            unless ($snp_manifest->s) {
+                $im->maintain_lock($lock_key);
+                warn "getting ", $snp_manifest->path, " at ", time(), "\n";
+                $self->get_file(source => $irods_path, dest_file => $snp_manifest, iget => $iget, ichksum => $ichksum);
+            }
+            $im->unlock($lock_key);
+        }
+        
+        my $mfh = $snp_manifest->openr;
         my $ofh = $vcf_file_unsorted->openw;
         
         # get date and sample name for VCF header
@@ -278,7 +323,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         else {
             $gender = 'M';
         }
-        $vcf_file->add_metadata({ sequenom_gender => $gender });
+        $vcf_file->add_metadata({ sequenom_gender => $gender, sequenom_plex => $sequenom_plex });
     }
 }
 
