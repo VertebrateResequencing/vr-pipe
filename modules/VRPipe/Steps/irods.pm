@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -123,7 +123,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
             my $irods_file = join('/', ($path, $filename));
             
-            $self->get_file(source => $irods_file, dest_file => $dest_file, iget => $iget, ichksum => $ichksum);
+            $self->get_file(source => $irods_file, dest => $dest_file->path, iget => $iget, ichksum => $ichksum);
         }
         else {
             $self->throw("A file with basename $basename could not be found in iRods zone $zone");
@@ -139,8 +139,8 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return $md5;
     }
     
-    method get_file (ClassName|Object $self: Str :$source!, VRPipe::File :$dest_file!, Str|File :$iget!, Str|File :$ichksum!) {
-        my $dest = $dest_file->path;
+    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!) {
+        my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
         # before we go fetch a file, check the md5 matches what we're expecting
@@ -166,7 +166,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         chmod 0664, $dest;
         
         # double-check the md5 (iget -K doesn't always work?)
-        my $ok = $dest_file->verify_md5($dest, $expected_md5);
+        my $ok = $dest_file->verify_md5(file($dest), $expected_md5);
         unless ($ok) {
             $dest_file->unlink;
             $self->throw("we got $source -> $dest, but the md5 checksum did not match; deleted");
