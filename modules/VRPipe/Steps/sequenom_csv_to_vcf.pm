@@ -56,6 +56,11 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 optional      => 1,
                 default_value => 'seq'
             ),
+            vcf_sample_from_metadata => VRPipe::StepOption->create(
+                description   => 'in the output VCF use the sample name from a metadata value stored on the input csv file',
+                optional      => 1,
+                default_value => 'public_name'
+            ),
             sequenom_plex_storage_dir    => VRPipe::StepOption->create(description => 'absolute path to a directory where plex manifest files can be stored'),
             sequencescape_reference_name => VRPipe::StepOption->create(
                 description   => 'the name of the reference found in sequencescape that future sequencing data would be mapped with',
@@ -117,11 +122,12 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             if ($vcf_sort_opts) {
                 $vcf_sort .= ' ' . $vcf_sort_opts;
             }
-            my $bgzip   = $options->{bgzip_exe};
-            my $imeta   = $options->{imeta_exe};
-            my $iget    = $options->{iget_exe};
-            my $ichksum = $options->{ichksum_exe};
-            my $zone    = $options->{irods_get_zone};
+            my $bgzip                    = $options->{bgzip_exe};
+            my $imeta                    = $options->{imeta_exe};
+            my $iget                     = $options->{iget_exe};
+            my $ichksum                  = $options->{ichksum_exe};
+            my $zone                     = $options->{irods_get_zone};
+            my $vcf_sample_from_metadata = $options->{vcf_sample_from_metadata};
             
             my $manifest_dir = $options->{sequenom_plex_storage_dir};
             $self->throw("sequenom_plex_storage_path does not exist") unless -d $manifest_dir;
@@ -138,7 +144,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $csv_file->metadata)->path;
                 my $csv_file_path = $csv_file->path;
                 
-                my $cmd = "use VRPipe::Steps::sequenom_csv_to_vcf; VRPipe::Steps::sequenom_csv_to_vcf->csv_to_vcf(csv => q[$csv_file_path], vcf => q[$vcf_file_path], manifest_dir => q[$manifest_dir], reference_name => q[$ref_name], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip], imeta => q[$imeta], iget => q[$iget], ichksum => q[$ichksum], zone => q[$zone]);";
+                my $cmd = "use VRPipe::Steps::sequenom_csv_to_vcf; VRPipe::Steps::sequenom_csv_to_vcf->csv_to_vcf(csv => q[$csv_file_path], vcf => q[$vcf_file_path], manifest_dir => q[$manifest_dir], reference_name => q[$ref_name], vcf_sample_from_metadata => q[$vcf_sample_from_metadata], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip], imeta => q[$imeta], iget => q[$iget], ichksum => q[$ichksum], zone => q[$zone]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -156,7 +162,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         return "Convert a CSV file containing sequenom results into a sorted compressed VCF suitable for calling with.";
     }
     
-    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone) {
+    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone, Str :$vcf_sample_from_metadata = 'sample') {
         my $csv_file = VRPipe::File->get(path => $csv);
         my $vcf_file = VRPipe::File->get(path => $vcf);
         my $vcf_file_unsorted = $vcf;
@@ -195,7 +201,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             unless ($snp_manifest->s) {
                 $im->maintain_lock($lock_key);
                 warn "getting ", $snp_manifest->path, " at ", time(), "\n";
-                $self->get_file(source => $irods_path, dest_file => $snp_manifest, iget => $iget, ichksum => $ichksum);
+                $self->get_file(source => $irods_path, dest => $snp_manifest->path, iget => $iget, ichksum => $ichksum);
             }
             $im->unlock($lock_key);
         }
@@ -206,7 +212,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         # get date and sample name for VCF header
         my $dt     = DateTime->now;
         my $date   = $dt->ymd('');
-        my $sample = $csv_file->meta_value('sample');
+        my $sample = $csv_file->meta_value($vcf_sample_from_metadata);
         $vcf_file->disconnect;
         
         # print VCF header
