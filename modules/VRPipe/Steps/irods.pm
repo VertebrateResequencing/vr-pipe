@@ -172,6 +172,41 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             $self->throw("we got $source -> $dest, but the md5 checksum did not match; deleted");
         }
     }
+    
+    method search_by_metadata (ClassName|Object $self: HashRef :$metadata!, Str|File :$imeta!, Str :$zone = 'seq') {
+        my @meta;
+        while (my ($key, $val) = each %$metadata) {
+            push(@meta, "$key = '$val'");
+        }
+        my $meta = join(' and ', @meta);
+        $meta || $self->throw("No metadata supplied");
+        
+        my $cmd = qq[$imeta -z $zone qu -d $meta];
+        open(my $irods, "$cmd |");
+        my (@results, $dir);
+        while (<$irods>) {
+            chomp;
+            # output looks like:
+            # collection: /seq/fluidigm/multiplexes
+            # dataObj: cgp_fluidigm_snp_info_1000Genomes.tsv
+            # ----
+            # collection: /seq/fluidigm/multiplexes
+            # dataObj: ddd_fluidigm_snp_info_1000Genomes.tsv
+            #
+            # or nothing is found and:
+            # No rows found
+            
+            if (/^collection: (.+)$/) {
+                $dir = $1;
+            }
+            elsif (/^dataObj: (.+)$/) {
+                push(@results, "$dir/$1");
+            }
+        }
+        close $irods;
+        
+        return @results;
+    }
 }
 
 1;
