@@ -168,7 +168,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         my $files = $self->_get_irods_files_and_metadata($handle, $file_query);
         $self->_clear_cache;
         
-        my ($warehouse_sth, $public_name);
+        my ($warehouse_sth, $public_name, $donor_id);
         if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
             my $dbh = DBI->connect(
                 "DBI:mysql:host=$ENV{WAREHOUSE_HOST}:port=$ENV{WAREHOUSE_PORT};database=$ENV{WAREHOUSE_DATABASE}",
@@ -179,12 +179,14 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             # from irods, and is one of the few indexed columns, so queries
             # against it should hopefully be quick. (supplier_name in warehouse
             # is sample_supplier_name in irods, and donor_id in warehouse is
-            # sample_cohort in irods, we don't need to also get those columns)
-            my $sql = q[select public_name from current_samples where sanger_sample_id = ?];
+            # sample_cohort in irods, and we get the later in case it isn't
+            # in the irods metadata for some reason)
+            my $sql = q[select public_name, donor_id from current_samples where sanger_sample_id = ?];
             
             $warehouse_sth = $dbh->prepare($sql);
             $warehouse_sth->execute;
             $warehouse_sth->bind_col(1, \$public_name);
+            $warehouse_sth->bind_col(2, \$donor_id);
         }
         
         my $did = $self->_datasource_id;
@@ -194,10 +196,14 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             delete $new_metadata->{vrpipe_irods_order};
             if ($warehouse_sth) {
                 undef $public_name;
+                undef $donor_id;
                 $warehouse_sth->execute($new_metadata->{sample});
                 $warehouse_sth->fetch;
                 if ($public_name) {
                     $new_metadata->{public_name} = "$public_name";
+                }
+                if ($donor_id) {
+                    $new_metadata->{sample_cohort} = "$donor_id";
                 }
             }
             
