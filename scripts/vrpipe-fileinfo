@@ -216,7 +216,10 @@ if ($output_types{dataelement} || $output_types{input_file}) {
         my (undef, $file) = @$file_a;
         my ($stepstate) = $file->output_by();
         unless ($stepstate) {
-            my $parent = $file->parent->resolve(not_symlinks => 1);
+            my $parent = $file->parent;
+            if ($parent) {
+                $parent = $parent->resolve(not_symlinks => 1);
+            }
             ($stepstate) = $parent->output_by() if $parent;
         }
         if ($stepstate) {
@@ -225,7 +228,10 @@ if ($output_types{dataelement} || $output_types{input_file}) {
         else {
             my ($de) = $file->input_to();
             unless ($de) {
-                my $parent = $file->parent->resolve(not_symlinks => 1);
+                my $parent = $file->parent;
+                if ($parent) {
+                    $parent = $parent->resolve(not_symlinks => 1);
+                }
                 ($de) = $parent->input_to() if $parent;
             }
             if ($de) {
