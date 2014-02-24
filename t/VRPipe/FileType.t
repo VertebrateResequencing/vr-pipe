@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 38;
+    use Test::Most tests => 44;
     use VRPipeTest (required_exe => [qw(samtools bcftools fastqcheck)]);
     
     use_ok('VRPipe::FileType');
@@ -12,6 +12,7 @@ BEGIN {
 
 # txt
 ok my $ft = VRPipe::FileType->create('txt', { file => file(qw(t data file.txt)) }), 'could create a txt filetype';
+isa_ok($ft, 'VRPipe::FileType::txt');
 is $ft->type, 'txt', 'txt type is correct';
 is $ft->check_type(), 1, 'a txt file passes the check';
 is_deeply [$ft->num_lines, $ft->num_header_lines, $ft->num_records], [2, 0, 2], 'num_lines, num_header_lines and num_records work for a txt file';
@@ -32,8 +33,6 @@ ok $parser->does('VRPipe::ParserRole'), 'the parser is really a parser';
 ok $ft = VRPipe::FileType->create('bam', { file => file(qw(t data bgzip_compressed_text_file.gz))->absolute }), 'could create a bam filetype with a bgzipped file';
 is $ft->type, 'bam', 'its type is bam';
 is $ft->check_type(), 0, 'the bgzipped file fails to validate as a bam';
-
-throws_ok { $ft = VRPipe::FileType->create('foo', {}); } qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype';
 
 is $ft->read_backwards, 0, 'default read backwards is off';
 # lsf
@@ -71,5 +70,19 @@ is_deeply [$ft->num_lines - $ft->num_header_lines, $ft->num_records, $ft->sample
 ok $ft = VRPipe::FileType->create('bcf', { file => file(qw(t data bgzip_compressed_text_file.gz))->absolute }), 'could create a bcf filetype with a bgzipped file';
 is $ft->type, 'bcf', 'its type is bcf';
 is $ft->check_type(), 0, 'the bgzipped file fails to validate as a bcf';
+
+# arbitrary filetypes should be supported and treated like 'any', just checking
+# the file extension
+my $type1 = VRPipe::File->create(path => file(qw(t data 2822_6_1.typ1))->absolute);
+ok $ft = VRPipe::FileType->create('typ1', { file => $type1->path }), 'could create a typ1 filetype';
+isa_ok($ft, 'VRPipe::FileType::any');
+is $ft->type, 'typ1', 'typ1 type is correct';
+is $ft->check_type(), 1, 'a typ1 file passes the check';
+$ft->file(file(qw(t data 2822_6.pe.typ2))->absolute);
+is $ft->check_type(), 0, 'a typ2 file failes a typ1 check';
+
+# because the database has a length limit of 4, however, we don't allow long
+# filetypes
+throws_ok { $ft = VRPipe::FileType->create('foobar', {}); } qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype of greater than 4 characters';
 
 exit;

@@ -19,7 +19,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -41,7 +41,17 @@ use VRPipe::Base;
 
 class VRPipe::FileType::any with VRPipe::FileTypeRole {
     method check_type {
-        return 1;
+        my $type = $self->type;
+        return 1 if $type eq 'any';
+        
+        #*** can't get inheritance from FileTypeRole to work, so this is
+        # duplicated code :(
+        my $file = $self->file;
+        $file =~ s/\.gz$// unless $type eq 'gz';
+        if ($file =~ /\.$type$/) {
+            return 1;
+        }
+        return 0;
     }
 }
 

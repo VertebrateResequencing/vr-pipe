@@ -14,7 +14,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -45,7 +45,7 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
             bcftools_options => VRPipe::StepOption->create(
                 description   => 'Options for the bcftools merge command. Does not support the --print-header option',
                 optional      => 1,
-                default_value => '-o z'
+                default_value => '-O z'
             )
         };
     }

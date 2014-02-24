@@ -41,6 +41,7 @@ class VRPipe::Steps::pluritest_plot_gene_expression with VRPipe::StepRole {
             pluritest_script => VRPipe::StepOption->create(description => 'path to modified pluritest R script'),
             pluritest_data   => VRPipe::StepOption->create(description => 'path to RData required by R script to plot graphs'),
             r_bin_path       => VRPipe::StepOption->create(description => 'path to specific version of R (2.15) required to run pluritest R script'),
+            r_libs           => VRPipe::StepOption->create(description => 'path to specific version of R libs for R 2.15 to run pluritest R script - R version 3 does not work with PluriTest', default_value => $ENV{R_LIBS} ),
         };
     }
     
@@ -64,6 +65,7 @@ class VRPipe::Steps::pluritest_plot_gene_expression with VRPipe::StepRole {
             my $pluritest_script = $options->{pluritest_script};
             my $pluritest_data   = $options->{pluritest_data};
             my $r_bin_path       = $options->{r_bin_path};
+            my $r_libs           = $options->{r_libs};
             
             foreach my $conv_file (@{ $self->inputs->{conv_files} }) {
                 my $meta      = $conv_file->metadata;
@@ -75,7 +77,7 @@ class VRPipe::Steps::pluritest_plot_gene_expression with VRPipe::StepRole {
                 $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image02.png',  type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
                 $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image03.png',  type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
                 $self->output_file(output_key => 'pluritest_plots', basename => 'pluritest_image03c.png', type => 'bin', metadata => $conv_file->metadata); #may need to add metadata
-                my $cmd = qq[$r_bin_path --slave --args $conv_path $pluritest_data < $pluritest_script];
+                my $cmd = qq[export R_LIBS=$r_libs; $r_bin_path --slave --args $conv_path $pluritest_data < $pluritest_script];
                 $self->dispatch([$cmd, $req]);
             }
         };

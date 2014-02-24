@@ -7,7 +7,7 @@ use Path::Class qw(file dir);
 use POSIX qw(getgroups);
 
 BEGIN {
-    use Test::Most tests => 14;
+    use Test::Most tests => 15;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -251,8 +251,8 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
         },
         body_sub => sub {
             my $self = shift;
-            my @bams = grep { $_->path =~ /\.bam$/ } @{ $self->inputs->{bam_files} };
-            my @fqs  = grep { $_->path =~ /\.fastq$/ } @{ $self->inputs->{fastq_files} };
+            my @bams = @{ $self->inputs->{bam_files} };
+            my @fqs  = @{ $self->inputs->{fastq_files} };
             if (@bams == 1 && @fqs == 2) {
                 foreach my $file (@bams, @fqs) {
                     $file->add_metadata({ ok => 1 });
@@ -277,6 +277,48 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
         $oks++ if $file->metadata->{ok};
     }
     is $oks, 6, 'we were able to run a pipeline where a step took files of 2 different types from the datasource';
+    
+    # it should also work with arbitrary file types where we have no
+    # VRPipe::FileType::module written
+    $ds = VRPipe::DataSource->create(
+        type    => 'fofn_with_metadata',
+        method  => 'grouped_by_metadata',
+        source  => file(qw(t data datasource.fofnwm_mixed_unknown_types)),
+        options => { metadata_keys => 'lane' }
+    );
+    $single_step = VRPipe::Step->create(
+        name              => 'two_unknown_type_step',
+        inputs_definition => {
+            type1_files => VRPipe::StepIODefinition->create(type => 'typ1', description => 'typ1 files', max_files => -1, metadata => { lane => 'lane name' }),
+            type2_files => VRPipe::StepIODefinition->create(type => 'typ2', description => 'typ2 files', max_files => -1, metadata => { lane => 'lane name' })
+        },
+        body_sub => sub {
+            my $self   = shift;
+            my @type1s = @{ $self->inputs->{type1_files} };
+            my @type2s = @{ $self->inputs->{type2_files} };
+            if (@type2s == 1 && @type1s == 2) {
+                foreach my $file (@type1s, @type2s) {
+                    $file->add_metadata({ ok => 1 });
+                }
+            }
+        },
+        outputs_definition => {},
+        post_process_sub   => sub { return 1 },
+        description        => 'a step that takes 2 different unknown file types'
+    );
+    $two_type_pipeline = VRPipe::Pipeline->create(name => 'two_unknown_type_step_pipeline', description => 'two_unknown_type_step pipeline');
+    VRPipe::StepAdaptor->create(pipeline => $two_type_pipeline, to_step => 1, adaptor_hash => { type1_files => { data_element => 0 }, type2_files => { data_element => 0 } });
+    $two_type_pipeline->add_step($single_step);
+    
+    VRPipe::PipelineSetup->create(name => 'two_unknown_type_one_step_ps', datasource => $ds, output_root => $output_root, pipeline => $two_type_pipeline);
+    handle_pipeline();
+    
+    $oks = 0;
+    foreach my $basename (qw(2822_6_1.typ1 2822_6_2.typ1 2822_6.pe.typ2 2822_7_1.typ1 2822_7_2.typ1 2822_7.pe.typ2)) {
+        my $file = VRPipe::File->get(path => file('t', 'data', $basename)->absolute);
+        $oks++ if $file->metadata->{ok};
+    }
+    is $oks, 6, 'we were able to run a pipeline where a step took files of 2 different unknown types from the datasource';
 }
 
 # when a job fails and is retried, test that we can get access to previous

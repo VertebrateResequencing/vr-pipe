@@ -9,25 +9,15 @@ This step converts the data in a single-sample fcr file (eg. produced by the
 split_genome_studio_genotype_files step) into an accurate VCF with correct SNP
 positions and strand orientation.
 
-A necessary option for this is 'snp_manifest', which provides a file with
-information on the SNPs referenced in the FCR file.
-
-The file should have 6 tab separated columns: SNP ID, Illumina strand, SNP,
-chr, coord, strand-file strand
-
-eg: SNP1   BOT [T/C]    MT  6753    +
-
-(In the vr-codebase repository there is a hipsci_genotypingManifestSummary.pl
-script that can generate this file given a manifest file from an Illumina chip
-and a 'strand' file: http://www.well.ox.ac.uk/~wrayner/strand/)
+It uses the fcr-to-vcf exe from the vr-codebase git repository.
 
 =head1 AUTHOR
 
-Sendu Bala <sb10@sanger.ac.uk>. Phil Carter <pc12@sanger.ac.uk>.
+Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -52,27 +42,25 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
     
     method options_definition {
         return {
-            snp_manifest => VRPipe::StepOption->create(description => 'snp chip manifest and strand summary file', optional => 0),
-            vcf_sort_exe => VRPipe::StepOption->create(
-                description   => 'path to the vcf-sort executable',
+            vcf_sample_from_metadata => VRPipe::StepOption->create(
+                description   => 'if the id in the second column of the fcr matches metadata with key x, but you want the sample id in the VCF to have metadata from key y, provide x:y',
                 optional      => 1,
-                default_value => 'vcf-sort'
+                default_value => 'library:sample'
             ),
-            vcf_sort_options => VRPipe::StepOption->create(
-                description   => 'options to vcf-sort',
+            fcr_to_vcf_exe => VRPipe::StepOption->create(
+                description   => 'path to the fcr-to-vcf executable',
                 optional      => 1,
-                default_value => '--chromosomal-order'
-            ),
-            bgzip_exe => VRPipe::StepOption->create(
-                description   => 'path to the bgzip executable',
-                optional      => 1,
-                default_value => 'bgzip'
+                default_value => 'fcr-to-vcf'
             )
         };
     }
     
     method inputs_definition {
         return {
+            map_file => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                description => 'mapping file produced by the illumina_coreexome_manifest_to_map step'
+            ),
             fcr_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'single-sample fcr file with sample metadata',
@@ -85,7 +73,7 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
     method outputs_definition {
         return {
             vcf_files => VRPipe::StepIODefinition->create(
-                type        => 'txt',
+                type        => 'vcf',
                 description => 'VCF file',
                 max_files   => -1,
                 metadata    => { sample => 'sample name for cell line' }
@@ -95,31 +83,45 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self              = shift;
-            my $options           = $self->options;
-            my $snp_manifest_file = $options->{snp_manifest};
-            $self->throw("snp_manifest file $snp_manifest_file does not exist") unless -s $snp_manifest_file;
-            
-            my $vcf_sort      = $options->{vcf_sort_exe};
-            my $vcf_sort_opts = $options->{vcf_sort_options};
-            if ($vcf_sort_opts) {
-                $vcf_sort .= ' ' . $vcf_sort_opts;
+            my $self       = shift;
+            my $options    = $self->options;
+            my $fcr_to_vcf = $options->{fcr_to_vcf_exe};
+            my $sfm        = $options->{vcf_sample_from_metadata};
+            my ($src_key, $dst_key);
+            my $summary_s = '';
+            if ($sfm) {
+                ($src_key, $dst_key) = split(':', $sfm);
+                $summary_s = " -s $sfm";
             }
-            my $bgzip = $options->{bgzip_exe};
             
+            my ($map_file) = @{ $self->inputs->{map_file} };
+            $map_file = $map_file->path;
             my $req = $self->new_requirements(memory => 500, time => 1);
             
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'fcr-to-vcf',
+                    version => 0,
+                    summary => "cat \$fcr_file | $fcr_to_vcf -a \$map_file$summary_s -o \$outdir"
+                )
+            );
+            
             foreach my $fcr_file (@{ $self->inputs->{fcr_files} }) {
-                my $basename = $fcr_file->basename;
-                $basename =~ s/\.txt$//;
-                my $unsorted = $basename . '.unsorted.vcf';
-                $basename .= '.vcf.gz';
-                $self->output_file(basename => $unsorted, type => 'vcf', temporary => 1);
-                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $fcr_file->metadata)->path;
+                my $meta = $fcr_file->metadata;
+                
+                my $outdir = 'output';
+                my $s      = '';
+                if ($src_key && $dst_key && defined $meta->{$src_key} && defined $meta->{$dst_key}) {
+                    $s      = " -s $meta->{$src_key}:$meta->{$dst_key}";
+                    $outdir = $meta->{$dst_key};
+                }
+                
+                #$self->output_file(basename => $basename, type => 'vcf', temporary => 1);
+                
+                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => file($outdir, "$outdir.vcf.gz"), type => 'vcf', metadata => $meta)->path;
                 my $fcr_file_path = $fcr_file->path;
                 
-                my $cmd = "use VRPipe::Steps::genome_studio_fcr_to_vcf; VRPipe::Steps::genome_studio_fcr_to_vcf->fcr_to_vcf(fcr => q[$fcr_file_path], vcf => q[$vcf_file_path], snp_manifest => q[$snp_manifest_file], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip]);";
-                $self->dispatch_vrpipecode($cmd, $req);
+                $self->dispatch(["cat $fcr_file_path | $fcr_to_vcf -a $map_file$s -o $outdir", $req]);
             }
         };
     }

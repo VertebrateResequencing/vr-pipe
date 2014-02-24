@@ -1,3 +1,22 @@
+0.179   The unix_group option during vrpipe-setup no longer results in file
+        permissions changing for files produced by other setups.
+        Added r_libs option to pluritest_plot_gene_expression step to allow it
+        to be used with a specific R install.
+        vcf_merge_different_samples step now works with the latest bcftools.
+        genome_studio_import_from_irods pipeline replaced with
+        genome_studio_import_from_irods_and_convert_to_vcf pipeline featuring
+        new illumina_coreexome_manifest_to_map step and updated
+        genome_studio_fcr_to_vcf step that both use fcr-to-vcf script from the
+        vr-codebase git repository.
+        Steps in VRPipe can now specify that they take as input arbitrary file
+        types, useful for when your step takes multiple different text formats
+        and you need to distinguish between them or take these from the
+        datasource.
+        The irods step got a search_by_metadata() method.
+        The sequenom_csv_to_vcf step now takes a sequenom_plex_storage_dir and
+        reference_name option and gets the correct plex manifest from irods.
+        The irods datasource now queries the Sanger-specific 'warehouse'
+        database and adds public_name and donor_id metadata to files.
 0.178   Front-end vrpipe-* scripts now strip control codes the user may enter
         while typing.
         Fix for the vcf_merge step so that it works when the post_merge_vcftools

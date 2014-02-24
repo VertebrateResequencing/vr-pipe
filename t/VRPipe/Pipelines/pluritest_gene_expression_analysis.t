@@ -114,36 +114,43 @@ foreach my $stepmember ($merge_pipeline->step_members) {
 
 is_deeply \@sb_names, [qw(pluritest_annotation_profile_files pluritest_reformat_genome_studio_expression_files pluritest_plot_gene_expression pluritest_vrtrack_update_images)], 'the pluritest_gene_expression_analysis pipeline has the correct steps';
 
-my $r_bin_path       = '/software/vertres/installs/R-2.15/R';
-my $pluritest_script = '/software/vertres/scripts/pluriTest_commandLine_vrpipe.r';
-my $pluritest_data   = '/lustre/scratch105/vrpipe/refs/human/ncbi37/resources_hipsci/expression/pluritest.RData';
-
-my $annot_merge = VRPipe::PipelineSetup->create(
-    name       => 'expression annot merge',
-    pipeline   => $merge_pipeline,
-    datasource => VRPipe::DataSource->create(
-        type    => 'vrpipe',
-        method  => 'group_by_metadata',
-        source  => 'idat import and qc[1]',
-        options => { metadata_keys => 'individual' }
-    ),
-    options => {
-        pluritest_script => $pluritest_script,
-        pluritest_data   => $pluritest_data,
-        r_bin_path       => $r_bin_path,
-        vrtrack_db       => $ENV{VRPIPE_VRTRACK_TESTDB}
-    },
-    output_root => $output_dir,
-);
-
-my @final_files;
-foreach my $element (@{ get_elements($annot_merge->datasource) }) {
-    my @output_dirs = output_subdirs($element->id, $annot_merge->id);
-    foreach my $kind (qw(01 02a 02 03c 03)) {
-        push(@final_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest_image' . $kind . '.png'));
+SKIP: {
+    my $num_tests = 1;
+    skip "further pluritest_gene_expression_analysis tests without these environment variables set: VRPIPE_PLURITEST_RSCRIPT, VRPIPE_PLURITEST_RDATA, VRPIPE_PLURITEST_RBIN, VRPIPE_PLURITEST_RLIBS", $num_tests unless ($ENV{VRPIPE_PLURITEST_RSCRIPT} && $ENV{VRPIPE_PLURITEST_RDATA} && $ENV{VRPIPE_PLURITEST_RBIN} && $ENV{VRPIPE_PLURITEST_RLIBS});
+    
+    my $r_bin_path       = $ENV{VRPIPE_PLURITEST_RBIN};
+    my $r_libs           = $ENV{VRPIPE_PLURITEST_RLIBS};
+    my $pluritest_script = $ENV{VRPIPE_PLURITEST_RSCRIPT};
+    my $pluritest_data   = $ENV{VRPIPE_PLURITEST_RDATA};
+    
+    my $annot_merge = VRPipe::PipelineSetup->create(
+        name       => 'expression annot merge',
+        pipeline   => $merge_pipeline,
+        datasource => VRPipe::DataSource->create(
+            type    => 'vrpipe',
+            method  => 'group_by_metadata',
+            source  => 'idat import and qc[1]',
+            options => { metadata_keys => 'individual' }
+        ),
+        options => {
+            pluritest_script => $pluritest_script,
+            pluritest_data   => $pluritest_data,
+            r_bin_path       => $r_bin_path,
+            r_libs           => $r_libs,
+            vrtrack_db       => $ENV{VRPIPE_VRTRACK_TESTDB}
+        },
+        output_root => $output_dir,
+    );
+    
+    my @final_files;
+    foreach my $element (@{ get_elements($annot_merge->datasource) }) {
+        my @output_dirs = output_subdirs($element->id, $annot_merge->id);
+        foreach my $kind (qw(01 02a 02 03c 03)) {
+            push(@final_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest_image' . $kind . '.png'));
+        }
+        push(@final_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest.csv'));
     }
-    push(@final_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest.csv'));
+    ok handle_pipeline(@final_files), 'pluritest_gene_expression_analysis pipeline ran ok and produced the expected image files';
 }
-ok handle_pipeline(@final_files), 'pluritest_gene_expression_analysis pipeline ran ok and produced the expected image files';
 
 finish;

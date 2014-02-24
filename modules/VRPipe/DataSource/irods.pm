@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -59,7 +59,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
     
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option. The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 1 minute when testing, and 1 day in production.";
+            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option. The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 1 minute when testing, and 1 day in production. The Sanger-specific (otherwise ignorable) add_metadata_from_warehouse option (enabled by default, requiring the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER) will add extra metadata to the files with the key public_name (if defined).";
         }
         return '';
     }
@@ -161,18 +161,52 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return \%files;
     }
     
-    method all (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?) {
+    method all (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse = 1) {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
         my $files = $self->_get_irods_files_and_metadata($handle, $file_query);
         $self->_clear_cache;
         
+        my ($warehouse_sth, $public_name, $donor_id);
+        if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
+            my $dbh = DBI->connect(
+                "DBI:mysql:host=$ENV{WAREHOUSE_HOST}:port=$ENV{WAREHOUSE_PORT};database=$ENV{WAREHOUSE_DATABASE}",
+                $ENV{WAREHOUSE_USER}, undef, { 'RaiseError' => 1, 'PrintError' => 0 }
+            );
+            
+            # sanger_sample_id in warehouse corresponds to 'sample' metadata
+            # from irods, and is one of the few indexed columns, so queries
+            # against it should hopefully be quick. (supplier_name in warehouse
+            # is sample_supplier_name in irods, and donor_id in warehouse is
+            # sample_cohort in irods, and we get the later in case it isn't
+            # in the irods metadata for some reason)
+            my $sql = q[select public_name, donor_id from current_samples where sanger_sample_id = ?];
+            
+            $warehouse_sth = $dbh->prepare($sql);
+            $warehouse_sth->execute;
+            $warehouse_sth->bind_col(1, \$public_name);
+            $warehouse_sth->bind_col(2, \$donor_id);
+        }
+        
         my $did = $self->_datasource_id;
         my @element_args;
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
             my $new_metadata = $files->{$path};
             delete $new_metadata->{vrpipe_irods_order};
+            if ($warehouse_sth) {
+                undef $public_name;
+                undef $donor_id;
+                $warehouse_sth->execute($new_metadata->{sample});
+                $warehouse_sth->fetch;
+                if ($public_name) {
+                    $new_metadata->{public_name} = "$public_name";
+                }
+                if ($donor_id) {
+                    $new_metadata->{sample_cohort} = "$donor_id";
+                }
+            }
+            
             my $sub_path = $path;
             $sub_path =~ s/^\///;
             my $file_abs_path = file($local_root_dir, $sub_path)->stringify;
@@ -202,13 +236,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             
             # if there was no metadata this will add metadata to the file.
             $vrfile->add_metadata($new_metadata, replace_data => 0);
+            $vrfile->add_metadata({ irods_path => $path });
             
             my $result_hash = { paths => [$file_abs_path], irods_path => $path };
             if ($changed) {
                 $result_hash->{changed} = [[$vrfile, $new_metadata]];
                 $self->_start_over_elements_due_to_file_metadata_change($result_hash);
                 delete $result_hash->{changed};
-            
             }
             push(@element_args, { datasource => $did, result => $result_hash });
         }
