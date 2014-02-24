@@ -20,7 +20,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -59,7 +59,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             vcf_sample_from_metadata => VRPipe::StepOption->create(
                 description   => 'in the output VCF use the sample name from a metadata value stored on the input csv file',
                 optional      => 1,
-                default_value => 'public_name'
+                default_value => 'sample'
             ),
             sequenom_plex_storage_dir    => VRPipe::StepOption->create(description => 'absolute path to a directory where plex manifest files can be stored'),
             sequencescape_reference_name => VRPipe::StepOption->create(
