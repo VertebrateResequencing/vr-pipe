@@ -91,7 +91,7 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
                 my $basename             = $sample . '.genotyping.fcr.txt';
                 my $sample_genotype_file = $self->output_file(output_key => 'gtype_files', basename => $basename, type => 'txt', metadata => $gtc_file->metadata)->path;
                 my $header_cmd           = $reheader_penncnv ? "$zgrep_exe $header_regex $reheader_penncnv > $sample_genotype_file " : "$zgrep_exe $header_regex $genotype_gzip_path > $sample_genotype_file ";
-                my $cmd_line             = $header_cmd . "&& $zgrep_exe $lib_sample $genotype_gzip_path >> $sample_genotype_file";
+                my $cmd_line             = $header_cmd . qq[&& $zgrep_exe "$lib_sample\\s" $genotype_gzip_path >> $sample_genotype_file];
                 $self->dispatch([$cmd_line, $req]);
             }
         };
