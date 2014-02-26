@@ -1,3 +1,7 @@
+0.180   Fixed resolve bug in vrpipe-fileinfo.
+        htscmd_gtcheck step now has a expected_sample_from_metadata_key option.
+        split_genome_studio_genotype_files step fixed to get correct samples.
+        penncnv_detect_cnv step now has a perl_for_penncnv_exe option.
 0.179   The unix_group option during vrpipe-setup no longer results in file
         permissions changing for files produced by other setups.
         Added r_libs option to pluritest_plot_gene_expression step to allow it
