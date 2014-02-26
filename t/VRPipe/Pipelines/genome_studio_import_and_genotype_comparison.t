@@ -37,7 +37,7 @@ my $output_dir = get_output_dir('genome_studio_import_from_irods_and_convert_to_
 my $irods_dir = dir($output_dir, 'irods_import')->stringify;
 
 # setup vrtrack datasource
-ok my $ds = VRPipe::DataSource->create(
+ok my $vrtrack_ds = VRPipe::DataSource->create(
     type    => 'vrtrack',
     method  => 'analysis_genome_studio',
     source  => $ENV{VRPIPE_VRTRACK_TESTDB},
@@ -47,15 +47,15 @@ ok my $ds = VRPipe::DataSource->create(
 
 # check correct number of gtc file retrieved
 my $results = 0;
-foreach my $element (@{ get_elements($ds) }) {
+foreach my $element (@{ get_elements($vrtrack_ds) }) {
     $results++;
 }
 is $results, 8, 'got correct number of gtc files from the vrtrack db';
 
 # check pipeline has correct steps
-ok my $pipeline = VRPipe::Pipeline->create(name => 'genome_studio_import_from_irods_and_convert_to_vcf'), 'able to get the genome_studio_import_from_irods_and_convert_to_vcf pipeline';
+ok my $import_pipeline = VRPipe::Pipeline->create(name => 'genome_studio_import_from_irods_and_convert_to_vcf'), 'able to get the genome_studio_import_from_irods_and_convert_to_vcf pipeline';
 my @s_names;
-foreach my $stepmember ($pipeline->step_members) {
+foreach my $stepmember ($import_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(irods_get_files_by_basename split_genome_studio_genotype_files illumina_coreexome_manifest_to_map genome_studio_fcr_to_vcf)], 'the pipeline has the correct steps';
@@ -69,9 +69,9 @@ copy($manifest_file_soure, $manifest_file);
 # create pipeline setup
 VRPipe::PipelineSetup->create(
     name        => 'gtc import',
-    datasource  => $ds,
+    datasource  => $vrtrack_ds,
     output_root => $output_dir,
-    pipeline    => $pipeline,
+    pipeline    => $import_pipeline,
     options     => {
         vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
         irods_get_zone     => 'archive',
@@ -139,7 +139,7 @@ is $meta->{individual}, 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2', 'the VCF file ha
 # we'll take this opportunity to test the vcf_merge_and_compare_genotypes
 # pipeline as well
 $output_dir = get_output_dir('vcf_merge_and_compare_genotypes');
-$ds         = VRPipe::DataSource->create(
+my $vrpipe_ds = VRPipe::DataSource->create(
     type    => 'vrpipe',
     method  => 'group_by_metadata',
     source  => '1[4]',
@@ -147,9 +147,9 @@ $ds         = VRPipe::DataSource->create(
 );
 
 # check pipeline has correct steps
-ok $pipeline = VRPipe::Pipeline->create(name => 'vcf_merge_and_compare_genotypes'), 'able to get the vcf_merge_and_compare_genotypes pipeline';
+ok my $gt_pipeline = VRPipe::Pipeline->create(name => 'vcf_merge_and_compare_genotypes'), 'able to get the vcf_merge_and_compare_genotypes pipeline';
 @s_names = ();
-foreach my $stepmember ($pipeline->step_members) {
+foreach my $stepmember ($gt_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 is_deeply \@s_names, [qw(vcf_index vcf_merge_different_samples vcf_index vcf_genotype_comparison)], 'the pipeline has the correct steps';
@@ -157,9 +157,9 @@ is_deeply \@s_names, [qw(vcf_index vcf_merge_different_samples vcf_index vcf_gen
 # create pipeline setup
 VRPipe::PipelineSetup->create(
     name        => 'genotype comparison',
-    datasource  => $ds,
+    datasource  => $vrpipe_ds,
     output_root => $output_dir,
-    pipeline    => $pipeline,
+    pipeline    => $gt_pipeline,
     options     => {}
 );
 
@@ -198,7 +198,7 @@ foreach my $vcf_path (@merged_vcf_files) {
 # uses files from the genome studio import
 SKIP: {
     my $num_tests = 4;
-    skip "penncnv cnv calling tests disabled without VRPIPE_PENNCNV_SCRIPT_DIR and VRPIPE_PENNCNV_LIB_DIR environment variables", $num_tests unless ($ENV{VRPIPE_PENNCNV_SCRIPT_DIR} && $ENV{VRPIPE_PENNCNV_LIB_DIR});
+    skip "penncnv cnv calling tests disabled without VRPIPE_PENNCNV_SCRIPT_DIR and VRPIPE_PENNCNV_LIB_DIR VRPIPE_PENNCNV_PERL environment variables", $num_tests unless ($ENV{VRPIPE_PENNCNV_SCRIPT_DIR} && $ENV{VRPIPE_PENNCNV_LIB_DIR} && $ENV{VRPIPE_PENNCNV_PERL});
     
     $output_dir = get_output_dir('penncnv_cnv_calling');
     
@@ -210,72 +210,103 @@ SKIP: {
     }
     is_deeply \@sp_names, [qw(penncnv_detect_cnv penncnv_filter_cnv)], 'the penncnv_cnv_calling pipeline has the correct steps';
     
-    my $penncnv_script_dir = $ENV{VRPIPE_PENNCNV_SCRIPT_DIR};
-    my $detect_cnv_script  = file($penncnv_script_dir, 'detect_cnv.pl');
-    my $filter_cnv_script  = file($penncnv_script_dir, 'filter_cnv.pl');
-    my $penncnv_lib_dir    = $ENV{VRPIPE_PENNCNV_LIB_DIR};
-    my $detect_cnv_hmm     = file($penncnv_lib_dir, 'custom.hmm');
-    my $detect_cnv_pfb     = file($penncnv_lib_dir, 'HumanExome12v1.1.hg19.pfb');
-    my $filter_numsnps     = 8;
-    my $filter_length      = '120k';
-    my $filter_confidence  = 8;
+    # so that these tests will pass, we need to use a new gtc import based on
+    # a different bit of the external_gzip_file (which is too big to use all of,
+    # and where this new bit fails the previous tests)
+    $external_gzip_file = file(qw(t data hipsci_genotyping.fcr_v2.txt.gz))->absolute->stringify;
+    my $gtc_import_setup = VRPipe::PipelineSetup->create(
+        name        => 'gtc import 2',
+        datasource  => $vrtrack_ds,
+        output_root => $output_dir,
+        pipeline    => $import_pipeline,
+        options     => {
+            vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
+            irods_get_zone     => 'archive',
+            external_gzip_file => $external_gzip_file,
+            reheader_penncnv   => $external_reheader_penncnv,
+            coreexome_manifest => $manifest_file,
+            cleanup            => 0
+        }
+    );
+    handle_pipeline();
     
-    VRPipe::PipelineSetup->create(
+    # create pipeline setup
+    my $penncnv_script_dir  = $ENV{VRPIPE_PENNCNV_SCRIPT_DIR};
+    my $detect_cnv_script   = file($penncnv_script_dir, 'detect_cnv.pl');
+    my $filter_cnv_script   = file($penncnv_script_dir, 'filter_cnv.pl');
+    my $penncnv_lib_dir     = $ENV{VRPIPE_PENNCNV_LIB_DIR};
+    my $penncnv_perl        = $ENV{VRPIPE_PENNCNV_PERL};
+    my $detect_cnv_hmm      = file($penncnv_lib_dir, 'custom.hmm');
+    my $detect_cnv_pfb      = file($penncnv_lib_dir, 'HumanExome12v1.1.hg19.pfb');
+    my $filter_numsnps      = 8;
+    my $filter_length       = '120k';
+    my $filter_confidence   = 8;
+    my $gtc_import_setup_id = $gtc_import_setup->id;
+    my $penn_setup          = VRPipe::PipelineSetup->create(
         name       => 'penncnv_calling',
         pipeline   => $penn_pipeline,
         datasource => VRPipe::DataSource->create(
             type   => 'vrpipe',
             method => 'all',
-            source => '1[2]',
+            source => $gtc_import_setup_id . '[2]',
         ),
         output_root => $output_dir,
         options     => {
-            detect_cnv_script => $detect_cnv_script,
-            detect_cnv_hmm    => $detect_cnv_hmm,
-            detect_cnv_pfb    => $detect_cnv_pfb,
-            filter_cnv_script => $filter_cnv_script,
-            filter_numsnps    => $filter_numsnps,
-            filter_length     => $filter_length,
-            filter_confidence => $filter_confidence,
+            detect_cnv_script    => $detect_cnv_script,
+            detect_cnv_hmm       => $detect_cnv_hmm,
+            detect_cnv_pfb       => $detect_cnv_pfb,
+            filter_cnv_script    => $filter_cnv_script,
+            filter_numsnps       => $filter_numsnps,
+            filter_length        => $filter_length,
+            filter_confidence    => $filter_confidence,
+            perl_for_penncnv_exe => $penncnv_perl,
         }
     );
     
     # get array of output files and check outputs as the pipeline is run
     my @penncnv_files;
-    $element_id = 10;
+    my $pager = $penn_setup->datasource->elements;
+    my @element_ids;
+    while (my $es = $pager->next) {
+        push(@element_ids, map { $_->id } @$es);
+    }
+    
     foreach my $sample (@samples) {
-        $element_id++;
-        my @output_subdirs = output_subdirs($element_id, 3);
+        my @output_subdirs = output_subdirs(shift(@element_ids), $penn_setup->id);
         push(@penncnv_files, file(@output_subdirs, '2_penncnv_filter_cnv', $sample . '.genotyping.fcr.txt.rawcnv.filtercnv'));
     }
     ok handle_pipeline(@penncnv_files), 'penncnv_cnv_calling pipeline ran ok and produced the expected output files';
     
     # check cnv file metadata
     my $penn_meta = VRPipe::File->get(path => $penncnv_files[0])->metadata;
-    is_deeply $penn_meta,
-      {
-        'population'        => 'Population',
-        'withdrawn'         => '0',
-        'bases'             => '0',
-        'analysis_uuid'     => '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab',
-        'paired'            => '0',
-        'library_tag'       => 'R01C01',
-        'reads'             => '0',
-        'project'           => 'Wellcome Trust Strategic Award application – HIPS',
-        'library'           => '283163_A01_qc1hip5529683',
-        'lane_id'           => '58',
-        'individual'        => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-        'sample'            => 'FS18.A',
-        'center_name'       => 'SC',
-        'platform'          => 'SLX',
-        'study'             => '2624',
-        'expected_md5'      => 'd7e10a49be4e8b1e42fe71bc68e93856',
-        'lane'              => '9300870057_R01C01',
-        'control'           => 'Stem cell',
-        'species'           => 'Homo sapiens',
-        'insert_size'       => '0',
-        'cnv_analysis_type' => 'penncnv',
-        'storage_path'      => '/lustre/scratch105/vrpipe/refs/hipsci/resources/genotyping/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz'
+    is_deeply $penn_meta, {
+        'analysis_uuid' => '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab',
+        'bases'         => '0',
+        'withdrawn'     => '0',
+        'population'    => 'Population',
+        'paired'        => '0',
+        'reads'         => '0',
+        'project'       => 'G0325 [coreex] Wellcome Trust Strategic Award application - HIPS',
+        'library'       => '283163_D02_qc1hip5533824',
+        'library_tag'   => '9300870057_R06C02',
+        'lane_id'       => '151',
+        'individual'    => 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2',
+        'platform'      => 'SLX',
+        'center_name'   => 'SC',
+        
+        'sample'       => 'fpdj',
+        'expected_md5' => 'a965097662c37a2d74a7ca429f58f726',
+        'study'        => '2624',
+        'control'      => 'Control',
+        'lane'         => '9300870057_R06C02',
+        
+        'species'     => 'Homo sapiens',
+        'insert_size' => '0',
+        
+        'storage_path' => '/12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab_coreex_hips_20130531.fcr.txt.gz',
+        
+        'cnv_analysis_type' => 'penncnv'
+      
       },
       'metadata correct for one of the penncnv files';
 }

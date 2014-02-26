@@ -5,7 +5,8 @@ VRPipe::Steps::htscmd_gtcheck - a step
 
 =head1 DESCRIPTION
 
-Runs htscmd gtcheck to check sample identities in query vcf files against genotypes in vcf file.
+Runs htscmd gtcheck to check sample identities in query vcf files against
+genotypes in vcf file.
 
 =head1 AUTHOR
 
@@ -36,8 +37,13 @@ use VRPipe::Base;
 class VRPipe::Steps::htscmd_gtcheck with VRPipe::StepRole {
     method options_definition {
         return {
+            expected_sample_from_metadata_key => VRPipe::StepOption->create(
+                description   => 'the metadata key that expected_sample should be taken from',
+                optional      => 1,
+                default_value => 'sample'
+            ),
             genotypes_vcf => VRPipe::StepOption->create(description => 'absolute path to genotypes vcf file'),
-            htscmd_exe => VRPipe::StepOption->create(
+            htscmd_exe    => VRPipe::StepOption->create(
                 description   => 'path to the htscmd executable',
                 optional      => 1,
                 default_value => 'htscmd'
@@ -61,19 +67,20 @@ class VRPipe::Steps::htscmd_gtcheck with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self           = shift;
-            my $options        = $self->options;
+            my $self          = shift;
+            my $options       = $self->options;
             my $genotypes_vcf = file($options->{genotypes_vcf});
             $self->throw("genotypes_vcf must be an absolute path") unless $genotypes_vcf->is_absolute;
-            my $htscmd_exe      = $options->{htscmd_exe};
+            my $htscmd_exe   = $options->{htscmd_exe};
+            my $expected_key = $options->{expected_sample_from_metadata_key};
             
             my $req = $self->new_requirements(memory => 3900, time => 1);
             foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
-                my $vcf_path    = $vcf->path;
-                my $meta        = $vcf->metadata;
-                my $sample      = $meta->{sample};
-                my $source_bam  = $meta->{source_bam};
-
+                my $vcf_path   = $vcf->path;
+                my $meta       = $vcf->metadata;
+                my $sample     = $meta->{$expected_key};
+                my $source_bam = $meta->{source_bam};
+                
                 my $gtypex_file = $self->output_file(
                     output_key => 'htscmd_gtcheck_files',
                     basename   => $vcf->basename . '.gtypex',
