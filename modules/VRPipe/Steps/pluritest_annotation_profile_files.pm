@@ -124,8 +124,8 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my ($annot_file, $pro_file);
                 
                 foreach my $annotation_path (@expression_files) {
-                    $annot_file = $annotation_path if $annotation_path =~ m/$annot_file_regex$/;
-                    $pro_file   = $annotation_path if $annotation_path =~ m/$profile_file_regex$/;
+                    $annot_file = $annotation_path if $annotation_path =~ m/$annot_file_regex$/i;
+                    $pro_file   = $annotation_path if $annotation_path =~ m/$profile_file_regex$/i;
                 }
                 if ($annot_file && !$annotation_files{$annot_file}) {
                     $annotation_files{$annot_file} = 1;
