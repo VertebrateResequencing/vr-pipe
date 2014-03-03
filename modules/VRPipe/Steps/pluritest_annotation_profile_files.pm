@@ -181,7 +181,21 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         $mapping_file->close;
         
         @expression_order = sort @expression_order;
-        my @annot_paths = keys %annot_profiles;
+        my @all_annot_paths = keys %annot_profiles;
+        my @annot_paths     = ();
+        
+        PATH: foreach my $annot_path (@all_annot_paths) {
+            open(my $fh, $annot_path) || die "Could not open $annot_path\n";
+            while (<$fh>) {
+                next unless $_ =~ /$header_regex/;
+                my $cols = split(/\t/, $_);
+                next PATH unless $cols == 9;
+                last;
+            }
+            close($fh);
+            push(@annot_paths, $annot_path);
+        }
+        die "No annotation file with correct number of columns!\n" unless @annot_paths;
         
         system("rm $merged_profile_out");
         my $profile_file = VRPipe::File->get(path => $profile_out);
