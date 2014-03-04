@@ -1,3 +1,8 @@
+0.181   Critical fix for infinite restart bug affecting setups for pipelines
+        with temp files where the user set a unix_group.
+        pluritest_annotation_profile_files step now does case insensitive
+        matching on its regex options and only considers annotation files with
+        9 columns.
 0.180   Fixed resolve bug in vrpipe-fileinfo.
         htscmd_gtcheck step now has a expected_sample_from_metadata_key option.
         split_genome_studio_genotype_files step fixed to get correct samples.

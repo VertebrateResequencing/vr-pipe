@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Path::Class;
+use POSIX qw(getgroups);
 
 BEGIN {
     use Test::Most tests => 13;
@@ -61,10 +62,15 @@ VRPipe::File->create(
     }
 );
 
+# since this step produces a temp file, we'll also test that setting unix_group
+# option on the pipelinesetup doesn't break everything
+my @groups = map { scalar getgrgid($_) } getgroups();
+
 my $setup = VRPipe::PipelineSetup->create(
     name        => 'btq_setup',
     datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.btf_fofn))->absolute),
     output_root => $output_dir,
+    unix_group  => $groups[0],
     pipeline    => $pipeline,
     options     => {}
 );
