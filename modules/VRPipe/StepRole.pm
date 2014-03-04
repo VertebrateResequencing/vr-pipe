@@ -726,6 +726,14 @@ role VRPipe::StepRole {
                             # the files
                             my @step_states = $file->output_by;
                             return if @step_states > 1;
+                            
+                            # later on we don't need to do anything to files
+                            # that don't exist, and trying to stat a
+                            # non-existant file causes us to die and possibly
+                            # result in an infinite-restart loop!
+                            $file->reselect_values_from_db;
+                            $file->e || next;
+                            
                             my $path = $file->path;
                             if (-l $path) {
                                 my $real = abs_path($path);
