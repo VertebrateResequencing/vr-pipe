@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 22;
+    use Test::Most tests => 28;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(iget iquest fcr-to-vcf sort bgzip)]
@@ -192,6 +192,53 @@ foreach my $vcf_path (@merged_vcf_files) {
     my ($aval, $asample) = split(':', $meta->{genotype_maximum_deviation});
     cmp_ok $aval, $cmp, $eval, "genotype_maximum_deviation metadata value was correct for one of the merged VCF files";
     is $asample, $esample, "genotype_maximum_deviation metadata sample was correct for one of the merged VCF files";
+}
+
+# we'll also take the opportunity to test the loh caller pipeline, since that
+# also uses files from the genome studio import
+SKIP: {
+    my $num_tests = 6;
+    skip "hipsci loh calling tests disabled without hipsci_loh_caller.pl in your path", $num_tests unless can_execute('hipsci_loh_caller.pl');
+    
+    $output_dir = get_output_dir('hipsci_loh_caller');
+    
+    # check pipeline has correct steps
+    ok my $loh_pipeline = VRPipe::Pipeline->create(name => 'hipsci_loh_caller'), 'able to get the hipsci_loh_caller pipeline';
+    my @step_names;
+    foreach my $stepmember ($loh_pipeline->step_members) {
+        push(@step_names, $stepmember->step->name);
+    }
+    is_deeply \@step_names, [qw(vcf_merge_different_samples_control_aware hipsci_loh_caller)], 'the hipsci_loh_caller pipeline has the correct steps';
+    
+    my $loh_setup = VRPipe::PipelineSetup->create(
+        name        => 'loh_calling',
+        pipeline    => $loh_pipeline,
+        datasource  => $vrpipe_ds,
+        output_root => $output_dir,
+        options     => {}
+    );
+    
+    # get array of output files and check outputs as the pipeline is run
+    my (@merged_vcfs, $loh_file_with_results, $loh_file_empty);
+    foreach my $element_id (9, 10) {
+        my @output_subdirs = output_subdirs($element_id, $loh_setup->id);
+        push(@merged_vcfs, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
+        if ($element_id == 9) {
+            $loh_file_with_results = file(@output_subdirs, '2_hipsci_loh_caller', 'merged.txt');
+        }
+        else {
+            $loh_file_empty = file(@output_subdirs, '2_hipsci_loh_caller', 'merged.txt');
+        }
+    }
+    ok handle_pipeline(@merged_vcfs, $loh_file_with_results), 'hipsci_loh_caller pipeline ran ok and produced the expected output files';
+    
+    my $empty_created = -e $loh_file_empty && !-s $loh_file_empty;
+    ok $empty_created, 'it also produced an empty result file for fpdj';
+    
+    my $results = $loh_file_with_results->slurp();
+    is $results, "1\t9304731\t29355519\tfpdr_3\t1956 (SNPs)\n6\t29496664\t78649193\tfpdr_3\t1019 (SNPs)\n", 'the results file for fpdr had the expected lines';
+    my $loh_vrfile = VRPipe::File->get(path => $loh_file_with_results);
+    is $loh_vrfile->meta_value('control'), 'fpdr', 'control metadata exists on the file';
 }
 
 # we'll also take the opportunity to test the penncnv pipeline, since that also

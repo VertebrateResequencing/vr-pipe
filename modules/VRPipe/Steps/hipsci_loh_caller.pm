@@ -5,6 +5,9 @@ VRPipe::Steps::hipsci_loh_caller - a step
 
 =head1 DESCRIPTION
 
+This step runs hipsci_loh_caller.pl, which calls loss of heterozygosity on
+genotype array data in VCF format.
+
 *** more documentation to come
 
 =head1 AUTHOR
@@ -95,8 +98,8 @@ class VRPipe::Steps::hipsci_loh_caller with VRPipe::StepRole {
                 my $sample = $meta->{$cmk};
                 $self->throw($vcf->path . " lacks a sample value for the $cmk metadata key") unless $sample;
                 
-                my $output_file = $self->output_file(output_key => 'loh_caller_output_files', basename => $base,          type => 'txt', metadata => $meta);
-                my $log_file    = $self->output_file(output_key => 'loh_caller_temp_files',   basename => $base . '.log', type => 'txt', tempory  => 1);
+                my $output_file = $self->output_file(output_key => 'loh_caller_output_files', basename => $base,          type => 'txt', metadata  => $meta);
+                my $log_file    = $self->output_file(output_key => 'loh_caller_temp_files',   basename => $base . '.log', type => 'txt', temporary => 1);
                 
                 my $this_cmd = "$caller -v " . $vcf->path . " -c $sample -l " . $log_file->path . " $caller_opts > " . $output_file->path;
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::hipsci_loh_caller', 'call_and_check', [$this_cmd, $req, { output_files => [$output_file] }]);
@@ -107,9 +110,10 @@ class VRPipe::Steps::hipsci_loh_caller with VRPipe::StepRole {
     method outputs_definition {
         return {
             loh_caller_output_files => VRPipe::StepIODefinition->create(
-                type        => 'txt',
-                max_files   => -1,
-                description => 'output from the hipsci loh caller',
+                type            => 'txt',
+                max_files       => -1,
+                description     => 'output from the hipsci loh caller',
+                check_existence => 0
             )
         };
     }
@@ -146,7 +150,7 @@ class VRPipe::Steps::hipsci_loh_caller with VRPipe::StepRole {
         my $lfh = $log_file->openr;
         my $expected_records;
         while (<$lfh>) {
-            if (/^(\d+)/) {
+            if (/^(\d+) lines/) {
                 $expected_records = $1;
             }
         }
