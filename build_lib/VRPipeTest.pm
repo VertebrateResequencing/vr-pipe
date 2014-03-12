@@ -100,13 +100,16 @@ sub import {
                 },
                 result_with_inflated_paths => sub {
                     return \&result_with_inflated_paths;
+                },
+                can_execute => sub {
+                    return \&can_execute;
                   }
             ],
             into_level => 1,
         }
     );
     
-    $class->$exporter(qw/Schema get_elements result_with_inflated_paths/, @exports);
+    $class->$exporter(qw/Schema get_elements result_with_inflated_paths can_execute/, @exports);
 }
 
 sub _initialize_schema {

@@ -108,14 +108,10 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         open($fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
         
         while (<$fh>) {
-            if ($found_expected && defined($gtype1) && defined($gtype2)) { last; }
-            
             # 0.435266        0.468085        25905095.2      25      NA20544
             my ($concurrence, $uncertainty, $avg_depth, $sites, $sample) = split;
             
             next if $sites < $min_sites;
-            
-            if ($expected && $sample eq $expected) { $found_expected = 1; }
             
             if (!defined $gtype1) {
                 $gtype1 = $sample;
@@ -125,6 +121,24 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
                 $gtype2 = $sample;
                 $score2 = $concurrence;
             }
+            
+            if ($expected && $sample eq $expected) {
+                $found_expected = 1;
+                
+                # if the expected sample has a score with ratio 1.000 vs score1,
+                # then we'll fudge things and say gtype2 is the expected,
+                # regardless of where it appeared in the file
+                if (defined $gtype2 && $gtype2 ne $expected) {
+                    my $ratio = $concurrence != 0 ? $score1 / $concurrence : $score1 / 1e-6;
+                    $ratio = sprintf("%0.3f", $ratio);
+                    if ($ratio == 1) {
+                        $gtype2 = $sample;
+                        $score2 = $concurrence;
+                    }
+                }
+            }
+            
+            last if ($found_expected && defined($gtype1) && defined($gtype2));
         }
         close $fh;
         
@@ -141,7 +155,15 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         }
         elsif ($ratio < $min_ratio) {
             if ($expected) {
-                $gt_status = "status=unconfirmed expected=$expected found=$gtype1 ratio=$ratio";
+                if ($ratio == 1) {
+                    # if the scores are so close we're in the margin of error,
+                    # consider the check as confirmed, but still note if the
+                    # expected and found are different
+                    $gt_status = "status=confirmed expected=$expected found=$gtype1 ratio=$ratio";
+                }
+                else {
+                    $gt_status = "status=unconfirmed expected=$expected found=$gtype1 ratio=$ratio";
+                }
             }
             else {
                 $gt_status = "status=unknown expected=none found=$gtype1 ratio=$ratio";

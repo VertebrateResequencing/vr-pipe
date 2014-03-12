@@ -59,7 +59,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
     
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option. The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 1 minute when testing, and 1 day in production. The Sanger-specific (otherwise ignorable) add_metadata_from_warehouse option (enabled by default, requiring the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER) will add extra metadata to the files with the key public_name (if defined).";
+            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option. The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
+        }
+        if ($method eq 'all_with_warehouse_metadata') {
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, control and sample_cohort (if defined). (This is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         return '';
     }
@@ -101,7 +104,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata;
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata');
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $file (sort keys %$files) {
@@ -119,10 +122,31 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return $digest;
     }
     
-    method _get_irods_files_and_metadata (Str $zone?, Str $query?) {
+    method _get_irods_files_and_metadata (Str $zone!, Str $query!, Bool $add_metadata_from_warehouse?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
-        $zone  ||= $self->_open_source();
-        $query ||= $self->options->{file_query};
+        
+        my ($warehouse_sth, $public_name, $donor_id, $supplier_name, $control);
+        if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
+            my $dbh = DBI->connect(
+                "DBI:mysql:host=$ENV{WAREHOUSE_HOST}:port=$ENV{WAREHOUSE_PORT};database=$ENV{WAREHOUSE_DATABASE}",
+                $ENV{WAREHOUSE_USER}, undef, { 'RaiseError' => 1, 'PrintError' => 0 }
+            );
+            
+            # sanger_sample_id in warehouse corresponds to 'sample' metadata
+            # from irods, and is one of the few indexed columns, so queries
+            # against it should hopefully be quick. (supplier_name in warehouse
+            # is sample_supplier_name in irods, and donor_id in warehouse is
+            # sample_cohort in irods, and we get the later in case it isn't
+            # in the irods metadata for some reason)
+            my $sql = q[select public_name, donor_id, supplier_name, control from current_samples where sanger_sample_id = ?];
+            
+            $warehouse_sth = $dbh->prepare($sql);
+            $warehouse_sth->execute;
+            $warehouse_sth->bind_col(1, \$public_name);
+            $warehouse_sth->bind_col(2, \$donor_id);
+            $warehouse_sth->bind_col(3, \$supplier_name);
+            $warehouse_sth->bind_col(4, \$control);
+        }
         
         my $cmd = "imeta -z $zone qu -d $query";
         open(my $qu_fh, $cmd . ' |') || $self->throw("Could not open pipe to [$cmd]");
@@ -153,6 +177,30 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                 }
                 close($ls_fh);
                 
+                if ($warehouse_sth) {
+                    undef $public_name;
+                    undef $donor_id;
+                    undef $supplier_name;
+                    undef $control;
+                    my $sanger_sample_id = $meta->{sample};
+                    if ($sanger_sample_id) {
+                        $warehouse_sth->execute($sanger_sample_id);
+                        $warehouse_sth->fetch;
+                        if ($public_name) {
+                            $meta->{public_name} = "$public_name";
+                        }
+                        if ($donor_id) {
+                            $meta->{sample_cohort} = "$donor_id";
+                        }
+                        if ($supplier_name) {
+                            $meta->{sample_supplier_name} = "$supplier_name";
+                        }
+                        if (defined $control) {
+                            $meta->{sample_control} = "$control";
+                        }
+                    }
+                }
+                
                 $files{$path} = $meta;
             }
         }
@@ -161,51 +209,37 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return \%files;
     }
     
-    method all (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse = 1) {
+    method all (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?) {
+        my %args;
+        $args{handle}          = $handle;
+        $args{file_query}      = $file_query;
+        $args{local_root_dir}  = $local_root_dir;
+        $args{update_interval} = $update_interval if defined($update_interval);
+        return $self->_all_files(%args);
+    }
+    
+    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?) {
+        my %args;
+        $args{handle}          = $handle;
+        $args{file_query}      = $file_query;
+        $args{local_root_dir}  = $local_root_dir;
+        $args{update_interval} = $update_interval if defined($update_interval);
+        return $self->_all_files(%args, add_metadata_from_warehouse => 1);
+    }
+    
+    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?) {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query);
+        $add_metadata_from_warehouse ||= 0;
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse);
         $self->_clear_cache;
-        
-        my ($warehouse_sth, $public_name, $donor_id);
-        if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
-            my $dbh = DBI->connect(
-                "DBI:mysql:host=$ENV{WAREHOUSE_HOST}:port=$ENV{WAREHOUSE_PORT};database=$ENV{WAREHOUSE_DATABASE}",
-                $ENV{WAREHOUSE_USER}, undef, { 'RaiseError' => 1, 'PrintError' => 0 }
-            );
-            
-            # sanger_sample_id in warehouse corresponds to 'sample' metadata
-            # from irods, and is one of the few indexed columns, so queries
-            # against it should hopefully be quick. (supplier_name in warehouse
-            # is sample_supplier_name in irods, and donor_id in warehouse is
-            # sample_cohort in irods, and we get the later in case it isn't
-            # in the irods metadata for some reason)
-            my $sql = q[select public_name, donor_id from current_samples where sanger_sample_id = ?];
-            
-            $warehouse_sth = $dbh->prepare($sql);
-            $warehouse_sth->execute;
-            $warehouse_sth->bind_col(1, \$public_name);
-            $warehouse_sth->bind_col(2, \$donor_id);
-        }
         
         my $did = $self->_datasource_id;
         my @element_args;
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
             my $new_metadata = $files->{$path};
             delete $new_metadata->{vrpipe_irods_order};
-            if ($warehouse_sth) {
-                undef $public_name;
-                undef $donor_id;
-                $warehouse_sth->execute($new_metadata->{sample});
-                $warehouse_sth->fetch;
-                if ($public_name) {
-                    $new_metadata->{public_name} = "$public_name";
-                }
-                if ($donor_id) {
-                    $new_metadata->{sample_cohort} = "$donor_id";
-                }
-            }
             
             my $sub_path = $path;
             $sub_path =~ s/^\///;
