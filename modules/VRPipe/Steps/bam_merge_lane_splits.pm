@@ -102,7 +102,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 
                 unless (defined $metas{$paired}) {
                     $metas{$paired} = {};
-                    foreach my $key (qw(lane library sample center_name platform study insert_size analysis_group population individual project species)) {
+                    foreach my $key (qw(lane library sample sample_id center_name platform study insert_size analysis_group population individual project species)) {
                         if (defined $meta->{$key}) {
                             $metas{$paired}->{$key} = $meta->{$key};
                         }
