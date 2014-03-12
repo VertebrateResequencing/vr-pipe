@@ -1,3 +1,16 @@
+0.182   New vcf_merge_different_samples_control_aware step.
+        New vcf_merge_different_samples_to_indexed_bcf and hipsci_loh_caller
+        steps and pipelines.
+        New bam_improvement_gatk_v2 pipeline for doing the recalibration part
+        of the improvement pipeline with GATK v2 or higher (v3 needed for
+        working with bams produced by bwa mem).
+        iRODs datasource now has the Sanger-specific warehouse code split out
+        in to a new all_with_warehouse_metadata method.
+        htscmd_genotype_analysis now confirms the genotype when the expected
+        sample has a score with a ratio of 1.000 to the score of the highest
+        score.
+        bwa_mem_fastq and bam_merge_lane_splits steps now pass through sample_id
+        metadata.
 0.181   Critical fix for infinite restart bug affecting setups for pipelines
         with temp files where the user set a unix_group.
         pluritest_annotation_profile_files step now does case insensitive
