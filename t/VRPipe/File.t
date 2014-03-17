@@ -27,8 +27,8 @@ close($fh);
 ok my $vrfile = VRPipe::File->create(path => $input_path, type => 'txt', metadata => { foo => 'bar' }), 'created a File using create()';
 undef($vrfile);
 $vrfile = VRPipe::File->get(id => 1);
-$vrfile->add_metadata({ baz => 'loman' });
-is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, { foo => 'bar', baz => 'loman' }, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
+$vrfile->add_metadata({ baz => 'loman', multi => [qw(val1 val2 val3)] });
+is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, { foo => 'bar', baz => 'loman', multi => [qw(val1 val2 val3)] }, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
 cmp_ok $vrfile->s, '>=', 5, 'file has some size';
 is $vrfile->meta_value('foo'), 'bar', 'meta_value() works';
 
