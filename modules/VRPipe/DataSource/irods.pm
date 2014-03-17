@@ -252,7 +252,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                             $study_sth->fetch;
                             if ($study_title) {
                                 push(@study_titles, "$study_title");
-                                $meta->{study_title} = "$study_title";
                             }
                         }
                         
