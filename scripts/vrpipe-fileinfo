@@ -505,7 +505,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                 my @results;
                 foreach my $key (@desired_metadata_keys) {
                     my $val = $meta->{$key};
-                    push(@results, defined $val ? $val : 'unknown');
+                    push(@results, defined $val ? (ref($val) ? join(',', @$val) : $val) : 'unknown');
                 }
                 $result = join("\t", @results);
             }
@@ -523,6 +523,7 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                 my @results;
                 foreach my $key (sort keys %$result_meta) {
                     my $val = $result_meta->{$key};
+                    $val = '[' . join(', ', @$val) . ']' if ref($val);
                     push(@results, "\t\t$key => $val");
                 }
                 $result = "\n" . join("\n", @results);
