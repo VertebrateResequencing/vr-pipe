@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 6;
+    use Test::Most tests => 9;
     use VRPipeTest;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
@@ -107,5 +107,58 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
       'correct file metadata was present on the first gtc file';
 }
 is $files, 20, 'gtc datasource returned the correct number of files';
+
+# bam sequencing data
+ok $ds = VRPipe::DataSource->create(
+    type    => 'irods',
+    method  => 'all_with_warehouse_metadata',
+    source  => 'seq',
+    options => {
+        file_query     => q[study_id = 2547 and type = bam | grep -v phix | grep -v '#0'],
+        local_root_dir => $output_root
+    }
+  ),
+  'could create an irods datasource for bam files';
+
+$files = 0;
+foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) }) {
+    $files++;
+    next if $files > 1;
+    my ($path) = @{ $result->{paths} };
+    my $file = VRPipe::File->create(path => $path);
+    is_deeply $file->metadata,
+      {
+        'study_id'                => '2547',
+        'is_paired_read'          => '1',
+        'library_id'              => '6784051',
+        'ebi_sub_acc'             => 'ERA214806',
+        'library'                 => 'MEK_res_1 6784051',
+        'study_title'             => 'De novo and acquired resistance to MEK inhibitors ',
+        'target'                  => '1',
+        'reference'               => '/lustre/scratch109/srpipe/references/Mus_musculus/GRCm38/all/bwa/Mus_musculus.GRCm38.68.dna.toplevel.fa',
+        'alignment'               => '1',
+        'sample'                  => 'MEK_res_1',
+        'sample_accession_number' => 'ERS215816',
+        'tag'                     => 'AACGTGAT',
+        'study'                   => 'De novo and acquired resistance to MEK inhibitors',
+        'lane'                    => '4',
+        'sample_created_date'     => '2013-02-21 07:51:47',
+        'ebi_sub_md5'             => '675b0b2b2f5991aa5a4695bb1914c0c7',
+        'ebi_run_acc'             => 'ERR274701',
+        'taxon_id'                => '10090',
+        'irods_path'              => '/seq/9417/9417_4#1.bam',
+        'ebi_sub_date'            => '2013-05-26',
+        'total_reads'             => '70486376',
+        'id_run'                  => '9417',
+        'tag_index'               => '1',
+        'sample_common_name'      => 'Mouse',
+        'study_accession_number'  => 'ERP002262',
+        'manual_qc'               => '1',
+        'sample_id'               => '1571700',
+        'md5'                     => '675b0b2b2f5991aa5a4695bb1914c0c7'
+      },
+      'correct file metadata was present on the first bam file';
+}
+is $files, 4, 'bam datasource returned the correct number of files';
 
 exit;

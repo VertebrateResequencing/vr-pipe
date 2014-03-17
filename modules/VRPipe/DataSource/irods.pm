@@ -135,12 +135,11 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                 $ENV{WAREHOUSE_USER}, undef, { 'RaiseError' => 1, 'PrintError' => 0, mysql_enable_utf8 => 1 }
             );
             
-            # sanger_sample_id in warehouse corresponds to 'sample' metadata
-            # from irods, and is one of the few indexed columns, so queries
-            # against it should hopefully be quick. For situations where the
-            # irods metadata is missing or out-of-date we want to get values
-            # from warehouse and store them under the metadata key that irods
-            # uses:
+            # name in warehouse corresponds to 'sample' metadata from irods, and
+            # is one of the few indexed columns, so queries against it should
+            # hopefully be quick. For situations where the irods metadata is
+            # missing or out-of-date we want to get values from warehouse and
+            # store them under the metadata key that irods uses:
             # warehouse_table,warehouse_column => irods_key
             # current_samples,supplier_name => sample_supplier_name
             # current_samples,donor_id => sample_cohort
@@ -152,14 +151,23 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             # notes for /archive/GAPI/exp/infinium idat files:
             # lane name = basename of filename
             # library name = sample.beadchip.beadchip_section
+            # library ssid = last 4 digits of beadchip . last 3 digits of sample_id
+            # lane acc = analysis_uuid (the last one listed by imeta)
+            # lane storage_path = {user dir}/analysis_uuid
             
             # notes for /archive/GAPI/gen/infinium gtc files:
             # lane name = basename of filename, or {beadchip}_{beadchip_section}
             # library name = infinium_sample
             # library ssid = last 4 digits of beadchip . last 3 digits of sample_id
-            # lane acc = analysis_uuid (but there can be multiple...)
+            # lane acc = analysis_uuid (the last one listed by imeta)
+            # lane storage_path = {user dir}/{analysis_uuid}_{basename(user dir)}
             
-            my $sql = q[select public_name, donor_id, supplier_name, control, taxon_id, created from current_samples where sanger_sample_id = ?];
+            # notes for /seq bam files:
+            # lane name = basename of filename
+            # individual name = sample_supplier_name or sample
+            # individual acc = sample_accession_number
+            
+            my $sql = q[select public_name, donor_id, supplier_name, control, taxon_id, created from current_samples where name = ?];
             $sample_sth = $dbh->prepare($sql);
             $sample_sth->execute;
             $sample_sth->bind_columns(\($public_name, $donor_id, $supplier_name, $control, $taxon_id, $created));
@@ -298,7 +306,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse);
         $self->_clear_cache;
         
-        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name);
+        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date manual_qc);
         
         my $did = $self->_datasource_id;
         my @element_args;
