@@ -244,11 +244,23 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                     
                     my $study_id = $meta->{study_id};
                     if ($study_id) {
-                        undef $study_title;
-                        $study_sth->execute($study_id);
-                        $study_sth->fetch;
-                        if ($study_title) {
-                            $meta->{study_title} = "$study_title";
+                        my @study_ids = ref($study_id) ? @$study_id : ($study_id);
+                        my @study_titles;
+                        foreach my $study_id (@study_ids) {
+                            undef $study_title;
+                            $study_sth->execute($study_id);
+                            $study_sth->fetch;
+                            if ($study_title) {
+                                push(@study_titles, "$study_title");
+                                $meta->{study_title} = "$study_title";
+                            }
+                        }
+                        
+                        if (@study_titles > 1) {
+                            $meta->{study_title} = \@study_titles;
+                        }
+                        else {
+                            $meta->{study_title} = $study_titles[0];
                         }
                     }
                 }
@@ -287,6 +299,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse);
         $self->_clear_cache;
         
+        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name);
+        
         my $did = $self->_datasource_id;
         my @element_args;
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
@@ -310,10 +324,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
                 while (my ($key, $val) = each %$current_metadata) {
+                    if ($add_metadata_from_warehouse) {
+                        next if exists $ignore_keys{$key};
+                    }
+                    
                     next unless defined $val;
                     next unless defined $new_metadata->{$key};
-                    if ($val ne $new_metadata->{$key}) {
-                        $self->debug("metadata '$key' changed from $val to $new_metadata->{$key} for file $file_abs_path, so will mark file as changed");
+                    if (vals_different($val, $new_metadata->{$key})) {
                         $changed = 1;
                         last;
                     }
@@ -333,6 +350,26 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             push(@element_args, { datasource => $did, result => $result_hash });
         }
         $self->_create_elements(\@element_args);
+    }
+    
+    sub vals_different {
+        my ($orig, $new) = @_;
+        if (!ref($orig) && !ref($new)) {
+            return $orig ne $new;
+        }
+        
+        if ((ref($orig) && !ref($new)) || (!ref($orig) && ref($new))) {
+            return 1;
+        }
+        
+        my %orig = map { $_ => 1 } @$orig;
+        my %new  = map { $_ => 1 } @$new;
+        foreach my $orig (keys %orig) {
+            return 1 unless delete $new{$orig};
+        }
+        return 1 if keys %new;
+        
+        return 0;
     }
 }
 

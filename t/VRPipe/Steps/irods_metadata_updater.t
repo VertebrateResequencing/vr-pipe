@@ -43,7 +43,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'analysis_uuid'        => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
         'sample_cohort'        => '6d3d2acf-29a5-41a2-8992-1414706a527d',
         'study_id'             => [2622, 2625],
-        'study_title'          => ['Wellcome Trust Strategic Award application – HIPS', 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS'],
+        'study_title'          => ['G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS', 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS'],
         'sample'               => 'qc1hip5529781',
         'public_name'          => 'fpdr',
         'sample_created_date'  => '2013-05-10 06:45:32',
