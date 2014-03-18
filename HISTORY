@@ -1,3 +1,10 @@
+0.183   Fixed the new bam_improvement_gatk_v2 pipeline.
+        StepCmdSummary version strings can now be up to 64 characters long.
+        Full support for setting and getting multiple values per metadata key
+        has been added to Files.
+        The irods datasource now stores multiple values for the same metadata
+        key, and the all_with_warehouse_metadata method now gets all the
+        Sanger-specific metadata we'd need for complete tracking.
 0.182   New vcf_merge_different_samples_control_aware step.
         New vcf_merge_different_samples_to_indexed_bcf and hipsci_loh_caller
         steps and pipelines.
