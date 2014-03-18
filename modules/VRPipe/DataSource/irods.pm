@@ -62,7 +62,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option. The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, control and sample_cohort (if defined). (This is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_name (if defined). (This is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         return '';
     }
@@ -114,6 +114,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             foreach my $key (sort keys %$meta) {
                 next if $key eq 'vrpipe_irods_order';
                 my $val = $meta->{$key};
+                # limit to printable ascii so md5_hex subroutine will work
+                $val =~ tr/\x20-\x7f//cd;
                 $data .= "|$key:$val|";
             }
         }
@@ -125,27 +127,55 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
     method _get_irods_files_and_metadata (Str $zone!, Str $query!, Bool $add_metadata_from_warehouse?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
         
-        my ($warehouse_sth, $public_name, $donor_id, $supplier_name, $control);
+        my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created);
+        my ($study_sth, $study_title);
         if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
             my $dbh = DBI->connect(
                 "DBI:mysql:host=$ENV{WAREHOUSE_HOST}:port=$ENV{WAREHOUSE_PORT};database=$ENV{WAREHOUSE_DATABASE}",
-                $ENV{WAREHOUSE_USER}, undef, { 'RaiseError' => 1, 'PrintError' => 0 }
+                $ENV{WAREHOUSE_USER}, undef, { 'RaiseError' => 1, 'PrintError' => 0, mysql_enable_utf8 => 1 }
             );
             
-            # sanger_sample_id in warehouse corresponds to 'sample' metadata
-            # from irods, and is one of the few indexed columns, so queries
-            # against it should hopefully be quick. (supplier_name in warehouse
-            # is sample_supplier_name in irods, and donor_id in warehouse is
-            # sample_cohort in irods, and we get the later in case it isn't
-            # in the irods metadata for some reason)
-            my $sql = q[select public_name, donor_id, supplier_name, control from current_samples where sanger_sample_id = ?];
+            # name in warehouse corresponds to 'sample' metadata from irods, and
+            # is one of the few indexed columns, so queries against it should
+            # hopefully be quick. For situations where the irods metadata is
+            # missing or out-of-date we want to get values from warehouse and
+            # store them under the metadata key that irods uses:
+            # warehouse_table,warehouse_column => irods_key
+            # current_samples,supplier_name => sample_supplier_name
+            # current_samples,donor_id => sample_cohort
+            # current_samples,control => sample_control
+            # current_samples,taxon_id => n/a (store under taxon_id)
+            # current_samples,created => n/a (store under sample_created_date)
+            # current_studies,name => study_title (linked to irods study_id => internal_id)
             
-            $warehouse_sth = $dbh->prepare($sql);
-            $warehouse_sth->execute;
-            $warehouse_sth->bind_col(1, \$public_name);
-            $warehouse_sth->bind_col(2, \$donor_id);
-            $warehouse_sth->bind_col(3, \$supplier_name);
-            $warehouse_sth->bind_col(4, \$control);
+            # notes for /archive/GAPI/exp/infinium idat files:
+            # lane name = basename of filename
+            # library name = sample.beadchip.beadchip_section
+            # library ssid = last 4 digits of beadchip . last 3 digits of sample_id
+            # lane acc = analysis_uuid (the last one listed by imeta)
+            # lane storage_path = {user dir}/analysis_uuid
+            
+            # notes for /archive/GAPI/gen/infinium gtc files:
+            # lane name = basename of filename, or {beadchip}_{beadchip_section}
+            # library name = infinium_sample
+            # library ssid = last 4 digits of beadchip . last 3 digits of sample_id
+            # lane acc = analysis_uuid (the last one listed by imeta)
+            # lane storage_path = {user dir}/{analysis_uuid}_{basename(user dir)}
+            
+            # notes for /seq bam files:
+            # lane name = basename of filename
+            # individual name = sample_supplier_name or sample
+            # individual acc = sample_accession_number
+            
+            my $sql = q[select public_name, donor_id, supplier_name, control, taxon_id, created from current_samples where name = ?];
+            $sample_sth = $dbh->prepare($sql);
+            $sample_sth->execute;
+            $sample_sth->bind_columns(\($public_name, $donor_id, $supplier_name, $control, $taxon_id, $created));
+            
+            $sql       = q[select name from current_studies where internal_id = ?];
+            $study_sth = $dbh->prepare($sql);
+            $study_sth->execute;
+            $study_sth->bind_col(1, \$study_title);
         }
         
         my $cmd = "imeta -z $zone qu -d $query";
@@ -172,20 +202,34 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         undef $attribute if $attribute =~ /^dcterms:/;
                     }
                     elsif ($attribute && /^value:\s+(.+)$/) {
-                        $meta->{$attribute} = $1;
+                        if (exists $meta->{$attribute}) {
+                            my $previous = $meta->{$attribute};
+                            if (ref($previous)) {
+                                $meta->{$attribute} = [@$previous, $1];
+                            }
+                            else {
+                                $meta->{$attribute} = [$previous, $1];
+                            }
+                        }
+                        else {
+                            $meta->{$attribute} = $1;
+                        }
                     }
                 }
                 close($ls_fh);
                 
-                if ($warehouse_sth) {
+                # grab extra info from the warehouse database if requested
+                if ($sample_sth) {
                     undef $public_name;
                     undef $donor_id;
                     undef $supplier_name;
                     undef $control;
+                    undef $taxon_id;
+                    undef $created;
                     my $sanger_sample_id = $meta->{sample};
                     if ($sanger_sample_id) {
-                        $warehouse_sth->execute($sanger_sample_id);
-                        $warehouse_sth->fetch;
+                        $sample_sth->execute($sanger_sample_id);
+                        $sample_sth->fetch;
                         if ($public_name) {
                             $meta->{public_name} = "$public_name";
                         }
@@ -197,6 +241,33 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         }
                         if (defined $control) {
                             $meta->{sample_control} = "$control";
+                        }
+                        if (defined $taxon_id) {
+                            $meta->{taxon_id} = "$taxon_id";
+                        }
+                        if (defined $created) {
+                            $meta->{sample_created_date} = "$created";
+                        }
+                    }
+                    
+                    my $study_id = $meta->{study_id};
+                    if ($study_id) {
+                        my @study_ids = ref($study_id) ? @$study_id : ($study_id);
+                        my @study_titles;
+                        foreach my $study_id (@study_ids) {
+                            undef $study_title;
+                            $study_sth->execute($study_id);
+                            $study_sth->fetch;
+                            if ($study_title) {
+                                push(@study_titles, "$study_title");
+                            }
+                        }
+                        
+                        if (@study_titles > 1) {
+                            $meta->{study_title} = \@study_titles;
+                        }
+                        else {
+                            $meta->{study_title} = $study_titles[0];
                         }
                     }
                 }
@@ -235,6 +306,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse);
         $self->_clear_cache;
         
+        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date manual_qc sample_created_date taxon_id);
+        
         my $did = $self->_datasource_id;
         my @element_args;
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
@@ -258,10 +331,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
                 while (my ($key, $val) = each %$current_metadata) {
+                    if ($add_metadata_from_warehouse) {
+                        next if exists $ignore_keys{$key};
+                    }
+                    
                     next unless defined $val;
                     next unless defined $new_metadata->{$key};
-                    if ($val ne $new_metadata->{$key}) {
-                        $self->debug("metadata '$key' changed from $val to $new_metadata->{$key} for file $file_abs_path, so will mark file as changed");
+                    if (vals_different($val, $new_metadata->{$key})) {
                         $changed = 1;
                         last;
                     }
@@ -281,6 +357,26 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             push(@element_args, { datasource => $did, result => $result_hash });
         }
         $self->_create_elements(\@element_args);
+    }
+    
+    sub vals_different {
+        my ($orig, $new) = @_;
+        if (!ref($orig) && !ref($new)) {
+            return $orig ne $new;
+        }
+        
+        if ((ref($orig) && !ref($new)) || (!ref($orig) && ref($new))) {
+            return 1;
+        }
+        
+        my %orig = map { $_ => 1 } @$orig;
+        my %new  = map { $_ => 1 } @$new;
+        foreach my $orig (keys %orig) {
+            return 1 unless delete $new{$orig};
+        }
+        return 1 if keys %new;
+        
+        return 0;
     }
 }
 

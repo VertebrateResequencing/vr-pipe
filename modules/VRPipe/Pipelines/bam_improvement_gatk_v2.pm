@@ -69,7 +69,7 @@ class VRPipe::Pipelines::bam_improvement_gatk_v2 with VRPipe::PipelineRole {
             { from_step => 7, to_step => 8,  from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
             { from_step => 5, to_step => 8,  from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 6, to_step => 8,  from_key => 'bai_files', to_key => 'bai_files' },
-            { from_step => 8, to_step => 9,  from_key => 'printed_bam_files', to_key => 'bam_files' },
+            { from_step => 8, to_step => 9,  from_key => 'recalibrated_bam_files', to_key => 'bam_files' },
             { from_step => 9, to_step => 10, from_key => 'bq_bam_files', to_key => 'bam_files' },
             { from_step => 1, to_step => 10, from_key => 'reference_dict', to_key => 'dict_file' },
         );

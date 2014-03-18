@@ -6,7 +6,7 @@ use File::Spec;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 68;
+    use Test::Most tests => 70;
     use VRPipeTest;
 }
 
@@ -27,8 +27,8 @@ close($fh);
 ok my $vrfile = VRPipe::File->create(path => $input_path, type => 'txt', metadata => { foo => 'bar' }), 'created a File using create()';
 undef($vrfile);
 $vrfile = VRPipe::File->get(id => 1);
-$vrfile->add_metadata({ baz => 'loman' });
-is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, { foo => 'bar', baz => 'loman' }, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
+$vrfile->add_metadata({ baz => 'loman', multi => [qw(val1 val2 val3)] });
+is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, { foo => 'bar', baz => 'loman', multi => [qw(val1 val2 val3)] }, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
 cmp_ok $vrfile->s, '>=', 5, 'file has some size';
 is $vrfile->meta_value('foo'), 'bar', 'meta_value() works';
 
@@ -329,6 +329,25 @@ $fm->wait_all_children;
 
 my @fls = VRPipe::FileList->search({});
 is scalar(@fls), 8, 'only 1 FileList was created when creating the same list 10 times in parallel'; # the other 7 were made by previous tests
+
+# test the common_metadata method in StepRole; create a Step to get access to
+# the method
+my $step = VRPipe::Step->create(
+    name               => 'step',
+    inputs_definition  => {},
+    body_sub           => sub { return 1; },
+    outputs_definition => {},
+    post_process_sub   => sub { return 1 },
+    description        => 'step'
+);
+my %common = (foo => 'bar', cat => 'dog', multi => [qw(ay be ce)]);
+@meta_files = ();
+for my $i (1 .. 5) {
+    push(@meta_files, VRPipe::File->create(path => file($tmp_dir, 'metafileb.' . $i), metadata => { %common, unique => $i }));
+}
+is_deeply $step->common_metadata(\@meta_files), \%common, 'common_metadata() from StepRole works, excluding a unique scalar';
+$meta_files[0]->add_metadata({ multi => [qw(ay be ce de)] });
+is_deeply $step->common_metadata(\@meta_files), { foo => 'bar', cat => 'dog' }, 'common_metadata() from StepRole works, excluding a multi value key that differs';
 
 done_testing;
 exit;

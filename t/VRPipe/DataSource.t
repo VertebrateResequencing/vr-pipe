@@ -683,7 +683,10 @@ SKIP: {
       'could create an irods datasource with all_with_warehouse_metadata method';
     get_elements($ds);
     $file->reselect_values_from_db;
-    $expected_file_meta->{public_name} = 'ffdb_3';
+    $expected_file_meta->{public_name}         = 'ffdb_3';
+    $expected_file_meta->{sample_created_date} = '2013-06-25 14:09:22';
+    $expected_file_meta->{taxon_id}            = 9606;
+    $expected_file_meta->{study_title}         = 'G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS';
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files, including warehouse metadata';
     
     # more complete test with our own freshly-added files and metadata

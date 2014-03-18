@@ -26,7 +26,7 @@ my $file_query = q[sequenom_plate LIKE '%' and study_id = 2622 and dcterms:creat
 
 ok my $ds = VRPipe::DataSource->create(
     type    => 'irods',
-    method  => 'all',
+    method  => 'all_with_warehouse_metadata',
     source  => 'seq',
     options => {
         file_query     => $file_query,

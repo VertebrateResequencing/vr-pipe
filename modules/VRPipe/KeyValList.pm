@@ -63,7 +63,7 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
     sub _members_to_string {
         my ($self, $members) = @_;
         return 'undef' unless @$members;
-        my @keyvals = sort map { $_->[0] . $_->[1] } @$members;
+        my @keyvals = sort map { $_->[0] . (ref($_->[1]) ? join(',', @{ $_->[1] }) : $_->[1]) } @$members;
         return join('', @keyvals);
     }
     
@@ -94,7 +94,10 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
         my $lid = $list->id;
         foreach my $ref (@$keyvals) {
             my ($key, $val) = @$ref;
-            push(@lm_args, { keyvallist => $lid, keyval_key => $key, val => $val });
+            my @vals = ref($val) ? @$val : ($val);
+            foreach my $value (@vals) {
+                push(@lm_args, { keyvallist => $lid, keyval_key => $key, val => $value });
+            }
         }
         VRPipe::KeyValListMember->bulk_create_or_update(@lm_args);
         
@@ -117,7 +120,19 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
         my $return = {};
         my $ref    = VRPipe::KeyValListMember->get_column_values(['keyval_key', 'val'], { keyvallist => $self->id });
         foreach my $ref (@$ref) {
-            $return->{ $ref->[0] } = $ref->[1];
+            my ($keyval_key, $val) = @$ref;
+            if (exists $return->{$keyval_key}) {
+                my $previous = $return->{$keyval_key};
+                if (ref($previous)) {
+                    push(@{ $return->{$keyval_key} }, $val);
+                }
+                else {
+                    $return->{$keyval_key} = [$previous, $val];
+                }
+            }
+            else {
+                $return->{$keyval_key} = $val;
+            }
         }
         return $return;
     }

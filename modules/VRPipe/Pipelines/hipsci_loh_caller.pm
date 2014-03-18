@@ -39,7 +39,7 @@ class VRPipe::Pipelines::hipsci_loh_caller with VRPipe::PipelineRole {
     }
     
     method description {
-        return 'Make loss of heterozyosity calls on a VCF containing multiple samples from the same individual using hipsci_loh_caller.pl.';
+        return 'Merges different sample VCFs together and calls loss of heterozyosity on them using hipsci_loh_caller.pl; assumes the samples you provide are all from the same individual';
     }
     
     method step_names {

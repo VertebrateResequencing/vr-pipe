@@ -60,6 +60,8 @@ role VRPipe::PersistentListRole {
     
     sub _string_to_lookup {
         my ($self, $str) = @_;
+        # limit to printable ascii so hexdigest subroutine will work
+        $str =~ tr/\x20-\x7f//cd;
         my $dmd5 = Digest::MD5->new();
         $dmd5->add($str);
         return $dmd5->hexdigest;
