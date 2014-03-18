@@ -119,17 +119,23 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         foreach my $file_path (@$file_paths) {
             my $file = VRPipe::File->get(path => $file_path);
             my $file_meta = $file->metadata;
-            foreach my $key (keys %$file_meta) {
-                $meta{$key}->{ $$file_meta{$key} } += 1;
+            while (my ($key, $val) = each %$file_meta) {
+                if (ref($val)) {
+                    $val = join(',!,', @$val);
+                }
+                $meta{$key}->{$val}++;
             }
         }
-        # Only keep metadata common to all files
+        
+        # only keep metadata common to all files
         my $common_meta = {};
         foreach my $key (keys %meta) {
             my @vals = keys %{ $meta{$key} };
             next unless (@vals == 1 && $meta{$key}->{ $vals[0] } == @$file_paths);
-            $common_meta->{$key} = $vals[0];
+            my @val = split(/,!,/, $vals[0]);
+            $common_meta->{$key} = @val > 1 ? \@val : $val[0];
         }
+        
         return $common_meta;
     }
     
@@ -168,9 +174,9 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         my $chrom_list      = $self->chrom_list;
         my $ploidy_regions  = $self->ploidy;
         
-		use VRPipe::Utils::GenomeChunking;
-		my $chunk_util = VRPipe::Utils::GenomeChunking->new();
-		return $chunk_util->chunks(reference_index => $reference_index, chunk_size => $chunk_size, chroms => $chrom_list, ploidy => $ploidy_regions);
+        use VRPipe::Utils::GenomeChunking;
+        my $chunk_util = VRPipe::Utils::GenomeChunking->new();
+        return $chunk_util->chunks(reference_index => $reference_index, chunk_size => $chunk_size, chroms => $chrom_list, ploidy => $ploidy_regions);
     }
 }
 
