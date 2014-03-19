@@ -355,7 +355,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                 $files{$path} = $meta;
             }
         }
-        close($qu_fh) || $self->throw("Could not open pipe to [$cmd]");
+        close($qu_fh) || $self->throw("Could not close pipe to [$cmd]");
         
         return \%files;
     }
