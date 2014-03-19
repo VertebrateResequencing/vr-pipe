@@ -40,6 +40,7 @@ use VRPipe::Base;
 class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
     use Digest::MD5 qw(md5_hex);
     use File::Spec::Functions;
+    use Path::Class;
     use VRPipe::Persistent::InMemory;
     
     has '_irods_files_and_metadata_cache' => (
@@ -62,7 +63,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option. The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_name (if defined). (This is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). If any analysis has been done to a file, the associated files are stored under irods_analysis_files. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         return '';
     }
@@ -182,6 +183,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         open(my $qu_fh, $cmd . ' |') || $self->throw("Could not open pipe to [$cmd]");
         my %files;
         my $collection;
+        my (%analysis_to_col_date, %analysis_files);
         my $order = 1;
         while (<$qu_fh>) {
             #*** do we have to worry about spaces in file paths?...
@@ -216,7 +218,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         }
                     }
                 }
-                close($ls_fh);
+                close($ls_fh) || $self->throw("Could not close pipe to [$ls_cmd]");
                 
                 # grab extra info from the warehouse database if requested
                 if ($sample_sth) {
@@ -270,12 +272,90 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                             $meta->{study_title} = $study_titles[0];
                         }
                     }
+                    
+                    # another Sanger-specific thing is if we had an
+                    # analysis_uuid, see if there are any collections with the
+                    # same analysis_uuid and store some of the associated files
+                    if (exists $meta->{analysis_uuid}) {
+                        # get the most recent collection associated with an
+                        # analysis done for this file
+                        my %collections;
+                        my @uuids = ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid});
+                        foreach my $uuid (@uuids) {
+                            my ($col, $created_date);
+                            if (exists $analysis_to_col_date{$uuid}) {
+                                ($col, $created_date) = @{ $analysis_to_col_date{$uuid} };
+                            }
+                            else {
+                                my $colls_cmd = "imeta -z $zone qu -C analysis_uuid = $uuid";
+                                open(my $colls_fh, $colls_cmd . ' |') || $self->throw("Could not open pipe to [$colls_cmd]");
+                                while (<$colls_fh>) {
+                                    if (/^collection:\s+(\S+)/) {
+                                        my $this_col = $1;
+                                        my $date_cmd = "imeta ls -C $this_col dcterms:created";
+                                        open(my $date_fh, $date_cmd . ' |') || $self->throw("Could not open pipe to [$date_cmd]");
+                                        while (<$date_fh>) {
+                                            if (/^value: (.+)$/) {
+                                                $created_date = $1;
+                                            }
+                                        }
+                                        close($date_fh) || $self->throw("Could not close pipe to [$date_cmd]");
+                                        $created_date   || next;
+                                        $col = $this_col;
+                                        #*** do we ever get multiple collections
+                                        #    per uuid?
+                                        last;
+                                    }
+                                }
+                                close($colls_fh) || $self->throw("Could not close pipe to [$colls_cmd]");
+                                
+                                $col || next;
+                                $analysis_to_col_date{$uuid} = [$col, $created_date];
+                            }
+                            
+                            $collections{$col} = $created_date;
+                        }
+                        my ($analysis_collection) = sort { $collections{$b} cmp $collections{$a} } keys %collections;
+                        
+                        if ($analysis_collection) {
+                            my @files;
+                            if (exists $analysis_files{$analysis_collection}) {
+                                @files = @{ $analysis_files{$analysis_collection} };
+                            }
+                            else {
+                                my $ils_cmd = "ils -r $analysis_collection";
+                                open(my $ils_fh, $ils_cmd . ' |') || $self->throw("Could not open pipe to [$ils_cmd]");
+                                my $dir;
+                                while (<$ils_fh>) {
+                                    chomp;
+                                    if (/^($analysis_collection[^:]*)/) {
+                                        $dir = $1;
+                                    }
+                                    elsif (/(\S+(?:Sample_Probe_Profile|annotation|\.fcr\.)\S+)/i) {
+                                        # we could store all files, or take the
+                                        # above regex as a user-option, but for now
+                                        # we'll just hard-code it since this is all
+                                        # Sanger-specific anyway
+                                        next if /quantile/;
+                                        push(@files, file($dir, $1)->stringify);
+                                    }
+                                }
+                                close($ils_fh) || $self->throw("Could not close pipe to [$ils_cmd]");
+                                
+                                $analysis_files{$analysis_collection} = [@files];
+                            }
+                            
+                            if (@files) {
+                                $meta->{irods_analysis_files} = @files > 1 ? \@files : $files[0];
+                            }
+                        }
+                    }
                 }
                 
                 $files{$path} = $meta;
             }
         }
-        close($qu_fh);
+        close($qu_fh) || $self->throw("Could not open pipe to [$cmd]");
         
         return \%files;
     }

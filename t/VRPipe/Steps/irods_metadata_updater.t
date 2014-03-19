@@ -56,7 +56,8 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'beadchip'             => '9252616016',
         'sample_id'            => '1625281',
         'md5'                  => '41b6f345a2f92f095f09a7ff22bbbc00',
-        'sample_supplier_name' => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed'
+        'sample_supplier_name' => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
+        'irods_analysis_files' => ['/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz', '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt']
       },
       'correct file metadata was present on the first idat file';
 }
@@ -102,7 +103,8 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'beadchip'             => '9300870057',
         'sample_id'            => '1625188',
         'md5'                  => '17b7159554bca4ff4376384b385da51f',
-        'sample_supplier_name' => '87e7ee6f-e16f-41f6-94c5-194933e2b192'
+        'sample_supplier_name' => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
+        'irods_analysis_files' => '/archive/GAPI/gen/analysis/be/f4/37/coreex_hips/20130808/coreex_hips_20130808.fcr.txt.gz'
       },
       'correct file metadata was present on the first gtc file';
 }
