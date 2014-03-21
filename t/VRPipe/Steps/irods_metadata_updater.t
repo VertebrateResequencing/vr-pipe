@@ -4,13 +4,15 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 21;
     use VRPipeTest;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
         required_exe => [qw(imeta)]
     );
     use TestPipelines;
+    
+    use_ok('VRTrack::Factory');
 }
 
 # these are author-only tests (Sanger-specific) to make sure that we get all
@@ -18,7 +20,7 @@ BEGIN {
 # of data we process. We'll also test that we can then take this VRPipe metadata
 # on files and store all the tracking information in an external database
 
-my $output_root = get_output_dir('datasource_irods_import_dir');
+my $output_root = get_output_dir('irods_metadata_populator');
 
 # idat expression files
 ok my $ds = VRPipe::DataSource->create(
@@ -32,6 +34,27 @@ ok my $ds = VRPipe::DataSource->create(
   ),
   'could create an irods datasource for idat files';
 
+create_fresh_vrtrack_test_db();
+ok my $pipeline = VRPipe::Pipeline->create(name => 'vrtrack_populate_from_vrpipe_metadata'), 'able to get the vrtrack_populate_from_vrpipe_metadata pipeline';
+my @s_names;
+foreach my $stepmember ($pipeline->step_members) {
+    push(@s_names, $stepmember->step->name);
+}
+is_deeply \@s_names, [qw(vrtrack_populate_from_vrpipe_metadata)], 'the pipeline has the correct steps';
+
+VRPipe::PipelineSetup->create(
+    name        => 'idat populate',
+    datasource  => $ds,
+    output_root => $output_root,
+    pipeline    => $pipeline,
+    options     => {
+        vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
+        vrlane_storage_dir => $output_root,
+    }
+);
+
+ok handle_pipeline(), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for idat files';
+
 my $files = 0;
 foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) }) {
     $files++;
@@ -42,8 +65,8 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
       {
         'analysis_uuid'        => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
         'sample_cohort'        => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-        'study_id'             => [2622, 2625],
-        'study_title'          => ['G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS', 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS'],
+        'study_id'             => 2625,
+        'study_title'          => 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS',
         'sample'               => 'qc1hip5529781',
         'public_name'          => 'fpdr',
         'sample_created_date'  => '2013-05-10 06:45:32',
@@ -63,6 +86,35 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
 }
 is $files, 7, 'idat datasource returned the correct number of files';
 
+my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+my @lanes = $vrtrack->get_lanes();
+is @lanes, 7, 'the correct number of idat lanes were populated';
+my $lane_info = lane_info(grep { $_->name eq '9252616016_E_Grn' } @lanes);
+
+my $expected = {
+    lane_name             => '9252616016_E_Grn',
+    raw_reads             => undef,
+    is_paired             => undef,
+    lane_acc              => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
+    storage_path          => file($output_root, 'archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15')->stringify,
+    file_name             => '9252616016_E_Grn.idat',
+    file_type             => 8,
+    file_md5              => '41b6f345a2f92f095f09a7ff22bbbc00',
+    library_name          => 'qc1hip5529781.9252616016.E',
+    project_id            => 2625,
+    project_name          => 'G0325 [gex] Wellcome Trust Strategic Award application - HIPS',
+    study_acc             => 2625,
+    sample_name           => 'fpdr',
+    sample_hierarchy_name => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
+    sample_ssid           => '1625281',
+    species_taxon_id      => 9606,
+    species_name          => 'Homo Sapien',
+    individual_name       => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+    individual_acc        => undef
+};
+
+is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first idat lane';
+
 # gtc genotyping files
 ok $ds = VRPipe::DataSource->create(
     type    => 'irods',
@@ -74,6 +126,20 @@ ok $ds = VRPipe::DataSource->create(
     }
   ),
   'could create an irods datasource for gtc files';
+
+create_fresh_vrtrack_test_db();
+VRPipe::PipelineSetup->create(
+    name        => 'gtc populate',
+    datasource  => $ds,
+    output_root => $output_root,
+    pipeline    => $pipeline,
+    options     => {
+        vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
+        vrlane_storage_dir => $output_root,
+    }
+);
+
+ok handle_pipeline(), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for gtc files';
 
 $files = 0;
 foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) }) {
@@ -110,6 +176,35 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
 }
 is $files, 20, 'gtc datasource returned the correct number of files';
 
+$vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+@lanes = $vrtrack->get_lanes();
+is @lanes, 20, 'the correct number of gtc lanes were populated';
+$lane_info = lane_info(grep { $_->name eq '9300870057_R06C01' } @lanes);
+
+$expected = {
+    lane_name             => '9300870057_R06C01',
+    raw_reads             => undef,
+    is_paired             => undef,
+    lane_acc              => '3f5acca0-304c-480f-8a61-3e68c33c707d',
+    storage_path          => file($output_root, 'archive/GAPI/gen/analysis/be/f4/37/coreex_hips/20130808/coreex_hips_20130808.fcr.txt.gz')->stringify,
+    file_name             => '9300870057_R06C01.gtc',
+    file_type             => 7,
+    file_md5              => '17b7159554bca4ff4376384b385da51f',
+    library_name          => '283163_F01_qc1hip5529688',
+    project_id            => 2624,
+    project_name          => 'G0325 [coreex] Wellcome Trust Strategic Award application - HIPS',
+    study_acc             => 2624,
+    sample_name           => 'fpdk_3',
+    sample_hierarchy_name => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
+    sample_ssid           => '1625188',
+    species_taxon_id      => 9606,
+    species_name          => 'Homo Sapien',
+    individual_name       => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
+    individual_acc        => undef
+};
+
+is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first gtc lane';
+
 # bam sequencing data
 ok $ds = VRPipe::DataSource->create(
     type    => 'irods',
@@ -121,6 +216,20 @@ ok $ds = VRPipe::DataSource->create(
     }
   ),
   'could create an irods datasource for bam files';
+
+create_fresh_vrtrack_test_db();
+VRPipe::PipelineSetup->create(
+    name        => 'bam populate',
+    datasource  => $ds,
+    output_root => $output_root,
+    pipeline    => $pipeline,
+    options     => {
+        vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
+        vrlane_storage_dir => $output_root,
+    }
+);
+
+ok handle_pipeline(), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for bam files';
 
 $files = 0;
 foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) }) {
@@ -163,4 +272,75 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
 }
 is $files, 4, 'bam datasource returned the correct number of files';
 
+$vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
+@lanes = $vrtrack->get_lanes();
+is @lanes, 4, 'the correct number of bam lanes were populated';
+$lane_info = lane_info(grep { $_->name eq '9417_4#1' } @lanes);
+
+$expected = {
+    lane_name             => '9417_4#1',
+    raw_reads             => 70486376,
+    is_paired             => 1,
+    lane_acc              => undef,
+    storage_path          => undef,
+    file_name             => '9417_4#1.bam',
+    file_type             => 4,
+    file_md5              => '675b0b2b2f5991aa5a4695bb1914c0c7',
+    library_name          => 'MEK_res_1 6784051',
+    project_id            => 2547,
+    project_name          => 'De novo and acquired resistance to MEK inhibitors ',
+    study_acc             => 'ERP002262',
+    sample_name           => 'MEK_res_1',
+    sample_hierarchy_name => 'MEK_res_1',
+    sample_ssid           => '1571700',
+    species_taxon_id      => 10090,
+    species_name          => 'Mouse',
+    individual_name       => 'MEK_res_1',
+    individual_acc        => 'ERS215816'
+};
+
+is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first bam lane';
+
 exit;
+
+sub create_fresh_vrtrack_test_db {
+    my %cd = VRTrack::Factory->connection_details('rw');
+    open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
+    print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+    print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+    print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
+    foreach my $sql (VRTrack::VRTrack->schema()) {
+        print $mysqlfh $sql;
+    }
+    close($mysqlfh);
+}
+
+sub lane_info {
+    my $lane   = shift;
+    my ($file) = @{ $lane->files };
+    my %h      = $vrtrack->lane_hierarchy_objects($lane);
+    
+    my $info = {
+        lane_name             => $lane->name,
+        raw_reads             => $lane->raw_reads,
+        is_paired             => $lane->is_paired,
+        lane_acc              => $lane->acc,
+        storage_path          => $lane->storage_path,
+        file_name             => $file->name,
+        file_type             => $file->type,
+        file_md5              => $file->md5,
+        library_name          => $h{library}->name,
+        project_id            => $h{project}->ssid,
+        project_name          => $h{project}->name,
+        study_acc             => $h{study}->acc,
+        sample_name           => $h{sample}->name,
+        sample_hierarchy_name => $h{sample}->hierarchy_name,
+        sample_ssid           => $h{sample}->ssid,
+        species_taxon_id      => $h{species}->taxon_id,
+        species_name          => $h{species}->name,
+        individual_name       => $h{individual}->name,
+        individual_acc        => $h{individual}->acc
+    };
+    
+    return $info;
+}
