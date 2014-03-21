@@ -255,6 +255,23 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                     my $study_id = $meta->{study_id};
                     if ($study_id) {
                         my @study_ids = ref($study_id) ? @$study_id : ($study_id);
+                        
+                        if (@study_ids > 1 && $query =~ /study_id = (\d+)/) {
+                            # because we most likely want to populate VRTrack
+                            # based on this metadata, and VRTrack can't cope
+                            # with multiple study_ids per sample, check the
+                            # source to see if we wanted just a single study and
+                            # limit to that one
+                            my $desired = $1;
+                            foreach my $study_id (@study_ids) {
+                                if ($study_id == $desired) {
+                                    @study_ids = ($desired);
+                                    $meta->{study_id} = $desired;
+                                    last;
+                                }
+                            }
+                        }
+                        
                         my @study_titles;
                         foreach my $study_id (@study_ids) {
                             undef $study_title;
