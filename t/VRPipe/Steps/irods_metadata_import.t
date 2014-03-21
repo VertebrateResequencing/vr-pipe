@@ -35,12 +35,12 @@ ok my $ds = VRPipe::DataSource->create(
   'could create an irods datasource for idat files';
 
 create_fresh_vrtrack_test_db();
-ok my $pipeline = VRPipe::Pipeline->create(name => 'vrtrack_populate_from_vrpipe_metadata'), 'able to get the vrtrack_populate_from_vrpipe_metadata pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'vrtrack_populate_from_irods_and_download_files'), 'able to get the vrtrack_populate_from_irods_and_download_files pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(vrtrack_populate_from_vrpipe_metadata)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(vrtrack_populate_from_vrpipe_metadata irods_analysis_files_download)], 'the pipeline has the correct steps';
 
 VRPipe::PipelineSetup->create(
     name        => 'idat populate',
@@ -53,7 +53,8 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-ok handle_pipeline(), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for idat files';
+my @expected_output_files = (file($output_root, '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz'), file($output_root, '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt'));
+ok handle_pipeline(@expected_output_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for idat files';
 
 my $files = 0;
 foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) }) {
@@ -139,7 +140,8 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-ok handle_pipeline(), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for gtc files';
+@expected_output_files = (file($output_root, '/archive/GAPI/gen/analysis/be/f4/37/coreex_hips/20130808/coreex_hips_20130808.fcr.txt.gz'));
+ok handle_pipeline(@expected_output_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for gtc files';
 
 $files = 0;
 foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) }) {
@@ -224,12 +226,14 @@ VRPipe::PipelineSetup->create(
     output_root => $output_root,
     pipeline    => $pipeline,
     options     => {
-        vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
-        vrlane_storage_dir => $output_root,
+        vrtrack_db                 => $ENV{VRPIPE_VRTRACK_TESTDB},
+        vrlane_storage_dir         => $output_root,
+        irods_download_input_files => 1
     }
 );
 
-ok handle_pipeline(), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for bam files';
+@expected_output_files = (file($output_root, '/seq/9417/9417_4#1.bam'), file($output_root, '/seq/9417/9417_4#2.bam'), file($output_root, '/seq/9417/9417_4#3.bam'), file($output_root, '/seq/9417/9417_4#4.bam'));
+ok handle_pipeline(@expected_output_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for bam files';
 
 $files = 0;
 foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) }) {

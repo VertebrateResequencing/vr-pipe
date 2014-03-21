@@ -1,12 +1,13 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::vrtrack_populate_from_vrpipe_metadata - a pipeline
+VRPipe::Pipelines::vrtrack_populate_from_irods_and_download_files - a pipeline
 
 =head1 DESCRIPTION
 
 Pipeline to get metadata from an irods all_with_warehouse_metadata datasource
-and populate/update a VRTrack database.
+and populate/update a VRTrack database. It also downloads associated files from
+irods, and optionally downloads the primary files as well.
 
 =head1 AUTHOR
 
@@ -34,21 +35,21 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vrtrack_populate_from_vrpipe_metadata with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vrtrack_populate_from_irods_and_download_files with VRPipe::PipelineRole {
     method name {
-        return 'vrtrack_populate_from_vrpipe_metadata';
+        return 'vrtrack_populate_from_irods_and_download_files';
     }
     
     method description {
-        return 'Populate or update VRTrack lanes based on input file metadata from the irods all_with_warehouse_metadata datasource.';
+        return 'Populate or update VRTrack lanes based on input file metadata from the irods all_with_warehouse_metadata datasource, then download the files from irods.';
     }
     
     method step_names {
-        ('vrtrack_populate_from_vrpipe_metadata');
+        ('vrtrack_populate_from_vrpipe_metadata', 'irods_analysis_files_download');
     }
     
     method adaptor_definitions {
-        ({ from_step => 0, to_step => 1, to_key => 'files' });
+        ({ from_step => 0, to_step => 1, to_key => 'files' }, { from_step => 0, to_step => 2, to_key => 'files' });
     }
 }
 
