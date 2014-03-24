@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -68,7 +68,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             return "An element will comprise all the fastqs for a single lane, and the fastq files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
         }
         elsif ($method eq 'analysis_genome_studio') {
-            return "An element will comprise all the genome studio files (gtc or idat) for an analysis, and the files will have all relevant available metadata associated with them. Valid keys are: project, study, species, population, individual, sample, platform and library.";
+            return "An element will comprise all the genome studio files (gtc or idat) for an analysis, and the files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'individual|analysis_uuid' will group all files with the same individual and analysis_uuid. Valid keys are: project, study, species, population, individual, sample, platform, library and analysis_uuid.";
         }
         
         return '';
@@ -331,7 +331,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 my $current_metadata = $vrfile->metadata;
                 my $changed          = 0;
                 if ($current_metadata && keys %$current_metadata) {
-                    foreach my $meta (qw(expected_md5 lane project study center_name individual sample population platform library insert_size reads)) {
+                    foreach my $meta (qw(expected_md5 lane project study center_name individual sample population platform library insert_size reads analysis_uuid)) {
                         next unless defined $new_metadata->{$meta};
                         next if $meta eq 'reads' && $new_metadata->{$meta} == 0;
                         if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
@@ -379,7 +379,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                         individual => $lane_info{individual},
                         sample     => $lane_info{sample},
                         platform   => $lane_info{seq_tech},
-                        library    => $lane_info{library}
+                        library    => $lane_info{library},
+                        $file_type eq '7|8' ? (analysis_uuid => $lane_info{vrlane}->acc) : ()
                     },
                     scalar(@lane_changed_details) ? (changed => \@lane_changed_details) : ()
                 }
