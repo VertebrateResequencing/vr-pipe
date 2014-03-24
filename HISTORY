@@ -1,3 +1,6 @@
+0.184   Sanger-specific improvements to the irods datasource, and a new step and
+        pipeline to update a VRTrack database and import the files based on the
+        irods datasource.
 0.183   Fixed the new bam_improvement_gatk_v2 pipeline.
         StepCmdSummary version strings can now be up to 64 characters long.
         Full support for setting and getting multiple values per metadata key
