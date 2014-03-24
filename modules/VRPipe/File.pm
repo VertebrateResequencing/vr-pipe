@@ -394,6 +394,9 @@ class VRPipe::File extends VRPipe::Persistent {
             if ($retry > 59 && $mode eq '<') {
                 $self->throw("Failed to open '$path' after multiple retries: $!");
             }
+            elsif ($mode eq '>') {
+                $self->throw("Could not write to '$path': $!\n");
+            }
             else {
                 # we think the file exists, so sleep a second and try again
                 $self->disconnect;
