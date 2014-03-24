@@ -434,7 +434,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                     
                     next unless defined $val;
                     next unless defined $new_metadata->{$key};
-                    if (vals_different($val, $new_metadata->{$key})) {
+                    if (_vals_different($val, $new_metadata->{$key})) {
                         $changed = 1;
                         last;
                     }
@@ -456,7 +456,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         $self->_create_elements(\@element_args);
     }
     
-    sub vals_different {
+    sub _vals_different {
         my ($orig, $new) = @_;
         if (!ref($orig) && !ref($new)) {
             return $orig ne $new;
