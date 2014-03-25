@@ -25,7 +25,7 @@ John Maslen <jm23@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -52,18 +52,18 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         return {
             annot_file_regex   => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => 'annotation.txt'),
             profile_file_regex => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => 'Sample_Probe_Profile.txt'),
-            header_regex       => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID'),
-            control_regex      => VRPipe::StepOption->create(description => 'regex used to identify a control sample/lane from the idat file metadata',                                default_value => 'Control'),
+            header_regex       => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID')
         };
     }
     
     method inputs_definition {
         return {
             idat_files => VRPipe::StepIODefinition->create(
-                type        => 'bin',
-                description => 'idat file with associated genome studio irods file path and analysis_uuid metadata',
-                max_files   => -1,
-                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' }
+                type            => 'idat',
+                description     => 'idat file with associated genome studio irods metadata, where analysis files have already been downloaded',
+                max_files       => -1,
+                check_existence => 0,
+                metadata        => { sample => 'sample name for cell line', irods_analysis_files => 'full irods path to genome studio analysis files', irods_local_storage_dir => 'local base directory where the irods_analysis_files were downloaded', analysis_uuid => 'analysis_uuid', beadchip => 'the chip identifer', beadchip_section => 'section of the beadchip', sample_control => 'boolean for if this sample is a control' }
             ),
         };
     }
@@ -85,12 +85,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 description => 'a file that contains the GenomeStudio profile for the samples',
                 max_files   => 1,
                 metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
-            ),
-            #~ merged_profile_file => VRPipe::StepIODefinition->create(
-            #~ type        => 'txt',
-            #~ description => 'a file that contains the GenomeStudio profile for the samples',
-            #~ max_files   => 1,
-            #~ ),
+            )
         };
     }
     
@@ -101,7 +96,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             my $annot_file_regex   = $options->{annot_file_regex};
             my $profile_file_regex = $options->{profile_file_regex};
             my $header_regex       = $options->{header_regex};
-            my $control_regex      = $options->{control_regex};
             my $req                = $self->new_requirements(memory => 500, time => 1);
             
             my %annotation_files;
@@ -111,21 +105,28 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             my @sample_tag_map;
             
             foreach my $idat_file (@{ $self->inputs->{idat_files} }) {
-                my $meta         = $idat_file->metadata;
-                my $storage_path = $meta->{storage_path};
-                my $control      = $meta->{control};
-                my $lib_tag      = $meta->{library_tag};
-                my $sample       = $meta->{sample};
-                $sample = $sample . "_CTRL" if $control eq $control_regex;
-                my $sample_tag = (split /_/, $lib_tag)[0] . '_' . $sample;
+                my $meta           = $idat_file->metadata;
+                my $analysis_files = $meta->{irods_analysis_files};
+                my $local_dir      = $meta->{irods_local_storage_dir};
+                my $control        = $meta->{sample_control};
+                my $lib_tag        = $meta->{beadchip} . '_' . $meta->{beadchip_section};
+                my $sample         = $meta->{sample};
+                $sample = $sample . "_CTRL" if $control;
+                my $sample_tag = $meta->{beadchip} . '_' . $sample;
                 push @sample_tag_map, ($sample_tag, $lib_tag);
-                push @profile_lanes, $meta->{lane};
-                my @expression_files = <$storage_path/*>;
-                my ($annot_file, $pro_file);
+                my $lane_name = $idat_file->basename;
+                $lane_name =~ s/\.[^\.]+$//;
+                push @profile_lanes, $lane_name;
                 
-                foreach my $annotation_path (@expression_files) {
-                    $annot_file = $annotation_path if $annotation_path =~ m/$annot_file_regex$/i;
-                    $pro_file   = $annotation_path if $annotation_path =~ m/$profile_file_regex$/i;
+                my ($annot_file, $pro_file);
+                foreach my $path (@$analysis_files) {
+                    $path = file($local_dir, $path)->stringify;
+                    if ($path =~ m/$annot_file_regex/i) {
+                        $annot_file = $path;
+                    }
+                    elsif ($path =~ m/$profile_file_regex/i) {
+                        $pro_file = $path;
+                    }
                 }
                 if ($annot_file && !$annotation_files{$annot_file}) {
                     $annotation_files{$annot_file} = 1;
@@ -133,6 +134,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 }
                 push @{ $profile_files{$pro_file} }, $lib_tag if $pro_file && !$profile_files{$pro_file};
             }
+            
             my @annotation_paths = keys %annotation_files;
             my @profile_paths    = keys %profile_files;
             my @chars            = ("A" .. "Z");
@@ -197,18 +199,20 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         }
         die "No annotation file with correct number of columns!\n" unless @annot_paths;
         
-        system("rm $merged_profile_out");
+        my $merged_profile_file = VRPipe::File->get(path => $merged_profile_out);
+        $merged_profile_file->remove;
         my $profile_file = VRPipe::File->get(path => $profile_out);
-        my $new_profile = 1;
+        my $merged_file  = VRPipe::File->get(path => $merged_out);
+        my $new_profile  = 1;
         
         @annot_paths > 0 || $self->throw("No annotation files provided for the merge.");
         while (@annot_paths > 0) {
             my $annot_path = pop @annot_paths;
-            if (!-f $merged_out) { #No file, so create one....
-                my $merged_file = VRPipe::File->get(path => $merged_out);
-                my $merge_fh = $merged_file->openw;
-                my $fh;
-                open($fh, $annot_path) || $self->throw("Couldn't open '$annot_path': $!");
+            my $annot_file = VRPipe::File->get(path => $annot_path);
+            
+            if (!$merged_file->e) { #No file, so create one....
+                my $merge_fh  = $merged_file->openw;
+                my $fh        = $annot_file->openr;
                 my $body_text = 0;
                 while (<$fh>) {
                     $body_text = 1 if $_ =~ /$header_regex/;
@@ -223,8 +227,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my @new_fields;
                 my $header_line;
                 
-                my $cfh;
-                open($cfh, $merged_out) || $self->throw("Couldn't open '$merged_out': $!");
+                my $cfh = $merged_file->openr;
                 while (<$cfh>) {
                     if ($_ =~ /$header_regex/) {
                         $header_line = $_;
@@ -235,16 +238,14 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 }
                 close $cfh;
                 
-                my $nfh;
-                open($nfh, $annot_path) || $self->throw("Couldn't open '$annot_path': $!");
+                my $nfh = $annot_file->openr;
                 while (<$nfh>) {
                     push @new_fields, $_ unless $_ =~ /$header_regex/;
                 }
-                close $nfh;
+                $annot_file->close;
                 
                 # the intersection of current and new:
                 my @intersection = grep($current_fields{$_}, @new_fields);
-                my $merged_file = VRPipe::File->get(path => $merged_out);
                 my $merge_fh = $merged_file->openw;
                 print $merge_fh $header_line;
                 for my $annot (@intersection) {
@@ -256,11 +257,10 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             }
             
             my $profile_in = $annot_profiles{$annot_path} || $self->throw("Couldn't open '$annot_profiles{$annot_path}': $!");
-            if (!-f $merged_profile_out) { #No file, so create one....
-                my $merged_profile_file = VRPipe::File->get(path => $merged_profile_out);
-                my $pro_fh = $merged_profile_file->openw;
-                my $pfh;
-                open($pfh, $profile_in) || $self->throw("Couldn't open '$profile_in': $!");
+            my $profile_in_file = VRPipe::File->get(path => $profile_in);
+            if (!$merged_profile_file->e) { #No file, so create one....
+                my $pro_fh    = $merged_profile_file->openw;
+                my $pfh       = $profile_in_file->openr;
                 my $body_text = 0;
                 while (<$pfh>) {
                     $body_text = 1 if $_ =~ /$header_regex/;
@@ -275,8 +275,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my @header_line;
                 my $header;
                 
-                my $cfh;
-                open($cfh, $merged_profile_out) || $self->throw("Couldn't open '$merged_profile_out': $!");
+                my $cfh = $merged_profile_file->openr;
                 while (<$cfh>) {
                     chomp;
                     my @fields = split /\s+/, $_;
@@ -290,8 +289,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 }
                 close $cfh;
                 
-                my $nfh;
-                open($nfh, $profile_in) || $self->throw("Couldn't open '$profile_in': $!");
+                my $nfh       = $profile_in_file->openr;
                 my $body_text = 0;
                 while (<$nfh>) {
                     chomp;
@@ -310,7 +308,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 }
                 close $nfh;
                 
-                my $merged_profile_file = VRPipe::File->get(path => $merged_profile_out);
                 my $mp_fh = $merged_profile_file->openw;
                 print $mp_fh $header;
                 for my $annot (@new_fields) {
@@ -322,8 +319,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             }
         }
         
-        my $pfh;
-        open($pfh, $merged_profile_out) || $self->throw("Couldn't open '$merged_profile_out': $!");
+        my $pfh       = $merged_profile_file->openr;
         my $pro_fh    = $profile_file->openw;
         my $body_text = 0;
         my @profile_order;
