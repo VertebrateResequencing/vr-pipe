@@ -415,11 +415,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             $sub_path =~ s/^\///;
             my $file_abs_path = file($local_root_dir, $sub_path)->stringify;
             
-            # consider type to be txt if not a VRPipe file type
+            # consider type to be any if not defined in the irods metadata; if
+            # not a VRPipe filetype it will be treated as an any
             my $type = delete $new_metadata->{type};
-            $type ||= 'txt';
-            eval "require VRPipe::FileType::$type;";
-            if ($@) { $type = 'txt'; }
+            $type ||= 'any';
             
             my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type)->original;
             
