@@ -49,7 +49,7 @@ VRPipe::PipelineSetup->create(
     pipeline    => $pipeline,
     options     => {
         vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
-        vrlane_storage_dir => $output_root,
+        vrlane_storage_dir => $output_root
     }
 );
 
@@ -102,6 +102,8 @@ my $expected = {
     file_type             => 8,
     file_md5              => '41b6f345a2f92f095f09a7ff22bbbc00',
     library_name          => 'qc1hip5529781.9252616016.E',
+    library_ssid          => 6016281,
+    library_ts            => '9252616016_E',
     project_id            => 2625,
     project_name          => 'G0325 [gex] Wellcome Trust Strategic Award application - HIPS',
     study_acc             => 2625,
@@ -193,6 +195,8 @@ $expected = {
     file_type             => 7,
     file_md5              => '17b7159554bca4ff4376384b385da51f',
     library_name          => '283163_F01_qc1hip5529688',
+    library_ssid          => 57188,
+    library_ts            => '9300870057_R06C01',
     project_id            => 2624,
     project_name          => 'G0325 [coreex] Wellcome Trust Strategic Award application - HIPS',
     study_acc             => 2624,
@@ -291,6 +295,8 @@ $expected = {
     file_type             => 4,
     file_md5              => '675b0b2b2f5991aa5a4695bb1914c0c7',
     library_name          => 'MEK_res_1 6784051',
+    library_ssid          => 6784051,
+    library_ts            => undef,
     project_id            => 2547,
     project_name          => 'De novo and acquired resistance to MEK inhibitors ',
     study_acc             => 'ERP002262',
@@ -334,6 +340,8 @@ sub lane_info {
         file_type             => $file->type,
         file_md5              => $file->md5,
         library_name          => $h{library}->name,
+        library_ssid          => $h{library}->ssid,
+        library_ts            => $h{library}->library_tag_sequence,
         project_id            => $h{project}->ssid,
         project_name          => $h{project}->name,
         study_acc             => $h{study}->acc,
