@@ -1,3 +1,5 @@
+0.186   Fix to stop restarting steps that by design do no create their output
+        files, when the output files do not have all required metadata.
 0.185   Fixed bug in VRPipe::File->openw to prevent deep recursion when lacking
         permission to write.
         VRTrack datasource analysis_genome_studio method now allows grouping on
