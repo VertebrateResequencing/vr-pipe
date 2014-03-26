@@ -436,7 +436,7 @@ role VRPipe::StepRole {
         # (in inputs_mode we do not have to check file existence and type since
         # inputs() already did that)
         
-        my (@missing, @messages);
+        my (@missing, @messages, %missing_metadata);
         # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
             my $def     = $defs->{$key};
@@ -492,6 +492,7 @@ role VRPipe::StepRole {
                                 unless (exists $meta->{$key}) {
                                     push(@messages, $file->path . " exists, but lacks required metadata key $key!");
                                     $bad = 1;
+                                    $missing_metadata{ $file->path } = 1;
                                 }
                             }
                         }
@@ -504,7 +505,7 @@ role VRPipe::StepRole {
             }
         }
         
-        return (\@missing, \@messages);
+        return (\@missing, \@messages, \%missing_metadata);
     }
     
     method missing_input_files {
@@ -614,14 +615,16 @@ role VRPipe::StepRole {
         # if we have missing input files, check to see if some other step
         # created them, and start those steps over in the hopes the files will
         # be recreated; otherwise throw
-        my ($missing, $messages) = $self->missing_input_files;
+        my ($missing, $messages, $missing_metadata) = $self->missing_input_files;
         if (@$missing) {
             my $with_recourse = 0;
             my %states_to_restart;
             foreach my $path (@$missing) {
+                # there's no recourse if the file was actually just missing some
+                # metadata, not physically missing
+                next if exists $missing_metadata->{$path};
+                
                 my $file = VRPipe::File->get(path => $path);
-                my $resolved = $file->resolve;
-                next if $resolved->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
                 my $count = 0;
                 my $state;
                 foreach my $sof (VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' })) {
@@ -631,7 +634,7 @@ role VRPipe::StepRole {
                 
                 if ($count == 1) {
                     $with_recourse++;
-                    push(@{ $states_to_restart{ $state->id } }, $resolved->path);
+                    push(@{ $states_to_restart{ $state->id } }, $file->resolve->path);
                 }
             }
             
