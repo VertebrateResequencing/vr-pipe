@@ -75,32 +75,35 @@ class VRPipe::Steps::irods_analysis_files_download extends VRPipe::Steps::irods 
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $file (@{ $self->inputs->{files} }) {
                 my @afiles = $file->meta_value("irods_analysis_files");
+                my $irods_local_storage_dir;
                 foreach my $afile (@afiles) {
+                    $irods_local_storage_dir = $dir;
                     my $download_path = file($dir, $afile);
                     my $download_file = VRPipe::File->create(path => $download_path);
                     next if $download_file->s;
                     
-                    $self->output_file(output_key => 'local_files', output_dir => $download_file->dir, basename => $download_file->basename, type => 'any', metadata => { source_file => $file->path->stringify })->path;
+                    $self->output_file(output_key => 'analysis_files', output_dir => $download_file->dir, basename => $download_file->basename, type => 'any', metadata => { source_file => $file->path->stringify })->path;
                     
                     $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_analysis_files_download; VRPipe::Steps::irods_analysis_files_download->get_file(source => q[$afile], dest => q[$download_path], iget => q[$iget], ichksum => q[$ichksum]);], $req, { output_files => [$download_file], block_and_skip_if_ok => 1 });
                 }
                 
+                # we always specify our inputs as outputs so that other setups
+                # can use us a source, even if they don't need the files
+                # downloaded
+                my $meta = $file->metadata;
+                $meta->{irods_local_storage_dir} = $irods_local_storage_dir if $irods_local_storage_dir;
+                my $dest = $self->output_file(output_key => 'input_files', output_dir => $file->dir, basename => $file->basename, type => $file->type, metadata => $meta)->path;
+                
                 if ($get_inputs) {
-                    # (pretty much the same as the irods_get_files_by_basename
-                    #  step)
                     if (!$file->s) {
-                        # download to the path of our input file, which doesn't
-                        # exist yet
-                        my $meta = $file->metadata;
-                        my $dest = $self->output_file(output_key => 'local_files', output_dir => $file->dir, basename => $file->basename, type => $file->type, metadata => $meta)->path;
-                        
+                        # actually download
                         $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_analysis_files_download; VRPipe::Steps::irods_analysis_files_download->get_file(source => q[$meta->{irods_path}], dest => q[$dest], iget => q[$iget], ichksum => q[$ichksum]);], $req);
                     }
                     else {
                         # symlink our existing input file to the pipeline output dir
                         # so that if this step is restarted, we won't delete our
                         # input file
-                        my $ofile = $self->output_file(output_key => 'local_files', basename => $file->basename, type => $file->type, metadata => $file->metadata);
+                        my $ofile = $self->output_file(output_key => 'input_files', basename => $file->basename, type => $file->type, metadata => $file->metadata);
                         $file->symlink($ofile);
                     }
                 }
@@ -110,11 +113,18 @@ class VRPipe::Steps::irods_analysis_files_download extends VRPipe::Steps::irods 
     
     method outputs_definition {
         return {
-            local_files => VRPipe::StepIODefinition->create(
+            analysis_files => VRPipe::StepIODefinition->create(
                 type        => 'any',
                 description => 'a file on a local disc, extracted from iRODs',
                 min_files   => 0,
                 max_files   => -1
+            ),
+            input_files => VRPipe::StepIODefinition->create(
+                type            => 'any',
+                description     => 'a file on a local disc, extracted from iRODs',
+                min_files       => 0,
+                max_files       => -1,
+                check_existence => 0
             )
         };
     }

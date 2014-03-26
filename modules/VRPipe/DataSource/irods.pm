@@ -415,11 +415,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             $sub_path =~ s/^\///;
             my $file_abs_path = file($local_root_dir, $sub_path)->stringify;
             
-            # consider type to be txt if not a VRPipe file type
+            # consider type to be any if not defined in the irods metadata; if
+            # not a VRPipe filetype it will be treated as an any
             my $type = delete $new_metadata->{type};
-            $type ||= 'txt';
-            eval "require VRPipe::FileType::$type;";
-            if ($@) { $type = 'txt'; }
+            $type ||= 'any';
             
             my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type)->original;
             
@@ -434,7 +433,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                     
                     next unless defined $val;
                     next unless defined $new_metadata->{$key};
-                    if (vals_different($val, $new_metadata->{$key})) {
+                    if (_vals_different($val, $new_metadata->{$key})) {
                         $changed = 1;
                         last;
                     }
@@ -456,7 +455,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         $self->_create_elements(\@element_args);
     }
     
-    sub vals_different {
+    sub _vals_different {
         my ($orig, $new) = @_;
         if (!ref($orig) && !ref($new)) {
             return $orig ne $new;

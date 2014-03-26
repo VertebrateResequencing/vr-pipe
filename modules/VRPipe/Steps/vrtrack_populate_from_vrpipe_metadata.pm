@@ -180,7 +180,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 $vrfile->update;
                 
                 # get/create the library
-                my ($library_name, $library_ssid);
+                my ($library_name, $library_ssid, $library_tag_sequence);
                 if ($type eq 'bam') {
                     $library_name = $meta->{library};
                     $library_ssid = $meta->{library_id};
@@ -193,6 +193,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                         $library_name = "$meta->{sample}.$meta->{beadchip}.$meta->{beadchip_section}";
                     }
                     $library_ssid = substr($meta->{beadchip}, -4) . substr($meta->{sample_id}, -3);
+                    $library_tag_sequence = $meta->{beadchip} . '_' . $meta->{beadchip_section};
                 }
                 die "no library name and ssid for lane $lane\n" unless $library_name && $library_ssid;
                 my $vrlibrary;
@@ -202,6 +203,10 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 else {
                     $vrlibrary = VRTrack::Library->create($vrtrack, $library_name);
                 }
+                $vrlibrary->ssid($library_ssid);
+                $vrlibrary->library_tag_sequence($library_tag_sequence) if $library_tag_sequence;
+                $vrlibrary->update;
+                
                 $vrlane->library_id($vrlibrary->id);
                 $vrlane->update;
                 
