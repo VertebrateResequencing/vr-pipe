@@ -75,7 +75,9 @@ class VRPipe::Steps::irods_analysis_files_download extends VRPipe::Steps::irods 
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $file (@{ $self->inputs->{files} }) {
                 my @afiles = $file->meta_value("irods_analysis_files");
+                my $irods_local_storage_dir;
                 foreach my $afile (@afiles) {
+                    $irods_local_storage_dir = $dir;
                     my $download_path = file($dir, $afile);
                     my $download_file = VRPipe::File->create(path => $download_path);
                     next if $download_file->s;
@@ -89,6 +91,7 @@ class VRPipe::Steps::irods_analysis_files_download extends VRPipe::Steps::irods 
                 # can use us a source, even if they don't need the files
                 # downloaded
                 my $meta = $file->metadata;
+                $meta->{irods_local_storage_dir} = $irods_local_storage_dir if $irods_local_storage_dir;
                 my $dest = $self->output_file(output_key => 'input_files', output_dir => $file->dir, basename => $file->basename, type => $file->type, metadata => $meta)->path;
                 
                 if ($get_inputs) {
