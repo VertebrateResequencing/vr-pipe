@@ -1,3 +1,15 @@
+0.185   Fixed bug in VRPipe::File->openw to prevent deep recursion when lacking
+        permission to write.
+        VRTrack datasource analysis_genome_studio method now allows grouping on
+        analysis_uuid.
+        irods datasource now sets the type of files to their type in irods.
+        irods_analysis_files_download step now outputs analysis and input files
+        under different output keys. It also adds irods_local_storage_dir
+        metadata to say where the irods_analysis_files were downloaded to.
+        vrtrack_populate_from_vrpipe_metadata step now sets library ssid and
+        tag sequence.
+        pluritest_annotation_profile_files step now (only) works with idat files
+        from the irods datasource.
 0.184   Sanger-specific improvements to the irods datasource, and a new step and
         pipeline to update a VRTrack database and import the files based on the
         irods datasource.
