@@ -11,11 +11,11 @@ concurrence; results are stored as metadata (gtype_analysis) on the bam file.
 
 =head1 AUTHOR
 
-Chris Joyce <cj5@sanger.ac.uk>.
+Chris Joyce <cj5@sanger.ac.uk>, Sendu Bala <sb10@sanger.ac.uk>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -38,13 +38,23 @@ use VRPipe::Base;
 class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
     method options_definition {
         return {
-            min_concurrence_ratio => VRPipe::StepOption->create(
-                description   => 'Minimum best-to-next-best concurrence ratio to be used when applying genotype check status',
+            min_concordance => VRPipe::StepOption->create(
+                description   => 'Minimum concordance to be used when applying genotype check status',
+                optional      => 1,
+                default_value => 0.94
+            ),
+            min_concordance_ratio => VRPipe::StepOption->create(
+                description   => 'Minimum best-to-next-best concordance ratio to be used when applying genotype check status',
                 optional      => 1,
                 default_value => 1.05
             ),
             min_sites => VRPipe::StepOption->create(
                 description   => 'Minimum number of sites for the data to be used in the genotype analysis',
+                optional      => 1,
+                default_value => 0
+            ),
+            multiple_samples_per_individual => VRPipe::StepOption->create(
+                description   => 'If there are multiple samples per individual, set this to 1 to output the concordance before the ratio, resulting in the concordance being stored in VRTrack during auto qc, instead of the ratio',
                 optional      => 1,
                 default_value => 0
             )
@@ -64,16 +74,18 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self      = shift;
-            my $options   = $self->options;
-            my $min_ratio = $options->{min_concurrence_ratio};
-            my $min_sites = $options->{min_sites};
-            my $req       = $self->new_requirements(memory => 3900, time => 1);
+            my $self            = shift;
+            my $options         = $self->options;
+            my $min_ratio       = $options->{min_concordance_ratio};
+            my $min_sites       = $options->{min_sites};
+            my $min_concordance = $options->{min_concordance};
+            my $mspi            = $options->{multiple_samples_per_individual};
+            my $req             = $self->new_requirements(memory => 3900, time => 1);
             
             foreach my $gt_file (@{ $self->inputs->{htscmd_gtcheck_files} }) {
                 my $source_bam   = $gt_file->metadata->{source_bam};
                 my $gt_file_path = $gt_file->path;
-                my $cmd          = "use VRPipe::Steps::htscmd_genotype_analysis; VRPipe::Steps::htscmd_genotype_analysis->analyse_htscmd_output(gt_file_path => q[$gt_file_path], source_bam => q[$source_bam], min_ratio => q[$min_ratio], min_sites => q[$min_sites]);";
+                my $cmd          = "use VRPipe::Steps::htscmd_genotype_analysis; VRPipe::Steps::htscmd_genotype_analysis->analyse_htscmd_output(gt_file_path => q[$gt_file_path], source_bam => q[$source_bam], min_ratio => $min_ratio, min_sites => $min_sites, min_concordance => $min_concordance, multiple_samples_per_individual => $mspi);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -95,45 +107,45 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         return 0;
     }
     
-    method analyse_htscmd_output (ClassName|Object $self: Str|File :$gt_file_path!, Str|File :$source_bam!, Num :$min_ratio!, Num :$min_sites!) {
+    method analyse_htscmd_output (ClassName|Object $self: Str|File :$gt_file_path!, Str|File :$source_bam!, Num :$min_ratio!, Num :$min_sites!, Num :$min_concordance!, Bool :$multiple_samples_per_individual!) {
         my $gt_file  = VRPipe::File->get(path => $gt_file_path);
         my $meta     = $gt_file->metadata;
         my $expected = $meta->{expected_sample};
         
         my $found_expected = 0;
-        my ($gtype1, $score1, $gtype2, $score2);
+        my ($gtype1, $score1, $gtype2, $score2, $score_expected);
         
-        my $pipe = "grep -v '^#' $gt_file_path| sort -nr -k1 |"; # sort descending on Confidence
-        my $fh;
-        open($fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
+        my $pipe = "grep -v '^#' $gt_file_path| sort -nr -k1 |"; # sort descending on concordance
+        open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
         
         while (<$fh>) {
             # 0.435266        0.468085        25905095.2      25      NA20544
-            my ($concurrence, $uncertainty, $avg_depth, $sites, $sample) = split;
+            my ($concordance, $uncertainty, $avg_depth, $sites, $sample) = split;
             
             next if $sites < $min_sites;
             
             if (!defined $gtype1) {
                 $gtype1 = $sample;
-                $score1 = $concurrence;
+                $score1 = $concordance;
             }
             elsif (!defined $gtype2) {
                 $gtype2 = $sample;
-                $score2 = $concurrence;
+                $score2 = $concordance;
             }
             
             if ($expected && $sample eq $expected) {
                 $found_expected = 1;
+                $score_expected = $concordance;
                 
                 # if the expected sample has a score with ratio 1.000 vs score1,
                 # then we'll fudge things and say gtype2 is the expected,
                 # regardless of where it appeared in the file
                 if (defined $gtype2 && $gtype2 ne $expected) {
-                    my $ratio = $concurrence != 0 ? $score1 / $concurrence : $score1 / 1e-6;
+                    my $ratio = $concordance != 0 ? $score1 / $concordance : $score1 / 1e-6;
                     $ratio = sprintf("%0.3f", $ratio);
                     if ($ratio == 1) {
                         $gtype2 = $sample;
-                        $score2 = $concurrence;
+                        $score2 = $concordance;
                     }
                 }
             }
@@ -142,42 +154,67 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
         }
         close $fh;
         
-        if ($expected && !$found_expected) { $expected = 0; }
-        my $expected_gtype2 = ($expected eq $gtype2 && $score1 == $score2) ? 1 : 0;
-        
         # ratio = GT1 score / GT2 score, best-match / next-best
         my $ratio = $score2 != 0 ? $score1 / $score2 : $score1 / 1e-6;
         $ratio = sprintf("%0.3f", $ratio);
-        my $gt_status;
         
-        if ($expected_gtype2) {
-            $gt_status = "status=confirmed expected=$expected found=$gtype2 ratio=$ratio";
-        }
-        elsif ($ratio < $min_ratio) {
-            if ($expected) {
-                if ($ratio == 1) {
-                    # if the scores are so close we're in the margin of error,
-                    # consider the check as confirmed, but still note if the
-                    # expected and found are different
-                    $gt_status = "status=confirmed expected=$expected found=$gtype1 ratio=$ratio";
+        # we confirm things when the top hit is much better than the second hit
+        # (the ratio is higher than the min_ratio), with a special case when the
+        # ratio of the scores is 1 and the concordance is over the
+        # min_concordance
+        
+        my ($status, $exp, $con);
+        if ($found_expected) {
+            $exp = $expected;
+            $con = $score_expected;
+            
+            if ($expected eq $gtype1) {
+                if ($ratio >= $min_ratio || $score_expected > $min_concordance) {
+                    # we're the top hit and clearly better than anything else,
+                    # or have virtually no differences to the expected
+                    $status = 'confirmed';
                 }
                 else {
-                    $gt_status = "status=unconfirmed expected=$expected found=$gtype1 ratio=$ratio";
+                    # we could be matching any old sample within the margin of
+                    # error, so call it unconfirmed
+                    $status = 'unconfirmed';
                 }
             }
-            else {
-                $gt_status = "status=unknown expected=none found=$gtype1 ratio=$ratio";
+            elsif ($expected eq $gtype2) {
+                if ($ratio == 1 && $score_expected > $min_concordance) {
+                    # if the scores are so close we're in the margin of error,
+                    # consider the check as confirmed, but still note that the
+                    # expected ($exp) and found ($gtype1) are different
+                    $status = 'confirmed';
+                }
+                elsif ($ratio < $min_ratio) {
+                    # it's pretty close to the top hit, and since it's the
+                    # second hit we'll say it's not definitely wrong
+                    $status = 'unconfirmed';
+                }
             }
-        }
-        elsif (!$expected) {
-            $gt_status = "status=candidate expected=none found=$gtype1 ratio=$ratio";
-        }
-        elsif ($expected eq $gtype1) {
-            $gt_status = "status=confirmed expected=$expected found=$gtype1 ratio=$ratio";
+            
+            # we're not in the top 2 hits, or we have a much worse score than
+            # the top hit - we definitely match some unexpected sample
+            $status ||= 'wrong';
         }
         else {
-            $gt_status = "status=wrong expected=$expected found=$gtype1 ratio=$ratio";
+            $exp = 'none';
+            $con = $score1;
+            
+            # we don't know what it's supposed to be, but ...
+            if ($ratio >= $min_ratio) {
+                # ... it matches clearly to the top hit and not any others
+                $status = 'candidate';
+            }
+            else {
+                # ... it's pretty similar to multiple samples, so not sure
+                $status = 'unknown';
+            }
         }
+        
+        my $gt_status = "status=$status expected=$exp found=$gtype1 " . ($multiple_samples_per_individual ? "concordance=$con ratio=$ratio" : "ratio=$ratio concordance=$con");
+        print $gt_status, "\n";
         
         my $new_meta = { gtype_analysis => $gt_status };
         $gt_file->add_metadata($new_meta, replace_data => 1);
