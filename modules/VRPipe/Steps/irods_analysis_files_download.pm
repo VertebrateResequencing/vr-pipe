@@ -80,9 +80,10 @@ class VRPipe::Steps::irods_analysis_files_download extends VRPipe::Steps::irods 
                     $irods_local_storage_dir = $dir;
                     my $download_path = file($dir, $afile);
                     my $download_file = VRPipe::File->create(path => $download_path);
-                    next if $download_file->s;
                     
                     $self->output_file(output_key => 'analysis_files', output_dir => $download_file->dir, basename => $download_file->basename, type => 'any', metadata => { source_file => $file->path->stringify })->path;
+                    
+                    next if $download_file->s;
                     
                     $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_analysis_files_download; VRPipe::Steps::irods_analysis_files_download->get_file(source => q[$afile], dest => q[$download_path], iget => q[$iget], ichksum => q[$ichksum]);], $req, { output_files => [$download_file], block_and_skip_if_ok => 1 });
                 }
