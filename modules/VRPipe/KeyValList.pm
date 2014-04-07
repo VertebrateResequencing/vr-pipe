@@ -63,7 +63,7 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
     sub _members_to_string {
         my ($self, $members) = @_;
         return 'undef' unless @$members;
-        my @keyvals = sort map { $_->[0] . (ref($_->[1]) ? join(',', @{ $_->[1] }) : $_->[1]) } @$members;
+        my @keyvals = sort map { $_->[0] . (ref($_->[1]) eq 'ARRAY' ? join(',', @{ $_->[1] }) : $_->[1]) } @$members;
         return join('', @keyvals);
     }
     
@@ -94,7 +94,7 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
         my $lid = $list->id;
         foreach my $ref (@$keyvals) {
             my ($key, $val) = @$ref;
-            my @vals = ref($val) ? @$val : ($val);
+            my @vals = ref($val) eq 'ARRAY' ? @$val : ($val);
             foreach my $value (@vals) {
                 push(@lm_args, { keyvallist => $lid, keyval_key => $key, val => $value });
             }
@@ -123,7 +123,7 @@ class VRPipe::KeyValList extends VRPipe::Persistent with VRPipe::PersistentListR
             my ($keyval_key, $val) = @$ref;
             if (exists $return->{$keyval_key}) {
                 my $previous = $return->{$keyval_key};
-                if (ref($previous)) {
+                if (ref($previous) eq 'ARRAY') {
                     push(@{ $return->{$keyval_key} }, $val);
                 }
                 else {

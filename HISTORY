@@ -1,3 +1,13 @@
+0.187   vrpipe-disk_usage now provides a complete report on all usage across all
+        disks.
+        Critical fixes and improvements for the htscmd_genotype_analysis step,
+        which now takes different options and calculates gt_status correctly.
+        pluritest_plot_gene_expression step fixed to not break due to an
+        undefined environment variable.
+        Critical fix for ARRAY-ref-related errors when trying to add metadata to
+        files.
+        Overhaul of genome-studio and loh-calling pipelines to work with the
+        irods datasource.
 0.186   Fix to stop restarting steps that by design do no create their output
         files, when the output files do not have all required metadata.
 0.185   Fixed bug in VRPipe::File->openw to prevent deep recursion when lacking

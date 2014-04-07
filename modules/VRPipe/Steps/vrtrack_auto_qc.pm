@@ -182,7 +182,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             my $gstatus;
             my $gtype_analysis = $meta->{gtype_analysis};
             if ($gtype_analysis) {
-                ($gstatus) = $gtype_analysis =~ /status=(\S+) expected=(\S+) found=(\S+) ratio=(\S+)/;
+                ($gstatus) = $gtype_analysis =~ /status=(\S+) expected=(\S+) found=(\S+) (?:ratio|concordance)=(\S+)/;
                 @gtype_results = ($gstatus, $2, $3, $4);
             }
             else {

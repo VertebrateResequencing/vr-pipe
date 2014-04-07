@@ -143,7 +143,7 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-@expected_output_files = (file($output_root, '/archive/GAPI/gen/analysis/be/f4/37/coreex_hips/20130808/coreex_hips_20130808.fcr.txt.gz'));
+@expected_output_files = (file($output_root, '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz'));
 ok handle_pipeline(@expected_output_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for gtc files';
 
 $files = 0;
@@ -154,7 +154,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
     my $file = VRPipe::File->create(path => $path);
     is_deeply $file->metadata,
       {
-        'analysis_uuid'           => ['45a53a77-50bc-4062-b9cb-8dfe82e589f2', '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab', '7da360df-218d-4cd0-994d-37fefd0ffaa9', '3f5acca0-304c-480f-8a61-3e68c33c707d'],
+        'analysis_uuid'           => ['45a53a77-50bc-4062-b9cb-8dfe82e589f2', '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab', '3f5acca0-304c-480f-8a61-3e68c33c707d'],
         'infinium_well'           => 'F01',
         'study_id'                => '2624',
         'sample_cohort'           => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
@@ -175,7 +175,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'sample_id'               => '1625188',
         'md5'                     => '17b7159554bca4ff4376384b385da51f',
         'sample_supplier_name'    => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
-        'irods_analysis_files'    => '/archive/GAPI/gen/analysis/be/f4/37/coreex_hips/20130808/coreex_hips_20130808.fcr.txt.gz',
+        'irods_analysis_files'    => '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz',
         'irods_local_storage_dir' => $output_root
       },
       'correct file metadata was present on the first gtc file';
@@ -192,7 +192,7 @@ $expected = {
     raw_reads             => undef,
     is_paired             => undef,
     lane_acc              => '3f5acca0-304c-480f-8a61-3e68c33c707d',
-    storage_path          => file($output_root, 'archive/GAPI/gen/analysis/be/f4/37/coreex_hips/20130808/coreex_hips_20130808.fcr.txt.gz')->stringify,
+    storage_path          => file($output_root, 'archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz')->stringify,
     file_name             => '9300870057_R06C01.gtc',
     file_type             => 7,
     file_md5              => '17b7159554bca4ff4376384b385da51f',
