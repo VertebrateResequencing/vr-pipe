@@ -6,7 +6,7 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 32;
+    use Test::Most tests => 37;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
         required_exe => [qw(iget iquest fcr-to-vcf sort bgzip)]
@@ -226,6 +226,49 @@ foreach my $vcf_path (@merged_vcf_files) {
     is $asample, $esample, "genotype_maximum_deviation metadata sample was correct for one of the merged VCF files";
 }
 
+# we'll also take the opportunity to test bcftools cnv caller pipeline, since that
+# also uses files from the genome studio import
+SKIP: {
+    my $num_tests = 5;
+    skip "hipsci bcftools cnv calling tests disabled without bcftools_cnv_caller in your path", $num_tests unless can_execute('bcftools');
+    
+    $output_dir = get_output_dir('bcftools_cnv_caller');
+    
+    # check pipeline has correct steps
+    ok my $cnv_pipeline = VRPipe::Pipeline->create(name => 'bcftools_cnv_caller'), 'able to get the bcftools_cnv_caller pipeline';
+    my @step_names;
+    foreach my $stepmember ($cnv_pipeline->step_members) {
+        push(@step_names, $stepmember->step->name);
+    }
+    is_deeply \@step_names, [qw(vcf_merge_different_samples_control_aware bcftools_cnv_caller)], 'the bcftools_cnv_caller pipeline has the correct steps';
+    
+    my $cnv_setup = VRPipe::PipelineSetup->create(
+        name        => 'cnv_calling',
+        pipeline    => $cnv_pipeline,
+        datasource  => $vrpipe_ds,
+        output_root => $output_dir,
+        options     => {}
+    );
+    
+    # figure out output files
+    my (@merged_vcfs, @summary_files);
+    foreach my $element_id (41 .. 45) {
+        my @output_subdirs = output_subdirs($element_id, $cnv_setup->id);
+        push(@merged_vcfs, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
+        if ($element_id == 41) {
+            foreach my $sub_dir (qw(fpdr-fpdr_1 fpdr-fpdr_2 fpdr-fpdr_3)) {
+                push(@summary_files, file(@output_subdirs, '2_bcftools_cnv_caller', $sub_dir, 'summary.tab'));
+            }
+        }
+    }
+    ok handle_pipeline(@merged_vcfs, @summary_files), 'bcftools_cnv_caller pipeline ran ok and produced the expected output files';
+    
+    my $results = $summary_files[0]->slurp();
+    like $results, qr/AR\t1\t145395605\t145725689\t2\t4\n/, 'the results file for fpdj-fpdj_1 had the expected lines';
+    my $cnv_vrfile = VRPipe::File->get(path => $summary_files[0]);
+    is $cnv_vrfile->meta_value('sample_control'), 'fpdk_qc1hip5529689', 'sample_control metadata exists on the file';
+}
+
 # we'll also take the opportunity to test the loh caller pipeline, since that
 # also uses files from the genome studio import
 SKIP: {
@@ -250,7 +293,7 @@ SKIP: {
         options     => {}
     );
     
-    # get array of output files and check outputs as the pipeline is run
+    # figure out output files
     my (@merged_vcfs, @loh_files_with_results, @loh_files_no_results);
     foreach my $element_id (41 .. 45) {
         my @output_subdirs = output_subdirs($element_id, $loh_setup->id);
