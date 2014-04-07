@@ -12,7 +12,7 @@ genotype array data in VCF format.
 
 =head1 AUTHOR
 
-Sendu Bala <sb10@sanger.ac.uk>.
+Yasin Memari <ym3@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
