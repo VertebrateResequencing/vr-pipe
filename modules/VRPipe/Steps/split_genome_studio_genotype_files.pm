@@ -42,56 +42,56 @@ use VRPipe::Base;
 class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  {
     method options_definition {
         return {
-            zgrep_exe          => VRPipe::StepOption->create(description => 'full path to zgrep command that is used to retrieve the header and sample data from the gzipped genome studio genotyping data file', optional => 1, default_value => 'zgrep'),
-            header_regex       => VRPipe::StepOption->create(description => 'regex of a field in the header line of the gzipped genome studio genotype file that is used to retrieve the header using zgrep',     optional => 1, default_value => 'Allele1'),
-            reheader_penncnv   => VRPipe::StepOption->create(description => 'optionally, header the genotype file with a penncnv-friendly format',                                                                optional => 1),
-            external_gzip_file => VRPipe::StepOption->create(description => 'optionally, provide path to a gzipped genotype file that can override the path provided in the input gtc file metadata',             optional => 1),
+            zgrep_exe        => VRPipe::StepOption->create(description => 'full path to zgrep command that is used to retrieve the header and sample data from the gzipped genome studio genotyping data file', optional => 1, default_value => 'zgrep'),
+            header_regex     => VRPipe::StepOption->create(description => 'regex of a field in the header line of the gzipped genome studio genotype file that is used to retrieve the header using zgrep',     optional => 1, default_value => 'Allele1'),
+            reheader_penncnv => VRPipe::StepOption->create(description => 'optionally, header the genotype file with a penncnv-friendly format',                                                                optional => 1)
         };
     }
     
     method inputs_definition {
         return {
             gtc_files => VRPipe::StepIODefinition->create(
-                type        => 'bin',
-                description => 'gtc file with associated genome studio irods file path and analysis_uuid metadata',
-                max_files   => -1,
-                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' }
+                type            => 'gtc',
+                description     => 'gtc file with associated genome studio irods metadata, where analysis files have already been downloaded',
+                max_files       => -1,
+                check_existence => 0,
+                metadata        => { sample => 'sample name for cell line', infinium_sample => 'the sample id found in the corresponding fcr file noted in irods_analysis_files', irods_analysis_files => 'full irods path to multi-sample genome studio analysis fcr file', irods_local_storage_dir => 'local base directory where the irods_analysis_files were downloaded' }
             ),
         };
     }
     
     method outputs_definition {
         return {
-            gtype_files => VRPipe::StepIODefinition->create(
+            fcr_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
-                description => 'a file on a local disc, extracted from iRODs',
+                description => 'a single-sample fcr file',
                 max_files   => -1,
-                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
+                metadata    => { sample => 'sample name for cell line' },
             )
         };
     }
     
     method body_sub {
         return sub {
-            my $self               = shift;
-            my $options            = $self->options;
-            my $zgrep_exe          = $options->{zgrep_exe};
-            my $header_regex       = $options->{header_regex};
-            my $reheader_penncnv   = $options->{reheader_penncnv} ? $options->{reheader_penncnv} : undef;
-            my $external_gzip_file = $options->{external_gzip_file} ? $options->{external_gzip_file} : undef;
-            my $req                = $self->new_requirements(memory => 500, time => 1);
+            my $self             = shift;
+            my $options          = $self->options;
+            my $zgrep_exe        = $options->{zgrep_exe};
+            my $header_regex     = $options->{header_regex};
+            my $reheader_penncnv = $options->{reheader_penncnv} ? $options->{reheader_penncnv} : undef;
+            my $req              = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $gtc_file (@{ $self->inputs->{gtc_files} }) {
-                my $sample     = $gtc_file->metadata->{sample};
-                my $library    = $gtc_file->metadata->{library};
-                my $lib_sample = (split /_/, $library)[-1];
-                #the gzipped file has already been downloaded by the iRODS vrtrack updater and the path is stored in the storage_path metadata field
-                #alternatively, it can be overridden by an external gzipped genotype file if required
-                my $genotype_gzip_path   = $external_gzip_file ? $external_gzip_file : $gtc_file->metadata->{storage_path};
-                my $basename             = $sample . '.genotyping.fcr.txt';
-                my $sample_genotype_file = $self->output_file(output_key => 'gtype_files', basename => $basename, type => 'txt', metadata => $gtc_file->metadata)->path;
-                my $header_cmd           = $reheader_penncnv ? "$zgrep_exe $header_regex $reheader_penncnv > $sample_genotype_file " : "$zgrep_exe $header_regex $genotype_gzip_path > $sample_genotype_file ";
-                my $cmd_line             = $header_cmd . qq[&& $zgrep_exe "$lib_sample\\s" $genotype_gzip_path >> $sample_genotype_file];
+                my $meta                  = $gtc_file->metadata;
+                my $sample                = $meta->{sample};
+                my $fcr_sample            = $meta->{infinium_sample};
+                my $analysis_files        = $meta->{irods_analysis_files};
+                my $local_dir             = $meta->{irods_local_storage_dir};
+                my $multi_sample_fcr_file = file($local_dir, $analysis_files)->stringify;
+                my $this_grep_exe         = $multi_sample_fcr_file =~ /\.gz$/ ? $zgrep_exe : 'grep';
+                my $basename              = $sample . '.genotyping.fcr.txt';
+                my $sample_genotype_file  = $self->output_file(output_key => 'fcr_files', basename => $basename, type => 'txt', metadata => $meta)->path;
+                my $header_cmd            = $reheader_penncnv ? "$zgrep_exe $header_regex $reheader_penncnv > $sample_genotype_file " : "$this_grep_exe $header_regex $multi_sample_fcr_file > $sample_genotype_file ";
+                my $cmd_line              = $header_cmd . qq[&& $this_grep_exe "$fcr_sample\\s" $multi_sample_fcr_file >> $sample_genotype_file];
                 $self->dispatch([$cmd_line, $req]);
             }
         };
