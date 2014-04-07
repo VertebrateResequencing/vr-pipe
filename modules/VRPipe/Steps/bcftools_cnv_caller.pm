@@ -39,19 +39,19 @@ use VRPipe::Base;
 class VRPipe::Steps::bcftools_cnv_caller with VRPipe::StepRole {
     method options_definition {
         return {
-            bcftools_cnv_caller_exe => VRPipe::StepOption->create(
-                description   => 'path to your bcftools_cnv_caller script',
+            bcftools_exe => VRPipe::StepOption->create(
+                description   => 'path to your bcftools exe',
                 optional      => 1,
                 default_value => 'bcftools'
             ),
-            bcftools_cnv_caller_options => VRPipe::StepOption->create(
-                description   => 'options to bcftools_cnv_caller, excluding -o, -c and -s',
+            bcftools_options => VRPipe::StepOption->create(
+                description   => 'options to bcftools, excluding -o, -c and -s',
                 optional      => 1,
                 default_value => '-p0'
             ),
             control_metadata_key => VRPipe::StepOption->create(
                 description   => 'the metadata key to check on the input files to extract the sample identifier of the control from',
-                default_value => 'control'
+                default_value => 'sample_control'
             ),
             cnv_analysis_type => VRPipe::StepOption->create(
                 description   => 'type of cnv analysis, added to file metadata for downstream processing',
@@ -69,7 +69,6 @@ class VRPipe::Steps::bcftools_cnv_caller with VRPipe::StepRole {
                 description => '1 or more VCF files'
             )
         };
-    
     }
     
     method body_sub {
@@ -78,25 +77,24 @@ class VRPipe::Steps::bcftools_cnv_caller with VRPipe::StepRole {
             my $options = $self->options;
             
             my $cmk               = $options->{control_metadata_key};
-            my $caller            = $options->{bcftools_cnv_caller_exe};
-            my $caller_opts       = $options->{bcftools_cnv_caller_options};
+            my $caller            = $options->{bcftools_exe};
+            my $caller_opts       = $options->{bcftools_options};
             my $cnv_analysis_type = $options->{cnv_analysis_type};
             if ($caller_opts =~ /\s-[ocs]\s/) {
-                $self->throw("bcftools_cnv_caller_options should not include -o, -c or -s");
+                $self->throw("bcftools_options should not include -o, -c or -s");
             }
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
-                    exe     => 'bcftools_cnv_caller',
+                    exe     => 'bcftools',
                     version => 0,
-                    summary => "bcftools_cnv_caller cnv -c \$control_sample -s \$query_sample $caller_opts -o \$output_dir \$vcf_file"
+                    summary => "bcftools cnv -c \$control_sample -s \$query_sample $caller_opts -o \$output_dir \$vcf_file"
                 )
             );
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
             
             foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
-                print "vcf path:", $vcf->path . "\n";
                 my @samples;
                 my $fh = $vcf->openr;
                 while (<$fh>) {
@@ -113,8 +111,6 @@ class VRPipe::Steps::bcftools_cnv_caller with VRPipe::StepRole {
                 
                 my $meta = $vcf->metadata;
                 
-                print "one: @samples\n";
-                
                 my $control = $meta->{$cmk};
                 $self->throw($vcf->path . " lacks a sample value for the $cmk metadata key") unless $control;
                 
@@ -122,8 +118,6 @@ class VRPipe::Steps::bcftools_cnv_caller with VRPipe::StepRole {
                     next if ($query eq $control);
                     
                     my $sub_dir = "$control-$query";
-                    
-                    print "two\t$sub_dir\n";
                     
                     my $summary_file = $self->output_file(sub_dir => $sub_dir, output_key => 'bcftools_cnv_txt_files', basename => "summary.tab", type => 'txt', metadata => $meta);
                     
@@ -137,9 +131,7 @@ class VRPipe::Steps::bcftools_cnv_caller with VRPipe::StepRole {
                     $self->output_file(sub_dir => $sub_dir, output_key => 'bcftools_cnv_txt_files', basename => 'plots.py', type => 'txt', temporary => 1);
                     
                     my $this_cmd = "$caller cnv -c $control -s $query -o " . $summary_file->dir . " $caller_opts " . $vcf->path;
-                    
-                    $self->dispatch([$this_cmd, $req])
-                
+                    $self->dispatch([$this_cmd, $req]);
                 }
             }
         };
@@ -150,14 +142,14 @@ class VRPipe::Steps::bcftools_cnv_caller with VRPipe::StepRole {
             bcftools_cnv_png_files => VRPipe::StepIODefinition->create(
                 type            => 'png',
                 min_files       => 0,
-                max_files       => 30,
+                max_files       => -1,
                 description     => 'output from the bcftools cnv',
                 check_existence => 0
             ),
             bcftools_cnv_txt_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 min_files   => 1,
-                max_files   => 1,
+                max_files   => -1,
                 description => 'output from the bcftools cnv',
             )
         };
