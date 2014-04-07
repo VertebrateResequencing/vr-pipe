@@ -42,15 +42,15 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
             %{ $self->$orig },
             control_metadata_key => VRPipe::StepOption->create(
                 description   => 'the metadata key to check on the input files to see which one is the control, and the key used on the output file to identify the control',
-                default_value => 'control'
+                default_value => 'sample_control'
             ),
             control_metadata_regex => VRPipe::StepOption->create(
                 description   => 'a (case-insensitive) regular expression that matches the value of the control_metadata_key when the input VCF is for the control sample',
-                default_value => 'control'
+                default_value => '1'
             ),
             control_metadata_sample_key => VRPipe::StepOption->create(
-                description   => 'the metadata key to get the sample from the input control file, to apply as metadata on the output file',
-                default_value => 'sample'
+                description   => 'the metadata key to get the sample from the input control file, to apply as metadata on the output file; use + symbols to comprise it of multiple values concatenated with underscores',
+                default_value => 'public_name+sample'
             )
         };
     }
@@ -65,6 +65,7 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
             my $control_key   = $options->{control_metadata_key};
             my $control_regex = $options->{control_metadata_regex};
             my $sample_key    = $options->{control_metadata_sample_key};
+            my @sample_keys   = split(/\+/, $sample_key);
             
             my @input_set;
             my $control_sample;
@@ -75,7 +76,7 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
                     my $control_value = $vcf_file->meta_value($control_key);
                     if ($control_value && $control_value =~ /$control_regex/i) {
                         unshift(@input_set, $vcf_file->path);
-                        $control_sample = $vcf_file->meta_value($sample_key);
+                        $control_sample = join('_', map { $vcf_file->meta_value($_) } @sample_keys);
                         next;
                     }
                 }
@@ -99,6 +100,8 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
                 # output
                 my $source = $self->inputs->{vcf_files}->[0];
                 $source->symlink($merged_vcf);
+                $merged_vcf->metadata($merged_meta);
+                $merged_vcf->update;
                 return 1;
             }
             

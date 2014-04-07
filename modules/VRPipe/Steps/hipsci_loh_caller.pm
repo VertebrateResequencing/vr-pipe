@@ -51,7 +51,7 @@ class VRPipe::Steps::hipsci_loh_caller with VRPipe::StepRole {
             ),
             control_metadata_key => VRPipe::StepOption->create(
                 description   => 'the metadata key to check on the input files to extract the sample identifier of the control from',
-                default_value => 'control'
+                default_value => 'sample_control'
             )
         };
     }
