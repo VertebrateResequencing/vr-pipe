@@ -1,3 +1,9 @@
+# version 0.187
+(you must first upgrade to 0.183 if you haven't done so already, see notes
+below)
+Number::Bytes::Human was added as a new CPAN dependency. Install it by rerunning
+'perl Build.PL'.
+
 # version 0.183
 (you must first upgrade to 0.168 if you haven't done so already, see notes
 below)
