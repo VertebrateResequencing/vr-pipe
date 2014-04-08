@@ -50,9 +50,14 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
     
     method options_definition {
         return {
-            annot_file_regex   => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => 'annotation.txt'),
-            profile_file_regex => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => 'Sample_Probe_Profile.txt'),
-            header_regex       => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID')
+            annot_file_regex             => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => 'annotation.txt'),
+            profile_file_regex           => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => 'Sample_Probe_Profile.txt'),
+            header_regex                 => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID'),
+            mapping_sample_from_metadata => VRPipe::StepOption->create(
+                description   => 'metadata key from which the sample name will be taken, for use in the mapping file; separate multiple keys with + symbols - values will be joined with underscores',
+                optional      => 1,
+                default_value => 'public_name+sample'
+            ),
         };
     }
     
@@ -96,6 +101,8 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             my $annot_file_regex   = $options->{annot_file_regex};
             my $profile_file_regex = $options->{profile_file_regex};
             my $header_regex       = $options->{header_regex};
+            my $mfm                = $options->{mapping_sample_from_metadata};
+            my @mfm_keys           = split(/\+/, $mfm);
             my $req                = $self->new_requirements(memory => 500, time => 1);
             
             my %annotation_files;
@@ -108,11 +115,11 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my $meta           = $idat_file->metadata;
                 my $analysis_files = $meta->{irods_analysis_files};
                 my $local_dir      = $meta->{irods_local_storage_dir};
-                my $control        = $meta->{sample_control};
                 my $lib_tag        = $meta->{beadchip} . '_' . $meta->{beadchip_section};
                 my $sample         = $meta->{sample};
-                $sample = $sample . "_CTRL" if $control;
-                my $sample_tag = $meta->{beadchip} . '_' . $sample;
+                my $control        = $meta->{sample_control};
+                my $sample_tag     = join('_', map { $meta->{$_} } @mfm_keys);
+                $sample_tag .= '_CTRL' if $control;
                 push @sample_tag_map, ($sample_tag, $lib_tag);
                 my $lane_name = $idat_file->basename;
                 $lane_name =~ s/\.[^\.]+$//;
