@@ -968,6 +968,29 @@ role VRPipe::StepRole {
         return $common_meta;
     }
     
+    method combined_metadata (ArrayRef['VRPipe::File'] $files!) {
+        my %meta;
+        foreach my $file (@$files) {
+            my $file_meta = $file->metadata;
+            while (my ($key, $val) = each %$file_meta) {
+                if (exists $meta{$key}) {
+                    my $current = $meta{$key};
+                    if (ref($current) && ref($current) eq 'ARRAY') {
+                        push(@{ $meta{$key} }, ref($val) && ref($val) eq 'ARRAY' ? @{$val} : $val);
+                    }
+                    else {
+                        $meta{$key} = [$current, ref($val) && ref($val) eq 'ARRAY' ? @{$val} : $val];
+                    }
+                }
+                else {
+                    $meta{$key} = $val;
+                }
+            }
+        }
+        
+        return \%meta;
+    }
+    
     method element_meta {
         my %element_meta = %{ $self->step_state->dataelement->result };
         delete @element_meta{qw(paths lane group)};
