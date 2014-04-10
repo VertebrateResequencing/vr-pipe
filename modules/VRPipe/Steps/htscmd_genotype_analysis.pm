@@ -137,12 +137,12 @@ class VRPipe::Steps::htscmd_genotype_analysis with VRPipe::StepRole {
                 $found_expected = 1;
                 $score_expected = $concordance;
                 
-                # if the expected sample has a score with ratio 1.000 vs score1,
+                # if the expected sample has a score with ratio 1.00 vs score1,
                 # then we'll fudge things and say gtype2 is the expected,
                 # regardless of where it appeared in the file
                 if (defined $gtype2 && $gtype2 ne $expected) {
                     my $ratio = $concordance != 0 ? $score1 / $concordance : $score1 / 1e-6;
-                    $ratio = sprintf("%0.3f", $ratio);
+                    $ratio = sprintf("%0.2f", $ratio);
                     if ($ratio == 1) {
                         $gtype2 = $sample;
                         $score2 = $concordance;
