@@ -152,9 +152,10 @@ if ($setup) {
     }
     
     # loop through elements
-    my $deleted       = 0;
-    my $num_elements  = 0;
-    my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+    my $deleted          = 0;
+    my $failed_to_delete = 0;
+    my $num_elements     = 0;
+    my $estates_pager    = $setup->dataelementstates_pager(include_withdrawn => 1);
     my %done_files;
     while (my $estates = $estates_pager->next) {
         foreach my $element_state (@$estates) {
@@ -195,14 +196,22 @@ if ($setup) {
                             my $path = $file->path->stringify;
                             $frontend->output($path);
                         }
-                        $file->unlink unless $pretend;
-                        $deleted++;
+                        my $worked = $file->unlink unless $pretend;
+                        if ($worked || $pretend) {
+                            $deleted++;
+                        }
+                        else {
+                            $failed_to_delete++;
+                        }
                     }
                 }
             }
         }
     }
     
+    if ($failed_to_delete) {
+        $frontend->output("$failed_to_delete files could not be deleted (most likely permission issues)");
+    }
     $frontend->output("$deleted files ", ($pretend ? "would have been" : "were"), " deleted for $num_elements elements") if $verbose;
 }
 
