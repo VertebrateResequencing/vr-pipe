@@ -58,6 +58,12 @@ class VRPipe::Steps::vcf_merge_different_samples_to_indexed_bcf extends VRPipe::
             my $bcftools_exe = $options->{bcftools_exe};
             my $bcfopts      = $options->{bcftools_options};
             
+            if ($bcfopts =~ /-O\s*[zv]/) {
+                # we're hard-coded for bcf output, so we really don't support
+                # these vcf options
+                $self->throw("-O z or v are not supported - this step can only output bcfs");
+            }
+            
             my @input_set;
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                 push @input_set, $vcf_file->path;
@@ -95,7 +101,7 @@ class VRPipe::Steps::vcf_merge_different_samples_to_indexed_bcf extends VRPipe::
                 );
             }
             
-            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $req = $self->new_requirements(memory => $self->_determine_memory(scalar(@input_set)), time => 1);
             $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples_to_indexed_bcf', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_bcf, $merged_bcf_index] }]);
         };
     }

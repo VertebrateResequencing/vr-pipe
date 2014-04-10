@@ -43,7 +43,7 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
                 default_value => 'bcftools'
             ),
             bcftools_options => VRPipe::StepOption->create(
-                description   => 'Options for the bcftools merge command. Does not support the --print-header option',
+                description   => 'Options for the bcftools merge command. Does not support the --print-header option; -O b or u is not supported.',
                 optional      => 1,
                 default_value => '-O z'
             )
@@ -60,6 +60,20 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
         };
     }
     
+    method _build_smaller_recommended_requirements_override {
+        return 0;
+    }
+    
+    method _determine_memory (Int $num_vcfs) {
+        # bcftools indexes and buffers all the input files in memory, amounting
+        # to about 13.3MB memory usage each (including overhead), so we can get
+        # a better memory estimate than VRPipe can guess. We turn off
+        # _build_smaller_recommended_requirements_override to prevent VRPipe
+        # ignoring our better estimate
+        my $memory = int($num_vcfs * 13.3);
+        return $memory;
+    }
+    
     method body_sub {
         return sub {
             my $self = shift;
@@ -67,6 +81,12 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
             my $options      = $self->options;
             my $bcftools_exe = $options->{bcftools_exe};
             my $bcfopts      = $options->{bcftools_options};
+            
+            if ($bcfopts =~ /-O\s*[bu]/) {
+                # we're hard-coded for vcf output, so we really don't support
+                # these bcf options
+                $self->throw("-O b or u are not supported - this step can only output vcfs");
+            }
             
             my @input_set;
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
@@ -96,7 +116,7 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
                 )
             );
             
-            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $req = $self->new_requirements(memory => $self->_determine_memory(scalar(@input_set)), time => 1);
             $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf] }]);
         };
     }
