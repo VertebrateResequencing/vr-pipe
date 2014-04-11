@@ -34,15 +34,32 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
-    method options_definition {
+class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
+    around options_definition {
         return {
-            bcftools_exe          => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                                                                                                                                         optional => 1, default_value => 'bcftools'),
-            bcftools_view_options => VRPipe::StepOption->create(description => 'bcftools view options',                                                                                                                                                                                                                               optional => 1, default_value => '-p 0.99 -vcgN'),
-            sample_sex_file       => VRPipe::StepOption->create(description => 'Tab- or space- delimited file listing each sample name and sex (M or F). If not provided, will call on all samples in the bcf header. If provided, calls will be made on the intersection of the samples in the file and samples in the bcf header.', optional => 1),
-            assumed_sex           => VRPipe::StepOption->create(description => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',                                                                                                                                                              optional => 1, default_value => 'F'),
-            minimum_records       => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking',                                                                                                                                                          optional => 1, default_value => 0),
-            post_calling_vcftools => VRPipe::StepOption->create(description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',                                                                                          optional => 1),
+            %{ $self->$orig },
+            bcftools_view_options => VRPipe::StepOption->create(
+                description => 'bcftools calling options; v0 defaults to "-p 0.99 -vcgN"; v1 defaults to "-p 0.99 -m"',
+                optional    => 1
+            ),
+            sample_sex_file => VRPipe::StepOption->create(
+                description => 'Tab- or space- delimited file listing each sample name and sex (M or F). If not provided, will call on all samples in the bcf header. If provided, calls will be made on the intersection of the samples in the file and samples in the bcf header.',
+                optional    => 1
+            ),
+            assumed_sex => VRPipe::StepOption->create(
+                description   => 'If M or F is not present for a sample in the sample sex file, then this sex is assumed',
+                optional      => 1,
+                default_value => 'F'
+            ),
+            minimum_records => VRPipe::StepOption->create(
+                description   => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking',
+                optional      => 1,
+                default_value => 0
+            ),
+            post_calling_vcftools => VRPipe::StepOption->create(
+                description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
+                optional    => 1
+            ),
         };
     }
     
@@ -60,8 +77,11 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
             $vcf_meta = { %$vcf_meta, $self->element_meta };
             my $options = $self->handle_override_options($vcf_meta);
             
-            my $bcftools        = $options->{bcftools_exe};
-            my $view_opts       = $options->{bcftools_view_options};
+            my $bcftools  = $options->{bcftools_exe};
+            my $view_opts = $options->{bcftools_view_options};
+            $view_opts ||= $self->_bcftools_calling_defaults;
+            my $calling_command = $self->_bcftools_calling_command;
+            my $samples_option  = $self->_bcftools_samples_option;
             my $assumed_sex     = $options->{assumed_sex};
             my $minimum_records = $options->{minimum_records};
             my $post_filter     = $options->{post_calling_vcftools};
@@ -76,7 +96,8 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 my $sites_file = $self->inputs->{sites_file}[0];
                 $view_opts .= " -l " . $sites_file->path;
             }
-            my $filter = $post_filter ? " | $post_filter" : '';
+            
+            my $output = $self->_bcftools_compressed_vcf_output($post_filter);
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bcf (@{ $self->inputs->{bcf_files} }) {
@@ -93,7 +114,7 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
                 
                 my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename . '.vcf.gz', type => 'vcf', metadata => $bcf_meta);
                 my $vcf_path = $vcf_file->path;
-                my $cmd_line = qq[$bcftools view $view_opts -s $temp_samples_path $bcf_path$filter | bgzip -c > $vcf_path];
+                my $cmd_line = qq[$bcftools $calling_command $view_opts $samples_option $temp_samples_path $bcf_path $output > $vcf_path];
                 
                 my $bcf_id = $bcf->id;
                 my $args   = qq['$cmd_line', '$temp_samples_path', source_file_ids => ['$bcf_id'], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
@@ -105,8 +126,8 @@ class VRPipe::Steps::bcf_to_vcf with VRPipe::StepRole {
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bcftools',
-                    version => VRPipe::StepCmdSummary->determine_version($bcftools, '^Version: (.+)$'),
-                    summary => "bcftools view $view_opts -s \$samples_file \$bcf_file$filter | bgzip -c > \$vcf_file"
+                    version => $self->bcftools_version_string,
+                    summary => "bcftools $calling_command $view_opts $samples_option \$samples_file \$bcf_file $output > \$vcf_file"
                 )
             );
         };

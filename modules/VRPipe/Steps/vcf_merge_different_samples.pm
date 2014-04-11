@@ -34,14 +34,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
-    method options_definition {
+class VRPipe::Steps::vcf_merge_different_samples extends VRPipe::Steps::bcftools {
+    around options_definition {
         return {
-            bcftools_exe => VRPipe::StepOption->create(
-                description   => 'path to your bcftools executable',
-                optional      => 1,
-                default_value => 'bcftools'
-            ),
+            %{ $self->$orig },
             bcftools_options => VRPipe::StepOption->create(
                 description   => 'Options for the bcftools merge command. Does not support the --print-header option; -O b or u is not supported.',
                 optional      => 1,
