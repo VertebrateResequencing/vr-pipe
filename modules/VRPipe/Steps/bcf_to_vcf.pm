@@ -92,9 +92,8 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_file->is_absolute;
             }
             if ($self->inputs->{sites_file}) {
-                $self->throw("bcftools_view_options cannot contain the -l option if a sites_file is an input to this step") if ($view_opts =~ /-l/);
-                my $sites_file = $self->inputs->{sites_file}[0];
-                $view_opts .= " -l " . $sites_file->path;
+                $self->throw("bcftools_view_options cannot contain the -l/-R/-T option if a sites_file is an input to this step") if ($view_opts =~ /-[lR]/); # can't throw on -T since that was a option with a different meaning in v0
+                $view_opts .= $self->_bcftools_site_files_option($self->inputs->{sites_file}[0]->path);
             }
             
             my $output = $self->_bcftools_compressed_vcf_output($post_filter);

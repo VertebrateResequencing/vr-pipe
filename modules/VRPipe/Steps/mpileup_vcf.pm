@@ -10,11 +10,11 @@ without an intermediate BCF
 
 =head1 AUTHOR
 
-Chris Joyce    <cj5@sanger.ac.uk>. Shane McCarthy <sm15@sanger.ac.uk>.
+Chris Joyce <cj5@sanger.ac.uk>. Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -104,10 +104,8 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
                 $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_file->is_absolute;
             }
             if ($self->inputs->{sites_file}) {
-                $self->throw("bcftools_view_options cannot contain the -l option if a sites_file is an input to this step") if ($bcf_view_opts =~ /-l/);
-                my $site_option = " -l " . $self->inputs->{sites_file}[0]->path;
-                $bcf_view_opts .= $site_option;
-                $mpileup_opts  .= $site_option;
+                $self->throw("samtools_mpileup_options cannot contain the -l option if a sites_file is an input to this step") if ($mpileup_opts =~ /-l/);
+                $mpileup_opts .= " -l " . $self->inputs->{sites_file}[0]->path;
             }
             
             my $output = $self->_bcftools_compressed_vcf_output($post_filter);
@@ -161,7 +159,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'samtools',
-                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
+                    version => $self->bcftools_version_string,
                     summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list | bcftools $calling_command $bcf_view_opts $samples_option \$samples_file - $output > \$vcf_file"
                 )
             );

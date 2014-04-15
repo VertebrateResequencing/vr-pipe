@@ -117,6 +117,11 @@ class VRPipe::Steps::bcftools with VRPipe::StepRole {
     method _bcftools_samples_option {
         return $self->bcftools_v1 ? '-S' : '-s';
     }
+    
+    method _bcftools_site_files_option (File $path) {
+        my $arg = $self->bcftools_v1 ? 'T' : 'l';
+        return " -$arg $path";
+    }
 }
 
 1;
