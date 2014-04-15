@@ -93,7 +93,7 @@ class VRPipe::Steps::genotype_analysis with VRPipe::StepRole {
     }
     
     method outputs_definition {
-        return { };
+        return {};
     }
     
     method post_process_sub {
@@ -108,67 +108,84 @@ class VRPipe::Steps::genotype_analysis with VRPipe::StepRole {
         return 0;
     }
     
-    method _analyse_output (ClassName|Object $self: VRPipe::File $gt_file!, Num $min_ratio!, Num $min_sites!, Num $min_concordance!, Bool $multiple_samples_per_individual!, Str $gtype1!, Num $score1!, Str $gtype2!, Num $score2!, Num $score_expected!, Bool $found_expected!) {
-        my $meta     = $gt_file->metadata;
-        my $expected = $meta->{expected_sample};
-        my $source_bam  = $meta->{source_bam};
+    method _analyse_output (ClassName|Object $self: VRPipe::File $gt_file!, Num $min_ratio!, Num $min_sites!, Num $min_concordance!, Bool $multiple_samples_per_individual!, Str $gtype1!, Num $score1!, Maybe[Str] $gtype2?, Maybe[Num] $score2?, Maybe[Num] $score_expected?, Bool $found_expected?) {
+        my $meta       = $gt_file->metadata;
+        my $expected   = $meta->{expected_sample};
+        my $source_bam = $meta->{source_bam};
         
-        # ratio = GT1 score / GT2 score, best-match / next-best
-        my $ratio = $score2 != 0 ? $score1 / $score2 : $score1 / 1e-6;
-        $ratio = sprintf("%0.3f", $ratio);
-        
-        # we confirm things when the top hit is much better than the second hit
-        # (the ratio is higher than the min_ratio), with a special case when the
-        # ratio of the scores is 1 and the concordance is over the
-        # min_concordance
-        
-        my ($status, $exp, $con);
-        if ($found_expected) {
-            $exp = $expected;
-            $con = $score_expected;
+        my ($ratio, $status, $exp, $con);
+        if ($gtype2) {
+            # ratio = GT1 score / GT2 score, best-match / next-best
+            $ratio = $score2 != 0 ? $score1 / $score2 : $score1 / 1e-6;
+            $ratio = sprintf("%0.3f", $ratio);
             
-            if ($expected eq $gtype1) {
-                if ($ratio >= $min_ratio || $score_expected > $min_concordance) {
-                    # we're the top hit and clearly better than anything else,
-                    # or have virtually no differences to the expected
-                    $status = 'confirmed';
-                }
-                else {
-                    # we could be matching any old sample within the margin of
-                    # error, so call it unconfirmed
-                    $status = 'unconfirmed';
-                }
-            }
-            elsif ($expected eq $gtype2) {
-                if ($ratio == 1 && $score_expected > $min_concordance) {
-                    # if the scores are so close we're in the margin of error,
-                    # consider the check as confirmed, but still note that the
-                    # expected ($exp) and found ($gtype1) are different
-                    $status = 'confirmed';
-                }
-                elsif ($ratio < $min_ratio) {
-                    # it's pretty close to the top hit, and since it's the
-                    # second hit we'll say it's not definitely wrong
-                    $status = 'unconfirmed';
-                }
-            }
+            # we confirm things when the top hit is much better than the second hit
+            # (the ratio is higher than the min_ratio), with a special case when the
+            # ratio of the scores is 1 and the concordance is over the
+            # min_concordance
             
-            # we're not in the top 2 hits, or we have a much worse score than
-            # the top hit - we definitely match some unexpected sample
-            $status ||= 'wrong';
-        }
-        else {
-            $exp = 'none';
-            $con = $score1;
-            
-            # we don't know what it's supposed to be, but ...
-            if ($ratio >= $min_ratio) {
-                # ... it matches clearly to the top hit and not any others
-                $status = 'candidate';
+            if ($found_expected) {
+                $exp = $expected;
+                $con = $score_expected;
+                
+                if ($expected eq $gtype1) {
+                    if ($ratio >= $min_ratio || $score_expected > $min_concordance) {
+                        # we're the top hit and clearly better than anything else,
+                        # or have virtually no differences to the expected
+                        $status = 'confirmed';
+                    }
+                    else {
+                        # we could be matching any old sample within the margin of
+                        # error, so call it unconfirmed
+                        $status = 'unconfirmed';
+                    }
+                }
+                elsif ($expected eq $gtype2) {
+                    if ($ratio == 1 && $score_expected > $min_concordance) {
+                        # if the scores are so close we're in the margin of error,
+                        # consider the check as confirmed, but still note that the
+                        # expected ($exp) and found ($gtype1) are different
+                        $status = 'confirmed';
+                    }
+                    elsif ($ratio < $min_ratio) {
+                        # it's pretty close to the top hit, and since it's the
+                        # second hit we'll say it's not definitely wrong
+                        $status = 'unconfirmed';
+                    }
+                }
+                
+                # we're not in the top 2 hits, or we have a much worse score than
+                # the top hit - we definitely match some unexpected sample
+                $status ||= 'wrong';
             }
             else {
-                # ... it's pretty similar to multiple samples, so not sure
+                $exp = 'none';
+                $con = $score1;
+                
+                # we don't know what it's supposed to be, but ...
+                if ($ratio >= $min_ratio) {
+                    # ... it matches clearly to the top hit and not any others
+                    $status = 'candidate';
+                }
+                else {
+                    # ... it's pretty similar to multiple samples, so not sure
+                    $status = 'unknown';
+                }
+            }
+        }
+        else {
+            # this edge case probably only applies in testing: the gtcheck file
+            # only had 1 row with enough sites
+            $ratio = "1.000";
+            if ($found_expected) {
+                $status = 'confirmed';
+                $exp    = $expected;
+                $con    = $score_expected;
+            }
+            else {
                 $status = 'unknown';
+                $exp    = 'none';
+                $con    = $score1;
             }
         }
         
