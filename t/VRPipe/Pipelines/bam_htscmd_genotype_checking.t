@@ -72,14 +72,16 @@ ok handle_pipeline(@output_files, @final_files), 'pipeline ran and created all e
 my @found_gtype_analysis;
 foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
     my $meta = VRPipe::File->create(path => file('t', 'data', $in . '.bam')->absolute)->metadata;
-    push(@found_gtype_analysis, $meta->{gtype_analysis});
-
+    my ($s, $e, $f, $r, $c) = $meta->{gtype_analysis} =~ /status=(\S+) expected=(\S+) found=(\S+) ratio=(\S+) concordance=(\S+)/;
+    my $r_ok = $r >= 1  ? 1 : 0;
+    my $c_ok = $c > 0.3 ? 1 : 0;
+    push(@found_gtype_analysis, [$s, $e, $f, $r_ok, $c_ok]);
 }
 my @expected_gtype_analysis = (
-    'status=wrong expected=NA20544 found=NA20588 ratio=1.000 concordance=0.211179',
-    'status=confirmed expected=NA20544 found=NA20544 ratio=1.053 concordance=0.411079',
-    'status=confirmed expected=NA20544 found=NA20544 ratio=1.105 concordance=0.414520',
-    'status=confirmed expected=NA20544 found=NA20544 ratio=1.105 concordance=0.435266',
+    [qw(wrong NA20544 NA20588 1 0)],
+    [qw(confirmed NA20544 NA20544 1 1)],
+    [qw(confirmed NA20544 NA20544 1 1)],
+    [qw(confirmed NA20544 NA20544 1 1)],
 );
 
 is_deeply \@found_gtype_analysis, \@expected_gtype_analysis, 'pipeline generated the expected genotype analysis metadata';
@@ -114,14 +116,17 @@ ok handle_pipeline(@output_files, @final_files), 'pipeline ran in multiple_sampl
 @found_gtype_analysis = ();
 foreach my $in ('hs_chr20.a', 'hs_chr20.b', 'hs_chr20.c', 'hs_chr20.d') {
     my $meta = VRPipe::File->create(path => file('t', 'data', $in . '.bam')->absolute)->metadata;
-    push(@found_gtype_analysis, $meta->{gtype_analysis});
+    my ($s, $e, $f, $c, $r) = $meta->{gtype_analysis} =~ /status=(\S+) expected=(\S+) found=(\S+) concordance=(\S+) ratio=(\S+)/;
+    my $c_ok = $c > 0.3 ? 1 : 0;
+    my $r_ok = $r >= 1  ? 1 : 0;
+    push(@found_gtype_analysis, [$s, $e, $f, $c_ok, $r_ok]);
 
 }
 @expected_gtype_analysis = (
-    'status=wrong expected=NA20544 found=NA20588 concordance=0.211179 ratio=1.000',
-    'status=confirmed expected=NA20544 found=NA20544 concordance=0.411079 ratio=1.053',
-    'status=confirmed expected=NA20544 found=NA20544 concordance=0.414520 ratio=1.105',
-    'status=confirmed expected=NA20544 found=NA20544 concordance=0.435266 ratio=1.105',
+    [qw(wrong NA20544 NA20588 0 1)],
+    [qw(confirmed NA20544 NA20544 1 1)],
+    [qw(confirmed NA20544 NA20544 1 1)],
+    [qw(confirmed NA20544 NA20544 1 1)],
 );
 
 is_deeply \@found_gtype_analysis, \@expected_gtype_analysis, 'pipeline generated the expected genotype analysis metadata';

@@ -5,8 +5,9 @@ VRPipe::Pipelines::bam_htscmd_genotype_checking - a pipeline
 
 =head1 DESCRIPTION
 
-Uses htscmd gtcheck to check that the genotype of bam files matches the genotype of the samples they claim to be of, 
-putting the results of the check into the bam metadata.
+Uses htscmd gtcheck to check that the genotype of bam files matches the
+genotype of the samples they claim to be of,  putting the results of the check
+into the bam metadata.
 
 =head1 AUTHOR
 
@@ -45,12 +46,12 @@ class VRPipe::Pipelines::bam_htscmd_genotype_checking with VRPipe::PipelineRole 
     
     method step_names {
         (
-            'bam_index',                 #1
-            'vcf_sites',                 #2
-            'mpileup_vcf',               #3
-            'vcf_index',                 #4
-            'htscmd_gtcheck',            #5
-            'htscmd_genotype_analysis',  #6
+            'bam_index',                #1
+            'vcf_sites',                #2
+            'mpileup_vcf',              #3
+            'vcf_index',                #4
+            'htscmd_gtcheck',           #5
+            'htscmd_genotype_analysis', #6
         );
     }
     
@@ -59,15 +60,15 @@ class VRPipe::Pipelines::bam_htscmd_genotype_checking with VRPipe::PipelineRole 
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 1, to_step => 3, from_key => 'bai_files', to_key => 'bai_files' },
-            { from_step => 2, to_step => 3, from_key => 'sites_file', to_key   => 'sites_file' },
+            { from_step => 2, to_step => 3, from_key => 'sites_file', to_key => 'sites_file' },
             { from_step => 3, to_step => 4, from_key => 'vcf_files', to_key => 'vcf_files' },
             { from_step => 3, to_step => 5, from_key => 'vcf_files', to_key => 'vcf_files' },
-            { from_step => 5, to_step => 6, from_key => 'htscmd_gtcheck_files', to_key => 'htscmd_gtcheck_files' },
+            { from_step => 5, to_step => 6, from_key => 'htscmd_gtcheck_files', to_key => 'gtcheck_files' },
         );
     }
     
     method behaviour_definitions {
-        ({ after_step => 6, behaviour => 'delete_outputs', act_on_steps => [2,3,4,5], regulated_by => 'cleanup', default_regulation => 0 });
+        ({ after_step => 6, behaviour => 'delete_outputs', act_on_steps => [2, 3, 4, 5], regulated_by => 'cleanup', default_regulation => 0 });
     }
 }
 
