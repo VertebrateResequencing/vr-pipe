@@ -1,3 +1,13 @@
+0.188   Updates to various bcftools-using steps to cope with both v0 and v1 of
+        bcftools automatically, and vcf merging is better at estimating memory
+        required.
+        vrpipe-rm is now no longer silent about failed or skipped deletes.
+        vcf_merge_different_samples_control_aware step now combines all meta-
+        data from its inputs instead of only keeping the intersection.
+        Tweaks and improvements to some Sanger-specific hipsci-related
+        pipelines.
+        New vrtrack_auto_qc_with_genotype_checking pipeline that uses latest
+        bcftools for genotype checking.
 0.187   vrpipe-disk_usage now provides a complete report on all usage across all
         disks.
         Critical fixes and improvements for the htscmd_genotype_analysis step,
