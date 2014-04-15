@@ -57,9 +57,9 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 default_value => 'seq'
             ),
             vcf_sample_from_metadata => VRPipe::StepOption->create(
-                description   => 'in the output VCF use the sample name from a metadata value stored on the input csv file',
+                description   => 'in the output VCF use the sample name from a metadata value stored on the input csv file; separate multiple keys with + symbols - values will be joined with underscores',
                 optional      => 1,
-                default_value => 'sample'
+                default_value => 'public_name+sample'
             ),
             sequenom_plex_storage_dir    => VRPipe::StepOption->create(description => 'absolute path to a directory where plex manifest files can be stored'),
             sequencescape_reference_name => VRPipe::StepOption->create(
@@ -162,12 +162,13 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         return "Convert a CSV file containing sequenom results into a sorted compressed VCF suitable for calling with.";
     }
     
-    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone, Str :$vcf_sample_from_metadata = 'sample') {
+    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone, Str :$vcf_sample_from_metadata = 'public_name+sample') {
         my $csv_file = VRPipe::File->get(path => $csv);
         my $vcf_file = VRPipe::File->get(path => $vcf);
         my $vcf_file_unsorted = $vcf;
         $vcf_file_unsorted =~ s/\.vcf.gz$/.unsorted.vcf/;
         $vcf_file_unsorted = VRPipe::File->get(path => $vcf_file_unsorted);
+        my @vsfm_keys = split(/\+/, $vcf_sample_from_metadata);
         
         # figure out the correct snp manifest file to use based on plex and
         # reference
@@ -212,7 +213,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         # get date and sample name for VCF header
         my $dt     = DateTime->now;
         my $date   = $dt->ymd('');
-        my $sample = $csv_file->meta_value($vcf_sample_from_metadata);
+        my $sample = join('_', map { $csv_file->meta_value($_) } @vsfm_keys);
         $vcf_file->disconnect;
         
         # print VCF header

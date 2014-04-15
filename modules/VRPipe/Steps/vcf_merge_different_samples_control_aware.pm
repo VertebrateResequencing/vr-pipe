@@ -85,7 +85,7 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
             }
             $control_sample || $self->throw("There was no control sample identified amongst the input vcf files (@input_set).");
             
-            my $merged_meta = $self->common_metadata($self->inputs->{vcf_files});
+            my $merged_meta = $self->combined_metadata($self->inputs->{vcf_files});
             $merged_meta->{$control_key} = $control_sample;
             
             # the rest of this body_sub is identical to parent *** can we avoid

@@ -65,7 +65,7 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
                     metadata   => $bam->metadata
                 );
                 my $bai_path = $bai_file->path;
-                my $cmd      = qq[$samtools index $bam_path $bai_path];
+                my $cmd      = qq[$samtools index $bam_path];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_index', 'index_and_check', [$cmd, $req, { output_files => [$bai_file], block_and_skip_if_ok => 1 }]);
             }
         };
@@ -88,9 +88,9 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
     }
     
     method index_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($bam_path, $bai_path) = $cmd_line =~ /index (\S+) (\S+)/;
+        my ($bam_path) = $cmd_line =~ /index (\S+)/;
         $bam_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $bai_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        my $bai_path = $bam_path . '.bai';
         
         my $bam_file = VRPipe::File->get(path => $bam_path);
         my $bai_file = VRPipe::File->get(path => $bai_path);

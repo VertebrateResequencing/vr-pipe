@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,11 +33,12 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::bam_substitution_rate with VRPipe::StepRole {
+class VRPipe::Steps::bam_substitution_rate extends VRPipe::Steps::bcftools {
     use VRPipe::Parser;
     
-    method options_definition {
+    around options_definition {
         return {
+            %{ $self->$orig },
             reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
             samtools_exe    => VRPipe::StepOption->create(
                 description   => 'path to samtools executable',
@@ -72,15 +73,18 @@ class VRPipe::Steps::bam_substitution_rate with VRPipe::StepRole {
             my $ref     = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $samtools_exe = $options->{samtools_exe};
-            my ($dict_file)  = @{ $self->inputs->{dict_file} };
-            my $dict_path    = $dict_file->path->stringify;
-            my $req          = $self->new_requirements(memory => 3000, time => 1);
+            my $samtools_exe   = $options->{samtools_exe};
+            my $bcftools_exe   = $options->{bcftools_exe};
+            my $calling_method = $self->_bcftools_calling_command;
+            my $calling_args   = $self->_bcftools_calling_for_old_style_snps_only;
+            my ($dict_file)    = @{ $self->inputs->{dict_file} };
+            my $dict_path      = $dict_file->path->stringify;
+            my $req            = $self->new_requirements(memory => 3000, time => 1);
             
             foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
                 my $bam_path = $bam_file->path->stringify;
-                my $this_cmd = qq[$samtools_exe mpileup -q 20 -uf $ref $bam_path | bcftools view -cgvI - | grep -vc \\#];
-                $self->dispatch_vrpipecode("use VRPipe::Steps::bam_substitution_rate; VRPipe::Steps::bam_substitution_rate->calculate_substitution_rate(snp_count_from => q[$this_cmd], dict_file => q[$dict_path], bam_path => q[$bam_path ]);", $req);
+                my $this_cmd = qq[$samtools_exe mpileup -q 20 -uf $ref $bam_path | $bcftools_exe $calling_method $calling_args - | grep -vc \\#];
+                $self->dispatch_vrpipecode("use VRPipe::Steps::bam_substitution_rate; VRPipe::Steps::bam_substitution_rate->calculate_substitution_rate(snp_count_from => q[$this_cmd], dict_file => q[$dict_path], bam_path => q[$bam_path]);", $req);
             }
         };
     }

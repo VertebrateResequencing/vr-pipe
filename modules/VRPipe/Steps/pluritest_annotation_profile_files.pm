@@ -50,9 +50,14 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
     
     method options_definition {
         return {
-            annot_file_regex   => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => 'annotation.txt'),
-            profile_file_regex => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => 'Sample_Probe_Profile.txt'),
-            header_regex       => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID')
+            annot_file_regex             => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => 'annotation.txt'),
+            profile_file_regex           => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => 'Sample_Probe_Profile.txt'),
+            header_regex                 => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID'),
+            mapping_sample_from_metadata => VRPipe::StepOption->create(
+                description   => 'metadata key from which the sample name will be taken, for use in the mapping file; separate multiple keys with + symbols - values will be joined with underscores',
+                optional      => 1,
+                default_value => 'public_name+sample'
+            ),
         };
     }
     
@@ -60,7 +65,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         return {
             idat_files => VRPipe::StepIODefinition->create(
                 type            => 'idat',
-                description     => 'idat file with associated genome studio irods metadata, where analysis files have already been downloaded',
+                description     => 'idat files for samples of the same individual, with associated genome studio irods metadata, where analysis files have already been downloaded',
                 max_files       => -1,
                 check_existence => 0,
                 metadata        => { sample => 'sample name for cell line', irods_analysis_files => 'full irods path to genome studio analysis files', irods_local_storage_dir => 'local base directory where the irods_analysis_files were downloaded', analysis_uuid => 'analysis_uuid', beadchip => 'the chip identifer', beadchip_section => 'section of the beadchip', sample_control => 'boolean for if this sample is a control' }
@@ -84,7 +89,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 type        => 'txt',
                 description => 'a file that contains the GenomeStudio profile for the samples',
                 max_files   => 1,
-                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
+                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }
@@ -96,6 +101,8 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             my $annot_file_regex   = $options->{annot_file_regex};
             my $profile_file_regex = $options->{profile_file_regex};
             my $header_regex       = $options->{header_regex};
+            my $mfm                = $options->{mapping_sample_from_metadata};
+            my @mfm_keys           = split(/\+/, $mfm);
             my $req                = $self->new_requirements(memory => 500, time => 1);
             
             my %annotation_files;
@@ -108,11 +115,11 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my $meta           = $idat_file->metadata;
                 my $analysis_files = $meta->{irods_analysis_files};
                 my $local_dir      = $meta->{irods_local_storage_dir};
-                my $control        = $meta->{sample_control};
                 my $lib_tag        = $meta->{beadchip} . '_' . $meta->{beadchip_section};
                 my $sample         = $meta->{sample};
-                $sample = $sample . "_CTRL" if $control;
-                my $sample_tag = $meta->{beadchip} . '_' . $sample;
+                my $control        = $meta->{sample_control};
+                my $sample_tag     = join('_', map { $meta->{$_} } @mfm_keys);
+                $sample_tag .= '_CTRL' if $control;
                 push @sample_tag_map, ($sample_tag, $lib_tag);
                 my $lane_name = $idat_file->basename;
                 $lane_name =~ s/\.[^\.]+$//;
@@ -135,21 +142,21 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 push @{ $profile_files{$pro_file} }, $lib_tag if $pro_file && !$profile_files{$pro_file};
             }
             
+            my $meta = { lanes => join(',', @profile_lanes) };
+            
+            my $merged_annotation_file      = $self->output_file(output_key => 'annotation_file', basename => 'annotation.txt', type => 'txt', metadata => $meta);
+            my $merged_annotation_file_path = $merged_annotation_file->path;
+            my $mapping_file                = $self->output_file(output_key => 'mapping_file', basename => 'mapping.txt', type => 'txt', metadata => $meta);
+            my $mapping_file_path           = $mapping_file->path;
+            my $merged_profile_file         = $self->output_file(temporary => 1, basename => 'merged_profile.txt', type => 'txt');
+            my $merged_profile_file_path    = $merged_profile_file->path;
+            my $profile_file                = $self->output_file(output_key => 'profile_file', basename => 'profile.txt', type => 'txt', metadata => $meta);
+            my $profile_file_path           = $profile_file->path;
+            
             my @annotation_paths = keys %annotation_files;
             my @profile_paths    = keys %profile_files;
-            my @chars            = ("A" .. "Z");
-            my $random;
-            $random .= $chars[rand @chars] for 1 .. 8;
-            my $merged_annotation_file      = $self->output_file(output_key => 'annotation_file', basename => $random . '_annotation.txt', type => 'txt');
-            my $merged_annotation_file_path = $merged_annotation_file->path;
-            my $mapping_file                = $self->output_file(output_key => 'mapping_file', basename => $random . '_mapping.txt', type => 'txt');
-            my $mapping_file_path           = $mapping_file->path;
-            my $merged_profile_file         = $self->output_file(temporary => 1, basename => $random . '_merged_profile.txt', type => 'txt');
-            my $merged_profile_file_path    = $merged_profile_file->path;
-            my $profile_file                = $self->output_file(output_key => 'profile_file', basename => $random . '_profile.txt', type => 'txt');
-            my $profile_file_path           = $profile_file->path;
-            my $this_cmd                    = "use VRPipe::Steps::pluritest_annotation_profile_files; VRPipe::Steps::pluritest_annotation_profile_files->merge_annotation_files(q[$merged_annotation_file_path], q[$mapping_file_path], q[$profile_file_path], q[$merged_profile_file_path], q[$header_regex], q[$random], profile_paths => [qw(@profile_paths)], annotation_paths => [qw(@annotation_paths)], sample_tags => [qw(@sample_tag_map)], profile_lanes => [qw(@profile_lanes)], annot_profile_map => [qw(@annot_profile_map)]);";
-            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$merged_annotation_file, $mapping_file, $profile_file, $merged_profile_file] });
+            my $this_cmd         = "use VRPipe::Steps::pluritest_annotation_profile_files; VRPipe::Steps::pluritest_annotation_profile_files->merge_annotation_files(q[$merged_annotation_file_path], q[$mapping_file_path], q[$profile_file_path], q[$merged_profile_file_path], q[$header_regex], profile_paths => [qw(@profile_paths)], annotation_paths => [qw(@annotation_paths)], sample_tags => [qw(@sample_tag_map)], annot_profile_map => [qw(@annot_profile_map)]);";
+            $self->dispatch_vrpipecode($this_cmd, $req);
         };
     }
     
@@ -165,13 +172,12 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         return "This step produces a merged annotation file as well as mapping and profile files for the selected samples for pluritest analyses.";
     }
     
-    method merge_annotation_files (ClassName|Object $self: Str|File $merged_out!, Str|File $mapping_out!, Str|File $profile_out!, Str|File $merged_profile_out!, Str $header_regex!, Str $random!, ArrayRef[Str] :$profile_paths!, ArrayRef[Str] :$annotation_paths!, ArrayRef[Str] :$sample_tags!, ArrayRef[Str] :$profile_lanes!, ArrayRef[Str] :$annot_profile_map!) {
+    method merge_annotation_files (ClassName|Object $self: Str|File $merged_out!, Str|File $mapping_out!, Str|File $profile_out!, Str|File $merged_profile_out!, Str $header_regex!, ArrayRef[Str] :$profile_paths!, ArrayRef[Str] :$annotation_paths!, ArrayRef[Str] :$sample_tags!, ArrayRef[Str] :$annot_profile_map!) {
         my %annot_profiles  = @{$annot_profile_map};
         my %sample_tag_hash = @{$sample_tags};
         my @samples         = keys %sample_tag_hash;
         @samples > 0 || $self->throw("No samples and tags provided for mapping file, so can not proceed\n");
         my @expression_order;
-        my $new_meta = { merge_tag_id => $random, lanes => join(',', @{$profile_lanes}) };
         my $mapping_file = VRPipe::File->get(path => $mapping_out);
         my $map_fh = $mapping_file->openw;
         while (my ($sample, $tag) = each %sample_tag_hash) {
@@ -179,7 +185,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             print $map_fh "$tag\t$sample\n";
         }
         $mapping_file->update_stats_from_disc(retries => 3);
-        $mapping_file->add_metadata($new_meta);
         $mapping_file->close;
         
         @expression_order = sort @expression_order;
@@ -219,7 +224,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                     print $merge_fh $_ if $body_text;
                 }
                 $merged_file->update_stats_from_disc(retries => 3);
-                $merged_file->add_metadata($new_meta);
                 $merged_file->close;
             }
             elsif (compare_text($merged_out, $annot_path)) { #Files not identical, so perform intersection
@@ -252,7 +256,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                     print $merge_fh $annot;
                 }
                 $merged_file->update_stats_from_disc(retries => 3);
-                $merged_file->add_metadata($new_meta);
                 $merged_file->close;
             }
             
@@ -348,7 +351,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         }
         close $pfh;
         $profile_file->update_stats_from_disc(retries => 3);
-        $profile_file->add_metadata($new_meta);
         $profile_file->close;
         return 1;
     }

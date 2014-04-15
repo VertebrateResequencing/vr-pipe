@@ -1,21 +1,22 @@
 
 =head1 NAME
 
-VRPipe::Steps::htscmd_genotype_analysis - a step
+VRPipe::Steps::bcftools_genotype_analysis - a step
 
 =head1 DESCRIPTION
 
-The genotype check status is determined by analysing the htscmd gtcheck output
-file, and computing the ratio of best-match genotype concurrence to next-best
-concurrence; results are stored as metadata (gtype_analysis) on the bam file.
+The genotype check status is determined by analysing the bcftools gtcheck
+output file, and computing the ratio of best-match genotype concurrence to
+next-best concurrence; results are stored as metadata (gtype_analysis) on the
+bam file.
 
 =head1 AUTHOR
 
-Chris Joyce <cj5@sanger.ac.uk>, Sendu Bala <sb10@sanger.ac.uk>
+Sendu Bala <sb10@sanger.ac.uk>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013,2014 Genome Research Limited.
+Copyright (c) 2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -35,9 +36,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::htscmd_genotype_analysis extends VRPipe::Steps::genotype_analysis {
+class VRPipe::Steps::bcftools_genotype_analysis extends VRPipe::Steps::genotype_analysis {
     method description {
-        return "Derive genotype check status from a htscmd gtcheck output file, computing the ratio of best-match genotype concurrence to next-best concurrence; results are stored as metadata (gtype_analysis) on the bam file.";
+        return "Derive genotype check status from a bcftools gtcheck output file, computing the ratio of best-match genotype concurrence to next-best concurrence; results are stored as metadata (gtype_analysis) on the bam file.";
     }
     
     method analyse_gtcheck_output (ClassName|Object $self: Str|File :$gt_file_path!, Num :$min_ratio!, Num :$min_sites!, Num :$min_concordance!, Bool :$multiple_samples_per_individual!) {
@@ -48,14 +49,35 @@ class VRPipe::Steps::htscmd_genotype_analysis extends VRPipe::Steps::genotype_an
         my $found_expected = 0;
         my ($gtype1, $score1, $gtype2, $score2, $score_expected);
         
-        my $pipe = "grep -v '^#' $gt_file_path| sort -nr -k1 |"; # sort descending on concordance
+        my $pipe = "grep -v '^#' $gt_file_path | sort -n -k3 |"; # sort ascending on discordance
         open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
         
+        # we need scaled concordance values, but the output is unscaled
+        # discordance, so we run through once to fix
+        my ($min_disc, $max_disc, @data);
         while (<$fh>) {
-            # 0.435266        0.468085        25905095.2      25      NA20544
-            my ($concordance, $uncertainty, $avg_depth, $sites, $sample) = split;
-            
+            # CN    4.534642e+01    4.534642e+01    78  KUU25220302 0
+            my (undef, undef, $discordance, $sites, $sample) = split;
+            next unless $sites;
             next if $sites < $min_sites;
+            
+            if (!defined $min_disc || $discordance < $min_disc) {
+                $min_disc = $discordance;
+            }
+            if (!defined $max_disc || $discordance > $max_disc) {
+                $max_disc = $discordance;
+            }
+            
+            push(@data, [$discordance, $sites, $sample]);
+        }
+        
+        my $boundary_min = 0;
+        my $boundary_max = 1 - $boundary_min;
+        my $scaler       = $max_disc != $min_disc ? ($boundary_max / ($max_disc - $min_disc)) : 1;
+        foreach my $datum (@data) {
+            my ($discordance, $sites, $sample) = @{$datum};
+            my $scaled_d = $scaler * ($discordance - $min_disc) + $boundary_min;
+            my $concordance = sprintf("%0.3f", 1 - $scaled_d);
             
             if (!defined $gtype1) {
                 $gtype1 = $sample;

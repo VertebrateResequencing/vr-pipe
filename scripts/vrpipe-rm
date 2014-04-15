@@ -152,10 +152,14 @@ if ($setup) {
     }
     
     # loop through elements
-    my $deleted       = 0;
-    my $num_elements  = 0;
-    my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+    my $deleted          = 0;
+    my $failed_to_delete = 0;
+    my $skipped_deleting = 0;
+    my $num_elements     = 0;
+    my $estates_pager    = $setup->dataelementstates_pager(include_withdrawn => 1);
     my %done_files;
+    my %delete_not_unique_to_us;
+    
     while (my $estates = $estates_pager->next) {
         foreach my $element_state (@$estates) {
             # get output files
@@ -164,7 +168,7 @@ if ($setup) {
             foreach my $stepm (@allowed_step_members) {
                 my ($stepstate) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
                 $stepstate || next;
-                my $step_outs = $stepstate->output_files(undef, only_unique_to_us => 1);
+                my $step_outs = $stepstate->output_files(undef, only_unique_to_us => 0);
                 my $smid      = $stepm->id;
                 my $force     = exists $allowed_kinds{$smid}->{all};
                 
@@ -173,6 +177,7 @@ if ($setup) {
                         next unless exists $allowed_kinds{$smid}->{$kind};
                     }
                     
+                    my $delete_not_unique_to_us = $delete_not_unique_to_us{$smid}->{$kind};
                     foreach my $file (@$files) {
                         $file = $file->resolve(not_symlinks => 1);
                         my $fid = $file->id;
@@ -184,10 +189,26 @@ if ($setup) {
                         next if exists $done_files{$fid};
                         $done_files{$fid} = 1;
                         
-                        unless ($file->s) {
+                        unless ($file->e) {
                             $file->update_stats_from_disc;
-                            unless ($file->s) {
+                            unless ($file->e) {
                                 next;
+                            }
+                        }
+                        
+                        unless ($delete_not_unique_to_us) {
+                            my @other_setups = map { $_->stepstate->pipelinesetup->id } VRPipe::StepOutputFile->search({ file => $file->id, output_key => { '!=' => 'temp' }, stepstate => { '!=' => $stepstate->id }, 'stepstate.pipelinesetup' => { '!=' => $setup->id } }, { join => { stepstate => 'pipelinesetup' } });
+                            if (@other_setups) {
+                                unless (defined $delete_not_unique_to_us) {
+                                    my $answer = $frontend->ask_question(question => "Other setups (" . join(', ', @other_setups) . ") also created " . $file->path . " (produced by setup " . $setup->id . " for step " . $stepm->step_number . ":$kind); are you sure you really want to delete this file and other files of this kind produced by this step?", possibles => [qw(y n)], required => 1);
+                                    $delete_not_unique_to_us = $answer eq 'y' ? 1 : 0;
+                                    $delete_not_unique_to_us{$smid}->{$kind} = $delete_not_unique_to_us;
+                                }
+                                
+                                unless ($delete_not_unique_to_us) {
+                                    $skipped_deleting++;
+                                    next;
+                                }
                             }
                         }
                         
@@ -195,14 +216,25 @@ if ($setup) {
                             my $path = $file->path->stringify;
                             $frontend->output($path);
                         }
-                        $file->unlink unless $pretend;
-                        $deleted++;
+                        my $worked = $file->unlink unless $pretend;
+                        if ($worked || $pretend) {
+                            $deleted++;
+                        }
+                        else {
+                            $failed_to_delete++;
+                        }
                     }
                 }
             }
         }
     }
     
+    if ($failed_to_delete) {
+        $frontend->output("$failed_to_delete files could not be deleted (most likely permission issues)");
+    }
+    if ($skipped_deleting) {
+        $frontend->output("$skipped_deleting files were not deleted because other setups created them");
+    }
     $frontend->output("$deleted files ", ($pretend ? "would have been" : "were"), " deleted for $num_elements elements") if $verbose;
 }
 
