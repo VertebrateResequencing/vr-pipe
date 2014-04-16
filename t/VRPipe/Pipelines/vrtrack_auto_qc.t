@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 10;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
         required_exe => [qw(bamcheck)]
@@ -24,13 +24,15 @@ my $output_dir = get_output_dir('auto_qc');
 my $vrtrack;
 prepare_vrtrack();
 
+my $auto_qc_tab_file = file(qw(t data autoqc.tab))->absolute->stringify;
+
 # autoqc that writes results to vrtrack
-my $auto_qc_ps = VRPipe::PipelineSetup->create(
+VRPipe::PipelineSetup->create(
     name       => 'auto_qc',
     datasource => VRPipe::DataSource->create(
         type    => 'delimited',
         method  => 'all_columns',
-        source  => file(qw(t data autoqc.tab))->absolute->stringify,
+        source  => $auto_qc_tab_file,
         options => { delimiter => "\t" }
     ),
     output_root => $output_dir,
@@ -83,44 +85,62 @@ is_deeply [$passed_auto_qc_lanes, $failed_auto_qc_libs], [0, 2], 'auto qc pipeli
 # also test the combined genotype check + auto qc pipeline
 $output_dir = get_output_dir('genotype_and_auto_qc');
 
-my $vcf_geno_source = file(qw(t data hs_chr1.genotypes.vcf.gz));
-my $vcfg_dir = dir($output_dir, 'vcf_geno');
-$auto_qc_ps->make_path($vcfg_dir);
-my $vcf_geno = file($vcfg_dir, 'hs_chr1.genotypes.vcf.gz')->stringify;
-copy($vcf_geno_source,       $vcf_geno);
-copy("$vcf_geno_source.csi", "$vcf_geno.csi");
+my $aqg_pipeline = VRPipe::Pipeline->create(name => 'vrtrack_auto_qc_with_genotype_checking');
+my @s_names;
+foreach my $stepmember ($aqg_pipeline->step_members) {
+    push(@s_names, $stepmember->step->name);
+}
+my @expected_step_names = qw(bam_index bcftools_generate_sites_file mpileup_vcf vcf_index bcftools_gtcheck bcftools_genotype_analysis vrtrack_auto_qc);
+is_deeply \@s_names, \@expected_step_names, 'the vrtrack_auto_qc_with_genotype_checking pipeline has the correct steps';
+
+my $geno_source = file(qw(t data hs_chr1.genotypes.bcf));
+my $geno_dir = dir($output_dir, 'geno');
+$aqg_pipeline->make_path($geno_dir);
+my $geno = file($geno_dir, 'hs_chr1.genotypes.bcf')->stringify;
+copy($geno_source,       $geno);
+copy("$geno_source.csi", "$geno.csi");
+
+my $tab_file_with_geno = file($geno_dir, 'delimited_datasource.txt');
+my $tfwg_file = VRPipe::File->create(path => $tab_file_with_geno);
+my $tfwg_ofh  = $tfwg_file->openw;
+my $aqtf_file = VRPipe::File->create(path => $auto_qc_tab_file);
+my $aqtf_ifh  = $aqtf_file->openr;
+while (<$aqtf_ifh>) {
+    chomp;
+    print $tfwg_ofh $_, "\t$geno\n";
+}
+$aqtf_file->close;
+$tfwg_file->close;
 
 my $ref_fa_source = file(qw(t data human.chr1_chunk.fa));
 my $ref_dir = dir($output_dir, 'ref');
-$auto_qc_ps->make_path($ref_dir);
+$aqg_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'human.chr1_chunk.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
 prepare_vrtrack();
 
-$auto_qc_ps = VRPipe::PipelineSetup->create(
+VRPipe::PipelineSetup->create(
     name       => 'auto_qc with genotype checking',
     datasource => VRPipe::DataSource->create(
         type    => 'delimited',
         method  => 'all_columns',
-        source  => file(qw(t data autoqc.tab))->absolute->stringify,
+        source  => $tab_file_with_geno,
         options => { delimiter => "\t" }
     ),
     output_root => $output_dir,
-    pipeline    => VRPipe::Pipeline->create(name => 'vrtrack_auto_qc_with_genotype_checking'),
+    pipeline    => $aqg_pipeline,
     options     => {
         vrtrack_db                   => $ENV{VRPIPE_VRTRACK_TESTDB},
         auto_qc_min_ins_to_del_ratio => 0.5,
         reference_fasta              => $ref_fa,
-        genotypes_vcf                => $vcf_geno,
         cleanup                      => 0
     }
 );
 
 my (@output_files, @final_files);
-my $element_id = 0;
+my $element_id = 2;
 foreach my $in ('autoqc_normal', 'autoqc_short') {
-    #VRPipe::File->create(path => file('t', 'data', $in . '.bam')->absolute)->add_metadata({ sample => 'NA20544' });
     $element_id++;
     my @output_subdirs = output_subdirs($element_id, 2);
     push(@output_files, file(@output_subdirs, '3_mpileup_vcf',      "mpileup.vcf.gz"));

@@ -47,7 +47,10 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
                 optional      => 1,
                 default_value => 'sample'
             ),
-            genotypes_vcf => VRPipe::StepOption->create(description => 'absolute path to genotypes vcf file')
+            genotypes_file => VRPipe::StepOption->create(
+                description => 'absolute path to genotypes vcf or bcf file containing genotyping information on all possible samples; optional if you supply this via the datasource input',
+                optional    => 1
+            )
         };
     }
     
@@ -57,6 +60,12 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
                 type        => 'vcf',
                 max_files   => -1,
                 description => 'vcf files; genotype check will be done on each independently'
+            ),
+            genotypes_bcf => VRPipe::StepIODefinition->create(
+                type        => 'bcf',
+                min_files   => 0,
+                max_files   => 1,
+                description => 'bcf file containing genotyping information on all possible samples; optional if genotypes_file option is supplied'
             )
         };
     }
@@ -67,19 +76,28 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
             my $options      = $self->options;
             my $bcftools_exe = $options->{bcftools_exe};
             my $gtcheck_opts = $options->{bcftools_gtcheck_options};
+            my $expected_key = $options->{expected_sample_from_metadata_key};
             $gtcheck_opts ||= '';
             if ($gtcheck_opts =~ /gtcheck| -g| --genotypes/) {
                 $self->throw("bcftools_gtcheck_options should not include the gtcheck subcommand or the -g option");
             }
-            my $genotypes_vcf = file($options->{genotypes_vcf});
-            $self->throw("genotypes_vcf must be an absolute path") unless $genotypes_vcf->is_absolute;
-            my $expected_key = $options->{expected_sample_from_metadata_key};
+            
+            my $genotypes_file_path;
+            if ($options->{genotypes_file}) {
+                $genotypes_file_path = file($options->{genotypes_file});
+                $self->throw("genotypes_file must be an absolute path") unless $genotypes_file_path->is_absolute;
+            }
+            else {
+                my ($genotypes_bcf) = @{ $self->inputs->{genotypes_bcf} || [] };
+                $genotypes_file_path = $genotypes_bcf->path if $genotypes_bcf;
+            }
+            $genotypes_file_path || $self->throw("A genotypes file is required, either via the genotypes_file option or as an input from the datasource");
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bcftools',
                     version => $self->bcftools_version_string,
-                    summary => "bcftools gtcheck -g $genotypes_vcf $gtcheck_opts \$vcf_file > \$gtcheck_file.gtypex"
+                    summary => "bcftools gtcheck -g $genotypes_file_path $gtcheck_opts \$vcf_file > \$gtcheck_file.gtypex"
                 )
             );
             
@@ -97,7 +115,7 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
                     metadata   => { expected_sample => $sample, source_bam => $source_bam }
                 );
                 my $gtypex_path = $gtypex_file->path;
-                my $cmd         = qq[$bcftools_exe gtcheck -g $genotypes_vcf $gtcheck_opts $vcf_path > $gtypex_path];
+                my $cmd         = qq[$bcftools_exe gtcheck -g $genotypes_file_path $gtcheck_opts $vcf_path > $gtypex_path];
                 $self->dispatch([$cmd, $req, { output_files => [$gtypex_file] }]);
             }
         };

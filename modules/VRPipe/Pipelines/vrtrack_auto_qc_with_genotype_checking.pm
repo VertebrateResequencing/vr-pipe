@@ -44,23 +44,25 @@ class VRPipe::Pipelines::vrtrack_auto_qc_with_genotype_checking with VRPipe::Pip
     
     method step_names {
         (
-            'bam_index',                  #1
-            'vcf_sites',                  #2
-            'mpileup_vcf',                #3
-            'vcf_index',                  #4
-            'bcftools_gtcheck',           #5
-            'bcftools_genotype_analysis', #6
-            'vrtrack_auto_qc'             #7
+            'bam_index',                    #1
+            'bcftools_generate_sites_file', #2
+            'mpileup_vcf',                  #3
+            'vcf_index',                    #4
+            'bcftools_gtcheck',             #5
+            'bcftools_genotype_analysis',   #6
+            'vrtrack_auto_qc'               #7
         );
     }
     
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 2, to_key   => 'genotypes_bcf' },
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 1, to_step => 3, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 2, to_step => 3, from_key => 'sites_file', to_key => 'sites_file' },
             { from_step => 3, to_step => 4, from_key => 'vcf_files', to_key => 'vcf_files' },
+            { from_step => 0, to_step => 5, to_key   => 'genotypes_bcf' },
             { from_step => 3, to_step => 5, from_key => 'vcf_files', to_key => 'vcf_files' },
             { from_step => 5, to_step => 6, from_key => 'bcftools_gtcheck_files', to_key => 'gtcheck_files' },
             { from_step => 0, to_step => 7, to_key   => 'bam_files' },
