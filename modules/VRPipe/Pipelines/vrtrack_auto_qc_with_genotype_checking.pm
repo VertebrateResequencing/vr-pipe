@@ -39,7 +39,7 @@ class VRPipe::Pipelines::vrtrack_auto_qc_with_genotype_checking with VRPipe::Pip
     }
     
     method description {
-        return 'Uses htscmd gtcheck to check that the genotype of bam files matches the genotype of the samples they claim to be of. Then, considering the stats in the bamcheck file for a lane, and the metadata stored on the bam file and in the VRTrack database for the corresponding lane, automatically decide if the lane passes the quality check.';
+        return 'Uses bcftools gtcheck to check that the genotype of bam files matches the genotype of the samples they claim to be of. Then, considering the stats in the bamcheck file for a lane, and the metadata stored on the bam file and in the VRTrack database for the corresponding lane, automatically decide if the lane passes the quality check.';
     }
     
     method step_names {
