@@ -1,3 +1,5 @@
+0.189   vrtrack_auto_qc_with_genotype_checking pipeline fixed and improved to
+        now take genotypes bcf as an input.
 0.188   Updates to various bcftools-using steps to cope with both v0 and v1 of
         bcftools automatically, and vcf merging is better at estimating memory
         required.
