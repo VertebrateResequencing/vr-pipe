@@ -49,21 +49,18 @@ class VRPipe::Steps::bcftools_genotype_analysis extends VRPipe::Steps::genotype_
         my $found_expected = 0;
         my ($gtype1, $score1, $gtype2, $score2, $score_expected);
         
-        my $pipe = "grep -v '^#' $gt_file_path | sort -n -k3 |"; # sort ascending on discordance
+        my $pipe = "grep -v '^#' $gt_file_path | sort -g -k3 |"; # sort ascending on discordance
         open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
         
         # we need scaled concordance values, but the output is unscaled
         # discordance, so we run through once to fix
-        my ($min_disc, $max_disc, @data);
+        my ($max_disc, @data);
         while (<$fh>) {
             # CN    4.534642e+01    4.534642e+01    78  KUU25220302 0
             my (undef, undef, $discordance, $sites, $sample) = split;
             next unless $sites;
             next if $sites < $min_sites;
             
-            if (!defined $min_disc || $discordance < $min_disc) {
-                $min_disc = $discordance;
-            }
             if (!defined $max_disc || $discordance > $max_disc) {
                 $max_disc = $discordance;
             }
@@ -71,6 +68,7 @@ class VRPipe::Steps::bcftools_genotype_analysis extends VRPipe::Steps::genotype_
             push(@data, [$discordance, $sites, $sample]);
         }
         
+        my $min_disc     = 0;                                                                     # the minimum possible discordance is 0
         my $boundary_min = 0;
         my $boundary_max = 1 - $boundary_min;
         my $scaler       = $max_disc != $min_disc ? ($boundary_max / ($max_disc - $min_disc)) : 1;
