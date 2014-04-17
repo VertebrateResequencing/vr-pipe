@@ -117,7 +117,7 @@ class VRPipe::Steps::genotype_analysis with VRPipe::StepRole {
         if ($gtype2) {
             # ratio = GT1 score / GT2 score, best-match / next-best
             $ratio = $score2 != 0 ? $score1 / $score2 : $score1 / 1e-6;
-            $ratio = sprintf("%0.3f", $ratio);
+            $ratio = sprintf("%0.2f", $ratio);
             
             # we confirm things when the top hit is much better than the second hit
             # (the ratio is higher than the min_ratio), with a special case when the
@@ -176,7 +176,7 @@ class VRPipe::Steps::genotype_analysis with VRPipe::StepRole {
         else {
             # this edge case probably only applies in testing: the gtcheck file
             # only had 1 row with enough sites
-            $ratio = "1.000";
+            $ratio = "1.00";
             if ($found_expected) {
                 $status = 'confirmed';
                 $exp    = $expected;
