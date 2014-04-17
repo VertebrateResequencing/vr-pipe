@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 102;
+    use Test::Most tests => 104;
     use VRPipeTest;
     use TestPipelines;
     
@@ -643,7 +643,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 
 # author-only tests for the irods datasource
 SKIP: {
-    my $num_tests = 13;
+    my $num_tests = 15;
     skip "author-only tests for an iRods datasource", $num_tests unless $ENV{VRPIPE_AUTHOR_TESTS};
     
     my $output_root = get_output_dir('datasource_irods_import_dir');
@@ -688,6 +688,21 @@ SKIP: {
     $expected_file_meta->{taxon_id}            = 9606;
     $expected_file_meta->{study_title}         = 'G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS';
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files, including warehouse metadata';
+    
+    # check that we can aggregate results from multiple imeta queries specified
+    # in a file
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'all_with_warehouse_metadata',
+        source  => 'archive',
+        options => {
+            file_query     => file(qw(t data irods.datasource))->absolute->stringify,
+            local_root_dir => $output_root
+        }
+      ),
+      'could create an irods datasource with all_with_warehouse_metadata method';
+    my $els = get_elements($ds);
+    is scalar(@$els), 27, 'aggregating 2 imeta queries using a file source worked';
     
     # more complete test with our own freshly-added files and metadata
     system("irm -fr /uk10k/home/sb10#Sanger1/vrpipe_testing > /dev/null 2> /dev/null");

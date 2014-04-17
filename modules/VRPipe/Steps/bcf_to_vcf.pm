@@ -39,7 +39,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
         return {
             %{ $self->$orig },
             bcftools_view_options => VRPipe::StepOption->create(
-                description => 'bcftools calling options; v0 defaults to "-p 0.99 -vcgN"; v1 defaults to "-p 0.99 -m"',
+                description => 'bcftools calling options; v0 defaults to "-p 0.99 -vcgN"; v1 defaults to "-m"',
                 optional    => 1
             ),
             sample_sex_file => VRPipe::StepOption->create(

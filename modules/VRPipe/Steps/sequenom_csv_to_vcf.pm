@@ -278,11 +278,16 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             
             # match the alleles against the ref alleles
             my $match_one = my $match_two = 0;
-            if ($allele ne $ref_allele) {
-                $match_one = 1;
+            if (length($genotype) == 0) {
+                $match_one = $match_two = '.';
             }
-            if ($allele_two ne $ref_allele) {
-                $match_two = 1;
+            else {
+                if ($allele ne $ref_allele) {
+                    $match_one = 1;
+                }
+                if ($allele_two ne $ref_allele) {
+                    $match_two = 1;
+                }
             }
             
             #*** no idea if further flipping as per genome_studio_fcr_to_vcf
