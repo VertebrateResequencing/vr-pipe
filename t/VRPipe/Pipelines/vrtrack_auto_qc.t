@@ -157,8 +157,8 @@ foreach my $in ('autoqc_normal', 'autoqc_short') {
 
 }
 my @expected_gtype_analysis = (
-    'status=confirmed expected=KUU25220302 found=KUU25220302 ratio=1.000 concordance=1.000',
-    'status=confirmed expected=SISu5277216 found=SISu5277216 ratio=1.000 concordance=1.000',
+    'status=confirmed expected=KUU25220302 found=KUU25220302 ratio=1.00 concordance=1.000',
+    'status=confirmed expected=SISu5277216 found=SISu5277216 ratio=1.00 concordance=1.000',
 );
 
 is_deeply \@found_gtype_analysis, \@expected_gtype_analysis, 'pipeline generated the expected genotype analysis metadata';
