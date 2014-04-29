@@ -63,7 +63,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). If any analysis has been done to a file, the associated files are stored under irods_analysis_files. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         return '';
     }
@@ -105,7 +105,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata');
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata', $options->{required_metadata});
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $file (sort keys %$files) {
@@ -125,8 +125,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return $digest;
     }
     
-    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse?) {
+    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse?, Maybe[Str] $required_metadata?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
+        
+        my @required_keys;
+        if ($required_metadata) {
+            @required_keys = split(',', $required_metadata);
+        }
         
         my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created);
         my ($study_sth, $study_title);
@@ -202,7 +207,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             my $collection;
             my (%analysis_to_col_date, %analysis_files);
             my $order = 1;
-            while (<$qu_fh>) {
+            QU: while (<$qu_fh>) {
                 #*** do we have to worry about spaces in file paths?...
                 if (/^collection:\s+(\S+)/) {
                     $collection = $1;
@@ -386,6 +391,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         }
                     }
                     
+                    foreach my $key (@required_keys) {
+                        next QU unless defined $meta->{$key};
+                    }
+                    
                     $files{$path} = $meta;
                 }
             }
@@ -404,21 +413,21 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return $self->_all_files(%args);
     }
     
-    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?) {
+    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?) {
         my %args;
         $args{handle}          = $handle;
         $args{file_query}      = $file_query;
         $args{local_root_dir}  = $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
-        return $self->_all_files(%args, add_metadata_from_warehouse => 1);
+        return $self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : ());
     }
     
-    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?) {
+    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?) {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
         $add_metadata_from_warehouse ||= 0;
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse);
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse, $required_metadata);
         $self->_clear_cache;
         
         my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date manual_qc sample_created_date taxon_id);
