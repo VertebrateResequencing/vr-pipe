@@ -16,7 +16,7 @@ my @step_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@step_names, $stepmember->step->name);
 }
-is_deeply \@step_names, [qw(irods_get_files_by_basename sequenom_csv_to_vcf)], 'the sequenom_import_from_irods_and_covert_to_vcf pipeline has the correct steps';
+is_deeply \@step_names, [qw(irods_get_files_by_basename sequenom_csv_to_vcf vcf_index)], 'the sequenom_import_from_irods_and_covert_to_vcf pipeline has the correct steps';
 
 my $output_root = get_output_dir('sequenom_import');
 my $sequenom_plex_storage_dir = dir($output_root, 'sequenom_plex_storage_dir');
@@ -43,13 +43,14 @@ my $ps = VRPipe::PipelineSetup->create(
     options     => { sequenom_plex_storage_dir => $sequenom_plex_storage_dir }
 );
 
-my @vcf_files;
+my (@vcf_files, @index_files);
 my $element_id = 1;
 foreach my $basname (qw(QC288261____20130701_G01 QC288261____20130701_C01 QC288261____20130701_A01 QC288261____20130701_E01)) {
     my @output_subdirs = output_subdirs($element_id++, 1);
     push(@vcf_files, file(@output_subdirs, '2_sequenom_csv_to_vcf', $basname . '.vcf.gz'));
+    push(@index_files, $vcf_files[-1] . '.tbi');
 }
-ok handle_pipeline(@vcf_files), 'sequenom_import_from_irods_and_covert_to_vcf pipeline ran ok and produced the expected output files';
+ok handle_pipeline(@vcf_files, @index_files), 'sequenom_import_from_irods_and_covert_to_vcf pipeline ran ok and produced the expected output files';
 
 # this is already tested in another script, but we'll do an end-to-end test with
 # the real-world data to ensure we can confirm the genotypes are sensible
@@ -80,22 +81,22 @@ foreach my $element_id (5, 6, 7) {
     my $individual = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (sample_cohort => $individual);
     if ($individual eq '20f8a331-69ac-4510-94ab-e3a69c50e46f') {
-        $expected{genotype_maximum_deviation} = "0.000000e+00:ffdb_4_QC1Hip-2";
+        $expected{genotype_maximum_deviation} = "0.000000:HPSI0813i-ffdb_4_QC1Hip-2";
         $expected{sequenom_gender}            = 'M';
         $expected{sample}                     = undef;
         $expected{public_name}                = undef;
     }
     elsif ($individual eq '3d52354f-8d84-457d-a668-099a758f0e7b') {
-        $expected{genotype_maximum_deviation} = '0.000000e+00:lofv_33_QC1Hip-4';
+        $expected{genotype_maximum_deviation} = '0.000000:lofv_33_QC1Hip-4';
         $expected{sequenom_gender}            = 'F';
         $expected{sample}                     = 'QC1Hip-4';
         $expected{public_name}                = 'lofv_33';
     }
     else {
-        $expected{genotype_maximum_deviation} = "0.000000e+00:ffdc_5_QC1Hip-3";
+        $expected{genotype_maximum_deviation} = "0.000000:HPSI0813i-ffdc_5_QC1Hip-3";
         $expected{sequenom_gender}            = 'M';
         $expected{sample}                     = 'QC1Hip-3';
-        $expected{public_name}                = 'ffdc_5';
+        $expected{public_name}                = 'HPSI0813i-ffdc_5';
     }
     push(@expected_metadata, \%expected);
 }
