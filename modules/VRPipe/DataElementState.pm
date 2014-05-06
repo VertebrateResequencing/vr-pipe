@@ -166,7 +166,20 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
                     foreach my $other_sof (@$other_sofs) {
                         my $other_ss = $other_sof->stepstate;
                         unless (exists $ss_ids{ $other_ss->id }) {
-                            $ours = 0;
+                            # but wait, was this file created in our own output
+                            # dir? If so, we'll still consider it ours, to stop
+                            # other setups claiming eg. index files of ours and
+                            # preventing automatic start_from_scratch for this
+                            # step
+                            my $pipeline_root  = $ss->pipelinesetup->output_root;
+                            my $hashing_string = 'VRPipe::DataElementState::' . $self->id;
+                            my @subdirs        = $self->hashed_dirs($hashing_string);
+                            my $sm             = $ss->stepmember;
+                            my $own_dir        = dir($pipeline_root, @subdirs, $self->dataelement->id, $sm->step_number . '_' . $sm->step->name);
+                            unless ($sof->file->path->parent =~ /^$own_dir/) {
+                                $ours = 0;
+                            }
+                            
                             last PLOOP;
                         }
                     }
