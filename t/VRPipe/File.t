@@ -6,7 +6,7 @@ use File::Spec;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 70;
+    use Test::Most tests => 71;
     use VRPipeTest;
 }
 
@@ -348,6 +348,12 @@ for my $i (1 .. 5) {
 is_deeply $step->common_metadata(\@meta_files), \%common, 'common_metadata() from StepRole works, excluding a unique scalar';
 $meta_files[0]->add_metadata({ multi => [qw(ay be ce de)] });
 is_deeply $step->common_metadata(\@meta_files), { foo => 'bar', cat => 'dog' }, 'common_metadata() from StepRole works, excluding a multi value key that differs';
+
+# similar to common_metadata, test merge_metadata
+$vrfile->metadata({ ay => 'a', be => 'b', ce => ['c', 'c2'], de => ['d', 'd2'], ee => 'e', ef => 'f', ge => ['g', 'g2'] });
+$vrfile->update;
+$vrfile->merge_metadata({ be => 'b2', ce => 'c3', de => ['d3', 'd4'], ee => ['e2', 'e3'], ef => 'f', ge => ['g2', 'g', 'g3'], h => 'h' });
+is_deeply $vrfile->metadata, { ay => 'a', be => ['b', 'b2'], ce => ['c', 'c2', 'c3'], de => ['c', 'c2', 'c3'], de => ['d', 'd2', 'd3', 'd4'], ee => ['e', 'e2', 'e3'], ef => 'f', ge => ['g', 'g2', 'g3'], h => 'h' }, 'merge_metadata worked';
 
 done_testing;
 exit;

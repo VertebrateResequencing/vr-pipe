@@ -301,6 +301,56 @@ class VRPipe::File extends VRPipe::Persistent {
         }
     }
     
+    sub merge_metadata {
+        my ($self, $new_meta) = @_;
+        
+        $self->block_until_locked;
+        $self->reselect_values_from_db;
+        
+        my $final_meta;
+        my $transaction = sub {
+            my $current_meta = $self->metadata;
+            
+            while (my ($key, $current) = each %$current_meta) {
+                my $val;
+                if (defined $new_meta->{$key}) {
+                    my $new          = $new_meta->{$key};
+                    my @new_vals     = ref($new) && ref($new) eq 'ARRAY' ? @{$new} : ($new);
+                    my @current_vals = ref($current) && ref($current) eq 'ARRAY' ? @{$current} : ($current);
+                    my %current_vals = map { $_ => 1 } @current_vals;
+                    
+                    my @merged_vals = @current_vals;
+                    foreach my $new_val (@new_vals) {
+                        next if exists $current_vals{$new_val};
+                        push(@merged_vals, $new_val);
+                    }
+                    
+                    $val = \@merged_vals;
+                }
+                else {
+                    $val = $current;
+                }
+                
+                $final_meta->{$key} = $val;
+            }
+            
+            while (my ($key, $val) = each %$new_meta) {
+                next if exists $current_meta->{$key};
+                $final_meta->{$key} = $val;
+            }
+            
+            $self->metadata($final_meta);
+            $self->update;
+        };
+        $self->do_transaction($transaction, "Failed to merge_metadata for file " . $self->path);
+        $self->unlock;
+        
+        my $resolve = $self->resolve;
+        if ($resolve ne $self) {
+            $resolve->add_metadata($final_meta, replace_data => 1);
+        }
+    }
+    
     method openr {
         return $self->open('<');
     }
