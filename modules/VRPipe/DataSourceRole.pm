@@ -143,7 +143,7 @@ role VRPipe::DataSourceRole {
         VRPipe::DataElement->bulk_create_or_update(map { $_->{withdrawn} = 0 unless defined $_->{withdrawn}; $_; } @$e_args);
     }
     
-    method _start_over_elements_due_to_file_metadata_change (HashRef $result) {
+    method _start_over_elements_due_to_file_metadata_change (HashRef $result, ArrayRef $changed_details) {
         # 'changed' is based on file metadata changing, and the file may
         # have had its metadata applied in some other pipeline for some
         # other datasource. We'll start_from_scratch all affected
@@ -175,9 +175,10 @@ role VRPipe::DataSourceRole {
         # reset element states first
         my $class = ref($self);
         my ($type) = $class =~ /VRPipe::DataSource::(\S+)/;
+        $changed_details = join(' | ', @$changed_details);
         foreach my $element (values %elements) {
             foreach my $estate ($element->element_states) {
-                $estate->pipelinesetup->log_event("$type DataSource will call start_from_scratch because file metadata changed", dataelement => $estate->dataelement->id);
+                $estate->pipelinesetup->log_event("$type DataSource will call start_from_scratch because file metadata changed [$changed_details]", dataelement => $estate->dataelement->id);
                 $estate->start_from_scratch;
             }
         }
@@ -193,6 +194,35 @@ role VRPipe::DataSourceRole {
             my ($vrfile, $new_metadata) = @$fm;
             $vrfile->add_metadata($new_metadata, replace_data => 1);
         }
+    }
+    
+    method _vals_different ($orig, $new) {
+        if (!ref($orig) && !ref($new)) {
+            if ($orig ne $new) {
+                return "$orig => $new";
+            }
+            return;
+        }
+        
+        if (ref($orig) && !ref($new)) {
+            return '[' . join(', ', @$orig) . "] => $new";
+        }
+        elsif (!ref($orig) && ref($new)) {
+            return "$orig => " . '[' . join(', ', @$new) . ']';
+        }
+        
+        my %orig = map { $_ => 1 } @$orig;
+        my %new  = map { $_ => 1 } @$new;
+        foreach my $orig (keys %orig) {
+            unless (delete $new{$orig}) {
+                return "$orig => undef";
+            }
+        }
+        foreach my $new (keys %new) {
+            return "undef => $new";
+        }
+        
+        return;
     }
 }
 

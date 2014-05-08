@@ -272,6 +272,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         my $group_by_metadata = delete $args{group_by_metadata};
         
         my @single_results;
+        my @changed_details;
         foreach my $lane ($self->_filtered_lanes(%args)) {
             my %lane_info = $vrtrack->lane_info($lane);
             my @lane_changed_details;
@@ -335,8 +336,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                         next unless defined $new_metadata->{$meta};
                         next if $meta eq 'reads' && $new_metadata->{$meta} == 0;
                         if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
-                            $self->debug("metadata '$meta' changed from $current_metadata->{$meta} to $new_metadata->{$meta} for file $file_abs_path, so will mark lane " . $lane->name . " as changed");
                             $changed = 1;
+                            push(@changed_details, "$file_abs_path $meta: $current_metadata->{$meta} => $new_metadata->{$meta}");
                             last;
                         }
                     }
@@ -428,7 +429,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($result->{changed}) {
-                $self->_start_over_elements_due_to_file_metadata_change($result);
+                $self->_start_over_elements_due_to_file_metadata_change($result, \@changed_details);
             }
         }
         $self->_create_elements(\@element_args);
