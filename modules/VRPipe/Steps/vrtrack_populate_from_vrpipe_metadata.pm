@@ -96,7 +96,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
             die "file " . $file->path . " is missing essential metadata $essential\n" unless defined $meta->{$essential};
         }
         
-        # we can't represent the same sample being to 2 different projects in
+        # we can't represent the same sample being for 2 different projects in
         # VRTrack
         if (ref($meta->{study_id}) && @{ $meta->{study_id} } > 1) {
             die "file " . $file->path . " belongs to more than one study (@{$meta->{study_id}}), which VRTrack can't cope with\n";
@@ -105,6 +105,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         my $lane = $basename;
         $lane =~ s/\.gz$//;
         $lane =~ s/\.[^\.]+$//;
+        $file->add_metadata({ lane => $lane }, replace_data => 1) if $file->meta_value('lane');
         $file->disconnect;
         
         my %type_to_vrtrack_type = (bam => 4, gtc => 7, idat => 8);
