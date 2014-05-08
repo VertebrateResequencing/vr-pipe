@@ -263,7 +263,8 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     method meta_value (Str $key) {
-        return $self->keyvallist->get_value($key);
+        my $kvl = $self->keyvallist || return;
+        return $kvl->get_value($key);
     }
     
     # speed critical, so sub instead of method
