@@ -16,7 +16,7 @@ my @step_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@step_names, $stepmember->step->name);
 }
-is_deeply \@step_names, [qw(irods_get_files_by_basename sequenom_csv_to_vcf vcf_index)], 'the sequenom_import_from_irods_and_covert_to_vcf pipeline has the correct steps';
+is_deeply \@step_names, [qw(irods_get_files_by_basename sequenom_csv_to_vcf)], 'the sequenom_import_from_irods_and_covert_to_vcf pipeline has the correct steps';
 
 my $output_root = get_output_dir('sequenom_import');
 my $sequenom_plex_storage_dir = dir($output_root, 'sequenom_plex_storage_dir');
@@ -48,7 +48,7 @@ my $element_id = 1;
 foreach my $basname (qw(QC288261____20130701_G01 QC288261____20130701_C01 QC288261____20130701_A01 QC288261____20130701_E01)) {
     my @output_subdirs = output_subdirs($element_id++, 1);
     push(@vcf_files, file(@output_subdirs, '2_sequenom_csv_to_vcf', $basname . '.vcf.gz'));
-    push(@index_files, $vcf_files[-1] . '.tbi');
+    push(@index_files, $vcf_files[-1] . '.csi');
 }
 ok handle_pipeline(@vcf_files, @index_files), 'sequenom_import_from_irods_and_covert_to_vcf pipeline ran ok and produced the expected output files';
 
@@ -58,7 +58,7 @@ $output_root = get_output_dir('vcf_merge_and_compare_genotypes');
 $ds          = VRPipe::DataSource->create(
     type    => 'vrpipe',
     method  => 'group_by_metadata',
-    source  => '1[2]',
+    source  => '1[2:vcf_files]',
     options => { metadata_keys => 'sample_cohort' }
 );
 
@@ -75,8 +75,8 @@ $ps = VRPipe::PipelineSetup->create(
 my (@merged_vcf_files, @gtypex_files, @expected_metadata);
 foreach my $element_id (5, 6, 7) {
     my @output_subdirs = output_subdirs($element_id, 2);
-    push(@merged_vcf_files, file(@output_subdirs, '2_vcf_merge_different_samples', 'merged.vcf.gz'));
-    push(@gtypex_files,     file(@output_subdirs, '4_vcf_genotype_comparison',     'merged.vcf.gz.gtypex'));
+    push(@merged_vcf_files, file(@output_subdirs, '1_vcf_merge_different_samples', 'merged.vcf.gz'));
+    push(@gtypex_files,     file(@output_subdirs, '2_vcf_genotype_comparison',     'merged.vcf.gz.gtypex'));
     
     my $individual = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (sample_cohort => $individual);

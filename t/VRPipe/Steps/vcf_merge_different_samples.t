@@ -27,7 +27,7 @@ VRPipe::PipelineSetup->create(
 
 my @output_files;
 my @output_subdirs = output_subdirs(1, 1);
-push(@output_files, file(@output_subdirs, '1_vcf_merge_different_samples', 'merged.vcf.gz'));
+push(@output_files, file(@output_subdirs, '1_vcf_merge_different_samples', 'merged.vcf.gz'), file(@output_subdirs, '1_vcf_merge_different_samples', 'merged.vcf.gz.csi'));
 
 ok handle_pipeline(@output_files), 'single step vcf_merge_different_samples pipeline ran and created all expected output files';
 
@@ -54,7 +54,7 @@ VRPipe::PipelineSetup->create(
 
 @output_files = ();
 @output_subdirs = output_subdirs(1, 2);
-push(@output_files, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
+push(@output_files, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'), file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz.csi'));
 
 ok handle_pipeline(@output_files), 'single step vcf_merge_different_samples_control_aware pipeline ran and created all expected output files';
 
