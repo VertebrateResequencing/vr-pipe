@@ -46,15 +46,13 @@ class VRPipe::Pipelines::sequenom_import_from_irods_and_covert_to_vcf with VRPip
         (
             'irods_get_files_by_basename', #1
             'sequenom_csv_to_vcf',         #2
-            'vcf_index',                   #3
         );
     }
     
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'basenames' },
-            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'csv_files' },
-            { from_step => 2, to_step => 3, from_key => 'vcf_files', to_key => 'vcf_files' },
+            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'csv_files' }
         );
     }
     

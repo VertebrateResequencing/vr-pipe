@@ -44,16 +44,12 @@ class VRPipe::Pipelines::vcf_merge_different_samples_to_indexed_bcf with VRPipe:
     
     method step_names {
         (
-            'vcf_index',                                 #1
-            'vcf_merge_different_samples_to_indexed_bcf' #2
+            'vcf_merge_different_samples_to_indexed_bcf' #1
         );
     }
     
     method adaptor_definitions {
-        (
-            { from_step => 0, to_step => 1, to_key => 'vcf_files' },
-            { from_step => 0, to_step => 2, to_key => 'vcf_files' }
-        );
+        ({ from_step => 0, to_step => 1, to_key => 'vcf_files' });
     }
 }
 

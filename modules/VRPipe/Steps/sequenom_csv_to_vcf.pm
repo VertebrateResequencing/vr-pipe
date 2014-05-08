@@ -80,6 +80,11 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 description   => 'path to the bgzip executable',
                 optional      => 1,
                 default_value => 'bgzip'
+            ),
+            bcftools_exe => VRPipe::StepOption->create(
+                description   => 'path to the bcftools executable',
+                optional      => 1,
+                default_value => 'bcftools'
             )
         };
     }
@@ -108,6 +113,11 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                     sequenom_plex   => 'sequenom plate plex identifier',
                     sequenom_gender => 'gender of sample derived from sequenom result'
                 }
+            ),
+            vcf_index => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                description => 'index of the vcf file',
+                max_files   => -1
             )
         };
     }
@@ -117,6 +127,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             my $self    = shift;
             my $options = $self->options;
             
+            my $bcftools_exe  = $options->{bcftools_exe};
             my $vcf_sort      = $options->{vcf_sort_exe};
             my $vcf_sort_opts = $options->{vcf_sort_options};
             if ($vcf_sort_opts) {
@@ -143,8 +154,9 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 $self->output_file(basename => $unsorted, type => 'vcf', temporary => 1);
                 my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $csv_file->metadata)->path;
                 my $csv_file_path = $csv_file->path;
+                $self->output_file(output_key => 'vcf_index', basename => $basename . '.csi', type => 'bin')->path;
                 
-                my $cmd = "use VRPipe::Steps::sequenom_csv_to_vcf; VRPipe::Steps::sequenom_csv_to_vcf->csv_to_vcf(csv => q[$csv_file_path], vcf => q[$vcf_file_path], manifest_dir => q[$manifest_dir], reference_name => q[$ref_name], vcf_sample_from_metadata => q[$vcf_sample_from_metadata], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip], imeta => q[$imeta], iget => q[$iget], ichksum => q[$ichksum], zone => q[$zone]);";
+                my $cmd = "use VRPipe::Steps::sequenom_csv_to_vcf; VRPipe::Steps::sequenom_csv_to_vcf->csv_to_vcf(csv => q[$csv_file_path], vcf => q[$vcf_file_path], manifest_dir => q[$manifest_dir], reference_name => q[$ref_name], vcf_sample_from_metadata => q[$vcf_sample_from_metadata], vcf_sort => q[$vcf_sort], bgzip => q[$bgzip], bcftools => q[$bcftools_exe], imeta => q[$imeta], iget => q[$iget], ichksum => q[$ichksum], zone => q[$zone]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -162,7 +174,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         return "Convert a CSV file containing sequenom results into a sorted compressed VCF suitable for calling with.";
     }
     
-    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone, Str :$vcf_sample_from_metadata = 'public_name+sample') {
+    method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str :$bcftools, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone, Str :$vcf_sample_from_metadata = 'public_name+sample') {
         my $csv_file = VRPipe::File->get(path => $csv);
         my $vcf_file = VRPipe::File->get(path => $vcf);
         my $vcf_file_unsorted = $vcf;
@@ -336,6 +348,9 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             $gender = 'M';
         }
         $vcf_file->add_metadata({ sequenom_gender => $gender, sequenom_plex => $sequenom_plex });
+        
+        # index it
+        system("$bcftools index $vcf") && die "Failed to index $vcf\n";
     }
 }
 
