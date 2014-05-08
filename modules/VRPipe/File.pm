@@ -36,7 +36,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -325,7 +325,7 @@ class VRPipe::File extends VRPipe::Persistent {
                         push(@merged_vals, $new_val);
                     }
                     
-                    $val = \@merged_vals;
+                    $val = [sort @merged_vals];
                 }
                 else {
                     $val = $current;
