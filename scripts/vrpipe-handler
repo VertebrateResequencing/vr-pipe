@@ -177,7 +177,7 @@ sub handle_setups {
                 
                 # when testing, we don't want to have this keep running
                 # after all the setups have completed
-                if ($deployment eq 'testing') {
+                if ($deployment eq 'testing' && !($debug && $single_setup)) {
                     my $completed = 0;
                     foreach my $setup (@setups) {
                         $completed++ if $setup->currently_complete;
