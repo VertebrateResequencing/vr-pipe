@@ -47,8 +47,7 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
                 type        => 'bin',
                 description => 'png files produced by pluritest R script to assist in determination of pluripotency of stem cell lines',
                 min_files   => 5,
-                max_files   => 5,
-                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
+                max_files   => 5
             ),
         };
     }
@@ -62,7 +61,15 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
             
             my %plots;
             foreach my $plot_file (@{ $self->inputs->{pluritest_plots} }) {
-                my $lanes = $plot_file->metadata->{lanes};
+                my @profile_lanes = ();
+                foreach my $idat_path (@{ $plot_file->metadata->{irods_path} }) {
+                    my @path = split(/\//, $idat_path);
+                    my $lane_name = pop(@path);
+                    $lane_name =~ s/\.idat$//;
+                    push @profile_lanes, $lane_name;
+                }
+                
+                my $lanes = join(',', @profile_lanes);
                 $plots{$lanes}->{dir} = $plot_file->dir;
                 push(@{ $plots{$lanes}->{files} }, $plot_file->basename);
             }

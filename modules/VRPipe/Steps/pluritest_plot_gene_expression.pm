@@ -50,7 +50,6 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
                 type        => 'txt',
                 description => 'File with reformatted Genome Studio gene expression data',
                 min_files   => 0,
-                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }
@@ -67,10 +66,10 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
             my ($conv_file) = @{ $self->inputs->{conv_files} };
             my $meta        = $conv_file->metadata;
             my $conv_path   = $conv_file->path;
-            $self->output_file(temporary => 1, basename => 'pluritest_log.txt', type => 'txt');
-            $self->output_file(output_key => 'csv_file', basename => 'pluritest.csv', type => 'txt', metadata => $conv_file->metadata);
+            $self->output_file(temporary  => 1,          basename => 'pluritest_log.txt', type => 'txt', metadata => $meta);
+            $self->output_file(output_key => 'csv_file', basename => 'pluritest.csv',     type => 'txt', metadata => $meta);
             foreach my $basename (qw(pluritest_image01.png pluritest_image02a.png pluritest_image02.png pluritest_image03.png pluritest_image03c.png)) {
-                $self->output_file(output_key => 'pluritest_plots', basename => $basename, type => 'bin', metadata => $conv_file->metadata);
+                $self->output_file(output_key => 'pluritest_plots', basename => $basename, type => 'bin', metadata => $meta);
             }
             
             my $cmd = $self->r_cmd_prefix . qq[ --slave --args $conv_path $pluritest_data < $pluritest_script];
@@ -85,13 +84,11 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
                 description => 'png files produced by pluritest R script to assist in determination of pluripotency of stem cell lines',
                 min_files   => 5,
                 max_files   => -1,
-                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             ),
             csv_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'csv file with ancillary pluritest data per sample',
                 max_files   => -1,
-                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }

@@ -50,8 +50,8 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
     
     method options_definition {
         return {
-            annot_file_regex             => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => 'annotation.txt'),
-            profile_file_regex           => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => 'Sample_Probe_Profile.txt'),
+            annot_file_regex             => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => '_annotation.txt'),
+            profile_file_regex           => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => '\d+_Sample_Probe_Profile.txt'),
             header_regex                 => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID'),
             mapping_sample_from_metadata => VRPipe::StepOption->create(
                 description   => 'metadata key from which the sample name will be taken, for use in the mapping file; separate multiple keys with + symbols - values will be joined with underscores',
@@ -88,8 +88,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             profile_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'a file that contains the GenomeStudio profile for the samples',
-                max_files   => 1,
-                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
+                max_files   => 1
             )
         };
     }
@@ -108,7 +107,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             my %annotation_files;
             my %profile_files;
             my @annot_profile_map;
-            my @profile_lanes;
             my @sample_tag_map;
             
             foreach my $idat_file (@{ $self->inputs->{idat_files} }) {
@@ -121,9 +119,6 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my $sample_tag     = join('_', map { $meta->{$_} } @mfm_keys);
                 $sample_tag .= '_CTRL' if $control;
                 push @sample_tag_map, ($sample_tag, $lib_tag);
-                my $lane_name = $idat_file->basename;
-                $lane_name =~ s/\.[^\.]+$//;
-                push @profile_lanes, $lane_name;
                 
                 my ($annot_file, $pro_file);
                 foreach my $path (@$analysis_files) {
@@ -142,16 +137,16 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 push @{ $profile_files{$pro_file} }, $lib_tag if $pro_file && !$profile_files{$pro_file};
             }
             
-            my $meta = { lanes => join(',', @profile_lanes) };
+            my $merged_meta = $self->combined_metadata($self->inputs->{idat_files});
             
-            my $merged_annotation_file      = $self->output_file(output_key => 'annotation_file', basename => 'annotation.txt', type => 'txt', metadata => $meta);
+            my $merged_annotation_file      = $self->output_file(output_key => 'annotation_file', basename => 'annotation.txt', type => 'txt', metadata => $merged_meta);
             my $merged_annotation_file_path = $merged_annotation_file->path;
-            my $mapping_file                = $self->output_file(output_key => 'mapping_file', basename => 'mapping.txt', type => 'txt', metadata => $meta);
+            my $mapping_file                = $self->output_file(output_key => 'mapping_file', basename => 'mapping.txt', type => 'txt', metadata => $merged_meta);
             my $mapping_file_path           = $mapping_file->path;
+            my $profile_file                = $self->output_file(output_key => 'profile_file', basename => 'profile.txt', type => 'txt', metadata => $merged_meta);
+            my $profile_file_path           = $profile_file->path;
             my $merged_profile_file         = $self->output_file(temporary => 1, basename => 'merged_profile.txt', type => 'txt');
             my $merged_profile_file_path    = $merged_profile_file->path;
-            my $profile_file                = $self->output_file(output_key => 'profile_file', basename => 'profile.txt', type => 'txt', metadata => $meta);
-            my $profile_file_path           = $profile_file->path;
             
             my @annotation_paths = keys %annotation_files;
             my @profile_paths    = keys %profile_files;
@@ -189,20 +184,24 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         
         @expression_order = sort @expression_order;
         my @all_annot_paths = keys %annot_profiles;
-        my @annot_paths     = ();
         
-        PATH: foreach my $annot_path (@all_annot_paths) {
+        @all_annot_paths > 0 || $self->throw("No annotation files provided for the merge.");
+        
+        my @req_cols = ("TargetID", "ProbeID", "REFSEQ_ID", "SYMBOL", "PROBE_ID", "PROBE_SEQUENCE", "CHROMOSOME", "PROBE_COORDINATES");
+        
+        my %miss_cols = ();
+        foreach my $annot_path (@all_annot_paths) {
             open(my $fh, $annot_path) || die "Could not open $annot_path\n";
             while (<$fh>) {
                 next unless $_ =~ /$header_regex/;
-                my $cols = split(/\t/, $_);
-                next PATH unless $cols == 9;
+                for my $col (0 .. $#req_cols) {
+                    my $pattern = $req_cols[$col];
+                    $miss_cols{$col} = $annot_path unless $_ =~ qr/$pattern/;
+                }
                 last;
             }
             close($fh);
-            push(@annot_paths, $annot_path);
         }
-        die "No annotation file with correct number of columns!\n" unless @annot_paths;
         
         my $merged_profile_file = VRPipe::File->get(path => $merged_profile_out);
         $merged_profile_file->remove;
@@ -210,48 +209,80 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
         my $merged_file  = VRPipe::File->get(path => $merged_out);
         my $new_profile  = 1;
         
-        @annot_paths > 0 || $self->throw("No annotation files provided for the merge.");
-        while (@annot_paths > 0) {
-            my $annot_path = pop @annot_paths;
+        my $header_line = join("\t", @req_cols);
+        while (@all_annot_paths > 0) {
+            my $annot_path = pop @all_annot_paths;
             my $annot_file = VRPipe::File->get(path => $annot_path);
             
             if (!$merged_file->e) { #No file, so create one....
                 my $merge_fh  = $merged_file->openw;
                 my $fh        = $annot_file->openr;
                 my $body_text = 0;
-                while (<$fh>) {
-                    $body_text = 1 if $_ =~ /$header_regex/;
-                    print $merge_fh $_ if $body_text;
+                while (my $line = <$fh>) {
+                    if ($line =~ /$header_regex/) {
+                        print $merge_fh $header_line . "\n";
+                        $body_text = 1;
+                    }
+                    elsif ($body_text) {
+                        $line =~ s/\t\r$//;
+                        my @line_arr = split(/\t/, $line);
+                        my @new_line = ();
+                        my $j        = 0;
+                        for my $i (0 .. $#req_cols) {
+                            if (exists $miss_cols{$i}) {
+                                push(@new_line, "NaN");
+                                $j++ if ($miss_cols{$i} eq $annot_path);
+                            }
+                            else {
+                                push(@new_line, $line_arr[$i - $j]);
+                            }
+                        }
+                        print $merge_fh join("\t", @new_line);
+                    }
                 }
                 $merged_file->update_stats_from_disc(retries => 3);
                 $merged_file->close;
             }
             elsif (compare_text($merged_out, $annot_path)) { #Files not identical, so perform intersection
                 my %current_fields;
-                my @new_fields;
-                my $header_line;
+                my @new_fields = ();
                 
                 my $cfh = $merged_file->openr;
                 while (<$cfh>) {
-                    if ($_ =~ /$header_regex/) {
-                        $header_line = $_;
-                    }
-                    else {
-                        $current_fields{$_} = 1;
-                    }
+                    $current_fields{$_} = 1;
                 }
                 close $cfh;
                 
-                my $nfh = $annot_file->openr;
-                while (<$nfh>) {
-                    push @new_fields, $_ unless $_ =~ /$header_regex/;
+                my $nfh       = $annot_file->openr;
+                my $body_text = 0;
+                while (my $line = <$nfh>) {
+                    if ($line =~ /$header_regex/) {
+                        $body_text = 1;
+                    }
+                    elsif ($body_text) {
+                        $line =~ s/\t\r$//;
+                        my @line_arr = split(/\t/, $line);
+                        my @new_line = ();
+                        my $j        = 0;
+                        for my $i (0 .. $#req_cols) {
+                            if (exists $miss_cols{$i}) {
+                                push(@new_line, "NaN");
+                                $j++ if ($miss_cols{$i} eq $annot_path);
+                            }
+                            else {
+                                push(@new_line, $line_arr[$i - $j]);
+                            }
+                        }
+                        my $new_field = join("\t", @new_line);
+                        push(@new_fields, $new_field);
+                    }
                 }
                 $annot_file->close;
                 
                 # the intersection of current and new:
                 my @intersection = grep($current_fields{$_}, @new_fields);
                 my $merge_fh = $merged_file->openw;
-                print $merge_fh $header_line;
+                print $merge_fh $header_line . "\n";
                 for my $annot (@intersection) {
                     print $merge_fh $annot;
                 }
@@ -266,8 +297,10 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my $pfh       = $profile_in_file->openr;
                 my $body_text = 0;
                 while (<$pfh>) {
+                    chomp;
+                    $_ =~ s/\t?\r?$//;
                     $body_text = 1 if $_ =~ /$header_regex/;
-                    print $pro_fh $_ if $body_text;
+                    print $pro_fh $_ . "\n" if $body_text;
                 }
             }
             elsif (compare_text($merged_profile_out, $profile_in)) {
@@ -281,6 +314,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my $cfh = $merged_profile_file->openr;
                 while (<$cfh>) {
                     chomp;
+                    $_ =~ s/\t?\r?$//;
                     my @fields = split /\s+/, $_;
                     if ($_ =~ /$header_regex/) {
                         @header_line = @fields;
@@ -296,6 +330,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my $body_text = 0;
                 while (<$nfh>) {
                     chomp;
+                    $_ =~ s/\t?\r?$//;
                     my @fields = split /\s+/, $_;
                     if ($_ =~ /$header_regex/) {
                         $header = join("\t", (@header_line, @fields[2 .. $#fields]));
@@ -312,7 +347,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 close $nfh;
                 
                 my $mp_fh = $merged_profile_file->openw;
-                print $mp_fh $header;
+                print $mp_fh $header . "\n";
                 for my $annot (@new_fields) {
                     if (defined $current_fields{$annot} && defined $new_profiles{$annot}) {
                         my $line = $current_fields{$annot} . "\t" . $new_profiles{$annot} . "\n";
