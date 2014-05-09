@@ -131,6 +131,11 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 }
                 else {
                     $vrlane = VRTrack::Lane->create($vrtrack, $lane);
+                    
+                    # hierarchy name by default has special chars replaced with
+                    # underscores, but it must be identical to name
+                    $vrlane->hierarchy_name($lane);
+                    $vrlane->update;
                 }
                 
                 # fill out lane details we might have at this point
@@ -264,7 +269,12 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 unless ($vrindividual) {
                     $vrindividual = $vrsample->add_individual($individual_name);
                 }
-                $vrindividual->acc($meta->{sample_accession_number}) if defined $meta->{sample_accession_number};
+                unless ($vrindividual->acc) {
+                    # an individual can have multiple samples taken from it, but
+                    # for historic reasons we store sample_accession_number in
+                    # acc; we'll just go with the first one we see
+                    $vrindividual->acc($meta->{sample_accession_number}) if defined $meta->{sample_accession_number};
+                }
                 $vrindividual->species_id($vrspecies->id);
                 $vrindividual->update;
                 
