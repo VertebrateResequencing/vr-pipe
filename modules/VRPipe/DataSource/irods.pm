@@ -344,8 +344,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                                         if (/^($analysis_collection[^:]*)/) {
                                             $dir = $1;
                                         }
-                                        elsif (/(\S+(?:Sample_Probe_Profile|annotation|\.fcr\.)\S+)/i) {
-                                            next if /quantile/;
+                                        elsif (/^\s+(\S+)$/) {
                                             push(@files, file($dir, $1)->stringify);
                                         }
                                     }

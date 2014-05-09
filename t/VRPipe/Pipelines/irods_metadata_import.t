@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 22;
+    use Test::Most tests => 23;
     use VRPipeTest;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
@@ -53,7 +53,10 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-my @expected_output_files = (file($output_root, '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt'), file($output_root, '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz'), file($output_root, '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.zip'), file($output_root, '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt'));
+my @expected_output_files;
+foreach my $basename (qw(hipsci_2013-05-15_Sample_Probe_Profile.txt hipsci_2013-05-15_Sample_Probe_Profile.txt.gz hipsci_2013-05-15_Sample_Probe_Profile.txt.zip hipsci_2013-05-15_annotation.txt hipsci_2013-05-15.txt hipsci_2013-05-15.xlsx hipsci_2013-05-15_Control_Probe_Profile.txt hipsci_2013-05-15_quantile_Sample_Probe_Profile.txt)) {
+    push(@expected_output_files, file($output_root, '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/', $basename));
+}
 ok handle_pipeline(@expected_output_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for idat files';
 
 my $files = 0;
@@ -81,7 +84,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'sample_id'               => '1625281',
         'md5'                     => '41b6f345a2f92f095f09a7ff22bbbc00',
         'sample_supplier_name'    => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
-        'irods_analysis_files'    => ['/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt', '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz', '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.zip', '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt',],
+        'irods_analysis_files'    => [qw(/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.xlsx /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Control_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.zip /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_quantile_Sample_Probe_Profile.txt)],
         'irods_local_storage_dir' => $output_root
       },
       'correct file metadata was present on the first idat file';
@@ -239,10 +242,11 @@ $expected = {
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
-    individual_acc        => 'SAMEA2398958'
 };
 
+my $indiv_acc = delete $lane_info->{individual_acc};
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first gtc lane';
+like $indiv_acc, qr/SAMEA\d+/, 'individual_acc was set to some random value';
 
 # bam sequencing data
 ok $ds = VRPipe::DataSource->create(
