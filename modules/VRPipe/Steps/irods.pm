@@ -93,11 +93,9 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
-        my $cmd = qq[$iquest -z $zone "SELECT COLL_NAME, DATA_NAME WHERE DATA_NAME = '$basename'"];
-        open(my $irods, "$cmd |");
+        my @cmd_output = $self->open_irods_command(qq[$iquest -z $zone "SELECT COLL_NAME, DATA_NAME WHERE DATA_NAME = '$basename'"]);
         my ($path, $filename);
-        while (<$irods>) {
-            chomp;
+        foreach (@cmd_output) {
             # output looks like:
             # Zone is seq
             # COLL_NAME = /seq/5150
@@ -115,7 +113,6 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                 $filename = $1;
             }
         }
-        close $irods;
         
         if ($path && $filename) {
             unless ($filename eq $basename) {
@@ -131,15 +128,15 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
     }
     
     method get_file_md5 (ClassName|Object $self: Str :$file!, Str|File :$ichksum!) {
-        my $chksum = `$ichksum $file`;
-        my ($md5) = $chksum =~ m/\b([0-9a-f]{32})\b/i; # 32 char MD5 hex string
+        my ($chksum) = $self->open_irods_command("$ichksum $file");
+        my ($md5)    = $chksum =~ m/\b([0-9a-f]{32})\b/i;          # 32 char MD5 hex string
         unless ($md5) {
             $self->throw("Could not determine md5 of $file in IRODS ('$ichksum $file' returned '$chksum'; aborted");
         }
         return $md5;
     }
     
-    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!) {
+    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!, Bool :$add_metadata?, Str|File :$imeta?) {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -154,7 +151,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         # -K: checksum
         # -Q: use UDP rather than TCP
         # -f: force overwrite
-        my $failed = system($iget, "-K", "-f", $source, $dest);
+        my $failed = $self->run_irods_command("$iget -K -f $source $dest");
         
         $dest_file->update_stats_from_disc;
         if ($failed) {
@@ -171,6 +168,39 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             $dest_file->unlink;
             $self->throw("we got $source -> $dest, but the md5 checksum did not match; deleted");
         }
+        
+        if ($add_metadata) {
+            my $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+            $dest_file->add_metadata($meta, replace_data => 1);
+        }
+    }
+    
+    method get_file_metadata (ClassName|Object $self: Str $path!, Str|File :$imeta = 'imeta') {
+        my @cmd_output = $self->open_irods_command("$imeta ls -d $path");
+        my $meta       = {};
+        my $attribute;
+        foreach (@cmd_output) {
+            if (/^attribute:\s+(\S+)/) {
+                $attribute = $1;
+                undef $attribute if $attribute =~ /^dcterms:/;
+            }
+            elsif ($attribute && /^value:\s+(.+)$/) {
+                if (exists $meta->{$attribute}) {
+                    my $previous = $meta->{$attribute};
+                    if (ref($previous)) {
+                        $meta->{$attribute} = [@$previous, $1];
+                    }
+                    else {
+                        $meta->{$attribute} = [$previous, $1];
+                    }
+                }
+                else {
+                    $meta->{$attribute} = $1;
+                }
+            }
+        }
+        
+        return $meta;
     }
     
     method search_by_metadata (ClassName|Object $self: HashRef :$metadata!, Str|File :$imeta!, Str :$zone = 'seq') {
@@ -181,11 +211,9 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $meta = join(' and ', @meta);
         $meta || $self->throw("No metadata supplied");
         
-        my $cmd = qq[$imeta -z $zone qu -d $meta];
-        open(my $irods, "$cmd |");
+        my @cmd_output = $self->open_irods_command("$imeta -z $zone qu -d $meta");
         my (@results, $dir);
-        while (<$irods>) {
-            chomp;
+        foreach (@cmd_output) {
             # output looks like:
             # collection: /seq/fluidigm/multiplexes
             # dataObj: cgp_fluidigm_snp_info_1000Genomes.tsv
@@ -203,9 +231,50 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                 push(@results, "$dir/$1");
             }
         }
-        close $irods;
         
         return @results;
+    }
+    
+    method open_irods_command (ClassName|Object $self: Str $cmd) {
+        my (@output, $error);
+        foreach my $i (1 .. 3) {
+            my $ok = open(my $irods, "$cmd |");
+            unless ($ok) {
+                $error = "Failed to open pipe to [$cmd]";
+                warn $error, "\n";
+                sleep($i);
+                next;
+            }
+            
+            while (<$irods>) {
+                chomp;
+                push(@output, $_);
+            }
+            
+            $ok = close($irods);
+            last if $ok;
+            
+            $error = "Failed to close pipe to [$cmd]";
+            warn $error, "\n";
+            sleep($i);
+            @output = ();
+        }
+        
+        $self->throw($error) if $error;
+        return @output;
+    }
+    
+    method run_irods_command (ClassName|Object $self: Str $cmd) {
+        my $failed;
+        foreach my $i (1 .. 3) {
+            $failed = system($cmd);
+            if ($failed) {
+                sleep($i);
+                next;
+            }
+            last;
+        }
+        return $failed;
     }
 }
 
