@@ -344,7 +344,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                                         if (/^($analysis_collection[^:]*)/) {
                                             $dir = $1;
                                         }
-                                        elsif (/^\s+(\S+)$/) {
+                                        elsif (/^\s+(\w\S+)$/) {
+                                            #*** there are files with spaces in
+                                            # the filename and also ones that
+                                            # start with special chars like ~$,
+                                            # but it's too awkward to bother
+                                            # supporting them - they are ignored!
                                             push(@files, file($dir, $1)->stringify);
                                         }
                                     }
