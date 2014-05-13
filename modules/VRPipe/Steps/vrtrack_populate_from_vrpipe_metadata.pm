@@ -112,6 +112,24 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         
         my $vrtrack = $self->get_vrtrack(db => $db);
         
+        # check the database to see if there are control-related notes;
+        # VRTrack API makes no mention of notes, so we do this with sql!
+        my $sql = qq[select note_id,note from note];
+        my $sth = $vrtrack->{_dbh}->prepare($sql);
+        my %notes;
+        if ($sth->execute()) {
+            foreach (@{ $sth->fetchall_arrayref() }) {
+                $notes{ $_->[0] } = $_->[1];
+            }
+        }
+        else {
+            die(sprintf('Cannot check notes table: %s', $DBI::errstr));
+        }
+        my $add_control_note = 0;
+        if (keys %notes >= 2 && $notes{1} eq 'Control' && $notes{2} eq 'Stem cell') {
+            $add_control_note = 1;
+        }
+        
         # the VRTrack API, even when using a transaction, doesn't have proper
         # multi-process protection and we can end up creating multiple projects
         # with the same details, which then breaks subsequent calls. So we get
@@ -248,6 +266,9 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 }
                 $vrsample->hierarchy_name($meta->{sample_supplier_name} || $meta->{sample});
                 $vrsample->ssid($meta->{sample_id});
+                if ($add_control_note && exists $meta->{sample_control}) {
+                    $vrsample->note_id($meta->{sample_control} ? 1 : 2);
+                }
                 $vrsample->update;
                 
                 $vrlibrary->sample_id($vrsample->id);

@@ -34,7 +34,7 @@ ok my $ds = VRPipe::DataSource->create(
   ),
   'could create an irods datasource for idat files';
 
-create_fresh_vrtrack_test_db();
+create_fresh_vrtrack_test_db(with_notes => 1);
 ok my $pipeline = VRPipe::Pipeline->create(name => 'vrtrack_populate_from_irods_and_download_files'), 'able to get the vrtrack_populate_from_irods_and_download_files pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
@@ -146,7 +146,8 @@ my $expected = {
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-    individual_acc        => undef
+    individual_acc        => undef,
+    control               => 1
 };
 
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first idat lane';
@@ -163,7 +164,7 @@ ok $ds = VRPipe::DataSource->create(
   ),
   'could create an irods datasource for gtc files';
 
-create_fresh_vrtrack_test_db();
+create_fresh_vrtrack_test_db(with_notes => 1);
 VRPipe::PipelineSetup->create(
     name        => 'gtc populate',
     datasource  => $ds,
@@ -242,6 +243,7 @@ $expected = {
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
+    control               => 0
 };
 
 my $indiv_acc = delete $lane_info->{individual_acc};
@@ -352,6 +354,9 @@ is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first 
 exit;
 
 sub create_fresh_vrtrack_test_db {
+    my %args      = @_;
+    my $add_notes = delete $args{with_notes};
+    
     my %cd = VRTrack::Factory->connection_details('rw');
     open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
     print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
@@ -360,6 +365,11 @@ sub create_fresh_vrtrack_test_db {
     foreach my $sql (VRTrack::VRTrack->schema()) {
         print $mysqlfh $sql;
     }
+    
+    if ($add_notes) {
+        print $mysqlfh q[insert into note set note_id = 1, note = "Control"; insert into note set note_id = 2, note = "Stem cell";];
+    }
+    
     close($mysqlfh);
 }
 
@@ -367,6 +377,12 @@ sub lane_info {
     my $lane   = shift;
     my ($file) = @{ $lane->files };
     my %h      = $vrtrack->lane_hierarchy_objects($lane);
+    
+    my $control;
+    my $note_id = $h{sample}->note_id;
+    if (defined $note_id) {
+        $control = $note_id == 1 ? 1 : 0;
+    }
     
     my $info = {
         lane_name             => $lane->name,
@@ -390,7 +406,8 @@ sub lane_info {
         species_taxon_id      => $h{species}->taxon_id,
         species_name          => $h{species}->name,
         individual_name       => $h{individual}->name,
-        individual_acc        => $h{individual}->acc
+        individual_acc        => $h{individual}->acc,
+        defined $control ? (control => $control) : ()
     };
     
     return $info;
