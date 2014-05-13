@@ -249,7 +249,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             $mode = 'all des';
             eval { $pager = $datasource->incomplete_element_states($self, prepare => $prepare_elements, only_not_started => $first_step_only); };
             if ($@) {
-                return "$@";
+                return "DataSource error: $@";
             }
             $self->debug("trigger on all for setup " . $self->id . ", got " . $pager->total_entries . " incomplete element states");
         }
