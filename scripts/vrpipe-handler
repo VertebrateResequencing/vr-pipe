@@ -151,20 +151,22 @@ sub handle_setups {
                 my @new_setups;
                 my $ds_working_sub = sub {
                     my ($ds_id, $err) = @_;
-                    my $mt = VRPipe::MessageTracker->create(subject => "datasource $ds_id state");
+                    $err =~ s/^DataSource error: // if $err;
                     
-                    if ($err) {
-                        warn "got an error\n";
-                        unless ($mt->already_sent("not working")) {
-                            # email user about this once
-                            foreach my $s (VRPipe::PipelineSetup->search({ datasource => $ds_id })) {
+                    foreach my $s (VRPipe::PipelineSetup->search({ datasource => $ds_id })) {
+                        my $sid = $s->id;
+                        my $mt = VRPipe::MessageTracker->create(subject => "datasource $ds_id state message for setup $sid");
+                        
+                        if ($err) {
+                            # email user about the error once per setup
+                            unless ($mt->already_sent("not working")) {
                                 $s->log_event("vrpipe-handler for setups called found that DataSource $ds_id has problems: $err");
-                                $im->log("There is a problem with datasource $ds_id for setup " . $s->id, email_to => [$s->user], subject => "Setup " . $s->id . " has problems with its DataSource", long_msg => $err);
+                                $im->log("There is a problem with datasource $ds_id for setup $sid", email_to => [$s->user], subject => "Setup $sid has problems with its DataSource", long_msg => $err);
                             }
                         }
-                    }
-                    else {
-                        $mt->update_message("working fine");
+                        else {
+                            $mt->update_message("working fine");
+                        }
                     }
                 };
                 
@@ -172,7 +174,6 @@ sub handle_setups {
                     my $sid = $setup->id;
                     next if exists $setups{$sid};
                     $setups{$sid} = $setup;
-                    push(@new_setups, $setup);
                     
                     # (because I couldn't get AnyEvent::ForkManager->on_finish
                     #  to work, we use fork_calls instead)
@@ -189,7 +190,20 @@ sub handle_setups {
                         delete $datasource_watchers{$ds_id}->{working};
                         $im->debug("finished first_step_only trigger of setup $sid");
                         my $error = shift || $@;
-                        &{$ds_working_sub}($ds_id, $error);
+                        if ($error) {
+                            if ($error =~ /^DataSource error: /) {
+                                delete $setups{$sid};
+                                &{$ds_working_sub}($ds_id, $error);
+                            }
+                            else {
+                                # later on a watcher on this setup will have better
+                                # error handling and report the setup problems
+                                push(@new_setups, $setup);
+                            }
+                        }
+                        else {
+                            push(@new_setups, $setup);
+                        }
                     };
                 }
                 
