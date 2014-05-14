@@ -174,6 +174,7 @@ sub handle_setups {
                     my $sid = $setup->id;
                     next if exists $setups{$sid};
                     $setups{$sid} = $setup;
+                    push(@new_setups, $setup);
                     
                     # (because I couldn't get AnyEvent::ForkManager->on_finish
                     #  to work, we use fork_calls instead)
@@ -198,11 +199,7 @@ sub handle_setups {
                             else {
                                 # later on a watcher on this setup will have better
                                 # error handling and report the setup problems
-                                push(@new_setups, $setup);
                             }
-                        }
-                        else {
-                            push(@new_setups, $setup);
                         }
                     };
                 }

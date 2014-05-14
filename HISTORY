@@ -1,3 +1,6 @@
+0.191   Critical fix to restore functionality to the setups handler, lost in
+        0.190 - it now monitors setups again to keep them unstalled and look out
+        for new data elements.
 0.190   sequenom_import_from_irods_and_covert_to_vcf pipeline now indexes the
         vcf file it produces.
         irods datasource improvements: all_with_warehouse_metadata method now
