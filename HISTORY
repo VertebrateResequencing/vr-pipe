@@ -1,3 +1,32 @@
+0.190   sequenom_import_from_irods_and_covert_to_vcf pipeline now indexes the
+        vcf file it produces.
+        irods datasource improvements: all_with_warehouse_metadata method now
+        has a 'required_metadata' option to ignore files lacking those keys. It
+        also now retries irods commands multiple times on failure. All analysis
+        files (Sanger-specific) are now noted.
+        An issue exists where if multiple setups claim to have made the same
+        file, VRPipe will no longer automatically restart a step that produced
+        that file. This most often comes up for VCF index files. Some recent
+        VCF-producing and consuming pipelines have been altered to remove
+        the VCF-indexing step from the consuming piplines, and the producing
+        pipeline now always indexes. See IMPORTANT_NOTES if upgrading. VRPipe
+        itself also now checks if a file is in a setup's unique directory and
+        allows automatic step restarts in that case.
+        VRPipe::File has a new merge_metadata() method for combining metadata
+        from multiple files.
+        Critical fix for the bam_improvement_no_recal pipeline, which was
+        deleting a required file if the cleanup option was on.
+        When VRPipe datasources automatically start over dataelements because
+        file metadata changed, the details of the metadata change are now logged
+        (see vrpipe-logs).
+        vrtrack_populate_from_vrpipe_metadata step was improved to store bam
+        lane metadata in the way expected by most bam pipelines and to store
+        control metadata for stem cell data.
+        The pluritest-related pipelines and steps received improvements and
+        fixes.
+        vrpipe-setup --based_on now lets you unset an value by answering ''.
+        The setups handler now catches and emails about datasource errors in new
+        setups.
 0.189   vrtrack_auto_qc_with_genotype_checking pipeline fixed and improved to
         now take genotypes bcf as an input.
 0.188   Updates to various bcftools-using steps to cope with both v0 and v1 of
