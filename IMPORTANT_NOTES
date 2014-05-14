@@ -1,3 +1,26 @@
+# version 0.190
+(you must first upgrade to 0.187 if you haven't done so already, see notes
+below)
+The following included pipelines have been changed by removing steps from them,
+and VRPipe can't automatically cope with this:
+sequenom_import_from_irods_and_covert_to_vcf
+vcf_merge_and_compare_genotypes
+vcf_merge_different_samples_to_indexed_bcf
+If you've used these pipelines in any setups you will have to:
+ a) turn the server off
+ b) reset the setups (using vrpipe-setup --reset, which also deactivates them)
+ c) upgrade to 0.190 as normal
+ d) log in to your MySQL vrpipe production database and say for each pipeline:
+    mysql> select id from pipeline where name = "<pipeline name>";
+    mysql> delete from stepmember where pipeline = <pipeline id>;
+    mysql> delete from stepadaptor where pipeline = <pipeline id>;
+    mysql> delete from stepbehaviour where pipeline = <pipeline id>;
+ e) start the server
+ f) reactivate the setups
+Additionally, any setup using a sequenom_import_from_irods_and_covert_to_vcf
+setup as its source must change it's source from <setup_id>[2] to
+<setup_id>[2:vcf_files].
+
 # version 0.187
 (you must first upgrade to 0.183 if you haven't done so already, see notes
 below)
