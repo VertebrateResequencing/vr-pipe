@@ -50,9 +50,14 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
     
     method options_definition {
         return {
-            annot_file_regex             => VRPipe::StepOption->create(description => 'regex used to search for annotation files amongst the expression analysis files obtained from iRODS',     default_value => '_annotation.txt'),
-            profile_file_regex           => VRPipe::StepOption->create(description => 'regex used to search for sample profile files amongst the expression analysis files obtained from iRODS', default_value => '\d+_Sample_Probe_Profile.txt'),
-            header_regex                 => VRPipe::StepOption->create(description => 'regex used to identify the header line of the annotation file',                                           default_value => '^TargetID'),
+            profile_normalisation_method => VRPipe::StepOption->create(
+                description   => 'the normalisation method used for generating the sample probe profile file',
+                default_value => 'none'
+            ),
+            header_regex => VRPipe::StepOption->create(
+                description   => 'regex used to identify the header line of the annotation file',
+                default_value => '^TargetID'
+            ),
             mapping_sample_from_metadata => VRPipe::StepOption->create(
                 description   => 'metadata key from which the sample name will be taken, for use in the mapping file; separate multiple keys with + symbols - values will be joined with underscores',
                 optional      => 1,
@@ -95,14 +100,13 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
     
     method body_sub {
         return sub {
-            my $self               = shift;
-            my $options            = $self->options;
-            my $annot_file_regex   = $options->{annot_file_regex};
-            my $profile_file_regex = $options->{profile_file_regex};
-            my $header_regex       = $options->{header_regex};
-            my $mfm                = $options->{mapping_sample_from_metadata};
-            my @mfm_keys           = split(/\+/, $mfm);
-            my $req                = $self->new_requirements(memory => 500, time => 1);
+            my $self         = shift;
+            my $options      = $self->options;
+            my $profile_nm   = $options->{profile_normalisation_method};
+            my $header_regex = $options->{header_regex};
+            my $mfm          = $options->{mapping_sample_from_metadata};
+            my @mfm_keys     = split(/\+/, $mfm);
+            my $req          = $self->new_requirements(memory => 500, time => 1);
             
             my %annotation_files;
             my %profile_files;
@@ -123,13 +127,24 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 my ($annot_file, $pro_file);
                 foreach my $path (@$analysis_files) {
                     $path = file($local_dir, $path)->stringify;
-                    if ($path =~ m/$annot_file_regex/i) {
+                    my $file = VRPipe::File->get(path => $path);
+                    my $meta = $file->metadata;
+                    my $type = $meta->{summary_type} || next;
+                    if ($type eq 'annotation') {
                         $annot_file = $path;
                     }
-                    elsif ($path =~ m/$profile_file_regex/i) {
-                        $pro_file = $path;
+                    elsif ($type eq 'probe') {
+                        my $group = $meta->{summary_group} || next;
+                        next unless $group eq 'sample';
+                        my $this_nm = $meta->{normalisation_method} || next;
+                        $pro_file = $path if $this_nm eq $profile_nm;
                     }
                 }
+                
+                unless ($annot_file && $pro_file) {
+                    $self->throw("idat file " . $idat_file->path . " did not have both an annotation file and suitable sample probe profile file associated with it");
+                }
+                
                 if ($annot_file && !$annotation_files{$annot_file}) {
                     $annotation_files{$annot_file} = 1;
                     push @annot_profile_map, ($annot_file, $pro_file);
