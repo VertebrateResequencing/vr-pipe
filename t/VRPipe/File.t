@@ -6,7 +6,7 @@ use File::Spec;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 70;
+    use Test::Most tests => 72;
     use VRPipeTest;
 }
 
@@ -31,6 +31,8 @@ $vrfile->add_metadata({ baz => 'loman', multi => [qw(val1 val2 val3)] });
 is_deeply [$vrfile->path, $vrfile->e, $vrfile->metadata, $vrfile->basename, $vrfile->type, $vrfile->slurp], [$input_path, 1, { foo => 'bar', baz => 'loman', multi => [qw(val1 val2 val3)] }, 'input.txt', 'txt', "line1\n", "line2\n"], 'file has the expected fields';
 cmp_ok $vrfile->s, '>=', 5, 'file has some size';
 is $vrfile->meta_value('foo'), 'bar', 'meta_value() works';
+my $no_meta_vrfile = VRPipe::File->create(path => "/nometa");
+is $no_meta_vrfile->meta_value('foo'), undef, 'meta_value on a file with no metadata returns undef';
 
 ok my $orig_mtime = $vrfile->mtime, 'got mtime';
 sleep(2);
@@ -46,7 +48,7 @@ is $vrfile->lines, 2, 'lines() worked';
 my $output_path = file($tmp_dir, 'output.txt');
 ok my $vrofile = VRPipe::File->create(path => $output_path, type => 'txt'), 'created another File using create()';
 undef($vrofile);
-$vrofile = VRPipe::File->get(id => 2);
+$vrofile = VRPipe::File->get(id => 3);
 is_deeply [$vrofile->path, $vrofile->e, $vrofile->s], [$output_path, 0, 0], 'file2 has the expected fields';
 throws_ok { VRPipe::File->create(path => 'output.txt', type => 'txt') } qr/must be absolute/, 'using create() with a relative path causes a throw';
 
@@ -348,6 +350,12 @@ for my $i (1 .. 5) {
 is_deeply $step->common_metadata(\@meta_files), \%common, 'common_metadata() from StepRole works, excluding a unique scalar';
 $meta_files[0]->add_metadata({ multi => [qw(ay be ce de)] });
 is_deeply $step->common_metadata(\@meta_files), { foo => 'bar', cat => 'dog' }, 'common_metadata() from StepRole works, excluding a multi value key that differs';
+
+# similar to common_metadata, test merge_metadata
+$vrfile->metadata({ ay => 'a', be => 'b', ce => ['c', 'c2'], de => ['d', 'd2'], ee => 'e', ef => 'f', ge => ['g', 'g2'] });
+$vrfile->update;
+$vrfile->merge_metadata({ be => 'b2', ce => 'c3', de => ['d3', 'd4'], ee => ['e2', 'e3'], ef => 'f', ge => ['g2', 'g', 'g3'], h => 'h' });
+is_deeply $vrfile->metadata, { ay => 'a', be => ['b', 'b2'], ce => ['c', 'c2', 'c3'], de => ['c', 'c2', 'c3'], de => ['d', 'd2', 'd3', 'd4'], ee => ['e', 'e2', 'e3'], ef => 'f', ge => ['g', 'g2', 'g3'], h => 'h' }, 'merge_metadata worked';
 
 done_testing;
 exit;

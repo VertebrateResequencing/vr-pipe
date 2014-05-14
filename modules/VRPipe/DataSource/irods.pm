@@ -42,6 +42,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
     use File::Spec::Functions;
     use Path::Class;
     use VRPipe::Persistent::InMemory;
+    use VRPipe::Steps::irods;
     
     has '_irods_files_and_metadata_cache' => (
         is        => 'rw',
@@ -63,7 +64,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). If any analysis has been done to a file, the associated files are stored under irods_analysis_files. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         return '';
     }
@@ -105,7 +106,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata');
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata', $options->{required_metadata});
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $file (sort keys %$files) {
@@ -125,8 +126,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return $digest;
     }
     
-    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse?) {
+    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse?, Maybe[Str] $required_metadata?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
+        my @required_keys;
+        if ($required_metadata) {
+            @required_keys = split(',', $required_metadata);
+        }
         
         my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created);
         my ($study_sth, $study_title);
@@ -196,46 +201,21 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             @queries = ($raw_query);
         }
         
+        my (%analysis_to_cols, %col_dates, %analysis_files);
         foreach my $query (@queries) {
-            my $cmd = "imeta -z $zone qu -d $query";
-            open(my $qu_fh, $cmd . ' |') || $self->throw("Could not open pipe to [$cmd]");
+            my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -d $query");
             my $collection;
-            my (%analysis_to_col_date, %analysis_files);
             my $order = 1;
-            while (<$qu_fh>) {
+            QU: foreach (@cmd_output) {
                 #*** do we have to worry about spaces in file paths?...
                 if (/^collection:\s+(\S+)/) {
                     $collection = $1;
                 }
                 elsif (/^dataObj:\s+(\S+)/) {
                     my $path = "$collection/$1";
-                    
                     # get all the metadata for this file
-                    my $ls_cmd = "imeta ls -d $path";
-                    open(my $ls_fh, $ls_cmd . ' |') || $self->throw("Could not open pipe to [$ls_cmd]");
-                    my $meta = { vrpipe_irods_order => $order++ };
-                    my $attribute;
-                    while (<$ls_fh>) {
-                        if (/^attribute:\s+(\S+)/) {
-                            $attribute = $1;
-                            undef $attribute if $attribute =~ /^dcterms:/;
-                        }
-                        elsif ($attribute && /^value:\s+(.+)$/) {
-                            if (exists $meta->{$attribute}) {
-                                my $previous = $meta->{$attribute};
-                                if (ref($previous)) {
-                                    $meta->{$attribute} = [@$previous, $1];
-                                }
-                                else {
-                                    $meta->{$attribute} = [$previous, $1];
-                                }
-                            }
-                            else {
-                                $meta->{$attribute} = $1;
-                            }
-                        }
-                    }
-                    close($ls_fh) || $self->throw("Could not close pipe to [$ls_cmd]");
+                    my $meta = VRPipe::Steps::irods->get_file_metadata($path);
+                    $meta->{vrpipe_irods_order} = $order++;
                     
                     # grab extra info from the warehouse database if requested
                     if ($sample_sth) {
@@ -313,43 +293,44 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         if (exists $meta->{analysis_uuid}) {
                             # get the most recent collection associated with an
                             # analysis done for this file
-                            my %collections;
                             my @uuids = ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid});
+                            my %collections;
                             foreach my $uuid (@uuids) {
-                                my ($col, $created_date);
-                                if (exists $analysis_to_col_date{$uuid}) {
-                                    ($col, $created_date) = @{ $analysis_to_col_date{$uuid} };
+                                if (exists $analysis_to_cols{$uuid}) {
+                                    foreach my $this_col (@{ $analysis_to_cols{$uuid} }) {
+                                        $collections{$this_col} = 1;
+                                    }
                                 }
                                 else {
-                                    my $colls_cmd = "imeta -z $zone qu -C analysis_uuid = $uuid";
-                                    open(my $colls_fh, $colls_cmd . ' |') || $self->throw("Could not open pipe to [$colls_cmd]");
-                                    while (<$colls_fh>) {
+                                    my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -C analysis_uuid = $uuid");
+                                    
+                                    my @these_cols;
+                                    foreach (@cmd_output) {
                                         if (/^collection:\s+(\S+)/) {
                                             my $this_col = $1;
-                                            my $date_cmd = "imeta ls -C $this_col dcterms:created";
-                                            open(my $date_fh, $date_cmd . ' |') || $self->throw("Could not open pipe to [$date_cmd]");
-                                            while (<$date_fh>) {
-                                                if (/^value: (.+)$/) {
-                                                    $created_date = $1;
+                                            $collections{$this_col} = 1;
+                                            push(@these_cols, $this_col);
+                                            
+                                            unless (exists $col_dates{$this_col}) {
+                                                my @date_cmd_output = VRPipe::Steps::irods->open_irods_command("imeta ls -C $this_col dcterms:created");
+                                                my $date;
+                                                foreach (@date_cmd_output) {
+                                                    if (/^value: (.+)$/) {
+                                                        $date = $1;
+                                                        last;
+                                                    }
                                                 }
+                                                $date ||= '2013-01-01T12:00:00';
+                                                $col_dates{$this_col} = $date;
                                             }
-                                            close($date_fh) || $self->throw("Could not close pipe to [$date_cmd]");
-                                            $created_date   || next;
-                                            $col = $this_col;
-                                            #*** do we ever get multiple collections
-                                            #    per uuid?
-                                            last;
                                         }
                                     }
-                                    close($colls_fh) || $self->throw("Could not close pipe to [$colls_cmd]");
                                     
-                                    $col || next;
-                                    $analysis_to_col_date{$uuid} = [$col, $created_date];
+                                    $analysis_to_cols{$uuid} = \@these_cols;
                                 }
-                                
-                                $collections{$col} = $created_date;
                             }
-                            my ($analysis_collection) = sort { $collections{$b} cmp $collections{$a} } keys %collections;
+                            
+                            my ($analysis_collection) = sort { $col_dates{$b} cmp $col_dates{$a} } keys %collections;
                             
                             if ($analysis_collection) {
                                 my @files;
@@ -357,24 +338,21 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                                     @files = @{ $analysis_files{$analysis_collection} };
                                 }
                                 else {
-                                    my $ils_cmd = "ils -r $analysis_collection";
-                                    open(my $ils_fh, $ils_cmd . ' |') || $self->throw("Could not open pipe to [$ils_cmd]");
+                                    my @cmd_output = VRPipe::Steps::irods->open_irods_command("ils -r $analysis_collection");
                                     my $dir;
-                                    while (<$ils_fh>) {
-                                        chomp;
+                                    foreach (@cmd_output) {
                                         if (/^($analysis_collection[^:]*)/) {
                                             $dir = $1;
                                         }
-                                        elsif (/(\S+(?:Sample_Probe_Profile|annotation|\.fcr\.)\S+)/i) {
-                                            # we could store all files, or take the
-                                            # above regex as a user-option, but for now
-                                            # we'll just hard-code it since this is all
-                                            # Sanger-specific anyway
-                                            next if /quantile/;
+                                        elsif (/^\s+(\w\S+)$/) {
+                                            #*** there are files with spaces in
+                                            # the filename and also ones that
+                                            # start with special chars like ~$,
+                                            # but it's too awkward to bother
+                                            # supporting them - they are ignored!
                                             push(@files, file($dir, $1)->stringify);
                                         }
                                     }
-                                    close($ils_fh) || $self->throw("Could not close pipe to [$ils_cmd]");
                                     
                                     $analysis_files{$analysis_collection} = [@files];
                                 }
@@ -386,10 +364,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         }
                     }
                     
+                    foreach my $key (@required_keys) {
+                        next QU unless defined $meta->{$key};
+                    }
+                    
                     $files{$path} = $meta;
                 }
             }
-            close($qu_fh) || $self->throw("Could not close pipe to [$cmd]");
         }
         
         return \%files;
@@ -404,27 +385,28 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return $self->_all_files(%args);
     }
     
-    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?) {
+    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?) {
         my %args;
         $args{handle}          = $handle;
         $args{file_query}      = $file_query;
         $args{local_root_dir}  = $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
-        return $self->_all_files(%args, add_metadata_from_warehouse => 1);
+        return $self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : ());
     }
     
-    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?) {
+    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?) {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
         $add_metadata_from_warehouse ||= 0;
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse);
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse, $required_metadata);
         $self->_clear_cache;
         
-        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date manual_qc sample_created_date taxon_id);
+        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date manual_qc sample_created_date taxon_id lane);
         
         my $did = $self->_datasource_id;
         my @element_args;
+        my @changed_details;
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
             my $new_metadata = $files->{$path};
             delete $new_metadata->{vrpipe_irods_order};
@@ -451,8 +433,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                     
                     next unless defined $val;
                     next unless defined $new_metadata->{$key};
-                    if (_vals_different($val, $new_metadata->{$key})) {
+                    if (my $diff = $self->_vals_different($val, $new_metadata->{$key})) {
                         $changed = 1;
+                        push(@changed_details, "$file_abs_path $key: $diff");
                         last;
                     }
                 }
@@ -465,32 +448,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             my $result_hash = { paths => [$file_abs_path], irods_path => $path };
             if ($changed) {
                 $result_hash->{changed} = [[$vrfile, $new_metadata]];
-                $self->_start_over_elements_due_to_file_metadata_change($result_hash);
+                $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details);
                 delete $result_hash->{changed};
             }
             push(@element_args, { datasource => $did, result => $result_hash });
         }
         $self->_create_elements(\@element_args);
-    }
-    
-    sub _vals_different {
-        my ($orig, $new) = @_;
-        if (!ref($orig) && !ref($new)) {
-            return $orig ne $new;
-        }
-        
-        if ((ref($orig) && !ref($new)) || (!ref($orig) && ref($new))) {
-            return 1;
-        }
-        
-        my %orig = map { $_ => 1 } @$orig;
-        my %new  = map { $_ => 1 } @$new;
-        foreach my $orig (keys %orig) {
-            return 1 unless delete $new{$orig};
-        }
-        return 1 if keys %new;
-        
-        return 0;
     }
 }
 

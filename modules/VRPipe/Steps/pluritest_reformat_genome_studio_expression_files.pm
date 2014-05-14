@@ -55,7 +55,6 @@ class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPi
             profile_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'a file that contains the GenomeStudio profile for the samples',
-                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             ),
         };
     }
@@ -92,7 +91,6 @@ class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPi
                 description => 'Files with reformatted Genome Studio gene expression data',
                 max_files   => -1,
                 min_files   => 0,
-                metadata    => { lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }

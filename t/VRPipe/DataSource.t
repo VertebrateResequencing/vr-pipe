@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 104;
+    use Test::Most tests => 105;
     use VRPipeTest;
     use TestPipelines;
     
@@ -667,7 +667,7 @@ SKIP: {
     is_deeply \@results, [{ paths => [file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv))], irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv' }, { paths => [file($output_root, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv))], irods_path => '/seq/sequenom/14/62/84/QC288261____20130701_C01.csv' }, { paths => [file($output_root, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv))], irods_path => '/seq/sequenom/95/35/0e/QC288261____20130701_A01.csv' }, { paths => [file($output_root, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv))], irods_path => '/seq/sequenom/d8/7c/21/QC288261____20130701_E01.csv' }], 'got correct results for irods all';
     
     my $file = VRPipe::File->create(path => file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)));
-    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv' };
+    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', manual_qc => 1 };
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
     
     # check the warehouse method
@@ -676,12 +676,13 @@ SKIP: {
         method  => 'all_with_warehouse_metadata',
         source  => 'seq',
         options => {
-            file_query     => q[sequenom_plate LIKE '%' and study_id = 2622 and dcterms:created '<' 2013-07-26],
-            local_root_dir => $output_root
+            file_query        => q[sequenom_plate LIKE '%' and study_id = 2622 and dcterms:created '<' 2013-07-26],
+            local_root_dir    => $output_root,
+            required_metadata => 'sample_cohort,public_name'
         }
       ),
       'could create an irods datasource with all_with_warehouse_metadata method';
-    get_elements($ds);
+    is scalar(@{ get_elements($ds) }), scalar(@results), 'required_metadata option gave us the correct number of elements for the all_with_warehouse_metadata method';
     $file->reselect_values_from_db;
     $expected_file_meta->{public_name}         = 'ffdb_3';
     $expected_file_meta->{sample_created_date} = '2013-06-25 14:09:22';

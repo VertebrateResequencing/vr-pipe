@@ -94,29 +94,29 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
             my $merged_basename = 'merged.vcf.gz';
             my $merged_vcf      = $self->output_file(output_key => 'merged_vcf', basename => $merged_basename, type => 'vcf', metadata => $merged_meta);
             my $output_path     = $merged_vcf->path;
+            my $index           = $self->output_file(output_key => 'vcf_index', basename => $merged_basename . '.csi', type => 'bin');
             
+            my $req = $self->new_requirements(memory => $self->_determine_memory(scalar(@input_set)), time => 1);
             if (@input_set == 1) {
                 # merge doesn't work on 1 input file; just symlink the input to
-                # output
+                # output and index it
                 my $source = $self->inputs->{vcf_files}->[0];
                 $source->symlink($merged_vcf);
-                $merged_vcf->metadata($merged_meta);
-                $merged_vcf->update;
-                return 1;
+                $self->dispatch(["$bcftools_exe index $output_path", $req, { output_files => [$merged_vcf, $index] }]);
             }
-            
-            my $this_cmd = qq[$bcftools_exe merge $bcfopts @input_set > $output_path];
-            
-            $self->set_cmd_summary(
-                VRPipe::StepCmdSummary->create(
-                    exe     => 'bcftools',
-                    version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
-                    summary => "bcftools merge $bcfopts \@input_vcfs > \$output_path"
-                )
-            );
-            
-            my $req = $self->new_requirements(memory => 500, time => 1);
-            $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples_control_aware', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf] }]);
+            else {
+                my $this_cmd = qq[$bcftools_exe merge $bcfopts @input_set > $output_path && $bcftools_exe index $output_path];
+                
+                $self->set_cmd_summary(
+                    VRPipe::StepCmdSummary->create(
+                        exe     => 'bcftools',
+                        version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
+                        summary => "bcftools merge $bcfopts \@input_vcfs > \$output_path && bcftools index \$output_path"
+                    )
+                );
+                
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples_control_aware', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf, $index] }]);
+            }
         };
     }
     

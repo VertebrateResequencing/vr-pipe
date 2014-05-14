@@ -82,6 +82,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
         my $pr = $handle->parsed_record;
         my $lanes_hash;
         my %mates;
+        my @changed_details;
         while ($handle->next_record) {
             next if $ignore_withdrawn && $pr->[20];
             $pr->[2] || $self->throw("lane is required in column 3");
@@ -164,17 +165,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
-                foreach my $meta (qw(expected_md5 reads bases)) {
+                foreach my $meta (qw(expected_md5 reads bases lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
                     next unless $new_metadata->{$meta};
                     if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
                         $changed = 1;
-                        last;
-                    }
-                }
-                foreach my $meta (qw(lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
-                    next unless $new_metadata->{$meta};
-                    if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
-                        $changed = 1;
+                        push(@changed_details, "$fastq $meta: $current_metadata->{$meta} => $new_metadata->{$meta}");
                         last;
                     }
                 }
@@ -200,7 +195,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                $self->_start_over_elements_due_to_file_metadata_change($hash_ref);
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref, \@changed_details);
             }
         }
         $self->_create_elements(\@element_args);
@@ -221,6 +216,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
         my $pr = $handle->parsed_record;
         my $samples_hash;
         my %mates;
+        my @changed_details;
         while ($handle->next_record) {
             next if $ignore_withdrawn && $pr->[20];
             $pr->[2] || $self->throw("lane is required in column 3");
@@ -304,17 +300,11 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             my $current_metadata = $vrfile->metadata;
             my $changed          = 0;
             if ($current_metadata && keys %$current_metadata) {
-                foreach my $meta (qw(expected_md5 reads bases)) {
+                foreach my $meta (qw(expected_md5 reads bases lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
                     next unless $new_metadata->{$meta};
                     if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
                         $changed = 1;
-                        last;
-                    }
-                }
-                foreach my $meta (qw(lane study study_name center_name sample_id sample population platform library insert_size analysis_group)) {
-                    next unless $new_metadata->{$meta};
-                    if (defined $current_metadata->{$meta} && $current_metadata->{$meta} ne $new_metadata->{$meta}) {
-                        $changed = 1;
+                        push(@changed_details, "$fastq $meta: $current_metadata->{$meta} => $new_metadata->{$meta}");
                         last;
                     }
                 }
@@ -340,7 +330,7 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                $self->_start_over_elements_due_to_file_metadata_change($hash_ref);
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref, \@changed_details);
             }
         }
         $self->_create_elements(\@element_args);

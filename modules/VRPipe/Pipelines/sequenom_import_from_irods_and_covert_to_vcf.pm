@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -52,7 +52,7 @@ class VRPipe::Pipelines::sequenom_import_from_irods_and_covert_to_vcf with VRPip
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'basenames' },
-            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'csv_files' },
+            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'csv_files' }
         );
     }
     

@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 21;
+    use Test::Most tests => 23;
     use VRPipeTest;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
@@ -34,7 +34,7 @@ ok my $ds = VRPipe::DataSource->create(
   ),
   'could create an irods datasource for idat files';
 
-create_fresh_vrtrack_test_db();
+create_fresh_vrtrack_test_db(with_notes => 1);
 ok my $pipeline = VRPipe::Pipeline->create(name => 'vrtrack_populate_from_irods_and_download_files'), 'able to get the vrtrack_populate_from_irods_and_download_files pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
@@ -53,7 +53,10 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-my @expected_output_files = (file($output_root, '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz'), file($output_root, '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt'));
+my @expected_output_files;
+foreach my $basename (qw(hipsci_2013-05-15_Sample_Probe_Profile.txt hipsci_2013-05-15_Sample_Probe_Profile.txt.gz hipsci_2013-05-15_Sample_Probe_Profile.txt.zip hipsci_2013-05-15_annotation.txt hipsci_2013-05-15.txt hipsci_2013-05-15.xlsx hipsci_2013-05-15_Control_Probe_Profile.txt hipsci_2013-05-15_quantile_Sample_Probe_Profile.txt)) {
+    push(@expected_output_files, file($output_root, '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/', $basename));
+}
 ok handle_pipeline(@expected_output_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok for idat files';
 
 my $files = 0;
@@ -69,7 +72,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'study_id'                => 2625,
         'study_title'             => 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS',
         'sample'                  => 'qc1hip5529781',
-        'public_name'             => 'fpdr',
+        'public_name'             => 'HPSI0813i-fpdr',
         'sample_created_date'     => '2013-05-10 06:45:32',
         'beadchip_section'        => 'E',
         'sample_consent'          => '1',
@@ -81,12 +84,40 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'sample_id'               => '1625281',
         'md5'                     => '41b6f345a2f92f095f09a7ff22bbbc00',
         'sample_supplier_name'    => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
-        'irods_analysis_files'    => ['/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz', '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt',],
+        'irods_analysis_files'    => [qw(/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.xlsx /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Control_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.zip /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_quantile_Sample_Probe_Profile.txt)],
         'irods_local_storage_dir' => $output_root
       },
       'correct file metadata was present on the first idat file';
 }
 is $files, 7, 'idat datasource returned the correct number of files';
+
+my $sample_probe_profile_file = VRPipe::File->get(path => $expected_output_files[0]);
+is_deeply $sample_probe_profile_file->metadata,
+  {
+    analysis_uuid        => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
+    beadchip             => 9252616016,
+    beadchip_section     => [qw(A B C E G I K)],
+    irods_path           => '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt',
+    md5                  => 'd3946d9dd42a86a4ad04b8538ea387a8',
+    normalisation_method => 'none',
+    public_name          => [qw(HPSI0813i-fpdk HPSI0813i-fpdk_1 HPSI0813i-fpdk_2 HPSI0813i-fpdk_3 HPSI0813i-fpdr HPSI0813i-fpdr_1 HPSI0813i-fpdr_2)],
+    sample               => [qw(qc1hip5529779 qc1hip5529780 qc1hip5529781 qc1hip5529782 qc1hip5529783 qc1hip5529784 qc1hip5529785)],
+    sample_cohort        => [qw(27af9a9b-01b2-4cb6-acef-ea52d83e3d26 6d3d2acf-29a5-41a2-8992-1414706a527d)],
+    sample_common_name   => 'Homo Sapien',
+    sample_consent       => 1,
+    sample_control       => [0, 1],
+    sample_created_date  => ['2013-05-10 06:45:31', '2013-05-10 06:45:32'],
+    sample_id            => [1625279, 1625280, 1625281, 1625282, 1625283, 1625284, 1625285],
+    sample_supplier_name => [qw(3d7a2438-d7bb-40e3-af7b-a0923a253069 4689a6b5-4dc3-4532-a546-565b41eaa8ba 4e9503f1-bd2b-4c59-b09c-3a4060f80901 59e7eb47-c910-4ca8-9cf0-d829539db05b 87e7ee6f-e16f-41f6-94c5-194933e2b192 99e5a955-db3c-4010-9b2b-5a68588d0381 face6d88-7e90-4215-aa80-fb2c3df5a4ed)],
+    source_file          => [file($output_root, 'archive/GAPI/exp/infinium/41/b6/f3/9252616016_E_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/45/fe/61/9252616016_K_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/ae/61/b6/9252616016_I_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/d1/d4/16/9252616016_C_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/e2/f7/a2/9252616016_G_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/e3/42/84/9252616016_A_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/f9/ee/6f/9252616016_B_Grn.idat')->stringify],
+    study_id             => 2625,
+    study_title          => 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS',
+    summary_group        => 'sample',
+    summary_type         => 'probe',
+    taxon_id             => 9606,
+    type                 => 'txt',
+  },
+  'metadata on the sample_probe_profile file was correct';
 
 my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
 my @lanes = $vrtrack->get_lanes();
@@ -95,10 +126,11 @@ my $lane_info = lane_info(grep { $_->name eq '9252616016_E_Grn' } @lanes);
 
 my $expected = {
     lane_name             => '9252616016_E_Grn',
+    lane_hierarchy_name   => '9252616016_E_Grn',
     raw_reads             => undef,
     is_paired             => undef,
     lane_acc              => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
-    storage_path          => file($output_root, 'archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15')->stringify,
+    storage_path          => file($output_root, 'archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15')->stringify,
     file_name             => '9252616016_E_Grn.idat',
     file_type             => 8,
     file_md5              => '41b6f345a2f92f095f09a7ff22bbbc00',
@@ -108,13 +140,14 @@ my $expected = {
     project_id            => 2625,
     project_name          => 'G0325 [gex] Wellcome Trust Strategic Award application - HIPS',
     study_acc             => 2625,
-    sample_name           => 'fpdr',
+    sample_name           => 'HPSI0813i-fpdr',
     sample_hierarchy_name => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
     sample_ssid           => '1625281',
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-    individual_acc        => undef
+    individual_acc        => undef,
+    control               => 1
 };
 
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first idat lane';
@@ -131,7 +164,7 @@ ok $ds = VRPipe::DataSource->create(
   ),
   'could create an irods datasource for gtc files';
 
-create_fresh_vrtrack_test_db();
+create_fresh_vrtrack_test_db(with_notes => 1);
 VRPipe::PipelineSetup->create(
     name        => 'gtc populate',
     datasource  => $ds,
@@ -160,8 +193,9 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'sample_cohort'           => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
         'infinium_plate'          => 'WG0206884-DNA',
         'infinium_sample'         => '283163_F01_qc1hip5529688',
-        'public_name'             => 'fpdk_3',
+        'public_name'             => 'HPSI0813i-fpdk_3',
         'sample'                  => 'qc1hip5529688',
+        'sample_accession_number' => 'SAMEA2398958',
         'beadchip_design'         => 'HumanCoreExome-12v1-0',
         'sample_created_date'     => '2013-05-10 06:44:46',
         'sample_consent'          => '1',
@@ -189,6 +223,7 @@ $lane_info = lane_info(grep { $_->name eq '9300870057_R06C01' } @lanes);
 
 $expected = {
     lane_name             => '9300870057_R06C01',
+    lane_hierarchy_name   => '9300870057_R06C01',
     raw_reads             => undef,
     is_paired             => undef,
     lane_acc              => '3f5acca0-304c-480f-8a61-3e68c33c707d',
@@ -202,16 +237,18 @@ $expected = {
     project_id            => 2624,
     project_name          => 'G0325 [coreex] Wellcome Trust Strategic Award application - HIPS',
     study_acc             => 2624,
-    sample_name           => 'fpdk_3',
+    sample_name           => 'HPSI0813i-fpdk_3',
     sample_hierarchy_name => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
     sample_ssid           => '1625188',
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
-    individual_acc        => undef
+    control               => 0
 };
 
+my $indiv_acc = delete $lane_info->{individual_acc};
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first gtc lane';
+like $indiv_acc, qr/SAMEA\d+/, 'individual_acc was set to some random value';
 
 # bam sequencing data
 ok $ds = VRPipe::DataSource->create(
@@ -262,7 +299,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'sample_accession_number' => 'ERS215816',
         'tag'                     => 'AACGTGAT',
         'study'                   => 'De novo and acquired resistance to MEK inhibitors',
-        'lane'                    => '4',
+        'lane'                    => '9417_4#1',
         'sample_created_date'     => '2013-02-21 07:51:47',
         'ebi_sub_md5'             => '675b0b2b2f5991aa5a4695bb1914c0c7',
         'ebi_run_acc'             => 'ERR274701',
@@ -289,6 +326,7 @@ $lane_info = lane_info(grep { $_->name eq '9417_4#1' } @lanes);
 
 $expected = {
     lane_name             => '9417_4#1',
+    lane_hierarchy_name   => '9417_4#1',
     raw_reads             => 70486376,
     is_paired             => 1,
     lane_acc              => undef,
@@ -316,6 +354,9 @@ is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first 
 exit;
 
 sub create_fresh_vrtrack_test_db {
+    my %args      = @_;
+    my $add_notes = delete $args{with_notes};
+    
     my %cd = VRTrack::Factory->connection_details('rw');
     open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
     print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
@@ -324,6 +365,11 @@ sub create_fresh_vrtrack_test_db {
     foreach my $sql (VRTrack::VRTrack->schema()) {
         print $mysqlfh $sql;
     }
+    
+    if ($add_notes) {
+        print $mysqlfh q[insert into note set note_id = 1, note = "Control"; insert into note set note_id = 2, note = "Stem cell";];
+    }
+    
     close($mysqlfh);
 }
 
@@ -332,8 +378,15 @@ sub lane_info {
     my ($file) = @{ $lane->files };
     my %h      = $vrtrack->lane_hierarchy_objects($lane);
     
+    my $control;
+    my $note_id = $h{sample}->note_id;
+    if (defined $note_id) {
+        $control = $note_id == 1 ? 1 : 0;
+    }
+    
     my $info = {
         lane_name             => $lane->name,
+        lane_hierarchy_name   => $lane->hierarchy_name,
         raw_reads             => $lane->raw_reads,
         is_paired             => $lane->is_paired,
         lane_acc              => $lane->acc,
@@ -353,7 +406,8 @@ sub lane_info {
         species_taxon_id      => $h{species}->taxon_id,
         species_name          => $h{species}->name,
         individual_name       => $h{individual}->name,
-        individual_acc        => $h{individual}->acc
+        individual_acc        => $h{individual}->acc,
+        defined $control ? (control => $control) : ()
     };
     
     return $info;

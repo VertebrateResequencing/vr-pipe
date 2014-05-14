@@ -96,7 +96,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
             die "file " . $file->path . " is missing essential metadata $essential\n" unless defined $meta->{$essential};
         }
         
-        # we can't represent the same sample being to 2 different projects in
+        # we can't represent the same sample being for 2 different projects in
         # VRTrack
         if (ref($meta->{study_id}) && @{ $meta->{study_id} } > 1) {
             die "file " . $file->path . " belongs to more than one study (@{$meta->{study_id}}), which VRTrack can't cope with\n";
@@ -105,11 +105,30 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         my $lane = $basename;
         $lane =~ s/\.gz$//;
         $lane =~ s/\.[^\.]+$//;
+        $file->add_metadata({ lane => $lane }, replace_data => 1) if $file->meta_value('lane');
         $file->disconnect;
         
         my %type_to_vrtrack_type = (bam => 4, gtc => 7, idat => 8);
         
         my $vrtrack = $self->get_vrtrack(db => $db);
+        
+        # check the database to see if there are control-related notes;
+        # VRTrack API makes no mention of notes, so we do this with sql!
+        my $sql = qq[select note_id,note from note];
+        my $sth = $vrtrack->{_dbh}->prepare($sql);
+        my %notes;
+        if ($sth->execute()) {
+            foreach (@{ $sth->fetchall_arrayref() }) {
+                $notes{ $_->[0] } = $_->[1];
+            }
+        }
+        else {
+            die(sprintf('Cannot check notes table: %s', $DBI::errstr));
+        }
+        my $add_control_note = 0;
+        if (keys %notes >= 2 && $notes{1} eq 'Control' && $notes{2} eq 'Stem cell') {
+            $add_control_note = 1;
+        }
         
         # the VRTrack API, even when using a transaction, doesn't have proper
         # multi-process protection and we can end up creating multiple projects
@@ -130,6 +149,11 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 }
                 else {
                     $vrlane = VRTrack::Lane->create($vrtrack, $lane);
+                    
+                    # hierarchy name by default has special chars replaced with
+                    # underscores, but it must be identical to name
+                    $vrlane->hierarchy_name($lane);
+                    $vrlane->update;
                 }
                 
                 # fill out lane details we might have at this point
@@ -242,6 +266,9 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 }
                 $vrsample->hierarchy_name($meta->{sample_supplier_name} || $meta->{sample});
                 $vrsample->ssid($meta->{sample_id});
+                if ($add_control_note && exists $meta->{sample_control}) {
+                    $vrsample->note_id($meta->{sample_control} ? 1 : 2);
+                }
                 $vrsample->update;
                 
                 $vrlibrary->sample_id($vrsample->id);
@@ -263,7 +290,12 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 unless ($vrindividual) {
                     $vrindividual = $vrsample->add_individual($individual_name);
                 }
-                $vrindividual->acc($meta->{sample_accession_number}) if defined $meta->{sample_accession_number};
+                unless ($vrindividual->acc) {
+                    # an individual can have multiple samples taken from it, but
+                    # for historic reasons we store sample_accession_number in
+                    # acc; we'll just go with the first one we see
+                    $vrindividual->acc($meta->{sample_accession_number}) if defined $meta->{sample_accession_number};
+                }
                 $vrindividual->species_id($vrspecies->id);
                 $vrindividual->update;
                 

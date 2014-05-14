@@ -368,7 +368,7 @@ role VRPipe::Base::FileMethods {
         my $path = $vrfile->path;
         $self->throw("Cannot get the md5 of a file ($path) that does not exist") unless -e $path;
         $vrfile->disconnect;
-        open my $fh, '<', $path;
+        open(my $fh, '<', $path) || $self->throw("Could not open file $path: $!");
         binmode($fh);
         return Digest::MD5->new->addfile($fh)->hexdigest;
     }

@@ -35,7 +35,7 @@ my $ds = VRPipe::DataSource->create(
     method  => 'all_with_warehouse_metadata',
     source  => 'archive',
     options => {
-        file_query     => q[study_id = 2625 and type = idat and dcterms:created '<' 2013-06-07],
+        file_query     => q[study_id = 2625 and type = idat and dcterms:created '<' 2013-12-12],
         local_root_dir => $irods_dir
     }
 );
@@ -53,7 +53,7 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-my @analysis_files = (file($irods_dir, '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz'), file($irods_dir, '/archive/GAPI/exp/analysis/69/61/88/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt'));
+my @analysis_files = (file($irods_dir, '/archive/GAPI/exp/analysis/f4/16/5a/hipsci_34samples_2013-10-03/hipsci_34samples_2013-10-03_Sample_Probe_Profile.txt'), file($irods_dir, '/archive/GAPI/exp/analysis/f4/16/5a/hipsci_34samples_2013-10-03/hipsci_34samples_2013-10-03_annotation.txt'));
 ok handle_pipeline(@analysis_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok and got the analysis files';
 
 # create pluritest setup using the output idat files from the import
@@ -80,7 +80,7 @@ my $pluri_setup = VRPipe::PipelineSetup->create(
         type    => 'vrpipe',
         method  => 'group_by_metadata',
         source  => 'idat populate[2:input_files]',
-        options => { metadata_keys => 'sample_cohort|beadchip' }
+        options => { metadata_keys => 'sample_cohort' }
     ),
     options => {
         pluritest_script => $pluritest_script,

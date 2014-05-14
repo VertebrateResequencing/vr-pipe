@@ -55,7 +55,7 @@ VRPipe::PipelineSetup->create(
     }
 );
 
-my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz'));
+my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/a4/77/e6/coreex_hips/20130531/coreex_hips_20130531.fcr.txt.gz'));
 ok handle_pipeline(@analysis_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok and got the analysis files';
 
 # create split->vcf setup using the output gtc files from the import
@@ -134,7 +134,7 @@ is_deeply $meta,
     infinium_plate          => 'WG0206884-DNA',
     infinium_sample         => '283163_F01_qc1hip5529688',
     infinium_well           => 'F01',
-    irods_analysis_files    => '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz',
+    irods_analysis_files    => '/archive/GAPI/gen/analysis/a4/77/e6/coreex_hips/20130531/coreex_hips_20130531.fcr.txt.gz',
     irods_local_storage_dir => $irods_dir,
     irods_path              => '/archive/GAPI/gen/infinium/17/b7/15/9300870057_R06C01.gtc',
     md5                     => '17b7159554bca4ff4376384b385da51f',
@@ -174,7 +174,7 @@ ok my $gt_pipeline = VRPipe::Pipeline->create(name => 'vcf_merge_and_compare_gen
 foreach my $stepmember ($gt_pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-is_deeply \@s_names, [qw(vcf_index vcf_merge_different_samples vcf_index vcf_genotype_comparison)], 'the pipeline has the correct steps';
+is_deeply \@s_names, [qw(vcf_merge_different_samples vcf_genotype_comparison)], 'the pipeline has the correct steps';
 
 # create pipeline setup
 VRPipe::PipelineSetup->create(
@@ -188,8 +188,8 @@ VRPipe::PipelineSetup->create(
 my (@merged_vcf_files, @gtypex_files, @expected_metadata);
 foreach my $element_id (41 .. 45) {
     my @output_subdirs = output_subdirs($element_id, 3);
-    push(@genotype_files,   file(@output_subdirs, '2_vcf_merge_different_samples', 'merged.vcf.gz'));
-    push(@merged_vcf_files, file(@output_subdirs, '4_vcf_genotype_comparison',     'merged.vcf.gz.gtypex'));
+    push(@merged_vcf_files, file(@output_subdirs, '1_vcf_merge_different_samples', 'merged.vcf.gz'));
+    push(@gtypex_files,     file(@output_subdirs, '2_vcf_genotype_comparison',     'merged.vcf.gz.gtypex'));
     
     my $group = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (group => $group);
