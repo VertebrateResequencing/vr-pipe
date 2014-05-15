@@ -81,12 +81,24 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
             my $req              = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $gtc_file (@{ $self->inputs->{gtc_files} }) {
-                my $meta                  = $gtc_file->metadata;
-                my $sample                = $meta->{sample};
-                my $fcr_sample            = $meta->{infinium_sample};
-                my $analysis_files        = $meta->{irods_analysis_files};
+                my $meta           = $gtc_file->metadata;
+                my $sample         = $meta->{sample};
+                my $fcr_sample     = $meta->{infinium_sample};
+                my $analysis_files = $meta->{irods_analysis_files};
+                my $fcr_file;
+                if (ref($analysis_files)) {
+                    foreach my $file (@$analysis_files) {
+                        if ($file =~ /\.fcr/i) {
+                            $fcr_file = $file;
+                            last;
+                        }
+                    }
+                }
+                else {
+                    $fcr_file = $analysis_files;
+                }
                 my $local_dir             = $meta->{irods_local_storage_dir};
-                my $multi_sample_fcr_file = file($local_dir, $analysis_files)->stringify;
+                my $multi_sample_fcr_file = file($local_dir, $fcr_file)->stringify;
                 my $this_grep_exe         = $multi_sample_fcr_file =~ /\.gz$/ ? $zgrep_exe : 'grep';
                 my $basename              = $sample . '.genotyping.fcr.txt';
                 my $sample_genotype_file  = $self->output_file(output_key => 'fcr_files', basename => $basename, type => 'txt', metadata => $meta)->path;
