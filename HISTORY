@@ -1,3 +1,7 @@
+0.192   Fixed split_genome_studio_genotype_files step to work when there are
+        multiple analysis files.
+        Better parsing of the imeta qu output in the irods datasource now allows
+        grep -v pipes to work reliably in the source.
 0.191   Critical fix to restore functionality to the setups handler, lost in
         0.190 - it now monitors setups again to keep them unstalled and look out
         for new data elements.
