@@ -211,7 +211,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                 if (/^collection:\s+(\S+)/) {
                     $collection = $1;
                 }
-                elsif (/^dataObj:\s+(\S+)/) {
+                elsif (/^----/) {
+                    undef $collection;
+                }
+                elsif ($collection && /^dataObj:\s+(\S+)/) {
                     my $path = "$collection/$1";
                     # get all the metadata for this file
                     my $meta = VRPipe::Steps::irods->get_file_metadata($path);
