@@ -61,7 +61,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 optional      => 1,
                 default_value => 'public_name+sample'
             ),
-            sequenom_plex_storage_dir    => VRPipe::StepOption->create(description => 'absolute path to a directory where plex manifest files can be stored'),
+            plex_storage_dir             => VRPipe::StepOption->create(description => 'absolute path to a directory where plex manifest files can be stored'),
             sequencescape_reference_name => VRPipe::StepOption->create(
                 description   => 'the name of the reference found in sequencescape that future sequencing data would be mapped with',
                 default_value => 'Homo_sapiens (1000Genomes)'
@@ -93,11 +93,12 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         return {
             csv_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
-                description => 'csv file with sequenom_plex metadata',
+                description => 'csv file with sequenom_plex or fluidigm_plex metadata',
                 max_files   => -1,
                 metadata    => {
                     sequenom_plex => 'sequenom plate plex identifier',
-                    optional      => ['sequenom_plex']
+                    fluidigm_plex => 'fluidigm plate plex identifier',
+                    optional      => ['sequenom_plex', 'fluidigm_plex']
                 }
             ),
         };
@@ -109,10 +110,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 type        => 'txt',
                 description => 'VCF file',
                 max_files   => -1,
-                metadata    => {
-                    sequenom_plex   => 'sequenom plate plex identifier',
-                    sequenom_gender => 'gender of sample derived from sequenom result'
-                }
+                metadata    => { calculated_gender => 'gender of sample derived from sequenom/fluidigm result' }
             ),
             vcf_index => VRPipe::StepIODefinition->create(
                 type        => 'bin',
@@ -140,8 +138,8 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             my $zone                     = $options->{irods_get_zone};
             my $vcf_sample_from_metadata = $options->{vcf_sample_from_metadata};
             
-            my $manifest_dir = $options->{sequenom_plex_storage_dir};
-            $self->throw("sequenom_plex_storage_path does not exist") unless -d $manifest_dir;
+            my $manifest_dir = $options->{plex_storage_dir};
+            $self->throw("plex_storage_path does not exist") unless -d $manifest_dir;
             my $ref_name = $options->{sequencescape_reference_name};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
@@ -171,7 +169,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
     }
     
     method description {
-        return "Convert a CSV file containing sequenom results into a sorted compressed VCF suitable for calling with.";
+        return "Convert a CSV file containing sequenom/fluidigm results into a sorted compressed VCF suitable for calling with.";
     }
     
     method csv_to_vcf (ClassName|Object $self: Str|File :$csv, Str|File :$vcf, Str :$vcf_sort, Str :$bgzip, Str :$bcftools, Str|Dir :$manifest_dir, Str :$reference_name, Str :$imeta, Str :$iget, Str :$ichksum, Str :$zone, Str :$vcf_sample_from_metadata = 'public_name+sample') {
@@ -184,25 +182,36 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         
         # figure out the correct snp manifest file to use based on plex and
         # reference
-        my $sequenom_plex = $csv_file->meta_value('sequenom_plex');
-        unless ($sequenom_plex) {
-            # parse the csv to figure out the plex
+        my ($plex, $type);
+        my $meta = $csv_file->metadata;
+        if (defined $meta->{sequenom_plex}) {
+            $plex = $meta->{sequenom_plex};
+            $type = 'sequenom';
+        }
+        elsif (defined $meta->{fluidigm_plex}) {
+            $plex = $meta->{fluidigm_plex};
+            $type = 'fluidigm';
+        }
+        unless ($plex) {
+            # parse the csv to figure out the plex (works on sequenom files
+            # only; we hope that fluidigm files always have the meta_value...)
             my $fh = $csv_file->openr;
             <$fh>;
             my $line = <$fh>;
             my (undef, $id) = split(/\s+/, $line);
-            ($sequenom_plex) = split('-', $id);
-            $sequenom_plex || $self->throw("Could not parse out sequenom_plex from $id in " . $csv_file->path);
+            ($plex) = split('-', $id);
+            $plex || $self->throw("Could not parse out plex from $id in " . $csv_file->path);
+            $type = 'sequenom';
         }
         
         my $reference_base = $reference_name;
         $reference_base =~ s/[\s\(\)]+//g;
-        my $snp_manifest_basename = $sequenom_plex . '.' . $reference_base . '.manifest';
+        my $snp_manifest_basename = $plex . '.' . $reference_base . '.' . $type . '.manifest';
         my $snp_manifest = VRPipe::File->create(path => file($manifest_dir, $snp_manifest_basename));
         unless ($snp_manifest->s) {
             # search for it in irods based on the sequenom_plex and reference
-            my ($irods_path) = $self->search_by_metadata(metadata => { reference_name => $reference_name, sequenom_plex => $sequenom_plex }, imeta => $imeta, zone => $zone);
-            $irods_path || $self->throw("Could not find a manifest file in zone $zone matching metadata reference_name => $reference_base, sequenom_plex => $sequenom_plex");
+            my ($irods_path) = $self->search_by_metadata(metadata => { reference_name => $reference_name, "${type}_plex" => $plex }, imeta => $imeta, zone => $zone);
+            $irods_path || $self->throw("Could not find a manifest file in zone $zone matching metadata reference_name => $reference_name, ${type}_plex => $plex");
             
             # we could have multiple processes in parallel all trying to get
             # this same file at the same time; lock and block
@@ -213,7 +222,6 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             $snp_manifest->update_stats_from_disc;
             unless ($snp_manifest->s) {
                 $im->maintain_lock($lock_key);
-                warn "getting ", $snp_manifest->path, " at ", time(), "\n";
                 $self->get_file(source => $irods_path, dest => $snp_manifest->path, iget => $iget, ichksum => $ichksum);
             }
             $im->unlock($lock_key);
@@ -231,7 +239,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         # print VCF header
         print $ofh "##fileformat=VCFv4.0\n";
         print $ofh "##fileDate=$date\n";
-        print $ofh "##source=$csv sequenom results\n";
+        print $ofh "##source=$csv $type results\n";
         print $ofh "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of Samples With Data\">\n";
         print $ofh "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n";
         print $ofh "##FORMAT=<ID=IA,Number=1,Type=Float,Description=\"Intensity of the A Allele\">\n";
@@ -243,7 +251,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         <$mfh>; # header
         while (<$mfh>) {
             chomp;
-            # SNP_NAME REF_ALLELE ALT_ALLELE CHR POS SEQUENOM_ASSAY_STRAND
+            # SNP_NAME REF_ALLELE ALT_ALLELE CHR POS STRAND
             my ($snp_name, @vals) = split(/\t/);
             
             if (defined $manifest{$snp_name}) {
@@ -263,20 +271,39 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         $vcf_file->disconnect;
         my %gender;
         my $records = 0;
-        <$ifh>; # header
+        <$ifh> if $type eq 'sequenom'; # header
         while (<$ifh>) {
-            my ($allele, $assay_id, undef, undef, undef, $genotype, $height) = split(/\t/);
-            my $second_line = <$ifh>;
-            $second_line || die "Uneven number of lines; no partner for $assay_id found\n";
-            my ($allele_two, $assay_id_two, undef, undef, undef, undef, $height_two) = split(/\t/, $second_line);
-            die "Mismatching lines: $assay_id_two followed $assay_id\n" unless $assay_id eq $assay_id_two;
-            $assay_id =~ s/^W\d+\-//;
-            $height =~ s/^\./0./;
-            $height_two =~ s/^\./0./;
-            
-            if (length($genotype) == 1) {
-                $allele     = $genotype;
-                $allele_two = $genotype;
+            my ($allele, $allele_two, $assay_id, $genotype, $height, $height_two);
+            if ($type eq 'sequenom') {
+                ($allele, $assay_id, undef, undef, undef, $genotype, $height) = split(/\t/);
+                my $second_line = <$ifh>;
+                $second_line || die "Uneven number of lines; no partner for $assay_id found\n";
+                ($allele_two, my $assay_id_two, undef, undef, undef, undef, $height_two) = split(/\t/, $second_line);
+                die "Mismatching lines: $assay_id_two followed $assay_id\n" unless $assay_id eq $assay_id_two;
+                $assay_id =~ s/^W\d+\-//;
+                $height =~ s/^\./0./;
+                $height_two =~ s/^\./0./;
+                
+                if (length($genotype) == 1) {
+                    $allele     = $genotype;
+                    $allele_two = $genotype;
+                }
+            }
+            elsif ($type eq 'fluidigm') {
+                chomp;
+                (undef, $assay_id, undef, undef, undef, undef, undef, undef, undef, my $call, $height, $height_two) = split(/\t/);
+                ($allele, $allele_two) = split(/:/, $call);
+                if ($allele && $allele_two) {
+                    if ($allele eq $allele_two) {
+                        $genotype = $allele;
+                    }
+                    else {
+                        $genotype = $allele . $allele_two;
+                    }
+                }
+                else {
+                    $genotype = '';
+                }
             }
             
             # get the snp meta info from the manifest hash
@@ -347,7 +374,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         else {
             $gender = 'M';
         }
-        $vcf_file->add_metadata({ sequenom_gender => $gender, sequenom_plex => $sequenom_plex });
+        $vcf_file->add_metadata({ calculated_gender => $gender });
         
         # index it
         system("$bcftools index $vcf") && die "Failed to index $vcf\n";
