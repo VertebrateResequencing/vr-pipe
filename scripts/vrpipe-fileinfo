@@ -39,7 +39,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['search_by_metadata|m=s@', 'Get info on files with matching metadata. Use the form "key:value", where key or value can contain the % symbol to represent 0 or more of any character, eg. "sample:HG%"; "key" and ":value" by themselves can also be used. Can be repeated, in which case files must match all the criteria given'],
         ['AND/OR'],
         ['setup=s@', 'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' }],
-        ['step=s@',  q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated]],
+        ['step=s@',  q[A step name/number to choose which step of the --setup(s) you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname:kindname". If --setup is used and --step isn't supplied at all, gets info on all (existing) output files of all steps. Can be repeated]],
         [],
         [q[Modify which files selected with the previous option(s) are considered:]],
         ['include_withdrawn', q[For --setup matches, also include those for withdrawn dataelements]],
@@ -249,7 +249,7 @@ if (@setups) {
     if (@steps) {
         $limit_steps = 1;
         foreach my $step_name (@steps) {
-            my ($name, $kind) = split('\|', $step_name);
+            my ($name, $kind) = split(/[\|:]/, $step_name);
             $kind ||= 'all';
             if ($name =~ /^\d+$/) {
                 $desired_steps{numbers}->{$name}->{$kind} = 1;
