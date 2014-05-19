@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 10;
+    use Test::Most tests => 12;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES)],
         required_exe => [qw(bcftools)]
@@ -36,33 +36,41 @@ my $samples  = vcf_samples($vcf_file);
 is $samples, "SAMPLE01\tSAMPLE02", "merged VCF contains both input samples";
 
 # also test the similar vcf_merge_different_samples_control_aware step
-my $sample1 = VRPipe::File->get(path => file(qw(t data sample1.vcf.gz))->absolute);
-my $sample2 = VRPipe::File->get(path => file(qw(t data sample2.vcf.gz))->absolute);
-$sample1->add_metadata({ control => 'Stem cell', sample => 'SAMPLE01' });
-$sample2->add_metadata({ control => 'Control',   sample => 'SAMPLE02' });
-
 ($output_dir, $pipeline, $step) = create_single_step_pipeline('vcf_merge_different_samples_control_aware', 'vcf_files');
 is_deeply [$step->id, $step->description], [2, 'Merges compressed VCFs using bcftools merge which contain different samples to produce a single VCF containing all the input samples, with the first sample being the one from the VCF tagged with the right control metadata, and identifying that sample as a control in metadata on the output file'], 'vcf_merge_different_samples_control_aware step created and has correct description';
 
 VRPipe::PipelineSetup->create(
-    name        => 'vcf_merge_different_samples_control_aware step test',
-    datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'group_all', source => file(qw(t data vcf_merge_different_samples_datasource.fofn))->absolute),
+    name       => 'vcf_merge_different_samples_control_aware step test',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn_with_metadata',
+        method  => 'grouped_by_metadata',
+        source  => file(qw(t data vcf_merge_different_samples_datasource.group.fofn))->absolute,
+        options => { metadata_keys => 'group' }
+    ),
     output_root => $output_dir,
     pipeline    => $pipeline,
-    options => { control_metadata_key => 'control', control_metadata_regex => 'control' }
+    options     => {}
 );
 
 @output_files = ();
-@output_subdirs = output_subdirs(1, 2);
-push(@output_files, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'), file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz.csi'));
+for my $de (2 .. 3) {
+    @output_subdirs = output_subdirs($de, 2);
+    push(@output_files, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'), file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz.csi'));
+}
 
 ok handle_pipeline(@output_files), 'single step vcf_merge_different_samples_control_aware pipeline ran and created all expected output files';
 
-$vcf_file = shift @output_files;
+my @merged_vcf_files = sort { VRPipe::File->get(path => $a)->meta_value('group') cmp VRPipe::File->get(path => $b)->meta_value('group') } grep { VRPipe::File->get(path => $_)->meta_value('group') } @output_files;
+$vcf_file = shift @merged_vcf_files;
 $samples  = vcf_samples($vcf_file);
 is $samples, "SAMPLE02\tSAMPLE01", "merged VCF contains both input samples in the correct order";
-my $control_sample = VRPipe::File->get(path => $vcf_file)->metadata->{control};
-is $control_sample, 'SAMPLE02', 'merged VCF has the correct control metadata';
+my $control_sample = VRPipe::File->get(path => $vcf_file)->metadata->{sample_control};
+is $control_sample, 'foo_SAMPLE02', 'merged VCF has the correct control metadata';
+$vcf_file = shift @merged_vcf_files;
+$samples  = vcf_samples($vcf_file);
+is $samples, "SAMPLE03", "copied VCF contains the input sample";
+$control_sample = VRPipe::File->get(path => $vcf_file)->metadata->{sample_control};
+is $control_sample, 'bar_SAMPLE03', 'copied VCF has the correct control metadata';
 
 # and test the similar vcf_merge_different_samples_to_indexed_bcf
 ($output_dir, $pipeline, $step) = create_single_step_pipeline('vcf_merge_different_samples_to_indexed_bcf', 'vcf_files');
