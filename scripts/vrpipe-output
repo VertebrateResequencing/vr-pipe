@@ -43,7 +43,7 @@ my $frontend = VRPipe::FrontEnd->new(
         [q[If not using --list, the remaining options come into play; at least one option from each grouping must be chosen.]],
         [],
         [q[Choose which output files you want symlinks for:]],
-        ['step=s@',           q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname|kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated]],
+        ['step=s@',           q[A step name/number to choose which step outputs you're interested in. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --step "stepname:kindname". If --step isn't supplied at all, all output files of all steps will get a symlink. Can be repeated]],
         ['filter=s',          q[Select files based on them having certain metadata. The string you must supply should be of the form "key1=value1,key2=value2". Values in that string are treated as regular expressions]],
         ['include_withdrawn', q[Also make symlinks for files generated for withdrawn dataelements]],
         [],
@@ -160,7 +160,7 @@ my $limit_steps = 0;
 if (@steps) {
     $limit_steps = 1;
     foreach my $step_name (@steps) {
-        my ($name, $kind) = split('\|', $step_name);
+        my ($name, $kind) = split(/[\|:]/, $step_name);
         $kind ||= 'all';
         if ($name =~ /^\d+$/) {
             $desired_steps{numbers}->{$name}->{$kind} = 1;
@@ -384,7 +384,7 @@ while (my $estates = $estates_pager->next) {
                     foreach my $key (@basename_keys) {
                         if (defined $metadata->{$key}) {
                             my $val = $metadata->{$key};
-                            $val =~ s/[^\w#]/_/g;
+                            $val =~ s/[^\w#-]+/_/g;
                             $this_basename =~ s/%$key%/$val/;
                         }
                         else {
