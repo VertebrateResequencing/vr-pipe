@@ -192,8 +192,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         # create the elements
         my @element_args;
         my %result_to_linkargs;
-        # do _all_results working on the include_in_all_elements setups to get
-        # @paths_for_all and @parents_for_all ({ pipelinesetup => x, parent => y })
         foreach my $result (@{ $self->_all_results(%args, complete_elements => 1) }) {
             if ($filter) {
                 next unless $result->{pass_filter};
