@@ -202,10 +202,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         }
         
         my (%analysis_to_cols, %col_dates, %analysis_files);
+        my $order = 1;
         foreach my $query (@queries) {
             my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -d $query");
             my $collection;
-            my $order = 1;
             QU: foreach (@cmd_output) {
                 #*** do we have to worry about spaces in file paths?...
                 if (/^collection:\s+(\S+)/) {

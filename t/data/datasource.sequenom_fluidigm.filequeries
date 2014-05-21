@@ -1,0 +1,2 @@
+sequenom_plate LIKE '%' and study_id = 2622 and dcterms:created '<' 2013-07-26
+fluidigm_plate LIKE '%' and study_id = 2622 and dcterms:created '<' 2014-05-15

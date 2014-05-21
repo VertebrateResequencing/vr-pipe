@@ -98,10 +98,12 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
             
             my $req = $self->new_requirements(memory => $self->_determine_memory(scalar(@input_set)), time => 1);
             if (@input_set == 1) {
-                # merge doesn't work on 1 input file; just symlink the input to
-                # output and index it
+                # merge doesn't work on 1 input file; just copy the file over.
+                # (we don't symlink since it needs its own metadata, and we redo
+                #  the metadata since copy adds source metadata to destination)
                 my $source = $self->inputs->{vcf_files}->[0];
-                $source->symlink($merged_vcf);
+                $source->copy($merged_vcf);
+                $merged_vcf->add_metadata($merged_meta);
                 $self->dispatch(["$bcftools_exe index $output_path", $req, { output_files => [$merged_vcf, $index] }]);
             }
             else {
