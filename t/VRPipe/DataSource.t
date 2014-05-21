@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 105;
+    use Test::Most tests => 115;
     use VRPipeTest;
     use TestPipelines;
     
@@ -545,100 +545,89 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     $ps3_element_count = VRPipe::DataElement->search({ datasource => $group_ds->id });
     is $ps3_element_count, 0, 'since ps2 is still incomplete, ps3 has no elements';
     
-    # *** we encountered some kind of bug where a a datasource update was
-    # resulting in some number of elements getting withdrawn for a few hours,
-    # then it fixed itself after a while. Test below tried to replicate the bug
-    # but unsuccessful; I could have already fixed it?...
+    # test the include_in_all_elements option of the group_by_metadata method
+    my $iiae_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'group_by_metadata',
+        source  => 'ps1[1]',
+        options => { metadata_keys => 'type', include_in_all_elements => 'ps2[1]' }
+    );
     
-    # $output_root = get_output_dir('datasource_big_fofn_output');
-    # my $big_source_file = file($output_root, 'source.fofn');
-    # my $big_source_inputs_dir = dir($output_root, 'inputs');
-    # mkdir($big_source_inputs_dir);
-    # my $sfh = $big_source_file->openw;
-    # my $big_num = 50;
-    # for my $i (1..$big_num) {
-    #     my $input_file = file($big_source_inputs_dir, 'input.'.$i.'.txt');
-    #     my $ifh = $input_file->openw;
-    #     print $ifh "$i\n";
-    #     close($ifh);
-    #     print $sfh "$input_file\n";
-    # }
-    # close($sfh);
-    # my $big_ds = VRPipe::DataSource->create(
-    #     type    => 'fofn',
-    #     method  => 'all',
-    #     source  => $big_source_file->stringify,
-    #     options => {}
-    # );
+    my $output_root4 = get_output_dir('datasource_ps4_output');
+    my $ps4 = VRPipe::PipelineSetup->create(name => 'ps4', datasource => $iiae_ds, output_root => $output_root4, pipeline => $single_step_pipeline, active => 0);
     
-    # # now make a completed setup using this ds
-    # my $ps_big = VRPipe::PipelineSetup->create(name => 'ps_big', datasource => $big_ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
-    # my $element_count = @{ get_elements($big_ds) };
-    # is $element_count, $big_num, "ps_big has $big_num dataelements";
-    # $ps_big->trigger();
-    # $ps_big->trigger(); #*** not sure why the second trigger is necessary, but it is
+    my $ps4_element_count = @{ get_elements($iiae_ds) };
+    is $ps4_element_count, 0, 'since ps2 is still incomplete, ps4 has no elements';
+    my $de_to_withdraw;
+    {
+        # force complete setup 2
+        foreach my $des (VRPipe::DataElementState->search({ pipelinesetup => $ps2->id })) {
+            $des->completed_steps(1);
+            $des->update;
+            $de_to_withdraw ||= $des->dataelement;
+        }
+        foreach my $ss (VRPipe::StepState->search({ pipelinesetup => $ps2->id })) {
+            $ss->complete(1);
+            $ss->update;
+        }
+    }
+    my @ps4_elements = @{ get_elements($iiae_ds) };
+    is scalar(@ps4_elements), 3, 'now ps2 is complete, ps4 has expected elements';
+    my (@expected_all, @expected_ps2_de_ids);
+    foreach my $ss ($ps2->states) {
+        push(@expected_all, map { $_->path->stringify } $ss->output_files_list);
+        push(@expected_ps2_de_ids, $ss->dataelement->id);
+    }
+    my (@expected_paths_per_element, @expected_parents_per_element);
+    foreach my $ss ($ps1->states) {
+        my ($path) = map { $_->path->stringify } $ss->output_files_list;
+        push(@expected_paths_per_element, [$path, @expected_all]);
+        push(@expected_parents_per_element, [$ss->dataelement->id, @expected_ps2_de_ids]);
+    }
+    my (@actual_paths_per_element, @actual_parents_per_element);
+    foreach my $element (@ps4_elements) {
+        push(@actual_paths_per_element, [map { $_->path->stringify } $element->filelist->files]);
+        my @parents;
+        foreach my $del (VRPipe::DataElementLink->search({ child => $element->id })) {
+            push(@parents, $del->parent->id);
+        }
+        push(@actual_parents_per_element, [sort { $a <=> $b } @parents]);
+    }
+    is_deeply \@actual_paths_per_element,   \@expected_paths_per_element,   'each ps4 element has all ps2 files with a single ps1 file due to include_in_all_elements';
+    is_deeply \@actual_parents_per_element, \@expected_parents_per_element, 'each ps4 element has links to every element that made the input files, including the include_in_all_elements files';
     
-    # # and a completed child using a vrpipe ds
-    # my $big_vrpipe_ds = VRPipe::DataSource->create(
-    #     type    => 'vrpipe',
-    #     method  => 'all',
-    #     source  => 'ps_big[1]',
-    #     options => {}
-    # );
-    # $output_root2 = get_output_dir('datasource_big_vrpipe_output');
-    # my $ps_big_child = VRPipe::PipelineSetup->create(name => 'ps_big_child', datasource => $big_vrpipe_ds, output_root => $output_root2, pipeline => $single_step_pipeline, active => 0);
-    # $element_count = @{ get_elements($big_vrpipe_ds) };
-    # is $element_count, $big_num, "big_vrpipe_ds has $big_num dataelements";
-    # $ps_big_child->trigger();
-    # $ps_big_child->trigger();
+    # test the include_in_all_elements option of the all method
+    $iiae_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { include_in_all_elements => 'ps2[1]' }
+    );
     
-    # # now update big_ds and try calling elements() on both ds simultaneously
-    # # while ps_big is being triggered
-    # open($sfh, '>>', $big_source_file);
-    # my $new_big_num = ($big_num / 5) + $big_num;
-    # for my $i (($big_num + 1)..$new_big_num) {
-    #     my $input_file = file($big_source_inputs_dir, 'input.'.$i.'.txt');
-    #     my $ifh = $input_file->openw;
-    #     print $ifh "$i\n";
-    #     close($ifh);
-    #     print $sfh "$input_file\n";
-    # }
-    # close($sfh);
-    # $fm = Parallel::ForkManager->new(3);
-    # foreach my $ds (0, $big_ds, $big_vrpipe_ds) {
-    #     my $ds_id = "$ds" eq "0" ? $big_ds->id : $ds->id;
-    #     $fm->start and next;
-    #     if ("$ds" eq "0") {
-    #         my $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
-    #         my $stepstates = VRPipe::StepState->search({pipelinesetup => $ps_big->id});
-    #         warn "ds $ds_id has $count elements before trigger(), and $stepstates stepstates\n";
-    #         $ps_big->trigger;
-    #         $ps_big->trigger;
-    #         $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
-    #         $stepstates = VRPipe::StepState->search({pipelinesetup => $ps_big->id});
-    #         warn "ds $ds_id now has $count elements after trigger() and $stepstates stepstates\n";
-    #     }
-    #     else {
-    #         my $c = 0;
-    #         while (1) {
-    #             my $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
-    #             warn "   ds $ds_id had $count elements before elements()\n";
-    #             $ds->elements();
-    #             $count = VRPipe::DataElement->search({ datasource => $ds_id, withdrawn => 0 });
-    #             warn "   ds $ds_id now has $count elements after elements()\n";
-    #             my $stepstates = VRPipe::StepState->search({pipelinesetup => $ps_big->id});
-    #             warn "    - after doing ds $ds_id elements(), we now have $stepstates stepstates() for ps_big\n";
-    #             last if $stepstates == $new_big_num;
-    #             $c++ if $count == $new_big_num;
-    #             last if $c == 20;
-    #         }
-    #     }
-    #     $fm->finish(0);
-    # }
-    # $fm->wait_all_children;
+    my $output_root5 = get_output_dir('datasource_ps5_output');
+    my $ps5 = VRPipe::PipelineSetup->create(name => 'ps5', datasource => $iiae_ds, output_root => $output_root5, pipeline => $single_step_pipeline, active => 0);
     
-    # $element_count = @{ get_elements($big_ds) };
-    # is $element_count, $new_big_num, "ps_big updated to $new_big_num dataelements";
+    my @ps5_elements = @{ get_elements($iiae_ds) };
+    is scalar(@ps5_elements), 3, 'ps5 (all with include_in_all_elements) has expected number of elements';
+    (@actual_paths_per_element, @actual_parents_per_element) = ();
+    foreach my $element (@ps5_elements) {
+        push(@actual_paths_per_element, [map { $_->path->stringify } $element->filelist->files]);
+        my @parents;
+        foreach my $del (VRPipe::DataElementLink->search({ child => $element->id })) {
+            push(@parents, $del->parent->id);
+        }
+        push(@actual_parents_per_element, [sort { $a <=> $b } @parents]);
+    }
+    is_deeply \@actual_paths_per_element,   \@expected_paths_per_element,   'each ps5 element has all ps2 files with a single ps1 file due to include_in_all_elements';
+    is_deeply \@actual_parents_per_element, \@expected_parents_per_element, 'each ps5 element has links to every element that made the input files, including the include_in_all_elements files';
+    
+    # test that the include_in_all_elements datasource update when the include
+    # setup(s) change
+    is $iiae_ds->_changed_marker, 'dc4663ec1645a5298ec7ea94983d143f', 'ps5 changed marker starts as expected';
+    is $iiae_ds->_source_instance->_has_changed, 0, '_has_changed returns 0';
+    $de_to_withdraw->withdrawn(1);
+    $de_to_withdraw->update;
+    is $iiae_ds->_source_instance->_has_changed, 1, '_has_changed returns 1 after withdrawing one of the include_in_all_elements setup elements';
 }
 
 # author-only tests for the irods datasource
@@ -667,7 +656,7 @@ SKIP: {
     is_deeply \@results, [{ paths => [file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv))], irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv' }, { paths => [file($output_root, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv))], irods_path => '/seq/sequenom/14/62/84/QC288261____20130701_C01.csv' }, { paths => [file($output_root, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv))], irods_path => '/seq/sequenom/95/35/0e/QC288261____20130701_A01.csv' }, { paths => [file($output_root, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv))], irods_path => '/seq/sequenom/d8/7c/21/QC288261____20130701_E01.csv' }], 'got correct results for irods all';
     
     my $file = VRPipe::File->create(path => file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)));
-    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', manual_qc => 1 };
+    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_accession_number => 'SAMEA2398742', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', manual_qc => 1 };
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
     
     # check the warehouse method
@@ -684,7 +673,7 @@ SKIP: {
       'could create an irods datasource with all_with_warehouse_metadata method';
     is scalar(@{ get_elements($ds) }), scalar(@results), 'required_metadata option gave us the correct number of elements for the all_with_warehouse_metadata method';
     $file->reselect_values_from_db;
-    $expected_file_meta->{public_name}         = 'ffdb_3';
+    $expected_file_meta->{public_name}         = 'HPSI0813i-ffdb_3';
     $expected_file_meta->{sample_created_date} = '2013-06-25 14:09:22';
     $expected_file_meta->{taxon_id}            = 9606;
     $expected_file_meta->{study_title}         = 'G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS';
