@@ -1,3 +1,6 @@
+0.194   mpileup_vcf/bcf_to_vcf step has new vcf_sample_from_metadata option
+        which reheaders the output vcf; bcftools_gtcheck step
+        expected_sample_from_metadata_key option now takes multi values
 0.193   sequenom_csv_to_vcf step now handles fluidigm csvs as well; now produces
         calculated_gender metadata instead of sequenom_gender, and takes
         plex_storage_dir option instead of sequenom_plex_storage_dir.
