@@ -101,13 +101,17 @@ copy($geno_source,       $geno);
 copy("$geno_source.csi", "$geno.csi");
 
 my $tab_file_with_geno = file($geno_dir, 'delimited_datasource.txt');
-my $tfwg_file = VRPipe::File->create(path => $tab_file_with_geno);
-my $tfwg_ofh  = $tfwg_file->openw;
-my $aqtf_file = VRPipe::File->create(path => $auto_qc_tab_file);
-my $aqtf_ifh  = $aqtf_file->openr;
+my $tfwg_file    = VRPipe::File->create(path => $tab_file_with_geno);
+my $tfwg_ofh     = $tfwg_file->openw;
+my $aqtf_file    = VRPipe::File->create(path => $auto_qc_tab_file);
+my $aqtf_ifh     = $aqtf_file->openr;
+my @public_names = qw(foo bar);
 while (<$aqtf_ifh>) {
     chomp;
     print $tfwg_ofh $_, "\t$geno\n";
+    my ($bam) = split;
+    my $file = VRPipe::File->get(path => file($bam)->absolute);
+    $file->add_metadata({ public_name => pop(@public_names) });
 }
 $aqtf_file->close;
 $tfwg_file->close;
@@ -131,10 +135,12 @@ VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $aqg_pipeline,
     options     => {
-        vrtrack_db                   => $ENV{VRPIPE_VRTRACK_TESTDB},
-        auto_qc_min_ins_to_del_ratio => 0.5,
-        reference_fasta              => $ref_fa,
-        cleanup                      => 0
+        vrtrack_db                        => $ENV{VRPIPE_VRTRACK_TESTDB},
+        auto_qc_min_ins_to_del_ratio      => 0.5,
+        reference_fasta                   => $ref_fa,
+        vcf_sample_from_metadata          => 'sample:public_name+sample',
+        expected_sample_from_metadata_key => 'public_name+sample',
+        cleanup                           => 0
     }
 );
 
@@ -157,8 +163,8 @@ foreach my $in ('autoqc_normal', 'autoqc_short') {
 
 }
 my @expected_gtype_analysis = (
-    'status=confirmed expected=KUU25220302 found=KUU25220302 ratio=1.00 concordance=1.000',
-    'status=confirmed expected=SISu5277216 found=SISu5277216 ratio=1.00 concordance=1.000',
+    'status=confirmed expected=bar_KUU25220302 found=bar_KUU25220302 ratio=1.00 concordance=1.000',
+    'status=confirmed expected=foo_SISu5277216 found=foo_SISu5277216 ratio=1.00 concordance=1.000',
 );
 
 is_deeply \@found_gtype_analysis, \@expected_gtype_analysis, 'pipeline generated the expected genotype analysis metadata';

@@ -90,6 +90,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $assumed_sex     = $options->{assumed_sex};
             my $minimum_records = $options->{minimum_records};
             my $post_filter     = $options->{post_calling_vcftools};
+            my $sfm             = $options->{vcf_sample_from_metadata};
             
             my $reference_fasta = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
@@ -173,6 +174,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             
             my $args = qq['$cmd_line', '$temp_samples_path', source_file_ids => [qw(@bam_ids)], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
             $args .= qq[, sample_sex_file => '$sample_sex_file'] if $sample_sex_file;
+            $args .= qq[, vcf_sample_from_metadata => '$sfm']    if $sfm;
             my $cmd = "use VRPipe::Steps::bcf_to_vcf; VRPipe::Steps::bcf_to_vcf->bcftools_call_with_sample_file($args, minimum_records => $minimum_records);";
             $self->dispatch_vrpipecode($cmd, $req, { output_files => [$vcf_file] });
         };
