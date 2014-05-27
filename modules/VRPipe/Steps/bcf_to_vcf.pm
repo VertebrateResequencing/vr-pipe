@@ -14,7 +14,7 @@ Chris Joyce    <cj5@sanger.ac.uk>. Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -60,6 +60,10 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
                 optional    => 1
             ),
+            vcf_sample_from_metadata => VRPipe::StepOption->create(
+                description => 'if the sample id in the resulting vcf header matches metadata with key x, but you want it to match the value from key y, provide x:y; separate multiple y keys with + symbols - values will be joined with underscores. This only works with single-sample vcfs',
+                optional    => 1
+            )
         };
     }
     
@@ -85,6 +89,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
             my $assumed_sex     = $options->{assumed_sex};
             my $minimum_records = $options->{minimum_records};
             my $post_filter     = $options->{post_calling_vcftools};
+            my $sfm             = $options->{vcf_sample_from_metadata};
             
             my $sample_sex_file;
             if ($options->{sample_sex_file}) {
@@ -118,6 +123,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 my $bcf_id = $bcf->id;
                 my $args   = qq['$cmd_line', '$temp_samples_path', source_file_ids => ['$bcf_id'], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
                 $args .= qq[, sample_sex_file => '$sample_sex_file'] if $sample_sex_file;
+                $args .= qq[, vcf_sample_from_metadata => '$sfm']    if $sfm;
                 my $cmd = "use VRPipe::Steps::bcf_to_vcf; VRPipe::Steps::bcf_to_vcf->bcftools_call_with_sample_file($args, minimum_records => $minimum_records);";
                 $self->dispatch_vrpipecode($cmd, $req, { output_files => [$vcf_file] });
             }
@@ -148,7 +154,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
         return 0;            # meaning unlimited
     }
     
-    method bcftools_call_with_sample_file (ClassName|Object $self: Str $cmd_line!, Str|File $sample_ploidy_path, ArrayRef[Int] :$source_file_ids!, Str|File :$sample_sex_file?, Int :$female_ploidy!, Int :$male_ploidy!, Str :$assumed_sex = 'F', Int :$minimum_records = 0) {
+    method bcftools_call_with_sample_file (ClassName|Object $self: Str $cmd_line!, Str|File $sample_ploidy_path, ArrayRef[Int] :$source_file_ids!, Str|File :$sample_sex_file?, Str :$vcf_sample_from_metadata?, Int :$female_ploidy!, Int :$male_ploidy!, Str :$assumed_sex = 'F', Int :$minimum_records = 0) {
         my @input_files = map { VRPipe::File->get(id => $_) } @$source_file_ids;
         
         # find out the samples contained in the input files
@@ -235,6 +241,48 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
         unless ($ft->num_header_lines > 0) {
             $output_file->unlink;
             $self->throw("Output VCF [$output_path] has no header lines");
+        }
+        
+        # reheader the output vcf if we need to alter sample identifiers
+        #*** this is a little gross since we're overwriting our existing output
+        # file and haven't specified the needed temp files, and haven't asked
+        # for bcftools and tabix exes, nor published that we run these commands
+        # anywhere - this should probably happen in a dedicated step, but we
+        # need a quick hack now
+        if ($vcf_sample_from_metadata) {
+            my $meta = $output_file->metadata;
+            my ($src_key, $dst_key) = split(':', $vcf_sample_from_metadata);
+            my @dst_keys = split(/\+/, $dst_key);
+            
+            if ($src_key && @dst_keys && defined $meta->{$src_key} && defined $meta->{ $dst_keys[0] }) {
+                my $dir          = $output_file->dir;
+                my $header_file  = VRPipe::File->create(path => file($dir, $output_file->basename . '.temp_header'));
+                my $reheader_vcf = VRPipe::File->create(path => file($dir, $output_file->basename . '.temp_reheader.vcf.gz'), metadata => $output_file->metadata);
+                
+                my $cmd = "bcftools view -h $output_path";
+                $header_file->disconnect;
+                open(my $bvfh, "$cmd |") || $self->throw("Couldn't open pipe from [$cmd]\n");
+                my $ofh = $header_file->openw;
+                while (<$bvfh>) {
+                    if (/^#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t([^\t]*\S)$/) {
+                        my $sample = $1;
+                        if ($meta->{$src_key} eq $sample) {
+                            my $new_sample = join('_', map { $meta->{$_} || 'undef' } @dst_keys);
+                            $_ =~ s/\t$sample/\t$new_sample/;
+                        }
+                    }
+                    print $ofh $_;
+                }
+                $header_file->close || $self->throw("Couldn't close pipe from [$cmd]\n");
+                
+                $cmd = "tabix -r " . $header_file->path . " $output_path > " . $reheader_vcf->path;
+                system($cmd) && $self->throw("Failed to run [$cmd]\n");
+                
+                $header_file->rm;
+                $reheader_vcf->update_stats_from_disc;
+                $reheader_vcf->mv($output_file);
+                $output_file->update_stats_from_disc;
+            }
         }
         
         my $output_records = $output_file->num_records;

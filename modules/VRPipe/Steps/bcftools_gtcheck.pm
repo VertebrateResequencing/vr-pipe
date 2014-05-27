@@ -43,7 +43,7 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
                 optional    => 1
             ),
             expected_sample_from_metadata_key => VRPipe::StepOption->create(
-                description   => 'the metadata key that expected_sample should be taken from',
+                description   => 'the metadata key that expected_sample should be taken from; separate multiple keys with + symbols - values will be joined with underscores',
                 optional      => 1,
                 default_value => 'sample'
             ),
@@ -77,6 +77,7 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
             my $bcftools_exe = $options->{bcftools_exe};
             my $gtcheck_opts = $options->{bcftools_gtcheck_options};
             my $expected_key = $options->{expected_sample_from_metadata_key};
+            my @e_keys       = split(/\+/, $expected_key);
             $gtcheck_opts ||= '';
             if ($gtcheck_opts =~ /gtcheck| -g| --genotypes/) {
                 $self->throw("bcftools_gtcheck_options should not include the gtcheck subcommand or the -g option");
@@ -103,9 +104,10 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
             
             my $req = $self->new_requirements(memory => 3900, time => 1);
             foreach my $vcf (@{ $self->inputs->{vcf_files} }) {
-                my $vcf_path   = $vcf->path;
-                my $meta       = $vcf->metadata;
-                my $sample     = $meta->{$expected_key};
+                my $vcf_path = $vcf->path;
+                my $meta     = $vcf->metadata;
+                
+                my $sample = join('_', map { $meta->{$_} } @e_keys);
                 my $source_bam = $meta->{source_bam};
                 
                 my $gtypex_file = $self->output_file(
