@@ -307,6 +307,12 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has neo4j_server_url => (
+        is              => 'rw',
+        question        => 'What is the url of your neo4j server?',
+        question_number => ++$question_number
+    );
+    
     has server_umask => (
         is              => 'rw',
         question        => 'When the VRPipe server runs, what should its file creation mask (umask) be?',
