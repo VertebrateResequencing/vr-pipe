@@ -36,7 +36,11 @@ use VRPipe::Base;
 class VRPipe::Steps::penncnv_detect_cnv with VRPipe::StepRole {
     method options_definition {
         return {
-            detect_cnv_script => VRPipe::StepOption->create(description => 'full path to detect_cnv.pl',                                             optional => 0),
+            detect_cnv_script    => VRPipe::StepOption->create(description => 'full path to detect_cnv.pl', optional => 0),
+            perl_for_penncnv_exe => VRPipe::StepOption->create(
+                description => 'full path to Perl used for detect_cvn.pl in PennCNV - does not compile using normal Perl',
+                optional    => 1, default_value => 'perl'
+            ),
             detect_cnv_hmm    => VRPipe::StepOption->create(description => 'full path to custom.hmm',                                                optional => 0),
             detect_cnv_pfb    => VRPipe::StepOption->create(description => 'full path to PFB',                                                       optional => 0),
             cnv_analysis_type => VRPipe::StepOption->create(description => 'type of cnv analysis, added to file metadata for downstream processing', optional => 1, default_value => 'penncnv'),
@@ -59,6 +63,7 @@ class VRPipe::Steps::penncnv_detect_cnv with VRPipe::StepRole {
             my $self               = shift;
             my $options            = $self->options;
             my $detect_cnv_script  = $options->{detect_cnv_script};
+            my $perl               = $options->{perl_for_penncnv_exe};
             my $detect_cnv_hmm     = $options->{detect_cnv_hmm};
             my $detect_cnv_pfb     = $options->{detect_cnv_pfb};
             my $cnv_analysis_type  = $options->{cnv_analysis_type};
@@ -72,7 +77,7 @@ class VRPipe::Steps::penncnv_detect_cnv with VRPipe::StepRole {
                 my $raw_cnv_file = $self->output_file(output_key => 'stepOne_file_output_raw_cnv_file', basename => "$basename", type => 'txt', metadata => $gs_file->metadata);
                 my $out_path     = $raw_cnv_file->path;
                 my $logFile      = $out_path . '.LOG';
-                my $cmd_line     = "perl $detect_cnv_script $detect_cnv_options -log $logFile -out $out_path $gs_path";
+                my $cmd_line     = "$perl $detect_cnv_script $detect_cnv_options -log $logFile -out $out_path $gs_path";
                 $self->dispatch([$cmd_line, $req]);
             }
         };
@@ -81,11 +86,12 @@ class VRPipe::Steps::penncnv_detect_cnv with VRPipe::StepRole {
     method outputs_definition {
         return {
             stepOne_file_output_raw_ncv_file => VRPipe::StepIODefinition->create(
-                type        => 'txt',
-                description => 'Raw CNV data',
-                max_files   => -1,                                                                                                                    # -1 = As many as you like
-                min_files   => 0,
-                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
+                type            => 'txt',
+                description     => 'Raw CNV data',
+                max_files       => -1,                                                                                                                    # -1 = As many as you like
+                min_files       => 0,
+                check_existence => 0,
+                metadata        => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
             )
         };
     }

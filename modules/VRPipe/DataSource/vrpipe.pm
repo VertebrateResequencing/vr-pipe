@@ -50,10 +50,10 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option is a string of the form 'metadata_key#regex'; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas). If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
+            return "Each element will consist of the output files from the vrpipe datasource. If the maintain_element_grouping option is set to 1 (default), then all files produced by a dataelement in the source will be grouped into a dataelement. Otherwise, each source file will be it's own dataelement. The filter option is a string of the form 'metadata_key#regex'; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas). If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata. The include_in_all_elements option takes values in the same format as source and results in each resulting element also having the output files of the setup(s) defined here.";
         }
         elsif ($method eq 'group_by_metadata') {
-            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas). If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata.";
+            return "Files from the source will be grouped according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all elements with the same sample, platform and library into one dataelement. The filter option is a string of the form 'metadata_key#regex'; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas). If the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter by having metadata matching the regex. If the filter_after_grouping option is not set, only files which match the regex will be included and grouped based on their metadata. The include_in_all_elements option takes values in the same format as source and results in each resulting element also having the output files of the setup(s) defined here.";
         }
         elsif ($method eq 'group_all') {
             return "All output files in the vrpipe datasource will be grouped into a single element. The filter option is a string of the form 'metadata_key#regex' which will select only files with metadata matching the regex; multiple filters can be separated by commas (and neither the keys nor regexs can include hashes or commas).";
@@ -69,8 +69,15 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         lazy    => 1
     );
     
-    method _build_vrpipe_sources {
-        my @sources = split /\|/, $self->source;
+    has 'include_in_all_elements_sources' => (
+        is      => 'ro',
+        isa     => 'HashRef',
+        builder => '_build_iiae_sources',
+        lazy    => 1
+    );
+    
+    method _build_vrpipe_sources (Maybe[Str] $source?) {
+        my @sources = split(/\|/, $source || $self->source);
         
         my %vrpipe_sources;
         foreach my $source (@sources) {
@@ -153,15 +160,33 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return \%vrpipe_sources;
     }
     
+    method _build_iiae_sources {
+        my $iiae = $self->options->{include_in_all_elements};
+        if ($iiae) {
+            return $self->_build_vrpipe_sources($iiae);
+        }
+        else {
+            return {};
+        }
+    }
+    
     method _open_source {
         my $m = VRPipe::Manager->get;
         return $m->result_source->schema;
     }
     
-    method all (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$filter_after_grouping = 1) {
+    method all (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Str :$include_in_all_elements?, Bool :$filter_after_grouping = 1) {
         my %args = (handle => $handle, maintain_element_grouping => $maintain_element_grouping, filter_after_grouping => $filter_after_grouping);
         if ($filter) {
             $args{filter} = $filter;
+        }
+        
+        my ($paths_for_all, $parents_for_all);
+        if ($include_in_all_elements) {
+            ($paths_for_all, $parents_for_all) = $self->_handle_include_in_all_elements($handle);
+            unless ($paths_for_all && @$paths_for_all) {
+                return;
+            }
         }
         
         # create the elements
@@ -171,7 +196,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             if ($filter) {
                 next unless $result->{pass_filter};
             }
-            my $res = { paths => $result->{paths} };
+            my $res = { paths => [@{ $result->{paths} }, @{ $paths_for_all || [] }] };
             if ($maintain_element_grouping) {
                 $res->{lane}  = $result->{result}->{lane}  if (exists $result->{result}->{lane});
                 $res->{group} = $result->{result}->{group} if (exists $result->{result}->{group});
@@ -188,6 +213,10 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         while (my ($res, $linkargs) = each %result_to_linkargs) {
             my $child = $result_to_eid{$res} || $self->throw("No DataElement was created for result $res?");
             push(@link_args, { %$linkargs, child => $child });
+            
+            foreach my $parent (@{ $parents_for_all || [] }) {
+                push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child });
+            }
         }
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
@@ -221,7 +250,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return $args->{filelist} . '|' . $args->{keyvallist};
     }
     
-    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
+    method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, HashRef :$sources?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
         my @krs;
         if ($filter) {
             foreach my $kr (split(',', $filter)) {
@@ -233,7 +262,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         }
         
         my @output_files;
-        my $vrpipe_sources = $self->vrpipe_sources;
+        my $vrpipe_sources = $sources || $self->vrpipe_sources;
         foreach my $setup_id (keys %{$vrpipe_sources}) {
             my $stepmembers     = $vrpipe_sources->{$setup_id}->{stepmembers};
             my $stepmember_objs = $vrpipe_sources->{$setup_id}->{stepmember_objects};
@@ -334,7 +363,16 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return \@output_files;
     }
     
-    method group_by_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$filter?, Bool :$filter_after_grouping = 1) {
+    method _handle_include_in_all_elements (Defined $handle!) {
+        my ($paths_for_all, $parents_for_all);
+        foreach my $result (@{ $self->_all_results(handle => $handle, complete_all => 1, sources => $self->include_in_all_elements_sources) }) {
+            push(@$paths_for_all,   @{ $result->{paths} });
+            push(@$parents_for_all, $result->{parent});
+        }
+        return ($paths_for_all, $parents_for_all);
+    }
+    
+    method group_by_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$filter?, Str :$include_in_all_elements?, Bool :$filter_after_grouping = 1) {
         my %args = (handle => $handle, maintain_element_grouping => 0, filter_after_grouping => $filter_after_grouping);
         if ($filter) {
             $args{filter} = $filter;
@@ -355,6 +393,19 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
             push(@{ $group_hash->{$group_key}->{paths} },   @{ $hash_ref->{paths} });
             push(@{ $group_hash->{$group_key}->{parents} }, $hash_ref->{parent});
             $group_hash->{$group_key}->{pass_filter} ||= $hash_ref->{pass_filter};
+        }
+        
+        if ($include_in_all_elements) {
+            my ($paths_for_all, $parents_for_all) = $self->_handle_include_in_all_elements($handle);
+            
+            unless ($paths_for_all && @$paths_for_all) {
+                return;
+            }
+            
+            while (my ($group_key, $hash) = each %$group_hash) {
+                push(@{ $hash->{paths} },   @$paths_for_all);
+                push(@{ $hash->{parents} }, @$parents_for_all);
+            }
         }
         
         # build up the dataelement args in the normal way for _create_elements
@@ -399,14 +450,17 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
     # and then while y runs on the new de we could not notice any change unless
     # we include this total number)
     method _element_state_status_checksum {
-        my $sources = $self->vrpipe_sources;
+        my $vrpipe_sources = $self->vrpipe_sources;
+        my $iiae_sources   = $self->include_in_all_elements_sources;
         my @complete_list;
-        foreach my $setup_id (sort keys %{$sources}) {
-            my $num_steps     = $sources->{$setup_id}->{total_steps};
-            my $total_active  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
-            my $num_complete  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
-            my $num_withdrawn = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 1 }, { join => 'dataelement' });
-            push @complete_list, ($total_active, $num_complete, $num_withdrawn);
+        foreach my $sources ($vrpipe_sources, $iiae_sources) {
+            foreach my $setup_id (sort keys %{$sources}) {
+                my $num_steps     = $sources->{$setup_id}->{total_steps};
+                my $total_active  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
+                my $num_complete  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
+                my $num_withdrawn = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 1 }, { join => 'dataelement' });
+                push @complete_list, ($total_active, $num_complete, $num_withdrawn);
+            }
         }
         my $digest = md5_hex join(',', @complete_list);
         return $digest;

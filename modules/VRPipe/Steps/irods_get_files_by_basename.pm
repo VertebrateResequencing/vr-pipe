@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -80,8 +80,17 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
                     # download to the path of our input file, which doesn't
                     # exist yet
                     my $basename = $file->basename;
-                    my $dest = $self->output_file(output_key => 'local_files', output_dir => $file->dir, basename => $basename, type => $file->type, metadata => $file->metadata)->path;
-                    $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_get_files_by_basename; VRPipe::Steps::irods_get_files_by_basename->get_file_by_basename(basename => q[$basename], dest => q[$dest], zone => q[$zone], iget => q[$iget], iquest => q[$iquest], ichksum => q[$ichksum]);], $req);
+                    my $meta     = $file->metadata;
+                    my $dest     = $self->output_file(output_key => 'local_files', output_dir => $file->dir, basename => $basename, type => $file->type, metadata => $meta)->path;
+                    
+                    # if we have the full irods path, get the file directly,
+                    # otherwise search for it by basename
+                    if ($meta->{irods_path}) {
+                        $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_get_files_by_basename; VRPipe::Steps::irods_get_files_by_basename->get_file(source => q[$meta->{irods_path}], dest => q[$dest], iget => q[$iget], ichksum => q[$ichksum]);], $req);
+                    }
+                    else {
+                        $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_get_files_by_basename; VRPipe::Steps::irods_get_files_by_basename->get_file_by_basename(basename => q[$basename], dest => q[$dest], zone => q[$zone], iget => q[$iget], iquest => q[$iquest], ichksum => q[$ichksum]);], $req);
+                    }
                 }
                 else {
                     # symlink our existing input file to the pipeline output dir
@@ -105,7 +114,7 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
     }
     
     method description {
-        return "Get files out of iRODs and store them on local disc. Tries to find the files in iRODs based on the basenames of the input files.";
+        return "Get files out of iRODs and store them on local disc. Tries to find the files in iRODs based on the basenames of the input files, if you do not supply the full iRODs path.";
     }
 }
 

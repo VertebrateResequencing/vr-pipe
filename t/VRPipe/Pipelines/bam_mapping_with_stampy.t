@@ -30,13 +30,14 @@ my $ref_dir = dir($mapping_output_dir, 'ref');
 $mapping_pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'S_suis_P17.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
+my $ds = VRPipe::DataSource->create(
+    type   => 'fofn',
+    method => 'all',
+    source => file(qw(t data datasource.bam_fofn))->absolute
+);
 my $mapping_pipelinesetup = VRPipe::PipelineSetup->create(
-    name       => 's_suis mapping with stampy',
-    datasource => VRPipe::DataSource->create(
-        type   => 'fofn',
-        method => 'all',
-        source => file(qw(t data datasource.bam_fofn))->absolute
-    ),
+    name        => 's_suis mapping with stampy',
+    datasource  => $ds,
     output_root => $mapping_output_dir,
     pipeline    => $mapping_pipeline,
     options     => {
@@ -75,12 +76,8 @@ foreach my $stepmember ($mapping_pipeline2->step_members) {
 is_deeply \@s_names, [qw(sequence_dictionary stampy_buildgenome stampy_buildhash bam_metadata bam_name_sort bam_to_fastq fastq_split stampy_map_fastq sam_to_fixed_bam bam_merge_lane_splits bam_substitution_rate stampy_map_fastq sam_to_fixed_bam bam_merge_lane_splits bamcheck)], 'the pipeline has the correct steps';
 
 VRPipe::PipelineSetup->create(
-    name       => 's_suis mapping with stampy',
-    datasource => VRPipe::DataSource->create(
-        type   => 'fofn',
-        method => 'all',
-        source => file(qw(t data datasource.bam_fofn))
-    ),
+    name        => 's_suis mapping with stampy',
+    datasource  => $ds,
     output_root => $mapping_output_dir2,
     pipeline    => $mapping_pipeline2,
     options     => {

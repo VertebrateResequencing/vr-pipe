@@ -1,0 +1,4 @@
+path	group	sample_control	sample	public_name
+t/data/sample1.vcf.gz	group1	0	SAMPLE01	foo1
+t/data/sample2.vcf.gz	group1	1	SAMPLE02	foo
+t/data/sample3.vcf.gz	group2	1	SAMPLE03	bar

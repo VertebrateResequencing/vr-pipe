@@ -149,6 +149,27 @@ sub handle_setups {
                 
                 # trigger new setups, in parallel
                 my @new_setups;
+                my $ds_working_sub = sub {
+                    my ($ds_id, $err) = @_;
+                    $err =~ s/^DataSource error: // if $err;
+                    
+                    foreach my $s (VRPipe::PipelineSetup->search({ datasource => $ds_id })) {
+                        my $sid = $s->id;
+                        my $mt = VRPipe::MessageTracker->create(subject => "datasource $ds_id state message for setup $sid");
+                        
+                        if ($err) {
+                            # email user about the error once per setup
+                            unless ($mt->already_sent("not working")) {
+                                $s->log_event("vrpipe-handler for setups called found that DataSource $ds_id has problems: $err");
+                                $im->log("There is a problem with datasource $ds_id for setup $sid", email_to => [$s->user], subject => "Setup $sid has problems with its DataSource", long_msg => $err);
+                            }
+                        }
+                        else {
+                            $mt->update_message("working fine");
+                        }
+                    }
+                };
+                
                 foreach my $setup (@setups) {
                     my $sid = $setup->id;
                     next if exists $setups{$sid};
@@ -163,21 +184,29 @@ sub handle_setups {
                     $setup->disconnect;
                     fork_call {
                         $im->debug("will trigger first_step_only for new setup $sid");
-                        $setup->trigger(first_step_only => 1);
-                        return;
+                        return $setup->trigger(first_step_only => 1);
                     }
                     sub {
                         delete $currently_triggering{$sid};
                         delete $datasource_watchers{$ds_id}->{working};
                         $im->debug("finished first_step_only trigger of setup $sid");
-                        # we ignore trigger errors here and let the watcher
-                        # defined later catch and report about it
+                        my $error = shift || $@;
+                        if ($error) {
+                            if ($error =~ /^DataSource error: /) {
+                                delete $setups{$sid};
+                                &{$ds_working_sub}($ds_id, $error);
+                            }
+                            else {
+                                # later on a watcher on this setup will have better
+                                # error handling and report the setup problems
+                            }
+                        }
                     };
                 }
                 
                 # when testing, we don't want to have this keep running
                 # after all the setups have completed
-                if ($deployment eq 'testing') {
+                if ($deployment eq 'testing' && !($debug && $single_setup)) {
                     my $completed = 0;
                     foreach my $setup (@setups) {
                         $completed++ if $setup->currently_complete;
@@ -233,24 +262,8 @@ sub handle_setups {
                         }
                         sub {
                             delete $datasource_watchers{$ds_id}->{working};
-                            
-                            my $err = $@;
-                            my $mt = VRPipe::MessageTracker->create(subject => "datasource $ds_id state");
-                            
-                            if ($err) {
-                                unless ($mt->already_sent("not working")) {
-                                    # email user about this once
-                                    #*** auto-deactivate it?
-                                    
-                                    foreach my $s (VRPipe::PipelineSetup->search({ datasource => $ds->id })) {
-                                        $s->log_event("vrpipe-handler for setups called found that DataSource $ds_id has problems: $err");
-                                        $im->log("There is a problem with datasource $ds_id for setup " . $s->id, email_to => [$s->user], subject => "Setup " . $s->id . " has problems with its DataSource", long_msg => $err);
-                                    }
-                                }
-                            }
-                            else {
-                                $mt->update_message("working fine");
-                            }
+                            my $error = shift || $@;
+                            &{$ds_working_sub}($ds_id, $error);
                         };
                     };
                     

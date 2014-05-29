@@ -173,6 +173,9 @@ class VRPipe::Steps::bwa_mem_fastq with VRPipe::StepRole {
                         if (defined $fq_meta->{population}) {
                             $sam_meta->{population} = $fq_meta->{population};
                         }
+                        if (defined $fq_meta->{sample_id}) {
+                            $sam_meta->{sample_id} = $fq_meta->{sample_id};
+                        }
                         
                         my $ended = $paired ? 'pe' : 'se';
                         my $sam_file = $self->output_file(

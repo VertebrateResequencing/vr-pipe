@@ -35,14 +35,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::vcf_genotype_comparison with VRPipe::StepRole {
-    method options_definition {
+class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
+    around options_definition {
         return {
-            bcftools_exe => VRPipe::StepOption->create(
-                description   => 'path to the bcftools executable',
-                optional      => 1,
-                default_value => 'bcftools'
-            ),
+            %{ $self->$orig },
             bcftools_gtcheck_options => VRPipe::StepOption->create(
                 description => 'options to bcftools gtcheck (-g option is not valid for this step)',
                 optional    => 1
@@ -73,7 +69,7 @@ class VRPipe::Steps::vcf_genotype_comparison with VRPipe::StepRole {
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bcftools',
-                    version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
+                    version => $self->bcftools_version_string,
                     summary => "bcftools gtcheck $gtcheck_opts \$vcf_file > \$gtcheck_file.gtypex"
                 )
             );

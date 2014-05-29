@@ -25,7 +25,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -47,5 +47,28 @@ package VRPipe::FileType;
 use VRPipe::Base::AbstractFactory;
 
 implementation_does qw/VRPipe::FileTypeRole/;
+
+sub create {
+    my $self = shift;
+    my $return;
+    eval { $return = $self->SUPER::create(@_); };
+    if ($@) {
+        # allow arbitrary filetypes by falling back to 'any' type
+        if ($@ =~ qr/Invalid implementation class|perhaps you forgot to load/) {
+            my $arbitrary = shift;
+            die $@ if ($arbitrary eq 'any' || length($arbitrary) > 4);
+            $return = $self->SUPER::create('any', @_);
+            
+            #*** type() is read-only and I can't figure out how to make the any
+            # class rw via inheritance, so we just directly hack the hash
+            $return->{type} = $arbitrary;
+        }
+        else {
+            die $@;
+        }
+    }
+    
+    return $return;
+}
 
 1;

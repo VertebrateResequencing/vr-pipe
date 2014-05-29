@@ -247,7 +247,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         }
         else {
             $mode = 'all des';
-            $pager = $datasource->incomplete_element_states($self, prepare => $prepare_elements, only_not_started => $first_step_only);
+            eval { $pager = $datasource->incomplete_element_states($self, prepare => $prepare_elements, only_not_started => $first_step_only); };
+            if ($@) {
+                return "DataSource error: $@";
+            }
             $self->debug("trigger on all for setup " . $self->id . ", got " . $pager->total_entries . " incomplete element states");
         }
         return unless $pager; #*** is it ever an error to have no pager?

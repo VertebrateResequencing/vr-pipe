@@ -47,8 +47,7 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
                 type        => 'bin',
                 description => 'png files produced by pluritest R script to assist in determination of pluripotency of stem cell lines',
                 min_files   => 5,
-                max_files   => -1,
-                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
+                max_files   => 5
             ),
         };
     }
@@ -61,10 +60,16 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
             my $req  = $self->new_requirements(memory => 500, time => 1);
             
             my %plots;
-            my $analysis_tag;
             foreach my $plot_file (@{ $self->inputs->{pluritest_plots} }) {
-                my $lanes = $plot_file->metadata->{lanes};
-                $analysis_tag = $plot_file->metadata->{merge_tag_id};
+                my @profile_lanes = ();
+                foreach my $idat_path (@{ $plot_file->metadata->{irods_path} }) {
+                    my @path = split(/\//, $idat_path);
+                    my $lane_name = pop(@path);
+                    $lane_name =~ s/\.idat$//;
+                    push @profile_lanes, $lane_name;
+                }
+                
+                my $lanes = join(',', @profile_lanes);
                 $plots{$lanes}->{dir} = $plot_file->dir;
                 push(@{ $plots{$lanes}->{files} }, $plot_file->basename);
             }
@@ -73,7 +78,7 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
                 my @analysis_lanes = split(',', $lanes);
                 for my $lane (@analysis_lanes) {
                     my $these_bam_plots = $plots{$lanes};
-                    my $cmd             = "use VRPipe::Steps::pluritest_vrtrack_update_images; VRPipe::Steps::pluritest_vrtrack_update_images->update_images(db => q[$db], lane => q[$lane], tag => q[$analysis_tag], plot_dir => q[$these_bam_plots->{dir}], plots => [qw[@{$these_bam_plots->{files}}]]);";
+                    my $cmd             = "use VRPipe::Steps::pluritest_vrtrack_update_images; VRPipe::Steps::pluritest_vrtrack_update_images->update_images(db => q[$db], lane => q[$lane], plot_dir => q[$these_bam_plots->{dir}], plots => [qw[@{$these_bam_plots->{files}}]]);";
                     $self->dispatch_vrpipecode($cmd, $req);
                 }
             }
@@ -88,11 +93,11 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
         return "Inserts the pluritest images into the images table of the vrtrack database. The 'tag' id for these plots is stored in the mapstats table as reads_mapped.";
     }
     
-    method update_images (ClassName|Object $self: Str :$db!, Str :$lane!, Str :$tag!, Str|Dir :$plot_dir!, ArrayRef :$plots!) {
+    method update_images (ClassName|Object $self: Str :$db!, Str :$lane!, Str|Dir :$plot_dir!, ArrayRef :$plots!) {
         my %plot_files;
         foreach my $plot_basename (@$plots) {
             my $file = VRPipe::File->get(path => file($plot_dir, $plot_basename));
-            $plot_files{ $file->path } = $tag;
+            $plot_files{ $file->path } = 1;
         }
         
         # get the lane and mapstats object from VRTrack
@@ -109,9 +114,6 @@ class VRPipe::Steps::pluritest_vrtrack_update_images extends VRPipe::Steps::vrtr
                 # add the images
                 while (my ($path, $caption) = each %plot_files) {
                     my $img = $mapstats->add_image_by_filename($path);
-                    $img->caption($caption);
-                    $img->update;
-                    $mapstats->genotype_expected($caption);
                 }
                 $mapstats->update;
                 

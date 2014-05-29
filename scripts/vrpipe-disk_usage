@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -29,48 +29,146 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::FrontEnd;
 use Path::Class;
 use File::Find;
+use DBI;
+use Number::Bytes::Human qw(format_bytes);
 
 my $frontend = VRPipe::FrontEnd->new(
-    description => "See how much disk space VRPipe setup output files are using in a given location.",
-    #extra_args => 'root_directory',
-    opt_spec => [['skip_setup=s@', 'Pipeline setup (id or name) to skip; this option can be repeated', { persistent_object => 'PipelineSetup' }]]
+    description => "See how much disk space VRPipe setup output files are using in a given location, or get a report on all disk usage by all setups.",
+    extra_args  => 'root_directory (or nothing for a full report)',
+    opt_spec    => [['skip_setup=s@', 'Pipeline setup (id or name) to skip; this option can be repeated, but only applies in root_directory mode', { persistent_object => 'PipelineSetup' }]]
 );
 
 my %skip_setup = map { $_->id => 1 } $frontend->option_was_set('skip_setup') ? @{ $frontend->opts('skip_setup') } : ();
 my $disk = shift;
-unless ($disk) {
-    $frontend->die_with_error("You must supply a disk root direcory");
-}
-chomp($disk);
 
-my %done_files;
-foreach my $s (VRPipe::PipelineSetup->search({ output_root => { like => $disk . '%' } })) {
-    my $sid = $s->id;
-    print STDERR "\n$sid ";
-    next if $skip_setup{$sid};
-    my $sn = $s->name;
+if ($disk) {
+    chomp($disk);
     
-    my $pager = VRPipe::StepOutputFile->search_paged({ 'stepstate.pipelinesetup' => $sid, 'stepstate.same_submissions_as' => undef, output_key => { '!=' => 'temp' }, }, { join => ['stepstate'], prefetch => 'file' }, 10000); # -or => [{e => 1, moved_to => undef}, {moved_to => { '!=' => undef} }]  # join file, 'file.path' => { like => $disk.'%' } or where this applies to moved_to file id
+    my %done_files;
+    foreach my $s (VRPipe::PipelineSetup->search({ output_root => { like => $disk . '%' } })) {
+        my $sid = $s->id;
+        print STDERR "\n$sid ";
+        next if $skip_setup{$sid};
+        my $sn = $s->name;
+        
+        my $pager = VRPipe::StepOutputFile->search_paged({ 'stepstate.pipelinesetup' => $sid, 'stepstate.same_submissions_as' => undef, output_key => { '!=' => 'temp' }, }, { join => ['stepstate'], prefetch => 'file' }, 10000); # -or => [{e => 1, moved_to => undef}, {moved_to => { '!=' => undef} }]  # join file, 'file.path' => { like => $disk.'%' } or where this applies to moved_to file id
+        
+        while (my $sofs = $pager->next(no_resetting => 1)) {
+            print STDERR ", ";
+            foreach my $sof (@$sofs) {
+                my $f   = $sof->file;
+                my $fid = $f->id;
+                next if exists $done_files{$fid};
+                $done_files{$fid} = 1;
+                $f = $f->resolve;
+                my $rid = $f->id;
+                if ($rid != $fid) { next if exists $done_files{$rid} }
+                my $s = $f->s || next;
+                my $p = $f->path;
+                next unless $p =~ /^$disk/;
+                my $mtime = $f->mtime || '';
+                print join("\t", $sid, $sn, $p, $f->type, $s, $mtime), "\n";
+                print STDERR "! ";
+                $done_files{$rid} = 1;
+            }
+        }
+    }
+}
+else {
+    # we need this to go as fast as possible, so we just go direct to DBI
+    # cursors instead of using the VRPipe API
+    my $main_sql = q[select f.path, f.s, f.id, f.moved_to, ps.id, ps.name, ps.user, de.withdrawn, sm.step_number from stepoutputfile sof join file f on f.id = sof.file join stepstate ss on ss.id = sof.stepstate join pipelinesetup ps on ss.pipelinesetup = ps.id join stepmember sm on sm.id = ss.stepmember join dataelement de on de.id = ss.dataelement where ss.same_submissions_as is NULL and ss.complete = 1 and sof.output_key != 'temp' limit ?, ?];
+    my $file_sql = q[select f.path, f.s, f.id, f.moved_to from file f where f.id = ?];
     
-    while (my $sofs = $pager->next(no_resetting => 1)) {
-        print STDERR ", ";
-        foreach my $sof (@$sofs) {
-            my $f   = $sof->file;
-            my $fid = $f->id;
-            next if exists $done_files{$fid};
-            $done_files{$fid} = 1;
-            $f = $f->resolve;
-            my $rid = $f->id;
-            if ($rid != $fid) { next if exists $done_files{$rid} }
-            my $s = $f->s || next;
-            my $p = $f->path;
-            next unless $p =~ /^$disk/;
-            my $mtime = $f->mtime || '';
-            print join("\t", $sid, $sn, $p, $f->type, $s, $mtime), "\n";
-            print STDERR "! ";
-            $done_files{$rid} = 1;
+    my $dbh = DBI->connect(
+        VRPipe::Persistent::SchemaBase->get_dsn,
+        VRPipe::Persistent::SchemaBase->get_user,
+        VRPipe::Persistent::SchemaBase->get_password,
+        { 'RaiseError' => 1, 'PrintError' => 0, 'mysql_auto_reconnect' => 1 }
+    );
+    
+    my ($path, $s, $f_id, $fmt, $ps_id, $ps_name, $user, $withdrawn, $step_number);
+    my $main_sth = $dbh->prepare($main_sql);
+    $main_sth->execute(0, 1);
+    $main_sth->bind_columns(\($path, $s, $f_id, $fmt, $ps_id, $ps_name, $user, $withdrawn, $step_number));
+    
+    my $file_sth = $dbh->prepare($file_sql);
+    $file_sth->execute;
+    $file_sth->bind_columns(\($path, $s, $f_id, $fmt));
+    
+    my $page_size = 500000;
+    my $limit     = $page_size - 1;
+    my $offset    = 0;
+    my (%by_disk, %setup_details, %done_files);
+    while (1) {
+        warn " - looking at files ", ($offset + 1), "..", ($offset + $limit + 1), "\n";
+        $main_sth->execute($offset, $limit);
+        my $c = 0;
+        while ($main_sth->fetch) {
+            $c++;
+            next if exists $done_files{$f_id};
+            
+            # resolve the file to get its current location and size
+            my %resolve_files;
+            while ($fmt) {
+                $file_sth->execute($fmt);
+                undef $fmt;
+                $file_sth->fetch;
+                
+                # stop if we get into a loop
+                last if exists $resolve_files{$f_id};
+                $resolve_files{$f_id} = 1;
+            }
+            undef $fmt;
+            unless ($s) {
+                undef $withdrawn;
+                next;
+            }
+            
+            # store the setup details
+            unless (exists $setup_details{$ps_id}) {
+                $setup_details{$ps_id} = [$ps_name, $user];
+            }
+            
+            # sum the file size
+            my ($root, $disk, $dir) = split(/\//, $path);
+            $disk = '/' . join('/', $disk, $dir);
+            $by_disk{$disk}->{$ps_id}->{$step_number} += $s;
+            $by_disk{$disk}->{$ps_id}->{withdrawn} += $s if $withdrawn;
+            $by_disk{$disk}->{$ps_id}->{total} += $s;
+            
+            undef $withdrawn;
+            $done_files{$f_id} = 1;
+        }
+        last if $c < $limit;
+        
+        $offset += $page_size;
+    }
+    
+    print join("\t", qw(disk setup_id total_MB withdrawn_MB per-step_sizes user setup_name)), "\n";
+    foreach my $disk (sort keys %by_disk) {
+        foreach my $ps_id (sort { $by_disk{$disk}->{$b}->{total} <=> $by_disk{$disk}->{$a}->{total} || $a <=> $b } keys %{ $by_disk{$disk} }) {
+            my ($name, $user) = @{ $setup_details{$ps_id} };
+            my $sizes       = $by_disk{$disk}->{$ps_id};
+            my $total_s     = bytes_to_mb(delete $sizes->{total});
+            my $withdrawn_s = bytes_to_mb(delete $sizes->{withdrawn});
+            
+            my @step_sizes;
+            foreach my $sn (sort { $a <=> $b } keys %{$sizes}) {
+                my $step_s = format_bytes($sizes->{$sn} || next);
+                push(@step_sizes, "$sn:$step_s");
+            }
+            
+            print join("\t", $disk, $ps_id, $total_s, $withdrawn_s, join(';', @step_sizes), $user, qq["$name"]), "\n";
         }
     }
 }
 
 exit;
+
+sub bytes_to_mb {
+    my $b = shift || return 0;
+    my $mb = $b / (1024 * 1024);
+    my $round = $mb > 10 ? 0 : 1;
+    return sprintf("%0.${round}f", $mb);
+}

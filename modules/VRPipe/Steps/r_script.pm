@@ -15,7 +15,7 @@ Chris Joyce <cj5@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -59,15 +59,18 @@ class VRPipe::Steps::r_script with VRPipe::StepRole {
         return ['rscript_cmd', 'r_libs'];
     }
     
-    method rscript_cmd_prefix {
+    method _cmd_prefix {
         my $options = $self->options;
         my $r_libs  = $self->r_libs;
         my $return;
         if ($r_libs) {
-            $return = "export R_LIBS=" . $self->r_libs . ";";
+            $return = "export R_LIBS=" . $self->r_libs . "; ";
         }
-        $return .= $self->rscript_cmd;
         return $return;
+    }
+    
+    method rscript_cmd_prefix {
+        return $self->_cmd_prefix . $self->rscript_cmd;
     }
     
     method handle_standard_options (HashRef $options) {

@@ -595,7 +595,7 @@ else {
                 $default = $vso->default_value;
             }
             my $arg = $frontend->ask_question(question => "\t$key ($comment " . join(", ", @steps) . ")\n\t" . $vso->description, possibles => $vso->allowed_values, default => $default, required => !$vso->optional); #*** could vso be altered so that it could actually validate the answer right away?...
-            if (defined $arg && "$arg" ne '') {
+            if (defined $arg && "$arg" ne '' && ($vso->optional ? "$arg" !~ /^['"]+$/ : 1)) {
                 $pipeline_args{$key} = $arg;
             }
         }
@@ -807,7 +807,7 @@ sub get_ds_details {
                 $default = $based_on_ds_options->{$name};
             }
             my $arg = $frontend->ask_question(question => "\t$name ($comment, a $constraint)", defined $default ? (default => $default) : (), required => $req);
-            if (defined $arg && "$arg" ne '') {
+            if (defined $arg && "$arg" ne '' && ($req ? 1 : "$arg" !~ /^['"]+$/)) {
                 $chosen_method_args{$name} = $arg;
             }
         }

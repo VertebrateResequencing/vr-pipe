@@ -14,7 +14,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -34,18 +34,14 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
-    method options_definition {
+class VRPipe::Steps::vcf_merge_different_samples extends VRPipe::Steps::bcftools {
+    around options_definition {
         return {
-            bcftools_exe => VRPipe::StepOption->create(
-                description   => 'path to your bcftools executable',
-                optional      => 1,
-                default_value => 'bcftools'
-            ),
+            %{ $self->$orig },
             bcftools_options => VRPipe::StepOption->create(
-                description   => 'Options for the bcftools merge command. Does not support the --print-header option',
+                description   => 'Options for the bcftools merge command. Does not support the --print-header option; -O b or u is not supported.',
                 optional      => 1,
-                default_value => '-o z'
+                default_value => '-O z'
             )
         };
     }
@@ -60,6 +56,20 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
         };
     }
     
+    method _build_smaller_recommended_requirements_override {
+        return 0;
+    }
+    
+    method _determine_memory (Int $num_vcfs) {
+        # bcftools indexes and buffers all the input files in memory, amounting
+        # to about 13.3MB memory usage each (including overhead), so we can get
+        # a better memory estimate than VRPipe can guess. We turn off
+        # _build_smaller_recommended_requirements_override to prevent VRPipe
+        # ignoring our better estimate
+        my $memory = int($num_vcfs * 13.3);
+        return $memory;
+    }
+    
     method body_sub {
         return sub {
             my $self = shift;
@@ -67,6 +77,12 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
             my $options      = $self->options;
             my $bcftools_exe = $options->{bcftools_exe};
             my $bcfopts      = $options->{bcftools_options};
+            
+            if ($bcfopts =~ /-O\s*[bu]/) {
+                # we're hard-coded for vcf output, so we really don't support
+                # these bcf options
+                $self->throw("-O b or u are not supported - this step can only output vcfs");
+            }
             
             my @input_set;
             foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
@@ -77,27 +93,29 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
             my $merged_meta = $self->common_metadata($self->inputs->{vcf_files});
             my $merged_vcf  = $self->output_file(output_key => 'merged_vcf', basename => $merged_basename, type => 'vcf', metadata => $merged_meta);
             my $output_path = $merged_vcf->path;
+            my $index       = $self->output_file(output_key => 'vcf_index', basename => $merged_basename . '.csi', type => 'bin');
             
+            my $req = $self->new_requirements(memory => $self->_determine_memory(scalar(@input_set)), time => 1);
             if (@input_set == 1) {
                 # merge doesn't work on 1 input file; just symlink the input to
-                # output
+                # output and index it
                 my $source = $self->inputs->{vcf_files}->[0];
                 $source->symlink($merged_vcf);
-                return 1;
+                $self->dispatch(["$bcftools_exe index $output_path", $req, { output_files => [$merged_vcf, $index] }]);
             }
-            
-            my $this_cmd = qq[$bcftools_exe merge $bcfopts @input_set > $output_path];
-            
-            $self->set_cmd_summary(
-                VRPipe::StepCmdSummary->create(
-                    exe     => 'bcftools',
-                    version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
-                    summary => "bcftools merge $bcfopts \@input_vcfs > \$output_path"
-                )
-            );
-            
-            my $req = $self->new_requirements(memory => 500, time => 1);
-            $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf] }]);
+            else {
+                my $this_cmd = qq[$bcftools_exe merge $bcfopts @input_set > $output_path && $bcftools_exe index $output_path];
+                
+                $self->set_cmd_summary(
+                    VRPipe::StepCmdSummary->create(
+                        exe     => 'bcftools',
+                        version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
+                        summary => "bcftools merge $bcfopts \@input_vcfs > \$output_path && bcftools index \$output_path"
+                    )
+                );
+                
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf, $index] }]);
+            }
         };
     }
     
@@ -106,6 +124,11 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
             merged_vcf => VRPipe::StepIODefinition->create(
                 type        => 'vcf',
                 description => 'a merged vcf file',
+                max_files   => 1
+            ),
+            vcf_index => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                description => 'index of the merged vcf file',
                 max_files   => 1
             )
         };
@@ -120,7 +143,7 @@ class VRPipe::Steps::vcf_merge_different_samples with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method merge_vcf (ClassName|Object $self: Str $cmd_line) {

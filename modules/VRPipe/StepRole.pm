@@ -45,6 +45,9 @@ role VRPipe::StepRole {
     use Digest::MD5;
     use VRPipe::StepStatsUtil;
     use VRPipe::Persistent::InMemory;
+    use Cwd 'abs_path';
+    use File::stat;
+    use Fcntl qw(:mode);
     
     method name {
         my $class = ref($self);
@@ -380,8 +383,19 @@ role VRPipe::StepRole {
                             }
                             unless ($has_size) {
                                 my $db_type = $resolved->type;
+                                
+                                if ($db_type) {
+                                    # if that's an auto-generated type then it
+                                    # should be treated as an 'any' for this
+                                    # purpose
+                                    eval "require VRPipe::FileType::$db_type;";
+                                    if ($@) {
+                                        $db_type = 'any';
+                                    }
+                                }
+                                
                                 if ($db_type && $wanted_type ne $db_type && $db_type ne 'any') {
-                                    push(@skip_reasons, "file " . $result->path . " was not the correct type, expected type $wanted_type and got type $db_type");
+                                    push(@skip_reasons, "file " . $result->path . " does not exist so its type can't be checked properly, but it doesn't seem to be correct: expected type $wanted_type and got type $db_type");
                                     next;
                                 }
                             }
@@ -433,7 +447,7 @@ role VRPipe::StepRole {
         # (in inputs_mode we do not have to check file existence and type since
         # inputs() already did that)
         
-        my (@missing, @messages);
+        my (@missing, @messages, %missing_metadata);
         # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
             my $def     = $defs->{$key};
@@ -489,6 +503,7 @@ role VRPipe::StepRole {
                                 unless (exists $meta->{$key}) {
                                     push(@messages, $file->path . " exists, but lacks required metadata key $key!");
                                     $bad = 1;
+                                    $missing_metadata{ $file->path } = 1;
                                 }
                             }
                         }
@@ -501,7 +516,7 @@ role VRPipe::StepRole {
             }
         }
         
-        return (\@missing, \@messages);
+        return (\@missing, \@messages, \%missing_metadata);
     }
     
     method missing_input_files {
@@ -611,14 +626,16 @@ role VRPipe::StepRole {
         # if we have missing input files, check to see if some other step
         # created them, and start those steps over in the hopes the files will
         # be recreated; otherwise throw
-        my ($missing, $messages) = $self->missing_input_files;
+        my ($missing, $messages, $missing_metadata) = $self->missing_input_files;
         if (@$missing) {
             my $with_recourse = 0;
             my %states_to_restart;
             foreach my $path (@$missing) {
+                # there's no recourse if the file was actually just missing some
+                # metadata, not physically missing
+                next if exists $missing_metadata->{$path};
+                
                 my $file = VRPipe::File->get(path => $path);
-                my $resolved = $file->resolve;
-                next if $resolved->s; # there's no recourse if the file was actually just missing some metadata, not physically missing
                 my $count = 0;
                 my $state;
                 foreach my $sof (VRPipe::StepOutputFile->search({ file => $file->id }, { prefetch => 'stepstate' })) {
@@ -628,7 +645,7 @@ role VRPipe::StepRole {
                 
                 if ($count == 1) {
                     $with_recourse++;
-                    push(@{ $states_to_restart{ $state->id } }, $resolved->path);
+                    push(@{ $states_to_restart{ $state->id } }, $file->resolve->path);
                 }
             }
             
@@ -715,16 +732,40 @@ role VRPipe::StepRole {
                 my $ps    = $stepstate->pipelinesetup;
                 my $group = $ps->unix_group;
                 if ($group) {
+                    my $hash = $self->outputs;
+                    my @paths;
+                    while (my ($key, $val) = each %$hash) {
+                        foreach my $file (@$val) {
+                            # but only do this if we were the first to create
+                            # the files
+                            my @step_states = $file->output_by;
+                            return if @step_states > 1;
+                            
+                            # later on we don't need to do anything to files
+                            # that don't exist, and trying to stat a
+                            # non-existant file causes us to die and possibly
+                            # result in an infinite-restart loop!
+                            $file->reselect_values_from_db;
+                            $file->e || next;
+                            
+                            my $path = $file->path;
+                            if (-l $path) {
+                                my $real = abs_path($path);
+                                if ($real ne $path) {
+                                    my ($real_file) = VRPipe::File->search({ path => $real });
+                                    if ($real_file) {
+                                        @step_states = $real_file->output_by;
+                                        return if @step_states;
+                                    }
+                                }
+                            }
+                            
+                            push(@paths, $path);
+                        }
+                    }
+                    
                     my (undef, undef, $gid) = getgrnam($group);
                     if ($gid) {
-                        my $hash = $self->outputs;
-                        my @paths;
-                        while (my ($key, $val) = each %$hash) {
-                            foreach my $file (@$val) {
-                                push(@paths, $file->path);
-                            }
-                        }
-                        
                         # change the group on the files
                         chown $<, $gid, @paths;
                         
@@ -734,8 +775,22 @@ role VRPipe::StepRole {
                         if ($uid && $uid != $<) {
                             chown $uid, $gid, @paths;
                             
-                            # make sure we still have write access to the files
-                            chmod 0660, @paths; # -rw-rw----
+                            # make sure we still have write access to the files,
+                            # but don't chmod if files already are world
+                            # readable
+                            my $all_can_read = 1;
+                            foreach my $path (@paths) {
+                                my $mode = stat($path)->mode;
+                                my $readable = ($mode & S_IRUSR) && ($mode & S_IRGRP) && ($mode & S_IROTH);
+                                unless ($readable) {
+                                    $all_can_read = 0;
+                                    last;
+                                }
+                            }
+                            
+                            unless ($all_can_read) {
+                                chmod 0660, @paths; # -rw-rw----
+                            }
                         }
                         
                         # try and make parent dirs accessible
@@ -904,18 +959,47 @@ role VRPipe::StepRole {
         my %meta;
         foreach my $file (@$files) {
             my $file_meta = $file->metadata;
-            foreach my $key (keys %$file_meta) {
-                $meta{$key}->{ $$file_meta{$key} } += 1;
+            while (my ($key, $val) = each %$file_meta) {
+                if (ref($val)) {
+                    $val = join(',!,', @$val);
+                }
+                $meta{$key}->{$val}++;
             }
         }
-        # Only keep metadata common to all files
+        
+        # only keep metadata common to all files
         my $common_meta = {};
         foreach my $key (keys %meta) {
             my @vals = keys %{ $meta{$key} };
             next unless (@vals == 1 && $meta{$key}->{ $vals[0] } == @$files);
-            $common_meta->{$key} = $vals[0];
+            my @val = split(/,!,/, $vals[0]);
+            $common_meta->{$key} = @val > 1 ? \@val : $val[0];
         }
+        
         return $common_meta;
+    }
+    
+    method combined_metadata (ArrayRef['VRPipe::File'] $files!) {
+        my %meta;
+        foreach my $file (@$files) {
+            my $file_meta = $file->metadata;
+            while (my ($key, $val) = each %$file_meta) {
+                if (exists $meta{$key}) {
+                    my $current = $meta{$key};
+                    if (ref($current) && ref($current) eq 'ARRAY') {
+                        push(@{ $meta{$key} }, ref($val) && ref($val) eq 'ARRAY' ? @{$val} : $val);
+                    }
+                    else {
+                        $meta{$key} = [$current, ref($val) && ref($val) eq 'ARRAY' ? @{$val} : $val];
+                    }
+                }
+                else {
+                    $meta{$key} = $val;
+                }
+            }
+        }
+        
+        return \%meta;
     }
     
     method element_meta {

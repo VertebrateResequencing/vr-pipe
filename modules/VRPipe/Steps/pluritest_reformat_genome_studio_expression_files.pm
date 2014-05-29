@@ -46,19 +46,15 @@ class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPi
         return {
             annotation_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
-                description => 'the annotation file that is used by pluritest - if more than one is provided, the intersection of the annotation files is produced ',
-                max_files   => -1
+                description => 'the annotation file that is used by pluritest',
             ),
             mapping_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'a file that maps the samples to the columns in the sample profile file',
-                max_files   => -1
             ),
             profile_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'a file that contains the GenomeStudio profile for the samples',
-                max_files   => -1,
-                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             ),
         };
     }
@@ -70,24 +66,20 @@ class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPi
             my $reformat_exe           = $options->{reformat_exe};
             my $reformat_sample_number = $options->{reformat_sample_number};
             
-            # group the profile with its mapping and annotation files
-            my %by_tag;
-            foreach my $file (@{ $self->inputs->{profile_files} }, @{ $self->inputs->{annotation_files} }, @{ $self->inputs->{mapping_files} }) {
-                push(@{ $by_tag{ $file->metadata->{merge_tag_id} } }, $file->path);
-            }
+            my ($profile_file)    = @{ $self->inputs->{profile_files} };
+            my $profile_path      = $profile_file->path;
+            my ($annotation_file) = @{ $self->inputs->{annotation_files} };
+            my ($mapping_file)    = @{ $self->inputs->{mapping_files} };
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            while (my ($tag, $files) = each %by_tag) {
-                $self->throw("There was not exactly 1 annotation file and 1 mapping file and 1 profile file per merge tag id $tag (@$files)") unless @$files == 3;
-                my $reformat_options = "--annot " . $files->[1] . " --mapping " . $files->[2] . " --samples $reformat_sample_number";
-                my $profile_path     = $files->[0];
-                my $profile_file     = VRPipe::File->get(path => $profile_path);
-                my $basename         = $profile_file->basename . '.reformat';
-                my $reformat_file    = $self->output_file(output_key => 'reformat_files', basename => "$basename", type => 'txt', metadata => $profile_file->metadata);
-                my $out_path         = $reformat_file->path;
-                my $cmd_line         = "$reformat_exe --profile $profile_path $reformat_options --out $out_path";
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::pluritest_reformat_genome_studio_expression_files', 'reformat_gs_file', [$cmd_line, $req, { output_files => [$reformat_file] }]);
-            }
+            my $reformat_options = "--annot " . $annotation_file->path . " --mapping " . $mapping_file->path . " --samples $reformat_sample_number";
+            
+            my $basename      = $profile_file->basename . '.reformat';
+            my $reformat_file = $self->output_file(output_key => 'reformat_files', basename => "$basename", type => 'txt', metadata => $profile_file->metadata);
+            my $out_path      = $reformat_file->path;
+            
+            my $cmd_line = "$reformat_exe --profile $profile_path $reformat_options --out $out_path";
+            $self->dispatch_wrapped_cmd('VRPipe::Steps::pluritest_reformat_genome_studio_expression_files', 'reformat_gs_file', [$cmd_line, $req]);
         
         };
     }
@@ -99,7 +91,6 @@ class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPi
                 description => 'Files with reformatted Genome Studio gene expression data',
                 max_files   => -1,
                 min_files   => 0,
-                metadata    => { merge_tag_id => 'tag id to enable sample to be identified in the multi-sample profile file', lanes => 'comma-separated list of lanes that the pluritest analysis is being performed on' },
             )
         };
     }

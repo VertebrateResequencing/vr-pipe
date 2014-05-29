@@ -78,11 +78,12 @@ class VRPipe::Steps::penncnv_filter_cnv with VRPipe::StepRole {
     method outputs_definition {
         return {
             stepTwo_file_output_filter_cnv_file => VRPipe::StepIODefinition->create(
-                type        => 'txt',
-                description => 'Filter CNV data',
-                max_files   => -1,                                                                                                                    # -1 = As many as you like
-                min_files   => 0,
-                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
+                type            => 'txt',
+                description     => 'Filter CNV data',
+                max_files       => -1,                                                                                                                    # -1 = As many as you like
+                min_files       => 0,
+                check_existence => 0,
+                metadata        => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
             )
         };
     }
