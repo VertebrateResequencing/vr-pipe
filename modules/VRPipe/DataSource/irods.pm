@@ -405,7 +405,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse, $required_metadata);
         $self->_clear_cache;
         
-        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date manual_qc sample_created_date taxon_id lane);
+        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
         
         my $did = $self->_datasource_id;
         my @element_args;
