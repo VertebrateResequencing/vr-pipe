@@ -256,7 +256,7 @@ ok $ds = VRPipe::DataSource->create(
     method  => 'all_with_warehouse_metadata',
     source  => 'seq',
     options => {
-        file_query     => q[study_id = 2547 and type = bam and target = 1],
+        file_query     => q[study_id = 2547 and type = bam and target = 1 and total_reads != 0 and manual_qc like "%"],
         local_root_dir => $output_root
     }
   ),
