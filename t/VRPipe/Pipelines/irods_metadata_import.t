@@ -131,6 +131,7 @@ my $expected = {
     is_paired             => undef,
     lane_acc              => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
     storage_path          => file($output_root, 'archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15')->stringify,
+    npg_qc_status         => 'pending',
     file_name             => '9252616016_E_Grn.idat',
     file_type             => 8,
     file_md5              => '41b6f345a2f92f095f09a7ff22bbbc00',
@@ -140,12 +141,13 @@ my $expected = {
     project_id            => 2625,
     project_name          => 'G0325 [gex] Wellcome Trust Strategic Award application - HIPS',
     study_acc             => 2625,
-    sample_name           => 'HPSI0813i-fpdr',
+    sample_name           => 'qc1hip5529781',
     sample_hierarchy_name => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
     sample_ssid           => '1625281',
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+    individual_alias      => 'HPSI0813i-fpdr',
     individual_acc        => undef,
     control               => 1
 };
@@ -228,6 +230,7 @@ $expected = {
     is_paired             => undef,
     lane_acc              => '3f5acca0-304c-480f-8a61-3e68c33c707d',
     storage_path          => file($output_root, 'archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz')->stringify,
+    npg_qc_status         => 'pending',
     file_name             => '9300870057_R06C01.gtc',
     file_type             => 7,
     file_md5              => '17b7159554bca4ff4376384b385da51f',
@@ -237,12 +240,13 @@ $expected = {
     project_id            => 2624,
     project_name          => 'G0325 [coreex] Wellcome Trust Strategic Award application - HIPS',
     study_acc             => 2624,
-    sample_name           => 'HPSI0813i-fpdk_3',
+    sample_name           => 'qc1hip5529688',
     sample_hierarchy_name => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
     sample_ssid           => '1625188',
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
+    individual_alias      => 'HPSI0813i-fpdk',
     control               => 0
 };
 
@@ -256,7 +260,7 @@ ok $ds = VRPipe::DataSource->create(
     method  => 'all_with_warehouse_metadata',
     source  => 'seq',
     options => {
-        file_query     => q[study_id = 2547 and type = bam and target = 1 and total_reads != 0 and manual_qc like "%"],
+        file_query     => q[study_id = 2547 and type = bam and target = 1 and manual_qc like "%"],
         local_root_dir => $output_root
     }
   ),
@@ -331,6 +335,7 @@ $expected = {
     is_paired             => 1,
     lane_acc              => undef,
     storage_path          => undef,
+    npg_qc_status         => 'pass',
     file_name             => '9417_4#1.bam',
     file_type             => 4,
     file_md5              => '675b0b2b2f5991aa5a4695bb1914c0c7',
@@ -346,7 +351,8 @@ $expected = {
     species_taxon_id      => 10090,
     species_name          => 'Mouse',
     individual_name       => 'MEK_res_1',
-    individual_acc        => 'ERS215816'
+    individual_acc        => 'ERS215816',
+    individual_alias      => ''
 };
 
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first bam lane';
@@ -391,6 +397,7 @@ sub lane_info {
         is_paired             => $lane->is_paired,
         lane_acc              => $lane->acc,
         storage_path          => $lane->storage_path,
+        npg_qc_status         => $lane->npg_qc_status,
         file_name             => $file->name,
         file_type             => $file->type,
         file_md5              => $file->md5,
@@ -407,6 +414,7 @@ sub lane_info {
         species_name          => $h{species}->name,
         individual_name       => $h{individual}->name,
         individual_acc        => $h{individual}->acc,
+        individual_alias      => $h{individual}->alias,
         defined $control ? (control => $control) : ()
     };
     
