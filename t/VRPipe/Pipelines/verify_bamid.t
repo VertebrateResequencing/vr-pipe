@@ -22,54 +22,32 @@ foreach my $stepmember ($pipeline->step_members) {
 my @expected_step_names = qw(verify_bamid);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
-# Generate fofn with metadata in output_dir with absolute bam/vcf paths
-my $ofofnwm = VRPipe::File->create(path => file($output_dir, 'verifybam.fofnwm')->absolute);
-my $ofh = $ofofnwm->openw or die;
-my $ifofnwm = VRPipe::File->create(path => file(qw(t data verifybam.fofnwm))->absolute);
-my $ifh = $ifofnwm->openr or die;
-my $ddir = dir(qw(t data))->absolute;
-while (<$ifh>) {
-    if (/^path/) {
-        $ofh->write($_);
-        next;
-    }
-    chomp;
-    my ($bam, $vcf) = split(/\t/, $_);
-    $bam = file($bam)->basename;
-    $vcf = file($vcf)->basename;
-    $ofh->write("$ddir/$bam\t$ddir/$vcf\n");
-}
+my $fofn = file(qw(t data bams.fofn))->absolute->stringify;
+my $vcf  = file(qw(t data verify_ref.vcf.gz))->absolute->stringify;
 
 my $test_pipelinesetup = VRPipe::PipelineSetup->create(
     name       => 'my verify_bamid pipeline setup',
     datasource => VRPipe::DataSource->create(
-        type   => 'fofn_with_metadata',
+        type   => 'fofn',
         method => 'all',
-        source => "$output_dir/verifybam.fofnwm"
+        source => $fofn
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        'verify_bamid_opts' => '--ignoreRG',
-        cleanup             => 0
+        verify_bamid_opts => "--vcf $vcf --ignoreRG",
+        cleanup           => 0
     }
 );
 
 my (@output_files);
 my $element_id = 0;
-while (<$ifh>) {
-    if (/^path/) {
-        $ofh->write($_);
-        next;
-    }
-    chomp;
-    my ($bam, $vcf) = split(/\t/, $_);
-    $bam =~ s/\.bam$//;
+foreach my $sample (qw(NA19334 NA19381 NA20281)) {
     $element_id++;
     my @output_dirs = output_subdirs($element_id);
-    push(@output_files, file(@output_dirs, '1_verify_bamid', "${bam}.log"));
-    push(@output_files, file(@output_dirs, '1_verify_bamid', "${bam}.selfSM"));
-    push(@output_files, file(@output_dirs, '1_verify_bamid', "${bam}.depthSM"));
+    push(@output_files, file(@output_dirs, '1_verify_bamid', "$sample.log"));
+    push(@output_files, file(@output_dirs, '1_verify_bamid', "$sample.selfSM"));
+    push(@output_files, file(@output_dirs, '1_verify_bamid', "$sample.depthSM"));
 }
 
 ok handle_pipeline(@output_files), 'pipeline ran and created all expected output files';
