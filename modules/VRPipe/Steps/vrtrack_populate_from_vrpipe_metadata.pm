@@ -123,6 +123,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
             }
         }
         else {
+            no warnings qw(once);
             die(sprintf('Cannot check notes table: %s', $DBI::errstr));
         }
         my $add_control_note = 0;
@@ -192,6 +193,14 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                         }
                     }
                 }
+                if (defined $meta->{manual_qc}) {
+                    if ($meta->{manual_qc}) {
+                        $vrlane->npg_qc_status('pass');
+                    }
+                    else {
+                        $vrlane->npg_qc_status('fail');
+                    }
+                }
                 $vrlane->update;
                 
                 # get/create a file entry
@@ -259,8 +268,8 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 $vrproject->update;
                 
                 # get/create the sample
-                my $sample_name = $meta->{public_name} || $meta->{sample};  #*** for ones with public_name we have nowhere to put sample, but that's the way it was done before
-                my $vrsample = $vrproject->get_sample_by_name($sample_name);
+                my $sample_name = $meta->{sample};
+                my $vrsample    = $vrproject->get_sample_by_name($sample_name);
                 unless ($vrsample) {
                     $vrsample = $vrproject->add_sample($sample_name);
                 }
@@ -295,6 +304,20 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                     # for historic reasons we store sample_accession_number in
                     # acc; we'll just go with the first one we see
                     $vrindividual->acc($meta->{sample_accession_number}) if defined $meta->{sample_accession_number};
+                }
+                my $public_name = $meta->{public_name};
+                if ($public_name) {
+                    # since we can have multiple sample public names per
+                    # individual, we try to only set this once, preferring
+                    # control sample public_name
+                    if ($vrindividual->alias) {
+                        if ($meta->{sample_control}) {
+                            $vrindividual->alias($public_name);
+                        }
+                    }
+                    else {
+                        $vrindividual->alias($public_name);
+                    }
                 }
                 $vrindividual->species_id($vrspecies->id);
                 $vrindividual->update;
