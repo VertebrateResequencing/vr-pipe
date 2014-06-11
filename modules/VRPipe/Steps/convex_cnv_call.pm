@@ -14,7 +14,7 @@ Chris Joyce <cj5@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -49,7 +49,7 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
     }
     
     method inputs_definition {
-        return { gam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more gam files from which to call CNV') };
+        return { gam_files => VRPipe::StepIODefinition->create(type => 'gam', max_files => -1, description => '1 or more gam files from which to call CNV', metadata => { sample => 'sample name' }) };
     }
     
     method body_sub {
@@ -74,9 +74,9 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
                 my $sample   = $gam_file->metadata->{sample};
                 
                 my $basename = $gam_file->basename;
-                $basename =~ s/gam\.txt$/cnv_calls.txt/;
+                $basename =~ s/gam$/cnv/;
                 
-                my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'txt', metadata => {sample => $sample});
+                my $cnv_file = $self->output_file(output_key => 'cnv_files', basename => $basename, type => 'cnv', metadata => $gam_file->metadata);
                 my $cnv_dir = $cnv_file->dir;
                 
                 my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/SWCNVCall.R $sw_pval,$swt_del,$swt_dup,$dv,$gam_path,$basename,$sample,$centromere_reg_file,$cnv_dir,$sw_exec";
@@ -87,7 +87,7 @@ class VRPipe::Steps::convex_cnv_call extends VRPipe::Steps::r_script {
     }
     
     method outputs_definition {
-        return { cnv_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a CNV call file for each input GAM file'), };
+        return { cnv_files => VRPipe::StepIODefinition->create(type => 'cnv', max_files => -1, description => 'a CNV call file for each input GAM file', metadata => { sample => 'sample name' }), };
     }
     
     method post_process_sub {

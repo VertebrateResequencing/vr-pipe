@@ -14,7 +14,7 @@ Chris Joyce <cj5@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -41,12 +41,11 @@ class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
             'rd_sample_file_name' => VRPipe::StepOption->create(description => 'Full path to a specific sample Read Depth file from which to generate breakpoints', optional => 1),
             'convex_rscript_path' => VRPipe::StepOption->create(description => 'Full path to CoNVex R scripts'),
             'max_bin_size' => VRPipe::StepOption->create(description => 'Maximum bin size', optional => 1, default_value => 1000),
-            'bp_file_name' => VRPipe::StepOption->create(description => 'Full path to the output Breakpoints file'),
         };
     }
     
     method inputs_definition {
-        return { rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)'), };
+        return { rd_files => VRPipe::StepIODefinition->create(type => 'rd', max_files => -1, description => 'Set of convex Read Depths files (eg grouped by metadata)', metadata => { sample => 'sample name' }), };
     }
     
     method body_sub {
@@ -59,31 +58,35 @@ class VRPipe::Steps::convex_breakpoints extends VRPipe::Steps::r_script {
             my $rd_sample_file_name = $options->{'rd_sample_file_name'};
             my $convex_rscript_path = $options->{'convex_rscript_path'};
             my $max_bin_size        = $options->{'max_bin_size'};
-            my $bp_file_name        = $options->{'bp_file_name'};
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
             
             # Select first Read Depth file in pipeline if none provided as a param
+            my $sample_rd_file;
             if ($rd_sample_file_name) {
                 my $rd_file = file($rd_sample_file_name);
                 $self->throw("rd_sample_file_name must be absolute path") unless $rd_file->is_absolute;
+                $sample_rd_file = VRPipe::File->create(path => $rd_sample_file_name);
             }
             else {
-                my $rd_file = $self->inputs->{rd_files}[0];
-                $rd_sample_file_name = $rd_file->path;
+                $sample_rd_file      = $self->inputs->{rd_files}[0];
+                $rd_sample_file_name = $sample_rd_file->path;
             }
+            $self->throw(" not read depth sample file chosen") unless $sample_rd_file;
             
-            my $bp_file = file($bp_file_name);
-            $self->throw("bp_file_name must be absolute path") unless $bp_file->is_absolute;
+            my $breakpoints_file = $self->output_file(output_key => 'breakpoints_file', output_dir => $sample_rd_file->dir, basename => "breakpoints.bp", type => 'bp', metadata => { source_rd_file => $sample_rd_file->path });
+            my $breakpoints_path = $breakpoints_file->path;
             
-            my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/BreakpointsCall.R $rd_sample_file_name,$max_bin_size,$bp_file_name";
+            my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/BreakpointsCall.R $rd_sample_file_name,$max_bin_size,$breakpoints_path";
             
             $self->dispatch([$cmd, $req]);
         };
     }
     
     method outputs_definition {
-        return {};
+        return {
+            breakpoints_file => VRPipe::StepIODefinition->create(type => 'bp', max_files => 1, description => 'breakpoints file', metadata => { source_rd_file => 'rd file used to create breakpoints file' }),
+        };
     }
     
     method post_process_sub {
