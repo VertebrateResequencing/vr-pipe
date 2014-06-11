@@ -31,8 +31,8 @@ case.
 This is essentially a wrapper around REST::Neo4p, providing functions that can
 be used to store and retrieve information about things.
 
-Things (must) have a namespace, labels and properties. A dynamically-applied
-schema must be in place first, providing uniqueness and indexes.
+Things (must) have a namespace, label and properties. A dynamically-applied
+"schema" must be in place first, providing uniqueness constraints and indexes.
 
 =head1 AUTHOR
 
