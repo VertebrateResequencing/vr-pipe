@@ -5,7 +5,23 @@ VRPipe::Persistent::Graph - interface to a graph database
 
 =head1 SYNOPSIS
     
-[...]
+use VRPipe::Persistent::Graph;
+
+my $graph = VRPipe::Persistent::Graph->new(); $graph->add_schema(     namespace
+=> 'QCGrind',     label => 'Sample',     unique => [qw(sanger_id uuid)],    
+indexed => [qw(public_name)] );
+
+my $node = $graph->add_node(     namespace => 'QCGrind',     label => 'Sample',
+    properties => {         sanger_id => 'sanger1',         uuid => 'uuuuu',   
+     public_name => 'public1'     } );
+
+$graph->relate($node, $other_node, 'has');
+
+($node) = $graph->get_nodes(     namespace => 'QCGrind',     label => 'Sample',
+    properties => {         public_name => 'public1'     } );
+
+my ($related_node) = $graph->related_nodes(     $node,     namespace =>
+'QCGrind',     label => 'Lane',     max_depth => 4 );
 
 =head1 DESCRIPTION
 
@@ -15,8 +31,8 @@ case.
 This is essentially a wrapper around REST::Neo4p, providing functions that can
 be used to store and retrieve information about things.
 
-Things (must) have labels and properties, and can have dynamically-applied
-schema restrictions to provide uniqueness and indexes.
+Things (must) have a namespace, labels and properties. A dynamically-applied
+schema must be in place first, providing uniqueness and indexes.
 
 =head1 AUTHOR
 
@@ -50,7 +66,7 @@ class VRPipe::Persistent::Graph {
     use REST::Neo4p;
     
     our $vrp_config = VRPipe::Config->new();
-    our ($neo4p, $global_label);
+    our ($neo4p, $global_label, $schemas);
     
     sub BUILD {
         my $self = shift;
@@ -93,38 +109,80 @@ class VRPipe::Persistent::Graph {
         return 1;
     }
     
-    method add_schema (Str :$label!, ArrayRef[Str] :$unique!, ArrayRef[Str] :$indexed?) {
+    method add_schema (Str :$namespace!, Str :$label!, ArrayRef[Str] :$unique!, ArrayRef[Str] :$indexed?) {
+        # namespace and label cannot contain |
+        foreach ($namespace, $label) {
+            if (index($_, '|') != -1) {
+                $self->throw("neither namespace or label may contain the | character");
+            }
+        }
+        
         # have we already done this?
-        my $schema_labels = qq[`$global_label`:`VRPipeInternals`:`Schema|$label`];
+        my $schema_labels = $self->_schema_labels($namespace, $label);
         my ($done) = $self->_run_cypher("MATCH (n:$schema_labels) RETURN n");
         unless ($done) {
             # set constraints (which also adds an index on the constraint)
             foreach my $field (@$unique) {
-                $self->_run_cypher("CREATE CONSTRAINT ON (n:`$label`) ASSERT n.$field IS UNIQUE");
+                if (index($field, '|') != -1) {
+                    $self->throw("parameter may not contain the | character");
+                }
+                $self->_run_cypher("CREATE CONSTRAINT ON (n:`$namespace|$label`) ASSERT n.$field IS UNIQUE");
             }
             
             # add indexes
             foreach my $field (@{ $indexed || [] }) {
-                $self->_run_cypher("CREATE INDEX ON :`$label`($field)");
+                if (index($field, '|') != -1) {
+                    $self->throw("parameter may not contain the | character");
+                }
+                $self->_run_cypher("CREATE INDEX ON :`$namespace|$label`($field)");
             }
             
             # record that we've done this
-            $self->_run_cypher("CREATE (:$schema_labels)");
+            my $unique_fields = join('|', @$unique);
+            my $indexed_arg = $indexed ? q[, indexed: '] . join('|', @$indexed) . q['] : '';
+            $self->_run_cypher("CREATE (:$schema_labels { unique: '$unique_fields'$indexed_arg })");
+            
+            $schemas->{$schema_labels} = [$unique, $indexed];
             
             return 1;
         }
         return 0;
     }
     
+    method get_schema (Str :$namespace!, Str :$label!) {
+        my $schema_labels = $self->_schema_labels($namespace, $label);
+        if (exists $schemas->{$schema_labels}) {
+            return @{ $schemas->{$schema_labels} };
+        }
+        else {
+            my ($schema) = $self->_run_cypher("MATCH (n:$schema_labels) RETURN n");
+            if ($schema) {
+                my $uniques = [split(/\|/, $schema->get_property('unique'))];
+                my $indexed = [split(/\|/, $schema->get_property('indexed') || '')];
+                return ($uniques, $indexed);
+            }
+        }
+    }
+    
+    sub _schema_labels {
+        my ($self, $namespace, $label) = @_;
+        return qq[`$global_label`:`VRPipeInternals`:`Schema|$namespace|$label`];
+    }
+    
     sub _labels_and_param_map {
-        my ($self, $label, $params) = @_;
-        my $labels = "`$global_label`:`VRPipe`:`$label`";
+        my ($self, $namespace, $label, $params) = @_;
+        
+        # check that we have a schema for this
+        my ($uniques, $indexed) = $self->get_schema(namespace => $namespace, label => $label);
+        $self->throw("You must first create a schema for namespace `$namespace` and label `$label`") unless $uniques;
+        
+        my $labels = "`$global_label`:`VRPipe`:`$namespace|$label`";
         my $param_map = $params ? ' { ' . join(', ', map { "$_: {param}.$_" } sort keys %$params) . ' }' : '';
         return ($labels, $param_map);
     }
     
-    method add_node (Str :$label!, HashRef :$properties!) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($label, $properties);
+    method add_node (Str :$namespace!, Str :$label!, HashRef :$properties!) {
+        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties);
         
         if (defined wantarray()) {
             my ($node) = $self->_run_cypher("MERGE (n:$labels$param_map) RETURN n", $properties);
@@ -133,11 +191,10 @@ class VRPipe::Persistent::Graph {
         else {
             $self->_run_cypher("MERGE (:$labels$param_map)", $properties);
         }
-    
     }
     
-    method get_nodes (Str :$label!, HashRef :$properties!) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($label, $properties);
+    method get_nodes (Str :$namespace!, Str :$label!, HashRef :$properties!) {
+        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties);
         return $self->_run_cypher("MATCH (n:$labels$param_map) RETURN n", $properties);
     }
     
@@ -146,8 +203,8 @@ class VRPipe::Persistent::Graph {
         return $start_node->relate_to($end_node, $relationship);
     }
     
-    method related_nodes (Object $start_node!, Str :$label!, HashRef :$properties?, Str :$relationship?, Str :$direction?, Int :$min_depth = 1, Int :$max_depth = 1) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($label, $properties);
+    method related_nodes (Object $start_node!, Str :$namespace!, Str :$label!, HashRef :$properties?, Str :$relationship?, Str :$direction?, Int :$min_depth = 1, Int :$max_depth = 1) {
+        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties);
         my $type = $relationship ? ":`$relationship`" : '';
         $direction ||= '';
         my $leftward  = $direction eq '<' ? '<' : '';
