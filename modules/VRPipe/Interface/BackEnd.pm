@@ -378,6 +378,12 @@ XSL
         writer => '_set_dsn'
     );
     
+    has 'neo4j_server_url' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_neo4j_server_url'
+    );
+    
     has 'scheduler' => (
         is     => 'ro',
         isa    => 'Str',
@@ -504,6 +510,11 @@ XSL
         my $log_file = file($log_dir, 'vrpipe-server.' . $log_basename . '.log');
         $self->_set_log_file($log_file->stringify);
         $self->_set_log_dir("$log_dir");
+        
+        my $neo4j_url = $vrp_config->neo4j_server_url();
+        if ($neo4j_url) {
+            $self->_set_neo4j_server_url("$neo4j_url");
+        }
         
         require VRPipe::Persistent::Schema;
     }
@@ -641,6 +652,17 @@ XSL
         $res->content_type('text/' . $format);
         $res->body($content);
         return $res;
+    }
+    
+    method psgi_file_response (Int $code, Str $format, Str $path, HashRef $env) {
+        my $content = '';
+        {
+            local $/ = undef;
+            open(my $fh, $path) || die "Couldn't open file $path\n";
+            $content = <$fh>;
+            close($fh);
+        }
+        return $self->psgi_text_response($code, $format, $content, $env);
     }
     
     sub psgi_nonblocking_xml_response {
