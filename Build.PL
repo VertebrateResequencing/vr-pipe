@@ -31,6 +31,7 @@ my $build = VRPipeBuild->new(
     recursive_test_files => 1,
     pm_files             => get_pm_files,
     script_files         => 'scripts',
+    share_dir            => 'share',
     requires             => required_modules
 );
 

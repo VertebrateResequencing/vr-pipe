@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012-2013 Genome Research Limited.
+Copyright (c) 2012-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -38,6 +38,7 @@ use Path::Class;
 use Cwd 'getcwd';
 use Digest::MD5;
 use VRPipe::Persistent::InMemory;
+use File::Share ':all';
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -61,7 +62,8 @@ my $max_subs              = $cmdline->opts('max_submissions');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 my $debug                 = $cmdline->opts('debug');
 my $scheduler;
-my $im = VRPipe::Persistent::InMemory->new();
+my $im       = VRPipe::Persistent::InMemory->new();
+my $dist_dir = dist_dir('VRPipe');
 
 my $command = shift;
 unless ($command) {
@@ -640,86 +642,9 @@ sub start_server {
     }
     
     # set up the http page requests we'll respond to
-    my $html_template = <<HTML;
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <title>VRPipe</title>
-        
-        <!-- Bootstrap for presentation and styling -->
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
-        <script src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
-        <!--[if lt IE 9]>
-          <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
-          <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
-        <![endif]-->
-        
-        <!-- jQuery for REST interaction -->
-        <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
-        
-        <!-- Knockout for event handling -->
-        <script src="http://cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
-    </head>
-    <body>
-        <div class="navbar navbar-default navbar-fixed-top" role="navigation">
-            <div class="container">
-                <div class="navbar-header">
-                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
-                        <span class="sr-only">Toggle navigation</span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                    </button>
-                    <a class="navbar-brand" href="#">VRPipe</a>
-                </div>
-                <div class="navbar-collapse collapse">
-                    <ul class="nav navbar-nav">
-                        <li class="active"><a href="#">Home</a></li>
-                        <li><a href="/status">Status</a></li>
-                        <li><a href="/graph">Graph</a></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        
-        <!-- pre content -->
-        
-        <div class="container">
-            <!-- normal content -->
-            
-            <hr>
-            
-            <footer>
-                <small>&copy; 2014 Genome Research Limited.</small>
-            </footer>
-        </div>
-        
-        <script type="text/javascript">
-            // application code
-        </script>
-    </body>
-</html>
-HTML
-    
-    my $homepage_content = <<HTML;
-        <div class="jumbotron">
-            <div class="container">
-                <h1>Welcome, user!</h1>
-                <p>You've successfully connected to your VRPipe server. This web interface will have many more features coming soon; the first two - checking status of your pipeline setups and looking at the graph database - can be accessed using the links in the navigation bar above.</p>
-                
-                <!-- the http://getbootstrap.com/examples/dashboard layout looks like it could be good when we have more stuff -->
-            </div>
-        </div>
-HTML
-    my $homepage = $html_template;
-    $homepage =~ s/<!-- pre content -->/$homepage_content/;
-    
     $backend->register_psgi_pages(
         '/' => sub {
-            $backend->psgi_text_response(200, 'html', $homepage, shift);
+            $backend->psgi_file_response(200, 'html', file($dist_dir, 'web_interface.html')->stringify, shift);
         },
         '/status' => sub { $backend->psgi_nonblocking_xml_response(\&status, shift); },
         '/dsn'    => sub {
