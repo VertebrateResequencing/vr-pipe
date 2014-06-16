@@ -654,13 +654,18 @@ XSL
         return $res;
     }
     
-    method psgi_file_response (Int $code, Str $format, Str $path, HashRef $env) {
+    method psgi_file_response (Int $code, Str $format, Str $path, HashRef $env, ArrayRef $regexes?) {
         my $content = '';
         {
             local $/ = undef;
             open(my $fh, $path) || die "Couldn't open file $path\n";
             $content = <$fh>;
             close($fh);
+            
+            foreach (@{ $regexes || [] }) {
+                my ($search, $replace) = @{$_};
+                $content =~ s/$search/$replace/g;
+            }
         }
         return $self->psgi_text_response($code, $format, $content, $env);
     }
