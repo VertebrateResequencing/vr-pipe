@@ -637,70 +637,78 @@
                                         }
                                         
                                         if (index < labelRequests.length) {
-                                            if ($.inArray("VRPipe", labeldata) != -1 && $.inArray(self.deploymentLabel, labeldata) != -1) {
-                                                var arr = labeldata[2].split('|');
-                                                var namespace = arr[0];
-                                                var label = arr[1];
-                                                
-                                                var schemaLabels = '`' + self.deploymentLabel + '`:`VRPipeInternals`:`Schema|' + namespace + '|' + label + '`';
-                                                if (! self.schemas.hasOwnProperty(schemaLabels)) {
-                                                    schemaRequests.push(ajax(self.cypherURI, 'POST', self.graphloading, self.grapherror, { query: 'MATCH (n:' + schemaLabels + ') RETURN n.unique' }));
-                                                    schemaLabelsArray.push(schemaLabels);
-                                                    self.schemas[schemaLabels] = 'placeholder';
+                                            if ($.inArray(self.deploymentLabel, labeldata) != -1) {
+                                                var arr = labeldata[1].split('|');
+                                                var namespace = arr[1];
+                                                var label = arr[2];
+                                                if (! label) {
+                                                    arr = labeldata[0].split('|');
+                                                    namespace = arr[1];
+                                                    label = arr[2];
                                                 }
                                                 
-                                                var nameSpaceHSL;
-                                                if (! self.namespaceToHSL.hasOwnProperty(namespace)) {
-                                                    nameSpaceHSL = self.getHSL();
-                                                    self.namespaceToHSL[namespace] = nameSpaceHSL;
-                                                }
-                                                else {
-                                                    nameSpaceHSL = self.namespaceToHSL[namespace];
-                                                }
-                                                if (! tempLabelData.hasOwnProperty(namespace)) {
-                                                    tempLabelData[namespace] = { hsl: nameSpaceHSL, labels: {} };
-                                                }
-                                                
-                                                var labelHSL;
-                                                if (! self.labelToHSL.hasOwnProperty(label)) {
-                                                    labelHSL = self.getHSL();
-                                                    self.labelToHSL[label] = labelHSL;
-                                                }
-                                                else {
-                                                    labelHSL = self.labelToHSL[label];
-                                                }
-                                                if (! tempLabelData[namespace].labels.hasOwnProperty(label)) {
-                                                    tempLabelData[namespace].labels[label] = labelHSL;
-                                                }
-                                                
-                                                // this is just for the tabular
-                                                // display of node data
-                                                self.nodes.push({
-                                                    label: label,
-                                                    namespace: namespace,
-                                                    properties: JSON.stringify(nodeProperties[index]),
-                                                    nodeId: nodeIds[index]
-                                                });
-                                                
-                                                // push out the info we need
-                                                // later to make the cytoscape
-                                                // nodes, once we have the
-                                                // schema data
-                                                tempNodes.push({
-                                                    label: label,
-                                                    namespace: namespace,
-                                                    properties: nodeProperties[index],
-                                                    nodeId: nodeIds[index],
-                                                    schemaLabels: schemaLabels,
-                                                    nameSpaceHSL: nameSpaceHSL,
-                                                    labelHSL: labelHSL,
-                                                });
-                                                
-                                                if (! nonRootNodes.hasOwnProperty(nodeIds[index])) {
-                                                    if (! rootNodes.hasOwnProperty(namespace)) {
-                                                        rootNodes[namespace] = Array();
+                                                if (label) {
+                                                    var schemaLabels = '`' + self.deploymentLabel + '`:`Schema`';
+                                                    var dsl = self.deploymentLabel + '|' + namespace + '|' + label;
+                                                    if (! self.schemas.hasOwnProperty(dsl)) {
+                                                        schemaRequests.push(ajax(self.cypherURI, 'POST', self.graphloading, self.grapherror, { query: 'MATCH (n:' + schemaLabels + ' { schema: "' + dsl + '" }) RETURN n.unique' }));
+                                                        schemaLabelsArray.push(dsl);
+                                                        self.schemas[dsl] = 'placeholder';
                                                     }
-                                                    rootNodes[namespace].push(nodeIds[index]);
+                                                    
+                                                    var nameSpaceHSL;
+                                                    if (! self.namespaceToHSL.hasOwnProperty(namespace)) {
+                                                        nameSpaceHSL = self.getHSL();
+                                                        self.namespaceToHSL[namespace] = nameSpaceHSL;
+                                                    }
+                                                    else {
+                                                        nameSpaceHSL = self.namespaceToHSL[namespace];
+                                                    }
+                                                    if (! tempLabelData.hasOwnProperty(namespace)) {
+                                                        tempLabelData[namespace] = { hsl: nameSpaceHSL, labels: {} };
+                                                    }
+                                                    
+                                                    var labelHSL;
+                                                    if (! self.labelToHSL.hasOwnProperty(label)) {
+                                                        labelHSL = self.getHSL();
+                                                        self.labelToHSL[label] = labelHSL;
+                                                    }
+                                                    else {
+                                                        labelHSL = self.labelToHSL[label];
+                                                    }
+                                                    if (! tempLabelData[namespace].labels.hasOwnProperty(label)) {
+                                                        tempLabelData[namespace].labels[label] = labelHSL;
+                                                    }
+                                                    
+                                                    // this is just for the tabular
+                                                    // display of node data
+                                                    self.nodes.push({
+                                                        label: label,
+                                                        namespace: namespace,
+                                                        properties: JSON.stringify(nodeProperties[index]),
+                                                        nodeId: nodeIds[index]
+                                                    });
+                                                    
+                                                    // push out the info we need
+                                                    // later to make the cytoscape
+                                                    // nodes, once we have the
+                                                    // schema data
+                                                    tempNodes.push({
+                                                        label: label,
+                                                        namespace: namespace,
+                                                        properties: nodeProperties[index],
+                                                        nodeId: nodeIds[index],
+                                                        schemaLabels: dsl,
+                                                        nameSpaceHSL: nameSpaceHSL,
+                                                        labelHSL: labelHSL,
+                                                    });
+                                                    
+                                                    if (! nonRootNodes.hasOwnProperty(nodeIds[index])) {
+                                                        if (! rootNodes.hasOwnProperty(namespace)) {
+                                                            rootNodes[namespace] = Array();
+                                                        }
+                                                        rootNodes[namespace].push(nodeIds[index]);
+                                                    }
                                                 }
                                             }
                                         }

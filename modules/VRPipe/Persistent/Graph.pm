@@ -7,9 +7,10 @@ VRPipe::Persistent::Graph - interface to a graph database
     
 use VRPipe::Persistent::Graph;
 
-my $graph = VRPipe::Persistent::Graph->new(); $graph->add_schema(     namespace
-=> 'QCGrind',     label => 'Sample',     unique => [qw(sanger_id uuid)],    
-indexed => [qw(public_name)] );
+my $graph = VRPipe::Persistent::Graph->new();
+
+$graph->add_schema(     namespace => 'QCGrind',     label => 'Sample',    
+unique => [qw(sanger_id uuid)],         indexed => [qw(public_name)] );
 
 my $node = $graph->add_node(     namespace => 'QCGrind',     label => 'Sample',
     properties => {         sanger_id => 'sanger1',         uuid => 'uuuuu',   
@@ -64,9 +65,11 @@ class VRPipe::Persistent::Graph {
     use VRPipe::Config;
     use VRPipe::Persistent::SchemaBase;
     use REST::Neo4p;
+    use Data::UUID;
     
+    our $data_uuid  = Data::UUID->new();
     our $vrp_config = VRPipe::Config->new();
-    our ($neo4p, $global_label, $schemas);
+    our ($neo4p, $global_label, $schemas, $schema_labels);
     
     sub BUILD {
         my $self = shift;
@@ -77,12 +80,13 @@ class VRPipe::Persistent::Graph {
             
             my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
             if ($deployment eq 'production') {
-                $global_label = "deployment|production";
+                $global_label = "vdp";
             }
             else {
                 my $user = getlogin || getpwuid($<);
-                $global_label = "deployment|testing|$user";
+                $global_label = "vdt$user";
             }
+            $schema_labels = qq[`$global_label`:`Schema`];
         }
     }
     
@@ -104,12 +108,28 @@ class VRPipe::Persistent::Graph {
     }
     
     method drop_database {
-        $self->throw("drop_database() can only be used when testing") unless $global_label =~ /^deployment\|testing/;
+        $self->throw("drop_database() can only be used when testing") unless $global_label =~ /^vdt/;
+        
+        # drop all schemas (which drops all constraints and indexes)
+        my @schema_nodes = $self->_run_cypher("MATCH (n:$schema_labels) RETURN n");
+        foreach my $node (@schema_nodes) {
+            my $schema = $node->get_property('schema');
+            my (undef, $namespace, $label) = split(/\|/, $schema);
+            $self->drop_schema(namespace => $namespace, label => $label);
+        }
+        
+        # drop all nodes and relationships
         $self->_run_cypher("MATCH (n:`$global_label`) OPTIONAL MATCH (n:`$global_label`)-[r]-() DELETE n,r");
+        
         return 1;
     }
     
-    method add_schema (Str :$namespace!, Str :$label!, ArrayRef[Str] :$unique!, ArrayRef[Str] :$indexed?) {
+    sub _deployment_specific_label {
+        my ($self, $namespace, $label) = @_;
+        return "$global_label|$namespace|$label";
+    }
+    
+    method add_schema (Str :$namespace!, Str :$label!, ArrayRef[Str] :$unique!, ArrayRef[Str] :$indexed?, ArrayRef[Str] :$required?) {
         # namespace and label cannot contain |
         foreach ($namespace, $label) {
             if (index($_, '|') != -1) {
@@ -118,15 +138,15 @@ class VRPipe::Persistent::Graph {
         }
         
         # have we already done this?
-        my $schema_labels = $self->_schema_labels($namespace, $label);
-        my ($done) = $self->_run_cypher("MATCH (n:$schema_labels) RETURN n");
+        my $dsl = $self->_deployment_specific_label($namespace, $label);
+        my ($done) = $self->_run_cypher("MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n");
         unless ($done) {
             # set constraints (which also adds an index on the constraint)
             foreach my $field (@$unique) {
                 if (index($field, '|') != -1) {
                     $self->throw("parameter may not contain the | character");
                 }
-                $self->_run_cypher("CREATE CONSTRAINT ON (n:`$namespace|$label`) ASSERT n.$field IS UNIQUE");
+                $self->_run_cypher("CREATE CONSTRAINT ON (n:`$dsl`) ASSERT n.$field IS UNIQUE");
             }
             
             # add indexes
@@ -134,15 +154,16 @@ class VRPipe::Persistent::Graph {
                 if (index($field, '|') != -1) {
                     $self->throw("parameter may not contain the | character");
                 }
-                $self->_run_cypher("CREATE INDEX ON :`$namespace|$label`($field)");
+                $self->_run_cypher("CREATE INDEX ON :`$dsl`($field)");
             }
             
             # record that we've done this
             my $unique_fields = join('|', @$unique);
             my $indexed_arg = $indexed ? q[, indexed: '] . join('|', @$indexed) . q['] : '';
-            $self->_run_cypher("CREATE (:$schema_labels { unique: '$unique_fields'$indexed_arg })");
+            my $required_arg = $required ? q[, required: '] . join('|', @$required) . q['] : '';
+            $self->_run_cypher("CREATE (:$schema_labels { schema: '$dsl', unique: '$unique_fields'$indexed_arg$required_arg })");
             
-            $schemas->{$schema_labels} = [$unique, $indexed];
+            $schemas->{$dsl} = [$unique, $indexed || [], $required || []];
             
             return 1;
         }
@@ -150,39 +171,61 @@ class VRPipe::Persistent::Graph {
     }
     
     method get_schema (Str :$namespace!, Str :$label!) {
-        my $schema_labels = $self->_schema_labels($namespace, $label);
-        if (exists $schemas->{$schema_labels}) {
-            return @{ $schemas->{$schema_labels} };
+        my $dsl = $self->_deployment_specific_label($namespace, $label);
+        if (exists $schemas->{$dsl}) {
+            return @{ $schemas->{$dsl} };
         }
         else {
-            my ($schema) = $self->_run_cypher("MATCH (n:$schema_labels) RETURN n");
+            my ($schema) = $self->_run_cypher("MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n");
             if ($schema) {
-                my $uniques = [split(/\|/, $schema->get_property('unique'))];
-                my $indexed = [split(/\|/, $schema->get_property('indexed') || '')];
-                return ($uniques, $indexed);
+                my $uniques  = [split(/\|/, $schema->get_property('unique'))];
+                my $indexed  = [split(/\|/, $schema->get_property('indexed') || '')];
+                my $required = [split(/\|/, $schema->get_property('required') || '')];
+                $schemas->{$dsl} = [$uniques, $indexed, $required];
+                return ($uniques, $indexed, $required);
             }
         }
     }
     
-    sub _schema_labels {
-        my ($self, $namespace, $label) = @_;
-        return qq[`$global_label`:`VRPipeInternals`:`Schema|$namespace|$label`];
+    method drop_schema (Str :$namespace!, Str :$label!) {
+        my ($uniques, $indexed) = $self->get_schema(namespace => $namespace, label => $label);
+        my $dsl = $self->_deployment_specific_label($namespace, $label);
+        
+        # remove constraints
+        foreach my $field (@$uniques) {
+            $self->_run_cypher("DROP CONSTRAINT ON (n:`$dsl`) ASSERT n.$field IS UNIQUE");
+        }
+        
+        # remove indexes
+        foreach my $field (@$indexed) {
+            $self->_run_cypher("DROP INDEX ON :`$dsl`($field)");
+        }
+        
+        # remove the node storing schema details, and our cache
+        $self->_run_cypher("MATCH (n:$schema_labels { schema: '$dsl' })-[r]-() DELETE n, r");
+        delete $schemas->{$dsl};
     }
     
     sub _labels_and_param_map {
-        my ($self, $namespace, $label, $params) = @_;
+        my ($self, $namespace, $label, $params, $check_required) = @_;
         
         # check that we have a schema for this
-        my ($uniques, $indexed) = $self->get_schema(namespace => $namespace, label => $label);
+        my ($uniques, $indexed, $required) = $self->get_schema(namespace => $namespace, label => $label);
         $self->throw("You must first create a schema for namespace `$namespace` and label `$label`") unless $uniques;
+        if ($check_required) {
+            $self->throw("Parameters must be supplied") unless $params;
+            foreach my $param (@$uniques, @{ $required || [] }) {
+                $self->throw("Parameter '$param' must be supplied") unless defined $params->{$param};
+            }
+        }
         
-        my $labels = "`$global_label`:`VRPipe`:`$namespace|$label`";
+        my $labels = "`$global_label`:`$global_label|$namespace|$label`";
         my $param_map = $params ? ' { ' . join(', ', map { "$_: {param}.$_" } sort keys %$params) . ' }' : '';
         return ($labels, $param_map);
     }
     
     method add_node (Str :$namespace!, Str :$label!, HashRef :$properties!) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties);
+        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties, 1);
         
         if (defined wantarray()) {
             my ($node) = $self->_run_cypher("MERGE (n:$labels$param_map) RETURN n", $properties);
@@ -191,6 +234,16 @@ class VRPipe::Persistent::Graph {
         else {
             $self->_run_cypher("MERGE (:$labels$param_map)", $properties);
         }
+    }
+    
+    method delete_node (Object $node!) {
+        my $id = $node->id();
+        $self->_run_cypher("START n=node($id) MATCH n-[r]-() DELETE n, r");
+        return 1;
+    }
+    
+    sub create_uuid {
+        return $data_uuid->create_str();
     }
     
     method get_nodes (Str :$namespace!, Str :$label!, HashRef :$properties!) {
