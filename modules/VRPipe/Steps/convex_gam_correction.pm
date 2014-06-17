@@ -14,7 +14,7 @@ Chris Joyce <cj5@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -38,14 +38,18 @@ class VRPipe::Steps::convex_gam_correction extends VRPipe::Steps::r_script {
     around options_definition {
         return {
             %{ $self->$orig },
-            'features_file'       => VRPipe::StepOption->create(description => 'features file from L2R calculation step'),
-            'breakpoints_file'    => VRPipe::StepOption->create(description => 'breakpoints file'),
             'convex_rscript_path' => VRPipe::StepOption->create(description => 'full path to CoNVex R scripts'),
+            'gc_only'             => VRPipe::StepOption->create(description => 'Boolean for gc_only option in CoNVex gam correction step', default_value => 0),
         };
     }
     
     method inputs_definition {
-        return { rd_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more convex read depth files'), };
+        return {
+            rd_files         => VRPipe::StepIODefinition->create(type => 'rd',  max_files => -1, description => 'read depth (rd) txt files per-sample', metadata => { sample => 'sample name' }),
+            l2r_files        => VRPipe::StepIODefinition->create(type => 'l2r', max_files => -1, description => 'l2r txt files per-sample',             metadata => { sample => 'sample name' }),
+            features_file    => VRPipe::StepIODefinition->create(type => 'fts', max_files => 1,  description => 'features file from L2R calculation step'),
+            breakpoints_file => VRPipe::StepIODefinition->create(type => 'bp',  max_files => 1,  description => 'breakpoints file from convex_breakpoints step'),
+        };
     }
     
     method body_sub {
@@ -55,37 +59,39 @@ class VRPipe::Steps::convex_gam_correction extends VRPipe::Steps::r_script {
             my $options = $self->options;
             $self->handle_standard_options($options);
             
-            my $features_file       = $options->{'features_file'};
-            my $breakpoints_file    = $options->{'breakpoints_file'};
             my $convex_rscript_path = $options->{'convex_rscript_path'};
+            my $gc_only             = $options->{'gc_only'};
+            
+            my $features_file    = $self->inputs->{features_file}->[0]->path;
+            my $breakpoints_file = $self->inputs->{breakpoints_file}->[0]->path;
+            
+            my %samples;
+            foreach my $txt (@{ $self->inputs->{rd_files} }, @{ $self->inputs->{l2r_files} }) {
+                my $sample = $txt->metadata->{sample};
+                $samples{$sample}{rd}  = $txt       if ($txt->type eq 'rd');
+                $samples{$sample}{l2r} = $txt->path if ($txt->type eq 'l2r');
+            }
             
             my $req = $self->new_requirements(memory => 2000, time => 1);
-            
-            foreach my $rd_file (@{ $self->inputs->{rd_files} }) {
+            foreach my $sample (keys %samples) {
+                my $rd_file  = $samples{$sample}{rd};
+                my $l2r_path = $samples{$sample}{l2r};
+                
                 my $rd_path  = $rd_file->path;
                 my $basename = $rd_file->basename;
-                $basename =~ s/\.rd\.txt$/.gam.txt/;
+                $basename =~ s/rd$/gam/;
                 
-                my $bam_path   = $rd_file->metadata->{source_bam};
-                my $bam_file   = VRPipe::File->get(path => $bam_path);
-                my $bam_sample = $bam_file->metadata->{sample};
-                
-                my $gam_file = $self->output_file(output_key => 'gam_files', basename => $basename, type => 'txt', metadata => { sample => $bam_sample });
+                my $gam_file = $self->output_file(output_key => 'gam_files', basename => $basename, type => 'gam', metadata => $rd_file->metadata);
                 my $gam_path = $gam_file->path;
                 
-                my $l2r_path = $rd_path;
-                
-                $l2r_path =~ s/\.rd\.txt$/.l2r.txt/; # L2R file in same dir as RD file
-                
-                my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/GAMCorrectionPerSample.R $l2r_path,$features_file,$gam_path,$rd_path,$breakpoints_file";
-                
+                my $cmd = $self->rscript_cmd_prefix . " $convex_rscript_path/GAMCorrectionPerSample.R $l2r_path,$features_file,$gam_path,$rd_path,$breakpoints_file,$gc_only";
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::convex_gam_correction', 'run_gam_correction', [$cmd, $req, { output_files => [$gam_file] }]);
             }
         };
     }
     
     method outputs_definition {
-        return { gam_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'a GAM Correction file for each input Read depth and L2R file'), };
+        return { gam_files => VRPipe::StepIODefinition->create(type => 'gam', max_files => -1, description => 'a GAM Correction file for each input Read depth and L2R file', metadata => { sample => 'sample name' }) };
     }
     
     method post_process_sub {
@@ -97,7 +103,7 @@ class VRPipe::Steps::convex_gam_correction extends VRPipe::Steps::r_script {
     }
     
     method max_simultaneous {
-        return 0;                                    # meaning unlimited
+        return 0;            # meaning unlimited
     }
     
     method run_gam_correction (ClassName|Object $self: Str $cmd_line) {

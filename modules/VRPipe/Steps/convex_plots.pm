@@ -34,13 +34,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::convex_plots with VRPipe::StepRole {
-    method options_definition {
-        return {
-            'r_libs' => VRPipe::StepOption->create(description => 'full path to R_LIBS where the CoNVex package is installed'),
-        };
-    }
-    
+class VRPipe::Steps::convex_plots extends VRPipe::Steps::r_script {
     method inputs_definition {
         return { cnv_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'Set of convex CNV call files '), };
     }
@@ -49,35 +43,32 @@ class VRPipe::Steps::convex_plots with VRPipe::StepRole {
         return sub {
             my $self    = shift;
             my $options = $self->options;
-            my $r_libs  = $options->{'r_libs'};
+            $self->handle_standard_options($options);
             
-            $self->output_file(output_key => 'calls_per_sample_png', basename => "CNVstats_CallsperSample.png", type => 'bin');
-            $self->output_file(output_key => 'del_dup_ratio_png',    basename => "CNVstats_DelDupRatio.png",    type => 'bin');
+            my @o_files;
+            push @o_files, $self->output_file(output_key => 'calls_per_sample_png', basename => "CNVstats_CallsperSample.png", type => 'bin');
+            push @o_files, $self->output_file(output_key => 'del_dup_ratio_png',    basename => "CNVstats_DelDupRatio.png",    type => 'bin');
             
             # Create a fofn of CNV call files
-            my $cnv_fofn = $self->output_file(output_key => 'cnv_fofn', basename => "CnvFofn.txt", type => 'txt');
-            my $ofh = $cnv_fofn->openw;
-            
-            foreach my $cnv_file (@{ $self->inputs->{cnv_files} }) {
-                my $rd_path = $cnv_file->path;
-                print $ofh "$rd_path\n";
-            }
-            $cnv_fofn->close;
+            my $cnv_fofn = $self->output_file(basename => "cnv.fofn", type => 'txt', temporary => 1);
+            $cnv_fofn->create_fofn($self->inputs->{cnv_files});
             
             my $cnv_fofn_path = $cnv_fofn->path;
-            my $out_dir = $cnv_fofn->dir;
-
+            my $out_dir       = $cnv_fofn->dir;
+            
+            my $plot_script_path = $self->output_file(basename => "convex_plot.R", type => 'txt', temporary => 1)->path;
+            
             my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $cmd = "use VRPipe::Steps::convex_plots; VRPipe::Steps::convex_plots->run_plots('$r_libs','$cnv_fofn_path','$out_dir');";
-            $self->dispatch_vrpipecode($cmd, $req);
+            my $cmd = $self->rscript_cmd_prefix . " $plot_script_path $cnv_fofn_path,$out_dir";
+            
+            $self->dispatch_wrapped_cmd('VRPipe::Steps::convex_plots', 'run_plots', [$cmd, $req, { output_files => \@o_files }]);
         };
     }
     
     method outputs_definition {
         return {
-            cnv_fofn             => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => 'fofn of convex call files'),
-            calls_per_sample_png => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'CNVstats_CallsperSample png'),
-            del_dup_ratio_png    => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'CNVstats_DelDupRatio png'),
+            calls_per_sample_png => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => 'CNVstats_CallsperSample png'),
+            del_dup_ratio_png    => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => 'CNVstats_DelDupRatio png'),
         };
     }
     
@@ -92,22 +83,33 @@ class VRPipe::Steps::convex_plots with VRPipe::StepRole {
     method max_simultaneous {
         return 1;            # should only run once
     }
-
-    method run_plots (ClassName|Object $self: Str $r_libs, Str $cnv_fofn_path, Str $out_dir) {
-
-        eval "use Statistics::R;";
+    
+    method run_plots (ClassName|Object $self: Str $cmd_line!) {
+        my ($rscript_path) = $cmd_line =~ m/(\S+\.R) \S+$/;
+        $rscript_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
-        my $R = Statistics::R->new();
-        $R->run(".libPaths('$r_libs')");
-        $R->run("require(CoNVex)");
+        my $rscript = VRPipe::File->get(path => $rscript_path);
+        
+        my $fh = $rscript->openw;
+        print $fh qq[
+require(CoNVex)
+ca = commandArgs(trailingOnly=TRUE);
 
-        $R->run("fofn='$cnv_fofn_path'");
-        $R->run("CNVfiles = as.character(read.table(fofn)[,1])");
-        $R->run("CNVcalls = GetCNVCalls(CNVfiles)");
+fn = strsplit(ca,"\\\\,")
+fofn = fn[[1]][1]
+outdir = fn[[1]][2]
 
-        $R->run("setwd('$out_dir')");
-        $R->run("PlotCNVStats(CNVcallsAll=CNVcalls)");
+setwd(outdir)
 
+CNVfiles = as.character(read.table(fofn)[,1])
+CNVcalls = GetCNVCalls(CNVfiles)
+
+PlotCNVStats(CNVcallsAll=CNVcalls)
+];
+        $rscript->close;
+        
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
         return 1;
     }
 
