@@ -63,6 +63,9 @@ class VRPipe::Steps::star_buildgenome with VRPipe::StepRole {
             if ($star_gen_opts =~ /runMode|genomeDir/) {
                 $self->throw("star_genomeGenerate_options should not include --runMode and --genomeDir");
             }
+            if ($star_gen_opts !~ /genomeSAindexNbases/ || $star_gen_opts !~ /runThreadN/ || $star_gen_opts !~ /limitIObufferSize/) {
+                $self->throw("star_genomeGenerate_options should include --genomeSAindexNbases, --limitIObufferSize and --runThreadN");
+            }
             
             my $ref = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path, $ref") unless $ref->is_absolute;

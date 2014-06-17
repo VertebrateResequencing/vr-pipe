@@ -100,34 +100,25 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
             my %fastqs;
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
                 my $meta = $fq->metadata;
-                next if ($meta->{paired} == 0);
-                my $basename = $fq->basename;
-                if ($basename =~ /_M\.(fq|fastq)(\.gz)?$/) {
-                    $self->throw("STAR can only handle the input of 2 paired-end fastqs");
-                }
-                $basename =~ s/_(1|2)\.(fq|fastq)(\.gz)?$/.fq/;
+                next if ($meta->{paired} == 0); #STAR can only handle the input of 2 paired-end fastqs
+                my $lane = $meta->{lane};
                 if ($meta->{paired} == 1) {
-                    unshift @{ $fastqs{$basename} }, $fq;
+                    unshift @{ $fastqs{$lane} }, $fq;
                 }
                 else {
-                    push @{ $fastqs{$basename} }, $fq;
+                    push @{ $fastqs{$lane} }, $fq;
                 }
             }
             
-            foreach my $fq (keys %fastqs) {
-                my @fqs = map { $_->path } @{ $fastqs{$fq} };
-                my $fq_meta = $self->common_metadata($fastqs{$fq});
-                
+            foreach my $lane (keys %fastqs) {
+                my @fqs = map { $_->path } @{ $fastqs{$lane} };
+                my $fq_meta = $self->common_metadata($fastqs{$lane});
                 # add metadata and construct readgroup info
-                
-                my $lane     = $fq_meta->{lane};
                 my $sam_meta = {
                     lane   => $lane,
                     paired => 1,
                 };
-                
                 my $rg_arg = 'ID:' . $lane;
-                
                 if (defined $fq_meta->{library}) {
                     my $lb = $fq_meta->{library};
                     $sam_meta->{library} = $lb;
@@ -211,8 +202,9 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
                 }
             ),
             tab_file => VRPipe::StepIODefinition->create(
-                type        => 'txt',
-                description => 'tab-delimited file containing collapsed splice junctions'
+                type            => 'txt',
+                description     => 'tab-delimited file containing collapsed splice junctions',
+                check_existence => 0
             ),
             log_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
