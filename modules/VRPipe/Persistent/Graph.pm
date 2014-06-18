@@ -64,19 +64,44 @@ use VRPipe::Base;
 class VRPipe::Persistent::Graph {
     use VRPipe::Config;
     use VRPipe::Persistent::SchemaBase;
-    use REST::Neo4p;
+    use LWP::UserAgent;
+    use JSON::XS;
     use Data::UUID;
     
+    our $json       = JSON::XS->new->canonical->allow_nonref(1);
     our $data_uuid  = Data::UUID->new();
     our $vrp_config = VRPipe::Config->new();
-    our ($neo4p, $global_label, $schemas, $schema_labels);
+    our ($lwp, $transaction_endpoint, $global_label, $schemas, $schema_labels);
     
     sub BUILD {
         my $self = shift;
         
-        unless ($neo4p) {
-            my $url = $vrp_config->neo4j_server_url();
-            $neo4p = REST::Neo4p->connect($url);
+        unless ($lwp) {
+            $lwp = LWP::UserAgent->new(
+                default_headers => HTTP::Headers->new(
+                    'Accept'       => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'X-Stream'     => 'true'
+                ),
+                protocols_allowed => ['http', 'https'],
+                timeout           => 10
+            );
+            
+            # connect and get the transaction endpoint
+            my $url  = $vrp_config->neo4j_server_url();
+            my $resp = $lwp->get($url);
+            unless ($resp->is_success) {
+                $self->throw("Failed to connect to '$url': [" . $resp->code . "] " . $resp->message);
+            }
+            my $decode = $json->decode($resp->content);
+            my $data_endpoint = $decode->{data} || $self->throw("No data endpoint found at $url");
+            $resp = $lwp->get($data_endpoint);
+            unless ($resp->is_success) {
+                $self->throw("Failed to connect to '$data_endpoint': [" . $resp->code . "] " . $resp->message);
+            }
+            $decode = $json->decode($resp->content);
+            $transaction_endpoint = $decode->{transaction} || $self->throw("No transaction endpoint found at $data_endpoint");
+            $transaction_endpoint .= '/commit';
             
             my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
             if ($deployment eq 'production') {
@@ -92,28 +117,94 @@ class VRPipe::Persistent::Graph {
     
     sub _run_cypher {
         my ($self, $cypher, $params) = @_;
-        my $query = REST::Neo4p::Query->new($cypher, $params ? ({ param => $params }) : ());
-        $query->execute;
-        if ($query->err) {
-            $self->throw("neo4j cypher query failed with code " . $query->err . ": " . $query->errstr);
+        
+        my $post_content = {
+            statements => [{
+                    statement => $cypher,
+                    $params ? (parameters => $params) : (),
+                    resultDataContents => ['graph']
+                }
+            ]
+        };
+        
+        my $resp = $lwp->post(
+            $transaction_endpoint,
+            'Content-Type' => 'application/json',
+            'X-Stream'     => 'true',
+            Content        => $json->encode($post_content)
+        );
+        unless ($resp->is_success) {
+            $self->throw('[' . $resp->code . '] ' . $resp->message);
         }
-        else {
-            my @results;
-            while (my $row = $query->fetch) {
-                push(@results, @$row > 1 ? $row : $row->[0]);
-                #*** when we ask for a node neo4j will return the full details of the node, but it seems like neo4p only creates an object consisting of the id? maybe we should avoid object construction entirely and only return ID(node)?
+        my $decode = $json->decode($resp->content);
+        
+        my $errors = $decode->{errors};
+        if (@$errors) {
+            my $error = $errors->[0];
+            $self->throw('[' . $error->{code} . '] ' . $error->{message});
+            #*** should auto-retry when the code matches TransientError
+        }
+        
+        my $data = $decode->{results}->[0]->{data};
+        my (%nodes, %relationships);
+        my $label_regex = qr/^$global_label\|([^\|]+)\|(.+)/;
+        foreach my $hash (@$data) {
+            my $graph = $hash->{graph} || next;
+            foreach my $node_details (@{ $graph->{nodes} || [] }) {
+                my $node_id = $node_details->{id};
+                next if exists $nodes{$node_id};
+                
+                # for speed reasons we don't create objects for nodes but just
+                # return the a hash and provide methods to extract stuff from
+                # the hash
+                
+                # convert labels to namespace and label
+                my ($namespace, $label);
+                my $ok = 0;
+                foreach my $this_label (@{ $node_details->{labels} }) {
+                    if ($this_label =~ /$label_regex/) {
+                        $namespace = $1;
+                        $label     = $2;
+                        $ok        = 1;
+                        last;
+                    }
+                    elsif ($this_label eq $global_label) {
+                        $ok = 1;
+                    }
+                }
+                $ok || next; # only return nodes created by us
+                
+                my $node = { id => $node_id, properties => $node_details->{properties}, namespace => $namespace, label => $label };
+                $nodes{$node_id} = $node;
             }
-            return @results;
+            
+            foreach my $rel_details (@{ $graph->{relationships} || [] }) {
+                my $rel_id = $rel_details->{id};
+                next if exists $relationships{$rel_id};
+                
+                # skip relationships if we skipped one of its nodes
+                next unless (exists $nodes{ $rel_details->{startNode} } && exists $nodes{ $rel_details->{endNode} });
+                
+                # again for speed reasons we just return the raw hash; this is
+                # more useful that applying the details to the nodes since this
+                # is the format needed for graph display
+                $relationships{$rel_id} = $rel_details;
+            }
         }
+        
+        if (defined wantarray()) {
+            return { nodes => [values %nodes], relationships => [values %relationships] };
+        }
+        return;
     }
     
     method drop_database {
         $self->throw("drop_database() can only be used when testing") unless $global_label =~ /^vdt/;
         
         # drop all schemas (which drops all constraints and indexes)
-        my @schema_nodes = $self->_run_cypher("MATCH (n:$schema_labels) RETURN n");
+        my @schema_nodes = @{ $self->_run_cypher("MATCH (n:$schema_labels) RETURN n")->{nodes} };
         foreach my $node (@schema_nodes) {
-            my $schema = $node->get_property('schema');
+            my $schema = $self->node_property($node, 'schema');
             my (undef, $namespace, $label) = split(/\|/, $schema);
             $self->drop_schema(namespace => $namespace, label => $label);
         }
@@ -139,7 +230,7 @@ class VRPipe::Persistent::Graph {
         
         # have we already done this?
         my $dsl = $self->_deployment_specific_label($namespace, $label);
-        my ($done) = $self->_run_cypher("MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n");
+        my ($done) = @{ $self->_run_cypher("MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n")->{nodes} };
         unless ($done) {
             # set constraints (which also adds an index on the constraint)
             foreach my $field (@$unique) {
@@ -176,11 +267,11 @@ class VRPipe::Persistent::Graph {
             return @{ $schemas->{$dsl} };
         }
         else {
-            my ($schema) = $self->_run_cypher("MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n");
+            my ($schema) = @{ $self->_run_cypher("MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n")->{nodes} };
             if ($schema) {
-                my $uniques  = [split(/\|/, $schema->get_property('unique'))];
-                my $indexed  = [split(/\|/, $schema->get_property('indexed') || '')];
-                my $required = [split(/\|/, $schema->get_property('required') || '')];
+                my $uniques  = [split(/\|/, $self->node_property($schema, 'unique'))];
+                my $indexed  = [split(/\|/, $self->node_property($schema, 'indexed') || '')];
+                my $required = [split(/\|/, $self->node_property($schema, 'required') || '')];
                 $schemas->{$dsl} = [$uniques, $indexed, $required];
                 return ($uniques, $indexed, $required);
             }
@@ -207,7 +298,7 @@ class VRPipe::Persistent::Graph {
     }
     
     sub _labels_and_param_map {
-        my ($self, $namespace, $label, $params, $check_required) = @_;
+        my ($self, $namespace, $label, $params, $param_key, $check_required) = @_;
         
         # check that we have a schema for this
         my ($uniques, $indexed, $required) = $self->get_schema(namespace => $namespace, label => $label);
@@ -220,25 +311,24 @@ class VRPipe::Persistent::Graph {
         }
         
         my $labels = "`$global_label`:`$global_label|$namespace|$label`";
-        my $param_map = $params ? ' { ' . join(', ', map { "$_: {param}.$_" } sort keys %$params) . ' }' : '';
+        my $param_map = $params ? ' { ' . join(', ', map { "$_: {$param_key}.$_" } sort keys %$params) . ' }' : '';
         return ($labels, $param_map);
     }
     
     method add_node (Str :$namespace!, Str :$label!, HashRef :$properties!) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties, 1);
+        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties, 'param', 1);
         
         if (defined wantarray()) {
-            my ($node) = $self->_run_cypher("MERGE (n:$labels$param_map) RETURN n", $properties);
+            my ($node) = @{ $self->_run_cypher("MERGE (n:$labels$param_map) RETURN n", { 'param' => $properties })->{nodes} };
             return $node;
         }
         else {
-            $self->_run_cypher("MERGE (:$labels$param_map)", $properties);
+            $self->_run_cypher("MERGE (:$labels$param_map)", { 'param' => $properties });
         }
     }
     
-    method delete_node (Object $node!) {
-        my $id = $node->id();
-        $self->_run_cypher("START n=node($id) MATCH n-[r]-() DELETE n, r");
+    method delete_node (HashRef $node!) {
+        $self->_run_cypher("START n=node($node->{id}) MATCH n-[r]-() DELETE n, r");
         return 1;
     }
     
@@ -246,23 +336,100 @@ class VRPipe::Persistent::Graph {
         return $data_uuid->create_str();
     }
     
-    method get_nodes (Str :$namespace!, Str :$label!, HashRef :$properties!) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties);
-        return $self->_run_cypher("MATCH (n:$labels$param_map) RETURN n", $properties);
+    method get_nodes (Str :$namespace!, Str :$label!, HashRef :$properties?) {
+        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties, 'param');
+        return @{ $self->_run_cypher("MATCH (n:$labels$param_map) RETURN n", { 'param' => $properties })->{nodes} };
     }
     
-    method relate (Object $start_node!, Object $end_node!, Str $relationship!) {
-        #*** is there a benefit to constructing our own cypher query here instead?
-        return $start_node->relate_to($end_node, $relationship);
+    method node_id (HashRef $node!) {
+        if (defined $node->{id}) {
+            return $node->{id};
+        }
     }
     
-    method related_nodes (Object $start_node!, Str :$namespace!, Str :$label!, HashRef :$properties?, Str :$relationship?, Str :$direction?, Int :$min_depth = 1, Int :$max_depth = 1) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties);
-        my $type = $relationship ? ":`$relationship`" : '';
-        $direction ||= '';
-        my $leftward  = $direction eq '<' ? '<' : '';
-        my $rightward = $direction eq '>' ? '>' : '';
-        return $self->_run_cypher("START start=node(" . $start_node->id . ") MATCH (start)$leftward-[$type*$min_depth..$max_depth]-$rightward(n:$labels$param_map) RETURN n", $properties);
+    method node_namespace_and_label (HashRef $node!) {
+        if (defined $node->{namespace} && defined $node->{label}) {
+            return ($node->{namespace}, $node->{label});
+        }
+    }
+    
+    method node_property (HashRef $node!, Str $property!) {
+        if (exists $node->{properties} && defined $node->{properties}->{$property}) {
+            return $node->{properties}->{$property};
+        }
+    }
+    
+    method relate (HashRef $start_node!, HashRef $end_node!, Str :$type!) {
+        return @{
+            $self->_run_cypher(
+                "START a=node($start_node->{id}), b=node($end_node->{id}) CREATE (a)-[r:$type]->(b)
+RETURN r"
+            )->{relationships}
+        };
+    }
+    
+    # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
+    # namespace, label, properties}, where the later 3 are result node specs and
+    # with depths defaulting to 1 and others defaulting to undef; none supplied
+    # defaults to undirected {min_depth => 1, max_depth => 1}
+    # This returns hash of nodes and relationships for use by frontends;
+    # related_nodes() calls this and returns just a list of nodes
+    sub related {
+        my ($self, $start_node, $undirected, $incoming, $outgoing, $result_nodes_only) = @_;
+        $self->throw("undirected is mutually exclusive of in/outgoing") if $undirected && ($outgoing || $incoming);
+        if (!$outgoing && !$incoming && !$undirected) {
+            $undirected = { min_depth => 1, max_depth => 1 };
+        }
+        
+        my $start_id = $self->node_id($start_node);
+        if ($undirected) {
+            my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
+            my $return = $result_nodes_only ? 'u' : 'p';
+            return $self->_run_cypher("START start=node($start_id) MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) RETURN $return", { 'param' => $properties });
+        }
+        else {
+            my (%all_properties, @return);
+            my $left = '';
+            if ($incoming) {
+                my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($incoming, 'left');
+                $left = "(l$result_node_spec)-[$type*$min_depth..$max_depth]->";
+                push(@return, 'l');
+                $all_properties{left} = $properties if $properties;
+            }
+            my $right = '';
+            if ($outgoing) {
+                my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($outgoing, 'right');
+                $right = "-[$type*$min_depth..$max_depth]->(r$result_node_spec)";
+                push(@return, 'r');
+                $all_properties{right} = $properties if $properties;
+            }
+            
+            my $return;
+            if ($result_nodes_only) {
+                $return = join(', ', @return);
+            }
+            else {
+                $return = 'p';
+            }
+            return $self->_run_cypher("START start=node($start_id) MATCH p = $left(start)$right RETURN $return", keys %all_properties ? \%all_properties : ());
+        }
+    }
+    
+    sub _related_nodes_hashref_parse {
+        my ($self, $hashref, $param_key) = @_;
+        my $type = $hashref->{type} ? ":`$hashref->{type}`" : '';
+        my $min_depth = $hashref->{min_depth} || 1;
+        my $max_depth = $hashref->{max_depth} || $min_depth;
+        my $result_node_spec = '';
+        if ($hashref->{namespace} && $hashref->{label}) {
+            my ($labels, $param_map) = $self->_labels_and_param_map($hashref->{namespace}, $hashref->{label}, $hashref->{properties}, $param_key);
+            $result_node_spec = ':' . $labels . $param_map;
+        }
+        return ($result_node_spec, $hashref->{properties}, $type, $min_depth, $max_depth);
+    }
+    
+    method related_nodes (HashRef $start_node!, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
+        return @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1)->{nodes} };
     }
 }
 
